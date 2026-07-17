@@ -1155,14 +1155,18 @@ async def test_limits_route_key_requires_pair() -> None:
 class _RecordingLive:
     """A fake live logger that collects recorded config updates."""
 
-    def __init__(self, fail: bool = False) -> None:
+    def __init__(self, fail: bool = False, finished: bool = False) -> None:
         self.updates: list[Any] = []
         self.fail = fail
+        self.finished = finished
         self.log_buffer = 10
 
     async def log_config_update(self, update: Any) -> bool:
         if self.fail:
             raise RuntimeError("boom")
+        if self.finished:
+            # mirrors TaskLogger: a finished log declines the record
+            return False
         self.updates.append(update)
         return True
 
@@ -1272,6 +1276,68 @@ async def test_config_update_process_scope_fans_out_to_all_live_logs() -> None:
         # no prior override: previous is filled per-log from launch config
         # (by TaskLogger), so the applier-level record leaves it None
         assert change.previous is None
+
+
+async def test_config_update_process_scope_skips_finished_logs() -> None:
+    """A finished log declines the record without reading as a failure."""
+    from inspect_ai._control.limits import process_limits
+
+    done = _RecordingLive(finished=True)
+    running = _RecordingLive()
+    _register_with_live("e1", "t1", done)
+    _register_with_live("e2", "t2", running)
+
+    result = await process_limits(timeout=120)
+    # the running task's log recorded the change — the earlier-finished
+    # sibling's decline must not flip persisted to False
+    assert result["persisted"] == {"timeout": True}
+    assert done.updates == []
+    assert len(running.updates) == 1
+
+
+async def test_config_update_process_scope_all_finished_reports_unpersisted() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    done = _RecordingLive(finished=True)
+    _register_with_live("e1", "t1", done)
+
+    result = await process_limits(timeout=120)
+    # applied, but no live log carries the record
+    assert result["persisted"] == {"timeout": False}
+    assert done.updates == []
+
+
+async def test_config_update_partial_fanout_failure_reports_unpersisted() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    ok = _RecordingLive()
+    bad = _RecordingLive(fail=True)
+    _register_with_live("e1", "t1", ok)
+    _register_with_live("e2", "t2", bad)
+
+    result = await process_limits(timeout=120)
+    assert result["persisted"] == {"timeout": False}
+    # the record still landed where it could
+    assert len(ok.updates) == 1
+
+
+async def test_config_update_model_filter_stamped_in_provenance() -> None:
+    """A --model-filtered max_connections retune records the filter."""
+    from inspect_ai._control.limits import process_limits
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await _register_controller(name="openai/gpt-4", max=100, start=50)
+    await _register_controller(name="anthropic/claude", max=100, start=50)
+
+    result = await process_limits(max_connections=30, model="claude")
+    assert result["persisted"] == {"max_connections": True}
+    assert live.updates[0].provenance.metadata == {"max_connections_model": "claude"}
+
+    # an unfiltered retune carries no filter metadata
+    live.updates.clear()
+    await process_limits(max_connections=40)
+    assert live.updates[0].provenance.metadata == {}
 
 
 async def test_config_update_mixed_scopes_split_by_scope() -> None:

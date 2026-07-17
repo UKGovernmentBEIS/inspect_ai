@@ -36,7 +36,7 @@ So: **every current and planned knob except `--key` has a recorded counterpart**
 
 Two mappings deserve a caveat:
 
-- **`--max-connections` is a knob over live controllers, not a config field write.** On the adaptive-connections path it retunes each `AdaptiveConcurrencyController`'s scaling ceiling; the recorded `GenerateConfig.max_connections` is a per-model launch value and a process may host several models with different configs. The recorded field is the knob's closest counterpart, not an exact alias.
+- **`--max-connections` is a knob over live controllers, not a config field write.** On the adaptive-connections path it retunes each `AdaptiveConcurrencyController`'s scaling ceiling; the recorded `GenerateConfig.max_connections` is a per-model launch value and a process may host several models with different configs. The recorded field is the knob's closest counterpart, not an exact alias. A retune restricted with `--model` never touched the other models' controllers, yet its record fans out to every live task log — so the filter is stamped into the record (`provenance.metadata["max_connections_model"]`), letting a reader distinguish a filtered retune from a global one before trusting the folded value for a given log's model.
 - **The retry knobs are consulted at point-of-use, not merged into any `GenerateConfig`** (`_generate_overrides.py`), and they're deliberately excluded from eval-set task identity (`_GENERATE_CONFIG_FIELDS_TO_EXCLUDE` in `src/inspect_ai/_eval/evalset.py`).
 
 Both caveats push the same direction: persist changes as **records of what was retuned**, not as rewrites of the recorded config objects.

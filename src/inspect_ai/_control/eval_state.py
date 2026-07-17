@@ -101,7 +101,11 @@ if TYPE_CHECKING:
             ...
 
         def log_config_update(self, update: ConfigUpdate) -> Awaitable[bool]:
-            """Record a mid-run config change into the log; False if not recorded."""
+            """Record a mid-run config change into the log.
+
+            ``False`` means the logger *declined* because its log has already
+            finished (its record is complete — not a failure; failures raise).
+            """
             ...
 
     # Async accessor for a reused eval's summaries-derived stats, resolved

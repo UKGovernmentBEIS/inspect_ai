@@ -178,6 +178,7 @@ async def process_limits(
         process_changes=views.applied,
         author=author,
         reason=reason,
+        metadata=views.record_metadata,
     )
     return {
         "dry_run": dry_run,
@@ -417,6 +418,7 @@ async def task_limits(
         process_changes=views.applied,
         author=author,
         reason=reason,
+        metadata=views.record_metadata,
     )
 
     # `tracks_adaptive` distinguishes the adaptive path (sample concurrency
@@ -478,6 +480,14 @@ class _ProcessKnobViews(NamedTuple):
     """Changes that actually took effect (for log recording): no-op re-sends
     of the current value, warn-and-skip knobs, dry runs, and the ``key`` knob
     (no recorded counterpart in the log) are excluded."""
+
+    record_metadata: dict[str, Any] | None
+    """Provenance metadata for the log record of ``applied``.
+
+    Carries ``max_connections_model`` when a ``max_connections`` change was
+    restricted with ``model``: the record fans out to every live task log,
+    so without the filter a reader couldn't tell a filtered retune (which
+    never touched some logs' models) from a global one."""
 
 
 def _single_previous(previous: list[int]) -> int | None:
@@ -551,6 +561,7 @@ def _apply_process_knobs(
     requested: dict[str, int | str] = {}
     warnings: list[str] = []
     applied: list[ConfigValueChange] = []
+    record_metadata: dict[str, Any] | None = None
 
     # max_sandboxes — the process-global sandbox limiters, one per sandbox type.
     sandboxes = sandbox_limiters()
@@ -636,6 +647,11 @@ def _apply_process_knobs(
                         previous=_single_previous(previous_maxes),
                     )
                 )
+                # a filtered retune never touched the other models' controllers,
+                # yet its record reaches every live log — stamp the filter so a
+                # reader can tell (see _ProcessKnobViews.record_metadata)
+                if model is not None:
+                    record_metadata = {"max_connections_model": model}
 
     # timeout / attempt_timeout / max_retries — the retry-loop override layer
     # (process-wide, read live by the generate retry loop). "clear" removes an
@@ -776,4 +792,5 @@ def _apply_process_knobs(
         requested=requested,
         warnings=warnings,
         applied=applied,
+        record_metadata=record_metadata,
     )

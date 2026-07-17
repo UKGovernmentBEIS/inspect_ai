@@ -2722,13 +2722,14 @@ def _compose_config(
         }
 
     # applied but unrecorded knobs surface as a warning (the change itself
-    # landed; only its eval-log record didn't — e.g. no live log to record in)
+    # landed; only its eval-log record didn't — e.g. no live log to record
+    # in, or a fan-out that failed for some of the affected logs)
     persisted = limits_view.get("persisted")
     unrecorded_warnings = (
         [
             f"{', '.join(knob for knob, ok in persisted.items() if not ok)} "
-            "applied but not recorded in any eval log (the log will not "
-            "reflect this change)."
+            "applied but not recorded in one or more affected eval logs "
+            "(a log without the record will not reflect this change)."
         ]
         if isinstance(persisted, dict) and not all(persisted.values())
         else []

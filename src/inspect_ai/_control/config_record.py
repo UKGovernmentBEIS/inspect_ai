@@ -28,6 +28,8 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from pydantic import JsonValue
+
     from inspect_ai._control.eval_state import LiveEvalData
     from inspect_ai.log._config_update import ConfigUpdate, ConfigValueChange
 
@@ -79,10 +81,15 @@ def _resolve_author(author: str | None) -> str:
 
 async def _record_to(
     live: "LiveEvalData", update: "ConfigUpdate", log_location: str
-) -> bool:
-    """Record ``update`` into one live log, degrading failure to a warning."""
+) -> bool | None:
+    """Record ``update`` into one live log, degrading failure to a warning.
+
+    Returns ``True`` when the record was written, ``None`` when the logger
+    declined because its log has already finished (a complete log is not a
+    recording target — not a failure), and ``False`` when recording failed.
+    """
     try:
-        return await live.log_config_update(update)
+        return True if await live.log_config_update(update) else None
     except Exception as ex:
         logger.warning(
             "Could not record config update in eval log %s: %s", log_location, ex
@@ -97,6 +104,7 @@ async def record_config_changes(
     process_changes: "list[ConfigValueChange]",
     author: str | None = None,
     reason: str | None = None,
+    metadata: "dict[str, JsonValue] | None" = None,
 ) -> dict[str, bool] | None:
     """Persist applied config changes into the affected eval logs.
 
@@ -105,13 +113,19 @@ async def record_config_changes(
     knobs record nothing). One ``ConfigUpdate`` is written per scope:
     task-scoped changes go to ``task_id``'s live log; process-scoped changes
     fan out to every live task log in the process and join the run-scoped
-    inheritance list. Both updates from one PATCH share provenance.
+    inheritance list. Both updates from one PATCH share provenance
+    (``metadata`` rides in ``provenance.metadata`` — e.g. the model filter a
+    ``max_connections`` retune was restricted to).
 
     Returns a per-knob ``persisted`` map (``True`` when the change was
     recorded in every targeted log, and at least one log was targeted), or
     ``None`` when there was nothing to record — the shape the result
-    envelope's ``persisted`` field reports. Never raises for a recording
-    failure (requirement: the record never blocks the retune).
+    envelope's ``persisted`` field reports. A logger whose log has already
+    finished declines the record (its record is complete — the change never
+    governed it) and does not count as a target, so a process-scoped retune
+    in a multi-task run isn't reported unpersisted just because an earlier
+    task finished. Never raises for a recording failure (requirement: the
+    record never blocks the retune).
     """
     from inspect_ai._control.eval_state import get_eval_states, latest_eval_for_task
     from inspect_ai.log._config_update import ConfigUpdate
@@ -120,7 +134,9 @@ async def record_config_changes(
     if not task_changes and not process_changes:
         return None
 
-    provenance = ProvenanceData(author=_resolve_author(author), reason=reason)
+    provenance = ProvenanceData(
+        author=_resolve_author(author), reason=reason, metadata=metadata or {}
+    )
     persisted: dict[str, bool] = {}
 
     if task_changes:
@@ -128,7 +144,9 @@ async def record_config_changes(
         recorded = False
         state = latest_eval_for_task(task_id) if task_id else None
         if state is not None and state.live is not None:
-            recorded = await _record_to(state.live, update, state.log_location)
+            # a decline (finished log) leaves no target, so it reads as
+            # unrecorded here — honest for a single-log scope
+            recorded = await _record_to(state.live, update, state.log_location) is True
         for change in task_changes:
             persisted[change.name] = recorded
 
@@ -138,7 +156,8 @@ async def record_config_changes(
         )
         _process_updates.append(update)
         # every task log currently live in the process gets the record (a
-        # logger can back several registered attempts; record to it once)
+        # logger can back several registered attempts; record to it once);
+        # finished logs decline (None) and drop out of the persisted fold
         results: list[bool] = []
         seen: set[int] = set()
         for state in get_eval_states():
@@ -146,7 +165,9 @@ async def record_config_changes(
             if live is None or id(live) in seen:
                 continue
             seen.add(id(live))
-            results.append(await _record_to(live, update, state.log_location))
+            result = await _record_to(live, update, state.log_location)
+            if result is not None:
+                results.append(result)
         recorded = bool(results) and all(results)
         for change in process_changes:
             persisted[change.name] = recorded

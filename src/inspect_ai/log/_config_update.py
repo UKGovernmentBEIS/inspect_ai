@@ -117,7 +117,10 @@ def effective_generate_config(log: EvalLog) -> "GenerateConfig":
     `log.config_updates` applied in order. Note that `max_connections` is a
     knob over live per-model controllers: the folded value is the retuned
     ceiling — the honest answer to "what was it running at" — even though
-    the launch field is per-model.
+    the launch field is per-model. A retune restricted to particular models
+    carries the filter in `provenance.metadata["max_connections_model"]`
+    but folds in regardless; consult that metadata when the process hosted
+    several models.
 
     Args:
         log: Eval log.
