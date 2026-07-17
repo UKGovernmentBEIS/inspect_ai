@@ -52,9 +52,14 @@ def html_escape_markdown(content: str) -> str:
         if token.type in ("fence", "code_block") and token.map:
             code_lines.update(range(token.map[0], token.map[1]))
 
+    # Split the way the tokenizer counts lines: it normalizes \r\n and \r to \n,
+    # whereas str.splitlines() also breaks on \v, \f, \x1c-\x1e, \x85, and the
+    # Unicode line separators \u2028/\u2029. Those extra breaks would shift our
+    # indices out of step with token.map and mis-tag an HTML line as code.
+    lines = content.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     return "\n".join(
         line if i in code_lines else html.escape(line, quote=False)
-        for i, line in enumerate(content.splitlines())
+        for i, line in enumerate(lines)
     )
 
 
