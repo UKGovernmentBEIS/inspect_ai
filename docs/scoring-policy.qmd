@@ -94,7 +94,7 @@ Deterministic machinery should not get the unscored escape hatch. Sandbox execut
 
 ### Unscoreable samples
 
-Some failures tell you nothing about the model, yet nothing malfunctioned either: the run worked, but the measurement instrument could not render a verdict on this sample after reasonable due diligence. The canonical case is a probabilistic instrument such as a grader model, which has an inherent, irreducible per-sample failure rate. Sometimes it emits a parseable verdict; sometimes it refuses or produces an unparseable one, and no retry or code fix will change that for this sample.
+Some failures tell you nothing about the model, yet nothing malfunctioned either: the run worked, but the measurement instrument could not render a verdict on this sample after reasonable due diligence. The canonical case is a probabilistic instrument such as a grader model, which has an inherent, irreducible per-sample failure rate. Sometimes it emits a parseable verdict; sometimes it refuses or produces an unparsable one, and no retry or code fix will change that for this sample.
 
 For these, return `Score.unscored()`. This produces a `Score` whose `value` is `NaN`, which Inspect excludes from metric computation and counts as `unscored_samples` on the `EvalScore` (see [Unscored Samples](custom-scorers.qmd#unscored-samples) for the API details):
 
@@ -131,7 +131,7 @@ When a model grades the model under test, the grader is the *measurement instrum
 3. **Use a capable, pinned grader.** A grader too weak to follow its own output format is an eval-validity problem to flag, not something to charge to the model. Pin its generation settings so grades are reproducible (see [Reproducible Grading](model-graded.qmd#reproducible-grading)).
 4. **Only then** return `Score.unscored()` for the residual, and report the grader-failure rate as a first-class number.
 
-The `raise` vs `unscored()` line still applies within grading: the grader *API call* raising or timing out is a malfunction → `raise` (the transport failed, not the verdict), whereas a well-formed-but-unparseable *verdict* after bounded retry is an instrument miss → `unscored()`.
+The `raise` vs `unscored()` line still applies within grading: the grader *API call* raising or timing out is a malfunction → `raise` (the transport failed, not the verdict), whereas a well-formed-but-unparsable *verdict* after bounded retry is an instrument miss → `unscored()`.
 
 ## Recording the reason
 
