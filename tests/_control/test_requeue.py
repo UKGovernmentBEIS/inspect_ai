@@ -405,6 +405,26 @@ async def test_requeue_accept_race_lands_on_pending_set(
     assert result["changed"] is False and "already pending" in result["reason"]
 
 
+async def test_requeue_stale_prior_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``accept``'s stale outcome maps to a rejection, not an accept.
+
+    A directive whose reads straddled a full accept → re-run → terminal
+    cycle holds a prior record that was already requeued — re-running it
+    would target a possibly-completed sample.
+    """
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable(
+        prior=_errored_sample(),
+        handle=_FakeRequeueHandle(accept_outcome="stale"),
+    )
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "re-issue the requeue" in result["error"]
+
+
 async def test_requeue_finished_during_resolver_reads_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -473,6 +493,30 @@ async def test_scheduler_runs_plan_keyed() -> None:
     results = await scheduler.run([(0, 1), (1, 1), (0, 2)], run_sample)
     assert results == {(0, 1): "0:1", (1, 1): "1:1", (0, 2): "0:2"}
     assert not scheduler.open
+
+
+async def test_scheduler_returns_results_in_plan_order() -> None:
+    """Results come back in plan order, not completion order.
+
+    Epoch reducers (`mode` tie-breaks by first occurrence) and the logged
+    reductions depend on the deterministic order `tg_collect` returned.
+    """
+    scheduler = SampleScheduler()
+    second_done = anyio.Event()
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        if epoch == 1:
+            with anyio.fail_after(30):
+                await second_done.wait()
+        else:
+            second_done.set()
+        return f"{sample_index}:{epoch}"
+
+    plan = [(0, 1), (0, 2)]
+    results = await scheduler.run(plan, run_sample)
+    assert list(results.keys()) == plan
 
 
 async def test_scheduler_rejects_requeue_after_drain() -> None:
@@ -640,6 +684,80 @@ async def test_sample_requeue_accept_reconciles_counters() -> None:
         release_waiter.set()
 
     assert results[(0, 1)] == "fresh"
+
+
+async def test_sample_requeue_accept_stale_prior_refused() -> None:
+    """A prior record already requeued once is refused after its re-run ends.
+
+    The pending key clears at the re-run's terminal outcome, so a directive
+    whose reads straddled the whole accept → re-run → terminal cycle would
+    otherwise get its stale errored ``prior`` accepted — re-running a
+    now-completed sample and double-decrementing the counters. A re-read of
+    the re-run's own terminal record (fresh uuid) still passes.
+    """
+    register_eval("e1", 2, task_id="t1")
+    record_sample_errored("e1")
+    handler = SampleErrorHandler(False, 2)
+    handler.error_count = 1
+
+    scheduler = SampleScheduler()
+    handle = SampleRequeue(
+        eval_id="e1",
+        scheduler=scheduler,
+        sample_error=handler,
+        sample_indexes={"s1": 0, "s2": 1},
+        checkpoints_dir=None,
+        on_accept=lambda: None,
+    )
+    prior = EvalSample(
+        id="s1", epoch=1, input="q", target="a", error=_error(), uuid="prior-attempt"
+    )
+
+    release_waiter = anyio.Event()
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior_arg: EvalSample | None
+    ) -> str:
+        if sample_index == 0:
+            return "fresh" if prior_arg is not None else "failed"
+        with anyio.fail_after(30):
+            await release_waiter.wait()
+        return "waited"
+
+    async with anyio.create_task_group() as tg:
+
+        async def go() -> None:
+            await scheduler.run([(0, 1), (1, 1)], run_sample)
+
+        tg.start_soon(go)
+        with anyio.fail_after(30):
+            while not scheduler.open:
+                await anyio.sleep(0.01)
+
+        assert handle.accept(prior, "error") == "accepted"
+        # wait for the re-run to reach its terminal outcome
+        with anyio.fail_after(30):
+            while handle.is_pending("s1", 1):
+                await anyio.sleep(0.01)
+
+        # the same record again is stale — and reconciles nothing
+        assert handle.accept(prior, "error") == "stale"
+        state = get_eval_state("e1")
+        assert state is not None and state.errored == 0
+        assert handler.error_count == 0
+
+        # a genuine re-requeue after a second failure carries a fresh uuid
+        second_failure = EvalSample(
+            id="s1",
+            epoch=1,
+            input="q",
+            target="a",
+            error=_error(),
+            uuid="rerun-attempt",
+        )
+        assert handle.accept(second_failure, "error") == "accepted"
+
+        release_waiter.set()
 
 
 async def test_sample_requeue_accept_unknown_sample() -> None:

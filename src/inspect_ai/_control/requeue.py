@@ -41,7 +41,11 @@ async def requeue_sample(
     again, synchronously, inside the handle's ``accept`` — the check here is
     a fast path, but two directives racing past this resolver's async reads
     still can't double-queue. After the re-run reaches a terminal outcome
-    the set is clear and the sample is genuinely requeueable again.
+    the set is clear and the sample is genuinely requeueable again — but
+    only from a fresh read: ``accept`` refuses a prior record whose uuid it
+    has accepted before (``stale`` → 409), so a directive whose reads
+    straddled a full accept → re-run → terminal cycle can't re-run a
+    now-completed sample.
 
     ``dry_run`` reports what would be re-run — the resolved target, its
     prior error and retry count, the attempt number the re-run would be,
@@ -160,6 +164,13 @@ async def requeue_sample(
             "status": "queued",
             "reason": "a requeue of this sample is already pending",
         }
+    if outcome == "stale":
+        return _reject(
+            "the sample's state changed while this request was resolving "
+            "(its prior outcome was already requeued and the re-run has "
+            "since finished) — re-issue the requeue to act on its current "
+            "status"
+        )
     if outcome == "closed":
         return _reject(
             "task is no longer accepting samples (the sample fanout has "

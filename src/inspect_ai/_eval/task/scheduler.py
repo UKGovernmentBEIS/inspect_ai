@@ -8,7 +8,8 @@ the control channel's sample-requeue directive, starting each re-run inside
 the group — a route handler must not ``start_soon`` into a nursery it isn't
 inside. Results collect into a dict keyed by ``(sample_index, epoch)`` so a
 re-run's fresh score replaces the prior attempt's entry (metrics follow the
-log, which supersedes by the same key). The fanout closes when no sample is
+log, which supersedes by the same key), returned in plan order like the
+``tg_collect`` list it replaces. The fanout closes when no sample is
 outstanding and nothing is pending; a requeue after that is rejected.
 
 :class:`SampleScheduler` is the generic fanout (the shared enabler the
@@ -38,13 +39,16 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
-RequeueOutcome = Literal["accepted", "already_pending", "closed", "unknown"]
+RequeueOutcome = Literal["accepted", "already_pending", "stale", "closed", "unknown"]
 """Result of :meth:`SampleRequeue.accept`.
 
 ``already_pending`` is the idempotent double-queue guard (a requeue for this
 key was already accepted and its re-run hasn't reached a terminal outcome);
-``closed`` means the fanout has drained (nothing outstanding to keep the task
-open); ``unknown`` means the sample id isn't part of this attempt's plan.
+``stale`` means this exact terminal record was accepted once before — the
+caller's reads straddled a full accept → re-run → terminal cycle, so its
+``prior`` no longer describes the sample's current state; ``closed`` means
+the fanout has drained (nothing outstanding to keep the task open);
+``unknown`` means the sample id isn't part of this attempt's plan.
 """
 
 
@@ -108,7 +112,10 @@ class SampleScheduler:
         Exception semantics match ``tg_collect`` (which this replaces): the
         first inner exception propagates (tearing the group down), so a
         sample error under strict ``fail_on_error`` still aborts the task
-        exactly as before.
+        exactly as before. Results also come back in **plan order**, matching
+        ``tg_collect``: insertion order is completion order, which would make
+        epoch-reducer inputs (``mode`` tie-breaks by first occurrence) and
+        the logged reductions nondeterministic run to run.
         """
         results: dict[tuple[int, int], T] = {}
         # count the full plan before the first await so `open` (which the
@@ -154,7 +161,8 @@ class SampleScheduler:
             # task (a leaked key renders the sample `queued` forever).
             while self._pending:
                 self._pending.pop().on_terminal()
-        return results
+        # re-runs replace at the same key, so the plan covers every key
+        return {key: results[key] for key in plan if key in results}
 
 
 class SampleRequeue:
@@ -188,6 +196,13 @@ class SampleRequeue:
         # records its terminal outcome (including the park at the sample
         # semaphore, where the re-run has no ActiveSample yet)
         self._pending: set[tuple[str, int]] = set()
+        # uuids of prior records already accepted once: a directive whose
+        # reads straddled a full accept → re-run → terminal cycle arrives
+        # with a stale `prior` after the pending key has cleared, and
+        # accepting it would re-run a possibly-completed sample (and
+        # double-decrement the counters). A legitimate re-requeue after a
+        # second failure carries the re-run's fresh uuid, so it still passes.
+        self._accepted_uuids: set[str] = set()
 
     @property
     def open(self) -> bool:
@@ -224,7 +239,10 @@ class SampleRequeue:
         Synchronous end to end — pending-set check, enqueue, and counter
         reconciliation run with no await point, so a double requeue (two
         directives racing past the resolver's async reads) resolves here
-        atomically. Reconciliation: the prior terminal bucket is decremented
+        atomically. A ``prior`` whose uuid was accepted once already is
+        refused as ``stale`` — it enforces the invariant that each requeue
+        requires the previous re-run to have reached a terminal outcome
+        *and been re-read* first. Reconciliation: the prior terminal bucket is decremented
         (usage is kept — the prior spend was real; the re-run bumps a bucket
         again at its own terminal outcome) and an errored prior's
         ``SampleErrorHandler.error_count`` is un-counted so end-of-task
@@ -235,6 +253,8 @@ class SampleRequeue:
         key = (str(prior.id), prior.epoch)
         if key in self._pending:
             return "already_pending"
+        if prior.uuid is not None and prior.uuid in self._accepted_uuids:
+            return "stale"
         sample_index = self._sample_indexes.get(str(prior.id))
         if sample_index is None:
             return "unknown"
@@ -250,6 +270,8 @@ class SampleRequeue:
         if not accepted:
             self._pending.discard(key)
             return "closed"
+        if prior.uuid is not None:
+            self._accepted_uuids.add(prior.uuid)
         record_sample_requeued(self._eval_id, prior_status)
         if prior_status == "error":
             self._sample_error.error_count -= 1
