@@ -99,6 +99,14 @@ jobs:
       # source, default @claude and only switch to @i-am-marvin when that's
       # what's present; the trailing @claude covers the `claude` label event and
       # is a harmless fallback.
+      # Caveat: this pick is substring-based (workflow expressions have no
+      # regex), so it also SELECTS which phrase the action then re-checks with
+      # word boundaries. In the contrived case where the other phrase appears
+      # only as a NON-triggering substring (backticked, or glued into a token
+      # like foo@i-am-marvin) a genuine trigger can be mis-resolved and no-op,
+      # not merely cost gate minutes. Accepted: the collision needs someone to,
+      # in one comment, write one phrase for real and the other as a bare
+      # substring — and both phrases route to the same dev agent anyway.
       trigger_phrase: >-
         ${{
         github.event.comment && (contains(github.event.comment.body, '@i-am-marvin') && '@i-am-marvin' || '@claude') ||
