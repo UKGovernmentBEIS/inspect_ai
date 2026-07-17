@@ -1,6 +1,6 @@
 """Per-sample transcript event pages for the control channel.
 
-Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl events``): a
+Backs ``GET /evals/<id>/sample/events`` (and ``inspect ctl sample events``): a
 **cursored-pull** window over one sample's events, read from its live
 ``Transcript`` while running, and once terminal from the recorder's
 sample, the realtime buffer (via the eval's events provider — the
@@ -68,7 +68,8 @@ class EventsSource(NamedTuple):
 
 # Default event-type filter: the "high-signal" tier a monitor cares about,
 # excluding the structural / high-volume tier (state / store / span / step / …)
-# which would drown the stream. ``--type '*'`` opts back into everything.
+# which would drown the stream. ``--type all`` (or the ``'*'`` synonym) opts
+# back into everything.
 HIGH_SIGNAL_EVENT_TYPES = frozenset(
     {
         "model",
@@ -139,8 +140,10 @@ async def sample_events(
         epoch: The sample epoch.
         since: Cursor token from a prior page (resume after it). Exclusive.
         tail: When ``since`` is absent, start ``tail`` events from the end.
-        types: Event-type filter; ``None`` = the high-signal tier, an empty-vs-
-            ``{"*"}`` set means "all". Applied after the cursor slice.
+        types: Event-type filter; ``None`` = the high-signal tier; a set
+            containing ``"all"`` or ``"*"`` means everything (safe magic
+            values — no event type carries either name). Applied after the
+            cursor slice.
         full: Raw serialized events instead of the compact projection.
         since_time: Optional lower bound (unix ts) — a wall-clock filter applied
             after the cursor slice, never a cursor.
@@ -227,20 +230,18 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
     evicted with no provider to recover it (a bounded transcript without
     realtime logging — not a production configuration).
     """
-    from inspect_ai.log._samples import active_samples
+    from inspect_ai._control.state import find_active_sample
 
-    for s in active_samples():
-        if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
-            history = s.transcript.history
-            return EventsSource(
-                nonce=_attempt_nonce(
-                    s.sample_uuid, s.sample.id, epoch, len(s.error_retries)
-                ),
-                fetch=history.events_from,
-                total=history.event_count,
-                done=s.completed is not None,
-            )
-    return None
+    s = find_active_sample(eval_id, sample_id, epoch)
+    if s is None:
+        return None
+    history = s.transcript.history
+    return EventsSource(
+        nonce=_attempt_nonce(s.sample_uuid, s.sample.id, epoch, len(s.error_retries)),
+        fetch=history.events_from,
+        total=history.event_count,
+        done=s.completed is not None,
+    )
 
 
 async def _logged_source(
@@ -371,7 +372,7 @@ def _filter(
     until: float | None,
 ) -> list["Event"]:
     """Apply the type filter (default = high-signal) and time window."""
-    allow_all = types is not None and "*" in types
+    allow_all = types is not None and bool(types & {"all", "*"})
     type_set = HIGH_SIGNAL_EVENT_TYPES if types is None else types
 
     out: list["Event"] = []
@@ -425,6 +426,7 @@ def _project(event: "Event", full: bool) -> dict[str, Any]:
         out["error"] = getattr(err, "message", None) if err else None
     elif et == "info":
         out["source"] = getattr(event, "source", None)
+        out["data"] = _truncate(_to_text(getattr(event, "data", None)))
     return out
 
 

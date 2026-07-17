@@ -10,7 +10,7 @@ def match_name_prefix(
     """Match items by name at the name's start or after a ``/``, exact-wins.
 
     The shared selector rule for user-supplied name queries (CLI task names,
-    ``ctl limits --model``): ``query`` matches an item whose name starts with
+    ``ctl config --model``): ``query`` matches an item whose name starts with
     it or whose final path segment starts with it (so ``gpqa`` matches
     ``inspect_evals/gpqa_diamond``, and ``gpt-4`` matches ``openai/gpt-4``).
     An exact full-name or leaf match narrows the result to just the exact

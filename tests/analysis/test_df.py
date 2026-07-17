@@ -315,6 +315,20 @@ def test_samples_df_columns():
     assert "log" in df.columns
 
 
+def test_samples_df_includes_turn_and_token_limit_usage_columns():
+    df = samples_df(LOGS_DIR, columns=SampleSummary)
+    assert "turn_count" in df.columns
+    assert "token_limit_usage" in df.columns
+
+
+def test_evals_df_includes_token_limit_type_column():
+    from inspect_ai.analysis._dataframe.evals.columns import EvalConfiguration
+
+    df = evals_df(LOGS_DIR, columns=EvalConfiguration)
+    assert "token_limit" in df.columns
+    assert "token_limit_type" in df.columns
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34
