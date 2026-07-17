@@ -598,7 +598,6 @@ async def run_multiple(
     # pause-state change (a resume must re-evaluate dispatch)
     wake = _Wake()
     feed.set_wake(wake.set)
-    add_dispatch_waker(wake.set)
 
     def add(options: list[TaskRunOptions]) -> None:
         nonlocal next_index
@@ -626,6 +625,10 @@ async def run_multiple(
     async with display().task_screen(task_specs(tasks), parallel=True) as screen:
         init_task_screen(screen)
         try:
+            # registered inside the try so the remove in the finally below
+            # always runs (a failure in task_screen setup would otherwise
+            # leak the waker into the module-level registry)
+            add_dispatch_waker(wake.set)
             async with anyio.create_task_group() as tg:
 
                 async def run_one(idx: int, options: TaskRunOptions) -> None:
@@ -757,7 +760,6 @@ async def run_task_retry_attempts(
     # pause-state change (a resume must re-evaluate dispatch)
     wake = _Wake()
     feed.set_wake(wake.set)
-    add_dispatch_waker(wake.set)
 
     def add(options: list[TaskRunOptions]) -> None:
         nonlocal next_index
@@ -793,6 +795,10 @@ async def run_task_retry_attempts(
     async with display().task_screen(task_specs(tasks), parallel=True) as screen:
         init_task_screen(screen)
         try:
+            # registered inside the try so the remove in the finally below
+            # always runs (a failure in task_screen setup would otherwise
+            # leak the waker into the module-level registry)
+            add_dispatch_waker(wake.set)
             async with anyio.create_task_group() as tg:
 
                 async def run_one(item: PendingTask) -> None:

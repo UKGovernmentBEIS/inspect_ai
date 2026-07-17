@@ -537,6 +537,19 @@ def test_footer_flags_process_paused_with_exit_when_done(
     assert "never finishes" in out
 
 
+def test_footer_flags_task_paused_with_exit_when_done(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A task-level pause with keep-alive off also never reaches its exit."""
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": False, "paused": "task", "quiesced": False}
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 1/1 task" in out
+    assert "never finishes" in out
+
+
 def test_footer_silent_when_nothing_paused(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

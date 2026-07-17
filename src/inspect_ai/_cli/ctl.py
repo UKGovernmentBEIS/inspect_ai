@@ -4422,9 +4422,9 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
         click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
 
     # flag paused work below the table (the per-row cell can scroll away and
-    # a paused run must not read as stalled). A paused run never finishes,
-    # so also surface the exit-when-done contradiction when keep-alive is
-    # off for a process-paused row.
+    # a paused run must not read as stalled). A paused run never finishes —
+    # either latch holds work the run awaits — so also surface the
+    # exit-when-done contradiction when keep-alive is off for a paused row.
     paused = [s for s in summaries if s.get("paused")]
     if paused:
         quiesced = sum(1 for s in paused if s.get("quiesced"))
@@ -4434,10 +4434,7 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
             f"{'' if len(summaries) == 1 else 's'}{detail}  ·  resume with "
             "`inspect ctl task resume` / `inspect ctl process resume`"
         )
-        if any(
-            s.get("paused") in ("process", "both") and not s.get("keep_alive")
-            for s in paused
-        ):
+        if any(not s.get("keep_alive") for s in paused):
             click.echo(
                 "note: a paused run never finishes — it will not exit until "
                 "resumed (or cancelled), despite keep-alive being off."
