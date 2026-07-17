@@ -152,7 +152,9 @@ def test_parse_no_model_role_cli_args():
     assert parse_model_role_cli_args(None) == {}
 
 
-def test_parse_model_role_cli_args_distinct_instance_per_role() -> None:
+def test_parse_model_role_cli_args_distinct_instance_per_role(
+    no_model_copyreg_reducer,
+) -> None:
     """Dict-form roles sharing model/config must get distinct Model instances (#4450).
 
     get_model() memoizes by default, so without memoize=False every role with
@@ -175,7 +177,9 @@ def test_parse_model_role_cli_args_distinct_instance_per_role() -> None:
     }
 
 
-def test_parse_model_role_cli_args_does_not_alias_memoized_model() -> None:
+def test_parse_model_role_cli_args_does_not_alias_memoized_model(
+    no_model_copyreg_reducer,
+) -> None:
     """A dict-form role must not return (and role-stamp) a memoized Model instance.
 
     Without memoize=False, a role whose model/config matched an existing
