@@ -88,8 +88,21 @@ def truncate_text(text: str, max_length: int = MAX_TEXT_LENGTH) -> str:
     return text
 
 
+# the width thin_text shortens to, and the input slice it considers.
+# textwrap.shorten collapses whitespace across its ENTIRE input before
+# truncating, so without the slice a transcript-sized string costs O(len)
+# in CPU and allocation *per call*. Only ~the first THIN_TEXT_WIDTH
+# characters of collapsed text can survive, so an 8x slice changes the
+# result only for pathological mostly-whitespace strings (which lose
+# their tail without the "..." placeholder — acceptable for a summary).
+THIN_TEXT_WIDTH = 1024
+THIN_TEXT_SCAN = THIN_TEXT_WIDTH * 8
+
+
 def thin_text(text: str) -> str:
-    return textwrap.shorten(text, width=1024, placeholder="...")
+    return textwrap.shorten(
+        text[:THIN_TEXT_SCAN], width=THIN_TEXT_WIDTH, placeholder="..."
+    )
 
 
 def thin_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
