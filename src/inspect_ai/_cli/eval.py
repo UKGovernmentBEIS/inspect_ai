@@ -939,7 +939,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each task's log location and status when the eval finishes. To launch in the background instead, use --detach (which implies --json).",
 )
 @click.option(
-    "--detach",
+    "--detach/--no-detach",
     type=bool,
     is_flag=True,
     default=False,
@@ -1241,7 +1241,7 @@ def _eval_command_impl(
     help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record (except under --ctl-server=keep, whose park still binds a control endpoint and emits a 'launch' record with run_id null); with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record, and the 'done' record carries the last launch's run_id. To launch in the background instead, use --detach (which implies --json).",
 )
 @click.option(
-    "--detach",
+    "--detach/--no-detach",
     type=bool,
     is_flag=True,
     default=False,
@@ -2315,7 +2315,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each retried task's log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one 'launch' record per file (sequentially — each supersedes the previous), and the 'done' record carries the last launch's run_id. To launch in the background instead, use --detach (which implies --json and hands off on the first launch record).",
 )
 @click.option(
-    "--detach",
+    "--detach/--no-detach",
     type=bool,
     is_flag=True,
     default=False,

@@ -899,26 +899,30 @@ def test_launch_handoff_emitted_resets_with_listener() -> None:
 
 
 def test_detach_child_args_strip_flag_and_force_json() -> None:
-    """The child re-invocation drops --detach and forces --json.
+    """The child re-invocation drops --detach and forces --json --no-detach.
 
     The user's --ctl-server value — notably an explicit keep — must be
     preserved verbatim: --detach no longer forces the keep-alive park.
+    --no-detach is forced (not just --detach stripped) so a detach enabled
+    via INSPECT_EVAL_DETACH — which a project .env re-injects into the
+    child regardless of its environment — cannot make the child a launcher
+    itself: argv always beats the envvar.
     """
     args = _child_args(["eval", "t.py", "--detach", "--ctl-server", "keep"])
     assert "--detach" not in args
-    assert args == ["eval", "t.py", "--ctl-server", "keep", "--json"]
+    assert args == ["eval", "t.py", "--ctl-server", "keep", "--json", "--no-detach"]
 
 
 def test_detach_child_args_insert_before_separator() -> None:
-    """The forced flag goes before a bare `--`, where click still parses options.
+    """The forced flags go before a bare `--`, where click still parses options.
 
-    Appended after the separator it would be consumed as a task name;
+    Appended after the separator they would be consumed as task names;
     everything from the separator on must be preserved verbatim (including
     a literal `--detach` positional, which only counts as the flag before
     the separator).
     """
     args = _child_args(["eval", "--detach", "--", "t.py", "--detach"])
-    assert args == ["eval", "--json", "--", "t.py", "--detach"]
+    assert args == ["eval", "--json", "--no-detach", "--", "t.py", "--detach"]
 
 
 def test_detach_handoff_record_skips_diagnostics() -> None:
@@ -1095,6 +1099,76 @@ def _try_parse_json(line: str) -> dict | None:
     except ValueError:
         return None
     return record if isinstance(record, dict) else None
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="os.kill(pid, 0) is not a liveness probe"
+)
+def test_eval_detach_via_dotenv_detaches_exactly_once(short_data_dir: Path) -> None:
+    """INSPECT_EVAL_DETACH in a project ``.env`` must detach exactly once.
+
+    ``init_dotenv()`` re-injects the variable from ``.env`` before click
+    parses argv, so scrubbing the child's environment cannot stop it from
+    seeing detach enabled again: without the forced ``--no-detach`` every
+    generation became a launcher itself — forking without bound and never
+    running the eval. The command must hand off once and its child must
+    run the eval to completion without allocating further output files.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    (short_data_dir / ".env").write_text("INSPECT_EVAL_DETACH=true\n")
+    xdg_dir = short_data_dir / "xdg"
+    env = {**os.environ, "XDG_DATA_HOME": str(xdg_dir)}
+    env.pop("INSPECT_EVAL_DETACH", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+        ],
+        cwd=short_data_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stderr
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(records) == 1
+    launch = records[0]
+    assert launch["event"] == "launch"
+
+    pid = launch["pid"]
+    try:
+        assert _wait_for_pid_exit(pid, timeout=240), (
+            "detached eval did not exit when the eval finished"
+        )
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, 9)
+
+    # the child ran the eval rather than re-detaching into another
+    # launcher: its done record is in the output file, and no further
+    # generation allocated an output file of its own
+    output_file = Path(launch["output_file"])
+    done_records = [
+        record
+        for line in output_file.read_text().splitlines()
+        if (record := _try_parse_json(line)) is not None
+        and record.get("event") == "done"
+    ]
+    assert len(done_records) == 1
+    assert done_records[0]["logs"][0]["status"] == "success"
+    detach_dir = xdg_dir / "inspect_ai" / "detach"
+    assert list(detach_dir.glob("*.out")) == [output_file]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX socket paths")

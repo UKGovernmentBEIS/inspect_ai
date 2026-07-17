@@ -40,7 +40,6 @@ the park is released).
 """
 
 import json
-import os
 import signal
 import subprocess
 import sys
@@ -109,10 +108,6 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
 
     output_file = _allocate_output_file()
     argv = [sys.executable, "-m", "inspect_ai._cli.main", *_child_args(sys.argv[1:])]
-    # the child must not re-detach when the flag came from the environment
-    # (its argv copy is already stripped of --detach)
-    env = dict(os.environ)
-    env.pop("INSPECT_EVAL_DETACH", None)
 
     # start_new_session (POSIX setsid) detaches from the terminal's session;
     # CPython ignores it on Windows, where the creation flags detach from the
@@ -137,7 +132,6 @@ def exec_detached(ctl_server: bool | str | None) -> NoReturn:
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=subprocess.STDOUT,
-                env=env,
                 start_new_session=True,
                 creationflags=creationflags,
             )
@@ -208,11 +202,19 @@ def _child_args(args: list[str]) -> list[str]:
     Strips the ``--detach`` flag tokens and adds ``--json`` (a bare
     repeated ``--json`` flag is harmless); any ``--ctl-server`` value the
     user passed — notably an explicit ``keep`` — is preserved verbatim.
-    The forced flag goes before any bare ``--`` separator (click stops
+    The forced flags go before any bare ``--`` separator (click stops
     option parsing there, so tokens after it are positional); everything
     from the separator on is preserved verbatim.
+
+    ``--no-detach`` is forced because stripping the flag from argv is not
+    enough when detach came from ``INSPECT_EVAL_DETACH``: scrubbing the
+    child's environment doesn't help either, since ``init_dotenv()``
+    re-injects the variable from a project ``.env`` (and with
+    ``override=True`` under VS Code) before click parses argv — each child
+    would become a launcher itself, forking without bound. A command-line
+    flag always beats the envvar, so the override must live on argv.
     """
-    forced = ["--json"]
+    forced = ["--json", "--no-detach"]
     separator = args.index("--") if "--" in args else len(args)
     options = [arg for arg in args[:separator] if arg != "--detach"]
     return options + forced + args[separator:]
