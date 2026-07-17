@@ -1,9 +1,14 @@
+from logging import getLogger
 from typing import Any
 
 from typing_extensions import override
 
+from inspect_ai._util.logger import warn_once
+
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
+
+logger = getLogger(__name__)
 
 # Sampling parameters that Moonshot says to omit for Kimi K3 (the model uses
 # fixed sampling and the API rejects attempts to override it).
@@ -13,6 +18,11 @@ K3_FIXED_SAMPLING_PARAMS = (
     "top_p",
     "frequency_penalty",
     "presence_penalty",
+)
+
+K3_FIXED_SAMPLING_WARNING = (
+    "The {parameter} parameter is not supported by {model} (Kimi K3 uses "
+    "fixed sampling) and will be ignored."
 )
 
 
@@ -52,5 +62,12 @@ class MoonshotAPI(OpenAICompatibleAPI):
         params = super().completion_params(config, tools)
         if self.is_kimi_k3():
             for param in K3_FIXED_SAMPLING_PARAMS:
-                params.pop(param, None)
+                if param in params:
+                    del params[param]
+                    warn_once(
+                        logger,
+                        K3_FIXED_SAMPLING_WARNING.format(
+                            parameter=param, model=self.service_model_name()
+                        ),
+                    )
         return params

@@ -14,8 +14,23 @@ def mock_moonshot_env(monkeypatch):
     monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
 
 
-def test_moonshot_kimi_k3_drops_fixed_sampling_params(mock_moonshot_env):
-    """Kimi K3 uses fixed sampling — sampling params must be omitted."""
+@pytest.fixture
+def _warn_once_messages():
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted. caplog isn't reliable here because
+    # init_logger sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it.
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield _inspect_logger._warned
+    _inspect_logger._warned.clear()
+
+
+def test_moonshot_kimi_k3_drops_fixed_sampling_params(
+    mock_moonshot_env, _warn_once_messages
+):
+    """Kimi K3 uses fixed sampling — sampling params must be omitted, with a warning."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k3")
@@ -34,6 +49,21 @@ def test_moonshot_kimi_k3_drops_fixed_sampling_params(mock_moonshot_env):
     assert "frequency_penalty" not in params
     assert "presence_penalty" not in params
     assert params["max_tokens"] == 100
+    for param in ("temperature", "top_p", "frequency_penalty", "presence_penalty"):
+        assert any(param in m and "kimi-k3" in m for m in _warn_once_messages), (
+            f"expected a warning for dropped {param}"
+        )
+
+
+def test_moonshot_kimi_k3_no_warning_when_params_unset(
+    mock_moonshot_env, _warn_once_messages
+):
+    """No warning should be emitted when the user never set the fixed params."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k3")
+    api.completion_params(config=GenerateConfig(max_tokens=100), tools=False)
+    assert not any("fixed sampling" in m for m in _warn_once_messages)
 
 
 def test_moonshot_non_k3_preserves_sampling_params(mock_moonshot_env):

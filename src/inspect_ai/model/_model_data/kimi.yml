@@ -12,6 +12,8 @@ moonshotai:
       # K3 thinking is always on; reasoning_effort currently only accepts "max".
       # https://platform.kimi.ai/docs/guide/use-thinking-effort
       reasoning_effort_default: max
+    # K2.5/K2.6 also appear in the auto-generated together.yml under the same
+    # case-normalized lookup keys; keep context_length in agreement with it.
     kimi-k2.6:
       display_name: "Kimi K2.6"
       context_length: 262144
