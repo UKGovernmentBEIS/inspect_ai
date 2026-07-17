@@ -1,6 +1,6 @@
 # Persisting `ctl config` changes in the eval log
 
-> **Status: proposed.** Design for [meridianlabs-ai/inspect_ai#82](https://github.com/meridianlabs-ai/inspect_ai/issues/82). Builds on the shipped `inspect ctl config` surface described in [control-channel.md](control-channel.md) (phase 3). Nothing here is implemented yet.
+> **Status: phases 1–2 implemented** (schema + read path + control-channel wiring, and the `--reason`/`--author`/`persisted` surface polish; viewer rendering lives in the viewer repo). Phases 3–4 (per-sample limit knobs, consumer policy) remain future work. Design for [meridianlabs-ai/inspect_ai#82](https://github.com/meridianlabs-ai/inspect_ai/issues/82). Builds on the shipped `inspect ctl config` surface described in [control-channel.md](control-channel.md) (phase 3).
 
 ## Problem
 
@@ -103,7 +103,7 @@ class ConfigUpdate(BaseModel):
 
 Notes on the shape:
 
-- **One `ConfigUpdate` per applied PATCH request**, mirroring how `LogUpdate` groups the edits of one `edit_eval_log` call. A single `ctl config --max-samples 4 --log-buffer 20` invocation is one record with two changes.
+- **One `ConfigUpdate` per applied PATCH request *per scope***, mirroring how `LogUpdate` groups the edits of one `edit_eval_log` call. A single `ctl config --max-samples 4 --log-buffer 20` invocation is one record with two changes. A PATCH that mixes task- and process-scoped knobs (e.g. `--max-samples` + `--timeout` on the task route) writes one update per scope, sharing provenance: a single `scope` field can't describe both, and the fan-out differs (the task update goes only to that task's log; the process update to every live log).
 - **`config` + `name` rather than a closed enum of knobs.** The knob vocabulary grows with phases (the per-sample limits are next); a string field with the "same spelling as the launch flag" convention (already the ctl surface's unifying rule) means no schema change per knob. A `token_limit` retune that also carries `token_limit_type` is just two changes in one update.
 - **`cleared` is an explicit flag rather than overloading `value: None`.** For nullable knobs, None is itself a meaningful target — once the per-sample limits become retunable, `time_limit=None` means *unlimited*, which the effective-config fold must distinguish from "revert to the launch value of 3600". A separate boolean keeps both representable: `value: None, cleared: false` sets the knob to null; `cleared: true` removes the override.
 - **`previous` is the previous *effective* value, best-effort.** For a knob changed earlier in the run it's the prior override; for a first change it's the launch value where one exists (`--key`-style knobs are out of scope, so it always does). It exists so a human or agent reading the record sees `5 → 20` without replaying history; it is informational, never used to compute effective config (the fold below uses launch values + ordered updates only).

@@ -10,6 +10,7 @@
 - Control Channel: `inspect ctl` sample commands given an exact full task id now stop discovery at the process hosting it, skipping busy-retry delays from older sibling processes.
 - Control Channel: `inspect ctl config --key NAME LIMIT` retunes any named `concurrency()` limit mid-flight, without the registering code opting in; the config view lists the registered keys.
 - Control Channel: `inspect ctl config` can now retune `--timeout`, `--attempt-timeout` and `--max-retries` mid-flight, reaching even generate calls already retrying (pass `clear` to restore launch config).
+- Control Channel: `inspect ctl config` changes are now recorded in each affected eval log (`EvalLog.config_updates`, with author, timestamp, optional `--reason`, and old → new values); `effective_eval_config()`/`effective_generate_config()` fold them over the launch config.
 - Control Channel: `inspect ctl sample list` now caps its listing at the 100 most relevant rows by default (`--limit`/`--all` to adjust, `--status` to filter) and reports a complete status histogram plus a `truncated` flag in its envelope.
 - Control Channel: `inspect ctl sample events` now shows the data payload of `transcript().info()` events in its default compact output (previously only the source was shown).
 - Control Channel: `inspect ctl sample events` now accepts `--type all` (shell-safe spelling of `--type '*'`) and `--from-start` to read the full backlog from the first event.

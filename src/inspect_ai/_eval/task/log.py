@@ -72,6 +72,7 @@ _STALE_FLUSH_INTERVAL: float = 60
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import BufferConfig
+    from inspect_ai.log._config_update import ConfigUpdate
     from inspect_ai.log._recorders.buffer.history import SampleHistory
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -309,8 +310,17 @@ class TaskLogger:
         self._stale_flush_interval = _STALE_FLUSH_INTERVAL
 
     async def init(self) -> None:
+        from inspect_ai._control.config_record import inherited_config_updates
+
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
+
+        # process-scoped ctl retunes applied earlier in this run (before a
+        # retry attempt or a later eval-set child started) still govern this
+        # fresh log's eval — snapshot them so the log records the overrides
+        # it runs under (marked inherited via provenance.metadata)
+        for update in inherited_config_updates():
+            await self.log_config_update(update)
 
         if self.eval.config.log_realtime is False:
             return
@@ -594,6 +604,30 @@ class TaskLogger:
             if self._buffer_db is not None
             else None,
         )
+
+    async def log_config_update(self, update: "ConfigUpdate") -> bool:
+        """Record a mid-run config change into this eval's log.
+
+        Handed to the control channel via ``register_eval`` so applied
+        ``inspect ctl config`` retunes are persisted (see
+        ``EvalLog.config_updates``). Missing ``previous`` values are filled
+        from this log's launch config before recording, so each affected log
+        reports its own honest "before". Returns ``False`` (recording
+        nothing) once ``log_finish`` has torn the recorder down — a finished
+        log's record is complete, and under ``--ctl-server=keep`` the logger
+        stays attached to the eval's state after finishing.
+
+        Serialized under ``_flush_lock`` with the other recorder-touching
+        paths so it can't interleave with a flush or the finish teardown.
+        """
+        from inspect_ai.log._config_update import fill_previous_from_launch
+
+        async with self._flush_lock:
+            if self._finished:
+                return False
+            update = fill_previous_from_launch(update, self.eval)
+            await self.recorder.log_config_update(self.eval, update)
+            return True
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         if self._buffer_db is not None:
