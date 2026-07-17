@@ -358,9 +358,8 @@ async def eval_run(
         initial_options = await prepare_options(tasks)
         assert initial_options or inject is not None, "Must encounter a task"
 
-        # multiple mode is for running/displaying multiple
-        # task definitions, which requires some smart scheduling
-        # to ensure that we spread work among models
+        # running multiple task definitions requires some smart
+        # scheduling to ensure that we spread work among models
 
         # a live (TaskSource-driven) run feeds additional tasks while it is in
         # progress; prepare each injected batch on the fly. The dispatcher
@@ -560,8 +559,9 @@ async def run_task_retry_attempts(
     and the feed is exhausted (immediately so for a fixed set). A task whose log
     comes back with an error — or which requests a retry via its ``TaskCancel``
     — is re-queued (reusing completed samples) until ``task_retry_attempts`` is
-    exhausted; an abort or external cancellation is never retried and ends the
-    run.
+    exhausted; an abort or external cancellation is never retried, and an
+    external cancellation ends the run (an abort resolves to an errored log
+    and the run continues).
     """
     feed = feed or _empty_feed()
 
