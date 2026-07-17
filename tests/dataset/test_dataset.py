@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.file import exists
 from inspect_ai.dataset import (
     Dataset,
     FieldSpec,
@@ -172,6 +173,21 @@ def test_dataset_image_paths() -> None:
     assert isinstance(sample.input[0].content[1], ContentImage)
     image = Path(sample.input[0].content[1].image)
     assert image.exists()
+
+
+def test_dataset_image_paths_file_uri() -> None:
+    # dataset locations that are filesystem URIs should keep their scheme and
+    # still resolve relative sample files against the dataset's parent dir
+    dataset = json_dataset(Path(dataset_path("images.jsonl")).resolve().as_uri())
+    assert dataset.location is not None
+    assert dataset.location.startswith("file://")
+    sample = dataset[0]
+    assert not isinstance(sample.input, str)
+    assert isinstance(sample.input[0], ChatMessageUser)
+    content = sample.input[0].content[1]
+    assert isinstance(content, ContentImage)
+    assert content.image.startswith("file://")
+    assert exists(content.image)
 
 
 def test_dataset_auto_id() -> None:
