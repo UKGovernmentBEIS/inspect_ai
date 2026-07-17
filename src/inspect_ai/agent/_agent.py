@@ -23,6 +23,7 @@ from inspect_ai._util.registry import (
     registry_tag,
     registry_unqualified_name,
     set_registry_info,
+    set_annotations,
 )
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -216,10 +217,10 @@ def agent(
         # The following two lines resolve these string annotations using the original function's globals,
         # ensuring that any forward references (e.g., "Agent") are evaluated to their actual types,
         # and then reassign the original function's signature to the wrapper.
-        agent_wrapper.__annotations__ = get_type_hints(
-            agent_wrapper, agent_type.__globals__
+        set_annotations(
+            agent_wrapper,
+            {**get_type_hints(agent_wrapper, agent_type.__globals__), "return": Agent},
         )
-        agent_wrapper.__annotations__["return"] = Agent
         agent_wrapper.__signature__ = signature(agent_type)  # type: ignore[attr-defined]
 
         # register

@@ -23,6 +23,7 @@ from inspect_ai._util.registry import (
     registry_create,
     registry_name,
     registry_tag,
+    set_return_annotation,
 )
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
@@ -244,9 +245,7 @@ def solver(
 
             return registered_solver
 
-        # functools.wraps overrides the return type annotation of the inner function, so
-        # we explicitly set it again
-        solver_wrapper.__annotations__["return"] = Solver
+        set_return_annotation(solver_wrapper, Solver)
 
         return solver_register(cast(Callable[P, Solver], solver_wrapper), solver_name)
 
