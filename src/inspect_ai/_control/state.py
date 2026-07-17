@@ -337,9 +337,20 @@ async def current_sample_summaries(
 
     # Running first (the freshest source for in-flight samples), then the
     # completed records (which supersede any now-finished running entry).
+    # A terminal record whose (id, epoch) has a requeue pending is
+    # superseded-in-waiting: the re-run is scheduled but may have no
+    # ActiveSample yet (parked behind the sample semaphore) — render it
+    # `queued` so it surfaces in the head sort tiers instead of hiding as
+    # a terminal row, and never let it supersede the re-run's live row.
+    requeue_pending = _pending_requeue_keys(eval_id)
     for summary in _sample_summaries_from_active(eval_id):
         _merge(summary)
     for summary in await _completed_sample_summaries(eval_id):
+        key = (summary["sample_id"], summary["epoch"])
+        if (str(summary["sample_id"]), summary["epoch"]) in requeue_pending:
+            if key not in by_key:
+                by_key[key] = _requeued_summary(summary)
+            continue
         _merge(summary)
 
     # Pending: planned samples not yet running or done. No live source
@@ -451,6 +462,46 @@ def _add_pending_samples(
             key = (sample_id, epoch)
             if key not in by_key:
                 by_key[key] = _pending_summary(sample_id, epoch)
+
+
+def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
+    """The eval's requeue-pending ``(sample_id, epoch)`` keys (str-keyed).
+
+    Non-empty only while a requeue directive has been accepted and its
+    re-run hasn't reached a terminal outcome (see ``design/sample-requeue.md``).
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return frozenset()
+    return state.sample_requeue.pending_keys()
+
+
+def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    """A requeue-pending terminal record, rendered as the scheduled re-run.
+
+    Keeps the row's identity and its `retries` count (the prior attempts
+    ride into the re-run's history) but clears the terminal fields: the
+    prior outcome has been re-opened, and the fresh run hasn't started.
+    ``last_activity_at`` keeps the prior completion time so an
+    ``active_since`` delta still surfaces the row.
+    """
+    return {
+        **summary,
+        "status": "queued",
+        "started_at": None,
+        "completed_at": None,
+        "total_time": None,
+        "total_tokens": 0,
+        "message_count": None,
+        "turn_count": None,
+        "token_limit_usage": None,
+        "events": None,
+        "scores": {},
+        "error": None,
+        "limit": None,
+    }
 
 
 def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:

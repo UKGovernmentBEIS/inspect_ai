@@ -1,5 +1,4 @@
 import contextlib
-import functools
 import sys
 import time
 from copy import copy, deepcopy
@@ -19,6 +18,7 @@ from inspect_ai._control.eval_state import (
     record_sample_completed,
     record_sample_errored,
     register_eval,
+    set_sample_requeue,
 )
 from inspect_ai._display import (
     TaskCancelled,
@@ -29,7 +29,7 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._util._async import aexit_shielded_when, tg_collect
+from inspect_ai._util._async import aexit_shielded_when
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
@@ -132,6 +132,7 @@ from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint._layout import (
+    eval_checkpoints_dir_from_config,
     has_sample_checkpoint,
     sample_checkpoints_dir,
 )
@@ -185,6 +186,7 @@ from .scan import (
     scan_eval_sample,
     scanned_transcripts_for_resume,
 )
+from .scheduler import SampleRequeue, SampleScheduler
 from .store import DiskSampleStore, maybe_page_to_disk
 from .task_source import TaskSource
 from .util import sample_messages, slice_dataset
@@ -381,10 +383,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         options.task.approval,
     )
 
-    # track stats, results, and log
+    # track stats, results, and log. progress results are keyed by
+    # (sample_id, epoch) so a requeued sample's fresh score replaces its
+    # prior entry (the log supersedes by the same key — metrics must agree)
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
-    progress_results: list[dict[str, SampleScore]] = []
+    progress_results: dict[tuple[int | str, int], dict[str, SampleScore]] = {}
     eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
@@ -405,6 +409,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # capture sample ids now, before `dataset` may be paged to disk and
     # deleted below — used by register_eval and carry_forward_unlogged_samples
     sample_ids = [s.id for s in dataset if s.id is not None]
+
+    # sample id -> fanout index, for the requeue directive's resolution
+    # (captured here too so it never reads the paged-to-disk store)
+    sample_indexes = {
+        str(sample.id): index
+        for index, sample in enumerate(dataset)
+        if sample.id is not None
+    }
 
     async def finish_task_log(
         status: EvalStatus,
@@ -596,8 +608,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     epoch: int,
                     sample_score: dict[str, SampleScore],
                 ) -> None:
-                    # Capture the result
-                    progress_results.append(sample_score)
+                    # Capture the result (a requeued sample's fresh score
+                    # replaces its prior entry)
+                    progress_results[(sample_id, epoch)] = sample_score
 
                     # Increment the segment progress
                     td.sample_complete(
@@ -607,7 +620,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # Update metrics
                     update_metrics_display(
                         len(progress_results),
-                        progress_results,
+                        list(progress_results.values()),
                         scorers,
                         scorer_names,
                         task.epochs_reducer,
@@ -626,7 +639,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 # Update metrics to empty state
                 update_metrics_display(
                     len(progress_results),
-                    progress_results,
+                    list(progress_results.values()),
                     scorers,
                     scorer_names,
                     task.epochs_reducer,
@@ -634,7 +647,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 )
 
                 async def run_sample(
-                    sample_index: int, epoch: int
+                    sample_index: int,
+                    epoch: int,
+                    requeue_prior: EvalSample | None = None,
                 ) -> dict[str, SampleScore] | EarlyStop | None:
                     # check for cached result from previous eval (before
                     # materialization to avoid unnecessary deepcopy + image I/O)
@@ -645,7 +660,25 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # PreviousError); kept distinct from the sample-level
                     # retry list so it doesn't suppress sample init/start emits
                     previous_attempt_errors: list[EvalRetryError] = []
-                    if sample_source and sample_id is not None:
+                    if requeue_prior is not None:
+                        # requeued re-run (design/sample-requeue.md): seeded
+                        # from the prior terminal record exactly as a
+                        # task-level retry would be — resume from a
+                        # checkpoint when one exists, else carry the prior
+                        # errors (the fresh sample uuid and retry_on_error
+                        # budget come with the fresh TaskState below). Drop
+                        # the prior attempt's buffered events first, the
+                        # same call the retry recursion makes; the flushed
+                        # (id, epoch) log record is superseded when the
+                        # re-run logs.
+                        if sample_id is not None:
+                            logger.remove_sample(sample_id, epoch)
+                            resume_checkpoint = await _resume_if_checkpointed(
+                                requeue_checkpoints_dir, sample_id, epoch
+                            )
+                        if resume_checkpoint is None:
+                            previous_attempt_errors = _seed_error_retries(requeue_prior)
+                    elif sample_source and sample_id is not None:
                         previous_sample = await sample_source.lookup(sample_id, epoch)
                         if isinstance(previous_sample, EvalSample):
                             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
@@ -772,13 +805,40 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         scan_id=options.scan_id,
                     )
 
-                sample_results = await tg_collect(
+                # where a requeued sample's checkpoint (if any) lives — this
+                # attempt's own checkpoints, unlike the sample source's
+                # prior-attempt dir
+                requeue_checkpoints_dir = eval_checkpoints_dir_from_config(
+                    logger.location, checkpoint, eval_checkpoint
+                )
+
+                # the sample fanout: an injectable scheduler rather than a
+                # one-shot tg_collect, so the control channel's requeue
+                # directive can re-add an errored/cancelled sample to the
+                # live run (design/sample-requeue.md)
+                sample_scheduler = SampleScheduler()
+                set_sample_requeue(
+                    logger.eval.eval_id,
+                    SampleRequeue(
+                        eval_id=logger.eval.eval_id,
+                        scheduler=sample_scheduler,
+                        sample_error=sample_error_handler,
+                        sample_indexes=sample_indexes,
+                        checkpoints_dir=requeue_checkpoints_dir,
+                        # un-tick the prior terminal outcome's progress so
+                        # the bar reflects the re-opened work
+                        on_accept=lambda: progress(-SAMPLE_TOTAL_PROGRESS_UNITS),
+                    ),
+                )
+                keyed_results = await sample_scheduler.run(
                     [
-                        functools.partial(run_sample, sample_index, epoch)
+                        (sample_index, epoch)
                         for epoch in range(1, epochs + 1)
                         for sample_index in range(len(sample_store))
-                    ]
+                    ],
+                    run_sample,
                 )
+                sample_results = list(keyed_results.values())
 
             # compute and record metrics if we have scores
             completed_scores = [
@@ -855,7 +915,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 if len(progress_results) > 0:
                     results, reductions = eval_results(
                         samples=profile.samples,
-                        scores=progress_results,
+                        scores=list(progress_results.values()),
                         reducers=task.epochs_reducer,
                         scorers=scorers,
                         metrics=task.metrics,
@@ -2020,6 +2080,35 @@ async def log_sample(
     return materialized_sample
 
 
+async def _resume_if_checkpointed(
+    eval_checkpoints_dir: str | None, id: int | str, epoch: int
+) -> ResumeCheckpoint | None:
+    """The sample's on-disk checkpoint resume, or ``None`` when unavailable.
+
+    Shared by the task-retry sample source (`eval_log_sample_source`) and
+    the requeue re-run path in `run_sample`, so both seed a re-run from a
+    checkpoint the same way.
+    """
+    if eval_checkpoints_dir is None:
+        return None
+    if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
+        return None
+    prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
+    # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
+    # agent finished cleanly, scoring is the next thing → retry can
+    # skip the agent loop (the ``"resume_for_scoring"`` attempt).
+    checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
+    attempt: Literal["initial", "resume", "resume_for_scoring"] = (
+        "resume_for_scoring"
+        if checkpoint is not None and checkpoint.trigger == "agent_complete"
+        else "resume"
+    )
+    return ResumeCheckpoint(
+        sample_checkpoints_dir=prior_sample_dir,
+        attempt=attempt,
+    )
+
+
 # we can reuse samples from a previous eval_log if and only if:
 #   - The datasets have not been shuffled OR the samples in the dataset have unique ids
 #   - The datasets have the exact same length
@@ -2053,28 +2142,6 @@ def eval_log_sample_source(
             )
             return set()
 
-    async def _resume_if_checkpointed(
-        id: int | str, epoch: int
-    ) -> ResumeCheckpoint | None:
-        if eval_checkpoints_dir is None:
-            return None
-        if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
-            return None
-        prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
-        # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
-        # agent finished cleanly, scoring is the next thing → retry can
-        # skip the agent loop (the ``"resume_for_scoring"`` attempt).
-        checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
-        attempt: Literal["initial", "resume", "resume_for_scoring"] = (
-            "resume_for_scoring"
-            if checkpoint is not None and checkpoint.trigger == "agent_complete"
-            else "resume"
-        )
-        return ResumeCheckpoint(
-            sample_checkpoints_dir=prior_sample_dir,
-            attempt=attempt,
-        )
-
     async def _resume_or_seed_retry(
         id: int | str, epoch: int, sample: EvalSample | None
     ) -> ResumeCheckpoint | PreviousError | None:
@@ -2085,7 +2152,7 @@ def eval_log_sample_source(
         its `error_retries` with the prior attempt's history; an absent or
         invalidated sample yields `None` (re-run fresh).
         """
-        resume = await _resume_if_checkpointed(id, epoch)
+        resume = await _resume_if_checkpointed(eval_checkpoints_dir, id, epoch)
         if resume is not None:
             return resume
         if (
@@ -2144,7 +2211,7 @@ def eval_log_sample_source(
                 # the log file itself was never written (the prior attempt
                 # failed before its first flush, e.g. an errored log_start()).
                 # Either way there is no prior sample to reuse.
-                return await _resume_if_checkpointed(id, epoch)
+                return await _resume_if_checkpointed(eval_checkpoints_dir, id, epoch)
             if sample.error is None and sample.invalidation is None:
                 return sample
             return await _resume_or_seed_retry(id, epoch, sample)

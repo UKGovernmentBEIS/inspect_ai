@@ -1,0 +1,839 @@
+"""Tests for the control-channel sample-requeue directive (phase 3).
+
+Covers the resolver (``inspect_ai._control.requeue.requeue_sample`` — the
+decision table in ``design/sample-requeue.md``), the ``SampleScheduler`` /
+``SampleRequeue`` runner machinery (``inspect_ai._eval.task.scheduler``),
+the server route (``POST /evals/<id>/sample/requeue``), the samples-listing
+rendering of a pending requeue, and an end-to-end requeue through a live
+eval.
+"""
+
+from typing import Any, cast
+
+import anyio
+import httpx
+import pytest
+from test_helpers.live_eval_data import FakeLiveEvalData
+
+from inspect_ai import Task, eval_async
+from inspect_ai._control.eval_state import (
+    clear_all_eval_states,
+    detach_eval_live,
+    get_eval_state,
+    get_eval_states,
+    mark_eval_retry_pending,
+    record_sample_errored,
+    record_sample_requeued,
+    register_eval,
+    set_sample_requeue,
+)
+from inspect_ai._control.requeue import requeue_sample
+from inspect_ai._control.state import _full_sample, current_sample_listing
+from inspect_ai._display.core.display import TaskCancel
+from inspect_ai._eval.task.error import SampleErrorHandler
+from inspect_ai._eval.task.scheduler import (
+    SampleRequeue,
+    SampleScheduler,
+    _ScheduledRerun,
+)
+from inspect_ai._util.error import EvalError
+from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalLog
+from inspect_ai.log._log import EvalSample, EvalSampleSummary
+from inspect_ai.scorer import CORRECT, Score, Target, accuracy, scorer
+from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.util._display import init_display_type
+
+
+@pytest.fixture(autouse=True)
+def _clear_states():
+    clear_all_eval_states()
+    yield
+    clear_all_eval_states()
+
+
+def _error(message: str = "boom") -> EvalError:
+    return EvalError(message=message, traceback="", traceback_ansi="")
+
+
+def _errored_sample(
+    sample_id: str = "s1", epoch: int = 1, message: str = "boom"
+) -> EvalSample:
+    return EvalSample(
+        id=sample_id, epoch=epoch, input="q", target="a", error=_error(message)
+    )
+
+
+def _cancelled_sample(sample_id: str = "s1", epoch: int = 1) -> EvalSample:
+    return EvalSample(
+        id=sample_id,
+        epoch=epoch,
+        input="q",
+        target="a",
+        error=_error("CancelledError('cancelled via cancel scope')"),
+    )
+
+
+def _live_reading(sample: EvalSample | None) -> FakeLiveEvalData:
+    async def _read(
+        id: str | int, epoch: int, *, exclude_fields: set[str] | None = None
+    ) -> EvalSample | None:
+        if sample is not None and str(sample.id) == str(id) and sample.epoch == epoch:
+            return sample
+        return None
+
+    return FakeLiveEvalData(sample=_read)
+
+
+class _FakeRequeueHandle:
+    """The slice of ``SampleRequeue`` the resolver touches."""
+
+    def __init__(
+        self,
+        *,
+        open: bool = True,
+        pending: set[tuple[str, int]] | None = None,
+        accept_outcome: str = "accepted",
+        checkpoint: bool = False,
+    ) -> None:
+        self.open = open
+        self._pending = pending or set()
+        self.accept_outcome = accept_outcome
+        self.accepts: list[tuple[EvalSample, str]] = []
+        self._checkpoint = checkpoint
+
+    def is_pending(self, sample_id: str, epoch: int) -> bool:
+        return (sample_id, epoch) in self._pending
+
+    def pending_keys(self) -> frozenset[tuple[str, int]]:
+        return frozenset(self._pending)
+
+    async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
+        return self._checkpoint
+
+    def accept(self, prior: EvalSample, prior_status: str) -> str:
+        self.accepts.append((prior, prior_status))
+        return self.accept_outcome
+
+
+def _register_requeueable(
+    *,
+    eval_id: str = "e1",
+    total: int = 2,
+    prior: EvalSample | None = None,
+    handle: _FakeRequeueHandle | None = None,
+    sample_ids: list[str | int] | None = None,
+    epochs: int = 1,
+    task_cancel: TaskCancel | None = None,
+) -> _FakeRequeueHandle:
+    handle = handle if handle is not None else _FakeRequeueHandle()
+    register_eval(
+        eval_id,
+        total,
+        task_id="t1",
+        task="my_task",
+        live=_live_reading(prior),
+        sample_ids=sample_ids if sample_ids is not None else ["s1", "s2"],
+        epochs=epochs,
+        task_cancel=task_cancel,
+    )
+    set_sample_requeue(eval_id, cast(SampleRequeue, handle))
+    return handle
+
+
+def _patch_active_samples(monkeypatch: pytest.MonkeyPatch, samples: list[Any]) -> None:
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: samples)
+
+
+class _FakeActiveSample:
+    """The slice of ``ActiveSample`` the requeue resolver touches."""
+
+    class _Sample:
+        def __init__(self, id: str | int) -> None:
+            self.id = id
+
+    def __init__(
+        self,
+        *,
+        eval_id: str = "e1",
+        sample_id: str | int = "s1",
+        epoch: int = 1,
+        started: float | None = 1.0,
+        completed: float | None = None,
+    ) -> None:
+        self.eval_id = eval_id
+        self.sample = self._Sample(sample_id)
+        self.epoch = epoch
+        self.started = started
+        self.completed = completed
+
+
+# ---------------------------------------------------------------------------
+# requeue_sample directive (the decision table)
+# ---------------------------------------------------------------------------
+
+
+async def test_requeue_unknown_eval_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_active_samples(monkeypatch, [])
+    assert await requeue_sample("nope", "s1", 1) is None
+
+
+async def test_requeue_errored_sample_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    prior = _errored_sample()
+    handle = _register_requeueable(prior=prior)
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is True and result["changed"] is True
+    assert result["status"] == "error"
+    assert result["prior_error"] == "boom"
+    assert result["attempt"] == 2
+    assert handle.accepts == [(prior, "error")]
+
+
+async def test_requeue_cancelled_sample_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    prior = _cancelled_sample()
+    handle = _register_requeueable(prior=prior)
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["changed"] is True and result["status"] == "cancelled"
+    # a cancellation is not a genuine error, so it doesn't grow the attempt
+    # count (the seeding skips it) — the re-run is still attempt 1's redo
+    assert result["attempt"] == 1
+    assert handle.accepts == [(prior, "cancelled")]
+
+
+async def test_requeue_completed_sample_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    prior = EvalSample(id="s1", epoch=1, input="q", target="a")
+    handle = _register_requeueable(prior=prior)
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "completed successfully" in result["error"]
+    assert handle.accepts == []
+
+    # the rejection reports under dry_run too, so an agent can probe safely
+    dry = await requeue_sample("e1", "s1", 1, dry_run=True)
+    assert dry is not None and dry["ok"] is False
+
+
+async def test_requeue_running_sample_is_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [_FakeActiveSample()])
+    handle = _register_requeueable()
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["changed"] is False and result["status"] == "running"
+    assert handle.accepts == []
+
+
+async def test_requeue_queued_sample_is_noop(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_active_samples(monkeypatch, [_FakeActiveSample(started=None)])
+    handle = _register_requeueable()
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["changed"] is False and result["status"] == "queued"
+    assert handle.accepts == []
+
+
+async def test_requeue_never_started_sample_is_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable()  # no readable record for s2
+
+    result = await requeue_sample("e1", "s2", 1)
+    assert result is not None
+    assert result["changed"] is False and result["status"] == "pending"
+    assert handle.accepts == []
+
+
+async def test_requeue_unknown_sample_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable()
+
+    # unknown id, and a known id at an out-of-range epoch, are both 404s
+    assert await requeue_sample("e1", "nope", 1) is None
+    assert await requeue_sample("e1", "s1", 3) is None
+
+
+async def test_requeue_pending_requeue_is_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable(
+        prior=_errored_sample(), handle=_FakeRequeueHandle(pending={("s1", 1)})
+    )
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["changed"] is False and result["status"] == "queued"
+    assert "already pending" in result["reason"]
+    assert handle.accepts == []
+
+
+async def test_requeue_finished_task_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable(total=1, prior=_errored_sample())
+    record_sample_errored("e1")  # terminal == total → finished
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "eval-retry" in result["error"]
+
+
+async def test_requeue_between_attempts_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable(total=1, prior=_errored_sample())
+    record_sample_errored("e1")
+    mark_eval_retry_pending("e1")
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "between attempts" in result["error"]
+
+
+async def test_requeue_task_cancel_in_flight_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    cancel = TaskCancel(can_retry=False, cancel_task=lambda _: None)
+    cancel.cancel_type = "abort"
+    _register_requeueable(prior=_errored_sample(), task_cancel=cancel)
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "cancel is in flight" in result["error"]
+
+
+async def test_requeue_drained_fanout_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable(
+        prior=_errored_sample(), handle=_FakeRequeueHandle(open=False)
+    )
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "no longer accepting" in result["error"]
+
+
+async def test_requeue_without_handle_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    register_eval("e1", 2, task_id="t1", live=_live_reading(_errored_sample()))
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["ok"] is False and "no longer accepting" in result["error"]
+
+
+async def test_requeue_dry_run_does_not_accept(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable(
+        prior=_errored_sample(), handle=_FakeRequeueHandle(checkpoint=True)
+    )
+
+    result = await requeue_sample("e1", "s1", 1, dry_run=True)
+    assert result is not None
+    assert result["changed"] is True and result["dry_run"] is True
+    assert result["resume_from_checkpoint"] is True
+    assert handle.accepts == []
+
+
+async def test_requeue_accept_race_lands_on_pending_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two directives racing past the resolver's reads can't double-queue.
+
+    The pending set is re-checked synchronously inside ``accept`` — the
+    resolver maps its ``already_pending`` outcome to the same clean no-op.
+    """
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable(
+        prior=_errored_sample(),
+        handle=_FakeRequeueHandle(accept_outcome="already_pending"),
+    )
+
+    result = await requeue_sample("e1", "s1", 1)
+    assert result is not None
+    assert result["changed"] is False and "already pending" in result["reason"]
+
+
+async def test_requeue_detached_on_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A retry detaches the attempt-scoped handle alongside ``live``."""
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable(prior=_errored_sample())
+    detach_eval_live("e1")
+    state = get_eval_state("e1")
+    assert state is not None and state.sample_requeue is None
+
+
+def test_record_sample_requeued_decrements_buckets() -> None:
+    register_eval("e1", 3, task_id="t1")
+    record_sample_errored("e1")
+    record_sample_requeued("e1", "error")
+    state = get_eval_state("e1")
+    assert state is not None and state.errored == 0
+
+    state.cancelled = 1
+    record_sample_requeued("e1", "cancelled")
+    assert state.cancelled == 0
+
+    record_sample_requeued("nope", "error")  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# SampleScheduler / SampleRequeue (runner machinery)
+# ---------------------------------------------------------------------------
+
+
+async def test_scheduler_runs_plan_keyed() -> None:
+    scheduler = SampleScheduler()
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        return f"{sample_index}:{epoch}"
+
+    results = await scheduler.run([(0, 1), (1, 1), (0, 2)], run_sample)
+    assert results == {(0, 1): "0:1", (1, 1): "1:1", (0, 2): "0:2"}
+    assert not scheduler.open
+
+
+async def test_scheduler_rejects_requeue_after_drain() -> None:
+    scheduler = SampleScheduler()
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        return "done"
+
+    await scheduler.run([(0, 1)], run_sample)
+    accepted = scheduler.requeue(
+        _ScheduledRerun(
+            sample_index=0, epoch=1, prior=_errored_sample(), on_terminal=lambda: None
+        )
+    )
+    assert accepted is False
+
+
+async def test_scheduler_rerun_replaces_result_and_closes() -> None:
+    scheduler = SampleScheduler()
+    flaky_done = anyio.Event()
+    release_waiter = anyio.Event()
+    rerun_priors: list[EvalSample | None] = []
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        if sample_index == 0:
+            if prior is not None:
+                rerun_priors.append(prior)
+                return "fresh"
+            flaky_done.set()
+            return "failed"
+        with anyio.fail_after(30):
+            await release_waiter.wait()
+        return "waited"
+
+    prior = _errored_sample()
+    results: dict[tuple[int, int], str] = {}
+
+    async with anyio.create_task_group() as tg:
+
+        async def go() -> None:
+            results.update(await scheduler.run([(0, 1), (1, 1)], run_sample))
+
+        tg.start_soon(go)
+        with anyio.fail_after(30):
+            await flaky_done.wait()
+        assert scheduler.open  # the waiter keeps the fanout open
+        terminal: list[bool] = []
+        accepted = scheduler.requeue(
+            _ScheduledRerun(
+                sample_index=0,
+                epoch=1,
+                prior=prior,
+                on_terminal=lambda: terminal.append(True),
+            )
+        )
+        assert accepted is True
+        # wait for the re-run to land, then release the waiter
+        with anyio.fail_after(30):
+            while not terminal:
+                await anyio.sleep(0.01)
+        release_waiter.set()
+
+    assert results == {(0, 1): "fresh", (1, 1): "waited"}
+    assert rerun_priors == [prior]
+    assert not scheduler.open
+
+
+async def test_sample_requeue_accept_reconciles_counters() -> None:
+    register_eval("e1", 2, task_id="t1")
+    record_sample_errored("e1")
+    handler = SampleErrorHandler(False, 2)
+    handler.error_count = 1
+
+    scheduler = SampleScheduler()
+    progress_regressions: list[int] = []
+    handle = SampleRequeue(
+        eval_id="e1",
+        scheduler=scheduler,
+        sample_error=handler,
+        sample_indexes={"s1": 0, "s2": 1},
+        checkpoints_dir=None,
+        on_accept=lambda: progress_regressions.append(1),
+    )
+    prior = _errored_sample()
+
+    flaky_done = anyio.Event()
+    release_waiter = anyio.Event()
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior_arg: EvalSample | None
+    ) -> str:
+        if sample_index == 0 and prior_arg is None:
+            flaky_done.set()
+            return "failed"
+        if sample_index == 0:
+            return "fresh"
+        with anyio.fail_after(30):
+            await release_waiter.wait()
+        return "waited"
+
+    async with anyio.create_task_group() as tg:
+        results: dict[tuple[int, int], str] = {}
+
+        async def go() -> None:
+            results.update(await scheduler.run([(0, 1), (1, 1)], run_sample))
+
+        tg.start_soon(go)
+        with anyio.fail_after(30):
+            await flaky_done.wait()
+
+        assert handle.accept(prior, "error") == "accepted"
+        assert handle.is_pending("s1", 1)
+        assert handle.pending_keys() == frozenset({("s1", 1)})
+        # the double-queue guard fires synchronously inside accept
+        assert handle.accept(prior, "error") == "already_pending"
+
+        state = get_eval_state("e1")
+        assert state is not None and state.errored == 0
+        assert handler.error_count == 0
+        assert progress_regressions == [1]
+
+        # the pending key clears when the re-run reaches a terminal outcome
+        with anyio.fail_after(30):
+            while handle.is_pending("s1", 1):
+                await anyio.sleep(0.01)
+        release_waiter.set()
+
+    assert results[(0, 1)] == "fresh"
+
+
+async def test_sample_requeue_accept_unknown_sample() -> None:
+    register_eval("e1", 1, task_id="t1")
+    handle = SampleRequeue(
+        eval_id="e1",
+        scheduler=SampleScheduler(),
+        sample_error=SampleErrorHandler(False, 1),
+        sample_indexes={"s1": 0},
+        checkpoints_dir=None,
+        on_accept=lambda: None,
+    )
+    assert handle.accept(_errored_sample("not-planned"), "error") == "unknown"
+
+
+async def test_sample_requeue_accept_closed_scheduler() -> None:
+    register_eval("e1", 1, task_id="t1")
+    record_sample_errored("e1")
+    handle = SampleRequeue(
+        eval_id="e1",
+        scheduler=SampleScheduler(),  # never run → closed
+        sample_error=SampleErrorHandler(False, 1),
+        sample_indexes={"s1": 0},
+        checkpoints_dir=None,
+        on_accept=lambda: None,
+    )
+    assert handle.accept(_errored_sample(), "error") == "closed"
+    # nothing was reconciled and no pending key leaked
+    state = get_eval_state("e1")
+    assert state is not None and state.errored == 1
+    assert not handle.is_pending("s1", 1)
+
+
+# ---------------------------------------------------------------------------
+# Samples listing: a pending requeue renders `queued`
+# ---------------------------------------------------------------------------
+
+
+async def test_listing_renders_pending_requeue_as_queued(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+
+    async def _summaries() -> list[EvalSampleSummary]:
+        return [
+            EvalSampleSummary(
+                id="s1",
+                epoch=1,
+                input="q",
+                target="a",
+                error="RuntimeError('boom')",
+                retries=1,
+                completed=True,
+            )
+        ]
+
+    register_eval(
+        "e1",
+        2,
+        task_id="t1",
+        live=FakeLiveEvalData(summaries=_summaries),
+        sample_ids=["s1", "s2"],
+    )
+    set_sample_requeue(
+        "e1", cast(SampleRequeue, _FakeRequeueHandle(pending={("s1", 1)}))
+    )
+
+    listing = await current_sample_listing("e1")
+    rows = {(r["sample_id"], r["epoch"]): r for r in listing.samples}
+    row = rows[("s1", 1)]
+    # the terminal record is superseded-in-waiting: it renders as the
+    # scheduled re-run (queued, no error), keeping its retry history
+    assert row["status"] == "queued"
+    assert row["error"] is None and row["completed_at"] is None
+    assert row["retries"] == 1
+    assert listing.counts["queued"] == 1 and listing.counts["error"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Server route
+# ---------------------------------------------------------------------------
+
+
+def _app() -> Any:
+    from inspect_ai._control.server import ControlServer
+
+    return ControlServer(run_id="test")._build_app()
+
+
+async def test_sample_requeue_route(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable(prior=_errored_sample())
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        # epoch is required on this mutation — a defaulted epoch would
+        # silently target the epoch-1 attempt on a multi-epoch task
+        no_epoch = await client.post(
+            "/evals/e1/sample/requeue", params={"sample_id": "s1"}
+        )
+        assert no_epoch.status_code == 400
+        assert "epoch is required" in no_epoch.json()["error"]
+
+        ok = await client.post(
+            "/evals/e1/sample/requeue", params={"sample_id": "s1", "epoch": 1}
+        )
+        assert ok.status_code == 200, ok.text
+        assert ok.json()["changed"] is True
+        assert len(handle.accepts) == 1
+
+        missing = await client.post(
+            "/evals/e1/sample/requeue", params={"sample_id": "nope", "epoch": 1}
+        )
+        assert missing.status_code == 404
+        assert "error" in missing.json()  # handler 404 carries the error key
+
+        unknown_eval = await client.post(
+            "/evals/nope/sample/requeue", params={"sample_id": "s1", "epoch": 1}
+        )
+        assert unknown_eval.status_code == 404
+
+
+async def test_sample_requeue_route_completed_409(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_active_samples(monkeypatch, [])
+    _register_requeueable(prior=EvalSample(id="s1", epoch=1, input="q", target="a"))
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        rejected = await client.post(
+            "/evals/e1/sample/requeue", params={"sample_id": "s1", "epoch": 1}
+        )
+        assert rejected.status_code == 409
+        assert "completed successfully" in rejected.json()["error"]
+
+
+async def test_sample_requeue_route_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_active_samples(monkeypatch, [])
+    handle = _register_requeueable(prior=_errored_sample())
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        dry = await client.post(
+            "/evals/e1/sample/requeue",
+            params={"sample_id": "s1", "epoch": 1, "dry_run": True},
+        )
+        assert dry.status_code == 200, dry.text
+        body = dry.json()
+        assert body["changed"] is True and body["dry_run"] is True
+        assert handle.accepts == []
+
+
+# ---------------------------------------------------------------------------
+# End to end: requeue through a live eval
+# ---------------------------------------------------------------------------
+
+_E2E_ATTEMPTS: dict[str, int] = {}
+_E2E_RELEASE: anyio.Event | None = None
+
+
+@solver
+def _requeue_probe():
+    """Errors flaky's first attempt; parks everything else until released.
+
+    The park (on the flaky re-run too) keeps the fanout open and the re-run
+    non-terminal while the test issues its directives, so the idempotence
+    assertions are deterministic.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "flaky":
+            _E2E_ATTEMPTS["flaky"] = _E2E_ATTEMPTS.get("flaky", 0) + 1
+            if _E2E_ATTEMPTS["flaky"] == 1:
+                raise RuntimeError("transient boom")
+        assert _E2E_RELEASE is not None
+        with anyio.fail_after(60):
+            await _E2E_RELEASE.wait()
+        return state
+
+    return solve
+
+
+@scorer(metrics=[accuracy()])
+def _always_correct():
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=CORRECT)
+
+    return score
+
+
+async def test_requeue_end_to_end() -> None:
+    """An errored sample requeued mid-run re-runs to a clean final log.
+
+    Exercises the whole path: the scheduler accepts the re-run while the
+    task is live, the terminal counters re-open, the fresh attempt
+    supersedes the log record (with the prior error seeded as retry history
+    and a fresh uuid, so a stale events cursor resets), and metrics are
+    computed from the fresh score.
+    """
+    global _E2E_RELEASE
+    _E2E_ATTEMPTS.clear()
+    _E2E_RELEASE = anyio.Event()
+
+    task = Task(
+        dataset=[
+            Sample(id="flaky", input="x", target="y"),
+            Sample(id="waiter", input="x", target="y"),
+        ],
+        solver=_requeue_probe(),
+        scorer=_always_correct(),
+        name="requeue_e2e",
+    )
+
+    init_display_type("none")
+    logs: list[EvalLog] = []
+
+    async with anyio.create_task_group() as tg:
+
+        async def run_eval() -> None:
+            logs.extend(
+                await eval_async(
+                    task,
+                    model="mockllm/model",
+                    fail_on_error=False,
+                    ctl_server=False,
+                    max_samples=2,
+                )
+            )
+
+        tg.start_soon(run_eval)
+
+        # wait for the flaky sample's terminal error
+        with anyio.fail_after(60):
+            while True:
+                states = get_eval_states()
+                if states and states[0].errored == 1:
+                    break
+                await anyio.sleep(0.01)
+        eval_id = states[0].eval_id
+
+        prior = await _full_sample(eval_id, "flaky", 1)
+        assert prior is not None and prior.error is not None
+        prior_uuid = prior.uuid
+
+        first = await requeue_sample(eval_id, "flaky", 1)
+        assert first is not None
+        assert first["changed"] is True and first["status"] == "error"
+        assert first["attempt"] == 2
+
+        # counters re-opened synchronously in the accept path
+        state = get_eval_state(eval_id)
+        assert state is not None and state.errored == 0
+
+        # an immediate repeat is the idempotent no-op (the re-run is held
+        # open by the solver's park, so it cannot have gone terminal)
+        second = await requeue_sample(eval_id, "flaky", 1)
+        assert second is not None and second["changed"] is False
+
+        _E2E_RELEASE.set()
+
+    assert _E2E_ATTEMPTS["flaky"] == 2
+
+    (log,) = logs
+    assert log.status == "success"
+    assert log.samples is not None
+    flaky = next(s for s in log.samples if s.id == "flaky")
+    # the fresh outcome superseded the (id, epoch) record: no error, the
+    # prior attempt seeded as retry history, and a fresh uuid (so a stale
+    # events cursor signals a reset rather than serving misindexed events)
+    assert flaky.error is None
+    assert flaky.error_retries is not None and len(flaky.error_retries) == 1
+    assert "transient boom" in flaky.error_retries[0].message
+    assert flaky.uuid != prior_uuid
+    # metrics computed from the fresh score
+    assert log.results is not None
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0

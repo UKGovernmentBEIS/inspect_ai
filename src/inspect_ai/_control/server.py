@@ -19,10 +19,10 @@ status histogram and an ``active_since`` recency delta), ``GET
 /evals/{id}/sample`` (summary + error detail), and ``GET
 /evals/{id}/sample/events`` (cursored transcript
 pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
-and the first phase-3 directives: the config/log-flush mutations and
-``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
-The remaining directives (drain / requeue / add-task) and SSE push land
-with the rest of phases 3-4.
+and the first phase-3 directives: the config/log-flush mutations,
+``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``, and
+``POST /evals/{id}/sample/requeue``. The remaining directives (drain /
+add-task) and SSE push land with the rest of phases 3-4.
 """
 
 from __future__ import annotations
@@ -620,6 +620,46 @@ class ControlServer:
                 action=cast(SampleCancelAction, action),
                 dry_run=dry_run,
             )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Requeue one errored/cancelled sample (phase 3): re-add it to the
+        # live run — it goes to the back of the sample queue and re-runs
+        # under the task's normal machinery, and the final log and counters
+        # reflect the fresh outcome (design/sample-requeue.md). `sample_id`
+        # is a query param like the other per-sample routes; `epoch` is
+        # required (mutation — a defaulted epoch would silently target a
+        # different sample). Idempotent — a repeat while the re-run is
+        # pending/queued/running reports `changed: false`; a completed
+        # sample is a 409 (re-scoring is out of scope); `dry_run=true`
+        # reports without acting.
+        @app.post("/evals/{eval_id}/sample/requeue")
+        async def sample_requeue(
+            eval_id: str,
+            sample_id: str,
+            epoch: int | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            from inspect_ai._control.requeue import requeue_sample
+
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently requeue the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
+            result = await requeue_sample(eval_id, sample_id, epoch, dry_run=dry_run)
             if result is None:
                 return JSONResponse(
                     status_code=404,

@@ -5,6 +5,7 @@ import math
 import os
 import shutil
 import tempfile
+import warnings
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from functools import partial
@@ -959,10 +960,18 @@ class ZipLogFile:
     # raw unsynchronized version of write
     def _zip_writestr(self, filename: str, data: Any) -> None:
         assert self._zip
-        self._zip.writestr(
-            filename,
-            to_json_safe(data, indent=None),
-        )
+        # a repeated member name is deliberate superseding (a requeued
+        # sample's fresh record, or re-logging with clean=False): readers
+        # resolve names to the last entry, so quiet zipfile's duplicate-name
+        # UserWarning rather than surfacing it per re-log
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            self._zip.writestr(
+                filename,
+                to_json_safe(data, indent=None),
+            )
 
     @contextmanager
     def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
@@ -1033,7 +1042,12 @@ async def _read_log(
 
     if not header_only:
         samples: list[EvalSample] = []
-        for entry in entries:
+        # a re-logged sample (e.g. a requeued sample superseding its prior
+        # terminal record) appends a second member under the same name;
+        # name-based zip access resolves to the last entry, so match that
+        # here rather than yielding duplicate samples
+        unique_entries = {e.filename: e for e in entries}
+        for entry in unique_entries.values():
             if entry.filename.startswith(f"{SAMPLES_DIR}/") and entry.filename.endswith(
                 ".json"
             ):
@@ -1075,7 +1089,10 @@ def _read_log_from_bytes(
         samples_list: list[EvalSample] | None = None
         if not header_only:
             samples_list = []
-            for name in zip.namelist():
+            # namelist() repeats a re-logged member (e.g. a requeued
+            # sample); zip.open(name) resolves to the last entry, so read
+            # each unique name once rather than yielding duplicate samples
+            for name in dict.fromkeys(zip.namelist()):
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
                     with zip.open(name, "r") as f:
                         samples_list.append(
