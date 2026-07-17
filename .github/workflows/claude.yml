@@ -30,48 +30,53 @@ on:
 jobs:
   claude:
     # Cheap gate to avoid spending runner minutes on unrelated events; the
-    # action does its own authoritative trigger check. Three phrases are aliases
-    # for the one-shot dev agent: @claude, plus — now that the machine account
-    # exists — @i-am-marvin (resolves to that GitHub user) and @marvin (does
-    # not). They all do the same thing; the action's trigger_phrase is
-    # single-valued, so `with.trigger_phrase` below picks whichever is present
-    # and this gate just fires if any is.
+    # action does its own authoritative trigger check. Two phrases summon the
+    # one-shot dev agent: @claude and @i-am-marvin (the machine account — a real
+    # user, so the mention resolves to it and pings nothing else). They do the
+    # same thing; the action's trigger_phrase is single-valued, so
+    # `with.trigger_phrase` below resolves which phrase the *event's own text*
+    # contains (comment body for a comment, issue body/title for an issue — the
+    # same source the action checks) and this gate fires if that text has either.
     #
-    # Machine-account guard: ignore comments authored by the machine account
-    # itself (i-am-marvin) so a marvin-authored comment that happens to contain
-    # its own name (or @claude) can't self-trigger the dev agent and loop.
+    # Machine-account guard: github.actor != 'i-am-marvin' over the whole gate,
+    # so a comment/issue authored by the machine account can't self-trigger the
+    # dev agent and loop (its own output — and the fork guidance below — can
+    # contain @claude/@i-am-marvin). Hoisted rather than per-source: the sources
+    # are OR'd, so guarding only the comment branch is bypassable by a phrase
+    # left in the enclosing issue body/title.
+    #
+    # Sources are scoped to the event that carries them (github.event.action /
+    # event_name), so a comment event is judged by the comment alone — a stale
+    # @claude in the enclosing issue can't fire a runner-spin for an unrelated
+    # comment, nor mask an alias typed in the comment.
     #
     # On an edited comment (the only `edited` action we subscribe to), fire only
-    # when the edit newly introduced a trigger phrase — comparing against the
-    # pre-edit body — so re-editing a comment that already mentioned one does not
+    # when the edit newly introduced a phrase — comparing against the pre-edit
+    # body — so re-editing a comment that already mentioned one does not
     # re-trigger. Known limitation: contains() is a substring test, looser than
     # the action's word-boundary trigger; a pre-edit body holding a phrase only
     # as a NON-triggering substring (in backticks, or a token like foo@claude)
-    # blocks the edit path. Acceptable for a cheap gate (workflow expressions
-    # have no regex); the action remains the authoritative check on what fires.
+    # blocks the edit path. Acceptable for a cheap gate (no regex in workflow
+    # expressions); the action remains the authoritative check on what fires.
     if: |
-      ( github.event.action == 'edited'
-        && github.event.comment.user.login != 'i-am-marvin'
-        && ( contains(github.event.comment.body, '@claude')
-          || contains(github.event.comment.body, '@i-am-marvin')
-          || contains(github.event.comment.body, '@marvin') )
-        && !( contains(github.event.changes.body.from, '@claude')
-          || contains(github.event.changes.body.from, '@i-am-marvin')
-          || contains(github.event.changes.body.from, '@marvin') ) ) ||
-      ( github.event.action != 'edited' && (
-          ( github.event.comment.user.login != 'i-am-marvin' && (
-              contains(github.event.comment.body, '@claude') ||
-              contains(github.event.comment.body, '@i-am-marvin') ||
-              contains(github.event.comment.body, '@marvin')
-          ) ) ||
-          contains(github.event.issue.body, '@claude') ||
-          contains(github.event.issue.body, '@i-am-marvin') ||
-          contains(github.event.issue.body, '@marvin') ||
-          contains(github.event.issue.title, '@claude') ||
-          contains(github.event.issue.title, '@i-am-marvin') ||
-          contains(github.event.issue.title, '@marvin') ||
-          github.event.label.name == 'claude'
-      ) )
+      github.actor != 'i-am-marvin' && (
+        ( github.event.action == 'edited'
+          && ( contains(github.event.comment.body, '@claude')
+            || contains(github.event.comment.body, '@i-am-marvin') )
+          && !( contains(github.event.changes.body.from, '@claude')
+            || contains(github.event.changes.body.from, '@i-am-marvin') ) ) ||
+        ( github.event.action == 'created' && (
+            contains(github.event.comment.body, '@claude') ||
+            contains(github.event.comment.body, '@i-am-marvin')
+        ) ) ||
+        ( github.event_name == 'issues' && (
+            contains(github.event.issue.body, '@claude') ||
+            contains(github.event.issue.body, '@i-am-marvin') ||
+            contains(github.event.issue.title, '@claude') ||
+            contains(github.event.issue.title, '@i-am-marvin') ||
+            github.event.label.name == 'claude'
+        ) )
+      )
     uses: meridianlabs-ai/agents/.github/workflows/claude.yml@main
     # Pass the machine-account PAT (MARVIN_TOKEN, an org secret) explicitly —
     # not via `secrets: inherit` — so the fork's other secrets (e.g. SYNC_TOKEN)
@@ -86,20 +91,19 @@ jobs:
       id-token: write
       actions: read
     with:
-      # trigger_phrase is single-valued; pick whichever alias is present so the
-      # action's own word-boundary check matches what the user typed. @claude
-      # first (most common), then @i-am-marvin, else @marvin (the gate above
-      # guarantees one of the three matched, so @marvin is the safe fallback).
+      # trigger_phrase is single-valued, so resolve it from the SAME source the
+      # action will check for this event (comment > issue), not from a union of
+      # all sources — otherwise a stale @claude in an enclosing issue would mask
+      # an @i-am-marvin typed in a comment, resolving @claude and then no-op'ing
+      # (the action only checks the comment body on a comment event). Within a
+      # source, default @claude and only switch to @i-am-marvin when that's
+      # what's present; the trailing @claude covers the `claude` label event and
+      # is a harmless fallback.
       trigger_phrase: >-
         ${{
-        (contains(github.event.comment.body, '@claude') ||
-        contains(github.event.issue.body, '@claude') ||
-        contains(github.event.issue.title, '@claude') ||
-        github.event.label.name == 'claude') && '@claude' ||
-        (contains(github.event.comment.body, '@i-am-marvin') ||
-        contains(github.event.issue.body, '@i-am-marvin') ||
-        contains(github.event.issue.title, '@i-am-marvin')) && '@i-am-marvin' ||
-        '@marvin'
+        github.event.comment && (contains(github.event.comment.body, '@i-am-marvin') && '@i-am-marvin' || '@claude') ||
+        (contains(github.event.issue.body, '@i-am-marvin') || contains(github.event.issue.title, '@i-am-marvin')) && '@i-am-marvin' ||
+        '@claude'
         }}
       base_branch: main
       # Fork has no PR-open auto-review; post @review from the reusable
@@ -166,17 +170,21 @@ jobs:
     # See the `claude` job's `if:` — same edited-comment guard, so adding @auto
     # to an existing comment kicks off the autonomous loop but re-editing a
     # comment that already mentioned @auto does not re-fire it (which could
-    # otherwise open a duplicate PR).
+    # otherwise open a duplicate PR). Same machine-account guard too: @auto is
+    # the loop-prone trigger, so keep the machine account from kicking it off
+    # (nothing in the designed loop relies on marvin posting @auto).
     if: |
-      ( github.event.action == 'edited'
-        && contains(github.event.comment.body, '@auto')
-        && !contains(github.event.changes.body.from, '@auto') ) ||
-      ( github.event.action != 'edited' && (
-          contains(github.event.comment.body, '@auto') ||
-          contains(github.event.issue.body, '@auto') ||
-          contains(github.event.issue.title, '@auto') ||
-          github.event.label.name == 'auto'
-      ) )
+      github.actor != 'i-am-marvin' && (
+        ( github.event.action == 'edited'
+          && contains(github.event.comment.body, '@auto')
+          && !contains(github.event.changes.body.from, '@auto') ) ||
+        ( github.event.action != 'edited' && (
+            contains(github.event.comment.body, '@auto') ||
+            contains(github.event.issue.body, '@auto') ||
+            contains(github.event.issue.title, '@auto') ||
+            github.event.label.name == 'auto'
+        ) )
+      )
     uses: meridianlabs-ai/agents/.github/workflows/claude.yml@main
     secrets:
       MARVIN_TOKEN: ${{ secrets.MARVIN_TOKEN }}
