@@ -96,6 +96,14 @@ _KNOB_SCOPE: dict[str, str] = {
     "max_retries": "process",
 }
 
+# Knobs that apply live but deliberately record nothing in the eval log —
+# named `concurrency()` limits have no config counterpart there (see
+# design/ctl-config-log-persistence.md). Provenance (`--author`/`--reason`)
+# rides the recorded `ConfigUpdate`, so a request whose set options are all
+# recordless has nowhere to put it; `_run_config` hard-errors explicit
+# provenance in that case rather than silently dropping it.
+_RECORDLESS_KNOBS = frozenset({"key"})
+
 # Minimum control-API version each knob requires of the *server* process (the
 # `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
 # at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
@@ -838,7 +846,9 @@ def sample_cancel_command(
         f"[{_KNOB_SCOPE['key']}] Set the named `concurrency()` limit NAME to "
         "LIMIT — any limit tools or task code register by name (the output's "
         "`concurrency keys` section lists them, exactly as addressable here). "
-        "An unknown NAME errors, listing the available keys."
+        "An unknown NAME errors, listing the available keys. Ephemeral: "
+        "named limits have no counterpart in the eval log, so the change is "
+        "not recorded there."
     ),
 )
 @click.option(
@@ -2550,12 +2560,15 @@ def _run_config(
     requested_knobs = [knob for knob, value in knob_values.items() if value is not None]
     _gate_knob_support(servers, scope.socket_path, requested_knobs)
 
-    # provenance rides mutations only (a read records nothing); the author
-    # default is resolved client-side — the server has no view of who invoked
-    # the CLI — and gated on the server supporting the params. On a pure read
-    # an explicit --author/--reason has nothing to annotate: hard-error (like
+    # provenance rides recorded mutations only — a read records nothing, and
+    # the recordless knobs (`_RECORDLESS_KNOBS`) apply without an eval-log
+    # record to carry it. The author default is resolved client-side — the
+    # server has no view of who invoked the CLI — and gated on the server
+    # supporting the params. When nothing on the request records, an explicit
+    # --author/--reason has nothing to annotate: hard-error (like
     # --log-buffer with no buffer) rather than silently dropping the values.
-    if requested_knobs:
+    recorded_knobs = [knob for knob in requested_knobs if knob not in _RECORDLESS_KNOBS]
+    if recorded_knobs:
         author, reason = _gate_provenance_support(
             servers, scope.socket_path, author=author, reason=reason
         )
@@ -2565,10 +2578,18 @@ def _run_config(
             for flag, value in (("--author", author), ("--reason", reason))
             if value is not None
         )
+        detail = (
+            "the only set option given ("
+            + ", ".join(f"--{knob.replace('_', '-')}" for knob in requested_knobs)
+            + ") applies an ephemeral change that is never recorded in the "
+            "eval log"
+            if requested_knobs
+            else "no set option was given"
+        )
         _fail(
             "invalid_request",
-            f"{flags} annotates a config change, but no set option was "
-            "given — there is no change to record it with. Add a set option "
+            f"{flags} annotates a config change, but {detail} — there is "
+            "no record to attach it to. Add a recorded set option "
             "(e.g. --max-samples) or drop the flag.",
         )
 
@@ -2765,8 +2786,9 @@ def _compose_config(
         "applied": bool(set_values and not dry_run),
         "dry_run": dry_run,
         # per applied knob, whether the change was recorded in the affected
-        # eval log(s); None when nothing was applied (or the server predates
-        # config-change persistence)
+        # eval log(s); None when nothing recordable was applied — no set
+        # option, only recordless knobs (--key), or a server that predates
+        # config-change persistence
         "persisted": persisted,
         "requested": limits_view.get("requested") or None,
     }

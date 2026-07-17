@@ -2309,6 +2309,81 @@ def test_config_provenance_requires_set_option(
     assert not sent
 
 
+def test_config_provenance_requires_recorded_set_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Explicit --author/--reason with only recordless knobs hard-errors.
+
+    `--key` applies a change but deliberately records nothing (a named
+    concurrency() limit has no eval-log counterpart), so provenance on a
+    key-only retune would vanish silently — same failure mode as the
+    pure-read case, same pre-send hard error.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "concurrency": [
+                    {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
+                ],
+                "requested": {"concurrency:my_api": 2},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--key", "my_api", "2", "--reason", "provider incident"],
+    )
+    assert result.exit_code == 1
+    assert "--reason" in result.stderr
+    assert "--key" in result.stderr
+    assert "never recorded" in result.stderr
+    assert not sent  # the mutation was never sent
+
+    # a recorded knob alongside --key carries the provenance: the request
+    # goes through with the reason attached
+    result = cli_runner().invoke(
+        ctl_command,
+        [
+            "config",
+            "--key",
+            "my_api",
+            "2",
+            "--max-connections",
+            "8",
+            "--reason",
+            "provider incident",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["reason"] == "provider incident"
+
+    # without explicit provenance a key-only retune proceeds — and sends no
+    # defaulted author (there is no record for it to ride)
+    sent.clear()
+    result = cli_runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
+    assert result.exit_code == 0, result.output
+    assert sent["key"] == ("my_api", 2)
+    assert sent["author"] is None
+
+
 def test_config_gates_newer_knob_on_older_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
