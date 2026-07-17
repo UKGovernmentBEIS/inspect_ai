@@ -4,7 +4,7 @@ Reads (and optionally retunes) a running task's concurrency limits mid-flight �
 ``max_samples`` (per-task sample concurrency), ``max_sandboxes`` (per-provider
 sandbox concurrency, process-global) and ``max_subprocesses`` (subprocess
 concurrency, process-global). The first of the phase-3 modify directives
-(see ``design/control-channel.md``). Keyed by task_id — the identity that is
+(see ``design/ctl/control-channel.md``). Keyed by task_id — the identity that is
 stable across retry attempts — via ``GET``/``PATCH /tasks/<task-id>/config``.
 
 These knobs are backed by a :class:`~inspect_ai.util._concurrency.ResizableLimiter`
