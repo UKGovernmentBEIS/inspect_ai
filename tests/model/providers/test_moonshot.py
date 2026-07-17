@@ -1,6 +1,7 @@
 import pytest
 from test_helpers.utils import skip_if_no_moonshot
 
+from inspect_ai._util.content import ContentReasoning
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -95,3 +96,36 @@ async def test_moonshot_compatible() -> None:
     message = ChatMessageUser(content="Hello Kimi!")
     res = await model.generate(input=[message])
     assert len(res.completion) >= 1
+
+
+@skip_if_no_moonshot
+async def test_moonshot_kimi_k3_fixed_sampling_live() -> None:
+    """Sampling params must be stripped before hitting the API (K3 rejects them)."""
+    model = get_model(
+        "moonshot/kimi-k3",
+        config=GenerateConfig(
+            temperature=0.7,
+            top_p=0.9,
+            frequency_penalty=0.5,
+            presence_penalty=0.5,
+            max_tokens=2048,
+        ),
+    )
+    message = ChatMessageUser(content="Hello Kimi!")
+    res = await model.generate(input=[message])
+    assert res.choices
+
+
+@skip_if_no_moonshot
+async def test_moonshot_kimi_k3_reasoning_content() -> None:
+    """K3 thinking is always on; reasoning_content must surface as ContentReasoning."""
+    model = get_model(
+        "moonshot/kimi-k3",
+        config=GenerateConfig(reasoning_effort="max", max_tokens=8192),
+    )
+    message = ChatMessageUser(content="Solve 3*x^3-5*x=1")
+    res = await model.generate(input=[message])
+    assert "<think>" not in res.completion
+    content = res.choices[0].message.content
+    assert isinstance(content, list)
+    assert any(isinstance(c, ContentReasoning) for c in content)

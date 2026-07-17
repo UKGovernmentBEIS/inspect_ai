@@ -262,6 +262,85 @@ class TestModelInfoFields:
                 assert info.context_length > 0, f"{model} has invalid context_length"
 
 
+class TestModelDataConsistency:
+    """Consistency checks across the model data YAML files."""
+
+    def test_colliding_lookup_keys_agree_across_files(self):
+        """Entries in different files that collide on a lookup key must agree.
+
+        Cross-file duplicates exist (e.g. kimi.yml's `moonshotai/kimi-k2.5`
+        vs together.yml's `moonshotai/Kimi-K2.5`): exact lookups are
+        unaffected, but for any other casing the winner in
+        `_build_lookup_index()` depends on filesystem glob order. That is
+        harmless while the entries agree on functional metadata; this test
+        fails if they ever drift (e.g. a regenerated together.yml bumps a
+        context length that kimi.yml pins). Display-only fields
+        (display_name, organization) may differ. Same-file collisions are
+        excluded: they resolve deterministically by insertion order, and the
+        recurring `latest` version key shadows earlier models by design.
+        """
+        from pathlib import Path
+
+        from inspect_ai.model._model_data import model_data
+        from inspect_ai.model._model_data.model_data import (
+            create_model_info,
+            load_organizations_from_yaml,
+            model_key,
+        )
+        from inspect_ai.model._model_info import _normalize_for_lookup
+
+        functional_fields = (
+            "context_length",
+            "output_tokens",
+            "reasoning",
+            "reasoning_effort_default",
+            "knowledge_cutoff_date",
+            "release_date",
+            "family",
+        )
+
+        data_dir = Path(model_data.__file__).parent
+        entries: dict[str, list[tuple[str, str, ModelInfo]]] = {}
+        for info_file in sorted(data_dir.glob("*.yml")):
+            for org, org_data in load_organizations_from_yaml(info_file).items():
+                for model_name, model_def in org_data.models.items():
+                    names = [model_name, *(model_def.aliases or [])]
+                    infos = [create_model_info(org_data.display_name, model_def)] * len(
+                        names
+                    )
+                    for version_name, version_data in (
+                        model_def.versions or {}
+                    ).items():
+                        version_info = create_model_info(
+                            org_data.display_name, model_def, version_data
+                        )
+                        for name in [version_name, *(version_data.aliases or [])]:
+                            names.append(name)
+                            infos.append(version_info)
+                    for name, info in zip(names, infos):
+                        key = model_key(org, name)
+                        entries.setdefault(_normalize_for_lookup(key), []).append(
+                            (info_file.name, key, info)
+                        )
+
+        for normalized, group in entries.items():
+            for i, (first_file, first_key, first_info) in enumerate(group):
+                for other_file, other_key, other_info in group[i + 1 :]:
+                    if other_file == first_file:
+                        continue
+                    for field in functional_fields:
+                        first_value = getattr(first_info, field)
+                        other_value = getattr(other_info, field)
+                        if first_value is None or other_value is None:
+                            continue
+                        assert first_value == other_value, (
+                            f"Model data entries colliding on lookup key "
+                            f"'{normalized}' disagree on {field}: "
+                            f"{first_file}:{first_key} has {first_value!r} but "
+                            f"{other_file}:{other_key} has {other_value!r}"
+                        )
+
+
 class TestGetModelInputTokens:
     """Tests for get_model_input_tokens function."""
 
