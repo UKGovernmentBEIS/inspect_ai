@@ -56,11 +56,11 @@ from click.core import ParameterSource
 
 from inspect_ai._cli.trace import (
     TraceAnomalies,
-    _trace_anomalies,
     anomalies_options,
     anomaly_buckets_json,
     filter_traces,
     rendered_anomalies,
+    trace_anomalies,
 )
 from inspect_ai._control.cancel import TaskCancelAction
 from inspect_ai._control.discovery import (
@@ -2498,7 +2498,7 @@ def _run_process_anomalies(
         _PidAnomalies(
             pid=target_pid,
             trace_file=target_file,
-            anomalies=_trace_anomalies(
+            anomalies=trace_anomalies(
                 filter_traces(read_trace_file(target_file), filter)
             ),
         )

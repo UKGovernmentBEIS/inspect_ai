@@ -173,7 +173,7 @@ def anomalies_options(
     Single home for the options of `inspect trace anomalies` and
     `inspect ctl process anomalies` so the two entry points cannot drift as
     flags are added (see "Trace-log anomalies for stall diagnosis" in
-    design/control-channel.md). ``json_envelope`` describes the command's
+    design/ctl/control-channel.md). ``json_envelope`` describes the command's
     own `--json` envelope shape in the flag's help text.
     """
 
@@ -238,7 +238,7 @@ def anomalies_command_impl(
 ) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path, traces = _read_traces(trace_file, None, filter, trace_dir)
-    anomalies = _trace_anomalies(traces)
+    anomalies = trace_anomalies(traces)
 
     if json:
         # stamp as_of once and compute running durations against it so the
@@ -330,7 +330,7 @@ def rendered_anomalies(
         return console.export_text(styles=True).strip()
 
 
-def _trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
+def trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
     """Reconstruct anomalous actions (never exited, cancelled, errored, timed out) from trace records.
 
     Shared by the human and JSON renderings of `inspect trace anomalies` and
