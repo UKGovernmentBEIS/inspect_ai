@@ -126,3 +126,14 @@ def test_html_escape_markdown_indented_backticks_are_not_a_fence():
     result = html_escape_markdown(content)
     assert "<b>hidden</b>" not in result
     assert "&lt;b&gt;hidden&lt;/b&gt;" in result
+
+
+def test_html_escape_markdown_unicode_line_separator_does_not_shift_indices():
+    # str.splitlines() breaks on U+2028 (and \v, \f, U+2029, ...), but the
+    # CommonMark tokenizer counts lines only by \n. Counting with splitlines()
+    # would shift our indices out of step with token.map, so the leading U+2028
+    # here would land <script> on a line the fence tokens claim, leaving it raw.
+    content = "\u2028<script>alert(1)</script>\n```python\ncode\n```"
+    result = html_escape_markdown(content)
+    assert "<script>alert(1)</script>" not in result
+    assert "&lt;script&gt;" in result
