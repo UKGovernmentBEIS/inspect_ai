@@ -217,3 +217,36 @@ async def test_sample_summaries_dedup_on_reinit() -> None:
         assert keys == [(1, 1), (2, 1), (3, 1)], (
             f"duplicate summaries after re-init: {keys}"
         )
+
+
+@skip_if_trio
+async def test_sample_summaries_dedup_in_progress_superseded() -> None:
+    """A superseded sample must not duplicate the in-progress journal summaries.
+
+    A requeue re-logs a sample under the same (id, epoch): the prior attempt
+    lands in an earlier journal summary file than the re-run. Reading the
+    summaries of an in-progress log (no consolidated summaries.json yet) must
+    keep only the last row per (id, epoch), matching the last-entry-wins rule
+    of the sample readers.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+
+        recorder = EvalRecorder(temp_dir)
+        path = await recorder.log_init(spec)
+        await recorder.log_start(spec, EvalPlan())
+
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="stale")
+        )
+        await recorder.flush(spec)
+
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="fresh")
+        )
+        await recorder.flush(spec)
+
+        # no log_finish: read the in-progress journal summaries
+        summaries = read_eval_log_sample_summaries(path)
+        assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]
+        assert summaries[0].target == "fresh"

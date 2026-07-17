@@ -1194,10 +1194,15 @@ async def _read_all_summaries_async(
         per_file = await tg_collect(
             [partial(read_summary_file, i) for i in range(1, count + 1)]
         )
-        summaries: list[EvalSampleSummary] = [
-            s for file_summaries in per_file for s in file_summaries
-        ]
-        return summaries, count
+        # a requeued sample's re-run is journalled in a later summary file
+        # than its superseded prior attempt; tg_collect preserves the 1..count
+        # file order, so keeping the last row per (id, epoch) applies the same
+        # last-entry-wins rule as the zip sample readers
+        by_key: dict[tuple[int | str, int], EvalSampleSummary] = {}
+        for file_summaries in per_file:
+            for summary in file_summaries:
+                by_key[(summary.id, summary.epoch)] = summary
+        return list(by_key.values()), count
 
 
 def _read_header(zip: ZipFile, location: str) -> EvalLog:
