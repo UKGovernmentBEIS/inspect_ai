@@ -1,9 +1,18 @@
-import functools
 import logging
 import subprocess
 import sys
 
 logger = logging.getLogger(__name__)
+
+
+def warn_once(logger: logging.Logger, message: str) -> None:
+    """Emit ``message`` as a warning, but only the first time it is seen this process."""
+    if message not in _warned:
+        logger.warning(message)
+        _warned.add(message)
+
+
+_warned: set[str] = set()
 
 # Playwright launches Chromium with --force-device-scale-factor=1 by default, which
 # ensures consistent rendering and measurement behavior using CSS pixels instead of
@@ -23,17 +32,6 @@ logger = logging.getLogger(__name__)
 # allows the code to accurately calculate node visibility.
 
 
-@functools.cache
-def _warn_missing_appkit() -> None:
-    # @cache makes this warn exactly once per process, however many headful macOS
-    # calls hit the missing optional AppKit dependency.
-    logger.warning(
-        "pyobjc-framework-AppKit is not installed; falling back to a screen "
-        "scale factor of 1. Install it (`pip install pyobjc-framework-AppKit`) "
-        "to enable HiDPI scale-factor detection when running headfully on macOS."
-    )
-
-
 def _darwin_scale_factor() -> float:
     try:
         # `pip install pyobjc-framework-AppKit` is required to run headfully on macOS
@@ -41,7 +39,12 @@ def _darwin_scale_factor() -> float:
 
         screen = NSScreen.mainScreen()
     except ModuleNotFoundError:
-        _warn_missing_appkit()
+        warn_once(
+            logger,
+            "pyobjc-framework-AppKit is not installed; falling back to a screen "
+            "scale factor of 1. Install it (`pip install pyobjc-framework-AppKit`) "
+            "to enable HiDPI scale-factor detection when running headfully on macOS.",
+        )
         return 1.0
     except Exception:
         return 1.0
