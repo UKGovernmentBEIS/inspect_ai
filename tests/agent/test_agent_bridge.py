@@ -196,6 +196,11 @@ def responses_web_search_agent() -> Agent:
                             "search_context_size": "low",
                         }
                     ],
+                    # forced: the question is answerable from parametric
+                    # knowledge, and under auto choice models sometimes skip
+                    # the search (the test verifies bridge translation, not
+                    # whether the model elects to search)
+                    tool_choice="required",
                     input=user_prompt(state.messages).text,
                 )
 
