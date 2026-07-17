@@ -101,11 +101,11 @@ This is the real eval-runner change, and the reason requeue is one of the "bigge
 - **A task-level `requeue-failed` fan-out verb** ("requeue everything errored"). Rejected for v1 per the no-fan-out-mutations convention — shell composition covers it: `ctl sample errors TASK --json | jq ... | xargs -n1 ... ctl sample requeue TASK ...`. If demand appears, it's a multi-target selector design, not a special verb.
 - **Persist requeue intent** (survive a crash). Rejected for the same reason pause state isn't persisted: durability belongs to the log/recovery layer, and a restarted process re-running failures is already the eval-set/`eval-retry` contract.
 
-## Open questions
+## Resolved questions
 
-1. **Scan interplay.** `run_sample` short-circuits reused samples through `resume_scan_previous_sample`; a requeued sample re-runs its scanners naturally, but whether scan accounting needs the same decrement treatment as the error counter should be checked at implementation time.
-2. **Display.** Should the task display's progress bar regress when a terminal sample re-enters the queue (progress was already ticked)? Probably freeze rather than regress (the `progress()` tick was task-total-scoped); decide with the implementation.
-3. **`sample cancel` of a queued re-run.** Today still-queued samples reject per-sample cancel ("only a running sample can be cancelled"). A requeued-then-regretted sample therefore can't be un-requeued until it starts. Acceptable for v1 (its worst case is one wasted re-run); a queued-sample cancel is a separate, pre-existing gap.
+1. **Scan interplay — implementation detail, no design decision.** A requeued sample re-runs its scanners naturally. Scan rows are keyed by `transcript_id` = sample **uuid**, and requeue mints a fresh uuid, so the re-run writes new rows and the prior attempt's rows become orphans (their uuid vanishes from the log when the `(id, epoch)` record is superseded); `_cleanup_orphan_scan_rows` at scan finalize already sweeps fresh-uuid orphans — the same contract the sample-retry paths rely on. Unlike `SampleErrorHandler.error_count` there is no threshold accounting for scans, so nothing needs a decrement for correctness; the scan progress counter gets the same regress treatment as the task display (below).
+2. **Display — the progress bar regresses.** When a terminal sample re-enters the queue, the requeue accept unticks its progress, so the bar honestly reflects outstanding work rather than freezing at a count that includes a result being redone. Mechanism (the `progress()` tick is task-total-scoped) decided with the implementation.
+3. **`sample cancel` of a queued re-run — deferred, tracked as meridianlabs-ai/inspect_ai#113.** Today still-queued samples reject per-sample cancel ("only a running sample can be cancelled"). A requeued-then-regretted sample therefore can't be un-requeued until it starts. Acceptable for v1 (its worst case is one wasted re-run); a queued-sample cancel is a separate, pre-existing gap — #113 covers both the never-started and the un-requeue case.
 
 ## Implementation sketch (blast radius)
 
