@@ -442,6 +442,12 @@ def test_print_events_table_and_footer(
                 "result": "files",
             },
             {"event": "error", "timestamp": 1002.0, "error": "boom"},
+            {
+                "event": "info",
+                "timestamp": 1003.0,
+                "source": "my-solver",
+                "data": "phase 1 complete",
+            },
         ],
         "next": "CURSORX",
         "done": False,
@@ -451,8 +457,9 @@ def test_print_events_table_and_footer(
     assert "event" in out.splitlines()[0]  # table header
     # per-type summaries
     assert "openai/gpt" in out and "bash" in out and "boom" in out
+    assert "my-solver" in out and "phase 1 complete" in out
     # footer: count, "more" (not done), and the resume cursor
-    assert "3 events" in out
+    assert "4 events" in out
     assert "more" in out
     assert "next: CURSORX" in out
 
@@ -941,6 +948,7 @@ def test_sample_events_read_retries_busy_timeout(
         1,
         cursor=None,
         tail=5,
+        limit=None,
         types=None,
         full=False,
         since_time=None,
@@ -2490,6 +2498,142 @@ def test_events_unseeded_defaults_to_recent_tail(
     assert (payload["sample_id"], payload["epoch"]) == ("s1", 1)
 
 
+def test_events_type_all_normalized_to_star(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--type all` is the blessed shell-safe spelling of `--type '*'`.
+
+    Normalized client-side to the `*` wire value so it also works against a
+    running server that predates the synonym; a comma list member normalizes
+    the same way, and other members pass through untouched.
+    """
+    captured: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    runner = cli_runner()
+
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--type", "all"]
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["types"] == "*"
+
+    runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--type", "model, all"]
+    )
+    assert captured["types"] == "model,*"
+
+    # non-magic members pass through untouched (`*` stays a quiet synonym)
+    runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--type", "model,tool"]
+    )
+    assert captured["types"] == "model,tool"
+
+    runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--type", "*"])
+    assert captured["types"] == "*"
+
+
+def test_events_from_start_reads_full_backlog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--from-start` seeds the window at event 0 (no default tail)."""
+    captured: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    runner = cli_runner()
+
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--from-start", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    # no window params on the wire — an unseeded, tail-less read starts at 0
+    assert captured["tail"] is None and captured["cursor"] is None
+    assert captured["since_time"] is None
+
+    # --until is allowed: bound a from-the-start read by wall clock
+    result = runner.invoke(
+        ctl_command,
+        ["sample", "events", "aaa111", "s1", "--from-start", "--until", "5.0"],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["tail"] is None and captured["until"] == 5.0
+
+
+def test_events_from_start_conflicts_with_window_seeds() -> None:
+    """`--from-start` rejects --cursor / --tail / --since-time."""
+    from inspect_ai._control.events import encode_cursor
+
+    runner = cli_runner()
+    for extra in (
+        ["--cursor", encode_cursor("n", 3)],
+        ["--tail", "5"],
+        ["--since-time", "5.0"],
+    ):
+        result = runner.invoke(
+            ctl_command, ["sample", "events", "t", "s1", "--from-start", *extra]
+        )
+        assert result.exit_code == 1
+        assert "--from-start" in result.stderr and extra[0] in result.stderr
+
+
+def test_events_limit_rides_wire_and_combines_with_seeds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--limit` is a page size: passed through, combinable with any seed."""
+    captured: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        captured.clear()
+        captured.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    runner = cli_runner()
+
+    result = runner.invoke(
+        ctl_command,
+        ["sample", "events", "aaa111", "s1", "--from-start", "--limit", "15"],
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["limit"] == 15
+
+    # --limit is not a window seed: the unseeded default tail still applies
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--limit", "15"]
+    )
+    assert result.exit_code == 0, result.output
+    assert captured["limit"] == 15 and captured["tail"] == 20
+
+    # omitted → not on the wire (server default applies)
+    runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1"])
+    assert captured["limit"] is None
+
+    result = runner.invoke(
+        ctl_command, ["sample", "events", "aaa111", "s1", "--limit", "0"]
+    )
+    assert result.exit_code == 1
+    assert "--limit" in result.stderr
+
+
 def test_events_json_no_servers_echoes_identifiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2826,6 +2970,43 @@ def test_task_cancel_handler_404_means_task_gone(
     assert "older inspect" not in result.stderr
 
 
+def test_task_cancel_action_sent_on_current_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--action score`/`--action error` ride as the `action` query param."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 1})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+
+    runner = cli_runner()
+    score = runner.invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--action", "score"]
+    )
+    assert score.exit_code == 0, score.output
+    error = runner.invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--action", "error", "--dry-run"]
+    )
+    assert error.exit_code == 0, error.output
+    assert spy.params == [
+        {"action": "score"},
+        {"action": "error", "dry_run": True},
+    ]
+
+
+def test_task_cancel_rejects_unknown_action() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--action", "explode"]
+    )
+    assert result.exit_code == 2
+    assert "explode" in result.stderr
+
+
 def test_sample_cancel_defaults_epoch_for_single_epoch_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2878,7 +3059,16 @@ def test_sample_cancel_error_flag_and_dry_run(
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(
         ctl_command,
-        ["sample", "cancel", "aaa111", "s1", "--error", "--dry-run", "--json"],
+        [
+            "sample",
+            "cancel",
+            "aaa111",
+            "s1",
+            "--action",
+            "error",
+            "--dry-run",
+            "--json",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert spy.params == [
@@ -2886,6 +3076,31 @@ def test_sample_cancel_error_flag_and_dry_run(
     ]
     payload = json.loads(result.stdout)
     assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_sample_cancel_cancel_action_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "cancel", "aaa111", "s1", "--action", "cancel", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "action": "cancel"}]
+    assert json.loads(result.stdout)["applied"] is True
+
+
+def test_sample_cancel_rejects_unknown_action() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--action", "explode"]
+    )
+    assert result.exit_code == 2
+    assert "explode" in result.stderr
 
 
 def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:

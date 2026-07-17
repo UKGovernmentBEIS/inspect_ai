@@ -23,7 +23,7 @@ from inspect_ai.event._pool import (
 )
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
-from inspect_ai.event._validate import validate_chat_messages
+from inspect_ai.event._validate import validate_chat_messages, validate_events
 from inspect_ai.log._condense import (
     WalkContext,
     condense_event,
@@ -45,7 +45,6 @@ from ._attachments import StreamingAttachmentStore, write_attachments_field
 from ._reconstruct import (
     EventVersionCollapser,
     MessageAccumulator,
-    _deserialize_events,
     _summary_with_uuid_fallback,
 )
 
@@ -228,7 +227,7 @@ def _write_sample_streaming(
 
             deduped_event_data = collapser.events()
 
-            raw_events = _deserialize_events([ed.event for ed in deduped_event_data])
+            raw_events = validate_events([ed.event for ed in deduped_event_data])
 
             for ev in raw_events:
                 if sample_init is None and isinstance(ev, SampleInitEvent):
