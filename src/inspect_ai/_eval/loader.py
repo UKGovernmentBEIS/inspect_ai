@@ -796,7 +796,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
 
             try:
                 return scorer_create(scorer_name, **kwargs)
-            except ValueError:
+            except (ValueError, LookupError):
                 # We need a valid path to a scorer file to try to load the scorer from there
                 if not task_path:
                     raise PrerequisiteError(
@@ -815,7 +815,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
                     scorer_fn = create_scorer(scorer_name, **kwargs)
                     validate_scorer(scorer_fn, scorer_name, task_pretty_path)
                     return scorer_fn
-                except ValueError:
+                except (ValueError, LookupError):
                     # we still couldn't load this, request the user provide a path
                     raise PrerequisiteError(
                         f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
