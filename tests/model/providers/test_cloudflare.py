@@ -7,7 +7,9 @@ from inspect_ai.model import get_model
 @pytest.mark.anyio
 @skip_if_no_cloudflare
 async def test_cloudflare_api() -> None:
-    async with get_model("cf/meta/llama-3.1-8b-instruct-awq") as model:
+    async with get_model(
+        "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+    ) as model:
         message = "This is a test string. What are you?"
         response = await model.generate(input=message)
         assert len(response.completion) >= 1
@@ -37,7 +39,7 @@ def test_cloudflare_token_reported_to_override_hook(
         override_api_key,
     )
 
-    api = CloudFlareAPI(model_name="meta/llama-3.1-8b-instruct-awq")
+    api = CloudFlareAPI(model_name="@cf/meta/llama-3.1-8b-instruct-awq")
 
     # the key came from CLOUDFLARE_API_TOKEN, so that is the variable the hook
     # must be told about (not the derived CLOUDFLARE_API_KEY)
@@ -70,7 +72,7 @@ def test_cloudflare_api_key_reported_to_override_hook(
         override_api_key,
     )
 
-    api = CloudFlareAPI(model_name="meta/llama-3.1-8b-instruct-awq")
+    api = CloudFlareAPI(model_name="@cf/meta/llama-3.1-8b-instruct-awq")
 
     assert seen[0] == (CLOUDFLARE_API_KEY, "source-key")
     assert all(name == CLOUDFLARE_API_KEY for name, _ in seen)

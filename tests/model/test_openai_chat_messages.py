@@ -1,7 +1,7 @@
 import pytest
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.model._openai import messages_from_openai
+from inspect_ai.model._openai import messages_from_openai, messages_to_openai
 from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
 )
@@ -190,6 +190,35 @@ async def test_assistant_message_with_openrouter_reasoning_details():
     assert "reasoning.text" not in msg.content[0].reasoning
     assert isinstance(msg.content[1], ContentText)
     assert msg.content[1].text == "assistant output"
+
+
+async def test_assistant_message_reasoning_content_round_trip():
+    messages = [
+        DummyMessage("assistant", content="assistant output"),
+    ]
+    messages[0]["reasoning_content"] = "visible reasoning"
+
+    chat_msgs = await messages_from_openai(messages)
+
+    assert len(chat_msgs) == 1
+    msg = chat_msgs[0]
+    assert isinstance(msg.content, list)
+    assert isinstance(msg.content[0], ContentReasoning)
+    assert msg.content[0].reasoning == "visible reasoning"
+    assert msg.content[0].internal == "reasoning_content"
+    assert isinstance(msg.content[1], ContentText)
+    assert msg.content[1].text == "assistant output"
+
+    # replay should re-emit reasoning as a reasoning_content field (not <think>)
+    replayed = await messages_to_openai(chat_msgs)
+    assert len(replayed) == 1
+    assistant_param = replayed[0]
+    assert assistant_param["role"] == "assistant"
+    assert assistant_param["reasoning_content"] == "visible reasoning"
+    content = assistant_param["content"]
+    assert isinstance(content, str)
+    assert "<think>" not in content
+    assert "assistant output" in content
 
 
 async def test_user_message_passthrough():
