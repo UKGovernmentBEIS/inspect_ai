@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.248 (17 July 2026)
 
 - Logging: Local eval (`.eval`) and JSON (`.json`) log files are now written atomically (temp file + `fsync` + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)
 - Checkpointing: In-sandbox restic artifacts moved from the world-listable `/opt/inspect-restic` to root-only `/root/.cache/inspect`, and egress scratch files no longer land in `/tmp`, so agents no longer see evidence of checkpointing.
