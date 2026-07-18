@@ -1,0 +1,79 @@
+{
+  "description": "Legacy step-only log: step begin/end pairs map to span-table entries (id = step-<begin index>). Covers nested steps, an unclosed step implicitly closed by its parent's end (t/working fall back to the last descendant), and root-level loose events.",
+  "events": [
+    {"event": "step", "action": "begin", "name": "solve", "type": "solver", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
+    {"event": "model", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
+    {"event": "step", "action": "end", "name": "solve", "type": "solver", "timestamp": "2026-01-01T00:00:02+00:00", "working_start": 2.0},
+    {"event": "step", "action": "begin", "name": "score", "type": "scorer", "timestamp": "2026-01-01T00:00:03+00:00", "working_start": 3.0},
+    {"event": "score", "score": {"value": 1}, "timestamp": "2026-01-01T00:00:04+00:00", "working_start": 4.0},
+    {"event": "model", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:05+00:00", "working_start": 5.0},
+    {"event": "step", "action": "end", "name": "score", "type": "scorer", "timestamp": "2026-01-01T00:00:06+00:00", "working_start": 6.0},
+    {"event": "info", "data": "loose", "timestamp": "2026-01-01T00:00:07+00:00", "working_start": 7.0},
+    {"event": "step", "action": "begin", "name": "outer", "timestamp": "2026-01-01T00:00:08+00:00", "working_start": 8.0},
+    {"event": "step", "action": "begin", "name": "inner", "timestamp": "2026-01-01T00:00:09+00:00", "working_start": 9.0},
+    {"event": "model", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:10+00:00", "working_start": 10.0},
+    {"event": "step", "action": "end", "name": "outer", "timestamp": "2026-01-01T00:00:11+00:00", "working_start": 11.0},
+    {"event": "info", "data": "tail", "timestamp": "2026-01-01T00:00:12+00:00", "working_start": 12.0}
+  ],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 13, "models": 3},
+    "spans": [
+      {
+        "id": "step-0",
+        "name": "solve",
+        "type": "solver",
+        "begin": 0,
+        "extent": [0, 2],
+        "t": ["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:02+00:00"],
+        "working": [0.0, 2.0],
+        "events": 3,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"model": 1}
+      },
+      {
+        "id": "step-3",
+        "name": "score",
+        "type": "scorer",
+        "begin": 3,
+        "extent": [3, 6],
+        "t": ["2026-01-01T00:00:03+00:00", "2026-01-01T00:00:06+00:00"],
+        "working": [3.0, 6.0],
+        "events": 4,
+        "models": 1,
+        "gap_models": [0, 1],
+        "children": {"score": 1, "model": 1}
+      },
+      {
+        "id": "step-8",
+        "name": "outer",
+        "begin": 8,
+        "extent": [8, 11],
+        "t": ["2026-01-01T00:00:08+00:00", "2026-01-01T00:00:11+00:00"],
+        "working": [8.0, 11.0],
+        "events": 4,
+        "models": 1,
+        "gap_models": [0, 0],
+        "children": {}
+      },
+      {
+        "id": "step-9",
+        "parent": 2,
+        "name": "inner",
+        "begin": 9,
+        "extent": [9, 10],
+        "t": ["2026-01-01T00:00:09+00:00", "2026-01-01T00:00:10+00:00"],
+        "working": [9.0, 10.0],
+        "events": 2,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"model": 1}
+      }
+    ],
+    "notables": [
+      {"i": 4, "span": 1, "type": "score"}
+    ],
+    "overflow": {}
+  }
+}
