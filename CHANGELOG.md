@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Control Channel: `inspect ctl sample list` no longer recomputes sample summaries on every request, so polling an eval buffering many large samples (e.g. a retry's carried transcripts) can no longer stall the eval process.
+- Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
 
 ## 0.3.248 (17 July 2026)
@@ -20,7 +21,6 @@
 - Control Channel: `inspect ctl config --key NAME LIMIT` retunes any named `concurrency()` limit mid-flight, without the registering code opting in; the config view lists the registered keys.
 - Control Channel: `inspect ctl config` can now retune `--timeout`, `--attempt-timeout` and `--max-retries` mid-flight, reaching even generate calls already retrying (pass `clear` to restore launch config).
 - Control Channel: `inspect ctl sample list` now caps its listing at the 100 most relevant rows by default (`--limit`/`--all` to adjust, `--status` to filter) and reports a complete status histogram plus a `truncated` flag in its envelope.
-- Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Control Channel: `inspect ctl sample events` now shows the data payload of `transcript().info()` events in its default compact output (previously only the source was shown).
 - Control Channel: `inspect ctl sample events` now accepts `--type all` (shell-safe spelling of `--type '*'`) and `--from-start` to read the full backlog from the first event.
 - Control Channel: `inspect ctl sample events` gains `--limit N` to cap the events returned per page (combinable with `--from-start`, `--tail`, or a cursor).
