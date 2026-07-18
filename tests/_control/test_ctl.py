@@ -3793,12 +3793,61 @@ def test_process_anomalies_widen_skips_unreadable_trace_file(
 def test_process_anomalies_explicit_pid_read_failure_errors(
     trace_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An explicit pid whose file is unreadable fails loudly, not silently empty."""
+    """An explicit pid whose file is unreadable fails loudly, not silently empty.
+
+    Both output modes follow the terminal-error contract: ``--json`` emits
+    the ``internal`` envelope; human mode echoes self-contained stderr prose
+    and exits 1 rather than surfacing a raw traceback.
+    """
     monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
     (trace_dir / "trace-124.log.gz").write_bytes(b"not gzip")
+
     result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124", "--json"])
     assert result.exit_code == 1
-    assert json.loads(result.stdout)["error"]["kind"] == "internal"
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "internal"
+    assert "trace-124.log.gz" in error["message"]
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Could not read trace file" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
+def test_process_anomalies_widen_skips_corrupt_gz_stream(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mid-stream gz corruption is skipped like any other unreadable file.
+
+    A corrupted deflate stream raises ``zlib.error`` — neither ``OSError``
+    (the ``b"not gzip"`` header case) nor ``ValueError`` — so this pins the
+    warn-and-skip contract to "unreadable file", not a closed exception list.
+    """
+    import gzip
+    import zlib
+
+    from inspect_ai._util.trace import read_trace_file
+
+    data = "".join(json.dumps(r) + "\n" for r in _anomalous_records() * 200).encode()
+    corrupted = bytearray(gzip.compress(data, mtime=0))
+    corrupted[11] ^= 0xFF  # flip a bit just past the 10-byte gzip header
+    corrupt_file = trace_dir / "trace-7.log.gz"
+    corrupt_file.write_bytes(bytes(corrupted))
+    # guard: the corruption must surface as zlib.error, otherwise this test
+    # degenerates into the BadGzipFile case covered above
+    with pytest.raises(zlib.error):
+        read_trace_file(corrupt_file)
+
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "could not read" in result.stderr
 
 
 def test_process_anomalies_human_gates_errors_behind_all(trace_dir: Path) -> None:

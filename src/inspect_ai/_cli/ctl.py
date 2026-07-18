@@ -2529,12 +2529,24 @@ def _run_process_anomalies(
     for target_pid, target_file, target_post_mortem_as_of in targets:
         try:
             records = read_trace_file(target_file)
-        except (OSError, ValueError) as ex:
-            # explicit-pid reads fail loudly (the caller asked for exactly
-            # this pid); the widened fan-out warns-and-skips like the
-            # missing-trace-file case, keeping the other sections readable
+        except Exception as ex:
+            # catch Exception, not (OSError, ValueError): "unreadable file"
+            # has no closed exception vocabulary — e.g. mid-stream gz
+            # corruption raises zlib.error, which is neither
             if pid is not None:
-                raise
+                # explicit-pid reads fail loudly (the caller asked for
+                # exactly this pid), with the same clean stderr-plus-envelope
+                # contract as every other terminal ctl error
+                message = (
+                    f"Could not read trace file {target_file} for pid "
+                    f"{target_pid}: {ex}"
+                )
+                click.echo(message, err=True)
+                raise _CtlFailure(
+                    "internal", message, exception=_exception_name(ex)
+                ) from ex
+            # the widened fan-out warns-and-skips like the missing-trace-file
+            # case, keeping the other sections readable
             click.echo(
                 f"note: could not read {target_file} for pid {target_pid} "
                 f"({ex}) — skipped.",
