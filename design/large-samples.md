@@ -292,6 +292,16 @@ Ratified mechanisms:
    at most events/1000 such spans exist (chunk-count-proportional, accepted
    class), and monster tool spans keep fetch elision + outline presence.
    Proven: 664 escape-hatch spans on the monster earned their keep.
+   The exclusion is a scale necessity, not row policy: tool spans are the
+   event-proportional span class (one per tool call), so without it
+   "skeleton ∝ spans" is "∝ events" in disguise — the monster's 98.9% is the
+   whole argument. The `tool` type test protects small non-tool structural
+   spans (outline rows), not demotes tools; what's dissolved is bounded
+   (no models/notables/child spans, < ~1 chunk) and reconstructible from the
+   one chunk a client rendering at that depth fetches anyway. Known
+   fragility: a future span type emitted per-turn/per-call would make the
+   skeleton event-proportional again — if one appears, revisit the predicate
+   (type-neutral content test) rather than special-casing the new type.
 2. **`gap_models` — the load-bearing counter.** A span's *items* are its
    direct-child structural spans and notables merged in sequence order;
    `gap_models[k]` = model-event count strictly between item `k-1` and item

@@ -14,7 +14,7 @@ from collections.abc import Callable, Sequence
 from typing import Any, NamedTuple
 from zipfile import ZipFile
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.async_zip import AsyncZipReader
@@ -298,6 +298,14 @@ def _attachment_ref_renumberer(
     return renumber
 
 
+def _write_sidecar(zip: ZipFile, entry_name: str, sidecar: BaseModel) -> None:
+    """Write a derived sidecar in its canonical JSON form (exclude_none)."""
+    zip.writestr(
+        entry_name,
+        to_json_safe(sidecar.model_dump(mode="json", exclude_none=True), indent=None),
+    )
+
+
 def _write_chunked_sample(zip: ZipFile, sample: EvalSample, chunk_size: int) -> None:
     converted = chunked_sample(sample, chunk_size)
     renumber = _attachment_ref_renumberer(converted.attachment_index)
@@ -315,23 +323,15 @@ def _write_chunked_sample(zip: ZipFile, sample: EvalSample, chunk_size: int) -> 
 
     # derived sidecars: neither contains event payloads (span names, types,
     # timestamps, counts only), so no attachment-ref renumbering applies
-    zip.writestr(
+    _write_sidecar(
+        zip,
         skeleton_entry_name(sample.id, sample.epoch),
-        to_json_safe(
-            sample_skeleton(converted.events).model_dump(
-                mode="json", exclude_none=True
-            ),
-            indent=None,
-        ),
+        sample_skeleton(converted.events),
     )
-    zip.writestr(
+    _write_sidecar(
+        zip,
         events_stats_entry_name(sample.id, sample.epoch),
-        to_json_safe(
-            event_stats(
-                converted.events, converted.shell["sequences"][EVENTS_SEQUENCE]
-            ).model_dump(mode="json", exclude_none=True),
-            indent=None,
-        ),
+        event_stats(converted.events, converted.shell["sequences"][EVENTS_SEQUENCE]),
     )
 
     sequences: list[tuple[str, Sequence[Any]]] = [

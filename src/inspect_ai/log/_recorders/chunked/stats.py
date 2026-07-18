@@ -16,7 +16,7 @@ null ``span_id`` on chunk edges is omitted.
 """
 
 from collections import Counter
-from typing import Sequence
+from collections.abc import Sequence
 
 from pydantic import BaseModel
 
@@ -73,16 +73,18 @@ def event_stats(events: Sequence[Event], boundaries: list[int]) -> EventStats:
         The stats sidecar (see module docstring for the canonical JSON form).
     """
 
-    def chunk_stats(range: ChunkRange) -> EventChunkStats:
-        chunk = events[range.start : range.end_exclusive]
+    def chunk_stats(extent: ChunkRange) -> EventChunkStats:
+        chunk = events[extent.start : extent.end_exclusive]
         return EventChunkStats(
-            start=range.start,
+            start=extent.start,
             type_counts=dict(Counter(ev.event for ev in chunk)),
             first=_edge(chunk[0]),
             last=_edge(chunk[-1]),
         )
 
-    return EventStats(chunks=[chunk_stats(r) for r in boundary_ranges(boundaries)])
+    return EventStats(
+        chunks=[chunk_stats(extent) for extent in boundary_ranges(boundaries)]
+    )
 
 
 def _edge(event: Event) -> ChunkEdgeEvent:

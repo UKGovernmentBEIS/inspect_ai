@@ -2,7 +2,7 @@ import json
 import pathlib
 import re
 import zipfile
-from typing import Literal
+from typing import Literal, NamedTuple
 
 import pytest
 
@@ -552,13 +552,40 @@ def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
     original = read_eval_log(str(input_file))
     assert original.samples
 
-    def read_sidecars(
-        zf: zipfile.ZipFile, id: str | int, epoch: int
-    ) -> tuple[dict, dict, list[int]]:
+    class Sidecars(NamedTuple):
+        skeleton: dict
+        stats: dict
+        events_boundaries: list[int]
+
+    def read_sidecars(zf: zipfile.ZipFile, id: str | int, epoch: int) -> Sidecars:
         shell = json.loads(zf.read(shell_entry_name(id, epoch)))
-        skeleton = json.loads(zf.read(skeleton_entry_name(id, epoch)))
-        stats = json.loads(zf.read(events_stats_entry_name(id, epoch)))
-        return skeleton, stats, shell["sequences"]["events"]
+        return Sidecars(
+            skeleton=json.loads(zf.read(skeleton_entry_name(id, epoch))),
+            stats=json.loads(zf.read(events_stats_entry_name(id, epoch))),
+            events_boundaries=shell["sequences"]["events"],
+        )
+
+    def check_stats(
+        zf: zipfile.ZipFile, id: str | int, epoch: int, sidecars: Sidecars
+    ) -> None:
+        # one stats entry per chunk, starts mirroring the chunk entry names
+        assert sidecars.stats["version"] == 1
+        chunks = sidecars.stats["chunks"]
+        boundaries = sidecars.events_boundaries
+        assert [c["start"] for c in chunks] == [0, *boundaries[:-1]]
+
+        # per-chunk type_counts sum to the skeleton's sample totals
+        counts = sidecars.skeleton["counts"]
+        assert sum(sum(c["type_counts"].values()) for c in chunks) == counts["events"]
+        assert sum(c["type_counts"].get("model", 0) for c in chunks) == counts["models"]
+
+        # first/last (type + span_id) match raw chunk contents at the edges
+        for c, (start, _) in zip(chunks, boundary_ranges(boundaries)):
+            raw = json.loads(zf.read(chunk_entry_name(id, epoch, "events", start)))
+            assert sum(c["type_counts"].values()) == len(raw)
+            for edge, event in (("first", raw[0]), ("last", raw[-1])):
+                assert c[edge]["type"] == event["event"]
+                assert c[edge].get("span_id") == event.get("span_id")
 
     with (
         zipfile.ZipFile(dirs[0] / input_file.name) as zf_a,
@@ -567,43 +594,20 @@ def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
         rechunked_stats = 0
         for sample in original.samples:
             id, epoch = sample.id, sample.epoch
-            skeleton, stats, boundaries = read_sidecars(zf_a, id, epoch)
-
-            # one stats entry per chunk, starts mirroring the chunk entry names
-            assert stats["version"] == 1
-            chunks = stats["chunks"]
-            assert [c["start"] for c in chunks] == [0, *boundaries[:-1]]
-
-            # per-chunk type_counts sum to the skeleton's sample totals
-            assert (
-                sum(sum(c["type_counts"].values()) for c in chunks)
-                == skeleton["counts"]["events"]
-            )
-            assert (
-                sum(c["type_counts"].get("model", 0) for c in chunks)
-                == skeleton["counts"]["models"]
-            )
-
-            # first/last (type + span_id) match raw chunk contents at the edges
-            for c, (start, _) in zip(chunks, boundary_ranges(boundaries)):
-                raw = json.loads(
-                    zf_a.read(chunk_entry_name(id, epoch, "events", start))
-                )
-                assert sum(c["type_counts"].values()) == len(raw)
-                for edge, event in (("first", raw[0]), ("last", raw[-1])):
-                    assert c[edge]["type"] == event["event"]
-                    assert c[edge].get("span_id") == event.get("span_id")
+            a = read_sidecars(zf_a, id, epoch)
+            b = read_sidecars(zf_b, id, epoch)
+            check_stats(zf_a, id, epoch, a)
+            check_stats(zf_b, id, epoch, b)
 
             # rechunking changes stats but never the skeleton (modulo
             # `working`: events predating working_start get a parse-time
             # default_factory value, nondeterministic across the two
             # conversions' independent parses — same caveat as _resolved_dump)
-            skeleton_b, stats_b, boundaries_b = read_sidecars(zf_b, id, epoch)
-            for span in skeleton["spans"] + skeleton_b["spans"]:
+            for span in a.skeleton["spans"] + b.skeleton["spans"]:
                 span.pop("working")
-            assert skeleton_b == skeleton
-            if boundaries_b != boundaries:
-                assert stats_b != stats
+            assert b.skeleton == a.skeleton
+            if b.events_boundaries != a.events_boundaries:
+                assert b.stats != a.stats
                 rechunked_stats += 1
         # at least one sample spans multiple chunks, exercising the rechunk case
         assert rechunked_stats > 0

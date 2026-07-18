@@ -391,6 +391,14 @@ def _is_excluded(node: _Node, agg: _Agg, policy: SkeletonPolicy) -> bool:
     summarized in its parent's counters instead of getting a span row —
     unless it has enough descendant events to earn the size escape hatch.
 
+    The exclusion is a scale necessity, not row policy: tool spans are the
+    event-proportional span class (one per tool call), so dissolving small
+    leaf tools is what keeps the skeleton span-proportional rather than
+    event-proportional. The ``tool`` type test exists to protect small
+    non-tool structural spans (outline rows) from dissolving; if a future
+    span type is ever emitted per-turn/per-call, revisit the predicate
+    (type-neutral content test) rather than special-casing the new type.
+
     Exclusion tests raw notable presence (not the persisted cap): a notable
     must always be attributable to an existing span row.
     """
