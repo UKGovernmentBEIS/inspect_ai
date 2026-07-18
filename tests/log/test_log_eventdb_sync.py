@@ -1,3 +1,4 @@
+import hashlib
 import tempfile
 from pathlib import Path
 
@@ -5,6 +6,7 @@ import pytest
 
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._recorders.buffer import filestore as filestore_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
     sync_to_filestore,
@@ -106,6 +108,85 @@ def test_sync_one_sample(
     assert len(sample_data.events) == 2
     msgs = [ev.event["data"] for ev in sample_data.events]
     assert msgs == ["first event", "second event"]
+
+
+def test_sync_sample_metadata_outside_manifest_summary(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+    initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+    final = {"world": {**initial["world"], "solver-added": {"active": False}}}
+    summary = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input="Hello",
+        target="World",
+        metadata=initial,
+    )
+
+    db.start_sample(summary)
+    db.complete_sample(summary, final)
+    sync_to_filestore(db, filestore)
+    final_manifest = filestore.read_manifest()
+    assert final_manifest is not None
+    assert final_manifest.samples[0].metadata_hash is not None
+    assert final_manifest.samples[0].summary.metadata["world"] == (
+        "Key removed from summary (> 1k)"
+    )
+    assert filestore.get_sample_metadata("s1", 1) == final
+
+
+def test_sample_metadata_file_normalizes_sample_id(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    _, filestore = db_and_filestore
+
+    assert filestore._sample_metadata_file(1, 1, "digest") == (
+        filestore._sample_metadata_file("1", 1, "digest")
+    )
+
+
+@pytest.mark.parametrize("failure", ["hash_mismatch", "invalid_json"])
+def test_read_sample_metadata_falls_back_on_invalid_sidecar(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    failure: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings: list[str] = []
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(filestore_module.logger, "warning", capture_warning)
+    db, filestore = db_and_filestore
+    metadata = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+    summary = EvalSampleSummary(
+        id="s1", epoch=1, input="Hello", target="World", metadata=metadata
+    )
+
+    db.start_sample(summary)
+    db.complete_sample(summary, metadata)
+    sync_to_filestore(db, filestore)
+
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    metadata_hash = manifest.samples[0].metadata_hash
+    assert metadata_hash is not None
+    if failure == "hash_mismatch":
+        metadata_path = filestore._sample_metadata_file("s1", 1, metadata_hash)
+        Path(metadata_path).write_bytes(b"{}")
+    else:
+        invalid_json = b"{"
+        metadata_hash = hashlib.sha256(invalid_json).hexdigest()
+        filestore.write_sample_metadata("s1", 1, metadata_hash, invalid_json)
+        manifest.samples[0].metadata_hash = metadata_hash
+        filestore.write_manifest(manifest)
+
+    assert filestore.get_sample_metadata("s1", 1) is None
+    assert any(
+        "Unable to read sample metadata for id=s1 epoch=1" in warning
+        for warning in warnings
+    )
 
 
 def test_sync_multiple_samples(
