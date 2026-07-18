@@ -41,7 +41,7 @@ class CloudFlareAPI(OpenAICompatibleAPI):
             raise environment_prerequisite_error("CloudFlare", "CLOUDFLARE_ACCOUNT_ID")
 
         super().__init__(
-            model_name=f"@cf/{model_name}",
+            model_name=model_name,
             base_url=base_url,
             api_key=api_key,
             api_key_var=api_key_var,
@@ -53,7 +53,8 @@ class CloudFlareAPI(OpenAICompatibleAPI):
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
-        if ex.status_code == 403:
+        # cloudflare signals context window overflow via 403 or 413
+        if ex.status_code in (403, 413):
             content = str(ex)
             if "context window limit" in content:
                 return ModelOutput.from_content(
@@ -75,8 +76,10 @@ class CloudFlareAPI(OpenAICompatibleAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup.
 
-        CloudFlare model names have the @cf/ prefix added in the constructor.
-        This method strips that prefix for database lookup.
+        Model names are passed verbatim as they appear in CloudFlare's
+        catalog: Workers AI models carry an @cf/ prefix (stripped here for
+        database lookup) while gateway models (e.g. moonshotai/kimi-k3)
+        have no prefix and are returned unchanged.
         """
         name = self.service_model_name()
         # Strip @cf/ prefix if present

@@ -119,8 +119,8 @@ def vllm_completions() -> type[ModelAPI]:
     return VLLMCompletionsAPI
 
 
-@modelapi(name="cf")
-def cf() -> type[ModelAPI]:
+@modelapi(name="cloudflare")
+def cloudflare() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI
 
     return CloudFlareAPI

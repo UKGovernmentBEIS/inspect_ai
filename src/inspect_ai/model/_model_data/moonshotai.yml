@@ -1,0 +1,14 @@
+# Moonshot AI Model Database
+#
+# Hand-maintained entries for Moonshot AI models served via gateway hosting
+# providers (e.g. cloudflare/moonshotai/kimi-k3). Models served via Together
+# are auto-generated into together.yml under the same organization key.
+
+moonshotai:
+  display_name: Moonshot AI
+  models:
+    kimi-k3:
+      display_name: "Kimi K3"
+      # https://platform.kimi.ai/docs/pricing/chat
+      context_length: 1000000
+      reasoning: True

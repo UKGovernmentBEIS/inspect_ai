@@ -131,6 +131,14 @@ class TestGetModelInfo:
         assert info is not None
         assert info.context_length == 1_000_000
 
+    def test_kimi_k3_context_length(self):
+        """Test that Kimi K3 resolves via a gateway provider with 1MM context window."""
+        info = get_model_info("cloudflare/moonshotai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1_000_000
+        assert info.reasoning is True
+
     def test_claude_sonnet_4_6_context_length(self):
         """Test that Claude Sonnet 4.6 has 1MM context window."""
         info = get_model_info("anthropic/claude-sonnet-4-6")

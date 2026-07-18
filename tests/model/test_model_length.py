@@ -29,7 +29,7 @@ GEMINI_3_FLASH_PREVIEW = "google/gemini-3-flash-preview"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
 GROK_4_3 = "grok/grok-4.3"
 GROQ_LLAMA_3_3_70B_VERSATILE = "groq/llama-3.3-70b-versatile"
-CLOUDFLARE_LLAMA_3_1_8B = "cf/meta/llama-3.1-8b-instruct-awq"
+CLOUDFLARE_LLAMA_3_3_70B = "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 TOGETHER_MINI_MAX_27 = "together/MiniMaxAI/MiniMax-M2.7"
 BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
 
@@ -42,7 +42,8 @@ MODELS = {
     MISTRAL_LARGE_2411: 131000,
     GROK_4_3: 1000000,
     GROQ_LLAMA_3_3_70B_VERSATILE: 128000,
-    CLOUDFLARE_LLAMA_3_1_8B: 128000,
+    # cloudflare serves this model with a reduced context window
+    CLOUDFLARE_LLAMA_3_3_70B: 24000,
     TOGETHER_MINI_MAX_27: 196000,
     BEDROCK_NOVA_LITE_1_0: 128000,
 }
@@ -121,7 +122,7 @@ async def test_model_length_groq():
 
 @skip_if_no_cloudflare
 async def test_model_length_cloudflare():
-    await check_model_length(CLOUDFLARE_LLAMA_3_1_8B)
+    await check_model_length(CLOUDFLARE_LLAMA_3_3_70B)
 
 
 @skip_if_no_together
