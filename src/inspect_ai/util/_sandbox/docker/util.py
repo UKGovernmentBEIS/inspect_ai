@@ -45,7 +45,9 @@ class ComposeProject:
         if isinstance(config, str):
             config_path = Path(config).resolve()
         elif isinstance(config, ComposeConfig):
-            # serialize ComposeConfig to YAML and write to auto-compose file
+            from .network import compile_egress_guard
+
+            config = compile_egress_guard(config, name)
             config_yaml = yaml.dump(
                 config.model_dump(mode="json", by_alias=True, exclude_none=True),
                 default_flow_style=False,
@@ -66,13 +68,23 @@ class ComposeProject:
                 base_dir=config_path.parent.resolve().as_posix(),
             )
 
-        # if its another config file, just take its path
         elif config_path:
-            config = config_path.as_posix()
+            from .network import compile_compose_file
 
-        # no config passed, look for 'auto-config' (compose.yaml, Dockerfile, etc.)
+            config = compile_compose_file(
+                config_path,
+                base_dir=config_path.parent.resolve().as_posix(),
+            )
+
         elif config is None:
             config = resolve_compose_file(project_name=name)
+            from .network import compile_compose_file
+
+            resolved_config_path = Path(config)
+            config = compile_compose_file(
+                resolved_config_path,
+                base_dir=resolved_config_path.parent.resolve().as_posix(),
+            )
 
         # this could be a cleanup where docker has tracked a .compose.yaml file
         # as part of its ConfigFiles and passed it back to us -- we in the

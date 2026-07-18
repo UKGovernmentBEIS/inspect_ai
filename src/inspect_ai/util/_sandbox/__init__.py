@@ -35,6 +35,7 @@ from .limits import (
     override_sandbox_output_limit,
 )
 from .local import LocalSandboxEnvironment  # noqa: F401
+from .network import DomainPort, NetworkAccess
 from .registry import sandboxenv
 from .service import sandbox_service
 
@@ -43,6 +44,7 @@ __all__ = [
     "ComposeConfig",
     "ComposeHealthcheck",
     "ComposeService",
+    "DomainPort",
     "ExecCompleted",
     "ExecOutput",
     "ExecRemoteAwaitableOptions",
@@ -52,6 +54,7 @@ __all__ = [
     "ExecStdout",
     "is_compose_yaml",
     "is_dockerfile",
+    "NetworkAccess",
     "OutputLimitExceededError",
     "override_sandbox_output_limit",
     "parse_compose_yaml",

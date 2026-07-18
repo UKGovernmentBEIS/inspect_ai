@@ -235,7 +235,7 @@ class ComposeService(ComposeModel):
     env_file: list[str] | str | None = Field(default=None)
     """Path(s) to file(s) containing environment variables."""
 
-    user: str | None = Field(default=None)
+    user: str | int | None = Field(default=None)
     """User to run the container as."""
 
     healthcheck: ComposeHealthcheck | None = Field(default=None)
@@ -258,6 +258,12 @@ class ComposeService(ComposeModel):
 
     network_mode: str | None = Field(default=None)
     """Network mode (e.g., 'host', 'none', 'bridge')."""
+
+    dns: list[str] | None = Field(default=None)
+    """DNS servers for the service."""
+
+    dns_search: list[str] | None = Field(default=None)
+    """DNS search domains for the service."""
 
     hostname: str | None = Field(default=None)
     """Container hostname."""
