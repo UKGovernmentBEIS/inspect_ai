@@ -220,6 +220,44 @@ def convert_command(
     )
 
 
+@log_command.command("convert-chunked", hidden=True)
+@click.argument("path")
+@click.option(
+    "--output-dir",
+    required=True,
+    help="Directory to write converted .eval log files to.",
+)
+@click.option(
+    "--overwrite",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Overwrite files in the output directory.",
+)
+@click.option(
+    "--chunk-size",
+    type=int,
+    default=None,
+    help="Maximum items per sequence chunk entry (default: 1000).",
+)
+def convert_chunked_command(
+    path: str,
+    output_dir: str,
+    overwrite: bool,
+    chunk_size: int | None,
+) -> None:
+    """Convert .eval log file(s) to .eval files with chunked samples (internal)."""
+    from inspect_ai.log._recorders.chunked import convert_eval_logs_to_chunked
+    from inspect_ai.log._recorders.chunked.format import DEFAULT_CHUNK_SIZE
+
+    convert_eval_logs_to_chunked(
+        path,
+        output_dir,
+        overwrite=overwrite,
+        chunk_size=chunk_size if chunk_size is not None else DEFAULT_CHUNK_SIZE,
+    )
+
+
 @log_command.command("headers", hidden=True)
 @click.argument("files", nargs=-1)
 def headers_command(files: tuple[str, ...]) -> None:
