@@ -25,11 +25,14 @@ from inspect_ai.log._recorders.chunked.format import (
     chunk_entry_name,
     chunk_ranges,
     classify_sample_shape,
+    events_stats_entry_name,
     metadata_entry_name,
     monolith_entry_name,
     sample_prefix,
     shell_entry_name,
+    skeleton_entry_name,
 )
+from inspect_ai.log._recorders.chunked.stats import event_stats
 from inspect_ai.log._resolve import resolve_sample_events_data
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
@@ -214,6 +217,53 @@ def test_boundary_ranges():
     assert boundary_ranges([3, 6, 7]) == [(0, 3), (3, 6), (6, 7)]
 
 
+def test_event_stats():
+    from pydantic import TypeAdapter
+
+    from inspect_ai.event._event import DiscriminatedEvent, Event
+
+    adapter: TypeAdapter[list[Event]] = TypeAdapter(list[DiscriminatedEvent])
+    ts = {"timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0}
+    model = {
+        "event": "model",
+        "span_id": "S1",
+        "model": "mockllm/model",
+        "input": [],
+        "tools": [],
+        "tool_choice": "auto",
+        "config": {},
+        "output": {},
+        **ts,
+    }
+    events = adapter.validate_python(
+        [
+            {"event": "span_begin", "id": "S1", "name": "agent", "type": "agent", **ts},
+            model,
+            {"event": "info", "span_id": "S1", "data": "note", **ts},
+            model,
+            {"event": "span_end", "id": "S1", **ts},
+        ],
+        context=get_deserializing_context(),
+    )
+
+    stats = event_stats(events, [3, 5])
+    assert [chunk.start for chunk in stats.chunks] == [0, 3]
+    first_chunk, last_chunk = stats.chunks
+    assert first_chunk.type_counts == {"span_begin": 1, "model": 1, "info": 1}
+    assert (first_chunk.first.type, first_chunk.first.span_id) == ("span_begin", None)
+    assert (first_chunk.last.type, first_chunk.last.span_id) == ("info", "S1")
+    assert last_chunk.type_counts == {"model": 1, "span_end": 1}
+    assert (last_chunk.first.type, last_chunk.first.span_id) == ("model", "S1")
+    assert (last_chunk.last.type, last_chunk.last.span_id) == ("span_end", None)
+
+    # canonical JSON form omits null span_id
+    dumped = stats.model_dump(mode="json", exclude_none=True)
+    assert "span_id" not in dumped["chunks"][0]["first"]
+    assert dumped["chunks"][0]["last"]["span_id"] == "S1"
+
+    assert event_stats([], []).chunks == []
+
+
 def test_monolith_entry_name_matches_eval_recorder():
     from inspect_ai.log._recorders.eval import _sample_filename
 
@@ -251,7 +301,13 @@ def _read_chunked_sequence(
     def entry_start(entry: str) -> int:
         return int(entry.rsplit("/", 1)[1].removesuffix(".json"))
 
-    entries = sorted((n for n in names if n.startswith(prefix)), key=entry_start)
+    def is_chunk(entry: str) -> bool:
+        # chunk entry names are purely numeric (events/ also holds stats.json)
+        return entry.rsplit("/", 1)[1].removesuffix(".json").isdigit()
+
+    entries = sorted(
+        (n for n in names if n.startswith(prefix) and is_chunk(n)), key=entry_start
+    )
     # chunk entry names carry the start index only
     assert [entry_start(entry) for entry in entries] == [0, *boundaries[:-1]]
     items: list = []
@@ -478,6 +534,79 @@ def test_convert_chunked_round_trip(tmp_path: pathlib.Path, fixture: str, pooled
             assert _resolved_dump(reassembled, attachment_map) == _resolved_dump(
                 original_sample, original_sample.attachments
             )
+
+
+def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
+    """Every converted sample carries skeleton.json + events/stats.json.
+
+    Stats are consistent with the skeleton (per-type chunk counts sum to
+    sample totals) and with raw chunk contents (first/last at chunk
+    edges); rechunking changes stats but never the skeleton.
+    """
+    input_file = _TESTS_DIR / "test_eval_log/log_streaming.eval"
+
+    dirs = (tmp_path / "a", tmp_path / "b")
+    for dir, chunk_size in zip(dirs, (_CHUNK_SIZE, _CHUNK_SIZE + 2)):
+        convert_eval_logs_to_chunked(str(input_file), str(dir), chunk_size=chunk_size)
+
+    original = read_eval_log(str(input_file))
+    assert original.samples
+
+    def read_sidecars(
+        zf: zipfile.ZipFile, id: str | int, epoch: int
+    ) -> tuple[dict, dict, list[int]]:
+        shell = json.loads(zf.read(shell_entry_name(id, epoch)))
+        skeleton = json.loads(zf.read(skeleton_entry_name(id, epoch)))
+        stats = json.loads(zf.read(events_stats_entry_name(id, epoch)))
+        return skeleton, stats, shell["sequences"]["events"]
+
+    with (
+        zipfile.ZipFile(dirs[0] / input_file.name) as zf_a,
+        zipfile.ZipFile(dirs[1] / input_file.name) as zf_b,
+    ):
+        rechunked_stats = 0
+        for sample in original.samples:
+            id, epoch = sample.id, sample.epoch
+            skeleton, stats, boundaries = read_sidecars(zf_a, id, epoch)
+
+            # one stats entry per chunk, starts mirroring the chunk entry names
+            assert stats["version"] == 1
+            chunks = stats["chunks"]
+            assert [c["start"] for c in chunks] == [0, *boundaries[:-1]]
+
+            # per-chunk type_counts sum to the skeleton's sample totals
+            assert (
+                sum(sum(c["type_counts"].values()) for c in chunks)
+                == skeleton["counts"]["events"]
+            )
+            assert (
+                sum(c["type_counts"].get("model", 0) for c in chunks)
+                == skeleton["counts"]["models"]
+            )
+
+            # first/last (type + span_id) match raw chunk contents at the edges
+            for c, (start, _) in zip(chunks, boundary_ranges(boundaries)):
+                raw = json.loads(
+                    zf_a.read(chunk_entry_name(id, epoch, "events", start))
+                )
+                assert sum(c["type_counts"].values()) == len(raw)
+                for edge, event in (("first", raw[0]), ("last", raw[-1])):
+                    assert c[edge]["type"] == event["event"]
+                    assert c[edge].get("span_id") == event.get("span_id")
+
+            # rechunking changes stats but never the skeleton (modulo
+            # `working`: events predating working_start get a parse-time
+            # default_factory value, nondeterministic across the two
+            # conversions' independent parses — same caveat as _resolved_dump)
+            skeleton_b, stats_b, boundaries_b = read_sidecars(zf_b, id, epoch)
+            for span in skeleton["spans"] + skeleton_b["spans"]:
+                span.pop("working")
+            assert skeleton_b == skeleton
+            if boundaries_b != boundaries:
+                assert stats_b != stats
+                rechunked_stats += 1
+        # at least one sample spans multiple chunks, exercising the rechunk case
+        assert rechunked_stats > 0
 
 
 def test_convert_chunked_overwrite(tmp_path: pathlib.Path):

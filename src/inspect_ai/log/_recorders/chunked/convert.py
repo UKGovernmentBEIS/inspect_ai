@@ -42,6 +42,7 @@ from ..._condense import (
 )
 from ..._file import log_files_from_ls
 from ..._log import EvalSample
+from ..._skeleton import sample_skeleton
 from ..eval import (
     HEADER_JSON,
     JOURNAL_DIR,
@@ -61,9 +62,12 @@ from .format import (
     chunk_boundaries,
     chunk_entry_name,
     chunk_ranges,
+    events_stats_entry_name,
     metadata_entry_name,
     shell_entry_name,
+    skeleton_entry_name,
 )
+from .stats import event_stats
 
 
 def convert_eval_logs_to_chunked(
@@ -308,6 +312,27 @@ def _write_chunked_sample(zip: ZipFile, sample: EvalSample, chunk_size: int) -> 
             metadata_entry_name(sample.id, sample.epoch),
             renumber(to_json_safe(sample.metadata, indent=None)),
         )
+
+    # derived sidecars: neither contains event payloads (span names, types,
+    # timestamps, counts only), so no attachment-ref renumbering applies
+    zip.writestr(
+        skeleton_entry_name(sample.id, sample.epoch),
+        to_json_safe(
+            sample_skeleton(converted.events).model_dump(
+                mode="json", exclude_none=True
+            ),
+            indent=None,
+        ),
+    )
+    zip.writestr(
+        events_stats_entry_name(sample.id, sample.epoch),
+        to_json_safe(
+            event_stats(
+                converted.events, converted.shell["sequences"][EVENTS_SEQUENCE]
+            ).model_dump(mode="json", exclude_none=True),
+            indent=None,
+        ),
+    )
 
     sequences: list[tuple[str, Sequence[Any]]] = [
         (MESSAGES_SEQUENCE, converted.messages),

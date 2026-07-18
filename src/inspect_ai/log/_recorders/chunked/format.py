@@ -11,8 +11,10 @@ Layout (per sample)::
 
     samples/{id}_epoch_{epoch}/sample.json
     samples/{id}_epoch_{epoch}/metadata.json      (only when non-empty)
+    samples/{id}_epoch_{epoch}/skeleton.json
     samples/{id}_epoch_{epoch}/messages/{start}.json
     samples/{id}_epoch_{epoch}/events/{start}.json
+    samples/{id}_epoch_{epoch}/events/stats.json
     samples/{id}_epoch_{epoch}/calls/{start}.json
     samples/{id}_epoch_{epoch}/attachments/{start}.json
 
@@ -48,6 +50,8 @@ DEFAULT_ATTACHMENTS_CHUNK_BYTES = 2 * 1024 * 1024
 SAMPLES_DIR = "samples"
 SHELL_JSON = "sample.json"
 METADATA_JSON = "metadata.json"
+SKELETON_JSON = "skeleton.json"
+STATS_JSON = "stats.json"
 
 MESSAGES_SEQUENCE = "messages"
 EVENTS_SEQUENCE = "events"
@@ -68,6 +72,21 @@ def shell_entry_name(id: str | int, epoch: int) -> str:
 
 def metadata_entry_name(id: str | int, epoch: int) -> str:
     return f"{sample_prefix(id, epoch)}/{METADATA_JSON}"
+
+
+def skeleton_entry_name(id: str | int, epoch: int) -> str:
+    return f"{sample_prefix(id, epoch)}/{SKELETON_JSON}"
+
+
+def events_stats_entry_name(id: str | int, epoch: int) -> str:
+    """Per-chunk event stats sidecar (events sequence only).
+
+    Lives inside the ``events/`` prefix — unlike ``skeleton.json``, stats
+    are a function of chunking policy (rechunking invalidates them), so
+    they sit with the chunks they describe. Chunk entry names are purely
+    numeric, so ``stats.json`` can never collide with one.
+    """
+    return f"{sample_prefix(id, epoch)}/{EVENTS_SEQUENCE}/{STATS_JSON}"
 
 
 def chunk_entry_name(id: str | int, epoch: int, sequence: str, start: int) -> str:
