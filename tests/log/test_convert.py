@@ -352,10 +352,20 @@ def test_convert_chunked_layout(tmp_path: pathlib.Path):
     original_sample = original.samples[0]
     id, epoch = original_sample.id, original_sample.epoch
 
+    with zipfile.ZipFile(input_file) as zf:
+        journal_entries = {
+            n: zf.read(n) for n in zf.namelist() if n.startswith("_journal/")
+        }
+    assert journal_entries
+
     with zipfile.ZipFile(output_file) as zf:
         names = set(zf.namelist())
         assert "header.json" in names
         assert "summaries.json" in names
+
+        # _journal/ entries pass through unchanged
+        for name, content in journal_entries.items():
+            assert zf.read(name) == content
 
         # every sample entry lives under the per-sample prefix (no
         # monolith entries remain)

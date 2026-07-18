@@ -44,6 +44,7 @@ from ..._file import log_files_from_ls
 from ..._log import EvalSample
 from ..eval import (
     HEADER_JSON,
+    JOURNAL_DIR,
     REDUCTIONS_JSON,
     SUMMARIES_JSON,
     EvalRecorder,
@@ -146,9 +147,19 @@ async def _convert_log_file(input_file: str, output_file: str, chunk_size: int) 
         directory = await reader.entries()
         with tempfile.TemporaryFile() as temp:
             with ZipFile(temp, mode="w", **zipfile_compress_kwargs) as zip:
-                for name in (HEADER_JSON, SUMMARIES_JSON, REDUCTIONS_JSON):
-                    if directory.entry(name) is not None:
-                        zip.writestr(name, await reader.read_member_fully(name))
+                # top-level entries (and _journal/) pass through unchanged
+                top_level = [
+                    name
+                    for name in (HEADER_JSON, SUMMARIES_JSON, REDUCTIONS_JSON)
+                    if directory.entry(name) is not None
+                ]
+                journal = [
+                    entry.filename
+                    for entry in directory.entries
+                    if entry.filename.startswith(f"{JOURNAL_DIR}/")
+                ]
+                for name in top_level + journal:
+                    zip.writestr(name, await reader.read_member_fully(name))
 
                 for id, epoch in sample_ids:
                     sample = await EvalRecorder.read_log_sample(
@@ -237,8 +248,7 @@ def chunked_sample(sample: EvalSample, chunk_size: int) -> ChunkedSample:
         exclude={"messages", "events", "attachments", "events_data", "metadata"},
     )
     shell["message_refs"] = _compress_refs(indices)
-    # cumulative end-exclusive chunk boundaries per sequence (the last
-    # element is the sequence's total count); mirrors the chunk entry names
+    # must mirror the chunk entry names written by _write_chunked_sample
     shell["sequences"] = {
         MESSAGES_SEQUENCE: chunk_boundaries(len(messages), chunk_size),
         EVENTS_SEQUENCE: chunk_boundaries(len(events), chunk_size),
