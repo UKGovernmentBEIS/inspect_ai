@@ -5,7 +5,7 @@ from typing import IO, Any, get_args
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_core import from_json
 from typing_extensions import override
 
@@ -68,6 +68,12 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
+        # Per-sample summaries cached as samples are logged. Computing a
+        # summary is expensive for large samples (thin_data runs
+        # textwrap.shorten / JSON size probes over full-size fields), and
+        # `sample_summaries` is polled by the control channel — recomputing
+        # over the whole in-memory log on every request stalls the event loop.
+        summaries: list[EvalSampleSummary] = Field(default_factory=list)
 
     def __init__(
         self,
@@ -111,13 +117,14 @@ class JSONRecorder(FileRecorder):
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
+        log.summaries.append(sample.summary())
 
     @override
     async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
         log = self.data.get(self._log_file_key(eval))
         if log is None:
             return None
-        return [sample.summary() for sample in (log.data.samples or [])]
+        return list(log.summaries)
 
     @override
     async def buffered_sample(

@@ -5,12 +5,18 @@ import os
 import sqlite3
 import threading
 import time
-from collections.abc import Sequence
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
-from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Literal, cast
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Iterable,
+    Iterator,
+    Literal,
+    TypeVar,
+)
 
 import psutil
 from pydantic import BaseModel, JsonValue
@@ -30,9 +36,10 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._pool import (
     _call_pool_json,
-    _compress_refs,
     _msg_pool_json,
     _msg_pool_jsonable,
+    collect_pool_ref_positions,
+    remap_pool_refs,
 )
 from inspect_ai.event._pool_index import (
     CallPoolIndex,
@@ -45,6 +52,7 @@ from inspect_ai.model import ChatMessage
 from ..._condense import (
     ATTACHMENT_PROTOCOL,
     WalkContext,
+    attachment_refs_from_value,
     attachments_content_fn,
     walk_chat_message,
     walk_events,
@@ -670,9 +678,7 @@ class SampleBufferDatabase(SampleBuffer):
                     for row in self._get_events(conn, id, epoch, latest_only=True):
                         transcript_store.merge_condensed_event(
                             row.event_id,
-                            self._remap_pool_refs(
-                                row.event, message_pos_map, call_pos_map
-                            ),
+                            remap_pool_refs(row.event, message_pos_map, call_pos_map),
                             attachment_lookup,
                         )
                         seed_count += 1
@@ -682,27 +688,6 @@ class SampleBufferDatabase(SampleBuffer):
                     conn.rollback()
                     raise
 
-    @staticmethod
-    def _remap_pool_refs(
-        event: JsonData, message_pos_map: dict[int, int], call_pos_map: dict[int, int]
-    ) -> JsonData:
-        """Rewrite a condensed event's pool refs after exporting its pool entries."""
-        remapped = dict(event)
-        input_refs = remapped.get("input_refs")
-        if isinstance(input_refs, list):
-            remapped["input_refs"] = cast(
-                JsonValue, _remap_refs(input_refs, message_pos_map)
-            )
-        call = remapped.get("call")
-        if isinstance(call, dict):
-            call_refs = call.get("call_refs")
-            if isinstance(call_refs, list):
-                remapped["call"] = {
-                    **call,
-                    "call_refs": cast(JsonValue, _remap_refs(call_refs, call_pos_map)),
-                }
-        return remapped
-
     @contextmanager
     def open_sample_history_tail(
         self,
@@ -711,14 +696,18 @@ class SampleBufferDatabase(SampleBuffer):
         n: int,
     ) -> Iterator[SampleHistory]:
         if n <= 0:
-            yield SampleHistory([], [], [], {})
+            yield SampleHistory([], {}, {}, {}, page_scoped=True)
             return
 
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
                 conn.execute("BEGIN")
                 history = self._sample_history(
-                    conn, id, epoch, self._get_events_tail(conn, id, epoch, n)
+                    conn,
+                    id,
+                    epoch,
+                    self._get_events_tail(conn, id, epoch, n),
+                    page_scoped=True,
                 )
                 conn.commit()
             yield history
@@ -739,6 +728,7 @@ class SampleBufferDatabase(SampleBuffer):
                     id,
                     epoch,
                     self._get_events_from(conn, id, epoch, start, limit),
+                    page_scoped=True,
                 )
                 conn.commit()
             yield history
@@ -767,18 +757,107 @@ class SampleBufferDatabase(SampleBuffer):
         id: str | int,
         epoch: int,
         events: Iterable[EventData],
+        *,
+        page_scoped: bool = False,
     ) -> SampleHistory:
-        message_pool = [
-            json.loads(entry.data) for entry in self._get_message_pool(conn, id, epoch)
-        ]
-        call_pool = [
-            json.loads(entry.data) for entry in self._get_call_pool(conn, id, epoch)
-        ]
-        attachments = {
-            entry.hash: entry.content
-            for entry in self._get_attachments(conn, id, epoch)
-        }
-        return SampleHistory(list(events), message_pool, call_pool, attachments)
+        """Assemble a ``SampleHistory`` for the given event rows.
+
+        With ``page_scoped``, only the pool entries and attachments actually
+        referenced by ``events`` are loaded, keeping per-page read cost
+        proportional to the page rather than the whole sample. Whole-history
+        reads load everything: their events reference (nearly) all of it
+        anyway, and the .eval recorder needs the complete pools to serialize
+        ``events_data``.
+        """
+        event_rows = list(events)
+        if page_scoped:
+            positions = collect_pool_ref_positions(row.event for row in event_rows)
+            message_pool = {
+                pos: json.loads(data)
+                for pos, data in self._get_pool_entries_at(
+                    conn, "message_pool", id, epoch, positions.message_positions
+                )
+            }
+            call_pool = {
+                pos: json.loads(data)
+                for pos, data in self._get_pool_entries_at(
+                    conn, "call_pool", id, epoch, positions.call_positions
+                )
+            }
+            hashes: set[str] = set()
+            for row in event_rows:
+                hashes.update(attachment_refs_from_value(row.event))
+            for pool_value in (*message_pool.values(), *call_pool.values()):
+                hashes.update(attachment_refs_from_value(pool_value))
+            attachments = self._get_sample_attachments_content(conn, id, epoch, hashes)
+        else:
+            message_pool = {
+                pos: json.loads(entry.data)
+                for pos, entry in enumerate(self._get_message_pool(conn, id, epoch))
+            }
+            call_pool = {
+                pos: json.loads(entry.data)
+                for pos, entry in enumerate(self._get_call_pool(conn, id, epoch))
+            }
+            attachments = {
+                entry.hash: entry.content
+                for entry in self._get_attachments(conn, id, epoch)
+            }
+        return SampleHistory(
+            event_rows, message_pool, call_pool, attachments, page_scoped=page_scoped
+        )
+
+    def _get_pool_entries_at(
+        self,
+        conn: Connection,
+        table: Literal["message_pool", "call_pool"],
+        id: str | int,
+        epoch: int,
+        positions: set[int],
+    ) -> Iterator[tuple[int, str]]:
+        """Pool entries at the given .eval positional indices.
+
+        Position equals insertion rank within the sample (rows are inserted in
+        pool-position order — see ``_condense_model_event``), so rank is
+        recovered with ROW_NUMBER over the autoincrement id.
+        """
+        if not positions:
+            return
+        query = f"""
+            WITH ordered AS (
+                SELECT ROW_NUMBER() OVER (ORDER BY id) - 1 AS pos, data
+                FROM {table}
+                WHERE sample_id = ? AND sample_epoch = ?
+            )
+            SELECT pos, data FROM ordered WHERE pos IN
+        """
+        for chunk in _chunked(sorted(positions), _SQLITE_MAX_VARIABLES):
+            placeholders = ",".join("?" * len(chunk))
+            for row in conn.execute(
+                f"{query} ({placeholders})", [str(id), epoch, *chunk]
+            ):
+                yield int(row["pos"]), str(row["data"])
+
+    def _get_sample_attachments_content(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        hashes: set[str],
+    ) -> dict[str, str]:
+        """The sample's attachment bodies for the given hashes (missing omitted)."""
+        attachments: dict[str, str] = {}
+        for chunk in _chunked(sorted(hashes), _SQLITE_MAX_VARIABLES):
+            placeholders = ",".join("?" * len(chunk))
+            for row in conn.execute(
+                f"""
+                SELECT hash, content FROM attachments
+                WHERE sample_id = ? AND sample_epoch = ? AND hash IN ({placeholders})
+                """,
+                [str(id), epoch, *chunk],
+            ):
+                attachments[str(row["hash"])] = str(row["content"])
+        return attachments
 
     @contextmanager
     def _acquire_sample_read_lease(
@@ -1731,19 +1810,15 @@ def maximum_ids(
     return event_id, attachment_id, message_pool_id, call_pool_id
 
 
-def _remap_refs(
-    refs: Sequence[object], pos_map: dict[int, int]
-) -> list[tuple[int, int]]:
-    """Translate pooled ref ranges after exporting pool entries into a new store."""
-    indices: list[int] = []
-    for ref in refs:
-        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
-            continue
-        start, end = ref
-        if not isinstance(start, int) or not isinstance(end, int):
-            continue
-        indices.extend(pos_map[index] for index in range(start, end))
-    return _compress_refs(indices)
+# stay safely under SQLite's historical 999 bound-parameter limit
+_SQLITE_MAX_VARIABLES = 500
+
+_T = TypeVar("_T")
+
+
+def _chunked(items: list[_T], size: int) -> Iterator[list[_T]]:
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
 
 
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
