@@ -87,7 +87,7 @@ Two classes of content, marked throughout:
    sidecar are deterministic functions of the event sequence; corruption or
    version skew is fixed by rebuilding them.
 
-## Constraints (fixed at charting)
+## Constraints (set up front, before design work began)
 
 - **Serverless preserved**: partial event access via plain HTTP range requests
   (static hosting, S3, VS Code) — format-level chunking, not server-side
@@ -886,7 +886,7 @@ message does **not** mention conversion for now.
    ignored pending the JJ follow-up.
 3. The chunked shape is `.eval`-only; the `.json` log format never chunks (its
    existing version check stays).
-4. Old logs readable forever (charting constraint).
+4. Old logs readable forever (an up-front constraint, [Constraints](#constraints-set-up-front-before-design-work-began)).
 
 ## Proposed slicing into implementation efforts
 
@@ -988,7 +988,7 @@ doc, updated to the ratified decisions):
 # Appendix B — Transformation audit
 
 Where every viewer transformation runs against skeleton + windowed fetches
-(verified against viewer code at charting):
+(verified against the viewer code at the start of this effort):
 
 | Transformation | Reads | New home |
 |---|---|---|
