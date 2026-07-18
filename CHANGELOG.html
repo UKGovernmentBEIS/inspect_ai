@@ -194,11 +194,11 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#july-2026" id="toc-july-2026" class="nav-link" data-scroll-target="#july-2026">0.3.247 (16 July 2026)</a></li>
-  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.246 (10 July 2026)</a></li>
-  <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.245 (08 July 2026)</a></li>
-  <li><a href="#july-2026-3" id="toc-july-2026-3" class="nav-link" data-scroll-target="#july-2026-3">0.3.244 (01 July 2026)</a></li>
+  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.248 (17 July 2026)</a></li>
+  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.247 (16 July 2026)</a></li>
+  <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.246 (10 July 2026)</a></li>
+  <li><a href="#july-2026-3" id="toc-july-2026-3" class="nav-link" data-scroll-target="#july-2026-3">0.3.245 (08 July 2026)</a></li>
+  <li><a href="#july-2026-4" id="toc-july-2026-4" class="nav-link" data-scroll-target="#july-2026-4">0.3.244 (01 July 2026)</a></li>
   <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.243 (30 June 2026)</a></li>
   <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.242 (29 June 2026)</a></li>
   <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.241 (22 June 2026)</a></li>
@@ -448,13 +448,17 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="july-2026" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026">0.3.248 (17 July 2026)</h2>
 <ul>
 <li>Logging: Local eval (<code>.eval</code>) and JSON (<code>.json</code>) log files are now written atomically (temp file + <code>fsync</code> + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)</li>
 <li>Checkpointing: In-sandbox restic artifacts moved from the world-listable <code>/opt/inspect-restic</code> to root-only <code>/root/.cache/inspect</code>, and egress scratch files no longer land in <code>/tmp</code>, so agents no longer see evidence of checkpointing.</li>
 <li>Eval: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span> now record <code>turn_count</code> and the sample’s token limit (<code>token_limit</code>, <code>token_limit_type</code>, and metered <code>token_limit_usage</code>).</li>
 <li>Analysis: <code>samples_df</code> gains default <code>turn_count</code> and <code>token_limit_usage</code> columns, and <code>evals_df</code> configuration columns gain <code>token_limit_type</code>.</li>
+<li>CloudFlare (breaking): Provider is now <code>cloudflare</code> (was <code>cf</code>) and model names are passed verbatim from CloudFlare’s catalog (e.g.&nbsp;<code>cloudflare/@cf/meta/llama-3.1-8b-instruct</code> or <code>cloudflare/moonshotai/kimi-k3</code>).</li>
+<li>CloudFlare: Context window overflow (now signalled via HTTP 413) is again reported as a <code>model_length</code> stop reason rather than raising an error.</li>
+<li>Model Info: Update to latest models in TogetherAI model database.</li>
+<li>Model Info: Added Moonshot AI Kimi K3 to the model database (1M token context window).</li>
 <li>Control Channel: <code>inspect ctl sample list</code> now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.</li>
 <li>Control Channel: <code>inspect ctl task cancel</code> and <code>inspect ctl sample cancel</code> gain an <code>--action</code> option (<code>score</code>/<code>error</code>/<code>cancel</code>) selecting how samples are resolved, so a cancelled eval can still complete (replaces <code>inspect ctl sample cancel --error</code>).</li>
 <li>Control Channel: <code>inspect ctl sample errors</code> now filters errored/retried samples server-side, so triage polls of large evals no longer build and ship the full sample listing.</li>
@@ -466,32 +470,39 @@ ul.task-list li input[type="checkbox"] {
 <li>Control Channel: <code>inspect ctl sample events</code> now accepts <code>--type all</code> (shell-safe spelling of <code>--type '*'</code>) and <code>--from-start</code> to read the full backlog from the first event.</li>
 <li>Control Channel: <code>inspect ctl sample events</code> gains <code>--limit N</code> to cap the events returned per page (combinable with <code>--from-start</code>, <code>--tail</code>, or a cursor).</li>
 <li>Control Channel: New <code>--json</code> flag for <code>inspect eval</code>, <code>inspect eval-set</code>, and <code>inspect eval-retry</code> emits machine-readable launch-handoff and <code>done</code> JSON lines on stdout, so agents can use <code>inspect ctl</code> immediately after launch instead of sleep-and-retrying.</li>
+<li>Control Channel: New <code>--detach</code> flag for <code>inspect eval</code>, <code>inspect eval-set</code>, and <code>inspect eval-retry</code> runs the eval in the background — the command prints the launch record and returns once the control endpoint is bound, leaving the eval running detached from the terminal (monitor with <code>inspect ctl task list</code>).</li>
+<li>CLI: <code>inspect trace anomalies</code> and <code>inspect trace http</code> gain a <code>--json</code> flag emitting machine-readable output for agents and shell pipelines; the JSON always includes error/timeout buckets (no <code>--all</code> needed).</li>
+<li>CLI: <code>inspect trace anomalies</code> no longer errors when <code>--filter</code> matches an action’s completion record but not its start record.</li>
 <li>CLI: <code>--debug</code> attach diagnostics (“Waiting for debugger attach”) now print to stderr, keeping stdout clean for machine-readable output such as <code>--json</code>.</li>
 <li>Control Channel: <code>inspect ctl sample show</code> now reads the sample’s summary and error detail in one atomic request, so its output can no longer mix data from different attempts.</li>
 <li>Control Channel: <code>inspect ctl sample show</code> now reports a cancelled sample as <code>cancelled</code>/<code>pending</code> (matching <code>sample list</code>) instead of <code>error</code> with the cancellation as its error.</li>
 <li>Control Channel: The control server’s mutation endpoints (config PATCH, keep/release, log-flush) now reject unknown query parameters with a 400 error before applying anything, instead of silently ignoring them.</li>
 <li>Control Channel: Added <code>inspect ctl task cancel</code> and <code>inspect ctl sample cancel</code> to cancel a running task or one running sample (idempotent, with <code>--dry-run</code>).</li>
 <li>Model API: Fixed <code>max_retries</code> to permit N retries (N+1 total attempts); previously it counted total attempts, so e.g.&nbsp;<code>max_retries=1</code> never actually retried.</li>
+<li>Performance: Transcript events are now validated through a pydantic discriminator when reading logs (<code>read_eval_log</code>, <code>eval-retry</code>, <code>events_df</code>/<code>messages_df</code>), a single keyed lookup instead of trying all 23 <code>Event</code> union members in turn; ~6.4x faster per-event validation on large logs, with no change to the log format. (#4445)</li>
 <li>Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)</li>
 <li>Bugfix: With checkpoints stored on S3, a resumed sample can now itself be resumed — previously a crash after resume lost the checkpoint chain and the next retry restarted the sample from scratch.</li>
 <li>Bugfix: Crash recovery now reconstructs <code>sample.messages</code> from the first model role’s conversation when a solver runs multiple agents concurrently, instead of returning whichever agent’s model call happened to fire last. (#4414)</li>
 <li>Bugfix: Errored samples that were scored (e.g.&nbsp;via <code>score_on_error</code>) now contribute their scores to metrics and <code>scored_samples</code>, matching what the sample log shows. (#4412)</li>
 <li>Bugfix: Several raised errors (unexpected Anthropic input block, unsupported image data type, missing sample-buffer database) now interpolate the offending value into the message instead of showing the literal placeholder text.</li>
+<li>Bugfix: Native compaction now truncates an oversized tool output before summarizing instead of crashing or silently summarizing an error when it would exceed the model’s context window. (#3600)</li>
 <li>Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.</li>
 <li>Bugfix: Nested <code>score_reducer</code> and <code>task_source</code> values in serialized task args now restore as instances rather than their registered factories. (#4374)</li>
+<li>Bugfix: Properly resolve relative sample file paths and file URIs on windows (#4502)</li>
 <li>Viewer: log listing responses include the log dir’s canonical URI (<code>log_dir_uri</code>) so the viewer can reliably scope its local cache to the directory.</li>
 <li>Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g.&nbsp;<code>/log-headers</code> ~3s -&gt; ~0.3s, <code>/logs</code> ~1.5s -&gt; ~0.06s).</li>
+<li>Model Roles: <code>resolve_model_roles</code> now copies a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> passed by object (e.g.&nbsp;via <code>eval(model_roles=...)</code>) before stamping its role, so roles supplied through the Python API — not just <code>--model-role</code> — get a distinct instance and are not misattributed. (#4464)</li>
 </ul>
 </section>
-<section id="july-2026" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026">0.3.247 (16 July 2026)</h2>
+<section id="july-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-1">0.3.247 (16 July 2026)</h2>
 <ul>
 <li>Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (<code>-M use_adc=true</code> or <code>GOOGLE_USE_ADC=true</code>) with automatic token refresh, for deployments reachable without an API key.</li>
 <li>Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.</li>
 </ul>
 </section>
-<section id="july-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-1">0.3.246 (10 July 2026)</h2>
+<section id="july-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-2">0.3.246 (10 July 2026)</h2>
 <ul>
 <li>Grok: Support for Grok 4.5 (model info database entry; accepts <code>reasoning_effort</code> with a documented default of <code>high</code>).</li>
 <li>OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target <code>gpt-5.6</code>.</li>
@@ -510,8 +521,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Model Roles: <code>--model-role</code> roles that share the same model and config now report their token usage separately in <code>role_usage</code> instead of collapsing onto one role. (#4450)</li>
 </ul>
 </section>
-<section id="july-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-2">0.3.245 (08 July 2026)</h2>
+<section id="july-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-3">0.3.245 (08 July 2026)</h2>
 <ul>
 <li>Model API: New <code>openai-api-completions</code> provider for the legacy <code>/v1/completions</code> endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with <code>vllm-completions</code>.</li>
 <li>Model API: <code>openai-api-completions</code> and <code>vllm-completions</code> accept pre-tokenized prompts via <code>ChatMessage.metadata["prompt_token_ids"]</code>.</li>
@@ -548,8 +559,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Link plain HTTP sandbox ports (e.g.&nbsp;80, 8080) as <code>http://</code> instead of <code>https://</code> in the running-samples port-mappings panel.</li>
 </ul>
 </section>
-<section id="july-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-3">0.3.244 (01 July 2026)</h2>
+<section id="july-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-4">0.3.244 (01 July 2026)</h2>
 <ul>
 <li>Anthropic: Various changes related to <a href="https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5">Sonnet 5</a>.</li>
 <li>Bugfix: Elapsed-time displays (e.g.&nbsp;the running-sample clock and timers) no longer render an impossible <code>:60</code> seconds when the elapsed time has a fractional second.</li>

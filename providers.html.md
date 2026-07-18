@@ -807,8 +807,10 @@ To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider,
 ``` bash
 export CLOUDFLARE_ACCOUNT_ID=account-id
 export CLOUDFLARE_API_TOKEN=api-token
-inspect eval arc.py --model cf/meta/llama-3.1-70b-instruct
+inspect eval arc.py --model cloudflare/@cf/meta/llama-3.1-70b-instruct
 ```
+
+Specify the model id exactly as it appears in Cloudflare’s [model catalog](https://developers.cloudflare.com/workers-ai/models/): Workers AI model ids start with `@cf/`, while gateway-hosted models have plain ids (e.g. `cloudflare/moonshotai/kimi-k3`).
 
 For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
 

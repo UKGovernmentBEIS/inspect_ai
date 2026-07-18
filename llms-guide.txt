@@ -4203,8 +4203,10 @@ To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider,
 ``` bash
 export CLOUDFLARE_ACCOUNT_ID=account-id
 export CLOUDFLARE_API_TOKEN=api-token
-inspect eval arc.py --model cf/meta/llama-3.1-70b-instruct
+inspect eval arc.py --model cloudflare/@cf/meta/llama-3.1-70b-instruct
 ```
+
+Specify the model id exactly as it appears in Cloudflare’s [model catalog](https://developers.cloudflare.com/workers-ai/models/): Workers AI model ids start with `@cf/`, while gateway-hosted models have plain ids (e.g. `cloudflare/moonshotai/kimi-k3`).
 
 For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
 
@@ -13270,6 +13272,8 @@ success, logs = eval_set(
 
 Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
 
+Eval sets often run for a long time: to run one in the background, detached from your terminal, launch it with `--detach` and monitor it with `inspect ctl` (see [Detached Launch](./control-channel.html.md#detached-launch)).
+
 The [eval_set()](./reference/inspect_ai.html.md#eval_set) function returns a tuple of bool (whether all tasks completed successfully) and a list of [EvalLog](./reference/inspect_ai.log.html.md#evallog) headers (i.e. raw sample data is not included in the logs returned).
 
 ### Re-Running
@@ -14721,9 +14725,63 @@ The `done` record arrives when the eval finishes, with each task’s log locatio
 
 Stdout carries these records exclusively: the eval itself runs with stdout redirected to stderr (at the file-descriptor level, so even output from subprocesses spawned by task or solver code lands on stderr rather than corrupting the stream).
 
-`inspect eval-set --json` follows the same contract, with eval-set specifics: the records also carry `eval_set_id`, and the `done` record adds an overall `success` field mirroring the exit code. Two deviations from “exactly one `launch`, then one `done`”: a set whose tasks are all already complete runs no eval, so stdout carries only the `done` record (don’t read the missing `launch` line as a failed launch once `done` arrived); and legacy batch-mode retries (`--no-retry-immediate`) emit a fresh `launch` record per retry batch, with the `done` record carrying the last launch’s `run_id` — the run that produced the final state.
+`inspect eval-set --json` follows the same contract, with eval-set specifics: the records also carry `eval_set_id`, and the `done` record adds an overall `success` field mirroring the exit code. Two deviations from “exactly one `launch`, then one `done`”: a set whose tasks are all already complete runs no eval, so stdout carries only the `done` record (don’t read the missing `launch` line as a failed launch once `done` arrived) — except under `--ctl-server=keep`, where the keep-alive park still binds a control endpoint and reports it with a `launch` record whose `run_id` is `null`; and legacy batch-mode retries (`--no-retry-immediate`) emit a fresh `launch` record per retry batch, with the `done` record carrying the last launch’s `run_id` — the run that produced the final state.
 
 `inspect eval-retry --json` follows the contract too, with one wrinkle: each retried log file runs as its own eval with its own `run_id`, so retrying multiple log files emits one `launch` record per file (sequentially — each supersedes the previous), and the single `done` record carries the last launch’s `run_id` with one `logs` entry per retried task.
+
+## Detached Launch
+
+An eval launched with `--json` still occupies the terminal until it finishes. To run it in the background — detached from the terminal, surviving the launching shell (or agent session) ending — launch with `--detach`:
+
+``` bash
+inspect eval ctf.py --detach
+```
+
+This implies `--json`. The command blocks until the control endpoint is bound, prints the `launch` record on stdout, and exits 0 — the eval keeps running as a detached background process:
+
+``` json
+{"event": "launch", "run_id": "Ngkz4viFYq…", "eval_set_id": null, "pid": 17146, "log_dir": "/…/logs", "control": {"socket_path": "/…/control/17146.sock"}, "output_file": "/…/detach/20260716-141530-ab12cd34.out"}
+```
+
+The launch-handoff guarantee carries over unchanged: a `--detach` command that exited 0 has emitted a `launch` record and the control surface exists — except when an eval-set’s tasks are all already complete, in which case no eval runs, stdout carries only the `done` record, and nothing is left running (the set’s results were already final). One that exited non-zero has not started a background eval, and the pre-flight diagnostic (bad task path, missing API key, …) is on stderr. There is no third state to poll for: if the control endpoint fails to bind, the launcher terminates the eval and exits non-zero rather than leave an unmonitorable eval running, and interrupting the wait (Ctrl+C or SIGTERM) likewise terminates the eval before the launcher exits.
+
+The detached process’s stdout and stderr go to a file under the Inspect data directory, reported as `output_file` in the launch record. The process exits on its own when the eval finishes, and that file’s last line is the completion signal — after the handoff, the eval’s terminal and results are read entirely through the surfaces this page documents:
+
+1.  **Monitor** the running eval with `inspect ctl task list --json` (and drill down with `inspect ctl sample list` / `errors` / `events`).
+2.  **Intervene** if needed: `inspect ctl sample cancel`, `inspect ctl task cancel`, `inspect ctl config`.
+3.  **Detect completion**: when the eval finishes the process exits (dropping out of the `inspect ctl` listings), leaving a `done` record — overall success plus each task’s `status` and `log_location` — as the last line of `output_file`.
+4.  **Detect a crash**: a process that is gone *without* a `done` record in its output file died mid-run; the same file holds its diagnostics (stray prints and stderr land there too). For an eval-set, re-running the same command retries the unfinished tasks.
+
+Inspect never deletes these output files: one accumulates per detached run under the data directory until you remove it. Since the file is the completion signal, remove it only after its `done` record has been read.
+
+To instead keep the process alive after the eval finishes — its state still queryable via `inspect ctl` until you `inspect ctl process release` it — pass `--ctl-server=keep` explicitly (or latch it onto an already-running detached eval with `inspect ctl process keep`). The `done` record is then written only when the process is released. Prefer the default exit-when-done unless whatever will issue the release is certain to outlive the eval: a long eval routinely outlives the shell or agent session that launched it, and an unreleased parked process lingers indefinitely.
+
+`--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files’ records go to the output file). Because a detached eval must be observable and cancellable while running, combining `--detach` with `--ctl-server=false` is an error.
+
+To make an agent (Claude Code or similar) use this workflow for long-running evals, paste a snippet like this into your eval repo’s `CLAUDE.md` / `AGENTS.md`:
+
+``` markdown
+For evals that may run longer than a few minutes, do not run
+`inspect eval` in the foreground or under nohup/tmux. Instead:
+
+1. Launch with `inspect eval <task> --detach`. It prints a JSON
+   `launch` record and returns, leaving the eval running in the
+   background; non-zero exit means the launch failed (reason on
+   stderr). Never consider an eval launched until you have read
+   its `launch` record.
+2. Poll `inspect ctl task list --json` to watch progress. When the
+   eval finishes its process exits and drops out of that listing;
+   completion is confirmed by the JSON `done` record on the last
+   line of the launch record's `output_file`, which reports overall
+   success and each task's `status` and `log_location`. If the
+   process is gone and there is no `done` record, the run died
+   mid-flight — diagnostics are in the same file.
+3. If samples stall or error, inspect with `inspect ctl sample
+   list` / `inspect ctl sample errors`, and cancel with
+   `inspect ctl sample cancel` / `inspect ctl task cancel`.
+4. Read results from each task's `log_location` (reported in both
+   the `done` record and `inspect ctl task list`).
+```
 
 ## Listing Tasks
 

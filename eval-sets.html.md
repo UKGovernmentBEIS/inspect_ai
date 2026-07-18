@@ -37,6 +37,8 @@ success, logs = eval_set(
 
 Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
 
+Eval sets often run for a long time: to run one in the background, detached from your terminal, launch it with `--detach` and monitor it with `inspect ctl` (see [Detached Launch](./control-channel.html.md#detached-launch)).
+
 The [eval_set()](./reference/inspect_ai.html.md#eval_set) function returns a tuple of bool (whether all tasks completed successfully) and a list of [EvalLog](./reference/inspect_ai.log.html.md#evallog) headers (i.e. raw sample data is not included in the logs returned).
 
 ### Re-Running

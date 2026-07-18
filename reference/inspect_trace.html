@@ -3574,6 +3574,12 @@ ul.task-list li input[type="checkbox"] {
 <td><code>False</code></td>
 </tr>
 <tr class="odd">
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON (a <code>{trace_file, as_of, requests}</code> envelope).</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>
@@ -3617,10 +3623,16 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><code>--all</code></td>
 <td>boolean</td>
-<td>Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown).</td>
+<td>Show all anomalies including errors and timeouts (by default only still running and cancelled actions are shown; JSON output always includes all buckets).</td>
 <td><code>False</code></td>
 </tr>
 <tr class="odd">
+<td><code>--json</code></td>
+<td>boolean</td>
+<td>Output as JSON (a <code>{trace_file, as_of, running, cancelled, errors, timeouts}</code> envelope).</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

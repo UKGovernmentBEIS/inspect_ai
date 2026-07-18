@@ -154,6 +154,17 @@
     ]
   },
   {
+    "id": "inspect-falsify",
+    "name": "Inspect falsify",
+    "url": "https://github.com/studio-11-co/falsify-inspect",
+    "desc": "Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.",
+    "author": "C\u00fcneyt \u00d6zt\u00fcrk",
+    "author_url": "https://falsify.dev",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "cje",
     "name": "CJE",
     "url": "https://github.com/cimo-labs/cje",

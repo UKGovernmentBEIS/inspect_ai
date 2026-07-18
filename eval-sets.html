@@ -783,6 +783,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.</p>
+<p>Eval sets often run for a long time: to run one in the background, detached from your terminal, launch it with <code>--detach</code> and monitor it with <code>inspect ctl</code> (see <a href="./control-channel.html#detached-launch">Detached Launch</a>).</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function returns a tuple of bool (whether all tasks completed successfully) and a list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> headers (i.e.&nbsp;raw sample data is not included in the logs returned).</p>
 <section id="re-running" class="level3">
 <h3 class="anchored" data-anchor-id="re-running">Re-Running</h3>
