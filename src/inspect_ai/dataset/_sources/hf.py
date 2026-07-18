@@ -220,7 +220,7 @@ def hf_dataset(
         dataset = dataset.shuffle(seed=seed)
 
     # limit if requested
-    if limit:
+    if limit is not None:
         dataset = dataset.select(range(limit))
 
     # return the dataset
