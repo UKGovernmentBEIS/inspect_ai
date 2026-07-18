@@ -34,8 +34,13 @@ DEFAULT_NOTABLE_CAP = 1000
 DEFAULT_ESCAPE_HATCH_EVENTS = 1000
 """Default descendant-event count at which a leaf tool span is kept anyway."""
 
-DEFAULT_NOTABLE_TYPES: frozenset[str] = frozenset({"score", "checkpoint"})
-"""Default event types persisted as notables."""
+NOTABLE_TYPES: frozenset[str] = frozenset({"score", "checkpoint"})
+"""Event types persisted as notables (ratified, not a policy knob).
+
+Deliberately not configurable: persisted notables become gap items, and a
+model-event notable type would break the per-span accounting invariant
+``sum(gap_models) + sum(child span models) == models``.
+"""
 
 
 @dataclass(frozen=True)
@@ -53,9 +58,6 @@ class SkeletonPolicy:
     """A leaf tool span with at least this many descendant events is included
     despite the leaf-tool exclusion (fetch elision + outline presence for
     monster tool spans)."""
-
-    notable_types: frozenset[str] = DEFAULT_NOTABLE_TYPES
-    """Event types recorded as notables."""
 
 
 _DEFAULT_POLICY = SkeletonPolicy()
@@ -166,8 +168,8 @@ def sample_skeleton(
     for node in _walk_nodes(forest):
         _aggregate(node, index_of, aggs)
 
-    persisted, overflow = _persisted_notables(events, policy)
-    persisted_set = set(persisted)
+    notables = _persisted_notables(events, policy)
+    persisted_set = set(notables.indexes)
 
     spans: list[SkeletonSpan] = []
     notable_span: dict[int, int] = {}
@@ -198,8 +200,10 @@ def sample_skeleton(
             models=sum(1 for ev in events if isinstance(ev, ModelEvent)),
         ),
         spans=spans,
-        notables=[_notable(events[i], i, notable_span.get(i)) for i in persisted],
-        overflow=overflow,
+        notables=[
+            _notable(events[i], i, notable_span.get(i)) for i in notables.indexes
+        ],
+        overflow=notables.overflow,
     )
 
 
@@ -233,9 +237,12 @@ def _fold_steps(
     """Convert an event_tree bucket into _Nodes, folding legacy step pairs.
 
     Steps nest positionally within their bucket (legacy events carry no
-    span_id, so a step and its events share a bucket). A step-end with no
-    matching open step is kept as a plain event; steps left open at the end
-    of the bucket remain nodes without an end marker.
+    span_id, so a step and its events share a bucket). Pairing follows the
+    frozen legacy oracle (the viewer's ``treeifyWithSteps``): pure stack
+    discipline — a step-end closes the innermost open step, matching neither
+    name nor type. A step-end with no open step is kept as a plain event;
+    steps left open at the end of the bucket remain nodes without an end
+    marker.
     """
     result: list[_Node | Event] = []
     stack: list[_Node] = []
@@ -267,12 +274,8 @@ def _fold_steps(
             sink().append(node)
             stack.append(node)
         elif isinstance(item, StepEvent) and item.action == "end":
-            if any(node.name == item.name for node in stack):
-                while stack:
-                    node = stack.pop()
-                    if node.name == item.name:
-                        node.end = item
-                        break
+            if stack:
+                stack.pop().end = item
             else:
                 sink().append(item)
         else:
@@ -352,19 +355,24 @@ def _notable(event: Event, i: int, span: int | None) -> SkeletonNotable:
     )
 
 
+class _PersistedNotables(NamedTuple):
+    """Notable selection result."""
+
+    indexes: list[int]
+    """Persisted notable event indexes in sequence order."""
+
+    overflow: dict[str, int]
+    """Sparse map of event type to count of notables omitted past the cap."""
+
+
 def _persisted_notables(
     events: Sequence[Event], policy: SkeletonPolicy
-) -> tuple[list[int], dict[str, int]]:
-    """Select persisted notables (per-type first-N) and per-type overflow.
-
-    Returns:
-        A pair of (persisted event indexes in sequence order, sparse map of
-        event type to count of notables omitted past the cap).
-    """
+) -> _PersistedNotables:
+    """Select persisted notables (per-type first-N) and per-type overflow."""
     persisted: list[int] = []
     counts: Counter[str] = Counter()
     for i, ev in enumerate(events):
-        if ev.event in policy.notable_types:
+        if ev.event in NOTABLE_TYPES:
             counts[ev.event] += 1
             if counts[ev.event] <= policy.notable_cap:
                 persisted.append(i)
@@ -373,7 +381,7 @@ def _persisted_notables(
         for type_, count in counts.items()
         if count > policy.notable_cap
     }
-    return persisted, overflow
+    return _PersistedNotables(indexes=persisted, overflow=overflow)
 
 
 def _is_excluded(node: _Node, agg: _Agg, policy: SkeletonPolicy) -> bool:
@@ -391,7 +399,7 @@ def _is_excluded(node: _Node, agg: _Agg, policy: SkeletonPolicy) -> bool:
         and not any(isinstance(item, _Node) for item in node.items)
         and agg.models == 0
         and not any(
-            not isinstance(item, _Node) and item.event in policy.notable_types
+            not isinstance(item, _Node) and item.event in NOTABLE_TYPES
             for item in node.items
         )
         and agg.events < policy.escape_hatch_events

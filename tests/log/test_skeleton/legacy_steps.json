@@ -1,5 +1,5 @@
 {
-  "description": "Legacy step-only log: step begin/end pairs map to span-table entries (id = step-<begin index>). Covers nested steps, an unclosed step implicitly closed by its parent's end (t/working fall back to the last descendant), and root-level loose events.",
+  "description": "Legacy step-only log: step begin/end pairs map to span-table entries (id = step-<begin index>). Pairing is pure stack discipline (the frozen legacy treeify behavior): a step-end closes the innermost open step regardless of name/type — so 'end outer' below closes 'inner', and 'outer' is left open: later events (the trailing info) nest inside it and its t/working fall back to the last descendant. Also covers a root-level loose event.",
   "events": [
     {"event": "step", "action": "begin", "name": "solve", "type": "solver", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
     {"event": "model", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
@@ -49,23 +49,23 @@
         "id": "step-8",
         "name": "outer",
         "begin": 8,
-        "extent": [8, 11],
-        "t": ["2026-01-01T00:00:08+00:00", "2026-01-01T00:00:11+00:00"],
-        "working": [8.0, 11.0],
-        "events": 4,
+        "extent": [8, 12],
+        "t": ["2026-01-01T00:00:08+00:00", "2026-01-01T00:00:12+00:00"],
+        "working": [8.0, 12.0],
+        "events": 5,
         "models": 1,
         "gap_models": [0, 0],
-        "children": {}
+        "children": {"info": 1}
       },
       {
         "id": "step-9",
         "parent": 2,
         "name": "inner",
         "begin": 9,
-        "extent": [9, 10],
-        "t": ["2026-01-01T00:00:09+00:00", "2026-01-01T00:00:10+00:00"],
-        "working": [9.0, 10.0],
-        "events": 2,
+        "extent": [9, 11],
+        "t": ["2026-01-01T00:00:09+00:00", "2026-01-01T00:00:11+00:00"],
+        "working": [9.0, 11.0],
+        "events": 3,
         "models": 1,
         "gap_models": [1],
         "children": {"model": 1}

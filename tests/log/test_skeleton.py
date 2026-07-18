@@ -7,7 +7,7 @@ expected skeleton, so a future TypeScript twin can run the same suite.
 
 import json
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, NamedTuple, Sequence
 
 import pytest
 from pydantic import TypeAdapter
@@ -18,6 +18,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._span import SpanBeginEvent
 from inspect_ai.event._step import StepEvent
 from inspect_ai.log._skeleton import (
+    NOTABLE_TYPES,
     SampleSkeleton,
     SkeletonPolicy,
     sample_skeleton,
@@ -26,6 +27,12 @@ from inspect_ai.log._skeleton import (
 FIXTURES_DIR = Path(__file__).parent / "test_skeleton"
 
 _events_adapter: TypeAdapter[list[Event]] = TypeAdapter(list[DiscriminatedEvent])
+
+
+class _Fixture(NamedTuple):
+    events: list[Event]
+    policy: SkeletonPolicy
+    expected: dict[str, Any]
 
 
 def _parse_events(data: list[dict[str, Any]]) -> list[Event]:
@@ -39,16 +46,15 @@ def _parse_policy(data: dict[str, Any]) -> SkeletonPolicy:
         escape_hatch_events=data.get(
             "escape_hatch_events", defaults.escape_hatch_events
         ),
-        notable_types=frozenset(data.get("notable_types", defaults.notable_types)),
     )
 
 
-def _load_fixture(path: Path) -> tuple[list[Event], SkeletonPolicy, dict[str, Any]]:
+def _load_fixture(path: Path) -> _Fixture:
     data = json.loads(path.read_text())
-    return (
-        _parse_events(data["events"]),
-        _parse_policy(data.get("policy", {})),
-        data["expected"],
+    return _Fixture(
+        events=_parse_events(data["events"]),
+        policy=_parse_policy(data.get("policy", {})),
+        expected=data["expected"],
     )
 
 
@@ -69,7 +75,7 @@ def assert_skeleton_invariants(
         1 for ev in events if isinstance(ev, StepEvent) and ev.action == "begin"
     )
     assert len(skeleton.spans) <= span_begins + step_begins
-    assert len(skeleton.notables) <= policy.notable_cap * len(policy.notable_types)
+    assert len(skeleton.notables) <= policy.notable_cap * len(NOTABLE_TYPES)
 
     persisted_by_span: dict[int | None, int] = {}
     for notable in skeleton.notables:
@@ -97,7 +103,9 @@ def assert_skeleton_invariants(
             assert parent.extent[0] <= span.extent[0]
             assert span.extent[1] <= parent.extent[1]
 
-    # root-level model accounting: every model event is in exactly one place
+    # no double counting across the forest: root spans' models are disjoint,
+    # so their sum never exceeds the sample total (root-level loose model
+    # events account for any difference)
     root_models = sum(s.models for s in skeleton.spans if s.parent is None)
     assert root_models <= skeleton.counts.models
 
@@ -108,28 +116,37 @@ def assert_skeleton_invariants(
     ids=lambda path: path.stem,
 )
 def test_skeleton_fixture(fixture_path: Path) -> None:
-    events, policy, expected = _load_fixture(fixture_path)
-    skeleton = sample_skeleton(events, policy)
-    assert skeleton.model_dump(mode="json", exclude_none=True) == expected
-    assert_skeleton_invariants(skeleton, events, policy)
+    fixture = _load_fixture(fixture_path)
+    skeleton = sample_skeleton(fixture.events, fixture.policy)
+    assert skeleton.model_dump(mode="json", exclude_none=True) == fixture.expected
+    assert_skeleton_invariants(skeleton, fixture.events, fixture.policy)
 
 
 def test_skeleton_deterministic() -> None:
-    events, policy, _ = _load_fixture(FIXTURES_DIR / "gap_models.json")
-    first = sample_skeleton(events, policy).model_dump(mode="json", exclude_none=True)
-    second = sample_skeleton(events, policy).model_dump(mode="json", exclude_none=True)
+    fixture = _load_fixture(FIXTURES_DIR / "gap_models.json")
+    first = sample_skeleton(fixture.events, fixture.policy).model_dump(
+        mode="json", exclude_none=True
+    )
+    second = sample_skeleton(fixture.events, fixture.policy).model_dump(
+        mode="json", exclude_none=True
+    )
     assert first == second
 
 
 def test_gap_models_additive() -> None:
     """Suppressing an item row == summing its adjacent gaps.
 
-    Lowering the notable cap drops items from the gap layout; the dropped
-    items' adjacent gaps must merge additively.
+    The notable_caps fixtures are a twin pair over identical events; the
+    lower cap drops items from the gap layout, and the dropped items'
+    adjacent gaps must merge additively.
     """
-    events, _, _ = _load_fixture(FIXTURES_DIR / "notable_caps.json")
-    full = sample_skeleton(events, SkeletonPolicy(notable_cap=4)).spans[0]
-    capped = sample_skeleton(events, SkeletonPolicy(notable_cap=2)).spans[0]
+    capped_fx = _load_fixture(FIXTURES_DIR / "notable_caps.json")
+    full_fx = _load_fixture(FIXTURES_DIR / "notable_caps_uncapped.json")
+    assert [e.model_dump() for e in capped_fx.events] == [
+        e.model_dump() for e in full_fx.events
+    ]
+    full = sample_skeleton(full_fx.events, full_fx.policy).spans[0]
+    capped = sample_skeleton(capped_fx.events, capped_fx.policy).spans[0]
     assert full.gap_models == [1, 1, 1, 1, 1]
     # dropping the last two items merges their adjacent gaps into one
     assert capped.gap_models == [
@@ -213,10 +230,11 @@ def test_skeleton_span_proportional() -> None:
 
 
 def test_skeleton_real_logs() -> None:
-    """Producer runs over real .eval logs.
+    """Producer runs over every real .eval log in the test corpus.
 
     Invariants hold and output is span-proportional (KBs, not
-    event-proportional).
+    event-proportional). Read failures fail the test — a broken reader
+    change must not silently shrink coverage.
     """
     from inspect_ai.log import read_eval_log
 
@@ -224,10 +242,7 @@ def test_skeleton_real_logs() -> None:
     tests_dir = Path(__file__).parent.parent
     checked_samples = 0
     for log_path in sorted(tests_dir.rglob("*.eval")):
-        try:
-            log = read_eval_log(str(log_path), resolve_attachments=False)
-        except Exception:
-            continue  # fixture logs for other tests may be intentionally odd
+        log = read_eval_log(str(log_path), resolve_attachments=False)
         for sample in log.samples or []:
             if not sample.events:
                 continue
@@ -238,4 +253,4 @@ def test_skeleton_real_logs() -> None:
             assert len(serialized) < 512 * 1024
             checked_samples += 1
 
-    assert checked_samples >= 3
+    assert checked_samples >= 20
