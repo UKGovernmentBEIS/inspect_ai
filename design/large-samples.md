@@ -17,6 +17,32 @@ messages per sample.
 
 ---
 
+## Change log
+
+Post-ratification amendments. Each entry supersedes the affected sections in
+place; affected sections carry a **⚑ amended** marker pointing back here.
+
+- **2026-07-18 — Small-sample monolith threshold deferred indefinitely.**
+  The finalize-time monolith-vs-chunk policy
+  ([#17](https://github.com/epatey/inspect_ai/issues/17)) is dropped from the
+  plan entirely — **working assumption: it is not needed. Every new-format
+  sample is chunked, regardless of size**, on every path (converter, phase-2
+  writer). No force-chunk knob (a threshold-respecting converter would noop
+  exactly the small-sample corpora CI needs), no "CI pins 0", no code consumes
+  a threshold constant; effort F drops the monolith finalize-time policy.
+  Monolith samples still exist as a *read* concern — every pre-chunking log —
+  so reader dispatch and old-format handling are untouched. Reopen trigger
+  (measurement-triggered-lever posture): always-chunk costs on small samples
+  (+36% compression toll, per-entry overhead, chattier reads / open latency)
+  proving material in practice; the ratified decision text in
+  [Small-sample monolith threshold](#small-sample-monolith-threshold-17) is
+  retained as the design of record if that happens. Affected: that section,
+  [Named size constants](#named-size-constants), [Converter](#converter),
+  [old-format degradation](#degradation-policy-for-old-format-huge-samples-13),
+  the effort A/B/F slicing, [Deferred open issues](#deferred-open-issues).
+
+---
+
 ## Confidence markers
 
 Two classes of content, marked throughout:
@@ -269,8 +295,8 @@ Ratified mechanisms:
    spans key only on type+name; failed/agent/subtask filters target events,
    evaluated window-locally). Additive later via version bump + regeneration.
 5. **Lifecycle**: written at sample finalize (live: re-emitted per flush,
-   [#19](#live-skeleton--stats-availability-19-️-provisional)); no skeleton
-   below the monolith threshold ([#17](#small-sample-monolith-threshold-17));
+   [#19](#live-skeleton--stats-availability-19-️-provisional)); monolith
+   samples carry no skeleton ([#17](#small-sample-monolith-threshold-17));
    producer = the Python timeline code with a **TS twin pinned by a shared
    JSON test suite**; the converter backfills. **Legacy step-only logs**: the
    producer maps step begin/end pairs to span-table entries — one skeleton
@@ -302,6 +328,13 @@ resolution (the first/last type+span_id is exactly sufficient for the
 head-run-continuation rule — proven in the render prototype).
 
 ## Small-sample monolith threshold ([#17](https://github.com/epatey/inspect_ai/issues/17))
+
+**⚑ amended ([Change log](#change-log), 2026-07-18): deferred indefinitely —
+working assumption: not needed.** Every new-format sample is chunked
+regardless of size, on every path; this section is the retained design of
+record, reopened only if always-chunk costs on small samples prove material.
+Only the *reader dispatch* bullet below is live — monolith samples exist
+regardless (every pre-chunking log), so readers must classify per-sample shape.
 
 Chunking's costs (the +36% compression toll, per-entry overhead, chattier
 reads) buy random access small samples don't need.
@@ -339,7 +372,7 @@ Python mirrors them so both surfaces degrade at the same sizes.
 
 | Constant | Value | Measured on | Used by |
 |---|---|---|---|
-| `FULL_FIDELITY_BYTES` | 350 MiB | old format: events-array bytes post-fetch · new format: uncompressed serialized sample bytes at finalize | old-format events-cleared tier trigger; monolith-vs-chunk threshold; Python hydration warning |
+| `FULL_FIDELITY_BYTES` | 350 MiB | old format: events-array bytes post-fetch · new format: bytes being hydrated | old-format events-cleared tier trigger; Python hydration warning (monolith-vs-chunk threshold use **⚑ dropped** — indefinite deferral, [Change log](#change-log)) |
 | `SAMPLE_CLEAR_BYTES` | 512 MiB | old format: member bytes post-fetch · Python: member `uncompressedSize` pre-parse | old-format events-cleared tier (total); Python pre-parse warning |
 | `SAMPLE_REFUSE_BYTES` | 2 GiB | member `uncompressedSize`, pre-fetch (central directory) | viewer refuse tier (old format only) |
 
@@ -711,7 +744,8 @@ parked lever); search over replicated IndexedDB (dead — listings-only).
 
 **Ratify, don't redesign**: the viewer's existing three-tier ladder is the
 policy of record for old-format (`.eval`) samples. New-format samples never
-hit it (monolith invariant + chunked reads).
+hit it — always chunked (**⚑ amended**, [Change log](#change-log)), and
+chunked reads never whole-fetch a sample.
 
 | Tier | Trigger | Behavior |
 |---|---|---|
@@ -834,9 +868,12 @@ ignore version.
 `inspect log convert-eval2` (naming will change with the `.eval2` name's
 retirement) stays on the CLI, **hidden long-term** — an internal/CI testing
 vehicle only; no public exposure until the format is frozen (no supporting
-intermediate format versions in the wild). It grows a hidden
-threshold/force-chunk knob so CI can produce chunked small-sample corpora
-without a writer (mirrors CI-pins-0). Consequence: the >2GB refuse-tier
+intermediate format versions in the wild). **⚑ amended
+([Change log](#change-log), 2026-07-18)**: the converter **always converts
+every sample to the chunked shape** — no monolith threshold, no force-chunk
+knob (a threshold-respecting converter would noop exactly the small-sample
+corpora CI needs; the threshold itself is deferred indefinitely). CI corpora
+come from simply running the converter. Consequence: the >2GB refuse-tier
 message does **not** mention conversion for now.
 
 ## Forward compatibility
@@ -859,13 +896,17 @@ within phase 1 the efforts are largely parallel after A.
 **Phase 1 (read everywhere):**
 
 - **A. Format core + skeleton producer (Python).** Entry naming/dispatch
-  (`format.py` lineage), the named-constants table, the skeleton + stats
-  producers on the timeline code, the shared Python/TS JSON test suite, the
-  parity oracle harness, converter hardening (backfill skeleton/stats, hidden
-  force-chunk knob, `.eval2` naming retired). CI corpora generation.
+  (`format.py` lineage), the skeleton + stats producers on the timeline code,
+  the shared Python/TS JSON test suite, the parity oracle harness, converter
+  hardening (backfill skeleton/stats, always-chunk, `.eval2` naming retired).
+  CI corpora generation. **⚑ amended** ([Change log](#change-log)): the
+  force-chunk knob is gone (always-chunk) and the named-constants table moves
+  to B, landing with its first consumer (the hydration warning) — in phase 1
+  no other code reads those constants.
 - **B. Python read primitives.** The sample reader, lazy `EvalSample`
-  subclass, warnings, existing-API integration, old-format pre-parse warning.
-  Depends on A.
+  subclass, warnings (introducing the named-constants table with them —
+  **⚑ amended**, moved here from A), existing-API integration, old-format
+  pre-parse warning. Depends on A.
 - **C. Viewer data layer + windowed transcript.** Chunk-byte store, infinite
   query tier, decode walk + FilteredCursor, row-window list-model fork,
   outline/timeline from skeleton, filter counts, refuse-message copy update.
@@ -878,8 +919,10 @@ within phase 1 the efforts are largely parallel after A.
 **Phase 2 (opt-in write):**
 
 - **F. Recorder write path.** Chunked writer + seal path (local accumulator,
-  start-stub, multipart upload), monolith finalize-time policy, writer knobs
-  (chunk policy, notables cap, monolith threshold; CI pins 0).
+  start-stub, multipart upload), writer knobs (chunk policy, notables cap).
+  **⚑ amended** ([Change log](#change-log)): the monolith finalize-time
+  policy, monolith-threshold knob, and "CI pins 0" are dropped — the writer
+  always chunks (indefinite deferral of [#17](#small-sample-monolith-threshold-17)).
 - **G. Live path.** Segment chunk members + supersede-tail, manifest chunk
   directory, local SQLite synthesis, live skeleton/stats re-emission, viewer
   live byte source + seal swap, live search. **Re-validates every ⚠️
@@ -913,6 +956,12 @@ Recorded here so they aren't lost; each is out of this effort's scope:
    envelope) — settled by measurement during implementation.
 8. **Per-sample manifest sharding** — only if per-run live-manifest growth
    (chunk-directory entries × concurrent samples) ever bites.
+9. **Small-sample monolith threshold** (**⚑ amended**,
+   [Change log](#change-log)) — **deferred indefinitely**; working assumption
+   is that it is not needed and every new-format sample is chunked. The
+   ratified [#17](#small-sample-monolith-threshold-17) decision is retained as
+   the design of record, reopened only if always-chunk costs on small samples
+   prove material (measurement-triggered-lever posture).
 
 ---
 
