@@ -22,6 +22,14 @@ messages per sample.
 Post-ratification amendments. Each entry supersedes the affected sections in
 place; affected sections carry a **⚑ amended** marker pointing back here.
 
+- **2026-07-18 — New core principle 2: early merges are latent, zero
+  behavior-change risk.** Merging early and often (principle 1) is not
+  license to touch existing behavior: everything landed in the early phases
+  must be latent — unreachable except through hidden/internal entry points —
+  and existing functionality must carry no regression or behavior-change
+  risk. Tasks that would touch the public API or observable behavior trigger
+  a strategy discussion before work proceeds. Old principles 2–6 renumbered
+  to 3–7.
 - **2026-07-18 — Small-sample monolith threshold deferred indefinitely.**
   The finalize-time monolith-vs-chunk policy
   ([#17](https://github.com/epatey/inspect_ai/issues/17)) is dropped from the
@@ -66,24 +74,32 @@ Two classes of content, marked throughout:
    deal-breaker.** Code lands continuously but stays *unexposed* (hidden CLI,
    no public write path) until the format is frozen; hiddenness is what makes
    early merging safe. ([#18](https://github.com/epatey/inspect_ai/issues/18))
-2. **Persisted-structure invariant**: anything persisted for structure scales
+2. **Early merges are latent — zero behavior-change risk.** (**⚑ added**,
+   [Change log](#change-log)) Nothing merged in the early phases may change —
+   or even risk changing — what existing functionality does. New code is
+   *latent*: reachable only through hidden/internal entry points, with
+   existing code paths behaviorally untouched. When work reaches tasks that
+   would touch the public API or observable behavior (e.g. the lazy
+   `EvalSample` properties), stop and strategize before proceeding — don't
+   absorb the risk by default.
+3. **Persisted-structure invariant**: anything persisted for structure scales
    with *structural spans*, never events (chunk-count-proportional is also
    acceptable). Beware the tool-span trap — one `tool` span per call is
    event-proportional in long agentic transcripts.
-3. **Sealed logs = range reads only.** Consumption of a sealed log is purely
+4. **Sealed logs = range reads only.** Consumption of a sealed log is purely
    byte-range reads + client-side zip central-directory parsing, on every
    backend. No server endpoint may ever be required for sealed-log features —
    anything the view server added would be an accelerator the static path
    can't have, so the format must not need it. ([#9](https://github.com/epatey/inspect_ai/issues/9))
-4. **Persisted data is unopinionated**: the format stores structural and
+5. **Persisted data is unopinionated**: the format stores structural and
    semantic facts (ids, ordinals, nesting, event types, names, counters) —
    never transformed output. Every interpretation (event-type filtering, turn
    synthesis, scoring collapse, labels, collapse defaults) is viewer-side
    policy applied at read time; policy evolves faster than stored logs.
-5. **Chunking is writer policy, not format.** Readers infer chunk extents from
+6. **Chunking is writer policy, not format.** Readers infer chunk extents from
    names + the central directory; count-based, byte-target, or adaptive
    chunking all read identically.
-6. **Derived data is regenerated, never migrated.** The skeleton and stats
+7. **Derived data is regenerated, never migrated.** The skeleton and stats
    sidecar are deterministic functions of the event sequence; corruption or
    version skew is fixed by rebuilding them.
 
@@ -542,7 +558,7 @@ index:
    identity is preserved (final names), so nothing refetches.
    `sampleStream.ts` + the four-cursor protocol survive for **old-format live
    samples only** (lifetime = phasing).
-5. **Sealed = range-reads-only** (core principle 3). All three backends
+5. **Sealed = range-reads-only** (core principle 4). All three backends
    (view-server `/log-bytes`, static-http, VS Code) work day one untouched.
    Live adds one method pair (sample manifest + segment bytes) mirroring
    today's proxy/presigned-direct split with the existing probe/fallback state
@@ -837,9 +853,12 @@ expensive under the chunked format. Later work appends here.
 
 # Part V — Phasing & compatibility ([#18](https://github.com/epatey/inspect_ai/issues/18))
 
-**Core principle (restated from the top because it governs everything
+**Core principles 1–2 (restated from the top because they govern everything
 below): merge progress to main early and often — no long-running branch.
-Code lands continuously but stays unexposed until the format is frozen.**
+Code lands continuously but stays unexposed until the format is frozen, and
+every early-phase merge is latent: no regression or behavior-change risk to
+existing functionality. Work that would touch the public API or observable
+behavior triggers a strategy discussion first.**
 
 ## Phases (milestone-gated, no dates)
 
