@@ -285,6 +285,17 @@ class OpenAICompatibleAPI(ModelAPI):
                     as_error_response(ex.body), self._http_hooks.end_request(request_id)
                 )
                 return self.handle_bad_request(ex), model_call
+            except APIStatusError as ex:
+                # 413 (payload too large) has no dedicated SDK exception type but
+                # is a bad-request-class error (e.g. CloudFlare signals context
+                # window overflow this way)
+                if ex.status_code == 413:
+                    model_call.set_error(
+                        as_error_response(ex.body),
+                        self._http_hooks.end_request(request_id),
+                    )
+                    return self.handle_bad_request(ex), model_call
+                raise
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig

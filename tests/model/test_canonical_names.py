@@ -455,7 +455,7 @@ class TestCloudFlareCanonicalName:
     """Tests for CloudFlare provider canonical_name()."""
 
     def test_strips_cf_prefix(self):
-        """Test that @cf/ prefix added by constructor is stripped."""
+        """Test that the user-supplied @cf/ prefix is stripped."""
         import os
 
         from inspect_ai.model._providers.cloudflare import CloudFlareAPI
@@ -463,16 +463,15 @@ class TestCloudFlareCanonicalName:
         os.environ["CLOUDFLARE_ACCOUNT_ID"] = "test-account"
         os.environ["CLOUDFLARE_API_TOKEN"] = "test-token"
         try:
-            # Constructor adds @cf/ prefix, so pass name without it
-            api = CloudFlareAPI(model_name="meta/llama-3.1-8b-instruct")
+            api = CloudFlareAPI(model_name="@cf/meta/llama-3.1-8b-instruct")
             # canonical_name() should strip the @cf/ prefix
             assert api.canonical_name() == "meta/llama-3.1-8b-instruct"
         finally:
             del os.environ["CLOUDFLARE_ACCOUNT_ID"]
             del os.environ["CLOUDFLARE_API_TOKEN"]
 
-    def test_with_single_component_name(self):
-        """Test with a simple model name."""
+    def test_gateway_model_name_unchanged(self):
+        """Test that gateway model names (no @cf/ prefix) pass through."""
         import os
 
         from inspect_ai.model._providers.cloudflare import CloudFlareAPI
@@ -480,9 +479,8 @@ class TestCloudFlareCanonicalName:
         os.environ["CLOUDFLARE_ACCOUNT_ID"] = "test-account"
         os.environ["CLOUDFLARE_API_TOKEN"] = "test-token"
         try:
-            api = CloudFlareAPI(model_name="llama-3.1-8b-instruct")
-            # @cf/llama-3.1-8b-instruct → llama-3.1-8b-instruct
-            assert api.canonical_name() == "llama-3.1-8b-instruct"
+            api = CloudFlareAPI(model_name="moonshotai/kimi-k3")
+            assert api.canonical_name() == "moonshotai/kimi-k3"
         finally:
             del os.environ["CLOUDFLARE_ACCOUNT_ID"]
             del os.environ["CLOUDFLARE_API_TOKEN"]
