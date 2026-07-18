@@ -365,9 +365,11 @@ def trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
                             trace.start_time = start_trace.start_time
                         finished_buckets[trace.event][trace.trace_id] = trace
                 case _:
-                    # stderr so an unrecognized record (e.g. a trace file
-                    # written by a newer inspect) can't corrupt the --json
-                    # envelope on stdout
+                    # unreachable via read_trace_file (it skips records that
+                    # fail validation, e.g. event verbs from a newer inspect,
+                    # with its own stderr note); defense in depth for
+                    # programmatic callers — stderr so the warning can't
+                    # corrupt a --json envelope on stdout
                     click.echo(f"Unknown event type: {trace.event}", err=True)
 
     return TraceAnomalies(

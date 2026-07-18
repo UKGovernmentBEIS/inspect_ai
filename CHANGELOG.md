@@ -17,7 +17,7 @@
 - Control Channel: New `--json` flag for `inspect eval`, `inspect eval-set`, and `inspect eval-retry` emits machine-readable launch-handoff and `done` JSON lines on stdout, so agents can use `inspect ctl` immediately after launch instead of sleep-and-retrying.
 - Control Channel: New `--detach` flag for `inspect eval`, `inspect eval-set`, and `inspect eval-retry` runs the eval in the background — the command prints the launch record and returns once the control endpoint is bound, leaving the eval running detached from the terminal (monitor with `inspect ctl task list`).
 - Control Channel: New `inspect ctl process anomalies [PID]` shows a running process's in-flight and anomalous trace actions by reading its trace file directly, so it works against busy, hung, or even exited processes.
-- Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip a truncated or corrupt line — e.g. from a hard-killed process — instead of failing entirely.
+- Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
 - CLI: `inspect trace anomalies` and `inspect trace http` gain a `--json` flag emitting machine-readable output for agents and shell pipelines; the JSON always includes error/timeout buckets (no `--all` needed).
 - CLI: `inspect trace anomalies` no longer errors when `--filter` matches an action's completion record but not its start record.

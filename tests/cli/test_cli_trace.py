@@ -192,14 +192,39 @@ def test_trace_anomalies_tolerates_truncated_final_line(
     assert [row["action"] for row in envelope["running"]] == ["Model"]
 
 
+def test_trace_anomalies_skips_records_failing_validation(
+    anomalies_trace_file: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A record with an event verb this version doesn't know is skipped.
+
+    A trace file written by a newer inspect may carry new event types;
+    `read_trace_file` reports the intact records (noting the skip on
+    stderr) rather than failing the whole read.
+    """
+    with open(anomalies_trace_file, "a") as f:
+        f.write(json.dumps(action_record("new1", "Model", "frobnicate")) + "\n")
+    anomalies_command_impl(
+        str(anomalies_trace_file),
+        filter=None,
+        all=False,
+        json=True,
+        trace_dir=anomalies_trace_file.parent,
+    )
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    assert [row["action"] for row in envelope["running"]] == ["Model"]
+    assert "skipped 1 trace record" in captured.err
+    assert "event" in captured.err
+
+
 def test_trace_anomalies_unknown_event_goes_to_stderr(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An unrecognized action event warns on stderr, keeping stdout envelope-safe.
 
-    Not reachable through `read_trace_file` today (its parse rejects unknown
-    events), so construct the record directly; the contract under test is
-    that `trace_anomalies` never writes prose to stdout, where it would
+    Not reachable through `read_trace_file` (it skips records that fail
+    validation), so construct the record directly; the contract under test
+    is that `trace_anomalies` never writes prose to stdout, where it would
     corrupt a `--json` envelope.
     """
     from inspect_ai._cli.trace import trace_anomalies
