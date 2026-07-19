@@ -90,18 +90,19 @@ def _dissolve_item(parent: _CandidateSpan, index: int) -> None:
     child = parent.items[index]
     assert isinstance(child, _CandidateSpan) and child.span is not None
     gaps = parent.gaps
-    merged = (
-        gaps[:index]
-        + [gaps[index] + child.gaps[0]]
-        + child.gaps[1:-1]
-        + ([child.gaps[-1] + gaps[index + 1]] if len(child.gaps) > 1 else [])
-        + gaps[index + 2 :]
-    )
-    # a childless span has a single gap entry that merges into both sides
     if len(child.gaps) == 1:
+        # a childless span's single gap merges into both adjacent gaps
         merged = (
             gaps[:index]
             + [gaps[index] + child.gaps[0] + gaps[index + 1]]
+            + gaps[index + 2 :]
+        )
+    else:
+        merged = (
+            gaps[:index]
+            + [gaps[index] + child.gaps[0]]
+            + child.gaps[1:-1]
+            + [child.gaps[-1] + gaps[index + 1]]
             + gaps[index + 2 :]
         )
     parent.items[index : index + 1] = child.items
