@@ -49,11 +49,11 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import ModelAPI, RetryDecision, log_model_retry
+from inspect_ai.model._model import ModelAPI, RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util.util import model_base_url
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -303,14 +303,7 @@ class GrokAPI(ModelAPI):
         self._batcher = GrokBatcher(
             self._batch_client,
             batch_config,
-            model_retry_config(
-                self.model_name,
-                config.max_retries,
-                config.timeout,
-                self.should_retry,
-                lambda ex: None,
-                log_model_retry,
-            ),
+            batch_admin_retry_config(self.model_name, config, self.should_retry),
         )
 
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -463,6 +456,10 @@ class GrokAPI(ModelAPI):
                 case "medium":
                     gconfig["reasoning_effort"] = "medium"
                 case "high" | "xhigh" | "max":
+                    # xAI documents `xhigh` for grok-4.20-multi-agent (there it
+                    # sets agent count), but the xai_sdk gRPC ReasoningEffort
+                    # enum tops out at HIGH (as of 1.17), so `high` is the
+                    # strongest expressible request on this transport.
                     gconfig["reasoning_effort"] = "high"
 
         # return encrypted reasoning blocks

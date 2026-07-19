@@ -958,6 +958,24 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._dropdownItem_1swkv_52:active {
   background-color: var(--bs-secondary-bg);
 }
+._visible_tm52u_1 {
+  display: block;
+}
+
+._hidden_tm52u_5 {
+  display: none;
+}
+
+._pills_tm52u_9 {
+  margin-right: 0;
+}
+
+._pill_tm52u_9 {
+  min-width: 4rem;
+  font-size: var(--inspect-font-size-small);
+  padding: 0.1rem 0.6rem;
+  border-radius: var(--bs-border-radius);
+}
 ._tabs_1792l_1 {
   align-items: center;
 }
@@ -1282,6 +1300,65 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   grid-column: span 3;
   width: 100%;
 }
+.findBand {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-right: 20%;
+  z-index: 1060;
+  color: var(--inspect-find-foreground);
+  background-color: var(--inspect-find-background);
+  font-size: 0.9rem;
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  column-gap: 0.2em;
+  padding: 0.2rem;
+  border-bottom: solid 1px var(--bs-light-border-subtle);
+  border-left: solid 1px var(--bs-light-border-subtle);
+  border-right: solid 1px var(--bs-light-border-subtle);
+  box-shadow: var(--bs-box-shadow);
+}
+
+.findBand input {
+  height: 2em;
+  font-size: 0.9em;
+  margin: 0.1rem;
+  outline: none;
+  border: solid 1px var(--inspect-input-border);
+  color: var(--inspect-input-foreground);
+  background: var(--inspect-input-background);
+}
+
+.findBand-match-count {
+  font-size: 0.85em;
+  margin-top: auto;
+  margin-bottom: auto;
+  margin-right: 0.5em;
+  white-space: nowrap;
+  color: var(--inspect-find-foreground);
+  opacity: 0.7;
+}
+
+.findBand-no-results {
+  opacity: 1;
+  color: var(--bs-danger, #dc3545);
+}
+
+.findBand .btn.next,
+.findBand .btn.prev {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.findBand .btn.close {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: var(--inspect-font-size-title-secondary);
+  margin-top: -0.1rem;
+  margin-bottom: -0.1rem;
+}
 ._cite_1t1bm_1 {
   color: var(--bs-primary-text-emphasis);
   text-decoration: underline;
@@ -1292,6 +1369,280 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._cite_1t1bm_1:hover {
   text-decoration-style: solid;
   background-color: var(--bs-primary-bg-subtle);
+}
+._container_1sdtt_1 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+._body_1sdtt_8 {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+._searchArea_1sdtt_15 {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--bs-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+._inputShell_1sdtt_23 {
+  display: flex;
+  min-width: 0;
+}
+
+._inputShell_1sdtt_23 vscode-textarea {
+  display: block;
+  width: 100%;
+}
+
+._controlsRow_1sdtt_33 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+._topRow_1sdtt_40 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+._typeToggle_1sdtt_47 {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+._topActions_1sdtt_52 {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+._textarea_1sdtt_58 {
+  width: 100%;
+  font-family: inherit;
+  font-size: var(--inspect-font-size-small);
+  color: var(--bs-body-color);
+}
+
+._modeRow_1sdtt_65 {
+  flex: 1 1 16rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+._modeControls_1sdtt_71 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+._modeToggle_1sdtt_77 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-body-bg);
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+._modeToggle_1sdtt_77:hover {
+  background-color: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+}
+
+._modeToggleActive_1sdtt_100 {
+  background-color: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+}
+
+._modelPill_1sdtt_105 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.15rem 0.45rem;
+  padding-right: 0;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-body-bg);
+  transition: border-color 0.12s ease;
+}
+
+._modelPill_1sdtt_105:focus-within {
+  border-color: var(--vscode-focusBorder);
+}
+
+._modelInputShell_1sdtt_123 {
+  flex: 1;
+  min-width: 0;
+}
+
+._modelInput_1sdtt_123 {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: var(--inspect-font-size-small);
+  line-height: 1.4;
+  padding: 0.05rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--bs-body-color);
+}
+
+._modelInput_1sdtt_123:focus {
+  outline: none;
+}
+
+._iconAction_1sdtt_144 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--bs-primary-color);
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+._iconAction_1sdtt_144:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--bs-body-color);
+}
+
+._iconActionActive_1sdtt_166 {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--bs-body-color);
+}
+
+._runButton_1sdtt_171 {
+  flex: 0 0 auto;
+  padding: 0.24rem 0.65rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background-color: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+  font-size: var(--inspect-font-size-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+._runButton_1sdtt_171:hover:not(:disabled) {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._runButton_1sdtt_171:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+._results_1sdtt_192 {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+._sectionHeader_1sdtt_202 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--bs-primary-color);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+._resultCard_1sdtt_214 {
+  background-color: var(--bs-body-bg);
+  font-size: var(--inspect-font-size-small);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+._matchCount_1sdtt_222 {
+  font-weight: 600;
+  color: var(--bs-primary-color);
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._recentList_1sdtt_228 {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+._recentItem_1sdtt_234 {
+  padding: 6px 10px;
+  font-size: var(--inspect-font-size-small);
+  color: var(--bs-body-color);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._recentItem_1sdtt_234:hover {
+  background: var(--bs-primary);
+  color: white;
+}
+
+._recentEmpty_1sdtt_249 {
+  padding: 0.6rem 0.5rem;
+  color: var(--bs-primary-color);
+  font-size: var(--inspect-font-size-small);
+  text-align: center;
+}
+
+._emptyState_1sdtt_256 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 8rem;
+  color: var(--bs-primary-color);
+  font-size: var(--inspect-font-size-small);
+  text-align: center;
+}
+
+._searchingText_1sdtt_267 {
+  margin: 0;
+}
+
+._searchingElapsed_1sdtt_271 {
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
 }
 /*!
  * Bootstrap Icons v1.13.1 (https://icons.getbootstrap.com/)
@@ -18543,280 +18894,6 @@ li > ul {
     background-color: transparent;
   }
 }
-._container_1sdtt_1 {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-._body_1sdtt_8 {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-._searchArea_1sdtt_15 {
-  padding: 0.5rem;
-  border-bottom: 1px solid var(--bs-border-color);
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-._inputShell_1sdtt_23 {
-  display: flex;
-  min-width: 0;
-}
-
-._inputShell_1sdtt_23 vscode-textarea {
-  display: block;
-  width: 100%;
-}
-
-._controlsRow_1sdtt_33 {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-}
-
-._topRow_1sdtt_40 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-._typeToggle_1sdtt_47 {
-  display: flex;
-  flex: 0 0 auto;
-}
-
-._topActions_1sdtt_52 {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-._textarea_1sdtt_58 {
-  width: 100%;
-  font-family: inherit;
-  font-size: var(--inspect-font-size-small);
-  color: var(--bs-body-color);
-}
-
-._modeRow_1sdtt_65 {
-  flex: 1 1 16rem;
-  min-width: 0;
-  min-height: 0;
-}
-
-._modeControls_1sdtt_71 {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-._modeToggle_1sdtt_77 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.2rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  background: var(--bs-body-bg);
-  color: var(--bs-secondary-color);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  transition:
-    border-color 0.12s ease,
-    background-color 0.12s ease,
-    color 0.12s ease;
-}
-
-._modeToggle_1sdtt_77:hover {
-  background-color: var(--bs-secondary-bg);
-  color: var(--bs-body-color);
-}
-
-._modeToggleActive_1sdtt_100 {
-  background-color: var(--bs-secondary-bg);
-  color: var(--bs-body-color);
-}
-
-._modelPill_1sdtt_105 {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  width: 100%;
-  min-width: 0;
-  padding: 0.15rem 0.45rem;
-  padding-right: 0;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-body-bg);
-  transition: border-color 0.12s ease;
-}
-
-._modelPill_1sdtt_105:focus-within {
-  border-color: var(--vscode-focusBorder);
-}
-
-._modelInputShell_1sdtt_123 {
-  flex: 1;
-  min-width: 0;
-}
-
-._modelInput_1sdtt_123 {
-  flex: 1;
-  min-width: 0;
-  font-family: inherit;
-  font-size: var(--inspect-font-size-small);
-  line-height: 1.4;
-  padding: 0.05rem 0;
-  border: 0;
-  background: transparent;
-  color: var(--bs-body-color);
-}
-
-._modelInput_1sdtt_123:focus {
-  outline: none;
-}
-
-._iconAction_1sdtt_144 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--bs-primary-color);
-  cursor: pointer;
-  transition:
-    background-color 0.12s ease,
-    color 0.12s ease;
-}
-
-._iconAction_1sdtt_144:hover {
-  background: var(--vscode-toolbar-hoverBackground);
-  color: var(--bs-body-color);
-}
-
-._iconActionActive_1sdtt_166 {
-  background: var(--vscode-toolbar-hoverBackground);
-  color: var(--bs-body-color);
-}
-
-._runButton_1sdtt_171 {
-  flex: 0 0 auto;
-  padding: 0.24rem 0.65rem;
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  background-color: var(--bs-secondary-bg);
-  color: var(--bs-body-color);
-  font-size: var(--inspect-font-size-small);
-  font-weight: 600;
-  cursor: pointer;
-}
-
-._runButton_1sdtt_171:hover:not(:disabled) {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._runButton_1sdtt_171:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-._results_1sdtt_192 {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-._sectionHeader_1sdtt_202 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  font-size: var(--inspect-font-size-smallest);
-  color: var(--bs-primary-color);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-._resultCard_1sdtt_214 {
-  background-color: var(--bs-body-bg);
-  font-size: var(--inspect-font-size-small);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-._matchCount_1sdtt_222 {
-  font-weight: 600;
-  color: var(--bs-primary-color);
-  font-size: var(--inspect-font-size-smallest);
-}
-
-._recentList_1sdtt_228 {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-._recentItem_1sdtt_234 {
-  padding: 6px 10px;
-  font-size: var(--inspect-font-size-small);
-  color: var(--bs-body-color);
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._recentItem_1sdtt_234:hover {
-  background: var(--bs-primary);
-  color: white;
-}
-
-._recentEmpty_1sdtt_249 {
-  padding: 0.6rem 0.5rem;
-  color: var(--bs-primary-color);
-  font-size: var(--inspect-font-size-small);
-  text-align: center;
-}
-
-._emptyState_1sdtt_256 {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 8rem;
-  color: var(--bs-primary-color);
-  font-size: var(--inspect-font-size-small);
-  text-align: center;
-}
-
-._searchingText_1sdtt_267 {
-  margin: 0;
-}
-
-._searchingElapsed_1sdtt_271 {
-  color: var(--bs-secondary-color);
-  font-variant-numeric: tabular-nums;
-}
 ._circle_17gxn_1 {
   width: 36px;
   height: 22px;
@@ -19535,17 +19612,13 @@ li > ul {
   columns: 2;
   column-gap: 2rem;
 }
-.ag-row {
-  cursor: pointer;
-}
-
-._gridWrapper_anqm2_5 {
+._gridWrapper_nawgx_1 {
   height: 100%;
   width: 100%;
   position: relative;
 }
 
-._gridContainer_anqm2_11 {
+._gridContainer_nawgx_7 {
   position: absolute;
   top: 0;
   left: 0;
@@ -19553,7 +19626,7 @@ li > ul {
   bottom: 0;
 }
 
-._iconCell_anqm2_19 {
+._iconCell_nawgx_15 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -19563,11 +19636,11 @@ li > ul {
   color: var(--bs-gray-600);
 }
 
-._iconCell_anqm2_19 .ii:before {
+._iconCell_nawgx_15 .ii:before {
   background-color: var(--bs-gray-600);
 }
 
-._numberCell_anqm2_33 {
+._numberCell_nawgx_29 {
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -19577,20 +19650,20 @@ li > ul {
   overflow: visible;
 }
 
-._taskText_anqm2_43 {
+._taskText_nawgx_39 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
 }
 
-._folder_anqm2_50,
-._taskText_anqm2_43 {
+._folder_nawgx_46,
+._taskText_nawgx_39 {
   color: var(--bs-link-color);
   font-size: 12.8px;
 }
 
-._fullWidthHeight_anqm2_56 {
+._fullWidthHeight_nawgx_52 {
   width: inherit;
   height: inherit;
 }
@@ -19680,66 +19753,6 @@ li > ul {
   align-items: center;
   min-width: 0;
   flex: 1;
-}
-.findBand {
-  position: absolute;
-  top: 0;
-  right: 0;
-  margin-right: 20%;
-  z-index: 1060;
-  color: var(--inspect-find-foreground);
-  background-color: var(--inspect-find-background);
-  font-size: 0.9rem;
-  display: grid;
-  grid-template-columns: auto auto auto auto auto;
-  column-gap: 0.2em;
-  padding: 0.2rem;
-  border-bottom: solid 1px var(--bs-light-border-subtle);
-  border-left: solid 1px var(--bs-light-border-subtle);
-  border-right: solid 1px var(--bs-light-border-subtle);
-  box-shadow: var(--bs-box-shadow);
-}
-
-.findBand input {
-  height: 2em;
-  font-size: 0.9em;
-  margin: 0.1rem;
-  outline: none;
-  border: solid 1px var(--inspect-input-border);
-  color: var(--inspect-input-foreground);
-  background: var(--inspect-input-background);
-}
-
-.findBand-match-count {
-  font-size: 0.85em;
-  margin-top: auto;
-  margin-bottom: auto;
-  margin-right: 0.5em;
-  white-space: nowrap;
-  color: var(--inspect-find-foreground);
-  opacity: 0.7;
-}
-
-.findBand-no-results {
-  opacity: 1;
-  color: var(--bs-danger, #dc3545);
-}
-
-.findBand .btn.next,
-.findBand .btn.prev {
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: var(--inspect-fond-size-larger);
-}
-
-.findBand .btn.close {
-  padding: 0;
-  border: none;
-  background: none;
-  font-size: var(--inspect-font-size-title-secondary);
-  margin-top: -0.1rem;
-  margin-bottom: -0.1rem;
 }
 ._filterButton_b38ko_1 {
   position: relative;
@@ -20775,6 +20788,54 @@ a._citationLink_1ggvf_9:hover {
 ._textCode_1cvly_19 {
   word-wrap: anywhere;
   color: inherit;
+}
+._container_nfqzf_1 {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+/* Match MessageContent's contentImage so the Action tab image renders like
+   the Result tab image. display: block avoids an inline baseline gap that
+   would offset the overlay from the image box. */
+._screenshot_nfqzf_10 {
+  display: block;
+  max-width: 800px;
+  border: solid var(--bs-border-color) 1px;
+}
+
+._overlay_nfqzf_16 {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+._badge_nfqzf_24 {
+  position: absolute;
+  bottom: 16px;
+  background-color: rgba(0, 0, 0, 0.8);
+  font-family: monospace;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: bold;
+  white-space: pre-wrap;
+  max-width: 80%;
+  word-break: break-word;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+._type_nfqzf_39 {
+  color: #4ade80;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+._key_nfqzf_45 {
+  color: #fbbf24;
+  right: 16px;
 }
 ._submitView_1ru17_1 {
   display: grid;
@@ -25594,220 +25655,24 @@ pre._value_8citi_25 {
   display: flex;
   justify-content: center;
 }
-._gridWrapper_yfmzu_1 {
-  height: 100%;
-  width: 100%;
-  position: relative;
-}
-
-._gridContainer_yfmzu_7 {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-}
-
-/* Shared chrome — applied to all sample/log grids. Other ag-grids in the
- * app (e.g. the small score-summary table in title-view) intentionally opt
- * out by not adding this class. */
-
-._gridChrome_yfmzu_19 .ag-row {
-  cursor: pointer;
-  border-bottom: 1px solid var(--bs-border-color);
-  background-color: var(--bs-body-bg);
-  /* Stretch rows to fill the viewport so the bottom-border separator
-   * spans edge-to-edge even when columns total less than the viewport.
-   * `min-width` overrides the inline `width` AG Grid sets on each row. */
-  min-width: 100%;
-}
-
-/* Match container so rows' min-width: 100% has the full viewport to
- * stretch into. Pinned containers are unaffected. */
-._gridChrome_yfmzu_19 .ag-center-cols-container {
-  min-width: 100%;
-}
-
-._gridChrome_yfmzu_19 {
-  --ag-row-selected-color: transparent;
-  --ag-selected-row-background-color: transparent;
-}
-
-/* Pseudo-element overlay so the selection ring sits above per-cell
- * backgrounds set by the colour-scale heatmap. */
-._gridChrome_yfmzu_19 .ag-row.ag-row-selected::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
-  z-index: 1;
-}
-
-._gridChrome_yfmzu_19 .ag-header-cell {
-  /* Right gutter gives the active-filter icon (sibling of the header
-   * label inside `.ag-cell-label-container`) breathing room from the
-   * column boundary. Left padding is handled via the `::before` flex
-   * item below so it shrinks on narrow cells. */
-  padding: 0 4px 0 0;
-}
-
-._gridChrome_yfmzu_19 .ag-header-cell-label::before {
-  content: "";
-  flex: 0 1 var(--ag-cell-horizontal-padding);
-}
-
-._gridChrome_yfmzu_19 .ag-header-cell-text {
-  font-size: var(--inspect-font-size-smallestest);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 400;
-}
-
-/* Rotated header — opt-in via `headerClass: styles.rotatedHeader` +
- * `headerComponent: RotatedHeader` in a ColDef. SamplesGrid auto-bumps
- * `headerHeight` to kRotatedHeaderHeight when any column has this class
- * so the rotated label has room to fan up-and-to-the-right without
- * getting clipped by the header viewport. */
-._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 {
-  /* Default ag-grid `.ag-header-cell` clips overflow; the rotated
-   * parallelogram pivots out of the cell box and would disappear
-   * without this. */
-  overflow: visible;
-  /* Suppress Balham's vertical column separator on rotated cells —
-   * a vertical line through a 45° label clashes. The angled divider
-   * inside `RotatedHeader` takes its place. */
-  --ag-header-column-border: transparent;
-  /* Override the regular-cell right-gutter padding so the rotated
-   * label's `left: 100%` anchor lands on the actual cell boundary
-   * (matching the colour-scale background) instead of the inset
-   * content edge. The gutter exists for the default filter icon,
-   * which rotated cells don't render. */
-  padding-right: 0;
-}
-
-/* Compact-mode trailing spacer column — no header content, no
- * separator. The spacer only exists to extend the scrollable extent
- * so the rightmost rotated label has room past the last data column;
- * a vertical divider on it would visually fence off that breathing
- * room and look like a grid edge. */
-._gridChrome_yfmzu_19 ._spacerHeader_yfmzu_98 {
-  --ag-header-column-border: transparent;
-}
-
-/* Each rotated label extends past its own cell into the next
- * column's space, so the next cell's content wrapper would
- * otherwise intercept clicks on the overflowing label tip. Make the
- * wrapper transparent to pointer events; the label inside opts back
- * in via `pointer-events: auto` (see RotatedHeader.module.css). */
-._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 .ag-header-cell-comp-wrapper {
-  pointer-events: none;
-}
-
-/* When any column has a rotated header, the header row is tall
- * enough that center-aligned labels look adrift. Bottom-align all
- * header content so non-rotated labels line up visually with the
- * rotated labels (which are anchored at the cell's bottom-left).
- * The cell, label-container, and label are each independent flex
- * boxes that all default to center alignment, so all three need
- * the override for the text to actually drop to the bottom. */
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell,
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-cell-label-container,
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
-  align-items: flex-end;
-}
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
-  padding-bottom: 4px;
-}
-
-/* Bottom-anchor the vertical column separator on regular cells when
- * the header row is tall (rotated-mode). Balham's `::after` separator
- * defaults to vertically-centered and 50% height, which floats far
- * above the bottom-aligned text and looks orphaned. Drop it down so
- * it sits next to the text. */
-._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell::after {
-  top: auto;
-  bottom: 0;
-  height: 22px;
-}
-
-/* Hide ag-grid's default header-filter button (funnel) until the
- * user hovers the column header. Stays visible when the filter is
- * active so users always see *which* columns are filtering. Applies
- * to all sample/log grids — quieter at rest, full affordance on
- * intent. */
-._gridChrome_yfmzu_19 .ag-header-cell-filter-button {
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-._gridChrome_yfmzu_19
-  .ag-header-cell:hover
-  .ag-header-cell-filter-button,
-._gridChrome_yfmzu_19
-  .ag-header-cell.ag-header-cell-filtered
-  .ag-header-cell-filter-button {
-  opacity: 1;
-}
-
-._gridChrome_yfmzu_19 .ag-sort-order {
-  font-size: var(--inspect-font-size-smallestest);
-  align-self: center;
-  margin-right: -10px;
-}
-
-/* List mode — multi-line wrapping cells, top-aligned. ag-grid Balham
- * stretches line-height to match row-height (so single-line text
- * visually centers in inline-block cells); reset to a normal
- * line-height so all cells (plain text, MarkdownCellDiv, ScoreCellDiv)
- * sit at the top together. */
-._listMode_yfmzu_167 .ag-cell {
-  line-height: var(--bs-body-line-height);
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
-  white-space: normal;
-}
-
-/* Grid mode — let ag-grid's default row-height line-height vertically
- * center single-line plain text. Custom renderers (ScoreCellDiv) need
- * explicit centering — see the `.gridMode .score` rule below. */
-._gridMode_yfmzu_176 .ag-cell {
-  align-items: center;
-}
-
 /* Cell helpers exposed for column renderers. */
-._cell_yfmzu_182 {
+._cell_8nkqa_2 {
   line-height: var(--bs-body-line-height);
 }
 
-._wrapAnywhere_yfmzu_186 {
+._wrapAnywhere_8nkqa_6 {
   overflow-wrap: break-word;
 }
 
-._noLeft_yfmzu_190 {
+._noLeft_8nkqa_10 {
   padding-left: 0;
 }
 
-._score_yfmzu_176 {
+._score_8nkqa_14 {
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Compact mode: fill the cell so the inner content centers vertically
- * regardless of the cell's natural inline-block layout. `.ag-cell` is
- * `position: absolute` in ag-grid's base CSS, so `inset: 0` resolves. */
-._gridMode_yfmzu_176 ._score_yfmzu_176 {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-._centered_yfmzu_212 {
-  display: flex;
-  justify-content: center;
 }
 ._container_1tduz_1 {
   display: flex;
@@ -26265,7 +26130,10 @@ pre._value_8citi_25 {
 ._scoringDetailModal_z2l7l_108 {
   width: fit-content;
 }
-._gridContainer_v19e7_1 {
+/* "Refined Classic" look: hairline rows, no wrapper/column chrome, muted
+   headers, Bootstrap-variable colors so it tracks light/dark mode. */
+
+._gridContainer_t8clh_4 {
   max-width: 100%;
   max-height: 60vh;
   overflow: auto;
@@ -26273,95 +26141,137 @@ pre._value_8citi_25 {
 }
 
 /* Title-region summary card: size to content, no inner scroll/padding. */
-._cardContainer_v19e7_9 {
+._cardContainer_t8clh_12 {
   max-width: 100%;
   overflow: visible;
 }
 
-/* Inline card sits on the results panel — let the whole grid show through so
-   it blends with its surroundings rather than painting its own surface. Every
-   chrome layer (root wrapper, header, body, sticky/floating rails) paints its
-   own opaque fill, so each has to be cleared. */
-._cardContainer_v19e7_9 .ag-root-wrapper,
-._cardContainer_v19e7_9 .ag-header,
-._cardContainer_v19e7_9 .ag-body,
-._cardContainer_v19e7_9 .ag-floating-top,
-._cardContainer_v19e7_9 .ag-floating-bottom,
-._cardContainer_v19e7_9 .ag-sticky-top,
-._cardContainer_v19e7_9 .ag-sticky-bottom,
-._cardContainer_v19e7_9 .ag-row,
-._cardContainer_v19e7_9 .ag-cell {
+._groupGrid_t8clh_17 + ._groupGrid_t8clh_17 {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: solid 1px var(--bs-light-border-subtle);
+}
+
+._table_t8clh_23 {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
   background-color: transparent;
+  color: var(--bs-body-color);
+  font-size: 12px;
 }
 
-._gridContainer_v19e7_1 .ag-cell,
-._cardContainer_v19e7_9 .ag-cell {
+._table_t8clh_23 th,
+._table_t8clh_23 td {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding: 0 12px;
+}
+
+._table_t8clh_23 td {
+  height: 32px;
+  border-bottom: 1px solid var(--bs-border-color-translucent);
   font-variant-numeric: tabular-nums;
-}
-
-/* Cells aren't interactive — clicking does nothing — so don't imply otherwise
-   with a pointer cursor or hover surface. */
-._gridContainer_v19e7_1 .ag-cell,
-._cardContainer_v19e7_9 .ag-cell,
-._gridContainer_v19e7_1 .ag-row-hover,
-._cardContainer_v19e7_9 .ag-row-hover {
+  /* Cells aren't interactive — clicking does nothing — so don't imply
+     otherwise with a pointer cursor. */
   cursor: default;
 }
 
-._gridContainer_v19e7_1 .ag-row-hover,
-._gridContainer_v19e7_1 .ag-row-hover .ag-cell,
-._cardContainer_v19e7_9 .ag-row-hover,
-._cardContainer_v19e7_9 .ag-row-hover .ag-cell {
-  background-color: transparent;
-}
-
-/* Scorer column reads as the row label — a touch heavier + higher contrast. */
-.ag-cell._firstCell_v19e7_52 {
+/* Header surface matches the DataGrid's (subtle bg + muted text) so all
+   grids read consistently. */
+/* 0.8rem / 500 matches what the AG grid actually rendered (its theme's
+   headerFontSize param never took effect; headers inherited the app's
+   0.8rem with AG's default 500 header weight). */
+._table_t8clh_23 th {
+  height: 28px;
+  border-bottom: 1px solid var(--bs-border-color);
+  background-color: var(--bs-light-bg-subtle);
+  color: var(--bs-secondary);
+  font-size: 0.8rem;
   font-weight: 500;
-  color: var(--bs-emphasis-color);
+  text-align: left;
 }
 
-._gridContainer_v19e7_1 .ag-layout-auto-height .ag-center-cols-viewport,
-._cardContainer_v19e7_9 .ag-layout-auto-height .ag-center-cols-viewport {
-  min-height: unset;
+/* Group header row: unlabeled cells (placeholders over ungrouped columns)
+   drop their bottom border so the column reads as one tall header cell. */
+._groupRow_t8clh_66 th {
+  height: 24px;
+  border-bottom-color: transparent;
 }
 
-/* Hide ag-grid's reserved horizontal-scroll strip — otherwise it leaves empty
-   space below the rows (most visible in the short title-region card). */
-._gridContainer_v19e7_1 .ag-body-horizontal-scroll.ag-scrollbar-invisible,
-._cardContainer_v19e7_9 .ag-body-horizontal-scroll.ag-scrollbar-invisible {
-  display: none;
-}
-
-/* Breathing room at the edges so values don't sit flush with the modal border
-   (and so the last column doesn't get overlapped by the vertical scroll bar).
-   The extra specificity via `:global(.ag-cell)` / `:global(.ag-header-cell)`
-   is needed to win against ag-grid's built-in theme padding. */
-.ag-cell._firstCell_v19e7_52,
-.ag-header-cell._firstHeader_v19e7_74 {
-  padding-left: 1rem;
-}
-
-.ag-cell._lastCell_v19e7_78,
-.ag-header-cell._lastHeader_v19e7_79 {
-  padding-right: 0.5rem;
-}
-
-.ag-header-group-cell._groupHeader_v19e7_83
-  .ag-header-group-cell-label {
-  justify-content: center;
+._groupRow_t8clh_66 th._groupLabel_t8clh_71 {
+  border-bottom-color: var(--bs-border-color);
+  text-align: center;
   text-transform: uppercase;
   letter-spacing: 0.6px;
 }
 
-.ag-header-cell._noGroupBorder_v19e7_90 {
-  border-top-color: transparent;
+/* `.table th`/`.table td` outrank single-class selectors, so these
+   per-column overrides repeat the element for equal-or-higher specificity. */
+._table_t8clh_23 th._numericHeader_t8clh_80,
+._table_t8clh_23 td._numericCell_t8clh_81 {
+  text-align: right;
 }
 
-._groupGrid_v19e7_94 + ._groupGrid_v19e7_94 {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: solid 1px var(--bs-light-border-subtle);
+/* Scorer column reads as the row label — a touch heavier + higher contrast. */
+._scorerCell_t8clh_86 {
+  font-weight: 500;
+  color: var(--bs-emphasis-color);
+}
+
+/* Breathing room at the edges so values don't sit flush with the modal
+   border (and so the last column doesn't get overlapped by the vertical
+   scroll bar). */
+._table_t8clh_23 th._scorerHeader_t8clh_94,
+._table_t8clh_23 td._scorerCell_t8clh_86 {
+  padding-left: 1rem;
+}
+
+._table_t8clh_23 th._lastHeader_t8clh_99,
+._table_t8clh_23 td._lastCell_t8clh_100 {
+  padding-right: 0.5rem;
+}
+
+._sortable_t8clh_104 {
+  cursor: pointer;
+  user-select: none;
+}
+
+._headerLabel_t8clh_109 {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+._sortIcon_t8clh_116 {
+  font-size: 10px;
+}
+
+._compact_t8clh_120 th,
+._compact_t8clh_120 td {
+  padding: 0 8px;
+}
+
+._compact_t8clh_120 td {
+  height: 26px;
+}
+
+/* Inline card sits on the title-bar surface — let it show through rather
+   than painting its own header chrome, and don't leave a floating rule
+   under the last row. */
+._compact_t8clh_120 th {
+  height: 24px;
+  background-color: transparent;
+}
+
+._compact_t8clh_120 tbody tr:last-child td {
+  border-bottom: none;
+}
+
+._compact_t8clh_120 ._groupRow_t8clh_66 th {
+  height: 20px;
 }
 ._unscoredSamples_1h85z_1 {
   margin-left: 0.2rem;

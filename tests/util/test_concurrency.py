@@ -644,6 +644,79 @@ async def test_resizable_limiter_rejects_non_positive() -> None:
 
 
 @pytest.mark.anyio
+async def test_resizable_limiter_same_task_nested_acquire() -> None:
+    """One task may hold several slots at once (anyio.Semaphore semantics).
+
+    The limiter acquires on behalf of a fresh borrower token per entry;
+    acquiring the backing CapacityLimiter directly would raise on the second
+    same-task acquire, breaking nested `concurrency()` contexts for the same
+    key (see test_nested_contexts).
+    """
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(2)
+    async with limiter:
+        assert limiter.in_use == 1
+        async with limiter:
+            assert limiter.in_use == 2
+        assert limiter.in_use == 1
+    assert limiter.in_use == 0
+
+
+@pytest.mark.anyio
+async def test_resizable_limiter_unpaired_exit_is_diagnosable() -> None:
+    """An exit whose context never entered raises a descriptive error.
+
+    The borrower stack is a ContextVar, so an enter in one task is invisible
+    to an exit in another — that misuse should name the contract rather than
+    surface as a bare IndexError on an empty tuple.
+    """
+    from inspect_ai.util._concurrency import ResizableLimiter
+
+    limiter = ResizableLimiter(2)
+    with pytest.raises(RuntimeError, match="never entered"):
+        await limiter.__aexit__(None, None, None)
+
+
+@pytest.mark.anyio
+async def test_registry_static_semaphores_resizable_by_default() -> None:
+    """Static registry entries are resizable without an explicit opt-in.
+
+    This is what lets `inspect ctl config --key NAME LIMIT` retune limits
+    that tools and user code register by name without their creator passing
+    `resizable=True`.
+    """
+    from inspect_ai.util._concurrency import ResizableSemaphore
+
+    init_concurrency()
+    sem = await get_or_create_semaphore("google_web_search", 10, None, True)
+    assert isinstance(sem, ResizableSemaphore)
+
+    sem.concurrency = 3
+    assert sem.concurrency == 3
+    assert sem.value == 3
+
+    # nested same-task use still counts like the semaphore it replaced
+    async with concurrency("google_web_search", 10):
+        async with concurrency("google_web_search", 10):
+            assert sem.in_use == 2
+
+
+@pytest.mark.anyio
+async def test_concurrency_semaphores_raw_registry_view() -> None:
+    """concurrency_semaphores() lists every entry by exact registered name."""
+    from inspect_ai.util._concurrency import concurrency_semaphores
+
+    init_concurrency()
+    # visible=False entries and un-shortened names are included (unlike the
+    # status display) — the control channel addresses by exact name
+    async with concurrency("openai/gpt-4o", 2):
+        async with concurrency("hidden-injection", 1, visible=False):
+            names = {sem.name for sem in concurrency_semaphores()}
+            assert names == {"openai/gpt-4o", "hidden-injection"}
+
+
+@pytest.mark.anyio
 async def test_resizable_semaphore_via_registry() -> None:
     """`resizable=True` yields a ResizableSemaphore whose limit is settable live."""
     from inspect_ai.util._concurrency import ResizableSemaphore
@@ -683,8 +756,12 @@ async def test_sandbox_limiter_registry_and_reset() -> None:
     register_sandbox_limiter("docker", sem)
     assert sandbox_limiters() == {"docker": sem}
 
-    # a non-resizable semaphore is not tracked
-    plain = await get_or_create_semaphore("k8s", 2, "sandboxes/k8s", True)
+    # a non-resizable semaphore is not tracked (the default registry now backs
+    # every static entry with a ResizableSemaphore, so build a fixed one
+    # directly — the shape a custom registry could still hand out)
+    from inspect_ai.util._concurrency import _create_anyio_semaphore
+
+    plain = _create_anyio_semaphore("k8s", 2, True)
     register_sandbox_limiter("k8s", plain)
     assert "k8s" not in sandbox_limiters()
 
