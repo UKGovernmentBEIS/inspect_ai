@@ -478,6 +478,20 @@ class BedrockAPI(ModelAPI):
     def is_claude_3_5(self) -> bool:
         return self.is_claude() and "claude-3-5-" in self.model_name
 
+    def is_claude_4_0(self) -> bool:
+        """Mirrors `is_claude_4_0` in the native anthropic provider.
+
+        Claude 4.0 ids carry a release date where later minors carry a minor
+        version (`anthropic.claude-opus-4-20250514-v1:0` vs
+        `anthropic.claude-sonnet-4-6-20260101-v1:0`), so they must be matched
+        on the date form or the "unrecognised future minor" fallbacks below
+        misclassify them as 4.6+/4.7+ and emit adaptive thinking on a model
+        that only accepts `budget_tokens`.
+        """
+        return self._is_claude_4_x(0) or (
+            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
+        )
+
     def is_claude_4_6_or_later(self) -> bool:
         """Mirrors `is_claude_frontier` in the native anthropic provider.
 
@@ -491,7 +505,9 @@ class BedrockAPI(ModelAPI):
             return True
         # future claude 4 minor not yet recognised
         if re.search(r"claude-[a-zA-Z]+-4-", self.model_name):
-            recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6, 7))
+            recognised = self.is_claude_4_0() or any(
+                self._is_claude_4_x(x) for x in (1, 5, 6, 7)
+            )
             if not recognised:
                 return True
         return False
@@ -507,7 +523,9 @@ class BedrockAPI(ModelAPI):
             return True
         # future claude 4 minor not yet recognised
         if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
-            recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
+            recognised = self.is_claude_4_0() or any(
+                self._is_claude_4_x(x) for x in (1, 5, 6)
+            )
             if not recognised:
                 return True
         return False
@@ -708,20 +726,10 @@ class BedrockAPI(ModelAPI):
             else:
                 fields["top_k"] = config.top_k
 
-        # Structured output: Claude on Bedrock honours `output_config.format`,
-        # the Converse-API analogue of the native Anthropic provider's
-        # `output_format`. Other Bedrock models don't support it, so warn
-        # rather than silently dropping the user's schema.
         if config.response_schema is not None:
-            if self.is_claude():
-                schema = config.response_schema.json_schema.model_copy(deep=True)
-                _lock_object_additional_properties(schema)
-                fields.setdefault("output_config", {})["format"] = {
-                    "type": "json_schema",
-                    "schema": json_schema_dump(
-                        schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS
-                    ),
-                }
+            schema_format = self._output_config_format(config)
+            if schema_format is not None:
+                fields.setdefault("output_config", {})["format"] = schema_format
             else:
                 warn_once(
                     logger,
@@ -730,6 +738,30 @@ class BedrockAPI(ModelAPI):
                 )
 
         return fields
+
+    def _output_config_format(self, config: GenerateConfig) -> dict[str, Any] | None:
+        """Build `output_config.format` from `config.response_schema`.
+
+        Claude on Bedrock honours `output_config.format`, the Converse-API
+        analogue of the native Anthropic provider's `output_format`. Other
+        Bedrock models don't support it, so None is returned for them (and for
+        a config carrying no schema) and the caller warns rather than silently
+        dropping the user's schema.
+
+        `output_config` is also where reasoning writes `effort`, and the two
+        field dicts are combined with a shallow union in `generate()`. Both
+        producers therefore emit the format entry so that neither wins the
+        union at the other's expense. See issue #4097 and PR #4020.
+        """
+        if config.response_schema is None or not self.is_claude():
+            return None
+
+        schema = config.response_schema.json_schema.model_copy(deep=True)
+        _lock_object_additional_properties(schema)
+        return {
+            "type": "json_schema",
+            "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
+        }
 
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():
@@ -766,6 +798,14 @@ class BedrockAPI(ModelAPI):
           the same version-gated `max`/`xhigh` -> `high` demotions used by
           the native anthropic provider.
 
+        Claude 4.0 ids are budget-only and never emit adaptive thinking; they
+        carry a date rather than a minor version, so `is_claude_4_0` matches
+        them explicitly (see `is_claude_4_6_or_later`).
+
+        Whenever an `output_config` is emitted it also carries the structured
+        output `format`, since `output_config` is shared with
+        `_additional_model_request_fields` and the two are shallow-merged.
+
         The wrapper key is `"thinking"` (not `"reasoning_config"`).
         AWS Bedrock's Anthropic passthrough expects `"thinking"`; the prior
         `"reasoning_config"` wrapper was silently ignored. See issue #3765.
@@ -800,6 +840,14 @@ class BedrockAPI(ModelAPI):
                         "type": "enabled",
                         "budget_tokens": config.reasoning_tokens,
                     }
+
+        # `generate()` shallow-merges these fields over the ones built by
+        # `_additional_model_request_fields()`, so an `output_config` carrying
+        # only `effort` would replace the structured-output entry wholesale.
+        if "output_config" in fields:
+            schema_format = self._output_config_format(config)
+            if schema_format is not None:
+                fields["output_config"]["format"] = schema_format
 
         return fields
 

@@ -6,6 +6,7 @@
 - Control Channel: `inspect ctl` sample commands given an exact full task id now stop discovery at the process hosting it, skipping busy-retry delays from older sibling processes.
 - Control Channel: `inspect ctl config --key NAME LIMIT` retunes any named `concurrency()` limit mid-flight, without the registering code opting in; the config view lists the registered keys.
 - Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
+- Bedrock: Claude 4.6+ now honours `reasoning_effort` and `effort` via adaptive thinking, alongside `response_schema`; `reasoning_tokens` is promoted to adaptive on Claude 4.7+. (#3765)
 - Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
 - Bugfix: Several raised errors (unexpected Anthropic input block, unsupported image data type, missing sample-buffer database) now interpolate the offending value into the message instead of showing the literal placeholder text.
 - Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
@@ -332,7 +333,6 @@
 - Scanning: Compatibility with Inspect Scout 0.4.37.
 - Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
 - Bugfix: Resolve message/call pool references in DB-buffer recovery.
-- Bedrock: Support adaptive thinking and `output_config.effort` for Claude 4.6 / 4.7. Renames the wrapper key in `additionalModelRequestFields` from `reasoning_config` to `thinking` (the prior key was silently ignored by Bedrock's Anthropic passthrough), and adds `is_using_thinking` / `effort_from_reasoning_effort` helpers mirroring the native Anthropic provider. `reasoning_tokens` on Claude 4.7+ is auto-promoted to adaptive thinking since manual `budget_tokens` thinking is no longer accepted there. Fixes #3765.
 
 ## 0.3.224 (20 May 2026)
 
