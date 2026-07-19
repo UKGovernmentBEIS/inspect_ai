@@ -70,6 +70,7 @@
 - Limits: Token limits can now meter a weighted mix of token types via an arithmetic formula in `type`.
 - Eval: Task retries no longer fail when the prior attempt errored before writing its log file (e.g. a failed log start on unreachable storage).
 - Model Roles: `--model-role` roles that share the same model and config now report their token usage separately in `role_usage` instead of collapsing onto one role. (#4450)
+- Datasets: `hf_dataset(..., auto_id=True, shuffle=True)` now attaches each auto id to its record (matching csv/json) instead of the shuffled position, so a record keeps the same id across seeds and limited slices. (#4459)
 
 ## 0.3.245 (08 July 2026)
 
