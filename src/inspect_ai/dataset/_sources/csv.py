@@ -1,7 +1,7 @@
 import csv
 from io import TextIOWrapper
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn, cast
 
 from inspect_ai._util.asyncfiles import is_s3_filename
 from inspect_ai._util.file import absolute_file_path, file
@@ -15,6 +15,35 @@ from .._dataset import (
     RecordToSample,
 )
 from .._util import data_to_samples, record_to_sample_fn, shuffle_choices_if_requested
+
+
+def _field_count(count: int) -> str:
+    return f"{count} field" if count == 1 else f"{count} fields"
+
+
+def _raise_ragged_row(data: dict[str, Any], csv_file: str, row_number: int) -> NoReturn:
+    """Report a row whose field count does not match the header.
+
+    DictReader pads a short row with restval (None) and collects a long row's
+    extras under restkey (also None), so one of the two branches always applies
+    by the time this is called.
+    """
+    # the restkey is not a column name, so it is not in the declared key type
+    extra_values = cast(dict[str | None, Any], data).get(None)
+    if extra_values is not None:
+        columns = len(data) - 1
+        raise ValueError(
+            f"{csv_file} row {row_number} has "
+            f"{_field_count(columns + len(extra_values))}, the header has "
+            f"{columns}. Unexpected values: {extra_values}."
+        )
+
+    missing_fields = [field for field, value in data.items() if value is None]
+    raise ValueError(
+        f"{csv_file} row {row_number} has "
+        f"{_field_count(len(data) - len(missing_fields))}, the header has "
+        f"{len(data)}. No value for: {', '.join(missing_fields)}."
+    )
 
 
 def csv_dataset(
@@ -72,12 +101,21 @@ def csv_dataset(
 
     # read and convert samples
     with file(csv_file, "r", encoding=encoding, fs_options=fs_options or {}) as f:
-        # filter out rows with empty values
-        valid_data = [
-            data
-            for data in csv_dataset_reader(f, dialect, fieldnames, delimiter)
-            if data and any(value.strip() for value in data.values())
-        ]
+        # reject ragged rows, filter out rows with empty values
+        valid_data = []
+        # explicit fieldnames mean there is no header line to skip over
+        first_row_number = 1 if fieldnames else 2
+        for row_number, data in enumerate(
+            csv_dataset_reader(f, dialect, fieldnames, delimiter),
+            start=first_row_number,
+        ):
+            if not data:
+                continue
+            # too many fields leaves a None key, too few leaves a None value
+            if None in data or None in data.values():
+                _raise_ragged_row(data, csv_file, row_number)
+            if any(value.strip() for value in data.values()):
+                valid_data.append(data)
         name = name if name else Path(csv_file).stem
         dataset = MemoryDataset(
             samples=data_to_samples(valid_data, data_to_sample, auto_id),
