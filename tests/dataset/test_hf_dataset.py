@@ -376,9 +376,7 @@ def test_hf_dataset_auto_id_shuffle_does_not_leak_index_column(tmp_path, monkeyp
         seed=1,
         cached=False,
     )
-    assert all(
-        "__inspect_auto_id_index__" not in (s.metadata or {}) for s in ds
-    )
+    assert all("__inspect_auto_id_index__" not in (s.metadata or {}) for s in ds)
 
 
 def test_hf_dataset_cache_key_includes_revision(tmp_path, monkeypatch) -> None:
