@@ -76,7 +76,7 @@ def csv_dataset(
         valid_data = [
             data
             for data in csv_dataset_reader(f, dialect, fieldnames, delimiter)
-            if data and any(value.strip() for value in data.values())
+            if data and any(_value_has_content(value) for value in data.values())
         ]
         name = name if name else Path(csv_file).stem
         dataset = MemoryDataset(
@@ -99,6 +99,20 @@ def csv_dataset(
             return dataset[0:limit]
 
         return dataset
+
+
+def _value_has_content(value: Any) -> bool:
+    # csv.DictReader yields values that are not always strings for ragged rows:
+    # a short row (fewer fields than the header) fills missing columns with the
+    # restval (None by default), and a long row (extra fields) collects the
+    # surplus into a list under the restkey. Calling .strip() on either raises,
+    # which is exactly the crash the empty-row filter is meant to prevent. Treat
+    # a missing value as empty and recurse into the extras list.
+    if value is None:
+        return False
+    if isinstance(value, list):
+        return any(_value_has_content(item) for item in value)
+    return bool(value.strip())
 
 
 def csv_dataset_reader(

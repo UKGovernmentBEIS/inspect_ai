@@ -222,6 +222,30 @@ def test_dataset_nan_target_treated_as_missing() -> None:
     assert sample_num.target == "4"
 
 
+def test_csv_dataset_skips_blank_ragged_row(tmp_path: Path) -> None:
+    # A blank row with fewer fields than the header used to crash the empty-row
+    # filter with `AttributeError: 'NoneType' object has no attribute 'strip'`
+    # (csv.DictReader fills the missing column with None). The filter should skip
+    # the ragged blank row and load the two real rows. See issue #4546.
+    csv_file = tmp_path / "ragged.csv"
+    csv_file.write_text("input,target,id\n2+2,4,q1\n,\n3+3,6,q2\n", newline="")
+    dataset = csv_dataset(str(csv_file))
+    assert len(dataset) == 2
+    assert [str(sample.input) for sample in dataset] == ["2+2", "3+3"]
+
+
+def test_csv_value_has_content_handles_ragged_values() -> None:
+    # Guards both non-string branches produced by ragged rows: None (short row,
+    # missing column) and a list (long row, extras collected under the restkey).
+    from inspect_ai.dataset._sources.csv import _value_has_content
+
+    assert _value_has_content(None) is False
+    assert _value_has_content([""]) is False
+    assert _value_has_content(["x"]) is True
+    assert _value_has_content("") is False
+    assert _value_has_content(" a ") is True
+
+
 def test_dataset_zero_seed() -> None:
     dataset1 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
     dataset2 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
