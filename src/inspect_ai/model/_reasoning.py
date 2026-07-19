@@ -70,6 +70,32 @@ def clamp_reasoning_effort_to_low_medium_high(
     return None
 
 
+def clamp_reasoning_effort_to_minimal_low_medium_high(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> Literal["minimal", "low", "medium", "high"] | None:
+    """Clamp a `reasoning_effort` value to the `minimal`/`low`/`medium`/`high` tier.
+
+    Used by providers that pass effort through to upstream APIs which accept
+    `minimal` in addition to the three-level scale (Perplexity); only the
+    top-end values (`xhigh`/`max`) are clamped down to `high`. Returns None for
+    `None` and `"none"`.
+    """
+    if effort is None or effort == "none":
+        return None
+    match effort:
+        case "minimal":
+            return "minimal"
+        case "low":
+            return "low"
+        case "medium":
+            return "medium"
+        case "high" | "xhigh" | "max":
+            return "high"
+    return None
+
+
 class ReasoningCapsule(NamedTuple):
     reasoning: str
     signature: str | None = None

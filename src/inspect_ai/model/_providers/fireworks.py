@@ -1,3 +1,5 @@
+from typing import Any
+
 from typing_extensions import override
 
 from .._generate_config import GenerateConfig
@@ -57,6 +59,24 @@ class FireworksAIAPI(OpenAICompatibleAPI):
         if name.startswith(prefix):
             name = name[len(prefix) :]
         return name
+
+    def is_gpt_oss(self) -> bool:
+        return "gpt-oss" in self.model_family().lower()
+
+    @override
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        params = super().completion_params(config, tools)
+
+        # Fireworks' effort schema is a superset and validity is model-dependent:
+        # `minimal` is invalid on every model (-> low); `xhigh`/`max` are rejected
+        # only by gpt-oss (-> high), and pass through for models that accept them.
+        effort = params.get("reasoning_effort")
+        if effort == "minimal":
+            params["reasoning_effort"] = "low"
+        elif effort in ("xhigh", "max") and self.is_gpt_oss():
+            params["reasoning_effort"] = "high"
+
+        return params
 
     @override
     def should_stream(self, config: GenerateConfig) -> bool:
