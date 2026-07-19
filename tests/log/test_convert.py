@@ -5,6 +5,7 @@ import zipfile
 from typing import Literal, NamedTuple
 
 import pytest
+from test_helpers.chunked_corpus import CORPUS_SMALL_CHUNK_SIZE, ChunkedCorpus
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.event import ModelEvent, SampleInitEvent
@@ -308,8 +309,10 @@ def _read_chunked_sequence(
     entries = sorted(
         (n for n in names if n.startswith(prefix) and is_chunk(n)), key=entry_start
     )
-    # chunk entry names carry the start index only
-    assert [entry_start(entry) for entry in entries] == [0, *boundaries[:-1]]
+    # chunk entry names carry the start index only (empty sequences have
+    # no chunk entries at all)
+    starts = [0, *boundaries[:-1]] if boundaries else []
+    assert [entry_start(entry) for entry in entries] == starts
     items: list = []
     for entry, (start, end_exclusive) in zip(entries, boundary_ranges(boundaries)):
         chunk = json.loads(zf.read(entry))
@@ -611,6 +614,53 @@ def test_convert_chunked_sidecars(tmp_path: pathlib.Path):
                 rechunked_stats += 1
         # at least one sample spans multiple chunks, exercising the rechunk case
         assert rechunked_stats > 0
+
+
+@pytest.mark.parametrize(
+    "corpus_fixture",
+    ["chunked_corpus", "chunked_corpus_small_chunks"],
+    ids=["default-chunks", "small-chunks"],
+)
+def test_chunked_corpus_round_trip(
+    request: pytest.FixtureRequest, corpus_fixture: str
+) -> None:
+    """End-to-end check over the session chunked corpus (all test logs).
+
+    Every converted sample classifies as chunked, carries the
+    skeleton/stats sidecars, and reassembles content-equal to its
+    original. The small-chunk corpus must exercise multi-chunk samples.
+    """
+    corpus: ChunkedCorpus = request.getfixturevalue(corpus_fixture)
+
+    # exclusions must not silently grow: the interim-format dedup fixture
+    # (dangling pool refs — see _has_dangling_pool_refs) is the only one
+    assert [path.name for path in corpus.excluded] == ["log_message_deduplication.eval"]
+
+    checked_samples = 0
+    multi_chunk_samples = 0
+    for original_path, converted_path in corpus.logs.items():
+        original = read_eval_log(str(original_path))
+        with zipfile.ZipFile(converted_path) as zf:
+            names = set(zf.namelist())
+            for sample in original.samples or []:
+                id, epoch = sample.id, sample.epoch
+                assert classify_sample_shape(names, id, epoch) == "chunked"
+                assert skeleton_entry_name(id, epoch) in names
+                assert events_stats_entry_name(id, epoch) in names
+
+                shell = json.loads(zf.read(shell_entry_name(id, epoch)))
+                if any(len(b) > 1 for b in shell["sequences"].values()):
+                    multi_chunk_samples += 1
+
+                reassembled, attachment_map = _reassemble_chunked_sample(zf, id, epoch)
+                assert _resolved_dump(reassembled, attachment_map) == _resolved_dump(
+                    sample, sample.attachments
+                )
+                checked_samples += 1
+
+    assert checked_samples >= 20
+    if corpus.chunk_size <= CORPUS_SMALL_CHUNK_SIZE:
+        assert multi_chunk_samples > 0
 
 
 def test_convert_chunked_overwrite(tmp_path: pathlib.Path):
