@@ -45,6 +45,9 @@
 - Bugfix: Anthropic: `count_tokens()` now sends `extra_headers` from the generate config (including any `anthropic-beta` values), matching `generate()`. (#4606)
 - Bugfix: Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
 - Bugfix: UTF-8 output truncation now preserves character boundaries and respects configured byte limits instead of inserting replacement characters that can exceed the limit. (#4656)
+- Reasoning: Clamp extended effort values (`minimal` / `xhigh` / `max`) to the `low` / `medium` / `high` tier accepted by upstream APIs for SambaNova and Together.
+- Reasoning: Perplexity — clamp `xhigh` / `max` effort to `high` before forwarding (Perplexity accepts `minimal`, so it is preserved).
+- Reasoning: Fireworks — clamp `minimal` effort to `low` on all models and `xhigh` / `max` to `high` on gpt-oss, preserving `xhigh` / `max` for models that accept them.
 
 ## 0.3.251 (29 July 2026)
 

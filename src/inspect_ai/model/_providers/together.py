@@ -12,6 +12,7 @@ from openai.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.model._reasoning import clamp_reasoning_effort_to_low_medium_high
 from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -151,6 +152,17 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             params["logprobs"] = 1
         if "top_logprobs" in params:
             del params["top_logprobs"]
+
+        # Together's API accepts low/medium/high; clamp the extended effort
+        # values (minimal/xhigh/max), which are otherwise intermittently rejected.
+        if "reasoning_effort" in params:
+            clamped = clamp_reasoning_effort_to_low_medium_high(
+                params["reasoning_effort"]
+            )
+            if clamped is not None:
+                params["reasoning_effort"] = clamped
+            else:
+                del params["reasoning_effort"]
 
         # together requires temperature with num_choices
         if config.num_choices is not None and config.temperature is None:

@@ -121,7 +121,7 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 
 
 
-#### Groq / Ollama / SageMaker
+#### Groq / Ollama / SageMaker / Together / SambaNova
 
 Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values:
 
@@ -131,6 +131,38 @@ Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended
 | `minimal` / `low`        | `low`             |
 | `medium`                 | `medium`          |
 | `high` / `xhigh` / `max` | `high`            |
+
+#### Perplexity
+
+Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values:
+
+| Inspect input            | API value         |
+|--------------------------|-------------------|
+| `none`                   | reasoning omitted |
+| `minimal`                | `minimal`         |
+| `low`                    | `low`             |
+| `medium`                 | `medium`          |
+| `high` / `xhigh` / `max` | `high`            |
+
+#### Fireworks
+
+Effort validity is model-dependent: no Fireworks model accepts `minimal`, and the gpt-oss family additionally rejects `xhigh` / `max` (other reasoning models — DeepSeek, GLM, Kimi, MiniMax — accept them). Inspect maps `reasoning_effort` as follows:
+
+| Inspect input             | API value (gpt-oss) | API value (other models) |
+|---------------------------|---------------------|--------------------------|
+| `none`                    | `none`              | `none`                   |
+| `minimal`                 | `low`               | `low`                    |
+| `low` / `medium` / `high` | identical           | identical                |
+| `xhigh` / `max`           | `high`              | identical                |
+
+#### Moonshot
+
+Kimi-K3's API accepts only `max` effort, so Inspect coerces every `reasoning_effort` value to `max`. Unlike the other providers, `none` does **not** disable reasoning here — Kimi-K3 reasons at `max` and cannot be turned off:
+
+| Inspect input                                           | API value            |
+|---------------------------------------------------------|----------------------|
+| `none`                                                  | `max` (not disabled) |
+| `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | `max`                |
 
 #### Bedrock
 
