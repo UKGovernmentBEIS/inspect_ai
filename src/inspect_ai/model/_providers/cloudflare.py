@@ -2,13 +2,15 @@ import os
 from typing import Any
 
 from openai import APIStatusError
+from openai.types.chat import ChatCompletionMessageParam
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 
-from ...model import GenerateConfig
+from ...model import ChatMessage, GenerateConfig
+from .._openai import fill_empty_assistant_content
 from .util import environment_prerequisite_error
 
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
@@ -50,6 +52,14 @@ class CloudFlareAPI(OpenAICompatibleAPI):
             service_base_url=f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/ai/v1",
             **model_args,
         )
+
+    # gateway-hosted models (e.g. moonshotai/kimi-k3) reject assistant
+    # messages with empty content
+    @override
+    async def messages_to_openai(
+        self, input: list[ChatMessage]
+    ) -> list[ChatCompletionMessageParam]:
+        return fill_empty_assistant_content(await super().messages_to_openai(input))
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:

@@ -2,13 +2,16 @@ from logging import getLogger
 from typing import Any
 
 from openai import APIStatusError
+from openai.types.chat import ChatCompletionMessageParam
 from typing_extensions import override
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.tool import ToolChoice, ToolFunction, ToolInfo
 
+from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model_output import ModelOutput
+from .._openai import fill_empty_assistant_content
 from .openai_compatible import OpenAICompatibleAPI
 
 logger = getLogger(__name__)
@@ -102,6 +105,13 @@ class MoonshotAPI(OpenAICompatibleAPI):
             )
             tool_choice = "any"
         return tools, tool_choice, config
+
+    # the API rejects assistant messages with empty content
+    @override
+    async def messages_to_openai(
+        self, input: list[ChatMessage]
+    ) -> list[ChatCompletionMessageParam]:
+        return fill_empty_assistant_content(await super().messages_to_openai(input))
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
