@@ -2,6 +2,7 @@ from test_helpers.utils import (
     flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_moonshot,
     skip_if_no_openai,
 )
 
@@ -75,6 +76,11 @@ def test_google_tool_image_result():
 @skip_if_no_anthropic
 def test_anthropic_tool_image_result():
     check_tool_image_result("anthropic/claude-sonnet-4-5")
+
+
+@skip_if_no_moonshot
+def test_moonshot_tool_image_result():
+    check_tool_image_result("moonshot/kimi-k3")
 
 
 def check_tool_image_result(model):
