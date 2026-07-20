@@ -46,8 +46,11 @@ STATUS_FIELD = "PVTSSF_lADOC7YMCM4BU68pzhKizZM"
 STATUS_OPTIONS = {"Todo": "f75ad846", "In progress": "47fc9ee4", "Done": "98236657"}
 UPSTREAM_PR_FIELD = "PVTF_lADOC7YMCM4BU68pzhYZp9Q"
 
-actions = []  # human-readable log for the job summary
-pending_chips = []
+# Stages where the ball is upstream — the promotion mapping's whole domain.
+TAIL_STAGES = ("Sign-off", "Awaiting Merge")
+
+actions: list = []  # human-readable log for the job summary
+pending_chips: list = []
 
 
 def gh(*args: str) -> str:
@@ -72,10 +75,17 @@ def gql(query: str, **variables):
 
 
 def is_org_member(login: str) -> bool:
+    """Only a real 404 means "not a member" — any other failure (rate limit,
+    5xx, network) raises, so per-item isolation retries next run instead of
+    misclassifying a teammate as external."""
     res = subprocess.run(
         ["gh", "api", f"orgs/{ORG}/members/{login}"], capture_output=True, text=True
     )
-    return res.returncode == 0
+    if res.returncode == 0:
+        return True
+    if "HTTP 404" in res.stderr:
+        return False
+    raise RuntimeError(f"org membership check failed for {login}: {res.stderr.strip()[:200]}")
 
 
 def set_single_select(item_id: str, field_id: str, option_id: str) -> None:
@@ -116,17 +126,50 @@ def set_stage(item_id: str, stage: str, current) -> bool:
 
 # ---------------------------------------------------------------- discovery
 
-def tracked_upstream_urls() -> set[str]:
-    """Upstream URLs already tracked by any External proxy, open OR closed."""
-    urls = set()
+
+def tracked_proxies() -> dict:
+    """Upstream URL -> proxy info for every External proxy, open OR closed
+    (closed ones keep a Done proxy from being recreated)."""
+    out = {}
     issues = gh_json(
         "api", f"repos/{FORK}/issues?labels=External&state=all&per_page=100", "--paginate"
     )
     for i in issues:
         m = re.search(r"https://github\.com/\S+/pull/\d+", i.get("body") or "")
         if m:
-            urls.add(m.group(0))
-    return urls
+            out[m.group(0)] = {
+                "number": i["number"],
+                "node_id": i["node_id"],
+                "open": i["state"] == "open",
+            }
+    return out
+
+
+def ensure_on_board(node_id: str, url: str):
+    """Idempotently make sure a proxy is on Atlas with its field and a stage —
+    heals a previous run that created the issue but died before the board
+    writes (the URL is already in the body, so dedup alone would skip it
+    forever and state sync would never see it)."""
+    item = gql(
+        """mutation($p:ID!,$c:ID!){addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id}}}""",
+        p=PROJECT_ID, c=node_id,
+    )["addProjectV2ItemById"]["item"]["id"]
+    cur = gql(
+        """query($i:ID!){ node(id:$i){ ... on ProjectV2Item {
+             stage: fieldValueByName(name:"Stage"){
+               ... on ProjectV2ItemFieldSingleSelectValue{name}}
+             up: fieldValueByName(name:"Upstream PR"){
+               ... on ProjectV2ItemFieldTextValue{text}} }}}""",
+        i=item,
+    )["node"]
+    healed = False
+    if not ((cur.get("up") or {}).get("text") or "").strip():
+        set_text(item, UPSTREAM_PR_FIELD, url)
+        healed = True
+    if not (cur.get("stage") or {}).get("name"):
+        set_stage(item, "Human Review", None)
+        healed = True
+    return healed
 
 
 def candidate_prs():
@@ -145,13 +188,17 @@ def candidate_prs():
 
 
 def discover() -> None:
-    tracked = tracked_upstream_urls()
+    tracked = tracked_proxies()
     for pr in candidate_prs():
         num, title = pr["number"], pr["title"]
         url = f"https://github.com/{UPSTREAM}/pull/{num}"
         author = pr["user"]["login"]
         try:
             if url in tracked:
+                # Heal a partially-seeded OPEN proxy (issue exists, board
+                # writes failed); closed proxies stay untouched.
+                if tracked[url]["open"] and ensure_on_board(tracked[url]["node_id"], url):
+                    actions.append(f"healed proxy #{tracked[url]['number']} for upstream #{num}")
                 continue
             if author.endswith("[bot]") or author == REVIEWER or is_org_member(author):
                 continue
@@ -169,12 +216,7 @@ def discover() -> None:
                 "-f", "labels[]=External",
                 "-f", f"assignees[]={REVIEWER}",
             )
-            item = gql(
-                """mutation($p:ID!,$c:ID!){addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id}}}""",
-                p=PROJECT_ID, c=issue["node_id"],
-            )["addProjectV2ItemById"]["item"]["id"]
-            set_stage(item, "Human Review", None)
-            set_text(item, UPSTREAM_PR_FIELD, url)
+            ensure_on_board(issue["node_id"], url)
             actions.append(f"created proxy #{issue['number']} for upstream #{num} ({author})")
             pending_chips.append(f"#{issue['number']} -> {url}")
         except Exception as e:  # noqa: BLE001 — per-item isolation
@@ -215,7 +257,7 @@ def board_items():
                     "issue": c["number"],
                     "stage": (n.get("stage") or {}).get("name"),
                     "url": up,
-                    "external": any(l["name"] == "External" for l in c["labels"]["nodes"]),
+                    "external": any(lbl["name"] == "External" for lbl in c["labels"]["nodes"]),
                 })
         if not data["pageInfo"]["hasNextPage"]:
             return rows
@@ -242,7 +284,6 @@ def upstream_pr(url: str):
 def latest_activity(owner: str, repo: str, num: int) -> tuple[str, str]:
     """(latest author-activity ts, latest reviewer-activity ts) on the PR."""
     author_ts, reviewer_ts = "", ""
-    pr_author = ""
     d = gql(
         """query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
              pullRequest(number:$n){
@@ -295,25 +336,41 @@ def sync_item(row) -> None:
             clear_field(item, STAGE_FIELD)
             set_single_select(item, STATUS_FIELD, STATUS_OPTIONS["Done"])
             actions.append(f"#{issue}: upstream closed -> proxy closed")
-        elif set_stage(item, "Human Review", stage):
+        elif stage in TAIL_STAGES and set_stage(item, "Human Review", stage):
+            # Gated to the tail so a stage the driver parked elsewhere is left
+            # alone — and the comment can't be re-posted on an hourly bounce.
             comment(issue, f"Upstream PR {row['url']} was closed unmerged — needs a human decision. (Atlas sync)")
             actions.append(f"#{issue}: upstream closed unmerged -> Human Review")
         return
 
+    rerequested = any(
+        (n.get("requestedReviewer") or {}).get("login")
+        for n in pr["reviewRequests"]["nodes"]
+    )
     if row["external"]:
         if stage == "Awaiting Contributor":
             author_ts, reviewer_ts = latest_activity(owner, repo, num)
-            rerequested = any(
+            rerequested_to_me = any(
                 (n.get("requestedReviewer") or {}).get("login") == REVIEWER
                 for n in pr["reviewRequests"]["nodes"]
             )
-            if (author_ts and author_ts > reviewer_ts) or rerequested:
+            if (author_ts and author_ts > reviewer_ts) or rerequested_to_me:
                 if set_stage(item, "Human Review", stage):
                     actions.append(f"#{issue}: contributor responded -> Human Review")
         return
 
-    # promotion tail
+    # Promotion tail — only while the ball is genuinely upstream. Stages a
+    # human parked elsewhere (Agent Working, Human Review, ...) are out of this
+    # mapping's domain: reviewDecision is sticky (CHANGES_REQUESTED persists
+    # until a re-review), so acting from any stage would drag parked items back
+    # here every hour.
+    if stage not in TAIL_STAGES:
+        return
     decision = pr.get("reviewDecision")
+    if decision == "CHANGES_REQUESTED" and rerequested:
+        # Stale: fixes were pushed and a re-review requested; the recorded
+        # decision persists until the reviewer acts. Treat as review-pending.
+        decision = None
     if decision == "APPROVED":
         if set_stage(item, "Awaiting Merge", stage):
             actions.append(f"#{issue}: upstream approved -> Awaiting Merge")
