@@ -160,7 +160,7 @@ class TestGetModelInfo:
         info = get_model_info("cloudflare/moonshotai/kimi-k3")
         assert info is not None
         assert info.organization == "Moonshot AI"
-        assert info.context_length == 1_000_000
+        assert info.context_length == 1048576
         assert info.reasoning is True
 
     def test_claude_sonnet_4_6_context_length(self):
@@ -276,13 +276,13 @@ class TestModelDataConsistency:
     def test_colliding_lookup_keys_agree_across_files(self):
         """Entries in different files that collide on a lookup key must agree.
 
-        Cross-file duplicates exist (e.g. kimi.yml's `moonshotai/kimi-k2.5`
+        Cross-file duplicates exist (e.g. moonshotai.yml's `moonshotai/kimi-k2.5`
         vs together.yml's `moonshotai/Kimi-K2.5`): exact lookups are
         unaffected, but for any other casing the winner in
         `_build_lookup_index()` depends on filesystem glob order. That is
         harmless while the entries agree on functional metadata; this test
         fails if they ever drift (e.g. a regenerated together.yml bumps a
-        context length that kimi.yml pins). Display-only fields
+        context length that moonshotai.yml pins). Display-only fields
         (display_name, organization) may differ. Same-file collisions are
         excluded: they resolve deterministically by insertion order, and the
         recurring `latest` version key shadows earlier models by design.
