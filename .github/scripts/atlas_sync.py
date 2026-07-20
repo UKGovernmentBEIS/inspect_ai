@@ -252,11 +252,16 @@ def board_items():
                 c.get("state") == "OPEN"
                 and c.get("repository", {}).get("nameWithOwner") == FORK
                 and up
-                # Pilot scoping: only sync issues assigned to the reviewer.
-                and any(
-                    a["login"] == REVIEWER for a in c["assignees"]["nodes"]
-                )
             ):
+                # Pilot scoping: only sync issues assigned to the reviewer —
+                # but log the skips: this filter also gates the close-on-merge
+                # housekeeping, so a proxy that lost its assignment would
+                # otherwise become an invisible zombie.
+                if not any(a["login"] == REVIEWER for a in c["assignees"]["nodes"]):
+                    actions.append(
+                        f"#{c['number']}: skipped (has Upstream PR but not assigned to {REVIEWER})"
+                    )
+                    continue
                 rows.append({
                     "item": n["id"],
                     "issue": c["number"],
