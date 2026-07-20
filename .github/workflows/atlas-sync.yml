@@ -28,6 +28,9 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # A wedged run would otherwise hold the concurrency group for the 6-hour
+    # default and silently skip the hourly syncs in between.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
