@@ -241,6 +241,7 @@ def board_items():
                        ... on ProjectV2ItemFieldTextValue{text}}
                      content{ ... on Issue{
                        number state repository{nameWithOwner}
+                       assignees(first:10){nodes{login}}
                        labels(first:20){nodes{name}} }}}}}}}""",
             p=PROJECT_ID, **({"after": after} if after else {}),
         )["node"]["items"]
@@ -252,6 +253,15 @@ def board_items():
                 and c.get("repository", {}).get("nameWithOwner") == FORK
                 and up
             ):
+                # Pilot scoping: only sync issues assigned to the reviewer —
+                # but log the skips: this filter also gates the close-on-merge
+                # housekeeping, so a proxy that lost its assignment would
+                # otherwise become an invisible zombie.
+                if not any(a["login"] == REVIEWER for a in c["assignees"]["nodes"]):
+                    actions.append(
+                        f"#{c['number']}: skipped (has Upstream PR but not assigned to {REVIEWER})"
+                    )
+                    continue
                 rows.append({
                     "item": n["id"],
                     "issue": c["number"],
