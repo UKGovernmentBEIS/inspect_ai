@@ -5,7 +5,7 @@
 - Agent Bridge: Sandbox model proxy now returns an HTTP 400 error for malformed requests (missing/empty `model`, missing `messages`/`input`, or a non-object body) instead of crashing the sample. (#4187)
 - Agent Bridge: Sandbox model proxy now streams Anthropic `compaction` and `fallback` content blocks (this handling was present only in the in-repo copy and missing from the injected proxy build).
 - Agent Bridge: Sandbox model proxy now forwards a failed generation to the proxied agent as a provider-dialect error response (preserving the original HTTP status where available).
-- vLLM: Read the served `max_model_len` from the server's `/v1/models` endpoint and register it as the model's context window (falling back to the static model catalog). This calibrates context management such as compaction against the window the server is actually running, which on self-hosted deployments is often smaller than the catalog value.
+- vLLM: Read the served `max_model_len` from the server endpoint and register it as the model's context window (falling back to the static model catalog).
 
 ## 0.3.244 (01 July 2026)
 
