@@ -1,7 +1,7 @@
 import pytest
 from test_helpers.utils import skip_if_no_cloudflare, skip_if_no_openai_package
 
-from inspect_ai.model import get_model
+from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, get_model
 
 
 @pytest.mark.anyio
@@ -13,6 +13,50 @@ async def test_cloudflare_api() -> None:
         message = "This is a test string. What are you?"
         response = await model.generate(input=message)
         assert len(response.completion) >= 1
+
+
+@pytest.mark.anyio
+@skip_if_no_cloudflare
+async def test_cloudflare_empty_assistant_message() -> None:
+    """Gateway-hosted models reject empty assistant content — filled on replay."""
+    async with get_model("cloudflare/moonshotai/kimi-k3") as model:
+        response = await model.generate(
+            input=[
+                ChatMessageUser(content="Say hello."),
+                ChatMessageAssistant(content=""),
+                ChatMessageUser(content="Please continue."),
+            ]
+        )
+        assert len(response.completion) >= 1
+
+
+@skip_if_no_openai_package
+async def test_cloudflare_fills_empty_assistant_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Empty assistant content (with or without tool calls) becomes NO_CONTENT."""
+    from inspect_ai._util.constants import NO_CONTENT
+    from inspect_ai.model._providers.cloudflare import CloudFlareAPI
+    from inspect_ai.tool import ToolCall
+
+    monkeypatch.setenv("CLOUDFLARE_API_KEY", "test-key")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "account-id")
+
+    api = CloudFlareAPI(model_name="moonshotai/kimi-k3")
+    messages = await api.messages_to_openai(
+        [
+            ChatMessageUser(content="Say hello."),
+            ChatMessageAssistant(content=""),
+            ChatMessageAssistant(
+                content="",
+                tool_calls=[ToolCall(id="call_1", function="lookup", arguments={})],
+            ),
+            ChatMessageAssistant(content="Hello!"),
+        ]
+    )
+    assert messages[1]["content"] == NO_CONTENT
+    assert messages[2]["content"] == NO_CONTENT
+    assert messages[3]["content"] == "Hello!"
 
 
 @skip_if_no_openai_package
