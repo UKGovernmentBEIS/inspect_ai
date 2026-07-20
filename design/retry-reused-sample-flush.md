@@ -8,9 +8,11 @@ When a retry attempt starts, every completed sample reused from the prior
 attempt is re-logged with `flush=False` (`task/run.py`, the `sample_source`
 reuse path in `run_sample`). Those samples sit in the recorder buffer
 (`ZipLogFile._samples`) as **full `EvalSample`s** (~1GB in the incident) until
-some *other* trigger flushes — live-sample completions reaching the
-`log_buffer` threshold, or eval finish. On a retry whose remaining samples are
-long-running, that can be hours or never. Two concrete harms:
+some *other* trigger flushes — a live-sample completion (a *single* one arms
+the stale-flush timer, which drains the whole buffer within 60s; enough of
+them reach the `log_buffer` threshold directly), or eval finish. On a retry
+whose remaining samples are long-running there are no completions, so the
+timer never arms and that can be hours or never. Two concrete harms:
 
 1. **Memory**: the full reused set stays resident, scaling with
    carried-transcript size. (The per-request re-summarization cost this
