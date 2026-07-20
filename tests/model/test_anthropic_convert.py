@@ -1,20 +1,26 @@
 """Tests for Anthropic model API conversion functions."""
 
 from anthropic.types import (
+    CitationsConfigParam,
+    DocumentBlockParam,
     Message,
+    MessageParam,
+    PlainTextSourceParam,
     TextBlock,
     ThinkingBlock,
+    ToolResultBlockParam,
     ToolUseBlock,
     Usage,
 )
 
 from inspect_ai._util.content import ContentDocument, ContentReasoning, ContentText
-from inspect_ai.model import (
-    model_output_from_anthropic,
-)
+from inspect_ai.model import model_output_from_anthropic
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._providers.anthropic import message_block_params
+from inspect_ai.model._providers.anthropic import (
+    message_block_params,
+    normalize_document_citations,
+)
 
 
 async def test_model_output_from_anthropic_basic() -> None:
@@ -72,6 +78,66 @@ async def test_message_block_params_omits_document_citations_by_default() -> Non
 
     assert document_block["type"] == "document"
     assert "citations" not in document_block
+
+
+async def test_message_block_params_omits_citations_for_image_documents() -> None:
+    document = ContentDocument(
+        document="data:image/png;base64,iVBORw0KGgo=",
+        citations=True,
+    )
+
+    document_block = (await message_block_params(document))[0]
+
+    assert document_block["type"] == "document"
+    assert "citations" not in document_block
+
+
+def test_normalize_document_citations_enables_all_history_documents() -> None:
+    first_document = DocumentBlockParam(
+        type="document",
+        source=PlainTextSourceParam(type="text", media_type="text/plain", data="Hello"),
+    )
+    last_document = DocumentBlockParam(
+        type="document",
+        source=PlainTextSourceParam(type="text", media_type="text/plain", data="World"),
+        citations=CitationsConfigParam(enabled=True),
+    )
+    messages = [
+        MessageParam(role="user", content=[first_document]),
+        MessageParam(role="assistant", content="Acknowledged."),
+        MessageParam(role="user", content=[last_document]),
+    ]
+
+    normalize_document_citations(messages)
+
+    assert first_document.get("citations") == {"enabled": True}
+    assert last_document.get("citations") == {"enabled": True}
+
+
+def test_normalize_document_citations_enables_tool_result_documents() -> None:
+    history_document = DocumentBlockParam(
+        type="document",
+        source=PlainTextSourceParam(type="text", media_type="text/plain", data="Hello"),
+    )
+    tool_document = DocumentBlockParam(
+        type="document",
+        source=PlainTextSourceParam(type="text", media_type="text/plain", data="World"),
+        citations=CitationsConfigParam(enabled=True),
+    )
+    tool_result = ToolResultBlockParam(
+        type="tool_result",
+        tool_use_id="tool-1",
+        content=[tool_document],
+    )
+    messages = [
+        MessageParam(role="user", content=[history_document]),
+        MessageParam(role="user", content=[tool_result]),
+    ]
+
+    normalize_document_citations(messages)
+
+    assert history_document.get("citations") == {"enabled": True}
+    assert tool_document.get("citations") == {"enabled": True}
 
 
 async def test_model_output_from_anthropic_with_tool_use() -> None:
