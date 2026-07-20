@@ -247,11 +247,12 @@ def init_openai_request_patch() -> None:
         wrapper is delegated to `_process_response()` so it comes out exactly as
         it would for a real HTTP response.
 
-        `_process_response()` handles plain `.create()` callers too (it ends in
-        `api_response.parse()` when the SDK's `X-Stainless-Raw-Response` header
-        is absent), so the header check below is only a shortcut past the
-        serialize-and-revalidate round trip for the common case, not a
-        behavioural branch.
+        `_process_response()` would serve plain `.create()` callers too (it ends
+        in `api_response.parse()` when the SDK's `X-Stainless-Raw-Response`
+        header is absent), so the check below is not needed to make them work.
+        It is there to leave that path exactly as it was before this fix: those
+        callers keep receiving the model instance the bridge built, rather than
+        an equivalent one revalidated from its own JSON.
 
         Note this pins the bridge to the SDK's private `_process_response()`
         keyword signature.
