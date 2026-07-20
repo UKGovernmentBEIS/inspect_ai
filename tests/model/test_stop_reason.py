@@ -5,6 +5,7 @@ from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_grok,
     skip_if_no_groq,
+    skip_if_no_moonshot,
     skip_if_no_openai,
     skip_if_no_together,
     skip_if_trio,
@@ -68,3 +69,11 @@ async def test_grok_stop_reason() -> None:
 @skip_if_trio
 async def test_together_stop_reason() -> None:
     await check_stop_reason("together/MiniMaxAI/MiniMax-M2.7")
+
+
+@skip_if_no_moonshot
+@skip_if_trio
+async def test_moonshot_stop_reason() -> None:
+    # K3 thinking is always on, so the max_tokens check exercises a
+    # reasoning-only truncated response.
+    await check_stop_reason("moonshot/kimi-k3")

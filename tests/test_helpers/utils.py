@@ -307,6 +307,11 @@ def skip_if_no_fireworks(func):
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
 
 
+def skip_if_no_moonshot(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
 def skip_if_no_sambanova(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
