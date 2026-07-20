@@ -241,6 +241,7 @@ def board_items():
                        ... on ProjectV2ItemFieldTextValue{text}}
                      content{ ... on Issue{
                        number state repository{nameWithOwner}
+                       assignees(first:10){nodes{login}}
                        labels(first:20){nodes{name}} }}}}}}}""",
             p=PROJECT_ID, **({"after": after} if after else {}),
         )["node"]["items"]
@@ -251,6 +252,10 @@ def board_items():
                 c.get("state") == "OPEN"
                 and c.get("repository", {}).get("nameWithOwner") == FORK
                 and up
+                # Pilot scoping: only sync issues assigned to the reviewer.
+                and any(
+                    a["login"] == REVIEWER for a in c["assignees"]["nodes"]
+                )
             ):
                 rows.append({
                     "item": n["id"],
