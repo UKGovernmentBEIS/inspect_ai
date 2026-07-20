@@ -2,7 +2,8 @@ from typing import Any
 
 import httpx
 import pytest
-from openai import APIStatusError
+from openai import APIStatusError, LengthFinishReasonError
+from openai.types.chat import ChatCompletion
 from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_together,
@@ -333,3 +334,38 @@ async def test_together_stream_end_to_end() -> None:
         input=[ChatMessageUser(content="This is a test string. What are you?")]
     )
     assert len(response.completion) >= 1
+
+
+async def test_openai_compatible_streaming_returns_partial_on_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=True,
+    )
+
+    partial = ChatCompletion.model_construct(id="partial")
+
+    class _LengthTruncatedStream:
+        async def __aenter__(self) -> "_LengthTruncatedStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        async def get_final_completion(self) -> ChatCompletion:
+            raise LengthFinishReasonError(completion=partial)
+
+    monkeypatch.setattr(
+        api.client.chat.completions,
+        "stream",
+        lambda **kwargs: _LengthTruncatedStream(),
+    )
+
+    try:
+        result = await api._generate_completion({}, GenerateConfig())
+        assert result is partial
+    finally:
+        await api.aclose()
