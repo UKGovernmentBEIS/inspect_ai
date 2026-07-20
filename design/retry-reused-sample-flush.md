@@ -78,8 +78,11 @@ Add a write-through mode for re-logged completed samples:
   `JSONRecorder.log_sample`, plus the ABC (`recorder.py`) whose
   `log_sample_streaming` default forwards to it, and the mock recorder in
   `tests/log/test_task_log.py`. Direct callers outside `TaskLogger`
-  (`_write_eval_log_with_recorder`, `_cli/score.py`, `_recover/_write.py`)
-  keep the default and are unaffected.
+  (`_write_eval_log_with_recorder`, `_cli/score.py`, `_recover/_write.py`,
+  and `_convert_sample` in `log/_convert.py`) keep the default and are
+  unaffected. (`log/_convert.py` is a natural *future* adopter — it already
+  condenses samples and flushes periodically to bound memory — but that's out
+  of scope here.)
 
 Effect: each reused sample is read → condensed → written to local disk →
 dropped, instead of being **retained** for the attempt's lifetime. To bound
@@ -152,9 +155,21 @@ which case there's no waiter to strand.
 
 Failure handling: if the settle-flush write fails, log a warning and arm the
 stale-flush timer as a *retry fallback* (the same pattern as
-`flush_samples()`'s `except` branch), passing an explicit permit so the
-arming predicate doesn't need a global "or `flush_quiet` non-empty" change.
-And because every flush path now drains `flush_quiet`, even the no-timer
+`flush_samples()`'s `except` branch). The permit for arming with an empty
+`flush_pending` must be **sticky state, not a one-shot argument**: a
+threaded-through parameter would cover only the first arming — if that timer
+flush also fails, the timer's own failure re-arm in
+`_stale_flush_after_delay` and the `except` re-arm in `flush_samples()` both
+go through the plain `0 < len(flush_pending) < flush_buffer` predicate, and
+the retry chain would die after one attempt with `flush_quiet` still
+populated. Instead keep a `flush_quiet_retry: bool` on `TaskLogger`: set it
+whenever a flush attempt fails with `flush_quiet` non-empty, clear it
+whenever `flush_quiet` fully drains (and in `reinit()`/`log_finish` alongside
+the lists), and extend the arming predicate to
+`(0 < len(flush_pending) < flush_buffer) or (flush_quiet_retry and
+flush_quiet)`. Because the flag only turns on after a failure, the normal
+path is unchanged — quiet samples still never arm the timer mid-sweep. And
+because every flush path now drains `flush_quiet`, even the no-timer
 worst case is strictly better than today: the next live flush, `ctl task
 log-flush`, or finish picks the samples up.
 
@@ -231,8 +246,11 @@ no full samples; `ctl` full-sample reads fall through to disk.
   `flush=False` samples land in `flush_quiet`; `_flush_pending_samples`
   drains both lists (tail-preserving); `flush_samples()` (the ctl path)
   flushes when only `flush_quiet` is non-empty — the current no-op regressed;
-  threshold/timer arming ignores `flush_quiet`; failed settle-flush arms the
-  retry timer; `reinit()`/`log_finish` clear `flush_quiet`.
+  threshold/timer arming ignores `flush_quiet` while `flush_quiet_retry` is
+  unset; failed settle-flush sets `flush_quiet_retry` and arms the retry
+  timer; a second failure re-arms it (the flag is sticky, not one-shot); a
+  successful drain clears the flag; `reinit()`/`log_finish` clear
+  `flush_quiet` and `flush_quiet_retry`.
 - **Recorder tests**: `log_sample(write_through=True)` leaves `_samples`
   empty, sample immediately present in `sample_summaries()` exactly once,
   event-less copy served by `buffered_sample()` pre-flush and gone
