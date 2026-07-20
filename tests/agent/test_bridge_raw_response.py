@@ -15,7 +15,8 @@ from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageFunctionToolCall,
 )
-from test_helpers.utils import skip_if_no_openai
+from openai.types.responses import Response
+from test_helpers.utils import skip_if_no_openai_package
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import Agent, AgentState, agent, agent_bridge
@@ -25,6 +26,11 @@ from inspect_ai.model._openai import messages_to_openai
 from inspect_ai.scorer import includes
 
 ANSWER = "the answer is 42"
+
+
+def bridge_client() -> AsyncOpenAI:
+    """Client for bridge tests: requests are intercepted, so the key is unused."""
+    return AsyncOpenAI(api_key="test")
 
 
 def run_bridge_test(solver: Agent, model_output: ModelOutput) -> None:
@@ -49,7 +55,7 @@ async def consume_raw_response(
     bridge_state: AgentState, check: Callable[[ChatCompletion], None]
 ) -> None:
     """Drive the `with_raw_response` + `.parse()` path langchain-openai uses."""
-    async with AsyncOpenAI() as client:
+    async with bridge_client() as client:
         raw = await client.chat.completions.with_raw_response.create(
             model="inspect",
             messages=await messages_to_openai(bridge_state.messages),
@@ -97,12 +103,58 @@ def raw_response_tool_call_agent() -> Agent:
 
 
 @agent
+def raw_response_responses_api_agent() -> Agent:
+    """Bridge agent that drives the `/responses` half of the bridge."""
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with bridge_client() as client:
+                raw = await client.responses.with_raw_response.create(
+                    model="inspect",
+                    input="hello",
+                )
+                assert raw.headers is not None
+                response = raw.parse()
+                assert isinstance(response, Response)
+                assert response.output_text == ANSWER
+            return bridge.state
+
+    return execute
+
+
+@agent
+def streaming_response_agent() -> Agent:
+    """Bridge agent using `with_streaming_response`, which takes the other branch.
+
+    `with_streaming_response` sends `X-Stainless-Raw-Response: stream` rather
+    than `"true"`, which `_process_response()` handles differently from the
+    `with_raw_response` case.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with bridge_client() as client:
+                async with client.chat.completions.with_streaming_response.create(
+                    model="inspect",
+                    messages=await messages_to_openai(bridge.state.messages),
+                ) as raw:
+                    assert raw.headers is not None
+                    # unlike the legacy raw wrapper, this one parses async
+                    completion = await raw.parse()
+                    assert isinstance(completion, ChatCompletion)
+                    assert completion.choices[0].message.content == ANSWER
+            return bridge.state
+
+    return execute
+
+
+@agent
 def plain_response_agent() -> Agent:
     """Bridge agent that uses a plain `.create()` (must still return the model)."""
 
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
-            async with AsyncOpenAI() as client:
+            async with bridge_client() as client:
                 completion = await client.chat.completions.create(
                     model="inspect",
                     messages=await messages_to_openai(bridge.state.messages),
@@ -114,7 +166,7 @@ def plain_response_agent() -> Agent:
     return execute
 
 
-@skip_if_no_openai
+@skip_if_no_openai_package
 def test_bridge_with_raw_response_parses() -> None:
     """`with_raw_response.create().parse()` works through the bridge (issue #4341)."""
     run_bridge_test(
@@ -123,7 +175,7 @@ def test_bridge_with_raw_response_parses() -> None:
     )
 
 
-@skip_if_no_openai
+@skip_if_no_openai_package
 def test_bridge_plain_create_still_returns_model() -> None:
     """Plain `.create()` continues to return a parsed `ChatCompletion` (no regression)."""
     run_bridge_test(
@@ -132,7 +184,7 @@ def test_bridge_plain_create_still_returns_model() -> None:
     )
 
 
-@skip_if_no_openai
+@skip_if_no_openai_package
 def test_bridge_with_raw_response_preserves_tool_calls() -> None:
     """A tool-call completion survives the `model_dump_json()` → `.parse()` round-trip."""
     run_bridge_test(
@@ -142,4 +194,22 @@ def test_bridge_with_raw_response_preserves_tool_calls() -> None:
             tool_name="get_weather",
             tool_arguments={"city": "London"},
         ),
+    )
+
+
+@skip_if_no_openai_package
+def test_bridge_with_raw_response_responses_api() -> None:
+    """The `/responses` branch also returns a wrapper for `with_raw_response`."""
+    run_bridge_test(
+        raw_response_responses_api_agent(),
+        ModelOutput.from_content("mockllm/model", ANSWER),
+    )
+
+
+@skip_if_no_openai_package
+def test_bridge_with_streaming_response_parses() -> None:
+    """`with_streaming_response` takes the other `_process_response()` branch."""
+    run_bridge_test(
+        streaming_response_agent(),
+        ModelOutput.from_content("mockllm/model", ANSWER),
     )
