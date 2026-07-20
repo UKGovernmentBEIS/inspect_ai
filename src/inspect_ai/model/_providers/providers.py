@@ -53,6 +53,17 @@ def openai_api() -> type[ModelAPI]:
     return OpenAICompatibleAPI
 
 
+@modelapi(name="openai-api-completions")
+def openai_api_completions() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("OpenAI Compatible Completions API")
+
+    # in the clear
+    from .openai_compatible_completions import OpenAICompatibleCompletionsAPI
+
+    return OpenAICompatibleCompletionsAPI
+
+
 @modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
     # validate
@@ -108,8 +119,8 @@ def vllm_completions() -> type[ModelAPI]:
     return VLLMCompletionsAPI
 
 
-@modelapi(name="cf")
-def cf() -> type[ModelAPI]:
+@modelapi(name="cloudflare")
+def cloudflare() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI
 
     return CloudFlareAPI
@@ -332,7 +343,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.40.0"
+    MIN_VERSION = "2.45.0"
 
     # verify we have the package
     try:

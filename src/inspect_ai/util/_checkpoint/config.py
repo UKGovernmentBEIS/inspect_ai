@@ -15,10 +15,21 @@ filled in with their canonical defaults.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ._triggers import CheckpointTrigger, TokenInterval
+
+if TYPE_CHECKING:
+    from inspect_ai.solver._task_state import TaskState
+    from inspect_ai.util._checkpoint.report import ResumeReport
+
+    OnCheckpointCallback = Callable[[TaskState], Awaitable[None]]
+    OnResumeCallback = Callable[
+        [TaskState, Literal["initial", "resume", "resume_for_scoring"]],
+        Awaitable["ResumeReport | str | None"],
+    ]
 
 DEFAULT_CHECKPOINT_TRIGGER = TokenInterval(every=500_000)
 """Trigger used when checkpointing is enabled but no layer set a trigger."""
@@ -90,6 +101,29 @@ class CheckpointConfig(CheckpointSampleConfig):
     settable only at the task or eval layer."""
 
 
+class CheckpointDisabled(CheckpointConfig):
+    """Sentinel ``CheckpointConfig`` meaning checkpointing is vetoed.
+
+    Produced by ``normalize_checkpoint(False)``. When the task or eval layer is
+    this value, checkpointing is disabled for that scope, overriding an enable
+    at any other layer (see ``checkpoint_vetoed`` and
+    ``merge_checkpoint_configs``). It subclasses ``CheckpointConfig`` so that
+    existing ``CheckpointConfig | None`` annotations accept it unchanged;
+    resolvers detect it via ``isinstance``.
+    """
+
+
+def checkpoint_vetoed(
+    task: CheckpointConfig | None, eval_: CheckpointConfig | None
+) -> bool:
+    """True if the task or eval layer vetoes checkpointing (``checkpoint=False``).
+
+    A veto at either layer disables checkpointing, overriding an enable at the
+    other. The sample layer cannot veto (it has no ``False`` form).
+    """
+    return isinstance(task, CheckpointDisabled) or isinstance(eval_, CheckpointDisabled)
+
+
 @dataclass
 class ResolvedCheckpointConfig:
     """Merged checkpoint config — the runtime contract for sample execution.
@@ -109,12 +143,17 @@ class ResolvedCheckpointConfig:
     retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
+    on_checkpoint: OnCheckpointCallback | None = None
+    on_resume: OnResumeCallback | None = None
 
 
 def merge_checkpoint_configs(
     task: CheckpointConfig | None = None,
     sample: CheckpointSampleConfig | None = None,
     eval_: CheckpointConfig | None = None,
+    *,
+    on_checkpoint: OnCheckpointCallback | None = None,
+    on_resume: OnResumeCallback | None = None,
 ) -> ResolvedCheckpointConfig | None:
     """Merge checkpoint config layers across task, sample, and eval.
 
@@ -145,6 +184,8 @@ def merge_checkpoint_configs(
     is enabled but no layer (including the sample) set a ``trigger``,
     the trigger defaults to :data:`DEFAULT_CHECKPOINT_TRIGGER`.
     """
+    if checkpoint_vetoed(task, eval_):
+        return None
     if task is None and eval_ is None:
         return None
 
@@ -180,6 +221,8 @@ def merge_checkpoint_configs(
         retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
     )
 
 
@@ -188,14 +231,18 @@ def normalize_checkpoint(
 ) -> CheckpointConfig | None:
     """Normalize a public ``checkpoint=`` argument to a ``CheckpointConfig``.
 
-    ``True`` enables checkpointing without pinning a trigger — the
-    concrete default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved
-    per-sample by :func:`merge_checkpoint_configs`, exactly matching the
-    bare ``--checkpoint`` CLI flag. ``False`` / ``None`` disable it. A
-    :class:`CheckpointConfig` is returned unchanged.
+    ``True`` enables checkpointing without pinning a trigger — the concrete
+    default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved per-sample by
+    :func:`merge_checkpoint_configs`, matching the bare ``--checkpoint`` CLI
+    flag. ``False`` is a **veto**: it returns :class:`CheckpointDisabled`, which
+    disables checkpointing for that layer's scope, overriding an enable at
+    another layer. ``None`` inherits (no opinion). A :class:`CheckpointConfig`
+    is returned unchanged.
     """
     if checkpoint is True:
         return CheckpointConfig(trigger=None)
-    if checkpoint is False or checkpoint is None:
+    if checkpoint is False:
+        return CheckpointDisabled()
+    if checkpoint is None:
         return None
     return checkpoint

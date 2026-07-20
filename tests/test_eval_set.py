@@ -52,6 +52,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util._limit import TokenLimit
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -667,6 +668,32 @@ def test_task_identifier_with_model_configs():
     run_eval_set(create_resolved_tasks)
 
 
+def test_task_identifier_with_token_limit_type():
+    model = get_model("mockllm/model")
+    resolved = resolve_tasks([hello_world()], {}, model, None, None, None)[0]
+
+    def identifier(token_limit: int | TokenLimit | None) -> str:
+        return task_identifier(
+            resolved,
+            EvalSetArgsInTaskIdentifier(
+                config=GenerateConfig(), token_limit=token_limit
+            ),
+        )
+
+    # an all-tokens TokenLimit hashes identically to the plain int encoding
+    # (existing eval-set identifiers are unchanged)
+    assert identifier(1000) == identifier(TokenLimit(tokens=1000, type="all"))
+    # output-metered limits hash distinctly
+    assert identifier(1000) != identifier(TokenLimit(tokens=1000, type="output"))
+    # formula-metered limits hash distinctly, and equal formulas are stable
+    formula = TokenLimit(tokens=1000, type="input + output")
+    assert identifier(1000) != identifier(formula)
+    assert identifier(TokenLimit(tokens=1000, type="output")) != identifier(formula)
+    assert identifier(formula) == identifier(
+        TokenLimit(tokens=1000, type="input + output")
+    )
+
+
 def test_task_identifier_with_redacted_model_args():
     model1 = get_model(
         "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
@@ -807,6 +834,7 @@ _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "verbosity",
     "effort",
     "reasoning_effort",
+    "reasoning_mode",
     "reasoning_tokens",
     "reasoning_summary",
     "reasoning_history",
@@ -1715,56 +1743,65 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
 
 
 def test_eval_set_single_flush_error() -> None:
-    """A single-task run must propagate task exceptions (baseline — should already pass)."""
+    """A broken log write fails the run as a task error (never silent success)."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
     with tempfile.TemporaryDirectory() as log_dir:
         with patch.object(ZipLogFile, "flush", broken_flush):
-            with pytest.raises(Exception):
-                eval_set(
-                    tasks=[
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_a",
-                        ),
-                    ],
-                    log_dir=log_dir,
-                    model="mockllm/model",
-                    retry_attempts=0,
-                )
+            success, logs = eval_set(
+                tasks=[
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_a",
+                    ),
+                ],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+            )
+
+    assert not success
+    assert [log.status for log in logs] == ["error"]
+    assert logs[0].error is not None
+    assert "Simulated S3 write failure" in logs[0].error.message
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
 def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
-    """run_parallel must not swallow task exceptions and return success=True."""
+    """run_parallel must not swallow task errors and return success=True."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
-    # With 2 tasks run_parallel is used. The bug was that the worker caught the
-    # exception, left result as None, and eval_set got an empty list where
-    # all([]) == True, silently reporting success.
+    # With 2 tasks run_parallel is used. The original bug was that the worker
+    # caught the exception, left result as None, and eval_set got an empty list
+    # where all([]) == True, silently reporting success. A failed log write now
+    # surfaces as an errored EvalLog per task (rather than tearing down the
+    # whole run), so the run must report failure with both tasks errored.
     with tempfile.TemporaryDirectory() as log_dir:
         with patch.object(ZipLogFile, "flush", broken_flush):
-            with pytest.raises(Exception):
-                eval_set(
-                    tasks=[
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_a",
-                        ),
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_b",
-                        ),
-                    ],
-                    log_dir=log_dir,
-                    model="mockllm/model",
-                    retry_attempts=0,
-                    retry_immediate=retry_immediate,
-                )
+            success, logs = eval_set(
+                tasks=[
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_a",
+                    ),
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_b",
+                    ),
+                ],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                retry_immediate=retry_immediate,
+            )
+
+    assert not success
+    assert len(logs) == 2
+    assert all(log.status == "error" for log in logs)
 
 
 @pytest.mark.parametrize("retry_immediate", [True, None])

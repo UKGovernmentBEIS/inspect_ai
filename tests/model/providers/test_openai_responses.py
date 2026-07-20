@@ -72,6 +72,19 @@ def test_openai_responses_no_store():
     assert log.status == "success"
 
 
+@skip_if_no_openai
+async def test_openai_responses_metadata_round_trip():
+    """Request metadata sent via extra_body is echoed back as ModelOutput.metadata."""
+    model = get_responses_model(
+        config=GenerateConfig(
+            max_tokens=50,
+            extra_body={"metadata": {"foo": "bar"}},
+        )
+    )
+    output = await model.generate("This is a test string. What are you?")
+    assert output.metadata == {"foo": "bar"}
+
+
 def test_image_generation_call_output():
     """Test that ImageGenerationCall produces ContentImage."""
     from openai.types.responses.response_output_item import ImageGenerationCall
@@ -224,6 +237,136 @@ async def test_responses_api_invalid_prompt_content_filter():
     assert "blocked by content filter" in output.completion
 
 
+async def _generate_responses_with_mock(
+    mock_response,
+    config: GenerateConfig = GenerateConfig(),
+    background: bool | None = None,
+    capture_request: dict | None = None,
+):
+    """Run generate_responses() against a mocked client returning mock_response."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    client = MagicMock()
+    client.responses = MagicMock()
+    client.responses.create = AsyncMock(return_value=mock_response)
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=config,
+        background=background,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+    )
+    if capture_request is not None:
+        capture_request.update(client.responses.create.call_args.kwargs)
+    return result
+
+
+async def test_responses_api_metadata_surfaced():
+    """Response-level metadata is surfaced as ModelOutput.metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        metadata={"safeguards": "flagged"},
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata == {"safeguards": "flagged"}
+
+
+async def test_responses_api_no_metadata():
+    """ModelOutput.metadata is None when the response carries no metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata is None
+
+
+def _completed_mock_response():
+    from openai.types.responses import Response
+
+    return Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-5.6-sol",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+
+
+async def test_responses_api_pro_mode_defaults_to_background() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(),
+        config=GenerateConfig(reasoning_mode="pro"),
+        capture_request=request,
+    )
+    assert request["background"] is True
+
+
+async def test_responses_api_pro_mode_respects_explicit_background() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(),
+        config=GenerateConfig(reasoning_mode="pro"),
+        background=False,
+        capture_request=request,
+    )
+    assert request["background"] is False
+
+
+async def test_responses_api_no_background_by_default() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(), capture_request=request
+    )
+    assert "background" not in request
+
+
 def test_fix_function_tool_parameters_string_to_dict():
     """Test that string parameters in FunctionTool are parsed to dicts."""
     from openai.types.responses import FunctionTool, Response
@@ -284,7 +427,9 @@ def test_chat_messages_from_compact_response():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -329,7 +474,9 @@ def test_chat_messages_from_compact_response_no_compaction_item():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -364,7 +511,9 @@ def test_model_usage_from_compact_response():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -467,7 +616,9 @@ def test_chat_messages_from_compact_response_mixed_items():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -561,7 +712,9 @@ def test_chat_messages_from_compact_response_developer_and_user_messages():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -659,7 +812,9 @@ def test_chat_messages_from_compact_response_mixed_roles():
             input_tokens=200,
             output_tokens=100,
             total_tokens=300,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )

@@ -1,6 +1,7 @@
 import contextlib
 import hashlib
 import logging
+import os
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -22,8 +23,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     DeferredSampleStats,
-    clear_all_eval_states,
     register_completed_eval,
+    reset_run_registries,
 )
 from inspect_ai._control.server import (
     control_server,
@@ -35,8 +36,14 @@ from inspect_ai._control.server import (
 )
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
+from inspect_ai._eval.handoff import (
+    LaunchHandoff,
+    emit_launch_handoff,
+    launch_handoff_emitted,
+    reset_launch_handoff_emitted,
+)
 from inspect_ai._eval.task.log import plan_to_eval_plan
-from inspect_ai._eval.task.run import resolve_plan
+from inspect_ai._eval.task.run import eval_plan_agent_name, resolve_plan
 from inspect_ai._eval.task.scan import Scanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
@@ -84,6 +91,11 @@ from inspect_ai.util._display import (
     display_type_plain,
     init_display_type,
 )
+from inspect_ai.util._limit import (
+    TokenLimit,
+    resolve_token_limit,
+    token_limit_fields,
+)
 
 from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args, solver_from_spec
@@ -110,7 +122,7 @@ class EvalSetArgsInTaskIdentifier:
     config: GenerateConfig
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None
     message_limit: int | None = None
-    token_limit: int | None = None
+    token_limit: int | TokenLimit | None = None
     turn_limit: int | None = None
     time_limit: int | None = None
     working_limit: int | None = None
@@ -158,7 +170,7 @@ def eval_set(
     score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
     turn_limit: int | None = None,
     time_limit: int | None = None,
     working_limit: int | None = None,
@@ -219,7 +231,8 @@ def eval_set(
         checkpoint: Checkpoint configuration for this eval set, or `True`
             to enable checkpointing with the default trigger (every 500k
             tokens). Overrides any task- or sample-level `checkpoint`
-            when set.
+            when set. A task can opt out with `Task(checkpoint=False)`,
+            which overrides this enable for that task only.
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -230,7 +243,7 @@ def eval_set(
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval-set finishes so external
             clients (the `inspect ctl` CLI, scripted agents, TUIs) can still
-            query state and read results — exit via `inspect ctl release`
+            query state and read results — exit via `inspect ctl process release`
             (or `POST /release`). Requires `retry_immediate=True` (the
             default) for the `"keep"` value.
         solver: Alternative solver(s) for
@@ -279,7 +292,11 @@ def eval_set(
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
-        token_limit: Limit on total tokens used for each sample.
+        token_limit: Limit on tokens used for each sample. An `int` (or a
+            `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -327,6 +344,9 @@ def eval_set(
     """
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
+    # canonical form so task_identifier hashing sees a stable value
+    token_limit = resolve_token_limit(token_limit)
+
     num_retry_attempts = 10 if retry_attempts is None else retry_attempts
     if retry_immediate is None:
         retry_immediate = True
@@ -343,7 +363,7 @@ def eval_set(
     # via tenacity, each with its own short-lived control server —
     # the keep-alive park would need to live OUTSIDE any single
     # eval() call, which is exactly the multi-loop bridging problem
-    # we deliberately avoid (see design/control-channel.md "Server
+    # we deliberately avoid (see design/ctl/control-channel.md "Server
     # lifecycle aligned with eval()"). Refuse the combination
     # explicitly rather than silently giving a broken keep-alive
     # experience.
@@ -352,6 +372,9 @@ def eval_set(
     # needed here as well as in eval_async because the all-reused short-circuit
     # parks without ever calling eval()
     reset_keep_alive()
+    # likewise clear a prior run's launch-handoff emission, so this run's
+    # park correctly detects whether *this* run emitted a handoff
+    reset_launch_handoff_emitted()
     if ctl.keep_alive and retry_immediate is False:
         raise PrerequisiteError(
             "--ctl-server=keep is incompatible with retry_immediate=False "
@@ -688,7 +711,7 @@ def eval_set(
 
     # EvalStates accumulate as tasks run (task_run registers but never
     # unregisters); clear the registry at this run boundary — in `finally`,
-    # after any keep-alive park — so they stay visible in `inspect ctl tasks`
+    # after any keep-alive park — so they stay visible in `inspect ctl task list`
     # through the run + park, but don't leak past it.
     try:
         with (
@@ -739,15 +762,15 @@ def eval_set(
         # park last of all — display closed and summary printed, so the
         # keep-alive notice lands in the console (not the live display pane).
         # Gate on the intent (not just the launch flag) so a runtime `inspect
-        # ctl keep` during the run also parks; intent reflects the last-write
+        # ctl process keep` during the run also parks; intent reflects the last-write
         # of any keep / release received during the run.
         if keep_alive_intent():
-            run_coroutine(_keep_alive_park(eval_set_id))
+            run_coroutine(_keep_alive_park(eval_set_id, log_dir))
 
         # return status + results
         return success, results
     finally:
-        clear_all_eval_states()
+        reset_run_registries()
 
 
 @contextlib.contextmanager
@@ -783,7 +806,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     Reused tasks bypass ``task_run.py`` (their results are read from
     disk rather than re-computed), so the per-task ``register_eval``
     that normally publishes state never fires for them. Without an
-    explicit registration here, ``inspect ctl tasks`` would show zero
+    explicit registration here, ``inspect ctl task list`` would show zero
     entries for an eval-set whose tasks all came from prior logs —
     confusing for an agent driving an eval-set under ``--ctl-server=keep``
     that expects to see what the eval-set returned.
@@ -836,6 +859,7 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             task=eval_spec.task,
             task_id=eval_spec.task_id,
             model=str(eval_spec.model) if eval_spec.model else "",
+            solver=eval_plan_agent_name(header.plan),
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,
@@ -875,7 +899,7 @@ def _deferred_sample_stats(log_entry: Log, total: int) -> "DeferredStatsProvider
     return provider
 
 
-async def _keep_alive_park(eval_set_id: str) -> None:
+async def _keep_alive_park(eval_set_id: str, log_dir: str) -> None:
     """Park the eval-set process after the run completes (display closed).
 
     Runs on a fresh loop once ``eval()`` (and its task display) has exited
@@ -895,11 +919,28 @@ async def _keep_alive_park(eval_set_id: str) -> None:
     async with control_server(run_id=eval_set_id) as ctl_server:
         if ctl_server is None:
             # Bind failed: nothing to park on (can't be released via
-            # `inspect ctl release`), so don't linger.
+            # `inspect ctl process release`), so don't linger.
             return
+        # A set whose tasks were all reused ran no eval, so nothing emitted
+        # the launch handoff — yet this park just bound a control surface a
+        # `--json` / `--detach` consumer is waiting to hear about. Emit it
+        # here (run_id None: no run happened), only when the run itself
+        # emitted none, so keep-alive runs still see exactly one `launch`.
+        if not launch_handoff_emitted():
+            emit_launch_handoff(
+                LaunchHandoff(
+                    run_id=None,
+                    pid=os.getpid(),
+                    log_dir=log_dir,
+                    control_socket=str(ctl_server.socket_path)
+                    if ctl_server.socket_path is not None
+                    else None,
+                    eval_set_id=eval_set_id,
+                )
+            )
         rich.get_console().print(
             "Eval-set finished. Keeping process alive — press Ctrl+C or run "
-            "`inspect ctl release` to let it exit.",
+            "`inspect ctl process release` to let it exit.",
             markup=False,
             highlight=False,
         )
@@ -1278,11 +1319,24 @@ def task_identifier(
         model_args: dict[str, Any]
         version: int | str
         message_limit: int | None
-        token_limit: int | None
+        # int for all-token limits (the historical encoding, so existing
+        # eval-set identifiers are unchanged); "output:<n>" when only output
+        # tokens are metered
+        token_limit: int | str | None
         turn_limit: int | None
         time_limit: int | None
         working_limit: int | None
         cost_limit: float | None
+
+    def token_limit_hash_value(
+        tokens: int | None, type: str | None
+    ) -> int | str | None:
+        # bare int for all-token limits (keeps existing identities unchanged);
+        # "<type>:<tokens>" for output-metered or formula limits so they hash
+        # distinctly (and equal specs stay stable)
+        if tokens is not None and type is not None and type != "all":
+            return f"{type}:{tokens}"
+        return tokens
 
     if isinstance(task, ResolvedTask):
         assert eval_set_args is not None, (
@@ -1306,9 +1360,11 @@ def task_identifier(
             message_limit=task.task.message_limit
             if eval_set_args.message_limit is None
             else eval_set_args.message_limit,
-            token_limit=task.task.token_limit
+            token_limit=token_limit_hash_value(
+                task.task.token_limit, task.task.token_limit_type
+            )
             if eval_set_args.token_limit is None
-            else eval_set_args.token_limit,
+            else token_limit_hash_value(*token_limit_fields(eval_set_args.token_limit)),
             turn_limit=task.task.turn_limit
             if eval_set_args.turn_limit is None
             else eval_set_args.turn_limit,
@@ -1334,7 +1390,9 @@ def task_identifier(
             model_args=task.eval.model_args,
             version=task.eval.task_version,
             message_limit=task.eval.config.message_limit,
-            token_limit=task.eval.config.token_limit,
+            token_limit=token_limit_hash_value(
+                task.eval.config.token_limit, task.eval.config.token_limit_type
+            ),
             turn_limit=task.eval.config.turn_limit,
             time_limit=task.eval.config.time_limit,
             working_limit=task.eval.config.working_limit,

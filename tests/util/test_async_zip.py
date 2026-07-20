@@ -12,9 +12,10 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
-from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.async_zip import AsyncZipReader, CentralDirectory
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.compression_transcoding import _DeflateCompressStream
+from inspect_ai._util.zip_common import ZipCompressionMethod, ZipEntry
 
 # Import zipfile-zstd for Python < 3.14 (monkey-patches zipfile to support zstd)
 if sys.version_info < (3, 14):
@@ -52,6 +53,25 @@ async def test_read_local_zip_member(test_zip_file: Path) -> None:
         data = b"".join(chunks)
         parsed = json.loads(data.decode("utf-8"))
         assert parsed["message"] == "hello world"
+
+
+async def test_read_zip_with_maximum_comment(tmp_path: Path) -> None:
+    """Test reading a ZIP file with the maximum-length archive comment."""
+    zip_path = tmp_path / "max_comment.zip"
+    content = b"payload"
+
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("member.txt", content)
+        zf.comment = b"x" * 65535
+
+    with zipfile.ZipFile(zip_path) as zf:
+        assert zf.read("member.txt") == content
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        entries = await reader.entries()
+        assert [entry.filename for entry in entries.entries] == ["member.txt"]
+        assert await reader.read_member_fully("member.txt") == content
 
 
 async def test_read_nested_member(test_zip_file: Path) -> None:
@@ -253,6 +273,61 @@ async def test_read_member_fully_by_entry(test_zip_file: Path) -> None:
         data = await reader.read_member_fully(entry)
         parsed = json.loads(data.decode("utf-8"))
         assert parsed["message"] == "hello world"
+
+
+def _make_entries(n: int) -> list[ZipEntry]:
+    return [
+        ZipEntry(
+            filename=f"samples/{i}_epoch_1.json",
+            compression_method=ZipCompressionMethod.DEFLATE,
+            compressed_size=10,
+            uncompressed_size=20,
+            local_header_offset=i * 100,
+        )
+        for i in range(n)
+    ]
+
+
+def test_central_directory_entry_lookup() -> None:
+    """CentralDirectory.entry() resolves members by name and misses cleanly."""
+    entries = _make_entries(5)
+    cd = CentralDirectory(entries=list(entries))
+
+    for entry in entries:
+        assert cd.entry(entry.filename) is entry
+    assert cd.entry("samples/does_not_exist.json") is None
+
+
+def test_central_directory_entry_index_is_cached() -> None:
+    """The name index is built once and reused across lookups.
+
+    Guards against a regression to the previous O(members) linear scan per
+    lookup, which made a whole-log read O(members**2). The index must be
+    constructed lazily on first lookup and then reused.
+    """
+    entries = _make_entries(3)
+    cd = CentralDirectory(entries=list(entries))
+    assert cd._by_name is None  # not built until first lookup
+
+    cd.entry(entries[0].filename)
+    index = cd._by_name
+    assert index is not None
+
+    cd.entry(entries[1].filename)
+    assert cd._by_name is index  # same dict reused, not rebuilt
+
+
+async def test_get_member_entry_uses_name_index(test_zip_file: Path) -> None:
+    """get_member_entry resolves via the cached name index and misses cleanly."""
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(test_zip_file))
+        entry = await reader.get_member_entry("test.json")
+        assert entry.filename == "test.json"
+        # index is populated after the first lookup and shared with entries()
+        cd = await reader.entries()
+        assert cd._by_name is not None
+        with pytest.raises(KeyError):
+            await reader.get_member_entry("nonexistent.txt")
 
 
 async def test_read_member_fully_matches_open_member(tmp_path: Path) -> None:

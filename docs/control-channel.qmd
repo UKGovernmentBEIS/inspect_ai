@@ -1,96 +1,201 @@
 ---
 title: Control Channel
-llms-description: Observe and direct running evals from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, concurrency limit retuning, log buffer control, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, task and sample cancellation, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
 
-Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and adjust it — concurrency limits, log buffering — without interrupting it or parsing log files.
+Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and direct it — cancel a stalled sample or a whole task, retune concurrency limits and log buffering — without parsing log files.
+
+Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-level `config` command:
 
 | Command | Description |
 |----|----|
-| `inspect ctl tasks` | List running tasks across all live Inspect processes. |
-| `inspect ctl samples` | List a task's samples (running, completed, and pending). |
-| `inspect ctl errors` | List samples that errored or were retried. |
-| `inspect ctl sample` | Show one sample's error detail, including prior attempts. |
-| `inspect ctl events` | Read one sample's transcript events. |
-| `inspect ctl limits` | View or retune a task's concurrency limits. |
-| `inspect ctl flush` | Write buffered completed samples to the log now. |
-| `inspect ctl buffer` | View or change the sample-buffer parameters. |
-| `inspect ctl keep` | Make a running process stay alive after its eval finishes. |
-| `inspect ctl release` | Let a keep-alive process exit. |
+| `inspect ctl task list` | List running tasks across all live Inspect processes. |
+| `inspect ctl task log-flush` | Write buffered completed samples to the log now. |
+| `inspect ctl task cancel` | Cancel a running task. |
+| `inspect ctl sample list` | List samples (running, completed, and pending). |
+| `inspect ctl sample errors` | List samples that errored or were retried. |
+| `inspect ctl sample show` | Show one sample's summary and error history. |
+| `inspect ctl sample events` | Read one sample's transcript events. |
+| `inspect ctl sample cancel` | Cancel one running sample. |
+| `inspect ctl config` | View or retune launch configuration mid-flight. |
+| `inspect ctl process list` | List running Inspect processes. |
+| `inspect ctl process keep` | Make a process stay alive after its eval finishes. |
+| `inspect ctl process release` | Let a keep-alive process exit. |
 
 : {tbl-colwidths=[35,65]}
 
-All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The status commands (`tasks`, `samples`, `errors`, `sample`, `events`) are read-only. The others adjust the run deliberately and conservatively: `limits` and `buffer` retune resource parameters (never interrupting in-flight work), `flush` forces a log write that would happen anyway, and `keep`/`release` only affect what happens after the eval finishes. Nothing on the control channel can cancel or modify samples.
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
-## Listing Tasks
+::: {.callout-note}
+Earlier releases exposed these operations as flat verbs (`inspect ctl tasks`, `samples`, `sample`, `errors`, `events`, `limits`, `flush`, `buffer`, `keep`, `release`). Those spellings still work as hidden, deprecated aliases (each prints a pointer to the new spelling on stderr) and will be removed in a future release — except `sample`, whose name now belongs to the command group: use `inspect ctl sample show` for what `inspect ctl sample` did.
+:::
 
-`inspect ctl tasks` lists the tasks of every running eval on the machine:
+## Launch Handoff
+
+Right after launching an eval, an empty `inspect ctl task list` is ambiguous: the control endpoint may simply not be bound yet. A script or agent that launches an eval and then drives it with `inspect ctl` should launch with `--json`:
 
 ```bash
-$ inspect ctl tasks
-task_id       task                         samples              started
-------------  ---------------------------  -------------------  --------
-ZByxJpK4bKSz  inspect_evals/gpqa_diamond   12/40 (3 running)    14:02:11
-fR8mWn2cQspD  inspect_evals/humaneval      164/164 (complete)   13:58:40
+inspect eval ctf.py --json
 ```
 
-Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored.
+This implies `--display none` and makes stdout machine-readable — the process emits JSON lines (and nothing else) on stdout:
+
+```json
+{"event": "launch", "run_id": "Ngkz4viFYq…", "eval_set_id": null, "pid": 17146, "log_dir": "/…/logs", "control": {"socket_path": "/…/control/17146.sock"}}
+{"event": "done", "run_id": "Ngkz4viFYq…", "logs": [{"task": "ctf", "task_id": "…", "eval_id": "…", "status": "success", "location": "/…/logs/…_ctf_….eval"}]}
+```
+
+The `launch` record is printed only once the control endpoint is bound (and before any task work begins), so reading it is a hard guarantee: from then on an empty `inspect ctl task list` means "no tasks registered yet", never "no server". `control` is `null` exactly when the control surface is definitively absent (disabled via `--ctl-server=false`, or the bind failed and the eval degraded to running without it). A process that exits without emitting a `launch` record failed before the control server came up — the reason is on stderr.
+
+The `done` record arrives when the eval finishes, with each task's log location and status — the handoff from live observation to reading logs. A run that crashes (raises out of the eval) emits no `done` record and exits non-zero. Note that a task *error* is not a crash: like plain `inspect eval`, the process still emits `done` and exits 0 with that task's `status` set to `"error"` — branch on the `status` fields in `logs`, not the exit code (or use `eval-set`, whose `success` field and exit code do reflect per-task outcomes).
+
+Stdout carries these records exclusively: the eval itself runs with stdout redirected to stderr (at the file-descriptor level, so even output from subprocesses spawned by task or solver code lands on stderr rather than corrupting the stream).
+
+`inspect eval-set --json` follows the same contract, with eval-set specifics: the records also carry `eval_set_id`, and the `done` record adds an overall `success` field mirroring the exit code. Two deviations from "exactly one `launch`, then one `done`": a set whose tasks are all already complete runs no eval, so stdout carries only the `done` record (don't read the missing `launch` line as a failed launch once `done` arrived) — except under `--ctl-server=keep`, where the keep-alive park still binds a control endpoint and reports it with a `launch` record whose `run_id` is `null`; and legacy batch-mode retries (`--no-retry-immediate`) emit a fresh `launch` record per retry batch, with the `done` record carrying the last launch's `run_id` — the run that produced the final state.
+
+`inspect eval-retry --json` follows the contract too, with one wrinkle: each retried log file runs as its own eval with its own `run_id`, so retrying multiple log files emits one `launch` record per file (sequentially — each supersedes the previous), and the single `done` record carries the last launch's `run_id` with one `logs` entry per retried task.
+
+## Detached Launch
+
+An eval launched with `--json` still occupies the terminal until it finishes. To run it in the background — detached from the terminal, surviving the launching shell (or agent session) ending — launch with `--detach`:
+
+```bash
+inspect eval ctf.py --detach
+```
+
+This implies `--json`. The command blocks until the control endpoint is bound, prints the `launch` record on stdout, and exits 0 — the eval keeps running as a detached background process:
+
+```json
+{"event": "launch", "run_id": "Ngkz4viFYq…", "eval_set_id": null, "pid": 17146, "log_dir": "/…/logs", "control": {"socket_path": "/…/control/17146.sock"}, "output_file": "/…/detach/20260716-141530-ab12cd34.out"}
+```
+
+The launch-handoff guarantee carries over unchanged: a `--detach` command that exited 0 has emitted a `launch` record and the control surface exists — except when an eval-set's tasks are all already complete, in which case no eval runs, stdout carries only the `done` record, and nothing is left running (the set's results were already final). One that exited non-zero has not started a background eval, and the pre-flight diagnostic (bad task path, missing API key, ...) is on stderr. There is no third state to poll for: if the control endpoint fails to bind, the launcher terminates the eval and exits non-zero rather than leave an unmonitorable eval running, and interrupting the wait (Ctrl+C or SIGTERM) likewise terminates the eval before the launcher exits.
+
+The detached process's stdout and stderr go to a file under the Inspect data directory, reported as `output_file` in the launch record. The process exits on its own when the eval finishes, and that file's last line is the completion signal — after the handoff, the eval's terminal and results are read entirely through the surfaces this page documents:
+
+1. **Monitor** the running eval with `inspect ctl task list --json` (and drill down with `inspect ctl sample list` / `errors` / `events`).
+2. **Intervene** if needed: `inspect ctl sample cancel`, `inspect ctl task cancel`, `inspect ctl config`.
+3. **Detect completion**: when the eval finishes the process exits (dropping out of the `inspect ctl` listings), leaving a `done` record — overall success plus each task's `status` and `log_location` — as the last line of `output_file`.
+4. **Detect a crash**: a process that is gone *without* a `done` record in its output file died mid-run; the same file holds its diagnostics (stray prints and stderr land there too). For an eval-set, re-running the same command retries the unfinished tasks.
+
+Inspect never deletes these output files: one accumulates per detached run under the data directory until you remove it. Since the file is the completion signal, remove it only after its `done` record has been read.
+
+To instead keep the process alive after the eval finishes — its state still queryable via `inspect ctl` until you `inspect ctl process release` it — pass `--ctl-server=keep` explicitly (or latch it onto an already-running detached eval with `inspect ctl process keep`). The `done` record is then written only when the process is released. Prefer the default exit-when-done unless whatever will issue the release is certain to outlive the eval: a long eval routinely outlives the shell or agent session that launched it, and an unreleased parked process lingers indefinitely.
+
+`--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because a detached eval must be observable and cancellable while running, combining `--detach` with `--ctl-server=false` is an error.
+
+To make an agent (Claude Code or similar) use this workflow for long-running evals, paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
+
+```markdown
+For evals that may run longer than a few minutes, do not run
+`inspect eval` in the foreground or under nohup/tmux. Instead:
+
+1. Launch with `inspect eval <task> --detach`. It prints a JSON
+   `launch` record and returns, leaving the eval running in the
+   background; non-zero exit means the launch failed (reason on
+   stderr). Never consider an eval launched until you have read
+   its `launch` record.
+2. Poll `inspect ctl task list --json` to watch progress. When the
+   eval finishes its process exits and drops out of that listing;
+   completion is confirmed by the JSON `done` record on the last
+   line of the launch record's `output_file`, which reports overall
+   success and each task's `status` and `log_location`. If the
+   process is gone and there is no `done` record, the run died
+   mid-flight — diagnostics are in the same file.
+3. If samples stall or error, inspect with `inspect ctl sample
+   list` / `inspect ctl sample errors`, and cancel with
+   `inspect ctl sample cancel` / `inspect ctl task cancel`.
+4. Read results from each task's `log_location` (reported in both
+   the `done` record and `inspect ctl task list`).
+```
+
+## Listing Tasks
+
+`inspect ctl task` lists the tasks of every running eval on the machine:
+
+```bash
+$ inspect ctl task
+task_id       task                        model                      solver    samples             started
+------------  --------------------------  -------------------------  --------  ------------------  --------
+ZByxJpK4bKSz  inspect_evals/gpqa_diamond  openai/gpt-5               react     12/40 (3 running)   14:02:11
+fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  164/164 (complete)  13:58:40
+```
+
+Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan's terminal solver (the agent name, e.g. `react`, for an agentic task). With `--json`, the response is an `{as_of, tasks}` envelope and each task row also carries `pid`, `socket_path`, and `log_location` (where results are being written — the handle for reading logs after the run).
+
+A task is finished exactly when `completed_at` is non-null; `status` (`running` / `completed`) is derived from it. Don't infer completion from sample counts — a cancelled or errored eval finishes with `completed < total`.
 
 ## Selecting a Task
 
-The other commands take a `TASK` argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a `/`, so `gpqa` matches `inspect_evals/gpqa_diamond`. When only one task is running you can omit it entirely.
+Commands that operate on one task take a `TASK` argument that selects a task from this list. It matches a task id (or unique prefix) first, then a task name — anchored at the start of the name or after a `/`, so `gpqa` matches `inspect_evals/gpqa_diamond`. When only one task is running you can omit it entirely.
 
 Task ids are stable across retries, so a command keeps working after a task errors and is retried (per-attempt eval ids are not stable, which is why commands don't use them).
 
+On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting it lists across **all** running tasks (each row carries its `task_id`), which makes "what's erroring anywhere in this eval set?" the zero-argument spelling. On *mutations* (`task log-flush`, the task-scoped `config` knobs) an omitted selector must resolve to exactly one target — the sole running task is the default, and anything ambiguous errors with the candidate list rather than fanning out. Destructive commands (`task cancel`) require the selector outright.
+
 ## Sample Status
 
-`inspect ctl samples` lists a task's samples with their live status:
+`inspect ctl sample list` lists samples with their live status:
 
 ```bash
-$ inspect ctl samples gpqa
+$ inspect ctl sample list gpqa
 inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
 
-sample  epoch  status     time   idle  tokens  messages
-------  -----  ---------  -----  ----  ------  --------
-14      1      running    12:40  0:03  48210   22
-17      1      running    8:12   6:51  31055   14
-21      1      running    0:45   0:01  2150    3
-1       1      completed  4:02         18021   9
+sample  epoch  status     time   idle  tokens  messages  turns
+------  -----  ---------  -----  ----  ------  --------  -----
+14      1      running    12:40  0:03  48210   22        11
+17      1      running    8:12   6:51  31055   14        7
+21      1      running    0:45   0:01  2150    3         1
+1       1      completed  4:02         18021   9         4
 ...
 ```
 
 The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)
 
-Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — useful for monitoring loops that don't want to re-read the full list.
+The `turns` column counts top-level model generations (blank when unknown, e.g. for samples logged by older versions of Inspect). When any listed sample has a token limit configured, `limit usage` and `limit total` columns are also shown: the metered value for that limit — respecting its type (`all`, `output`, or a formula) — against the configured ceiling. The `--json` rows carry these as `turn_count`, `token_limit_usage`, `token_limit_total`, and `token_limit_type`.
+
+The listing is capped at 100 rows per task by default, keeping the head of the running → terminal → pending sort order (running samples sort first, any queued-but-not-started ones just after, then finished ones — completed, error, and cancelled alike — so the cap keeps the most relevant rows and errored samples survive it alongside completed ones). A capped listing says so — the human output prints a `listing capped: showing N of M samples` footer, and the JSON envelope sets `truncated: true` — and the aggregate answer stays complete regardless: the envelope's `counts` is the status histogram over *all* of the task's samples. Adjust with:
+
+| Option | Description |
+|----|----|
+| `--limit N` | Cap the listing at N rows per task instead of 100. |
+| `--all` | List every sample row (no cap). |
+| `--status running,error` | Only samples with these statuses (`running`, `completed`, `error`, `cancelled`, `pending`, `queued`). Filters rows only — `counts` stays whole-task. |
+
+: {tbl-colwidths=[35,65]}
+
+With `--json` the response is an `{as_of, counts, samples, truncated}` envelope. Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — feed it the `as_of` from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed (`counts` remains the whole-task histogram on a delta poll, so progress tracking rides along for free). The row cap applies to delta polls too, and the rows it drops are typically the terminal ones (running rows sort first and survive the cap) — samples that completed or errored in the window and will never produce activity again, so they won't match a later `--active-since`. If a delta poll comes back `truncated`, re-issue it with the same `--active-since` plus `--all` (or a higher `--limit`) before advancing to the new `as_of`; otherwise the dropped changes leave the feed permanently.
+
+The cap is enforced by the eval process's control server, so an `inspect` CLI from before the cap (≤ 0.3.245) reading a newer eval will see the capped listing without the footer or the `truncated` flag. Keep the observing CLI at least as new as the eval it inspects (a newer CLI reading an older eval handles the difference automatically).
 
 ## Errors and Retries
 
-`inspect ctl errors` is a triage view of the samples that errored or were retried:
+`inspect ctl sample errors` is a triage view of the samples that errored or were retried (across all running tasks when `TASK` is omitted):
 
 ```bash
-$ inspect ctl errors gpqa
+$ inspect ctl sample errors gpqa
 sample  epoch  status   retries  error
 ------  -----  -------  -------  ----------------------------------
 9       1      error    2        RuntimeError: tool execution failed
 17      1      running  1
 ```
 
-`inspect ctl sample` drills into one sample's full error history, including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--traceback` for full tracebacks:
+`inspect ctl sample show` drills into one sample: its status, timing, token usage, and score, plus its full error history — including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--traceback` for full tracebacks:
 
 ```bash
-$ inspect ctl sample gpqa 9 --traceback
+$ inspect ctl sample show gpqa 9 --traceback
 ```
 
 ## Transcript Events
 
-`inspect ctl events` reads a running sample's transcript — the sequence of model calls, tool calls, errors, and scores it has produced so far:
+`inspect ctl sample events` reads a running sample's transcript — the sequence of model calls, tool calls, errors, and scores it has produced so far:
 
 ```bash
-$ inspect ctl events gpqa 17
+$ inspect ctl sample events gpqa 17
 time      event  summary
 --------  -----  -------------------------------------------------
 14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
@@ -98,72 +203,112 @@ time      event  summary
 14:09:11  model  openai/gpt-5 · 2105 tok · stop · Based on the...
 
 3 events  ·  more
-next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ
+next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
 ```
 
-Reads are incremental: each page ends with a `next` cursor, and passing it back via `--since` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript.
+The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`, or start from the first event with `--from-start`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as "try again shortly", not as the sample or eval being gone.
 
 Other options:
 
 | Option | Description |
 |----|----|
-| `--tail N` | Start N events from the end instead of the beginning. |
-| `--type model,tool` | Filter by event type (`*` for all). By default, high-volume structural events are excluded. |
+| `--tail N` | Start N events from the end (default 20 on a fully unseeded read — no `--cursor`, no `--since-time`/`--until` window, no `--from-start`). |
+| `--from-start` | Start from the first event and page through the full backlog (cannot be combined with `--cursor`, `--tail`, or `--since-time`). |
+| `--limit N` | Max events per page (default 500); combines with any start point (e.g. `--from-start --limit 15` for the first 15). Counted before the `--type` filter, so a filtered page may return fewer. |
+| `--type model,tool` | Filter by event type (`all` for everything). By default, high-volume structural events are excluded. |
 | `--full` | Return complete raw events instead of compact one-line summaries. |
 | `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |
 
 : {tbl-colwidths=[35,65]}
 
-Events for samples that have already completed are also readable — they are served from the eval's log.
+Note that `--cursor` takes the opaque `next` token, never a timestamp — for a wall-clock window use `--since-time`. Events for samples that have already completed are also readable — they are served from the eval's log.
 
-## Concurrency Limits
+## Cancellation
 
-`inspect ctl limits` shows a task's live concurrency limits, and can retune them mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available:
+`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
 
 ```bash
-$ inspect ctl limits gpqa
+$ inspect ctl sample cancel gpqa 17
+```
+
+`EPOCH` defaults to 1 but is *required* whenever the task runs more than one epoch — a defaulted epoch would silently cancel the epoch-1 attempt rather than erroring:
+
+```bash
+$ inspect ctl sample cancel gpqa 17 3
+```
+
+`inspect ctl task cancel` cancels a whole running task. By default it aborts: in-flight samples are interrupted (their transcripts so far are preserved in the log as cancelled samples), completed samples are kept, and the task's log is finalized with an error status noting the cancel. An eval set does not retry a cancelled task, and its other tasks are unaffected. `TASK` is always required — there is no sole-task default for destructive commands.
+
+```bash
+$ inspect ctl task cancel gpqa
+```
+
+Pass `--action score` or `--action error` to resolve the task *gracefully* instead of aborting it: each in-flight sample is scored on the work done so far (or marked errored), still-queued samples are abandoned, and the task runs to natural completion — so the eval finishes with a completed status rather than an error. This is how to abandon a task's last few stragglers while still bringing the eval to a completed state. Note that a completed status doesn't mean every sample ran: abandoned samples are absent from the log (visible as `completed_samples < total_samples` in its results), and an eval set treats the log as complete rather than re-running them — an explicit `inspect eval-retry` on the log will run them later if you change your mind. `--action error` is not permitted when the task's samples are configured to fail on errors. If a graceful cancel stalls — say on a hung scorer — issuing a plain `inspect ctl task cancel` escalates it to an abort.
+
+```bash
+$ inspect ctl task cancel gpqa --action score
+```
+
+Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
+
+## Configuration
+
+`inspect ctl config` shows a running eval's retunable launch configuration, and can retune it mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available. Any `inspect eval` launch flag that can be retuned mid-flight is settable here, under the same spelling:
+
+```bash
+$ inspect ctl config gpqa
 inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40
 
-limits:
-  max samples:   tracks adaptive connections (see below)
-  max sandboxes: docker 40 (12 in use)
-  adaptive connections:
+config:
+  max samples [task]:         tracks adaptive connections (see below)
+  max sandboxes [process]:    docker 40 (12 in use)
+  max subprocesses [process]: 16 (9 in use)
+  adaptive connections [process]:
     openai/gpt-5: 45 (38 in use), range 10–100, last: 40→45 steady_state_up
+  log buffer [task]:          10 samples (2 pending)
+  shared sync [task]:         off
 
-$ inspect ctl limits gpqa --max-connections 20
+$ inspect ctl config gpqa --max-connections 20
 ```
 
-| Option | Description |
-|----|----|
-| `--max-samples N` | Set the task's sample concurrency (not applicable under [adaptive connections](models-concurrency.qmd), where sample concurrency tracks the controller). |
-| `--max-sandboxes N` | Set the per-provider sandbox concurrency (process-wide, across all tasks). |
-| `--max-connections N` | Set the adaptive connections scaling ceiling (process-wide, across all tasks). |
-| `--model M` | Restrict `--max-connections` (and the adaptive view) to matching models in mixed-model runs. |
-| `--dry-run` | Report what would change (`current → requested`) without applying it. |
+Scope is a property of each knob, not of the command: task-scoped knobs apply to the selected task, process-scoped knobs apply to every task in the process. The output labels every knob with its scope (in `--json`, each knob carries `"scope": "task" | "process"`), and a `--dry-run` reports the blast radius of a process-scoped change.
 
-: {tbl-colwidths=[35,65]}
+| Option | Scope | Description |
+|----|----|----|
+| `--max-samples N` | task | Sample concurrency (not applicable under [adaptive connections](models-concurrency.qmd), where sample concurrency tracks the controller). |
+| `--max-sandboxes N` | process | Per-provider sandbox concurrency. |
+| `--max-subprocesses N` | process | Subprocess concurrency (inactive until the run's first subprocess). |
+| `--max-connections N` | process | Adaptive connections scaling ceiling. |
+| `--key NAME LIMIT` | process | Set a named [`concurrency()`](parallelism.qmd#sec-parallel-solvers-and-scorers) registry limit — any limit tools or task code register by name. |
+| `--log-buffer N` | task | Completed samples buffered before a log write (lower it to write to S3 more often). |
+| `--log-shared S` | task | Shared-log event sync interval in seconds. |
+| `--timeout S` | process | Override the total retry budget per generate call, in seconds (`clear` restores launch config). |
+| `--attempt-timeout S` | process | Override the per-attempt API timeout, in seconds (`clear` restores launch config). |
+| `--max-retries N` | process | Override the max retries per generate call (`0` fails after the first attempt; `clear` restores launch config). |
+| `--model M` | — | Restrict `--max-connections` (and the adaptive view) to matching models in mixed-model runs. |
+| `--dry-run` | — | Report what would change (`current → requested`) without applying it. |
 
-Changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene.
+: {tbl-colwidths=[25,12,63]}
 
-Limits are keyed by the task (stable across retries): with eval sets' default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — `retry_immediate=False` — run as separate calls and revert). `--max-sandboxes` and `--max-connections` are process-wide — in an eval set they affect every task in the process, not just the one named. With no `TASK` argument the command targets the sole running process (showing just the process-wide limits when it hosts multiple tasks).
+Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
 
-## Log Buffer
+`--timeout` / `--attempt-timeout` / `--max-retries` set live overrides of the corresponding generation config fields — the "stop retrying and fail fast" (or "raise retries to ride it out") lever during a provider incident. The model retry loop reads the overrides at each point of use, so a change reaches even generate calls already inside a retry loop; an in-flight API request always drains first (its attempt timeout is not retroactively shortened), and timeouts a provider SDK bakes into its client at initialization are unaffected. Batch admin operations (creating a provider batch, polling its results) also keep their launch config — failing one of those would fail every request riding the batch — while batched generate requests themselves still honor the `--timeout` / `--max-retries` overrides through their own retry loops (`--attempt-timeout` does not apply to batched calls: an attempt there waits on an entire provider batch, and cancelling that wait would resubmit duplicate requests into a new batch). The overrides are consulted after each attempt completes, so a retune that lands while a call is sitting in an exponential-backoff sleep (which grows to as much as 30 minutes between attempts) takes effect only after that sleep finishes and one more attempt runs — when failing fast, lower `--attempt-timeout` in the same retune to bound that final attempt. An override applies process-wide until cleared (pass `clear`) or the run ends; the config view reports each field's active override, with `launch config` meaning no override is in effect.
 
-Completed samples are buffered and written to the (possibly remote, e.g. S3) log in batches. Two commands control this for a running eval:
+Beyond the named flags, any limit registered through the `concurrency()` API — by built-in tools (for example the web search providers), model compaction, or your own solver and tool code — is settable with `--key NAME LIMIT`. The config output lists the registered keys under `concurrency keys`, exactly as addressable here; named limits are created lazily on first use, so a key that names no registered limit errors and lists the keys that do exist.
 
-`inspect ctl flush` writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.
+Task-scoped knobs are keyed by the task (stable across retries): with eval sets' default immediate retries, a retune survives a task retry rather than reverting to the launch configuration (legacy batch-mode retries — `retry_immediate=False` — run as separate calls and revert). With no `TASK` argument the command targets the sole running task; in a multi-task process the process-scoped knobs still work without a selector (they apply process-wide), while setting a task-scoped knob then requires the `TASK`.
+
+## Log Flushing
+
+Completed samples are buffered and written to the (possibly remote, e.g. S3) log in batches (see `--log-buffer` above). `inspect ctl task log-flush` writes any buffered samples to the log immediately, so they become readable and analyzable without waiting for the buffer to fill. It is safe to repeat — a flush with nothing pending writes nothing.
 
 ```bash
-$ inspect ctl flush gpqa
+$ inspect ctl task log-flush gpqa
 ```
 
-`inspect ctl buffer` shows or changes the buffering parameters: `--samples N` sets how many completed samples buffer before a write (lower it to write to S3 more often), and `--shared S` sets the shared-log event sync interval in seconds. Changing `--samples` affects future writes only — run `flush` to write what is already pending.
+## Processes and Keep Alive
 
-```bash
-$ inspect ctl buffer gpqa --samples 5
-```
-
-## Keep Alive
+`inspect ctl process` lists the running Inspect processes (their pids, keep-alive status, and hosted tasks). The pid is the selector `process keep` / `process release` take; with a single running process it can be omitted.
 
 A process exits as soon as its eval finishes, taking the control endpoint with it. That is a problem for scripted workflows that want to inspect results after completion: the process may be gone by the time they look. The `--ctl-server` option controls this:
 
@@ -174,12 +319,12 @@ inspect eval ctf.py --ctl-server=keep
 With `keep`, the process stays running after the eval finishes — its state remains queryable via `inspect ctl` and its logs are fully written — until you release it:
 
 ```bash
-inspect ctl release
+inspect ctl process release
 ```
 
-You can also latch keep-alive onto an eval that is *already running* (launched without `--ctl-server=keep`) with `inspect ctl keep`.
+You can also latch keep-alive onto an eval that is *already running* (launched without `--ctl-server=keep`) with `inspect ctl process keep`.
 
-If more than one process is parked, `release` lists their pids and you disambiguate with `--pid`. Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
+If more than one process is parked, `release` lists their pids and you disambiguate by passing one (`inspect ctl process release <pid>`). Release also works ahead of time: issued while the eval is still running, it means "exit when done" — the process skips the park and exits as soon as the eval finishes (it never cancels in-flight work). `keep` and `release` are last-write-wins, so a `keep` issued after a `release` (while the eval is still running) restores the park. From Python, pass `ctl_server="keep"` to `eval()` or `eval_set()`. For eval sets, keep-alive requires `retry_immediate=True` (the default).
 
 ## Disabling the Control Server
 

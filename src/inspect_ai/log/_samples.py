@@ -39,6 +39,10 @@ from ._transcript import Transcript
 logger = getLogger(__name__)
 
 
+SampleCancelAction = Literal["score", "error", "cancel"]
+"""How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
+
+
 class ActiveSample:
     def __init__(
         self,
@@ -50,6 +54,7 @@ class ActiveSample:
         epoch: int,
         message_limit: int | None,
         token_limit: int | None,
+        token_limit_type: str | None = None,
         cost_limit: float | None,
         time_limit: int | None,
         working_limit: int | None,
@@ -81,12 +86,17 @@ class ActiveSample:
         self.epoch = epoch
         self.message_limit = message_limit
         self.token_limit = token_limit
+        # None when no ceiling is configured (metering type is only meaningful
+        # alongside a configured limit)
+        self.token_limit_type: str | None = token_limit_type
         self.cost_limit = cost_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
+        self.total_turns = 0
+        self.token_limit_usage: int | None = None
         self.total_cost: float | None = None
         self.fallback_models: list[str] = []
         self.transcript = transcript
@@ -101,7 +111,7 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
-        self._interrupt_action: Literal["score", "error"] | None = None
+        self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
@@ -195,7 +205,14 @@ class ActiveSample:
         else:
             return 0
 
-    def interrupt(self, action: Literal["score", "error"]) -> None:
+    def interrupt(self, action: SampleCancelAction) -> None:
+        """Terminate this running sample.
+
+        ``action`` selects the outcome: ``"score"`` completes the sample and
+        runs the scorer on the work done so far; ``"error"`` marks it errored;
+        ``"cancel"`` records it as cancelled (transcript preserved, no
+        scoring, not counted as an error).
+        """
         self._interrupt_action = action
         if self.tg is None:
             raise RuntimeError(
@@ -238,7 +255,7 @@ class ActiveSample:
             )
 
     @property
-    def interrupt_action(self) -> Literal["score", "error"] | None:
+    def interrupt_action(self) -> SampleCancelAction | None:
         return self._interrupt_action
 
     @property
@@ -260,6 +277,7 @@ async def active_sample(
     epoch: int,
     message_limit: int | None,
     token_limit: int | None,
+    token_limit_type: str | None = None,
     cost_limit: float | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -285,6 +303,7 @@ async def active_sample(
         epoch=epoch,
         message_limit=message_limit,
         token_limit=token_limit,
+        token_limit_type=token_limit_type,
         cost_limit=cost_limit,
         time_limit=time_limit,
         working_limit=working_limit,
@@ -350,10 +369,46 @@ def set_active_sample_token_limit(token_limit: int | None) -> None:
         active.token_limit = token_limit
 
 
+def set_active_sample_token_limit_type(token_limit_type: str | None) -> None:
+    """Surface the sample token limit's metering type on the active sample.
+
+    `None` when no ceiling is configured. Pushed when a solver changes the
+    limit dynamically (`TaskState.token_limit` setter) so the control channel
+    reports the type consistently with the ceiling.
+    """
+    active = sample_active()
+    if active:
+        active.token_limit_type = token_limit_type
+
+
 def set_active_sample_total_tokens(total_tokens: int) -> None:
     active = sample_active()
     if active:
         active.total_tokens = total_tokens
+
+
+def set_active_sample_token_limit_usage(token_limit_usage: int | None) -> None:
+    """Surface the sample token limit's metered usage on the active sample.
+
+    Pushed on every usage record so the control channel can report live usage
+    against the configured ceiling (the limit trees are context-bound and not
+    readable from the control channel's task).
+    """
+    active = sample_active()
+    if active:
+        active.token_limit_usage = token_limit_usage
+
+
+def set_active_sample_total_turns(total_turns: int) -> None:
+    """Surface the running turn count on the active sample.
+
+    Pushed after each top-level generation so the control channel can report
+    turns alongside message count (the limit trees are context-bound and not
+    readable from the control channel's task).
+    """
+    active = sample_active()
+    if active:
+        active.total_turns = total_turns
 
 
 def set_active_sample_cost_limit(cost_limit: float | None) -> None:

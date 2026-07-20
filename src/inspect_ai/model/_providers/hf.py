@@ -18,6 +18,7 @@ from typing import Any, Literal, Protocol, cast
 import anyio
 import numpy as np
 import torch  # type: ignore
+import transformers  # type: ignore
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
@@ -109,6 +110,23 @@ class HuggingFaceAPI(ModelAPI):
         if not isinstance(trust_remote_code, bool):
             raise ValueError("trust_remote_code must be a bool")
 
+        # select the transformers auto-class used to load the model. Some
+        # architectures (e.g. the Mistral 3 series and other image-text-to-text
+        # models) are not registered with AutoModelForCausalLM and must be
+        # loaded with a different class such as AutoModelForImageTextToText.
+        auto_model_class = collect_model_arg("auto_model_class")
+        if auto_model_class is not None:
+            if not isinstance(auto_model_class, str):
+                raise ValueError("auto_model_class must be a str")
+            model_loader = getattr(transformers, auto_model_class, None)
+            if model_loader is None:
+                raise ValueError(
+                    f"auto_model_class '{auto_model_class}' is not a valid "
+                    "transformers class"
+                )
+        else:
+            model_loader = AutoModelForCausalLM
+
         # device
         if device:
             self.device = device
@@ -121,7 +139,7 @@ class HuggingFaceAPI(ModelAPI):
 
         # model
         if model_path:
-            self.model: Any = AutoModelForCausalLM.from_pretrained(
+            self.model: Any = model_loader.from_pretrained(
                 model_path,
                 device_map=self.device,
                 token=self.api_key,
@@ -129,7 +147,7 @@ class HuggingFaceAPI(ModelAPI):
                 **model_args,
             )
         else:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model = model_loader.from_pretrained(
                 model_name,
                 device_map=self.device,
                 token=self.api_key,
