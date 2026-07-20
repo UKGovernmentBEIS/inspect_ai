@@ -6,15 +6,72 @@ when the data in server_tool_uses was sent back to OpenAI.
 The fix was to use model_dump(exclude_none=True) to exclude None values.
 """
 
+import json
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from openai.types.responses import ResponseFunctionWebSearch
-from openai.types.responses.response_function_web_search import ActionSearch
+from openai.types.responses.response_function_web_search import Action, ActionSearch
 
 from inspect_ai.model._openai_responses import (
     _chat_message_assistant_from_openai_response,
     _openai_input_items_from_chat_message_assistant,
+    parse_web_search_action,
 )
+
+
+def _assert_constructs(action: dict) -> None:
+    """The parsed action must survive strict SDK construction (the bridge does this)."""
+    ResponseFunctionWebSearch(
+        type="web_search_call",
+        id="ws_1",
+        action=cast(Action, action),
+        status="completed",
+    )
+
+
+def test_find_in_page_with_pattern_and_url_passes_through():
+    action = {"type": "find_in_page", "pattern": "needle", "url": "https://x.ai"}
+    result = parse_web_search_action(json.dumps(action))
+
+    assert result == action
+    _assert_constructs(result)
+
+
+def test_find_in_page_without_url_falls_back_to_search():
+    """ActionFind requires a url; without one the action degrades to a search."""
+    arguments = json.dumps({"type": "find_in_page", "pattern": "needle"})
+    result = parse_web_search_action(arguments)
+
+    assert result == {"type": "search", "query": arguments}
+    _assert_constructs(result)
+
+
+def test_legacy_find_type_renamed_to_find_in_page():
+    """Older SDK serializations spelled the type 'find'; the discriminator is 'find_in_page'."""
+    result = parse_web_search_action(
+        json.dumps({"type": "find", "pattern": "needle", "url": "https://x.ai"})
+    )
+
+    assert result["type"] == "find_in_page"
+    assert result["pattern"] == "needle"
+    assert result["url"] == "https://x.ai"
+    _assert_constructs(result)
+
+
+def test_legacy_find_without_pattern_falls_back_to_search():
+    arguments = json.dumps({"type": "find", "url": "https://x.ai"})
+    result = parse_web_search_action(arguments)
+
+    assert result == {"type": "search", "query": arguments}
+    _assert_constructs(result)
+
+
+def test_search_action_parses_unchanged():
+    result = parse_web_search_action(json.dumps({"type": "search", "query": "hello"}))
+
+    assert result == {"type": "search", "query": "hello"}
+    _assert_constructs(result)
 
 
 def test_web_search_round_trip_excludes_none():
