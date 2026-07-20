@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from os.path import dirname, join
 from pathlib import Path
 
+import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai import Task, eval
@@ -18,11 +19,13 @@ from inspect_ai.log._log import (
     EvalPlan,
     EvalResults,
     EvalSample,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
 )
 from inspect_ai.log._recorders.eval import EvalRecorder
-from inspect_ai.log._util import thin_input
+from inspect_ai.log._recorders.json import JSONRecorder
+from inspect_ai.log._util import thin_input, thin_text
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -175,6 +178,87 @@ def _make_spec() -> EvalSpec:
 
 def _make_sample(i: int) -> EvalSample:
     return EvalSample(id=i, epoch=1, input=f"input {i}", target=f"target {i}")
+
+
+def _count_summary_calls(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    """Patch EvalSample.summary to count invocations; returns the counter cell."""
+    calls = [0]
+    original = EvalSample.summary
+
+    def counting(self: EvalSample) -> EvalSampleSummary:
+        calls[0] += 1
+        return original(self)
+
+    monkeypatch.setattr(EvalSample, "summary", counting)
+    return calls
+
+
+@skip_if_trio
+async def test_eval_recorder_summaries_computed_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated sample_summaries() reads must not recompute summaries.
+
+    The control channel polls sample_summaries(); recomputing the (expensive)
+    summary for buffered samples on every read stalled the event loop on evals
+    buffering many transcript-heavy samples (meridianlabs-ai/inspect_ai#116).
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+        recorder = EvalRecorder(temp_dir)
+        await recorder.log_init(spec)
+        await recorder.log_start(spec, EvalPlan())
+
+        calls = _count_summary_calls(monkeypatch)
+        await recorder.log_sample(spec, _make_sample(1))
+        await recorder.log_sample(spec, _make_sample(2))
+        assert calls[0] == 2
+
+        for _ in range(3):
+            summaries = await recorder.sample_summaries(spec)
+            assert summaries is not None
+            assert sorted((s.id, s.epoch) for s in summaries) == [(1, 1), (2, 1)]
+        assert calls[0] == 2
+
+        # flush reuses the buffered summaries rather than recomputing
+        await recorder.flush(spec)
+        summaries = await recorder.sample_summaries(spec)
+        assert summaries is not None
+        assert sorted((s.id, s.epoch) for s in summaries) == [(1, 1), (2, 1)]
+        assert calls[0] == 2
+
+
+async def test_json_recorder_summaries_computed_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+        recorder = JSONRecorder(temp_dir)
+        await recorder.log_init(spec)
+
+        calls = _count_summary_calls(monkeypatch)
+        await recorder.log_sample(spec, _make_sample(1))
+        await recorder.log_sample(spec, _make_sample(2))
+        assert calls[0] == 2
+
+        for _ in range(3):
+            summaries = await recorder.sample_summaries(spec)
+            assert summaries is not None
+            assert sorted((s.id, s.epoch) for s in summaries) == [(1, 1), (2, 1)]
+        assert calls[0] == 2
+
+
+def test_thin_text_bounded_on_huge_input() -> None:
+    # textwrap.shorten alone is O(len(text)); thin_text pre-slices so a
+    # transcript-sized string can't cost seconds of CPU per call
+    huge = "word " * 2_000_000  # ~10MB
+    result = thin_text(huge)
+    assert len(result) <= 1024
+    assert result.endswith("...")
+    # a huge run without whitespace truncates too
+    assert len(thin_text("a" * 2_000_000)) <= 1024
+    # small inputs pass through unchanged
+    assert thin_text("hello world") == "hello world"
 
 
 @skip_if_trio

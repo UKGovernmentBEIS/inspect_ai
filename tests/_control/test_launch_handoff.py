@@ -16,19 +16,24 @@ halves of the guarantee:
   with every stdout line parseable as JSON.
 """
 
+import contextlib
 import json
 import os
+import re
+import signal
 import subprocess
 import sys
+import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 import pytest
 
 import inspect_ai
 from _control.conftest import cli_runner
 from inspect_ai import Task, task
+from inspect_ai._cli.detach import _child_args, _handoff_record, _wait_for_record
 from inspect_ai._cli.eval import (
     _json_prerequisite_errors_to_stderr,
     eval_command,
@@ -39,6 +44,7 @@ from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._eval.handoff import (
     LaunchHandoff,
     emit_launch_handoff,
+    launch_handoff_emitted,
     set_launch_handoff_listener,
 )
 from inspect_ai._util.error import PrerequisiteError, SilentException
@@ -805,3 +811,484 @@ def test_eval_retry_json_multi_file_emits_launch_per_file(
     # the task fails again on retry — still a done record (exit 0), with
     # per-task statuses saying what failed
     assert [log["status"] for log in done["logs"]] == ["error", "error"]
+
+
+# --- keep-alive park launch handoff ------------------------------------------
+
+
+@pytest.fixture
+def parkless_keep_alive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the eval-set keep-alive park return instead of blocking.
+
+    The park blocks until ``POST /release``; the handoff tests only care
+    about what happens *at* the park (its control bind + handoff
+    emission), so stub the wait out and let the run complete.
+    """
+
+    async def no_wait(server: object) -> None:
+        return None
+
+    monkeypatch.setattr("inspect_ai._eval.evalset.wait_for_shutdown_async", no_wait)
+
+
+def test_all_reused_eval_set_park_emits_launch_handoff(
+    short_data_dir: Path,
+    handoff_listener: list[LaunchHandoff],
+    parkless_keep_alive: None,
+) -> None:
+    """An all-reused eval-set's keep-alive park emits the launch handoff.
+
+    A set whose tasks are all already complete runs no eval, so nothing
+    else emits a handoff — yet the park still binds a control surface. A
+    ``--detach`` launcher blocks on the ``launch`` record, so a silent
+    park would hang it; the park closes the gap with a ``run_id=None``
+    handoff (no eval ran) carrying the parked process's socket.
+    """
+    log_dir = str(short_data_dir / "logs")
+    inspect_ai.eval_set([handoff_task()], model="mockllm/model", log_dir=log_dir)
+    assert len(handoff_listener) == 1  # the completed first run
+
+    inspect_ai.eval_set(
+        [handoff_task()], model="mockllm/model", log_dir=log_dir, ctl_server="keep"
+    )
+
+    assert len(handoff_listener) == 2
+    park_handoff = handoff_listener[-1]
+    assert park_handoff.run_id is None
+    assert park_handoff.eval_set_id is not None
+    assert park_handoff.log_dir == log_dir
+    assert park_handoff.control_socket is not None
+
+
+def test_eval_set_park_does_not_emit_second_handoff(
+    short_data_dir: Path,
+    handoff_listener: list[LaunchHandoff],
+    parkless_keep_alive: None,
+) -> None:
+    """A keep-alive run that ran an eval sees exactly one ``launch`` handoff.
+
+    The run's own bind already emitted it, so the park must stay silent —
+    "exactly one launch record per keep-alive run" is the contract agents
+    correlate ``done`` records against.
+    """
+    log_dir = str(short_data_dir / "logs")
+    inspect_ai.eval_set(
+        [handoff_task()], model="mockllm/model", log_dir=log_dir, ctl_server="keep"
+    )
+
+    assert len(handoff_listener) == 1
+    assert handoff_listener[0].run_id is not None
+
+
+def test_launch_handoff_emitted_resets_with_listener() -> None:
+    """The emitted flag tracks deliveries to the currently registered listener."""
+    set_launch_handoff_listener(lambda handoff: None)
+    try:
+        assert not launch_handoff_emitted()
+        emit_launch_handoff(
+            LaunchHandoff(run_id="r", pid=1, log_dir="/logs", control_socket=None)
+        )
+        assert launch_handoff_emitted()
+        set_launch_handoff_listener(lambda handoff: None)
+        assert not launch_handoff_emitted()
+    finally:
+        set_launch_handoff_listener(None)
+
+
+# --- inspect eval --detach ----------------------------------------------------
+
+
+def test_detach_child_args_strip_flag_and_force_json() -> None:
+    """The child re-invocation drops --detach and forces --json --no-detach.
+
+    The user's --ctl-server value — notably an explicit keep — must be
+    preserved verbatim: --detach no longer forces the keep-alive park.
+    --no-detach is forced (not just --detach stripped) so a detach enabled
+    via INSPECT_EVAL_DETACH — which a project .env re-injects into the
+    child regardless of its environment — cannot make the child a launcher
+    itself: argv always beats the envvar.
+    """
+    args = _child_args(["eval", "t.py", "--detach", "--ctl-server", "keep"])
+    assert "--detach" not in args
+    assert args == ["eval", "t.py", "--ctl-server", "keep", "--json", "--no-detach"]
+
+
+def test_detach_child_args_insert_before_separator() -> None:
+    """The forced flags go before a bare `--`, where click still parses options.
+
+    Appended after the separator they would be consumed as task names;
+    everything from the separator on must be preserved verbatim (including
+    a literal `--detach` positional, which only counts as the flag before
+    the separator).
+    """
+    args = _child_args(["eval", "--detach", "--", "t.py", "--detach"])
+    assert args == ["eval", "--json", "--no-detach", "--", "t.py", "--detach"]
+
+
+def test_detach_handoff_record_skips_diagnostics() -> None:
+    """Only launch/done JSON lines count as handoff records.
+
+    The child's stdout and stderr share the output file, so the tail must
+    skip interleaved diagnostics (and JSON that isn't a handoff record)
+    without failing.
+    """
+    assert _handoff_record("some stderr diagnostic") is None
+    assert _handoff_record('{"not": "a record"}') is None
+    assert _handoff_record('["launch"]') is None
+    record = _handoff_record('{"event": "launch", "run_id": "r"}')
+    assert record is not None and record["run_id"] == "r"
+
+
+def test_detach_wait_for_record_reassembles_split_multibyte(tmp_path: Path) -> None:
+    """A read boundary inside a multibyte character must not corrupt the record.
+
+    The tail's poll can land while the child is mid-write, splitting a
+    multibyte UTF-8 character (e.g. in a non-ASCII log_dir) across two
+    reads; decoding only complete lines reassembles it instead of tearing
+    it into replacement characters.
+    """
+    output_file = tmp_path / "child.out"
+    output_file.write_bytes(b"")
+    record_bytes = json.dumps(
+        {"event": "launch", "log_dir": "/tmp/évals"}, ensure_ascii=False
+    ).encode("utf-8")
+    split = record_bytes.index("é".encode()) + 1  # between the é's two bytes
+
+    class _ScriptedChild:
+        """Stub Popen whose poll() appends the next output chunk before each read."""
+
+        def __init__(self) -> None:
+            self._chunks = [record_bytes[:split], record_bytes[split:] + b"\n"]
+
+        def poll(self) -> int | None:
+            if self._chunks:
+                with open(output_file, "ab") as f:
+                    f.write(self._chunks.pop(0))
+                return None
+            return 0
+
+    record = _wait_for_record(
+        cast("subprocess.Popen[bytes]", _ScriptedChild()), output_file
+    )
+    assert record is not None and record["log_dir"] == "/tmp/évals"
+
+
+def test_eval_detach_rejects_ctl_server_false(
+    short_data_dir: Path, monkeypatch: pytest.MonkeyPatch, fresh_display: None
+) -> None:
+    """--detach without a control surface is refused up front.
+
+    A detached eval with no control server could be neither observed nor
+    confirmed finished — the launcher errors before spawning anything.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    monkeypatch.chdir(short_data_dir)
+
+    runner = cli_runner()
+    result = runner.invoke(
+        eval_command,
+        [
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--detach",
+            "--ctl-server=false",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert result.stdout.strip() == ""
+    assert "--detach requires the control server" in result.stderr
+
+
+def _wait_for_pid_exit(pid: int, timeout: float) -> bool:
+    """Poll until ``pid`` no longer exists; True when it exited in time.
+
+    POSIX-only: on Windows ``os.kill(pid, 0)`` terminates the target
+    instead of probing it — callers need a win32 skipif marker.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        time.sleep(0.2)
+    return False
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="os.kill(pid, 0) is not a liveness probe"
+)
+def test_eval_detach_hands_off_and_leaves_eval_running(
+    short_data_dir: Path,
+) -> None:
+    """``inspect eval --detach`` end to end: handoff, detached run, exit.
+
+    The launcher must print the ``launch`` record (augmented with
+    ``output_file``) and exit 0 while the eval continues in a detached
+    process; with no forced keep-alive the detached process exits on its
+    own when the eval finishes, leaving the ``done`` record in the output
+    file as the completion signal. Spawns the real CLI (a detached child
+    cannot be exercised in-process); sandboxed via ``XDG_DATA_HOME``,
+    effective on Linux (see
+    ``test_eval_json_redirects_subprocess_stdout_to_stderr`` for the
+    macOS caveat).
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    log_dir = str(short_data_dir / "logs")
+    env = {**os.environ, "XDG_DATA_HOME": str(short_data_dir / "xdg")}
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            log_dir,
+            "--detach",
+        ],
+        cwd=short_data_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stderr
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(records) == 1
+    launch = records[0]
+    assert launch["event"] == "launch"
+    assert launch["run_id"]
+    assert launch["control"]["socket_path"]
+    output_file = Path(launch["output_file"])
+    assert output_file.exists()
+
+    pid = launch["pid"]
+    try:
+        assert _wait_for_pid_exit(pid, timeout=240), (
+            "detached eval did not exit when the eval finished"
+        )
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, 9)
+
+    # the done record can't reach the launcher's terminal — it lands in the
+    # output file, alongside any stray prints/diagnostics
+    done_records = [
+        record
+        for line in output_file.read_text().splitlines()
+        if (record := _try_parse_json(line)) is not None
+        and record.get("event") == "done"
+    ]
+    assert len(done_records) == 1
+    assert done_records[0]["run_id"] == launch["run_id"]
+    assert done_records[0]["logs"][0]["status"] == "success"
+
+
+def _try_parse_json(line: str) -> dict | None:
+    try:
+        record = json.loads(line)
+    except ValueError:
+        return None
+    return record if isinstance(record, dict) else None
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="os.kill(pid, 0) is not a liveness probe"
+)
+def test_eval_detach_via_dotenv_detaches_exactly_once(short_data_dir: Path) -> None:
+    """INSPECT_EVAL_DETACH in a project ``.env`` must detach exactly once.
+
+    ``init_dotenv()`` re-injects the variable from ``.env`` before click
+    parses argv, so scrubbing the child's environment cannot stop it from
+    seeing detach enabled again: without the forced ``--no-detach`` every
+    generation became a launcher itself — forking without bound and never
+    running the eval. The command must hand off once and its child must
+    run the eval to completion without allocating further output files.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    (short_data_dir / ".env").write_text("INSPECT_EVAL_DETACH=true\n")
+    xdg_dir = short_data_dir / "xdg"
+    env = {**os.environ, "XDG_DATA_HOME": str(xdg_dir)}
+    env.pop("INSPECT_EVAL_DETACH", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+        ],
+        cwd=short_data_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode == 0, result.stderr
+    records = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(records) == 1
+    launch = records[0]
+    assert launch["event"] == "launch"
+
+    pid = launch["pid"]
+    try:
+        assert _wait_for_pid_exit(pid, timeout=240), (
+            "detached eval did not exit when the eval finished"
+        )
+    finally:
+        with contextlib.suppress(ProcessLookupError):
+            os.kill(pid, 9)
+
+    # the child ran the eval rather than re-detaching into another
+    # launcher: its done record is in the output file, and no further
+    # generation allocated an output file of its own
+    output_file = Path(launch["output_file"])
+    done_records = [
+        record
+        for line in output_file.read_text().splitlines()
+        if (record := _try_parse_json(line)) is not None
+        and record.get("event") == "done"
+    ]
+    assert len(done_records) == 1
+    assert done_records[0]["logs"][0]["status"] == "success"
+    detach_dir = xdg_dir / "inspect_ai" / "detach"
+    assert list(detach_dir.glob("*.out")) == [output_file]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX socket paths")
+def test_eval_detach_fails_when_control_bind_fails(short_data_dir: Path) -> None:
+    """A launch record with control null is a failed handoff, not success.
+
+    When the control server fails to bind (here: a data dir long enough
+    that the AF_UNIX socket path exceeds the OS limit), the detached eval
+    could be neither observed nor cancelled while running — so the
+    launcher must terminate it and exit non-zero instead of emitting the
+    launch record, preserving "exit 0 ⇔ eval running detached and
+    monitorable".
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(TASK_FILE)
+    # AF_UNIX socket paths are limited to ~104-108 bytes; a data dir this
+    # long makes the control-server bind fail while regular file paths
+    # (e.g. the detach output file) are unaffected
+    env = {**os.environ, "XDG_DATA_HOME": str(short_data_dir / ("x" * 150))}
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+            "--detach",
+        ],
+        cwd=short_data_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    assert result.returncode != 0
+    assert result.stdout.strip() == ""
+    assert "control endpoint did not bind" in result.stderr
+    # the terminated child's pid is reported so nothing dangles silently
+    pid_match = re.search(r"pid (\d+)", result.stderr)
+    assert pid_match is not None, result.stderr
+    assert _wait_for_pid_exit(int(pid_match.group(1)), timeout=60)
+
+
+SLOW_IMPORT_TASK_FILE = """
+import time
+
+time.sleep(60)
+
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate
+
+
+@task
+def handoff_cli_task():
+    return Task(dataset=[Sample(input="x", target="y")], solver=[generate()])
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
+def test_eval_detach_sigterm_terminates_child(short_data_dir: Path) -> None:
+    """SIGTERM during the wait mirrors Ctrl+C: child terminated, exit 143.
+
+    ``timeout 10m inspect eval --detach …`` (or a CI cancellation) delivers
+    SIGTERM to the launcher mid-wait; without a handler the launcher would
+    die leaving the detached child running with no launch record emitted —
+    the third state the handoff contract rules out. The slow-import task
+    holds the child pre-launch-record so the wait window is wide.
+    """
+    task_path = short_data_dir / "handoff_cli_task.py"
+    task_path.write_text(SLOW_IMPORT_TASK_FILE)
+    xdg_dir = short_data_dir / "xdg"
+    env = {**os.environ, "XDG_DATA_HOME": str(xdg_dir)}
+
+    launcher = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "inspect_ai._cli.main",
+            "eval",
+            task_path.name,
+            "--model",
+            "mockllm/model",
+            "--log-dir",
+            str(short_data_dir / "logs"),
+            "--detach",
+        ],
+        cwd=short_data_dir,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        # the launcher allocates the output file just before spawning the
+        # child and installs the SIGTERM handler right after; once the file
+        # exists (plus a grace period) the handler is reliably in place
+        detach_dir = xdg_dir / "inspect_ai" / "detach"
+        deadline = time.time() + 120
+        while time.time() < deadline and not list(detach_dir.glob("*.out")):
+            time.sleep(0.1)
+        assert list(detach_dir.glob("*.out")), "detach output file never appeared"
+        time.sleep(1.0)
+
+        launcher.send_signal(signal.SIGTERM)
+        stdout, stderr = launcher.communicate(timeout=60)
+    except BaseException:
+        launcher.kill()
+        raise
+
+    assert launcher.returncode == 143, stderr
+    assert stdout.strip() == ""
+    pid_match = re.search(r"pid (\d+)", stderr)
+    assert pid_match is not None, stderr
+    assert _wait_for_pid_exit(int(pid_match.group(1)), timeout=60), (
+        "detached child still running after SIGTERM to the launcher"
+    )
