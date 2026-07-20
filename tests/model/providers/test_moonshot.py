@@ -67,10 +67,8 @@ def test_moonshot_kimi_k3_no_warning_when_params_unset(
     assert not any("fixed sampling" in m for m in _warn_once_messages)
 
 
-def test_moonshot_kimi_k3_coerces_reasoning_effort(
-    mock_moonshot_env, _warn_once_messages
-):
-    """K3 thinking effort only accepts "max" — other values are coerced, with a warning."""
+def test_moonshot_kimi_k3_coerces_reasoning_effort(mock_moonshot_env):
+    """K3 thinking effort only accepts "max" — other values are coerced silently."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k3")
@@ -78,15 +76,48 @@ def test_moonshot_kimi_k3_coerces_reasoning_effort(
         config=GenerateConfig(reasoning_effort="high"), tools=False
     )
     assert params["reasoning_effort"] == "max"
-    assert any("reasoning_effort" in m and "kimi-k3" in m for m in _warn_once_messages)
 
-    # "max" passes through without warning
-    _warn_once_messages.clear()
     params = api.completion_params(
         config=GenerateConfig(reasoning_effort="max"), tools=False
     )
     assert params["reasoning_effort"] == "max"
+
+
+def test_moonshot_kimi_k3_coerces_forced_tool_choice(
+    mock_moonshot_env, _warn_once_messages
+):
+    """K3 rejects named tool_choice (incompatible with thinking) — coerce to "any"."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+    from inspect_ai.tool import ToolFunction
+
+    api = MoonshotAPI(model_name="kimi-k3")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+    )
+    assert tool_choice == "any"
+    assert any("addition" in m and "kimi-k3" in m for m in _warn_once_messages), (
+        "expected a warning for coerced tool_choice"
+    )
+
+    # non-forced choices pass through without warning
+    _warn_once_messages.clear()
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice="auto", config=GenerateConfig()
+    )
+    assert tool_choice == "auto"
     assert not _warn_once_messages
+
+
+def test_moonshot_non_k3_preserves_forced_tool_choice(mock_moonshot_env):
+    """Non-K3 Kimi models accept a named tool_choice as usual."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+    from inspect_ai.tool import ToolFunction
+
+    api = MoonshotAPI(model_name="kimi-k2.5")
+    _, tool_choice, _ = api.resolve_tools(
+        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+    )
+    assert tool_choice == ToolFunction(name="addition")
 
 
 def test_moonshot_forwards_model_args(mock_moonshot_env):
@@ -110,6 +141,41 @@ def test_moonshot_non_k3_preserves_sampling_params(mock_moonshot_env):
     assert params["top_p"] == 0.9
 
 
+def test_moonshot_context_overflow_maps_to_model_length(mock_moonshot_env):
+    """Moonshot's token-limit 400 (no error code) must map to stop_reason model_length."""
+    import httpx
+    from openai import APIStatusError
+
+    from inspect_ai.model._model_output import ModelOutput
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k3")
+    response = httpx.Response(
+        status_code=400,
+        request=httpx.Request("POST", "https://api.moonshot.ai/v1/chat/completions"),
+    )
+    message = (
+        "Invalid request: Your request exceeded model token limit: "
+        "262144 (requested: 425573)"
+    )
+    ex = APIStatusError(
+        message,
+        response=response,
+        body={"error": {"message": message, "type": "invalid_request_error"}},
+    )
+    output = api.handle_bad_request(ex)
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "model_length"
+
+    # other 400s still pass through as errors
+    other = APIStatusError(
+        "some other error",
+        response=response,
+        body={"error": {"message": "some other error"}},
+    )
+    assert isinstance(api.handle_bad_request(other), Exception)
+
+
 def test_moonshot_base_url_default(mock_moonshot_env):
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
@@ -119,9 +185,11 @@ def test_moonshot_base_url_default(mock_moonshot_env):
 
 @skip_if_no_moonshot
 async def test_moonshot_compatible() -> None:
+    # K3 thinking is always on, so the token budget must cover reasoning
+    # before any completion text is emitted.
     model = get_model(
         "moonshot/kimi-k3",
-        config=GenerateConfig(max_tokens=50),
+        config=GenerateConfig(max_tokens=2048),
     )
     message = ChatMessageUser(content="Hello Kimi!")
     res = await model.generate(input=[message])

@@ -203,7 +203,10 @@ def test_google_tools():
 
 @skip_if_no_moonshot
 def test_moonshot_tools():
-    check_tools("moonshot/kimi-k3")
+    # K3 can't force a specific tool among several: named tool_choice is
+    # incompatible with its always-on thinking, so the provider coerces it to
+    # "required" (which suffices for the single-tool "calls" check).
+    check_tools("moonshot/kimi-k3", disable=["force"])
 
 
 def test_dynamic_tools():
