@@ -149,7 +149,13 @@ class ContentDocument(ContentBase):
     """Document mime type (automatically determined from 'document' if not specified)."""
 
     citations: bool = Field(default=False)
-    """Enable model-generated citations that reference spans of this document. Currently supported by Anthropic models; ignored by providers without document-citation support."""
+    """Enable model-generated citations for text or PDF documents.
+
+    Anthropic requires citations on all citation-capable documents in a request;
+    the provider enables them on every text or PDF document when any document
+    enables them. Image citations are unsupported. Providers without document-
+    citation support ignore this field.
+    """
 
     @model_validator(mode="before")
     @classmethod
