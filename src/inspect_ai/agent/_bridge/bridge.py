@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
 
+import httpx
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
@@ -210,10 +211,9 @@ def init_openai_request_patch() -> None:
         return
     validate_openai_client("agent bridge")
 
-    import httpx
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
     from openai._constants import RAW_RESPONSE_HEADER
-    from openai._models import BaseModel, FinalRequestOptions
+    from openai._models import FinalRequestOptions
     from openai._types import Omit, ResponseT
 
     # extract headers
@@ -243,18 +243,21 @@ def init_openai_request_patch() -> None:
         `.with_streaming_response` (e.g. langchain-openai, which reads response
         headers) expect `request()` to return a response *wrapper* whose
         `.parse()` yields the model — otherwise they crash with
-        `'ChatCompletion' object has no attribute 'parse'`. Detect that case via
-        the SDK's own `X-Stainless-Raw-Response` header and delegate to
-        `_process_response()` so the wrapper is built exactly as it would be for
-        a real HTTP response.
+        `'ChatCompletion' object has no attribute 'parse'`. Building that
+        wrapper is delegated to `_process_response()` so it comes out exactly as
+        it would for a real HTTP response.
+
+        `_process_response()` handles plain `.create()` callers too (it ends in
+        `api_response.parse()` when the SDK's `X-Stainless-Raw-Response` header
+        is absent), so the header check below is only a shortcut past the
+        serialize-and-revalidate round trip for the common case, not a
+        behavioural branch.
+
+        Note this pins the bridge to the SDK's private `_process_response()`
+        keyword signature.
         """
-        raw_response = (
-            options.headers.get(RAW_RESPONSE_HEADER)
-            if isinstance(options.headers, dict)
-            else None
-        )
-        if not raw_response or isinstance(raw_response, Omit):
-            # plain `.create()` — return the parsed model directly (fast path)
+        raw_response = (request_headers(options) or {}).get(RAW_RESPONSE_HEADER)
+        if not raw_response:
             return result
 
         response = httpx.Response(

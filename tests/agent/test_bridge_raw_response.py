@@ -8,8 +8,6 @@ return a response *wrapper* (not the parsed model) for these callers — otherwi
 they crash with `'ChatCompletion' object has no attribute 'parse'` (issue #4341).
 """
 
-from collections.abc import Callable
-
 from openai import AsyncOpenAI
 from openai.types.chat import (
     ChatCompletion,
@@ -51,9 +49,7 @@ def run_bridge_test(solver: Agent, model_output: ModelOutput) -> None:
     )
 
 
-async def consume_raw_response(
-    bridge_state: AgentState, check: Callable[[ChatCompletion], None]
-) -> None:
+async def consume_raw_response(bridge_state: AgentState) -> ChatCompletion:
     """Drive the `with_raw_response` + `.parse()` path langchain-openai uses."""
     async with bridge_client() as client:
         raw = await client.chat.completions.with_raw_response.create(
@@ -64,19 +60,17 @@ async def consume_raw_response(
         assert raw.headers is not None
         completion = raw.parse()
         assert isinstance(completion, ChatCompletion)
-        check(completion)
+        return completion
 
 
 @agent
 def raw_response_agent() -> Agent:
     """Bridge agent that asserts a text completion survives the round-trip."""
 
-    def check(completion: ChatCompletion) -> None:
-        assert completion.choices[0].message.content == ANSWER
-
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
-            await consume_raw_response(bridge.state, check)
+            completion = await consume_raw_response(bridge.state)
+            assert completion.choices[0].message.content == ANSWER
             return bridge.state
 
     return execute
@@ -86,17 +80,15 @@ def raw_response_agent() -> Agent:
 def raw_response_tool_call_agent() -> Agent:
     """Bridge agent that asserts a tool-call completion survives the round-trip."""
 
-    def check(completion: ChatCompletion) -> None:
-        tool_calls = completion.choices[0].message.tool_calls
-        assert tool_calls is not None and len(tool_calls) == 1
-        tool_call = tool_calls[0]
-        assert isinstance(tool_call, ChatCompletionMessageFunctionToolCall)
-        assert tool_call.function.name == "get_weather"
-        assert "London" in tool_call.function.arguments
-
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
-            await consume_raw_response(bridge.state, check)
+            completion = await consume_raw_response(bridge.state)
+            tool_calls = completion.choices[0].message.tool_calls
+            assert tool_calls is not None and len(tool_calls) == 1
+            tool_call = tool_calls[0]
+            assert isinstance(tool_call, ChatCompletionMessageFunctionToolCall)
+            assert tool_call.function.name == "get_weather"
+            assert "London" in tool_call.function.arguments
             return bridge.state
 
     return execute
