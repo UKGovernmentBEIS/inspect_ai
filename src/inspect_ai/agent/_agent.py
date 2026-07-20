@@ -22,8 +22,8 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
     registry_unqualified_name,
-    set_registry_info,
     set_annotations,
+    set_registry_info,
 )
 from inspect_ai.model._chat_message import (
     ChatMessage,
