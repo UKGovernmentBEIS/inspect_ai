@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.249 (20 July 2026)
 
 - Model API: New `moonshot` provider for Moonshot AI Kimi models (e.g. `moonshot/kimi-k3`), with built-in model info for Kimi K3 and detection of `kimi-*` model names on hosting providers.
 - CloudFlare/Moonshot: Automatically populate empty assistant messages with "(no content)" (these APIs reject replay of assistant messages with empty content).
