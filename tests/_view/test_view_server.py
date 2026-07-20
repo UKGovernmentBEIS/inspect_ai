@@ -2271,3 +2271,55 @@ async def test_stream_log_bytes_local_does_not_restat_known_size(
     assert calls == 0, (
         f"get_log_size called {calls}x despite log_file_size being supplied"
     )
+
+
+async def test_stream_log_bytes_local_stale_low_size_reads_to_eof(
+    tmp_path: Path,
+) -> None:
+    """A stale-low log_file_size must not truncate an open-ended local read.
+
+    In-progress .eval files grow between the caller's stat and the read;
+    log_file_size may only route buffered-vs-streaming, never bound the
+    bytes. Simulate the race with a log_file_size smaller than the file:
+    both branches must return the full current contents.
+    """
+    payload = bytes(range(256)) * 16  # 4KB of non-uniform bytes
+    log_file = tmp_path / "grow.bin"
+    log_file.write_bytes(payload)
+    path = log_file.as_posix()
+
+    # stale size below threshold -> buffered branch
+    buffered = await stream_log_bytes(path, log_file_size=len(payload) // 2)
+    assert isinstance(buffered, BytesIO)
+    assert buffered.getvalue() == payload
+
+    # stale size above threshold -> streaming branch
+    streamed = await stream_log_bytes(
+        path, log_file_size=len(payload) // 2, stream_threshold_bytes=16
+    )
+    assert not isinstance(streamed, BytesIO)
+    assert await _consume(streamed) == payload
+
+
+def test_api_log_download_returns_full_body_when_stat_is_stale_low(
+    view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file that grows between stat and read must download in full.
+
+    Counterpart to the stale over-report test above: an under-reported
+    size is the dangerous direction, since a truncated body ships with a
+    matching framework-computed Content-Length — 200 OK, silently corrupt
+    .eval, nothing for the client to detect.
+    """
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    actual_size = Path(full_path).stat().st_size
+
+    async def stale_get_log_size(log_file: str) -> int:
+        return actual_size // 2
+
+    monkeypatch.setattr(fastapi_server, "get_log_size", stale_get_log_size)
+
+    resp = view_client.request("GET", view_client.log_url("log-download", fname))
+    resp.raise_for_status()
+    assert resp.content == Path(full_path).read_bytes()

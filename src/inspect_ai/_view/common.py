@@ -432,14 +432,11 @@ async def get_log_bytes(
         )
     elif fs.is_local():
         # Read off the event loop via asyncfiles' anyio-backed reader so the
-        # read doesn't pin the loop. read_file_bytes_fully needs a concrete
-        # [start, end) range; resolve a missing end to the file size.
-        read_start = start or 0
-        read_end = (
-            adjusted_end if adjusted_end is not None else await get_log_size(log_file)
-        )
+        # read doesn't pin the loop. An open-ended read runs to EOF rather
+        # than to a stat'ed size, which would truncate files that grow
+        # between stat and read (in-progress evals are rewritten in place).
         res = await AsyncFilesystem().read_file_bytes_fully(
-            log_file, read_start, read_end
+            log_file, start or 0, adjusted_end
         )
     else:
         res = fs.read_bytes(log_file, start, adjusted_end)
@@ -477,20 +474,18 @@ async def stream_log_bytes(
         else:
             request_size = await get_log_size(log_file)
 
-        # resolve the open-ended range here so get_log_bytes doesn't
-        # re-stat the file (a second sync fs.info on the event loop)
-        read_start = start or 0
-        read_end_inclusive = end if end is not None else request_size - 1
-
+        # request_size routes buffered-vs-streaming only — it may be a stale
+        # stat, so the reads below must run to EOF when open-ended rather
+        # than treating it as a byte bound (files grow between stat and
+        # read while an eval is in progress).
         if request_size <= stream_threshold_bytes:
-            return BytesIO(
-                await get_log_bytes(log_file, read_start, read_end_inclusive)
-            )
+            return BytesIO(await get_log_bytes(log_file, start, end))
 
         # Stream large local files chunked off the event loop rather than
         # buffering them. (Previously this fell through to the S3 path and
         # raised "Expected S3FileSystem" for local files over the threshold.)
-        read_end = read_end_inclusive + 1
+        read_start = start or 0
+        read_end = end + 1 if end is not None else None
 
         async def _stream_local() -> AsyncIterable[bytes]:
             byte_stream = await AsyncFilesystem().read_file_bytes(
