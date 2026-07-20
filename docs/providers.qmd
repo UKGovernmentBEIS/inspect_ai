@@ -527,8 +527,6 @@ inspect eval arc.py --model moonshot/kimi-k3
 
 Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3's thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
 
-For the `moonshot` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
-
 The following environment variables are supported by the Moonshot AI provider
 
 | Variable | Description |

@@ -80,10 +80,4 @@ class MoonshotAPI(OpenAICompatibleAPI):
             effort = params.get("reasoning_effort")
             if effort is not None and effort != "max":
                 params["reasoning_effort"] = "max"
-                warn_once(
-                    logger,
-                    K3_REASONING_EFFORT_WARNING.format(
-                        value=effort, model=self.service_model_name()
-                    ),
-                )
         return params
