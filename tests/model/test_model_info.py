@@ -131,6 +131,14 @@ class TestGetModelInfo:
         assert info is not None
         assert info.context_length == 1_000_000
 
+    def test_kimi_k3_context_length(self):
+        """Test that Kimi K3 resolves via a gateway provider with 1MM context window."""
+        info = get_model_info("cloudflare/moonshotai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1_000_000
+        assert info.reasoning is True
+
     def test_claude_sonnet_4_6_context_length(self):
         """Test that Claude Sonnet 4.6 has 1MM context window."""
         info = get_model_info("anthropic/claude-sonnet-4-6")
@@ -299,8 +307,8 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
-    def test_openai_codename_maps_to_gpt_5_5(self):
-        """An OpenAI codename (is_latest) aliases to gpt-5.5's input tokens."""
+    def test_openai_codename_maps_to_gpt_5_6(self):
+        """An OpenAI codename (is_latest) aliases to gpt-5.6's input tokens."""
         model = get_model("openai/foo-bar-22", api_key="test-key")
         tokens = get_model_input_tokens(model)
         assert tokens == 922_000
@@ -314,7 +322,7 @@ class TestGetModelInputTokens:
     def test_explicit_set_model_info_overrides_codename_alias(self):
         """An explicit set_model_info() wins over the frontier aliasing.
 
-        A codename normally aliases to gpt-5.5's window; an explicit registration
+        A codename normally aliases to gpt-5.6's window; an explicit registration
         means the caller knows the real window and must take precedence.
         """
         model = get_model("openai/foo-bar-22", api_key="test-key")
@@ -325,7 +333,7 @@ class TestGetModelInputTokens:
     def test_codename_override_does_not_affect_frontier_model(self):
         """Overriding a codename must not leak into the real frontier model."""
         set_model_info("openai/foo-bar-22", ModelInfo(context_length=4242))
-        frontier = get_model("openai/gpt-5.5", api_key="test-key")
+        frontier = get_model("openai/gpt-5.6", api_key="test-key")
         tokens = get_model_input_tokens(frontier)
         assert tokens is not None
         assert tokens != 4242

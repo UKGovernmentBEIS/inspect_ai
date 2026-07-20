@@ -18,8 +18,10 @@ Sample-root selection:
 - Local destination → sample root = sample checkpoints dir; no
   staging dir.
 - Remote destination → sample root = sample staging dir (host-local);
-  host egress (out of scope here) ships state to the remote sample
-  checkpoints dir at fire time.
+  host egress ships state to the remote sample checkpoints dir — once
+  at the end of hydration (the resume payload, so the new attempt's
+  destination is resumable before any agent work runs) and at each
+  fire (that fire's delta).
 
 Structure:
 
@@ -33,7 +35,7 @@ Structure:
 
 This module owns *only* the I/O-and-state side of hydration. The
 agent-facing :class:`_EnteredCheckpointer` is constructed by the caller
-using the returned :class:`_HydrationResult`.
+using the returned :class:`HydrationResult`.
 """
 
 from __future__ import annotations
@@ -64,7 +66,7 @@ from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import current_span_id
 
-from ._host_egress import seed_manifest
+from ._host_egress import host_egress
 from ._layout import host_context
 from ._layout.eval_checkpoints_dir import eval_checkpoints_dir
 from ._layout.sample_checkpoints_dir import (
@@ -269,14 +271,22 @@ async def hydrate(
         )
     assert host_result is not None  # task group ran _run_host to completion
 
-    # Resume into a remote-destination staging dir: pre-populate the
-    # egress manifest with every file we just downloaded from the
-    # destination (everything in staging except the context subdir,
-    # which is local-only restic input). Without this, the first
-    # post-resume fire's host_egress diff would consider the whole
-    # resume payload "new" and re-ship it.
+    # Resume into a remote-destination staging dir: ship the resume
+    # payload (just downloaded from the *prior* attempt's sample dir)
+    # to this attempt's destination now, before any agent work runs.
+    # The destination is a fresh dir — each retry derives its own from
+    # its log location — so without this it would hold nothing until
+    # the first post-resume fire: a crash before that fire would leave
+    # the next retry (which looks only in this attempt's dir) finding
+    # no checkpoint and re-running the sample from scratch, and even
+    # after a fire the dir would hold only the post-resume delta —
+    # not a resumable repo. The egress also records the manifest, so
+    # subsequent fires ship only their deltas.
     if resume_checkpoint and sample_staging is not None:
-        await anyio.to_thread.run_sync(seed_manifest, sample_staging)
+        await host_egress(
+            staging_dir=sample_staging,
+            destination_dir=new_sample_checkpoints_dir,
+        )
 
     trace_message(
         logger, "Checkpoint", f"{verb} complete: sample={sample_id} epoch={epoch}"

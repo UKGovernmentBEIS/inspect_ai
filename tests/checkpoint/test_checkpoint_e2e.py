@@ -59,6 +59,7 @@ from inspect_ai.scorer import CORRECT
 from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
     eval_checkpoints_dir,
 )
+from inspect_ai.util._checkpoint._sandbox_restic.repo import _SANDBOX_RESTIC_DIR
 
 
 def assert_spans_balanced(events: list[Event]) -> None:
@@ -139,15 +140,66 @@ def _inspect_projects() -> set[str]:
     }
 
 
-def _force_remove_project(name: str) -> None:
-    """Best-effort force-remove the containers of a leaked compose project."""
-    ids = subprocess.run(
+def _project_container_ids(name: str) -> list[str]:
+    """Container ids belonging to a compose project."""
+    return subprocess.run(
         ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={name}"],
         capture_output=True,
         text=True,
     ).stdout.split()
+
+
+def _force_remove_project(name: str) -> None:
+    """Best-effort force-remove the containers of a leaked compose project."""
+    ids = _project_container_ids(name)
     if ids:
         subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
+
+
+def _assert_restic_dir_hidden(container_id: str) -> None:
+    """The injected restic dir is inside ``.cache`` and root-only.
+
+    Probes the live sandbox container of a killed attempt (checkpoints
+    committed → binary + repo injected):
+
+    - the path sits under ``/root/.cache/`` — inside the always-on backup
+      exclude (``**/.cache``, so the repo never backs itself up) and under
+      a parent whose dirent is invisible to non-root; and
+    - the dir is mode 0700 owned by root with the repo present, and a
+      non-root uid cannot list it.
+    """
+    assert _SANDBOX_RESTIC_DIR.startswith("/root/.cache/")
+
+    stat = subprocess.run(
+        ["docker", "exec", container_id, "stat", "-c", "%a %u", _SANDBOX_RESTIC_DIR],
+        capture_output=True,
+        text=True,
+    )
+    assert stat.returncode == 0, f"restic dir missing in sandbox: {stat.stderr}"
+    assert stat.stdout.split() == ["700", "0"]
+
+    repo = subprocess.run(
+        ["docker", "exec", container_id, "test", "-d", f"{_SANDBOX_RESTIC_DIR}/repo"],
+        capture_output=True,
+    )
+    assert repo.returncode == 0, "restic repo missing in sandbox"
+
+    denied = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "-u",
+            "65534:65534",
+            container_id,
+            "ls",
+            _SANDBOX_RESTIC_DIR,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert denied.returncode != 0, (
+        f"restic dir is listable by a non-root user: {denied.stdout}"
+    )
 
 
 def _thinking_signatures(log_location: str) -> set[str]:
@@ -256,6 +308,16 @@ def test_checkpoint_resume_rehydrated_event_layout(
     try:
         # --- attempt #0: fresh eval, hard-killed at turn 2 (after ck1/ck2) --
         _run_killed_attempt(log_dir, None, tests_dir)
+
+        # The hard kill leaves the attempt's sandbox container running —
+        # probe it for the restic dir's location and permissions.
+        leaked = [
+            cid
+            for name in _inspect_projects() - projects_before
+            for cid in _project_container_ids(name)
+        ]
+        assert leaked, "expected the killed attempt to leak its sandbox container"
+        _assert_restic_dir_hidden(leaked[0])
 
         # --- attempt #1: resume, work one turn (ck3), hard-kill at turn 3 ---
         _run_killed_attempt(log_dir, _latest_log(log_dir), tests_dir)
