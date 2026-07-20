@@ -136,8 +136,10 @@ toward the `flush_buffer` threshold and not arming the stale-flush timer.
 
 `_flush_pending_samples` drains both lists: proceed when either is non-empty
 (this is also what makes `ctl task log-flush` work for reused samples — an
-explicit operator flush, the stale timer, a live threshold flush, and
-`log_finish` all pass through here). Bookkeeping mirrors the existing
+explicit operator flush, the stale timer, and a live threshold flush all pass
+through here; `log_finish` does *not* — it drains the recorder buffer via its
+own `recorder.log_finish` path, whose final write picks up temp-zip contents
+regardless, and clears the pending lists itself). Bookkeeping mirrors the existing
 tail-preserving pattern: snapshot both lists, write, then `del` each flushed
 prefix; the stale-flush reschedule predicate stays keyed off `flush_pending`
 only. `flush_quiet` is cleared alongside `flush_pending` in `reinit()` and
