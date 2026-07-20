@@ -1195,8 +1195,9 @@ def _is_valid_openai_web_search_action(action: dict[str, Any]) -> bool:
         # ActionOpenPage requires 'url'
         return "url" in action
     elif action_type in ("find", "find_in_page"):
-        # ActionFind / ActionFindInPage require 'pattern' and 'url'
-        return "pattern" in action or "url" in action
+        # ActionFind requires both 'pattern' and 'url' ('find' is the legacy
+        # spelling of its type, renamed in parse_web_search_action)
+        return "pattern" in action and "url" in action
 
     return False
 
@@ -1229,6 +1230,11 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
             if filtered.get("type") == "search" and "query" not in filtered:
                 queries = filtered.get("queries") or []
                 filtered["query"] = queries[0] if queries else ""
+            # `ActionFind`'s type discriminator is 'find_in_page' (older SDK
+            # serializations spelled it 'find'), so rename to keep strict
+            # construction happy.
+            if filtered.get("type") == "find":
+                filtered["type"] = "find_in_page"
             return filtered
 
         # Not an OpenAI-formatted action - create a conforming search action
