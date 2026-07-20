@@ -166,12 +166,42 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
             asyncio.get_running_loop()
         except RuntimeError:
             # No running event loop, so start one on the configured backend.
-            return anyio.run(
-                _run_with_async_filesystem, backend=configured_async_backend()
-            )
+            return _anyio_run_released(_run_with_async_filesystem)
     # Running asyncio loop -- re-enter it via nest_asyncio.
     init_nest_asyncio()
     return asyncio.run(_run_with_async_filesystem())
+
+
+def _anyio_run_released(func: Callable[[], Awaitable[T]]) -> T:
+    """Run `func` on a fresh event loop, then release anyio's per-loop state.
+
+    Without the release step, every call leaks its entire return value.
+    Here's why: anyio keeps per-event-loop state in a global
+    WeakKeyDictionary, `anyio.lowlevel._run_vars`, where the key is the loop
+    itself. Weak keys normally guarantee cleanup — once nothing else
+    references the loop, its entry disappears. But when `func` uses anyio's
+    threadpool, anyio stores the run's root task in that entry, and a task
+    always references the loop it ran on. So the entry's value points back at
+    its own key: the dictionary keeps the task alive, the task keeps the loop
+    alive, and the "weak" entry becomes immortal — along with the task's
+    result, which is our coroutine's return value. Popping the dead loop's
+    entry after the run breaks the cycle so everything can be collected.
+    """
+    from anyio.lowlevel import _run_vars
+
+    loop: asyncio.AbstractEventLoop | None = None
+
+    async def capture_loop_and_run() -> T:
+        nonlocal loop
+        if current_async_backend() == "asyncio":
+            loop = asyncio.get_running_loop()
+        return await func()
+
+    try:
+        return anyio.run(capture_loop_and_run, backend=configured_async_backend())
+    finally:
+        if loop is not None:
+            _run_vars.pop(loop, None)
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:
