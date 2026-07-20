@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 from urllib.parse import urlparse
 from zipfile import ZipFile
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
@@ -57,6 +57,8 @@ class SampleManifest(BaseModel):
 
 
 class Manifest(BaseModel):
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     metrics: list[TaskDisplayMetric] = Field(default_factory=list)
     samples: list[SampleManifest] = Field(default_factory=list)
     segments: list[Segment] = Field(default_factory=list)

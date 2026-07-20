@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, cast
 
 import pytest
@@ -154,6 +155,30 @@ def test_list_metric() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
+
+
+def test_list_score_nan_survives_log_round_trip() -> None:
+    @scorer(metrics=[accuracy()])
+    def nan_list_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=[float("nan"), 1.0])
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=nan_list_scorer(),
+    )
+
+    log = eval(tasks=task, model="mockllm/model")[0]
+
+    assert log.status == "success"
+    assert log.results is not None
+    assert log.samples is not None
+    assert log.samples[0].scores is not None
+    value = log.samples[0].scores["nan_list_scorer"].value
+    assert isinstance(value, list)
+    assert math.isnan(cast(float, value[0]))
 
 
 def test_dict_metric() -> None:

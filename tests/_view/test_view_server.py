@@ -33,7 +33,9 @@ from inspect_ai._view.common import (
     read_eval_set_info_async,
 )
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
+from inspect_ai.event import ScoreEvent
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.scorer import Score
 
 FRONTEND_REQUEST_HEADERS = {
     fastapi_server.VIEW_REQUEST_HEADER: fastapi_server.VIEW_REQUEST_HEADER_VALUE,
@@ -953,6 +955,29 @@ def test_api_pending_samples_with_buffer(view_client: ViewTestClient) -> None:
     assert resp2.status_code == 304
 
 
+def test_api_pending_samples_preserves_non_finite_scores(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+    buffer = inspect_ai.log._recorders.buffer.filestore.SampleBufferFilestore(
+        full_path, create=False
+    )
+    manifest = buffer.read_manifest()
+    assert manifest is not None
+    manifest.samples[0].summary.scores = {"listy": Score(value=[float("nan"), 1.0])}
+    buffer.write_manifest(manifest)
+
+    response = view_client.request(
+        "GET", f"/pending-samples?log={urllib.parse.quote_plus(full_path)}"
+    )
+
+    response.raise_for_status()
+    value = response.json()["samples"][0]["scores"]["listy"]["value"]
+    assert math.isnan(value[0])
+
+
 def test_api_pending_sample_data_no_buffer(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
@@ -977,6 +1002,56 @@ def test_api_pending_sample_data_with_buffer(view_client: ViewTestClient) -> Non
     body = resp.json()
     assert len(body["events"]) == 1
     assert body["events"][0]["event"] == {"message": "hello"}
+
+
+def test_api_pending_sample_data_preserves_non_finite_scores(
+    view_client: ViewTestClient,
+) -> None:
+    from inspect_ai.log._recorders.buffer.filestore import (
+        SampleBufferFilestore,
+        SegmentFile,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+    buffer = SampleBufferFilestore(full_path, create=False)
+    score_event = ScoreEvent(
+        score=Score(value=[float("nan"), 1.0]),
+        scorer="listy",
+    )
+    buffer.write_segment(
+        0,
+        [
+            SegmentFile(
+                id="sample1",
+                epoch=0,
+                data=SampleData(
+                    events=[
+                        EventData(
+                            id=1,
+                            event_id="evt0",
+                            sample_id="sample1",
+                            epoch=0,
+                            event=score_event.model_dump(mode="json"),
+                        )
+                    ],
+                    attachments=[],
+                ),
+            )
+        ],
+    )
+
+    response = view_client.request(
+        "GET",
+        f"/pending-sample-data?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0",
+    )
+
+    response.raise_for_status()
+    value = response.json()["events"][0]["event"]["score"]["value"]
+    assert math.isnan(value[0])
 
 
 def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
