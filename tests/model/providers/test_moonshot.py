@@ -108,14 +108,16 @@ def test_moonshot_kimi_k3_coerces_forced_tool_choice(
     assert not _warn_once_messages
 
 
-def test_moonshot_non_k3_preserves_forced_tool_choice(mock_moonshot_env):
-    """Non-K3 Kimi models accept a named tool_choice as usual."""
+def test_moonshot_thinking_disabled_preserves_forced_tool_choice(mock_moonshot_env):
+    """Disabling thinking via extra_body lifts the named tool_choice restriction."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
     from inspect_ai.tool import ToolFunction
 
     api = MoonshotAPI(model_name="kimi-k2.5")
     _, tool_choice, _ = api.resolve_tools(
-        tools=[], tool_choice=ToolFunction(name="addition"), config=GenerateConfig()
+        tools=[],
+        tool_choice=ToolFunction(name="addition"),
+        config=GenerateConfig(extra_body={"thinking": {"type": "disabled"}}),
     )
     assert tool_choice == ToolFunction(name="addition")
 
@@ -128,11 +130,38 @@ def test_moonshot_forwards_model_args(mock_moonshot_env):
     assert api.client.default_headers.get("X-Test") == "yes"
 
 
-def test_moonshot_non_k3_preserves_sampling_params(mock_moonshot_env):
-    """Non-K3 Kimi models accept sampling params as usual."""
+def test_moonshot_kimi_k2_5_drops_fixed_sampling_params(mock_moonshot_env):
+    """All Kimi thinking models use fixed sampling by default, not just K3."""
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k2.5")
+    params = api.completion_params(
+        config=GenerateConfig(temperature=0.7, top_p=0.9),
+        tools=False,
+    )
+    assert "temperature" not in params
+    assert "top_p" not in params
+
+
+def test_moonshot_thinking_disabled_preserves_sampling_params(mock_moonshot_env):
+    """Disabling thinking via extra_body lifts the fixed-sampling restriction."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k2.5")
+    params = api.completion_params(
+        config=GenerateConfig(
+            temperature=0.7, extra_body={"thinking": {"type": "disabled"}}
+        ),
+        tools=False,
+    )
+    assert params["temperature"] == 0.7
+
+
+def test_moonshot_legacy_model_preserves_sampling_params(mock_moonshot_env):
+    """Legacy moonshot-v1 models accept sampling params as usual."""
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="moonshot-v1-8k")
     params = api.completion_params(
         config=GenerateConfig(temperature=0.7, top_p=0.9),
         tools=False,

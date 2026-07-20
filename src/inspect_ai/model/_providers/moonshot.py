@@ -13,24 +13,26 @@ from .openai_compatible import OpenAICompatibleAPI
 
 logger = getLogger(__name__)
 
-# Sampling parameters that Moonshot says to omit for Kimi K3 (the model uses
-# fixed sampling and the API rejects attempts to override it).
+# Sampling parameters that Kimi models reject while thinking is enabled (the
+# default): the API pins each to a fixed value and 400s on any other value
+# (e.g. "invalid temperature: only 1 is allowed for this model"). Legacy
+# moonshot-v1-* models accept them.
 # https://platform.kimi.ai/docs/guide/use-thinking-effort
-K3_FIXED_SAMPLING_PARAMS = (
+KIMI_FIXED_SAMPLING_PARAMS = (
     "temperature",
     "top_p",
     "frequency_penalty",
     "presence_penalty",
 )
 
-K3_FIXED_SAMPLING_WARNING = (
-    "The {parameter} parameter is not supported by {model} (Kimi K3 uses "
-    "fixed sampling) and will be ignored."
+KIMI_FIXED_SAMPLING_WARNING = (
+    "The {parameter} parameter is not supported by {model} (Kimi models use "
+    "fixed sampling while thinking is enabled) and will be ignored."
 )
 
-K3_TOOL_CHOICE_WARNING = (
-    "Forcing use of the {name!r} tool is not supported by {model} (Kimi K3 "
-    "thinking is always on, which is incompatible with a named tool_choice) "
+KIMI_TOOL_CHOICE_WARNING = (
+    "Forcing use of the {name!r} tool is not supported by {model} (a named "
+    "tool_choice is incompatible with thinking, which is enabled by default) "
     'and will be submitted as "required".'
 )
 
@@ -56,8 +58,22 @@ class MoonshotAPI(OpenAICompatibleAPI):
             **model_args,
         )
 
+    def is_kimi(self) -> bool:
+        return self.service_model_name().lower().startswith("kimi")
+
     def is_kimi_k3(self) -> bool:
         return self.service_model_name().lower().startswith("kimi-k3")
+
+    @staticmethod
+    def thinking_disabled(config: GenerateConfig) -> bool:
+        """Whether the request explicitly disables Kimi thinking.
+
+        Kimi models think by default; passing `thinking: {"type": "disabled"}`
+        via extra_body turns it off, which also lifts the fixed-sampling and
+        named-tool_choice restrictions.
+        """
+        thinking = (config.extra_body or {}).get("thinking")
+        return isinstance(thinking, dict) and thinking.get("type") == "disabled"
 
     @override
     def canonical_name(self) -> str:
@@ -73,10 +89,14 @@ class MoonshotAPI(OpenAICompatibleAPI):
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
     ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
         tools, tool_choice, config = super().resolve_tools(tools, tool_choice, config)
-        if self.is_kimi_k3() and isinstance(tool_choice, ToolFunction):
+        if (
+            self.is_kimi()
+            and not self.thinking_disabled(config)
+            and isinstance(tool_choice, ToolFunction)
+        ):
             warn_once(
                 logger,
-                K3_TOOL_CHOICE_WARNING.format(
+                KIMI_TOOL_CHOICE_WARNING.format(
                     name=tool_choice.name, model=self.service_model_name()
                 ),
             )
@@ -97,16 +117,17 @@ class MoonshotAPI(OpenAICompatibleAPI):
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
-        if self.is_kimi_k3():
-            for param in K3_FIXED_SAMPLING_PARAMS:
+        if self.is_kimi() and not self.thinking_disabled(config):
+            for param in KIMI_FIXED_SAMPLING_PARAMS:
                 if param in params:
                     del params[param]
                     warn_once(
                         logger,
-                        K3_FIXED_SAMPLING_WARNING.format(
+                        KIMI_FIXED_SAMPLING_WARNING.format(
                             parameter=param, model=self.service_model_name()
                         ),
                     )
+        if self.is_kimi_k3():
             effort = params.get("reasoning_effort")
             if effort is not None and effort != "max":
                 params["reasoning_effort"] = "max"
