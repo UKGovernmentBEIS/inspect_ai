@@ -18,6 +18,7 @@ from inspect_ai.model import (
     StopReason,
     get_model,
 )
+from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
 from inspect_ai.tool import ToolInfo
@@ -346,7 +347,21 @@ async def test_openai_compatible_streaming_returns_partial_on_length(
         stream=True,
     )
 
-    partial = ChatCompletion.model_construct(id="partial")
+    partial = ChatCompletion.model_validate(
+        {
+            "id": "partial",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "gpt-5",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "length",
+                    "message": {"role": "assistant", "content": "truncated"},
+                }
+            ],
+        }
+    )
 
     class _LengthTruncatedStream:
         async def __aenter__(self) -> "_LengthTruncatedStream":
@@ -367,5 +382,6 @@ async def test_openai_compatible_streaming_returns_partial_on_length(
     try:
         result = await api._generate_completion({}, GenerateConfig())
         assert result is partial
+        assert chat_choices_from_openai(result, [])[0].stop_reason == "max_tokens"
     finally:
         await api.aclose()
