@@ -9,10 +9,12 @@ they crash with `'ChatCompletion' object has no attribute 'parse'` (issue #4341)
 """
 
 from collections.abc import Callable
-from typing import cast
 
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletion
+from openai.types.chat import (
+    ChatCompletion,
+    ChatCompletionMessageFunctionToolCall,
+)
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -54,7 +56,7 @@ async def consume_raw_response(
         )
         # langchain-openai reads headers off the raw wrapper, then parses it
         assert raw.headers is not None
-        completion = cast(ChatCompletion, raw.parse())
+        completion = raw.parse()
         assert isinstance(completion, ChatCompletion)
         check(completion)
 
@@ -81,8 +83,10 @@ def raw_response_tool_call_agent() -> Agent:
     def check(completion: ChatCompletion) -> None:
         tool_calls = completion.choices[0].message.tool_calls
         assert tool_calls is not None and len(tool_calls) == 1
-        assert tool_calls[0].function.name == "get_weather"
-        assert "London" in tool_calls[0].function.arguments
+        tool_call = tool_calls[0]
+        assert isinstance(tool_call, ChatCompletionMessageFunctionToolCall)
+        assert tool_call.function.name == "get_weather"
+        assert "London" in tool_call.function.arguments
 
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:

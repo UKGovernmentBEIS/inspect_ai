@@ -302,6 +302,7 @@ def init_openai_request_patch() -> None:
 
                 headers = filter_bridge_headers(request_headers(options))
 
+                result: BaseModel
                 if options.url == "/chat/completions":
                     result = await inspect_completions_api_request(
                         json_data, headers, config.bridge
