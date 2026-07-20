@@ -96,7 +96,7 @@ def set_annotations(wrapper: Callable[..., Any], annotations: dict[str, Any]) ->
     if sys.version_info >= (3, 14):
         from annotationlib import Format  # type: ignore[import-not-found,unused-ignore]
 
-        def __annotate__(format: int) -> dict[str, Any]:
+        def __annotate__(format: Format) -> dict[str, Any]:
             # NotImplementedError is the protocol's "format not supported" signal:
             # PEP 749 requires it for VALUE_WITH_FAKE_GLOBALS (hand-written annotate
             # functions can't run under fake globals), and annotationlib's consumers
@@ -115,7 +115,7 @@ def set_return_annotation(wrapper: Callable[..., Any], return_type: type[Any]) -
 
     Decorators like @task wrap the user's function with `functools.wraps` (so name,
     docstring, and params carry over) but need the wrapper itself to be annotated as
-    returning the registry type: `create_registry_object` consults the return
+    returning the registry type: `registry_create` consults the return
     annotation to decide whether a registered callable is a factory to invoke.
     """
     set_annotations(wrapper, {**wrapper.__annotations__, "return": return_type})
