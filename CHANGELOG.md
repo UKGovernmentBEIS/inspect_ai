@@ -5,7 +5,7 @@
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
 - Agent Bridge: Support OpenAI clients that consume responses via `with_raw_response` (e.g. langchain-openai), which previously failed with `'ChatCompletion' object has no attribute 'parse'`. (#4341)
 - Bugfix: Fixed a memory leak where the result of any synchronous API call (e.g. each sample yielded by `read_eval_log_samples()`) was retained in memory forever after the caller released it.
-- 
+
 ## 0.3.248 (17 July 2026)
 
 - Logging: Local eval (`.eval`) and JSON (`.json`) log files are now written atomically (temp file + `fsync` + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)
