@@ -309,6 +309,10 @@ class ModelRetry:
     """The globally unique identifier for the sample execution (if any)."""
     task_name: str | None = None
     """The name of the task whose model call is being retried (if any)."""
+    exception_type: str | None = None
+    """The type name of the exception that triggered the retry (e.g. "RateLimitError"), if known."""
+    status_code: int | None = None
+    """The HTTP status code of the failure that triggered the retry (e.g. 429 or 503), if any."""
 
 
 @dataclass(frozen=True)
@@ -931,7 +935,13 @@ async def emit_model_cache_usage(model_name: str, usage: ModelUsage) -> None:
     await _emit_to_all(lambda hook: hook.on_model_cache_usage(data))
 
 
-async def emit_model_retry(model_name: str, attempt: int, wait_time: float) -> None:
+async def emit_model_retry(
+    model_name: str,
+    attempt: int,
+    wait_time: float,
+    exception_type: str | None = None,
+    status_code: int | None = None,
+) -> None:
     # Read eval context from the active sample contextvar (if available).
     active = sample_active()
     eval_set_id: str | None = None
@@ -955,6 +965,8 @@ async def emit_model_retry(model_name: str, attempt: int, wait_time: float) -> N
         eval_id=eval_id,
         sample_id=sample_id,
         task_name=task_name,
+        exception_type=exception_type,
+        status_code=status_code,
     )
     await _emit_to_all(lambda hook: hook.on_model_retry(data))
 

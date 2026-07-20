@@ -55,6 +55,19 @@ def sample_context_prefix() -> str:
     )
 
 
+def retry_error_type_status(
+    retry_state: RetryCallState,
+) -> tuple[str | None, int | None]:
+    """Extract the exception type name and HTTP status code from a retry state (or (None, None))."""
+    ex = retry_state.outcome.exception() if retry_state.outcome is not None else None
+    if ex is None:
+        return None, None
+    status: int | None = getattr(ex, "status_code", None)
+    if status is None:
+        status = getattr(getattr(ex, "response", None), "status_code", None)
+    return type(ex).__name__, status
+
+
 def retry_error_summary(retry_state: RetryCallState) -> str:
     """Build a compact suffix like " [RateLimitError 429]" from a retry state, or ""."""
     if retry_state.outcome is None:

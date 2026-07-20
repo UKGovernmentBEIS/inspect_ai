@@ -8,7 +8,11 @@ import anyio
 import pytest
 
 from inspect_ai._util.constants import HTTP
-from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
+from inspect_ai._util.retry import (
+    retry_error_summary,
+    retry_error_type_status,
+    sample_context_prefix,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -81,6 +85,26 @@ class TestRetryErrorSummary:
 
     def test_no_outcome(self) -> None:
         assert retry_error_summary(_make_retry_state(None)) == ""
+
+
+class TestRetryErrorTypeStatus:
+    def test_status_from_attr(self) -> None:
+        ex = Exception("rate limited")
+        ex.status_code = 429  # type: ignore[attr-defined]
+        assert retry_error_type_status(_make_retry_state(ex)) == ("Exception", 429)
+
+    def test_status_from_response(self) -> None:
+        ex = Exception("error")
+        ex.response = MagicMock(status_code=502)  # type: ignore[attr-defined]
+        assert retry_error_type_status(_make_retry_state(ex)) == ("Exception", 502)
+
+    def test_no_status(self) -> None:
+        assert retry_error_type_status(
+            _make_retry_state(ConnectionError("refused"))
+        ) == ("ConnectionError", None)
+
+    def test_no_outcome(self) -> None:
+        assert retry_error_type_status(_make_retry_state(None)) == (None, None)
 
 
 class TestLogModelRetry:
