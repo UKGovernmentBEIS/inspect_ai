@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Logging: Fixed a memory leak where every sync log read (e.g. each sample yielded by `read_eval_log_samples()`) stayed permanently in memory after the caller released it.
+- Fixed a memory leak where the result of any synchronous API call (e.g. each sample yielded by `read_eval_log_samples()`) was retained in memory forever after the caller released it.
 - Control Channel: `inspect ctl sample list` no longer recomputes sample summaries on every request, so polling an eval buffering many large samples (e.g. a retry's carried transcripts) can no longer stall the eval process.
 - Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
