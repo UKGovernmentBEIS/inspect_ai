@@ -99,14 +99,24 @@ determination **outside** the semaphore: on the file path, `read_from_file`
 already shares one `AsyncZipReader`, whose cached `entries()` central
 directory answers presence of `samples/{id}_epoch_{epoch}.json` without a
 body read. Only lookups that hit (and the re-log) acquire the semaphore;
-misses — every live sample — proceed immediately after the one shared
-central-directory fetch. (The in-memory path's lookups are list scans; no
+true misses — samples absent from the prior log, e.g. started-but-never-logged
+(the incident scenario's long-running remainder) — proceed immediately after
+the one shared central-directory fetch. Note the presence check is narrower
+than "live sample": a live sample whose prior attempt **errored or was
+invalidated** is a presence-*hit* (its zip entry exists; error status lives in
+the sample body, and `PreviousError` seeding needs the body anyway), so those
+lookups take the throttle alongside reuse hits — accepted, since errored
+transcripts can be as large as completed ones and equally need bounded
+concurrent residency. (The in-memory path's lookups are list scans; no
 throttle needed there.)
 
 Known trade-off: event reads for a reused sample are unavailable between
 write-through and destination flush (today they're served whole from the
 in-memory buffer; the event-less retained copy covers error/scores/summaries
-but not events). That window is seconds (see part 2). Reused samples have no
+but not events). That window lasts until the settle flush (see part 2) —
+typically seconds, but bounded by the full reuse-sweep duration, which the
+25-way throttle serializes into batches of remote body reads and which can
+reach minutes for a large remote prior log. Reused samples have no
 realtime buffer-db presence in either world — the reuse path never calls
 `start_sample`, and `SampleBufferDatabase.complete_sample` is UPDATE-only, so
 no row ever exists there.
@@ -192,7 +202,10 @@ log-flush`, or finish picks the samples up.
 165 reused samples, long-running remainder: each reused sample is written to
 local disk as it's re-logged (bounded concurrent residency, never the full
 set), and one destination write happens right after the last planned sample
-resolves its reuse check — typically seconds into the attempt. The
+resolves its reuse check — typically seconds into the attempt, bounded by the
+sweep duration (minutes for a large remote prior log; what the countdown
+avoids relative to the blocking pre-pass is delaying *live-sample start*, not
+the sweep itself). The
 destination log then contains all reused samples; the recorder buffer holds
 no full samples; `ctl` full-sample reads fall through to disk.
 
