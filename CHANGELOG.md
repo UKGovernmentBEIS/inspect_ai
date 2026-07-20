@@ -5,6 +5,7 @@
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
 - Control Channel: `inspect ctl` mutations with piped or captured output now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
 - Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
+- Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
 
 ## 0.3.258 (11 August 2026)
 
@@ -191,7 +192,6 @@
 - Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
 - Agent Bridge: Support OpenAI clients that consume responses via `with_raw_response` (e.g. langchain-openai), which previously failed with `'ChatCompletion' object has no attribute 'parse'`. (#4341)
-- Datasets (breaking): A CSV row whose field count differs from the header now raises `ValueError` naming the file, the row and the columns involved. Blank ragged rows previously crashed with a bare `AttributeError`; ragged rows carrying content loaded silently, dropping missing columns or swallowing extra values. Applies to `csv_dataset()` and to `file_dataset()` on `.csv` files. (#4546)
 
 ## 0.3.248 (17 July 2026)
 
