@@ -9,7 +9,6 @@ from inspect_ai.dataset._sources.util import resolve_sample_files
 
 from .._dataset import (
     Dataset,
-    DatasetReader,
     FieldSpec,
     MemoryDataset,
     RecordToSample,
@@ -21,7 +20,9 @@ def _field_count(count: int) -> str:
     return f"{count} field" if count == 1 else f"{count} fields"
 
 
-def _raise_ragged_row(data: dict[str, Any], csv_file: str, row_number: int) -> NoReturn:
+def _raise_ragged_row(
+    data: dict[str, Any], csv_file: str, line_number: int
+) -> NoReturn:
     """Report a row whose field count does not match the header.
 
     DictReader pads a short row with restval (None) and collects a long row's
@@ -33,14 +34,14 @@ def _raise_ragged_row(data: dict[str, Any], csv_file: str, row_number: int) -> N
     if extra_values is not None:
         columns = len(data) - 1
         raise ValueError(
-            f"{csv_file} row {row_number} has "
+            f"{csv_file} line {line_number} has "
             f"{_field_count(columns + len(extra_values))}, the header has "
             f"{columns}. Unexpected values: {extra_values}."
         )
 
     missing_fields = [field for field, value in data.items() if value is None]
     raise ValueError(
-        f"{csv_file} row {row_number} has "
+        f"{csv_file} line {line_number} has "
         f"{_field_count(len(data) - len(missing_fields))}, the header has "
         f"{len(data)}. No value for: {', '.join(missing_fields)}."
     )
@@ -103,17 +104,16 @@ def csv_dataset(
     with file(csv_file, "r", encoding=encoding, fs_options=fs_options or {}) as f:
         # reject ragged rows, filter out rows with empty values
         valid_data = []
-        # explicit fieldnames mean there is no header line to skip over
-        first_row_number = 1 if fieldnames else 2
-        for row_number, data in enumerate(
-            csv_dataset_reader(f, dialect, fieldnames, delimiter),
-            start=first_row_number,
-        ):
+        reader = csv_dataset_reader(f, dialect, fieldnames, delimiter)
+        for data in reader:
             if not data:
                 continue
             # too many fields leaves a None key, too few leaves a None value
             if None in data or None in data.values():
-                _raise_ragged_row(data, csv_file, row_number)
+                # line_num is the physical line the reader is on. Counting rows
+                # as they come out drifts instead, because DictReader skips
+                # blank lines and a quoted field can span several lines.
+                _raise_ragged_row(data, csv_file, reader.line_num)
             if any(value.strip() for value in data.values()):
                 valid_data.append(data)
         name = name if name else Path(csv_file).stem
@@ -144,7 +144,7 @@ def csv_dataset_reader(
     dialect: str = "unix",
     fieldnames: list[str] | None = None,
     delimiter: str = ",",
-) -> DatasetReader:
+) -> "csv.DictReader[str]":
     return csv.DictReader(
         file, dialect=dialect, fieldnames=fieldnames, delimiter=delimiter
     )

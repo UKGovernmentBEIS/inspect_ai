@@ -4,7 +4,7 @@
 - Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
 - Agent Bridge: Support OpenAI clients that consume responses via `with_raw_response` (e.g. langchain-openai), which previously failed with `'ChatCompletion' object has no attribute 'parse'`. (#4341)
-- Datasets (breaking): A CSV row whose field count differs from the header now raises `ValueError` naming the file, the row and the columns involved. Blank ragged rows previously crashed with a bare `AttributeError`; ragged rows carrying content loaded silently, dropping missing columns or swallowing extra values. Applies to `csv_dataset()` and to `file_dataset()` on `.csv` files. (#4546)
+- Datasets (breaking): A CSV row whose field count differs from the header now raises `ValueError` naming the file, the line and the columns involved, rather than crashing with `AttributeError` or loading silently. (#4546)
 
 ## 0.3.248 (17 July 2026)
 
