@@ -90,8 +90,18 @@ peak memory at burst as well (all `run_sample` coroutines start at once and
 nothing throttles `sample_source.lookup` today — the whole reused set can be
 mid-read simultaneously), wrap the reuse lookup+re-log region in a small
 constant semaphore (e.g. 25, matching the bounded concurrency used for
-summary reads in `_read_all_summaries_async`). Live samples' lookups are
-cheap misses, so sharing the semaphore costs them ~nothing.
+summary reads in `_read_all_summaries_async`). A live sample's lookup is a
+cheap miss, but a shared FIFO semaphore would still queue it behind in-flight
+reused-sample body reads — in the worst case (live samples late in dataset
+order behind a large reused set) approaching the same delayed-live-start
+drawback that rejects the blocking pre-pass below. So keep hit/miss
+determination **outside** the semaphore: on the file path, `read_from_file`
+already shares one `AsyncZipReader`, whose cached `entries()` central
+directory answers presence of `samples/{id}_epoch_{epoch}.json` without a
+body read. Only lookups that hit (and the re-log) acquire the semaphore;
+misses — every live sample — proceed immediately after the one shared
+central-directory fetch. (The in-memory path's lookups are list scans; no
+throttle needed there.)
 
 Known trade-off: event reads for a reused sample are unavailable between
 write-through and destination flush (today they're served whole from the
@@ -123,7 +133,11 @@ prefix; the stale-flush reschedule predicate stays keyed off `flush_pending`
 only. `flush_quiet` is cleared alongside `flush_pending` in `reinit()` and
 `log_finish` so a failed drain can't leak phantom pending state into the next
 in-process retry attempt. `buffer_config` reports
-`len(flush_pending) + len(flush_quiet)` as pending.
+`len(flush_pending) + len(flush_quiet)` as pending, and the count
+`flush_samples()` returns (its docstring promises "the number written", and
+`ctl task log-flush` surfaces it to the operator) covers samples drained from
+**both** lists — implemented naively from today's `flushed = len(pending)`, a
+quiet-only drain would write the whole reused set yet report 0.
 
 **Trigger**: `task_run` creates a countdown initialized to the number of
 planned `(sample, epoch)` runs. Each `run_sample` decrements it in a `finally`
@@ -245,7 +259,8 @@ no full samples; `ctl` full-sample reads fall through to disk.
 - **`TaskLogger` unit tests** (`tests/log/test_task_log.py` or nearest fit):
   `flush=False` samples land in `flush_quiet`; `_flush_pending_samples`
   drains both lists (tail-preserving); `flush_samples()` (the ctl path)
-  flushes when only `flush_quiet` is non-empty — the current no-op regressed;
+  flushes when only `flush_quiet` is non-empty — the current no-op regressed —
+  and returns the count of samples written across both lists;
   threshold/timer arming ignores `flush_quiet` while `flush_quiet_retry` is
   unset; failed settle-flush sets `flush_quiet_retry` and arms the retry
   timer; a second failure re-arms it (the flag is sticky, not one-shot); a
