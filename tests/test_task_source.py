@@ -290,9 +290,8 @@ async def test_live_injection_runs_concurrently_with_in_flight_task() -> None:
 
 
 async def test_live_injection_works_with_task_retry_attempts() -> None:
-    # task_retry_attempts routes through run_task_retry_attempts (the recommended
-    # path). The TaskSource feed must still be honoured there — without it the
-    # injected task never runs and the blocker hangs until fail_after fires.
+    # The TaskSource feed must be honoured when retries are enabled — without it
+    # the injected task never runs and the blocker hangs until fail_after fires.
     await _run_live_injection(task_retry_attempts=1)
 
 
