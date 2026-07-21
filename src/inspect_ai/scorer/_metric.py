@@ -48,13 +48,17 @@ NOANSWER = "N"
 
 Value = Union[
     str | int | float | bool,
-    Sequence[str | int | float | bool],
+    Sequence[str | int | float | bool | None],
     Mapping[str, str | int | float | bool | None],
 ]
 """Value provided by a score.
 
 Use the methods of `Score` to easily treat
 the `Value` as a simple scalar of various types.
+
+A `None` dict or list leaf marks an unscored value, equivalent to NaN
+(NaN leaves are serialized to eval logs as JSON null, so they come back
+as `None` when a log is reloaded).
 """
 
 UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
@@ -141,7 +145,7 @@ class Score(BaseModel):
         """Read the score as a boolean."""
         return bool(self._as_scalar())
 
-    def as_list(self) -> list[str | int | float | bool]:
+    def as_list(self) -> list[str | int | float | bool | None]:
         """Read the score as a list."""
         if isinstance(self.value, list):
             return self.value

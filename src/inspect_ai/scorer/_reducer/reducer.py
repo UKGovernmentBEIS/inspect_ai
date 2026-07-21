@@ -1,7 +1,7 @@
 import math
 import statistics
 from collections import Counter
-from typing import Callable, cast
+from typing import Callable, TypeGuard, cast
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
@@ -371,9 +371,11 @@ def _compute_dict_stat(
     for key in dict_scores[0].value.keys():  # type: ignore
         values = []
         for score in dict_scores:
-            key_value = value_to_float(score.value[key])  # type: ignore
+            # check reducibility before conversion: value_to_float would
+            # coerce an unscored None leaf to 0.0
+            key_value = score.value[key]  # type: ignore
             if _is_reducible(key_value):
-                values.append(key_value)
+                values.append(value_to_float(key_value))
 
         if len(values) == 0:
             dict_result[key] = float("nan")
@@ -404,10 +406,12 @@ def _compute_list_stat(
     for i in range(list_size):
         values = []
         for score in list_scores:
-            list_values = cast(list[str | int | float | bool], score.value)
-            value = value_to_float(list_values[i])
+            list_values = cast(list[str | int | float | bool | None], score.value)
+            # check reducibility before conversion: value_to_float would
+            # coerce an unscored None leaf to 0.0
+            value = list_values[i]
             if _is_reducible(value):
-                values.append(value)
+                values.append(value_to_float(value))
         if len(values) == 0:
             list_result.append(float("nan"))
         else:
@@ -566,6 +570,15 @@ def _nan_score(scores: list[Score]) -> Score:
     )
 
 
-def _is_reducible(value: str | int | float | bool) -> bool:
-    """Check if a value is reducible (not a NaN float)."""
+def _is_reducible(
+    value: str | int | float | bool | None,
+) -> TypeGuard[str | int | float | bool]:
+    """Check if a value is reducible (not None and not a NaN float).
+
+    None and NaN both mark an unscored dict/list leaf: NaN is the canonical
+    in-memory sentinel, and None is what a NaN leaf becomes after a round
+    trip through an eval log (JSON has no NaN, so it is serialized as null).
+    """
+    if value is None:
+        return False
     return not (isinstance(value, float) and math.isnan(value))
