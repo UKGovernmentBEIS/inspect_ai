@@ -284,10 +284,24 @@ def upstream_pr(url: str):
              pullRequest(number:$n){
                state merged reviewDecision author{login}
                reviewRequests(first:20){nodes{requestedReviewer{... on User{login}}}}
+               requestEvents: timelineItems(itemTypes:[REVIEW_REQUESTED_EVENT], last:20){
+                 nodes{... on ReviewRequestedEvent{createdAt}}}
+               changesReviews: reviews(states:[CHANGES_REQUESTED], last:10){
+                 nodes{submittedAt}}
              }}}""",
         o=owner, r=repo, n=num,
     )["repository"]["pullRequest"]
     d["_ref"] = (owner, repo, num)
+    # Latest review-request event and latest changes-requested review, as ISO
+    # timestamps ("" when absent; ISO compares lexicographically). A *pending*
+    # request alone is not a re-request: a second reviewer's never-consumed
+    # initial request keeps reviewDecision CHANGES_REQUESTED and the request
+    # queue non-empty forever — only a request event NEWER than the latest
+    # changes-requested review is the driver handing back.
+    d["_req_ts"] = max(
+        (n["createdAt"] for n in d["requestEvents"]["nodes"]), default="")
+    d["_changes_ts"] = max(
+        (n["submittedAt"] for n in d["changesReviews"]["nodes"]), default="")
     return d
 
 
@@ -353,20 +367,43 @@ def sync_item(row) -> None:
             actions.append(f"#{issue}: upstream closed unmerged -> Human Review")
         return
 
-    rerequested = any(
+    # True re-request: pending request(s) AND the latest request event is newer
+    # than the latest changes-requested review (see upstream_pr). A stale
+    # never-consumed request from a second reviewer does NOT count — treating
+    # it as one would yank human-parked items hourly.
+    pending_request = any(
         (n.get("requestedReviewer") or {}).get("login")
         for n in pr["reviewRequests"]["nodes"]
+    )
+    rerequested = (
+        pending_request and pr["_req_ts"] > pr["_changes_ts"] and pr["_changes_ts"] != ""
     )
     if row["external"]:
         if stage == "Awaiting Contributor":
             author_ts, reviewer_ts = latest_activity(owner, repo, num)
+            # Same staleness rule, against MY last activity: only a request to
+            # me newer than my last review/comment pulls the proxy back — my
+            # own never-consumed initial request must not.
             rerequested_to_me = any(
                 (n.get("requestedReviewer") or {}).get("login") == REVIEWER
                 for n in pr["reviewRequests"]["nodes"]
-            )
+            ) and pr["_req_ts"] > reviewer_ts
             if (author_ts and author_ts > reviewer_ts) or rerequested_to_me:
                 if set_stage(item, "Human Review", stage):
                     actions.append(f"#{issue}: contributor responded -> Human Review")
+        return
+
+    decision = pr.get("reviewDecision")
+
+    # The one transition allowed OUT of Human Review: the driver re-requested
+    # review upstream after a changes-requested round — the fork's analog of
+    # "you send it to a second reviewer", i.e. Human Review -> Sign-off. The
+    # signal is precise (sticky CHANGES_REQUESTED + a pending re-request), so
+    # a fresh promotion parked in Human Review (decision REVIEW_REQUIRED)
+    # stays parked.
+    if stage == "Human Review" and decision == "CHANGES_REQUESTED" and rerequested:
+        if set_stage(item, "Sign-off", stage):
+            actions.append(f"#{issue}: review re-requested upstream -> Sign-off")
         return
 
     # Promotion tail — only while the ball is genuinely upstream. Stages a
@@ -376,7 +413,6 @@ def sync_item(row) -> None:
     # here every hour.
     if stage not in TAIL_STAGES:
         return
-    decision = pr.get("reviewDecision")
     if decision == "CHANGES_REQUESTED" and rerequested:
         # Stale: fixes were pushed and a re-review requested; the recorded
         # decision persists until the reviewer acts. Treat as review-pending.
