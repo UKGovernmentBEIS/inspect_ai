@@ -827,6 +827,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sample_error=sample_error_handler,
                         sample_complete=sample_complete,
                         early_stopping=options.task.early_stopping,
+                        task_cancel=task_cancel,
                         task_source=options.task_source,
                         sample_feed=sample_feed,
                         fails_on_error=(
@@ -1103,9 +1104,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
             # use the SampleErrorHandler's authoritative count (incremented in
             # handle_error() exactly once per sample after retries are
-            # exhausted). With score_on_error, errored samples now return a
-            # populated score dict instead of None, so counting via
-            # `result is None` would miss them.
+            # exhausted). With score_on_error, an errored sample that was still
+            # scored returns a populated score dict rather than None, so counting
+            # errors via `result is None` would miss them.
             sample_error_count = sample_error_handler.error_count
             mark_log_as_error = _should_eval_fail(
                 sample_error_count, total_samples, config.fail_on_error
@@ -1146,9 +1147,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         scorer_names=scorer_names,
                     )
 
-                if task_cancel and task_cancel.cancel_type is not None:
+                if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
                     # User-initiated cancel (abort/retry) — log as error so
-                    # eval_set doesn't interpret it as external cancellation
+                    # eval_set doesn't interpret it as external cancellation.
+                    # A stamped score/error resolution never fires the task's
+                    # cancel scope, so a cancellation arriving with one
+                    # pending is external (ctrl+c) and takes the cancelled
+                    # path below, preserving its usual semantics.
                     cancel_ex = TerminateTaskError(
                         f"Task cancelled by user ({task_cancel.cancel_type})"
                     )
@@ -1372,6 +1377,7 @@ async def task_run_sample(
     ],
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
+    task_cancel: TaskCancel | None,
     task_source: TaskSource | None,
     sample_feed: SampleSource | None,
     retry_on_error: int,
@@ -1403,6 +1409,14 @@ async def task_run_sample(
 
     # execute under sample semaphore
     async with semaphore:
+        # a task cancel with a graceful sample resolution (score/error) is in
+        # flight: this sample never started, so it is abandoned rather than
+        # resolved — terminal 'cancelled' for the eval's counters, absent from
+        # the log (matching an abort's treatment of still-queued samples)
+        if task_cancel is not None and task_cancel.cancel_type in ("score", "error"):
+            record_sample_cancelled(task_id)
+            return None
+
         # materialize sample+state lazily (deferred until semaphore acquired)
         sample, state = await create_sample_state(sample_uuid)
 
@@ -1555,6 +1569,7 @@ async def task_run_sample(
             error: EvalError | None = None
             raise_error: BaseException | None = None
             cancelled_error: BaseException | None = None
+            operator_cancelled = False
             results: dict[str, SampleScore] = {}
             limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
@@ -1641,10 +1656,38 @@ async def task_run_sample(
                             async def run(tg: TaskGroup) -> None:
                                 # access to state, limit, and errors
                                 nonlocal state, limit, error, raise_error
+                                nonlocal cancelled_error, operator_cancelled
 
                                 try:
                                     # start the sample
                                     active.start(tg)
+
+                                    # a task cancel with a graceful sample
+                                    # resolution arrived while this sample was
+                                    # initializing (after it left the queue,
+                                    # before it started — so the control
+                                    # layer's interrupt of in-flight samples
+                                    # missed it) — resolve it now rather than
+                                    # running the plan
+                                    resolution = (
+                                        task_cancel.cancel_type
+                                        if task_cancel is not None
+                                        else None
+                                    )
+                                    if resolution == "score" or resolution == "error":
+                                        # an "error" resolution can slip past
+                                        # the control layer's fails-on-error
+                                        # gate while this sample materializes
+                                        # (it is not yet registered in
+                                        # active_samples()) — downgrade to
+                                        # "score" so the auto-fail the gate
+                                        # exists to prevent doesn't fire
+                                        if (
+                                            resolution == "error"
+                                            and active.fails_on_error
+                                        ):
+                                            resolution = "score"
+                                        active.interrupt(resolution)
 
                                     # monitor working limit in the background
                                     monitor_working_limit()
@@ -1681,6 +1724,20 @@ async def task_run_sample(
                                             case "error":
                                                 # default error handling
                                                 error, raise_error = handle_error(ex)
+                                            case "cancel":
+                                                # resolve as an external cancel
+                                                # would: transcript preserved,
+                                                # no scoring, and not counted
+                                                # as a genuine error (bypasses
+                                                # handle_error / fail_on_error)
+                                                operator_cancelled = True
+                                                cancelled_error = ex
+                                                error = eval_error(
+                                                    ex, type(ex), ex, ex.__traceback__
+                                                )
+                                                transcript()._event(
+                                                    ErrorEvent(error=error)
+                                                )
 
                                     elif active.limit_exceeded_error:
                                         err = active.limit_exceeded_error
@@ -2086,6 +2143,7 @@ async def task_run_sample(
             sample_error=sample_error,
             sample_complete=sample_complete,
             early_stopping=early_stopping,
+            task_cancel=task_cancel,
             task_source=task_source,
             sample_feed=sample_feed,
             fails_on_error=fails_on_error,
@@ -2114,6 +2172,15 @@ async def task_run_sample(
         record_sample_cancelled(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # an operator 'cancel' interrupt is sample-scoped: the cancellation
+        # came from this sample's own task group (already absorbed at its
+        # exit), so there is nothing to re-raise — re-raising here would tear
+        # down the whole task. Keyed on the disposition captured when the
+        # interrupt was handled, not the live `active.interrupt_action`, which
+        # a later cancel directive could overwrite while this sample is still
+        # inside its (shielded) logging window.
+        if operator_cancelled:
+            return None
         raise cancelled_error
 
     # no error
@@ -2131,6 +2198,11 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # no sample_complete here even if the sample was scored: raising fails
+        # the whole eval, whose log finishes with results=None (metrics are
+        # never computed), so there is nothing for the scores to contribute
+        # to — and notifying early stopping/progress for a dying task would
+        # mislead. the scores are still in the sample log written above.
         raise raise_error
 
     # we have an error and should not raise it
@@ -2138,6 +2210,15 @@ async def task_run_sample(
         record_sample_errored(
             task_id, started=_sample_started(), **_sample_usage(state)
         )
+        # the sample may have scores despite the error: score_on_error scoring
+        # of its partial state, scores a solver wrote to state.scores before a
+        # later error, or scores from scorers that completed before another
+        # raised. those scores are already in the sample log, so surface them
+        # here too — the log and metrics should never diverge (mirrors the
+        # `error is None` branch above and matches docs/handling-errors.qmd)
+        if results:
+            await sample_complete(state.sample_id, state.epoch, results)
+            return results
         return None
 
 
@@ -2359,8 +2440,10 @@ def eval_log_sample_source(
                     eval_log_info, id, epoch, reader=reader
                 )
             except (IndexError, FileNotFoundError):
-                # FileNotFoundError: the prior attempt may never have written
-                # its log at all (e.g. its log_start() header flush failed)
+                # IndexError: sample not present in the log. FileNotFoundError:
+                # the log file itself was never written (the prior attempt
+                # failed before its first flush, e.g. an errored log_start()).
+                # Either way there is no prior sample to reuse.
                 return await _resume_if_checkpointed(id, epoch)
             if sample.error is None and sample.invalidation is None:
                 return sample
@@ -2452,7 +2535,7 @@ def create_sample_semaphore(
         # adaptive_connections, warning when max_samples < adaptive.max
         # would fire for nearly every deliberate max_samples setting.
         # ResizableLimiter (not a fixed Semaphore) so the control channel can
-        # retune max_samples mid-eval (see design/control-channel.md phase 3).
+        # retune max_samples mid-eval (see design/ctl/control-channel.md phase 3).
         semaphore = ResizableLimiter(config.max_samples)
     elif adaptive_active(
         generate_config.adaptive_connections,
