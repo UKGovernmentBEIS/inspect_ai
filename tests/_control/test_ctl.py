@@ -20,6 +20,7 @@ from inspect_ai._cli.ctl import (
     _SHORT_ID_LEN,
     _ConfigResult,
     _FetchedSummaries,
+    _print_errored_samples_footer,
     _print_human_table,
     _print_keep_alive_footer,
     _print_samples_table,
@@ -540,6 +541,36 @@ def test_keep_alive_footer_mixed_reports_counts(
     out = capsys.readouterr().out
     assert "keep-alive: mixed" in out
     assert "1/3 on" in out
+
+
+def test_errored_samples_footer_points_at_triage_command(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # sums latest-attempt errors across rows (rows without any count as 0)
+    summaries: list[dict[str, Any]] = [
+        {"samples": {"errored": 2}},
+        {"samples": {"errored": 1}},
+        {"samples": {}},
+    ]
+    _print_errored_samples_footer(summaries)
+    out = capsys.readouterr().out
+    assert "3 samples errored" in out
+    assert "inspect ctl sample errors" in out
+
+
+def test_errored_samples_footer_singular(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_errored_samples_footer([{"samples": {"errored": 1}}])
+    assert "1 sample errored" in capsys.readouterr().out
+
+
+def test_errored_samples_footer_absent_without_errors(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # An older server may omit `samples` entirely — treated as no errors.
+    _print_errored_samples_footer([{"samples": {"errored": 0}}, {}])
+    assert capsys.readouterr().out == ""
 
 
 class _FakeServer:
@@ -1141,6 +1172,35 @@ def test_task_list_explicit_matches_bare(monkeypatch: pytest.MonkeyPatch) -> Non
     bare = runner.invoke(ctl_command, ["task", "--json"]).output
     explicit = runner.invoke(ctl_command, ["task", "list", "--json"]).output
     assert json.loads(bare)["tasks"] == json.loads(explicit)["tasks"]
+
+
+def test_task_list_human_footer_flags_errored_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["samples"] = {"total": 4, "completed": 4, "errored": 2}
+    _patch_surface(monkeypatch, [summary])
+    result = cli_runner().invoke(ctl_command, ["task", "list"])
+    assert result.exit_code == 0, result.output
+    assert "2 samples errored — see `inspect ctl sample errors`" in result.stdout
+
+
+def test_task_list_json_carries_no_footer_hints(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Errored rows must not grow hints in ``--json`` (the agent contract).
+
+    The whole of stdout must parse as the envelope — a footer line
+    anywhere would break that — and the counts the footer would restate
+    are already in the rows.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["samples"] = {"total": 4, "completed": 4, "errored": 2}
+    _patch_surface(monkeypatch, [summary])
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["tasks"][0]["samples"]["errored"] == 2
 
 
 def test_sample_selector_in_verb_slot_teaches() -> None:

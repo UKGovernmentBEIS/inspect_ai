@@ -391,6 +391,8 @@ def task_list_command(as_json: bool) -> None:
     finished exactly when `completed_at` is non-null — do not infer
     completion from sample counts (a cancelled or errored eval finishes
     with `completed < total`).
+
+    Example: inspect ctl task list --json
     """
     _run_task_list(as_json)
 
@@ -555,6 +557,8 @@ def sample_list_command(
     is the complete status histogram regardless, and `truncated` reports
     whether rows were dropped. Widen with `--limit N` or `--all`, or narrow
     with `--status`.
+
+    Example: inspect ctl sample list my-task --json
     """
     _run_sample_list(
         task,
@@ -705,6 +709,8 @@ def sample_events_command(
     `--from-start`); each page ends with a `next` cursor — pass it back via
     `--cursor` to read only what's new. `done: true` means the sample has
     terminated and no more events will come.
+
+    Example: inspect ctl sample events my-task sample-1 --tail 20
     """
     if legacy_since is not None:
         with _structured_failures(as_json):
@@ -998,6 +1004,8 @@ def config_command(
     change reaches even generate calls already retrying (in-flight API
     requests still drain first); pass `clear` to remove an override. TASK
     is required only for setting a task-scoped knob when several tasks run.
+
+    Example: inspect ctl config --max-connections 20 --dry-run
     """
     _run_config(
         task,
@@ -1514,6 +1522,7 @@ def _run_task_list(as_json: bool) -> None:
 
     _print_human_table(summaries)
     _print_keep_alive_footer(summaries)
+    _print_errored_samples_footer(summaries)
 
 
 class _SampleRows(NamedTuple):
@@ -4379,6 +4388,23 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     else:
         on = sum(flags)
         click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
+
+
+def _print_errored_samples_footer(summaries: list[dict[str, Any]]) -> None:
+    """Print a one-line errored-samples footer below the tasks table.
+
+    Points at the triage command when any row reports errored samples.
+    The count sums `samples.errored` across rows, which is deliberately
+    narrower than the view it points at: `errored` counts latest-attempt
+    errors only, while `sample errors` also lists retried samples — so the
+    view may show more rows than the count here, never fewer, and the
+    count must not be "fixed" to match the view's row count (see
+    design/ctl/agent-discoverability.md §3b).
+    """
+    errored = sum((s.get("samples") or {}).get("errored", 0) for s in summaries)
+    if errored > 0:
+        noun = "sample" if errored == 1 else "samples"
+        click.echo(f"{errored} {noun} errored — see `inspect ctl sample errors`")
 
 
 def _task_header(target: dict[str, Any]) -> str:

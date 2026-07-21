@@ -39,6 +39,9 @@ rest.
 | 3a | Structured `--json` error envelope with branchable fields | **Shipped** — nothing to do |
 | 3b | Positive-path footer hints in human output | **Partially shipped** — one gap designed below |
 
+*Update (2026-07): the open items — 1a, 1c, 2a, 2b, and the 3b remainder —
+are implemented alongside this doc (same PR), following the designs below.*
+
 ### Already shipped (verified against the code, 2026-07)
 
 **1b — `inspect eval --json` (and beyond).** Shipped as the "launch handoff"
