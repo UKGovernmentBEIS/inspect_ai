@@ -301,17 +301,13 @@ async def task_limits(
                 "connection concurrency, or ran no samples in this process)."
             )
         elif not dry_run:
-            previous_limit = sample_limiter.limit
+            previous_limit = [sample_limiter.limit]
             sample_limiter.limit = max_samples
-            if previous_limit != max_samples:
-                task_applied.append(
-                    ConfigValueChange(
-                        config="eval",
-                        name="max_samples",
-                        value=max_samples,
-                        previous=previous_limit,
-                    )
-                )
+            change = _record_retune(
+                previous_limit, max_samples, config="eval", name="max_samples"
+            )
+            if change is not None:
+                task_applied.append(change)
 
     # a DynamicSampleLimiter that never found its model's controller means
     # sample concurrency is stuck at its starting value — generates may be
@@ -490,15 +486,32 @@ class _ProcessKnobViews(NamedTuple):
     never touched some logs' models) from a global one."""
 
 
-def _single_previous(previous: list[int]) -> int | None:
-    """One best-effort ``previous`` value for a knob backed by several objects.
+def _record_retune(
+    previous: list[int],
+    value: int,
+    *,
+    config: Literal["eval", "generate", "concurrency"],
+    name: str,
+) -> ConfigValueChange | None:
+    """The change record for an applied limiter retune, or ``None`` for a no-op.
 
-    ``max_sandboxes`` / ``max_connections`` retune every matching limiter or
-    controller; when their prior values agree that value is the honest
-    "before", otherwise ``None`` (unknown/mixed — the recording layer then
-    falls back to the log's launch value).
+    The recording invariants shared by every limiter-backed knob live here:
+    a retune that changed nothing (every target was already at ``value``)
+    records nothing — no-op records would clutter the log — and the record's
+    ``previous`` is the targets' agreed pre-retune value, or ``None`` when
+    several targets disagreed (unknown/mixed — the recording layer then
+    falls back to the log's launch value, where one exists).
     """
-    return previous[0] if len(set(previous)) == 1 else None
+    from inspect_ai.log._config_update import ConfigValueChange
+
+    if all(prev == value for prev in previous):
+        return None
+    return ConfigValueChange(
+        config=config,
+        name=name,
+        value=value,
+        previous=previous[0] if len(set(previous)) == 1 else None,
+    )
 
 
 def _static_semaphores() -> "list[ConcurrencySemaphore]":
@@ -577,15 +590,11 @@ def _apply_process_knobs(
             previous_sandboxes = [sem.concurrency for sem in sandboxes.values()]
             for sem in sandboxes.values():
                 sem.concurrency = max_sandboxes
-            if any(prev != max_sandboxes for prev in previous_sandboxes):
-                applied.append(
-                    ConfigValueChange(
-                        config="eval",
-                        name="max_sandboxes",
-                        value=max_sandboxes,
-                        previous=_single_previous(previous_sandboxes),
-                    )
-                )
+            change = _record_retune(
+                previous_sandboxes, max_sandboxes, config="eval", name="max_sandboxes"
+            )
+            if change is not None:
+                applied.append(change)
 
     # max_subprocesses — the process-global subprocess limiter (registry key
     # "subprocesses", created lazily by the first concurrency-managed
@@ -600,17 +609,16 @@ def _apply_process_knobs(
                 "subprocess has run yet; the limiter is created on first use)."
             )
         elif not dry_run:
-            previous_subprocesses = subprocesses.concurrency
+            previous_subprocesses = [subprocesses.concurrency]
             subprocesses.concurrency = max_subprocesses
-            if previous_subprocesses != max_subprocesses:
-                applied.append(
-                    ConfigValueChange(
-                        config="eval",
-                        name="max_subprocesses",
-                        value=max_subprocesses,
-                        previous=previous_subprocesses,
-                    )
-                )
+            change = _record_retune(
+                previous_subprocesses,
+                max_subprocesses,
+                config="eval",
+                name="max_subprocesses",
+            )
+            if change is not None:
+                applied.append(change)
 
     # max_connections — the adaptive controllers' scaling ceiling (process-global,
     # one per model). Lowering clamps live concurrency down immediately; raising
@@ -638,15 +646,14 @@ def _apply_process_knobs(
             previous_maxes = [ctrl.max for ctrl in controllers]
             for ctrl in controllers:
                 ctrl.set_max(max_connections)
-            if any(prev != max_connections for prev in previous_maxes):
-                applied.append(
-                    ConfigValueChange(
-                        config="generate",
-                        name="max_connections",
-                        value=max_connections,
-                        previous=_single_previous(previous_maxes),
-                    )
-                )
+            change = _record_retune(
+                previous_maxes,
+                max_connections,
+                config="generate",
+                name="max_connections",
+            )
+            if change is not None:
+                applied.append(change)
                 # a filtered retune never touched the other models' controllers,
                 # yet its record reaches every live log — stamp the filter so a
                 # reader can tell (see _ProcessKnobViews.record_metadata)
@@ -728,15 +735,11 @@ def _apply_process_knobs(
             previous_limits = [sem.concurrency for sem in resizable_matches]
             for sem in resizable_matches:
                 sem.concurrency = key_limit
-            if any(prev != key_limit for prev in previous_limits):
-                applied.append(
-                    ConfigValueChange(
-                        config="concurrency",
-                        name=key,
-                        value=key_limit,
-                        previous=_single_previous(previous_limits),
-                    )
-                )
+            change = _record_retune(
+                previous_limits, key_limit, config="concurrency", name=key
+            )
+            if change is not None:
+                applied.append(change)
 
     # Read `in_use` from the limiter directly (exact borrowed count) rather than
     # deriving it as `concurrency - value`: once a limit is lowered below the
