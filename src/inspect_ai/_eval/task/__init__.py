@@ -1,5 +1,6 @@
 from .task import Task, TaskInfo, PreviousTask, task_with  # noqa: I001, F401
 from .epochs import Epochs
+from .sample_source import SampleSource
 from .task_source import TaskSource
 
 __all__ = [
@@ -8,5 +9,6 @@ __all__ = [
     "TaskInfo",
     "PreviousTask",
     "task_with",
+    "SampleSource",
     "TaskSource",
 ]
