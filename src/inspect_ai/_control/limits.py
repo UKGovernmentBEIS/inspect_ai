@@ -704,10 +704,10 @@ def _apply_process_knobs(
     # name can back several entries — e.g. one model on two accounts — and the
     # retune reaches them all, like max_connections' name matching). The
     # caller already rejected unknown names, so a no-match here means the name
-    # belongs only to an adaptive controller. Deliberately never added to
-    # `applied`: named concurrency() limits have no recorded counterpart in
-    # the log, so the change stays ephemeral (see
-    # design/ctl/config-log-persistence.md).
+    # belongs only to an adaptive controller. Recorded as a "concurrency"
+    # change: no launch-config counterpart to fold into, but the audit record
+    # (who, when, why, old → new) belongs in the log like any other retune
+    # (see design/ctl/config-log-persistence.md).
     if key is not None and key_limit is not None:
         requested[f"concurrency:{key}"] = key_limit
         matches = [sem for sem in _static_semaphores() if sem.name == key]
@@ -725,8 +725,18 @@ def _apply_process_knobs(
                 "live resizing)."
             )
         elif not dry_run:
+            previous_limits = [sem.concurrency for sem in resizable_matches]
             for sem in resizable_matches:
                 sem.concurrency = key_limit
+            if any(prev != key_limit for prev in previous_limits):
+                applied.append(
+                    ConfigValueChange(
+                        config="concurrency",
+                        name=key,
+                        value=key_limit,
+                        previous=_single_previous(previous_limits),
+                    )
+                )
 
     # Read `in_use` from the limiter directly (exact borrowed count) rather than
     # deriving it as `concurrency - value`: once a limit is lowered below the

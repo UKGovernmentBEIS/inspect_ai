@@ -121,6 +121,31 @@ def test_fill_previous_from_launch() -> None:
     assert update.changes[0].previous is None
 
 
+def test_effective_config_ignores_concurrency_changes() -> None:
+    # a --key retune is audit-only: even a key sharing a config field's
+    # spelling must never fold into effective config
+    log = _make_log(EvalConfig(max_samples=4))
+    log.config_updates = [
+        _update(
+            ConfigValueChange(config="concurrency", name="google_web_search", value=3),
+            ConfigValueChange(config="concurrency", name="max_samples", value=99),
+            ConfigValueChange(config="concurrency", name="timeout", value=99),
+        )
+    ]
+    assert effective_eval_config(log).max_samples == 4
+    assert effective_generate_config(log).timeout == 60
+
+
+def test_fill_previous_skips_concurrency_changes() -> None:
+    # a concurrency key's name is a registry key, not a config field — a key
+    # that happens to share a field's spelling must not pick up its launch value
+    update = _update(
+        ConfigValueChange(config="concurrency", name="timeout", value=3),
+    )
+    filled = fill_previous_from_launch(update, _make_log().eval)
+    assert filled.changes[0].previous is None
+
+
 # ---------------------------------------------------------------------------
 # Round-trips through both formats
 # ---------------------------------------------------------------------------

@@ -27,11 +27,19 @@ if TYPE_CHECKING:
 class ConfigValueChange(BaseModel):
     """One knob's value change within a config update."""
 
-    config: Literal["eval", "generate"]
-    """Which recorded config object the knob shadows (`EvalConfig` or `GenerateConfig`)."""
+    config: Literal["eval", "generate", "concurrency"]
+    """Which recorded config object the knob shadows.
+
+    `"eval"` / `"generate"` shadow a field of `EvalConfig` /
+    `GenerateConfig`. `"concurrency"` is a named `concurrency()` registry
+    entry (a `ctl config --key` retune): it has no launch-config
+    counterpart, so the change is audit-only — recorded for provenance but
+    never folded by `effective_eval_config()` / `effective_generate_config()`."""
 
     name: str
-    """Field name in that object (same spelling as the ctl knob, e.g. "max_samples")."""
+    """Field name in that object (same spelling as the ctl knob, e.g. "max_samples").
+
+    For `"concurrency"` changes, the registry key name (the `--key` NAME)."""
 
     value: JsonValue = Field(default=None)
     """New value.
@@ -141,13 +149,16 @@ def fill_previous_from_launch(update: ConfigUpdate, eval: "EvalSpec") -> ConfigU
     to a knob they have no per-log view of the launch value, so each log
     fills it from its own launch config at recording time. `previous` is
     informational — a reader sees `5 → 20` without replaying history — and
-    is never used to compute effective config.
+    is never used to compute effective config. `"concurrency"` changes are
+    skipped: their `name` is a registry key, not a config field, so a launch
+    lookup would be meaningless (or wrong, for a key that happens to share a
+    field's spelling).
     """
     from pydantic_core import to_jsonable_python
 
     filled = update.model_copy(deep=True)
     for change in filled.changes:
-        if change.previous is not None:
+        if change.previous is not None or change.config == "concurrency":
             continue
         launch: BaseModel = (
             eval.config if change.config == "eval" else eval.model_generate_config

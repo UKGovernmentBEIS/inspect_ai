@@ -2171,13 +2171,9 @@ def test_knob_since_table_is_consistent() -> None:
     assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
     assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
     # the provenance params' gate must not outrun the constant either
-    from inspect_ai._cli.ctl import _PROVENANCE_SINCE, _RECORDLESS_KNOBS
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
 
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
-    # a recordless-knob spelling that drifts from _KNOB_SCOPE (e.g. on a
-    # rename) would silently count as recorded again in `_run_config`,
-    # reopening the silent provenance drop the recorded-knob gate closes
-    assert _RECORDLESS_KNOBS <= _KNOB_SCOPE.keys()
 
 
 def test_config_provenance_sent_with_mutations_on_current_server(
@@ -2344,15 +2340,14 @@ def test_config_provenance_requires_set_option(
     assert not sent
 
 
-def test_config_provenance_requires_recorded_set_option(
+def test_config_provenance_rides_key_only_retune(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Explicit --author/--reason with only recordless knobs hard-errors.
+    """A key-only retune is a recorded mutation and carries provenance.
 
-    `--key` applies a change but deliberately records nothing (a named
-    concurrency() limit has no eval-log counterpart), so provenance on a
-    key-only retune would vanish silently — same failure mode as the
-    pure-read case, same pre-send hard error.
+    `--key` changes are recorded in the eval log like any other knob
+    (as `config="concurrency"` changes), so an explicit --reason goes
+    through and a defaulted author is resolved client-side.
     """
     from inspect_ai._control import CONTROL_API_VERSION
 
@@ -2386,37 +2381,10 @@ def test_config_provenance_requires_recorded_set_option(
         ctl_command,
         ["config", "--key", "my_api", "2", "--reason", "provider incident"],
     )
-    assert result.exit_code == 1
-    assert "--reason" in result.stderr
-    assert "--key" in result.stderr
-    assert "never recorded" in result.stderr
-    assert not sent  # the mutation was never sent
-
-    # a recorded knob alongside --key carries the provenance: the request
-    # goes through with the reason attached
-    result = cli_runner().invoke(
-        ctl_command,
-        [
-            "config",
-            "--key",
-            "my_api",
-            "2",
-            "--max-connections",
-            "8",
-            "--reason",
-            "provider incident",
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    assert sent["reason"] == "provider incident"
-
-    # without explicit provenance a key-only retune proceeds — and sends no
-    # defaulted author (there is no record for it to ride)
-    sent.clear()
-    result = cli_runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
     assert result.exit_code == 0, result.output
     assert sent["key"] == ("my_api", 2)
-    assert sent["author"] is None
+    assert sent["reason"] == "provider incident"
+    assert isinstance(sent["author"], str) and sent["author"]
 
 
 def test_config_gates_newer_knob_on_older_server(

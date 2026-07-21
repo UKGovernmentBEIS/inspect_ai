@@ -1402,6 +1402,60 @@ async def test_config_update_process_scope_with_no_live_logs() -> None:
     assert result["persisted"] == {"max_retries": False}
 
 
+async def test_config_update_records_key_change() -> None:
+    """A --key retune is recorded as an audit-only "concurrency" change."""
+    from inspect_ai._control.config_record import inherited_config_updates
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    result = await process_limits(
+        key="google_web_search", key_limit=3, reason="provider incident"
+    )
+    assert result["persisted"] == {"google_web_search": True}
+    update = live.updates[0]
+    assert update.scope == "process"
+    assert update.provenance.reason == "provider incident"
+    change = update.changes[0]
+    assert (change.config, change.name) == ("concurrency", "google_web_search")
+    assert (change.value, change.previous) == (3, 10)
+    # process-scoped like the other process knobs: it joins the run's
+    # inheritance snapshot for logs that start later
+    assert len(inherited_config_updates()) == 1
+
+
+async def test_config_update_key_retune_to_current_value_records_nothing() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    result = await process_limits(key="google_web_search", key_limit=10)
+    assert result["persisted"] is None
+    assert live.updates == []
+
+
+async def test_config_update_key_mixed_previous_records_none() -> None:
+    """Entries sharing a name with disagreeing old limits get previous=None."""
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await get_or_create_semaphore("model", 10, "model#account1", True)
+    await get_or_create_semaphore("model", 5, "model#account2", True)
+
+    await process_limits(key="model", key_limit=3)
+    change = live.updates[0].changes[0]
+    assert (change.config, change.name, change.value) == ("concurrency", "model", 3)
+    assert change.previous is None
+
+
 async def test_config_update_inheritance_snapshot() -> None:
     from inspect_ai._control.config_record import inherited_config_updates
     from inspect_ai._control.eval_state import reset_run_registries
