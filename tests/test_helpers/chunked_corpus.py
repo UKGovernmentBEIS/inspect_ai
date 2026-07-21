@@ -7,7 +7,7 @@ messages/events/calls/attachments sequences + skeleton and stats
 sidecars). Later efforts' tests exercise the chunked shape against
 these corpora without needing a writer. Request the corpora via the
 session-scoped ``chunked_corpus`` / ``chunked_corpus_small_chunks``
-fixtures in ``tests/conftest.py``.
+fixtures in ``tests/log/conftest.py``.
 """
 
 from pathlib import Path
