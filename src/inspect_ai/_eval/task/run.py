@@ -2538,6 +2538,12 @@ def eval_log_sample_source(
         reader: AsyncZipReader | None = None
         prior_entry_names: set[str] | None = None
         probe_failures = 0
+        # serializes the central-directory fetch across concurrent probes:
+        # all run_sample coroutines probe at once, and without this lock each
+        # would pass the failure-cap check while the count is still 0, then
+        # perform its own fetch attempt (entries() caches only success) —
+        # N attempts instead of PRIOR_PROBE_MAX_FAILURES
+        probe_lock = anyio.Lock()
 
         async def read_from_file(
             id: int | str, epoch: int
@@ -2580,24 +2586,30 @@ def eval_log_sample_source(
             """
             nonlocal reader, prior_entry_names, probe_failures
             if prior_entry_names is None:
-                if probe_failures >= PRIOR_PROBE_MAX_FAILURES:
-                    return False
-                if not reader:
-                    reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
-                try:
-                    cd = await reader.entries()
-                    prior_entry_names = {e.filename for e in cd.entries}
-                except FileNotFoundError:
-                    prior_entry_names = set()
-                except Exception as ex:
-                    probe_failures += 1
-                    if probe_failures >= PRIOR_PROBE_MAX_FAILURES:
-                        py_logger.warning(
-                            "Unable to read the retry log file's central directory "
-                            + f"after {probe_failures} attempts — reused sample reads "
-                            + f"will not be throttled for this retry: {ex}"
-                        )
-                    return False
+                async with probe_lock:
+                    # re-check under the lock: another probe may have resolved
+                    # (or exhausted the cap for) the fetch while we queued
+                    if prior_entry_names is None:
+                        if probe_failures >= PRIOR_PROBE_MAX_FAILURES:
+                            return False
+                        if not reader:
+                            reader = AsyncZipReader(
+                                get_async_filesystem(), eval_log_info.name
+                            )
+                        try:
+                            cd = await reader.entries()
+                            prior_entry_names = {e.filename for e in cd.entries}
+                        except FileNotFoundError:
+                            prior_entry_names = set()
+                        except Exception as ex:
+                            probe_failures += 1
+                            if probe_failures >= PRIOR_PROBE_MAX_FAILURES:
+                                py_logger.warning(
+                                    "Unable to read the retry log file's central directory "
+                                    + f"after {probe_failures} attempts — reused sample reads "
+                                    + f"will not be throttled for this retry: {ex}"
+                                )
+                            return False
             return _sample_filename(id, epoch) in prior_entry_names
 
         return EvalSampleSource(

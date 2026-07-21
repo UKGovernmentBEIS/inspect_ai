@@ -797,17 +797,24 @@ class ZipLogFile:
                 update={"events": [], "events_data": None}
             )
 
-            self._summary_counter += 1
-            summary = sample.summary()
-            summary_file = _journal_summary_file(self._summary_counter)
-            summary_path = _journal_summary_path(summary_file)
-            self._zip_writestr(summary_path, [summary])
-            self._summaries = [
-                s
-                for s in self._summaries
-                if (s.id, s.epoch) != (summary.id, summary.epoch)
-            ]
-            self._summaries.append(summary)
+            self._journal_summary(sample)
+
+    def _journal_summary(self, sample: EvalSample) -> None:
+        """Journal the sample's summary and merge it into ``_summaries``.
+
+        Replaces any existing summary for the same ``(id, epoch)`` (e.g. when
+        re-logging completed samples after log_init with clean=False during
+        eval_retry / score --overwrite). Caller must hold ``self._lock``.
+        """
+        self._summary_counter += 1
+        summary = sample.summary()
+        summary_file = _journal_summary_file(self._summary_counter)
+        summary_path = _journal_summary_path(summary_file)
+        self._zip_writestr(summary_path, [summary])
+        self._summaries = [
+            s for s in self._summaries if (s.id, s.epoch) != (summary.id, summary.epoch)
+        ]
+        self._summaries.append(summary)
 
     async def buffer_sample_streaming(
         self, sample: EvalSample, history: "SampleHistory"
@@ -839,17 +846,7 @@ class ZipLogFile:
             # Cleared in ``flush`` once the sample lands on disk.
             self._streaming_samples[(sample.id, sample.epoch)] = sample
 
-            self._summary_counter += 1
-            summary = sample.summary()
-            summary_file = _journal_summary_file(self._summary_counter)
-            summary_path = _journal_summary_path(summary_file)
-            self._zip_writestr(summary_path, [summary])
-            self._summaries = [
-                s
-                for s in self._summaries
-                if (s.id, s.epoch) != (summary.id, summary.epoch)
-            ]
-            self._summaries.append(summary)
+            self._journal_summary(sample)
 
     async def write_buffered_samples(self) -> None:
         async with self._lock:

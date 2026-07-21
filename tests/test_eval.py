@@ -693,6 +693,65 @@ def test_retry_presence_probe_gives_up_after_max_failures(
     assert len(warnings) == 1
 
 
+def test_retry_presence_probe_concurrent_failures_respect_cap(
+    tmp_path: Path,
+    capture_probe_warnings: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Concurrent probes share the failure cap: fetch attempts and the warning stay bounded.
+
+    All run_sample coroutines probe at eval start; each must not get its own
+    fetch attempt (and warning) just because it passed the cap check while the
+    failure count was still 0.
+    """
+    from inspect_ai._eval.task.run import (
+        PRIOR_PROBE_MAX_FAILURES,
+        eval_log_sample_source,
+    )
+    from inspect_ai._util import async_zip
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.dataset import MemoryDataset
+
+    prior_log, _ = _write_prior_eval_log(tmp_path / "logs")
+    probe_path = tmp_path / "prior.eval"
+    probe_path.write_bytes(b"not a zip")
+
+    source = eval_log_sample_source(
+        prior_log,
+        _retry_source_log_info(str(probe_path)),
+        MemoryDataset([Sample(id=1, input="x", target="y")]),
+    )
+
+    fetches = 0
+    parse_central_directory = async_zip._parse_central_directory
+
+    async def counting_parse(*args: Any, **kwargs: Any) -> Any:
+        nonlocal fetches
+        fetches += 1
+        return await parse_central_directory(*args, **kwargs)
+
+    monkeypatch.setattr(async_zip, "_parse_central_directory", counting_parse)
+
+    async def check() -> None:
+        async with AsyncFilesystem():
+            results = await tg_collect(
+                [
+                    functools.partial(source.prior_exists, 1, 1)
+                    for _ in range(PRIOR_PROBE_MAX_FAILURES + 7)
+                ]
+            )
+            assert all(result is False for result in results)
+
+    caplog = capture_probe_warnings
+    with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
+        anyio.run(check)
+
+    assert fetches == PRIOR_PROBE_MAX_FAILURES
+    warnings = [r for r in caplog.records if "central directory" in r.message]
+    assert len(warnings) == 1
+
+
 def test_retry_presence_probe_missing_log_cached_without_warning(
     tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
 ) -> None:
