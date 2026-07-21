@@ -1,6 +1,6 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, task and sample cancellation, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
@@ -22,12 +22,13 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 | `inspect ctl sample cancel` | Cancel one running sample. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl process list` | List running Inspect processes. |
+| `inspect ctl process anomalies` | Show in-flight and anomalous actions from a process's trace log. |
 | `inspect ctl process keep` | Make a process stay alive after its eval finishes. |
 | `inspect ctl process release` | Let a keep-alive process exit. |
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -253,7 +254,7 @@ With `--json` the response is an `{as_of, status, count, messages}` envelope, pr
 
 ## Cancellation
 
-`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
+`inspect ctl sample cancel` cancels one running sample — the typical move when a sample has stalled (high `idle` in `sample list`) or is burning tokens without progress. To see *why* it is stalled before cancelling, `inspect ctl process anomalies` shows what the process is actually waiting on (see [Stall Diagnosis](#stall-diagnosis) below) — an in-flight operation emits no transcript event until it returns, so a stalled sample's transcript alone won't name it. By default the sample completes and the scorer runs on the work done so far (it is recorded with an `operator` limit, like the in-process TUI's cancel); pass `--action error` to mark it errored instead (not permitted for samples configured to fail on errors), or `--action cancel` to record it as cancelled — its transcript is preserved in the log, it is not scored, and it does not count toward a fail-on-error threshold. The rest of the task is unaffected.
 
 ```bash
 $ inspect ctl sample cancel gpqa 17
@@ -278,6 +279,16 @@ $ inspect ctl task cancel gpqa --action score
 ```
 
 Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
+
+## Stall Diagnosis
+
+`inspect ctl process anomalies [PID]` shows *why* a process is stalled: it reconstructs from the process's trace log which actions (model calls, sandbox operations, subprocesses) are currently in flight — with live durations — plus any that were cancelled (`--all` adds errored and timed-out actions, and `--filter` narrows by message text). An in-flight operation emits no transcript event until it returns, so this is the read that names what a stalled sample with a high `idle` is actually waiting on.
+
+```bash
+$ inspect ctl process anomalies 12345
+```
+
+Unlike the other reads, this one opens the process's trace file directly rather than asking the process — so it works even against a process too busy or wedged to answer (the escalation path when another command reports "busy"), and even post-mortem: passing the pid of an exited process reads its trace file (kept on disk for the last 10 runs) to show what was in flight when it died, with durations dated to the file's last write. With no `PID` it reads every running Inspect process, one section per pid.
 
 ## Configuration
 

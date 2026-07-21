@@ -7,11 +7,13 @@ cursor validation), and rendering helpers.
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 import click
 import pytest
+from test_helpers.trace import action_record, write_trace_log
 
 from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import (
@@ -3763,3 +3765,289 @@ def test_resolve_scope_completed_target_counts_toward_siblings() -> None:
     scope = _resolve_scope([], summaries, "aaa111")
     assert scope is not None
     assert scope.siblings == 2  # running sibling + the named completed target
+
+
+# --- process anomalies (client-side trace-file read) ------------------------
+
+
+def _anomalous_records() -> list[dict[str, Any]]:
+    """One running Model action, one cancelled Subprocess, one errored Sandbox."""
+    start = 1000.0
+    return [
+        action_record("run1", "Model", "enter", detail="generate", start_time=start),
+        action_record("can1", "Subprocess", "enter", detail="bash", start_time=start),
+        action_record("can1", "Subprocess", "cancel", detail="bash", duration=5.0),
+        action_record("err1", "Sandbox", "enter", detail="exec", start_time=start),
+        action_record("err1", "Sandbox", "error", detail="exec", duration=7.0),
+    ]
+
+
+@pytest.fixture
+def trace_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point the ctl trace-file resolution at a per-test directory."""
+    monkeypatch.setattr("inspect_ai._cli.ctl.inspect_trace_dir", lambda: tmp_path)
+    return tmp_path
+
+
+def test_process_anomalies_explicit_pid_json(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    assert isinstance(envelope["as_of"], float)
+    (section,) = envelope["processes"]
+    assert section["pid"] == 123
+    assert section["trace_file"] == (trace_dir / "trace-123.log").as_posix()
+    # all four buckets always present and populated (--all gates only the
+    # human rendering), so empty always means "none occurred"
+    assert [row["action"] for row in section["running"]] == ["Model"]
+    assert [row["action"] for row in section["cancelled"]] == ["Subprocess"]
+    assert [row["action"] for row in section["errors"]] == ["Sandbox"]
+    assert section["timeouts"] == []
+
+
+def test_process_anomalies_dead_pid_reads_gz(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pid with no live process still resolves via the gzipped post-mortem file."""
+    import gzip
+
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    with gzip.open(trace_dir / "trace-124.log.gz", "wt") as f:
+        for record in _anomalous_records():
+            f.write(json.dumps(record) + "\n")
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124", "--json"])
+    assert result.exit_code == 0
+    (section,) = json.loads(result.stdout)["processes"]
+    assert section["trace_file"].endswith("trace-124.log.gz")
+    assert [row["action"] for row in section["running"]] == ["Model"]
+
+
+def test_process_anomalies_dead_pid_durations_date_to_last_write(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Post-mortem running durations use the trace file's last write, not now.
+
+    An action in flight when the process died must not accrue wall-clock
+    time since (an overnight death would otherwise show it "running" for
+    hours); the file's mtime approximates the time of death.
+    """
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    trace_file = trace_dir / "trace-125.log"
+    write_trace_log(trace_file, _anomalous_records())  # running since t=1000.0
+    os.utime(trace_file, (1180.0, 1180.0))
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "125", "--json"])
+    assert result.exit_code == 0
+    assert "last write" in result.stderr
+    (section,) = json.loads(result.stdout)["processes"]
+    assert section["as_of"] == pytest.approx(1180.0)
+    assert section["running"][0]["duration"] == pytest.approx(180.0)
+
+    # the human table dates durations the same way
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "125"])
+    assert result.exit_code == 0
+    assert "180.00s" in result.stdout
+
+
+def test_process_anomalies_live_pid_durations_date_to_read(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A live pid's running durations date to when its file was read.
+
+    The section as_of is stamped after the read (so an ``enter`` record that
+    lands mid-read can't yield a negative duration); the envelope as_of is
+    stamped before the reads (cursor semantics), so section >= envelope.
+    """
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: True)
+    write_trace_log(trace_dir / "trace-126.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "126", "--json"])
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    (section,) = envelope["processes"]
+    assert section["as_of"] >= envelope["as_of"]
+    assert section["running"][0]["duration"] == pytest.approx(section["as_of"] - 1000.0)
+
+
+def test_process_anomalies_missing_trace_file_errors(trace_dir: Path) -> None:
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "999"])
+    assert result.exit_code != 0
+    # names the path it looked for and teaches the direct-file fallback
+    assert "trace-999.log" in result.stderr
+    assert "inspect trace anomalies" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "999", "--json"])
+    assert result.exit_code != 0
+    assert json.loads(result.stdout)["error"]["kind"] == "not_found"
+
+
+def test_process_anomalies_widens_over_running_processes(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_trace_log(trace_dir / "trace-7.log", _anomalous_records())
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    assert [p["pid"] for p in envelope["processes"]] == [7, 8]
+
+    # human output renders one labeled section per pid
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies"])
+    assert result.exit_code == 0
+    assert "pid 7" in result.stdout and "pid 8" in result.stdout
+
+
+def test_process_anomalies_widen_skips_missing_trace_file(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "no trace file found for pid 7" in result.stderr
+
+
+def test_process_anomalies_tolerates_truncated_final_line(trace_dir: Path) -> None:
+    """A truncated final line (hard kill, or caught mid-write) is skipped.
+
+    The intact prefix holds the answer the read exists for — the verb must
+    report it rather than fail on the partial record.
+    """
+    trace_file = trace_dir / "trace-123.log"
+    write_trace_log(trace_file, _anomalous_records())
+    with open(trace_file, "a") as f:
+        f.write('{"timestamp": "2026-07-16T12:0')
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    assert result.exit_code == 0
+    (section,) = json.loads(result.stdout)["processes"]
+    assert [row["action"] for row in section["running"]] == ["Model"]
+
+
+def test_process_anomalies_widen_skips_unreadable_trace_file(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One pid's unreadable trace file doesn't abort the other sections."""
+    (trace_dir / "trace-7.log.gz").write_bytes(b"not gzip")
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "could not read" in result.stderr
+
+
+def test_process_anomalies_explicit_pid_read_failure_errors(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicit pid whose file is unreadable fails loudly, not silently empty.
+
+    Both output modes follow the terminal-error contract: ``--json`` emits
+    the ``internal`` envelope; human mode echoes self-contained stderr prose
+    and exits 1 rather than surfacing a raw traceback.
+    """
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    (trace_dir / "trace-124.log.gz").write_bytes(b"not gzip")
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124", "--json"])
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "internal"
+    assert "trace-124.log.gz" in error["message"]
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Could not read trace file" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
+def test_process_anomalies_widen_skips_corrupt_gz_stream(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mid-stream gz corruption is skipped like any other unreadable file.
+
+    A corrupted deflate stream raises ``zlib.error`` — neither ``OSError``
+    (the ``b"not gzip"`` header case) nor ``ValueError`` — so this pins the
+    warn-and-skip contract to "unreadable file", not a closed exception list.
+    """
+    import gzip
+    import zlib
+
+    from inspect_ai._util.trace import read_trace_file
+
+    data = "".join(json.dumps(r) + "\n" for r in _anomalous_records() * 200).encode()
+    corrupted = bytearray(gzip.compress(data, mtime=0))
+    corrupted[11] ^= 0xFF  # flip a bit just past the 10-byte gzip header
+    corrupt_file = trace_dir / "trace-7.log.gz"
+    corrupt_file.write_bytes(bytes(corrupted))
+    # guard: the corruption must surface as zlib.error, otherwise this test
+    # degenerates into the BadGzipFile case covered above
+    with pytest.raises(zlib.error):
+        read_trace_file(corrupt_file)
+
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "could not read" in result.stderr
+
+
+def test_process_anomalies_human_gates_errors_behind_all(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "pid 123" in result.stdout
+    assert "Running Actions" in result.stdout
+    assert "Cancelled Actions" in result.stdout
+    assert "Error Actions" not in result.stdout
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--all"])
+    assert "Error Actions" in result.stdout
+
+
+def test_process_anomalies_no_running_processes(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies"])
+    assert result.exit_code == 0
+    assert "No running inspect processes found" in result.stdout
+    assert "Pass a PID" in result.stdout
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["processes"] == []
+
+
+def test_process_anomalies_filter(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(
+        ctl_command, ["process", "anomalies", "123", "--filter", "bash", "--json"]
+    )
+    assert result.exit_code == 0
+    (section,) = json.loads(result.stdout)["processes"]
+    assert section["running"] == []
+    assert [row["action"] for row in section["cancelled"]] == ["Subprocess"]
+
+
+def test_process_anomalies_accepts_group_level_json(trace_dir: Path) -> None:
+    """The group-mirrored `--json` forwards to the anomalies verb."""
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "--json", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["processes"][0]["pid"] == 123
