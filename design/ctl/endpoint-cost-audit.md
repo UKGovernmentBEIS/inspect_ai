@@ -214,7 +214,7 @@ re-pulling at all.
   requests behind one slow (possibly S3) flush each acquire the lock in turn,
   find nothing pending, and return `flushed: 0`. Queued no-ops cost a lock
   acquire each — they cannot re-trigger the write. The write itself
-  serializes buffered samples into the zip (pydantic dump + deflate) on the
+  serializes buffered samples into the zip (pydantic dump + zstd) on the
   loop — the same cost the eval's own threshold flush pays, i.e. the
   endpoint's job, not added overhead; the local-file copy runs in a worker
   thread and the remote upload streams through `AsyncFilesystem`.
