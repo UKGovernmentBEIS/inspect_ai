@@ -592,6 +592,14 @@ The directory and socket modes are applied via `chmod` on every server start (id
 
 Cross-cutting details that apply across all phases.
 
+### The "cheap shoveling" invariant (every endpoint, every phase)
+
+The control server runs as a task **on the eval's own event loop** (see the lifecycle section below), so CPU spent in a handler is CPU stolen from the samples the endpoint exists to observe — and a poller retrying against a slow handler queues unbounded further work (client timeouts don't help: uvicorn keeps serving queued requests, and a CPU-bound handler blocks the loop so disconnects aren't noticed). An expensive endpoint is therefore a self-DoS, not just a slow read.
+
+> **Every ctl endpoint must be cheap shoveling of already-materialized data.** No per-request CPU proportional to *payload* sizes (transcripts, message histories, metadata blobs); row-count-proportional work over small cached objects is fine. Anything expensive is computed once at write time (or once-and-memoized on first request), off the request path. Responses are bounded by default (row caps, page limits, truncating projections), with `full`/`all` as explicit opt-outs. Mutations may be expensive once but must be cheap no-ops on retry. Immutable sources (finalized logs, finished attempts) are not re-read per request.
+
+This applies doubly to future push surfaces (SSE): stream serialization also runs on the eval's loop, per subscriber, continuously. See [`endpoint-cost-audit.md`](endpoint-cost-audit.md) for the incident that motivated the invariant, a per-endpoint audit against it, and design guidance for new endpoints.
+
 ### Process keep-alive: `--ctl-server=keep` on `inspect eval` / `inspect eval-set`
 
 Without help from the process lifecycle, LLM-agent workflows have a race condition: the eval process exits the instant the eval body returns, taking its control endpoint and discovery file with it. The agent's next step — read results, compare, decide what to do next — runs against a vanished surface. With many agents this manifests intermittently (sometimes the agent gets to `ctl task list` before teardown, sometimes not) and degrades trust in the surface.
