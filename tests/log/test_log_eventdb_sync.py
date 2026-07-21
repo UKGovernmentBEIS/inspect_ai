@@ -1,9 +1,13 @@
+import math
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pytest
 
+from inspect_ai.event import ScoreEvent
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._validate import validate_events
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
@@ -17,8 +21,9 @@ from inspect_ai.log._recorders.buffer.filestore import (
     Segment,
     sample_segment_id,
 )
-from inspect_ai.log._recorders.buffer.types import Samples
+from inspect_ai.log._recorders.buffer.types import SampleData, Samples
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.scorer import Score
 
 
 @pytest.fixture
@@ -106,6 +111,57 @@ def test_sync_one_sample(
     assert len(sample_data.events) == 2
     msgs = [ev.event["data"] for ev in sample_data.events]
     assert msgs == ["first event", "second event"]
+
+
+def test_sync_preserves_non_finite_score_values(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+    score = Score(value=[float("nan"), 1.0])
+    db.start_sample(
+        EvalSampleSummary(
+            id="s1",
+            epoch=1,
+            input="Hello",
+            target="World",
+            scores={"listy": score},
+        )
+    )
+    db.log_events(
+        [
+            SampleEvent(
+                id="s1",
+                epoch=1,
+                event=ScoreEvent(score=score, scorer="listy"),
+            )
+        ]
+    )
+
+    sync_to_filestore(db, filestore)
+
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert manifest.samples[0].summary.scores is not None
+    manifest_value = manifest.samples[0].summary.scores["listy"].value
+    assert isinstance(manifest_value, list)
+    assert math.isnan(cast(float, manifest_value[0]))
+
+    samples = filestore.get_samples()
+    assert isinstance(samples, Samples)
+    restored_samples = Samples.model_validate_json(samples.model_dump_json())
+    assert restored_samples.samples[0].scores is not None
+    sample_value = restored_samples.samples[0].scores["listy"].value
+    assert isinstance(sample_value, list)
+    assert math.isnan(cast(float, sample_value[0]))
+
+    sample_data = filestore.get_sample_data("s1", 1)
+    assert sample_data is not None
+    restored_data = SampleData.model_validate_json(sample_data.model_dump_json())
+    restored_events = validate_events([event.event for event in restored_data.events])
+    assert isinstance(restored_events[0], ScoreEvent)
+    event_value = restored_events[0].score.value
+    assert isinstance(event_value, list)
+    assert math.isnan(cast(float, event_value[0]))
 
 
 def test_sync_multiple_samples(

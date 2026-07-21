@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
 - Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.

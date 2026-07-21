@@ -3,7 +3,7 @@ from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
 
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, ConfigDict, JsonValue
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 
@@ -37,6 +37,8 @@ class TranscriptEventSink(Protocol):
 
 
 class Samples(BaseModel):
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     samples: list[EvalSampleSummary]
     metrics: list[TaskDisplayMetric]
     refresh: int
@@ -76,6 +78,8 @@ class CallPoolData(BaseModel):
 
 
 class SampleData(BaseModel):
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     events: list[EventData]
     attachments: list[AttachmentData]
     message_pool: list[MessagePoolData] = []

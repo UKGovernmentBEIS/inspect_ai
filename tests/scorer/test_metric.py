@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, cast
 
 import pytest
@@ -5,6 +6,7 @@ from pydantic import BaseModel
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
@@ -25,6 +27,7 @@ from inspect_ai.scorer._metric import (
     MetricDeprecated,
     MetricProtocol,
     SampleScore,
+    ScoreEdit,
     metric_create,
     value_to_float,
 )
@@ -154,6 +157,40 @@ def test_list_metric() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
+
+
+@pytest.mark.parametrize(
+    "value,leaf",
+    [
+        (float("nan"), lambda v: v),
+        (float("inf"), lambda v: v),
+        ([float("nan"), 1.0], lambda v: v[0]),
+        ({"a": float("nan"), "b": 1.0}, lambda v: v["a"]),
+        ({"a": float("-inf"), "b": 1.0}, lambda v: v["a"]),
+    ],
+)
+def test_score_non_finite_value_round_trip(value: Value, leaf: Any) -> None:
+    """Non-finite score values survive JSON serialization in every shape.
+
+    Serialized as JSON constants (NaN/Infinity) rather than null, via both
+    model_dump_json and the to_json_safe log write path.
+    """
+    score = Score(value=value)
+    for wire in (score.model_dump_json(exclude_none=True), to_json_str_safe(score)):
+        assert "null" not in wire
+        restored = Score.model_validate_json(wire)
+        original, roundtripped = leaf(score.value), leaf(restored.value)
+        if math.isnan(original):
+            assert math.isnan(roundtripped)
+        else:
+            assert roundtripped == original
+
+
+def test_score_edit_non_finite_value_round_trip() -> None:
+    edit = ScoreEdit(value=[float("nan"), 1.0])
+    restored = ScoreEdit.model_validate_json(edit.model_dump_json())
+    assert isinstance(restored.value, list)
+    assert math.isnan(cast(float, restored.value[0]))
 
 
 def test_dict_metric() -> None:
