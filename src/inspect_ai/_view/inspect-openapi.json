@@ -1527,7 +1527,8 @@
           "config": {
             "enum": [
               "eval",
-              "generate"
+              "generate",
+              "concurrency"
             ],
             "title": "Config",
             "type": "string"
