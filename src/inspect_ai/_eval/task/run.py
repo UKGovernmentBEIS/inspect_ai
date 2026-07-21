@@ -854,7 +854,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 ) -> list[dict[str, SampleScore] | EarlyStop | None]:
                     """Run the seed samples plus every sample the source adds.
 
-                    Mirrors the eval-level live dispatcher (``run_multiple``):
+                    Mirrors the eval-level live dispatcher
+                    (``run_task_retry_attempts``):
                     injected samples start immediately (concurrency is bounded
                     by the sample semaphore inside ``run_sample``), and the
                     blocking ``next_samples()`` is only awaited when nothing is
