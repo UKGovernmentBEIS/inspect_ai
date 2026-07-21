@@ -31,6 +31,56 @@ async def test_cloudflare_empty_assistant_message() -> None:
 
 
 @skip_if_no_openai_package
+def test_cloudflare_retries_503_as_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """503 must be retried as a rate limit (scales down adaptive concurrency)."""
+    import httpx
+    from openai import InternalServerError
+
+    from inspect_ai.model._model import RetryDecision
+    from inspect_ai.model._providers.cloudflare import CloudFlareAPI
+
+    monkeypatch.setenv("CLOUDFLARE_API_KEY", "test-key")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "account-id")
+    api = CloudFlareAPI(model_name="moonshotai/kimi-k3")
+
+    def sdk_error(status_code: int, headers: dict[str, str] | None = None):
+        response = httpx.Response(
+            status_code=status_code,
+            headers=headers,
+            request=httpx.Request("POST", "https://example/v1/chat/completions"),
+        )
+        return InternalServerError("Server Error", response=response, body=None)
+
+    # SDK-shaped 503 (honoring Retry-After when the server provides one)
+    decision = api.should_retry(sdk_error(503, headers={"retry-after": "7"}))
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "rate_limit"
+    assert decision.retry_after == 7
+
+    # non-SDK exception shape carrying a 503 status code
+    class ServiceUnavailableError(Exception):
+        status_code = 503
+
+    decision = api.should_retry(ServiceUnavailableError())
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "rate_limit"
+
+    # other 5xx still classify as transient via the base
+    decision = api.should_retry(sdk_error(500))
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "transient"
+
+    # non-retryable statuses still don't retry
+    class NotFoundError(Exception):
+        status_code = 404
+
+    assert not api.should_retry(NotFoundError())
+
+
+@skip_if_no_openai_package
 async def test_cloudflare_fills_empty_assistant_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
