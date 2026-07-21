@@ -739,6 +739,10 @@ def reset_run_registries() -> None:
     here, not at the call sites.
     """
     from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.pause import (
+        reset_process_pause,
+        reset_task_pause_gates,
+    )
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
@@ -746,3 +750,5 @@ def reset_run_registries() -> None:
     clear_all_eval_states()
     reset_generate_config_overrides()
     reset_process_config_updates()
+    reset_task_pause_gates()
+    reset_process_pause()
