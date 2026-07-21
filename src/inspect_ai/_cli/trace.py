@@ -87,11 +87,7 @@ def dump_command_impl(
     """Dump a trace file to stdout (as a JSON array of log records)."""
     trace_file_path = _resolve_trace_file_path(trace_file, trace_dir)
 
-    traces = read_trace_file(trace_file_path)
-
-    if filter:
-        filter = filter.lower()
-        traces = [trace for trace in traces if filter in trace.message.lower()]
+    traces = filter_traces(read_trace_file(trace_file_path), filter)
 
     print(
         to_json(traces, indent=2, exclude_none=True, fallback=lambda _: None).decode()
@@ -169,43 +165,53 @@ def http_command_impl(
         r_print(table)
 
 
-def anomalies_options(func: Callable[..., None]) -> Callable[..., None]:
+def anomalies_options(
+    json_envelope: str,
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
     """Flags for anomaly-reading commands.
 
-    Single home for the options of `inspect trace anomalies` and the planned
+    Single home for the options of `inspect trace anomalies` and
     `inspect ctl process anomalies` so the two entry points cannot drift as
     flags are added (see "Trace-log anomalies for stall diagnosis" in
-    design/control-channel.md).
+    design/ctl/control-channel.md). ``json_envelope`` describes the command's
+    own `--json` envelope shape in the flag's help text.
     """
-    func = click.option(
-        "--json",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="Output as JSON (a `{trace_file, as_of, running, cancelled, errors, timeouts}` envelope).",
-    )(func)
-    func = click.option(
-        "--all",
-        is_flag=True,
-        default=False,
-        help="Show all anomalies including errors and timeouts (by default only still running and cancelled actions are shown; JSON output always includes all buckets).",
-    )(func)
-    func = click.option(
-        "--filter",
-        type=str,
-        help="Filter (applied to trace message field).",
-    )(func)
-    return func
+
+    def decorate(func: Callable[..., None]) -> Callable[..., None]:
+        func = click.option(
+            "--json",
+            "as_json",
+            type=bool,
+            is_flag=True,
+            default=False,
+            help=f"Output as JSON ({json_envelope}).",
+        )(func)
+        func = click.option(
+            "--all",
+            is_flag=True,
+            default=False,
+            help="Show all anomalies including errors and timeouts (by default only still running and cancelled actions are shown; JSON output always includes all buckets).",
+        )(func)
+        func = click.option(
+            "--filter",
+            type=str,
+            help="Filter (applied to trace message field).",
+        )(func)
+        return func
+
+    return decorate
 
 
 @trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=False)
-@anomalies_options
+@anomalies_options(
+    "a `{trace_file, as_of, running, cancelled, errors, timeouts}` envelope"
+)
 def anomalies_command(
-    trace_file: str | None, filter: str | None, all: bool, json: bool
+    trace_file: str | None, filter: str | None, all: bool, as_json: bool
 ) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
-    anomalies_command_impl(trace_file, filter, all, json)
+    anomalies_command_impl(trace_file, filter, all, as_json)
 
 
 class TraceAnomalies(NamedTuple):
@@ -232,7 +238,7 @@ def anomalies_command_impl(
 ) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
     trace_file_path, traces = _read_traces(trace_file, None, filter, trace_dir)
-    anomalies = _trace_anomalies(traces)
+    anomalies = trace_anomalies(traces)
 
     if json:
         # stamp as_of once and compute running durations against it so the
@@ -243,19 +249,61 @@ def anomalies_command_impl(
                 {
                     "trace_file": trace_file_path.as_posix(),
                     "as_of": as_of,
-                    "running": [_anomaly_row(a, as_of) for a in anomalies.running],
-                    "cancelled": [_anomaly_row(a, as_of) for a in anomalies.cancelled],
-                    "errors": [_anomaly_row(a, as_of) for a in anomalies.errors],
-                    "timeouts": [_anomaly_row(a, as_of) for a in anomalies.timeouts],
+                    **anomaly_buckets_json(anomalies, as_of),
                 },
                 indent=2,
             )
         )
         return
 
-    # the buckets shown in the human rendering (--all gates errors/timeouts
-    # here only; the JSON envelope above always carries all four)
-    shown_buckets = [
+    print(rendered_anomalies(trace_file_path, anomalies, all))
+
+
+def anomaly_buckets_json(
+    anomalies: TraceAnomalies, as_of: float
+) -> dict[str, list[dict[str, JsonValue]]]:
+    """The four always-populated bucket lists of an anomalies JSON envelope.
+
+    Shared by `inspect trace anomalies` and `inspect ctl process anomalies`
+    so the two envelopes carry identical rows. All four buckets are always
+    present and populated — `--all` gates only the human rendering — so an
+    empty list always means "none occurred", never "not collected". Running
+    rows compute `duration` against ``as_of`` so the envelope timestamp and
+    the durations it dates are consistent.
+    """
+    return {
+        "running": [_anomaly_row(a, as_of) for a in anomalies.running],
+        "cancelled": [_anomaly_row(a, as_of) for a in anomalies.cancelled],
+        "errors": [_anomaly_row(a, as_of) for a in anomalies.errors],
+        "timeouts": [_anomaly_row(a, as_of) for a in anomalies.timeouts],
+    }
+
+
+def rendered_anomalies(
+    trace_file_path: Path,
+    anomalies: TraceAnomalies,
+    all: bool,
+    *,
+    pid: int | None = None,
+    as_of: float | None = None,
+) -> str:
+    """Human rendering of an anomalies read: a header, then one table per shown bucket.
+
+    Shared by `inspect trace anomalies` and `inspect ctl process anomalies`
+    (which passes ``pid`` to label the section it reports on). Only running
+    and cancelled actions are shown by default; ``all`` adds the error and
+    timeout buckets (the JSON envelope always carries all four). Running
+    durations are computed as of ``as_of`` (default: now) — `ctl` passes the
+    trace file's last write for a dead pid's post-mortem read, so actions in
+    flight at death don't accrue wall-clock time since.
+    """
+    if as_of is None:
+        as_of = time.time()
+    header = f"TRACE: {shlex.quote(trace_file_path.as_posix())}"
+    if pid is not None:
+        header = f"pid {pid} — {header}"
+
+    shown_buckets: list[tuple[str, list[ActionTraceRecord]]] = [
         ("Running Actions", anomalies.running),
         ("Cancelled Actions", anomalies.cancelled),
     ]
@@ -267,39 +315,33 @@ def anomalies_command_impl(
             ]
         )
 
-    # do we have any traces?
     if sum(len(actions) for _, actions in shown_buckets) == 0:
-        print(f"TRACE: {shlex.quote(trace_file_path.as_posix())}\n")
         if all:
-            print("No anomalies found in trace log.")
+            note = "No anomalies found in trace log."
         else:
-            print(
-                "No running or cancelled actions found in trace log (pass --all to see errors and timeouts)."
-            )
-        return
+            note = "No running or cancelled actions found in trace log (pass --all to see errors and timeouts)."
+        return f"{header}\n\n{note}"
 
     with open(os.devnull, "w") as f:
-        # generate output
         console = Console(record=True, file=f)
 
         def print_fn(o: RenderableType) -> None:
             console.print(o, highlight=False)
 
-        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[/bold]")
+        print_fn(f"[bold]{header}[/bold]")
 
         for label, actions in shown_buckets:
-            _print_bucket(print_fn, label, actions)
+            _print_bucket(print_fn, label, actions, as_of)
 
-        # print
-        print(console.export_text(styles=True).strip())
+        return console.export_text(styles=True).strip()
 
 
-def _trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
+def trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
     """Reconstruct anomalous actions (never exited, cancelled, errored, timed out) from trace records.
 
-    Shared by the human and JSON renderings of `inspect trace anomalies` (and,
-    per the design, the planned `inspect ctl process anomalies`) so every entry
-    point derives the same answer from the same records. Exit-side records
+    Shared by the human and JSON renderings of `inspect trace anomalies` and
+    `inspect ctl process anomalies` so every entry point derives the same
+    answer from the same records. Exit-side records
     with no matching enter record (e.g. `--filter` matched only the exit side,
     or the log start was truncated) are still bucketed, without a
     reconstructed start time.
@@ -323,7 +365,12 @@ def _trace_anomalies(traces: list[TraceRecord]) -> TraceAnomalies:
                             trace.start_time = start_trace.start_time
                         finished_buckets[trace.event][trace.trace_id] = trace
                 case _:
-                    print(f"Unknown event type: {trace.event}")
+                    # unreachable via read_trace_file (it skips records that
+                    # fail validation, e.g. event verbs from a newer inspect,
+                    # with its own stderr note); defense in depth for
+                    # programmatic callers — stderr so the warning can't
+                    # corrupt a --json envelope on stdout
+                    click.echo(f"Unknown event type: {trace.event}", err=True)
 
     return TraceAnomalies(
         running=_sorted_actions(running_actions),
@@ -365,6 +412,18 @@ def _anomaly_row(action: ActionTraceRecord, as_of: float) -> dict[str, JsonValue
     return row
 
 
+def filter_traces(traces: list[TraceRecord], filter: str | None) -> list[TraceRecord]:
+    """Filter trace records by case-insensitive substring on the message field.
+
+    One home for the `--filter` semantics of the `inspect trace` commands and
+    `inspect ctl process anomalies`.
+    """
+    if filter:
+        filter = filter.lower()
+        traces = [trace for trace in traces if filter in trace.message.lower()]
+    return traces
+
+
 def _read_traces(
     trace_file: str | None,
     level: str | None = None,
@@ -377,17 +436,14 @@ def _read_traces(
     if level:
         traces = [trace for trace in traces if trace.level == level]
 
-    if filter:
-        filter = filter.lower()
-        traces = [trace for trace in traces if filter in trace.message.lower()]
-
-    return (trace_file_path, traces)
+    return (trace_file_path, filter_traces(traces, filter))
 
 
 def _print_bucket(
     print_fn: Callable[[RenderableType], None],
     label: str,
     sorted_actions: list[ActionTraceRecord],
+    as_of: float,
 ) -> None:
     if len(sorted_actions) > 0:
         # create table
@@ -404,10 +460,9 @@ def _print_bucket(
             padding=(0, 1),
         )
 
-        now = time.time()
         for action in sorted_actions:
             # Compute duration (use the event duration or time since started)
-            duration = _action_duration(action, now)
+            duration = _action_duration(action, as_of)
 
             # The event start time
             start_time = formatTime(action.start_time) if action.start_time else "None"

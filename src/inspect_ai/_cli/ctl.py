@@ -17,7 +17,7 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
   configuration mid-flight (concurrency limits, log buffering). Scope is a
   property of each knob (task vs process), labeled in the output.
 - ``process`` — the running Inspect process itself: ``list`` (implied by the
-  bare noun), ``keep``, ``release``.
+  bare noun), ``anomalies``, ``keep``, ``release``.
 
 The old flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
 ``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survive as hidden,
@@ -54,6 +54,14 @@ import click
 import httpx
 from click.core import ParameterSource
 
+from inspect_ai._cli.trace import (
+    TraceAnomalies,
+    anomalies_options,
+    anomaly_buckets_json,
+    filter_traces,
+    rendered_anomalies,
+    trace_anomalies,
+)
 from inspect_ai._control.cancel import TaskCancelAction
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
@@ -67,6 +75,8 @@ from inspect_ai._control.state import (
     parse_status_filter,
 )
 from inspect_ai._util.name_match import match_name_prefix
+from inspect_ai._util.process import pid_alive
+from inspect_ai._util.trace import inspect_trace_dir, read_trace_file
 
 if TYPE_CHECKING:
     # TYPE_CHECKING to keep the CLI import-light: `inspect_ai.log._samples`
@@ -1075,8 +1085,9 @@ def config_command(
 def process_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on running Inspect processes (bare `process` lists them).
 
-    The selector is a positional PID, optional when a single process is
-    running.
+    The selector is a positional PID: optional for `keep` / `release` when
+    a single process is running, and for `anomalies`, where no PID reads
+    every running process.
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(process_list_command, **mirrored)
@@ -1089,7 +1100,8 @@ process_group.hint = lambda token: (
     f"No such command '{token}'. To list running processes: "
     "`inspect ctl process list` (or the bare `inspect ctl process`); to park "
     f"or release one: `inspect ctl process keep {token}` / "
-    f"`inspect ctl process release {token}`."
+    f"`inspect ctl process release {token}`; for one's in-flight actions: "
+    f"`inspect ctl process anomalies {token}`."
 )
 
 
@@ -1174,6 +1186,39 @@ def process_resume_command(pid: int | None, dry_run: bool, as_json: bool) -> Non
     release ends a keep-alive *park* after the eval finishes.
     """
     _run_process_pause_resume(pid, verb="resume", dry_run=dry_run, as_json=as_json)
+
+
+@process_group.command("anomalies")
+@click.argument("pid", required=False, type=int)
+@anomalies_options(
+    "an `{as_of, processes}` envelope; each process entry carries `pid`, "
+    "`trace_file`, its own `as_of` (the timestamp running durations are "
+    "computed against), and the `running`/`cancelled`/`errors`/`timeouts` "
+    "buckets"
+)
+def process_anomalies_command(
+    pid: int | None, filter: str | None, all: bool, as_json: bool
+) -> None:
+    """Show in-flight and anomalous actions from a process's trace log.
+
+    Reconstructs from the pid's trace file what is running right now
+    (entered, never exited — with live durations) plus what was cancelled;
+    `--all` adds errored and timed-out actions. This is the "why" behind a
+    stalled sample: a single in-flight operation (model call, sandbox exec)
+    emits no transcript event until it returns, but its trace action is
+    visible here.
+
+    The trace file is read directly (nothing is asked of the process), so
+    this works against a busy or hung process — the escalation path when
+    another read reports "busy" — and even post-mortem: a PID with no live
+    process falls back to its trace file (`trace-<pid>.log`, or `.log.gz`
+    after a clean exit) while one still exists, with running durations dated
+    to the file's last write (approximately the time of death) rather than
+    now. No PID reads every running process, one section per pid. The
+    analysis is shared with `inspect trace anomalies`, which reads any trace
+    file by path.
+    """
+    _run_process_anomalies(pid, filter=filter, all=all, as_json=as_json)
 
 
 # ---------------------------------------------------------------------------
@@ -2786,6 +2831,187 @@ def _run_process_list(as_json: bool) -> None:
             )
         )
     _render_table(("pid", "keep-alive", "paused", "tasks", "started"), table_rows)
+
+
+class _PidAnomalies(NamedTuple):
+    """One `process anomalies` section: a pid, its trace file, and the reconstruction.
+
+    ``as_of`` is the timestamp the section's running durations are computed
+    against: for a live pid, stamped just after its file is read (stamping
+    before could date an ``enter`` record that lands mid-read to the future,
+    i.e. a negative duration); for a dead pid's post-mortem read, the trace
+    file's last write (a proxy for time of death).
+    """
+
+    pid: int
+    trace_file: Path
+    anomalies: TraceAnomalies
+    as_of: float
+
+
+def _trace_file_for_pid(pid: int) -> Path | None:
+    """The pid's trace file: ``trace-<pid>.log``, or ``.log.gz`` after a clean exit.
+
+    ``None`` when neither exists (swept by the keep-newest-10 rotation).
+    Live and dead pids resolve the same way — the mapping is pure filename
+    convention, which is what makes the post-mortem read possible.
+    """
+    for name in (f"trace-{pid}.log", f"trace-{pid}.log.gz"):
+        path = inspect_trace_dir() / name
+        if path.exists():
+            return path
+    return None
+
+
+@_envelope_failures
+def _run_process_anomalies(
+    pid: int | None, *, filter: str | None, all: bool, as_json: bool
+) -> None:
+    """Anomalies from trace files: one section per targeted pid.
+
+    Deliberately a client-side file read with no HTTP endpoint — the prime
+    anomalies scenario is a wedged process, precisely when the control
+    server (which shares the eval's loop) can't answer (see "Trace-log
+    anomalies for stall diagnosis" in design/ctl/control-channel.md).
+    """
+    # Stamp the envelope as_of before the reads (same cursor rationale as the
+    # other read envelopes: anything that changes during them has a timestamp
+    # >= as_of and is caught by the next poll). Sections date their running
+    # durations to their own as_of instead (see _PidAnomalies), where
+    # stamp-after-read is the consistent choice — matching `inspect trace
+    # anomalies`, which cannot produce negative durations.
+    as_of = time.time()
+
+    servers: list[DiscoveredControlServer] = []
+    if pid is not None:
+        # An explicit PID needs no discovery: the trace file is pid-keyed on
+        # disk, so a dead process resolves exactly like a live one (the
+        # post-mortem read).
+        trace_file = _trace_file_for_pid(pid)
+        if trace_file is None:
+            looked_for = inspect_trace_dir() / f"trace-{pid}.log"
+            _fail(
+                "not_found",
+                f"No trace file found for pid {pid} (looked for "
+                f"{looked_for}[.gz]; rotation keeps only the newest 10 trace "
+                "files). If you have a copy elsewhere, read it with "
+                "`inspect trace anomalies <file>`.",
+            )
+        if pid_alive(pid):
+            post_mortem_as_of: float | None = None
+        else:
+            # Post-mortem read: date running durations to the trace file's
+            # last write — a proxy for the time of death — so an action in
+            # flight when the process died doesn't accrue wall-clock time
+            # since (an overnight death would otherwise show it "running"
+            # for hours).
+            post_mortem_as_of = trace_file.stat().st_mtime
+            click.echo(
+                f"note: pid {pid} is not running — durations are as of the "
+                "trace file's last write.",
+                err=True,
+            )
+        targets = [(pid, trace_file, post_mortem_as_of)]
+    else:
+        servers = list_discovered_servers()
+        targets = []
+        for server in servers:
+            server_trace = _trace_file_for_pid(server.pid)
+            if server_trace is None:
+                # same warn-and-skip as the unscoped fan-out reads: this
+                # pid's section can't be read, the others' still can
+                click.echo(
+                    f"note: no trace file found for pid {server.pid} — skipped.",
+                    err=True,
+                )
+                continue
+            # discovery only lists live pids, so durations date to the read
+            targets.append((server.pid, server_trace, None))
+
+    sections: list[_PidAnomalies] = []
+    for target_pid, target_file, target_post_mortem_as_of in targets:
+        try:
+            records = read_trace_file(target_file)
+        except Exception as ex:
+            # catch Exception, not (OSError, ValueError): "unreadable file"
+            # has no closed exception vocabulary — e.g. mid-stream gz
+            # corruption raises zlib.error, which is neither
+            if pid is not None:
+                # explicit-pid reads fail loudly (the caller asked for
+                # exactly this pid), with the same clean stderr-plus-envelope
+                # contract as every other terminal ctl error
+                message = (
+                    f"Could not read trace file {target_file} for pid "
+                    f"{target_pid}: {ex}"
+                )
+                click.echo(message, err=True)
+                raise _CtlFailure(
+                    "internal", message, exception=_exception_name(ex)
+                ) from ex
+            # the widened fan-out warns-and-skips like the missing-trace-file
+            # case, keeping the other sections readable
+            click.echo(
+                f"note: could not read {target_file} for pid {target_pid} "
+                f"({ex}) — skipped.",
+                err=True,
+            )
+            continue
+        anomalies = trace_anomalies(filter_traces(records, filter))
+        sections.append(
+            _PidAnomalies(
+                pid=target_pid,
+                trace_file=target_file,
+                anomalies=anomalies,
+                as_of=(
+                    time.time()
+                    if target_post_mortem_as_of is None
+                    else target_post_mortem_as_of
+                ),
+            )
+        )
+
+    if as_json:
+        envelope = {
+            "as_of": as_of,
+            "processes": [
+                {
+                    "pid": section.pid,
+                    "trace_file": section.trace_file.as_posix(),
+                    "as_of": section.as_of,
+                    **anomaly_buckets_json(section.anomalies, section.as_of),
+                }
+                for section in sections
+            ],
+        }
+        click.echo(json_lib.dumps(envelope, indent=2))
+        return
+
+    if not sections:
+        if servers:
+            click.echo(
+                "No readable trace files found for the running processes "
+                "(see notes above)."
+            )
+        else:
+            click.echo(
+                "No running inspect processes found. Pass a PID to read an "
+                "exited process's trace file post-mortem (`inspect trace "
+                "list` shows the trace files still on disk)."
+            )
+        return
+
+    click.echo(
+        "\n\n".join(
+            rendered_anomalies(
+                section.trace_file,
+                section.anomalies,
+                all,
+                pid=section.pid,
+                as_of=section.as_of,
+            )
+            for section in sections
+        )
+    )
 
 
 def _applied_knob_names(
