@@ -14,8 +14,10 @@ moment. The highest-leverage moment is **launch**: an agent running
 default-on (`resolve_ctl_server` at `src/inspect_ai/_eval/eval.py:966`), and
 yet a plain interactive run prints nothing about `ctl` at any point — the only
 console pointer is the keep-alive park notice
-(`src/inspect_ai/_eval/eval.py:1132`), which fires only under
-`--ctl-server=keep` and only *after* the eval finishes.
+(`src/inspect_ai/_eval/eval.py:1132`), which fires only when keep-alive was
+requested (`--ctl-server=keep` or a runtime `inspect ctl process keep` /
+`POST /keep` — itself requiring prior knowledge of `ctl`), only for
+standalone evals, and only *after* the eval finishes.
 
 The `ctl` reorg (noun groups, agent output contract — see control-channel.md
 "CLI command hierarchy") already did most of the help-text and structured-output
@@ -212,9 +214,11 @@ all of them.
 
 ## Implementation notes
 
-- 1a is the only item touching `_eval/eval.py`; 1c/2a touch only help text in
-  `_cli/eval.py`; 2b/3b touch only `_cli/ctl.py`. All are independent and can
-  land as one small PR.
+- 1a spans `_eval/eval.py` (the bind-site print and latch) and `_cli/eval.py`
+  (the process-wide arm set by the `eval`/`eval-set`/`eval-retry` entry
+  points, likely alongside `set_launch_handoff_listener` in
+  `_eval/handoff.py`); 1c/2a touch only help text in `_cli/eval.py`; 2b/3b
+  touch only `_cli/ctl.py`. All are independent and can land as one small PR.
 - Tests: extend `tests/_control/test_ctl.py` for the 3b footer (assert
   presence with errored rows, absence without, absence under `--json`);
   extend `tests/_cli/test_ctl_server_flag.py` (or a sibling) for 1a's gating
