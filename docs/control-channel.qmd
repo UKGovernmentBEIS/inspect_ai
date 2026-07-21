@@ -314,9 +314,13 @@ Scope is a property of each knob, not of the command: task-scoped knobs apply to
 | `--attempt-timeout S` | process | Override the per-attempt API timeout, in seconds (`clear` restores launch config). |
 | `--max-retries N` | process | Override the max retries per generate call (`0` fails after the first attempt; `clear` restores launch config). |
 | `--model M` | — | Restrict `--max-connections` (and the adaptive view) to matching models in mixed-model runs. |
+| `--reason R` | — | Why the change is being made — recorded with it in each affected eval log. |
+| `--author A` | — | Author recorded with the change (defaults to your git identity, then OS username). |
 | `--dry-run` | — | Report what would change (`current → requested`) without applying it. |
 
 : {tbl-colwidths=[25,12,63]}
+
+Applied changes are recorded in each affected eval log (`EvalLog.config_updates`: author, timestamp, old → new values), so the log tells the truth about the configuration the run actually ran under — `effective_eval_config()` / `effective_generate_config()` fold the records over the launch config. Include `--reason` whenever you set a knob, so the record says *why* ("provider returning 429s", "throttling for overnight run"): the reason is the one part of the record only you know at retune time, and it's what lets a later reader — or the person whose eval you retuned — distinguish a considered intervention from a stray command. The result envelope's `persisted` field reports, per applied knob, whether the record was written.
 
 Concurrency changes take effect immediately and never interrupt running work: raising a limit lets more samples/sandboxes/subprocesses/requests start right away, while lowering one below the current in-use count blocks new starts until enough in-flight work drains. Under adaptive connections the view also reports each model's live controller state — its current limit, in-flight count, scaling range, and recent scale changes — so you can see whether the provider is rate-limiting before deciding to intervene. `--log-buffer` affects future writes only — run `inspect ctl task log-flush` to write what is already pending.
 
