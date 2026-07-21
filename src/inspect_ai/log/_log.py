@@ -372,7 +372,7 @@ class EvalSampleSummary(BaseModel):
         return self
 
     # allow field model_usage
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), ser_json_inf_nan="constants")
 
 
 class EvalRetryError(BaseModel):
@@ -652,7 +652,7 @@ class EvalSample(BaseModel):
         return sample
 
     # allow field model_usage
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), ser_json_inf_nan="constants")
 
 
 class EvalEvents(BaseModel):
@@ -770,6 +770,8 @@ class EvalSampleReductions(BaseModel):
 
     samples: list[EvalSampleScore]
     """List of reduced scores"""
+
+    model_config = ConfigDict(ser_json_inf_nan="constants")
 
 
 class EvalResults(BaseModel):
@@ -1170,6 +1172,8 @@ class EvalLog(BaseModel):
 
     etag: str | None = Field(default=None, exclude=True)
     """ETag from S3 for conditional writes."""
+
+    model_config = ConfigDict(ser_json_inf_nan="constants")
 
     @model_validator(mode="after")
     def _validate_tags_and_metadata(self) -> "EvalLog":

@@ -171,6 +171,7 @@ inspect = "inspect_ai._cli.main:main"
 
 [tool.typos.default.extend-words]
 ba = "ba"
+ser = "ser"
 lsat = "lsat"
 aimd = "aimd"
 retuned = "retuned"

@@ -466,7 +466,7 @@ def view_server_app(
         "/pending-samples", response_model=Samples, response_class=InspectJsonResponse
     )
     async def api_pending_samples(
-        request: Request, response: Response, log: str = Query(...)
+        request: Request, log: str = Query(...)
     ) -> Samples | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
@@ -483,8 +483,10 @@ def view_server_app(
         elif samples is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
-            response.headers["ETag"] = samples.etag
-            return samples
+            return InspectJsonResponse(
+                content=samples.model_dump(mode="json", by_alias=True),
+                headers={"ETag": samples.etag},
+            )
 
     @app.post("/log-message")
     async def api_log_message(
