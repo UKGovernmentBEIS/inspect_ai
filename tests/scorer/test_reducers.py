@@ -105,12 +105,6 @@ def test_nan_list_reducers() -> None:
     _test_list_reducers_impl(include_nan=True)
 
 
-def test_none_list_reducers() -> None:
-    # None list leaves mark unscored values just like NaN (a NaN leaf reloaded
-    # from an eval log comes back as None) and must be excluded, not counted
-    _test_list_reducers_impl(include_none=True)
-
-
 def test_all_nan_list_reducers() -> None:
     list_scores = [
         Score(value=[float("nan"), float("nan")]),
@@ -243,12 +237,6 @@ def test_dict_reducers() -> None:
 
 def test_nan_dict_reducers() -> None:
     _test_dict_reducers_impl(include_nan=True)
-
-
-def test_none_dict_reducers() -> None:
-    # None dict leaves mark unscored values just like NaN (a NaN leaf reloaded
-    # from an eval log comes back as None) and must be excluded, not counted
-    _test_dict_reducers_impl(include_none=True)
 
 
 def test_all_nan_dict_reducers() -> None:
@@ -735,9 +723,7 @@ def _test_simple_reducers_impl(include_nan: bool = False) -> None:
     assert pass_k_5_threshold(simple_scores).value == 0.0
 
 
-def _test_list_reducers_impl(
-    include_nan: bool = False, include_none: bool = False
-) -> None:
+def _test_list_reducers_impl(include_nan: bool = False) -> None:
     list_scores = [
         Score(value=[1, 2]),
         Score(value=[4, 3]),
@@ -747,8 +733,6 @@ def _test_list_reducers_impl(
     ]
     if include_nan:
         list_scores.append(Score(value=[float("nan"), float("nan")]))
-    if include_none:
-        list_scores.append(Score(value=[None, None]))
 
     assert avg_reducer(list_scores).value == [2, 2]
     assert median_reducer(list_scores).value == [1, 2]
@@ -760,9 +744,7 @@ def _test_list_reducers_impl(
     assert pass_k_2_no_threshold(list_scores).value == [1, 1]
 
 
-def _test_dict_reducers_impl(
-    include_nan: bool = False, include_none: bool = False
-) -> None:
+def _test_dict_reducers_impl(include_nan: bool = False) -> None:
     dict_scores = [
         Score(value={"coolness": 5, "spiciness": 1}),
         Score(value={"coolness": 4, "spiciness": 1}),
@@ -774,8 +756,6 @@ def _test_dict_reducers_impl(
         dict_scores.append(
             Score(value={"coolness": float("nan"), "spiciness": float("nan")})
         )
-    if include_none:
-        dict_scores.append(Score(value={"coolness": None, "spiciness": None}))
 
     assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 5}
     assert median_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}

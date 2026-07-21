@@ -504,18 +504,14 @@ def scorers_from_metric_dict(
                 continue
             if isinstance(value, dict):
                 if metric_key in value:
-                    # None marks an unscored leaf just like NaN: a NaN leaf is
-                    # serialized to the log as JSON null, so scores reloaded
-                    # from a log (e.g. on eval_set retry) carry None instead
-                    key_value = value[metric_key]
-                    if key_value is None or (
-                        isinstance(key_value, float) and math.isnan(key_value)
+                    # Convert the score into a simple scalar value to apply metrics
+                    metric_score = deepcopy(sample_score)
+                    metric_score.score.value = cast(float, value[metric_key])
+                    if isinstance(metric_score.score.value, float) and math.isnan(
+                        metric_score.score.value
                     ):
                         unscored_samples += 1
                     else:
-                        # Convert the score into a simple scalar value to apply metrics
-                        metric_score = deepcopy(sample_score)
-                        metric_score.score.value = cast(float, key_value)
                         scored_samples += 1
                         key_scores.append(metric_score)
                 else:
