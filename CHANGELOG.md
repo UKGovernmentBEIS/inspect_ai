@@ -10,6 +10,7 @@
 - Agent Bridge: Support Anthropic clients that consume responses via `with_raw_response`, which previously failed with `'Message' object has no attribute 'parse'`.
 - Sandbox: `Sandbox.exec` failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.
 - Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed `limit=0` instead of returning all samples.
+- Bugfix: Parameterized score reducers (e.g. `at_least(2)`, `pass_at(2)`, `pass_k(2)`) now round-trip through the registry instead of raising `LookupError` when restored from a log.
 
 ## 0.3.249 (20 July 2026)
 
