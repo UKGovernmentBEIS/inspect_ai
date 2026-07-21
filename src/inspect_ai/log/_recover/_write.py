@@ -232,6 +232,7 @@ async def write_recovered_eval_log(
         results,
         reductions,
         error=error,
+        config_updates=crashed.config_updates or None,
     )
 
 
