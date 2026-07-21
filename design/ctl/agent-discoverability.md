@@ -13,11 +13,12 @@ moment. The highest-leverage moment is **launch**: an agent running
 `inspect eval` holds the exact object `ctl` operates on, the control server is
 default-on (`resolve_ctl_server` at `src/inspect_ai/_eval/eval.py:966`), and
 yet a plain interactive run prints nothing about `ctl` at any point — the only
-console pointer is the keep-alive park notice
-(`src/inspect_ai/_eval/eval.py:1132`), which fires only when keep-alive was
+console pointers are the keep-alive park notices (standalone:
+`src/inspect_ai/_eval/eval.py:1132`; eval-set:
+`src/inspect_ai/_eval/evalset.py:942`), which fire only when keep-alive was
 requested (`--ctl-server=keep` or a runtime `inspect ctl process keep` /
-`POST /keep` — itself requiring prior knowledge of `ctl`), only for
-standalone evals, and only *after* the eval finishes.
+`POST /keep` — itself requiring prior knowledge of `ctl`) and only *after*
+the eval finishes.
 
 The `ctl` reorg (noun groups, agent output contract — see control-channel.md
 "CLI command hierarchy") already did most of the help-text and structured-output
