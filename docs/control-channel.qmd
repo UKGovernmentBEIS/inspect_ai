@@ -203,14 +203,14 @@ Both commands are idempotent — cancelling something already finished (or alrea
 
 ## Pause and Resume
 
-Pause is the missing state between "running" and "cancelled": it stops a run from *starting* new work while keeping the process, its queue, and this control surface alive, and it is non-destructive, idempotent, and reversible. Typical uses: ride out a provider incident without burning retry budget, stop spending while a cost question is decided, yield shared rate-limit capacity to a more urgent eval, or freeze a run while you investigate a suspicious transcript (the read commands keep answering while paused).
+Pause is the missing state between "running" and "cancelled": it stops a run from *starting* new work while keeping the process, its queue, and this control surface alive, and it is non-destructive, idempotent, and reversible. The pause applies to dispatch, not to execution — think pausing a job queue, not suspending a process: samples already running (including model calls in flight) are never frozen or interrupted; they run to completion while new work holds. Typical uses: ride out a provider incident without feeding more samples into it, stop spending while a cost question is decided, yield shared rate-limit capacity to a more urgent eval, or hold a run steady while you investigate a suspicious transcript (the read commands keep answering while paused).
 
 ```bash
 $ inspect ctl process pause     # pause the whole run (eval or eval-set)
 $ inspect ctl process resume    # pick up exactly where it left off
 ```
 
-Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Held samples spend none of their time limits: they are exactly as resumable as before the pause. Batched generate calls already in flight also run to completion, so a paused run with provider batches outstanding can take a while to drain.
+Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Held samples spend none of their time limits: they are exactly as resumable as before the pause. Quiesce time is therefore bounded by the longest in-flight work: a long-running agentic sample, or a batched generate call awaiting a provider batch, holds the run semi-active until it completes. When in-flight work must wind down faster than that, compose pause with `inspect ctl config --max-connections` (throttle in-flight demand without discarding progress) or a targeted `inspect ctl sample cancel`.
 
 `inspect ctl task pause` / `resume` scope the same thing to one task of an eval set. Task and process pauses are independent latches — `process resume` does not clear a task-level pause (and vice versa), so resuming a run after an incident never silently un-pauses a task you paused for its own reasons. Both verbs accept `--dry-run` and report `changed: false` on an idempotent repeat. Pause never blocks teardown: cancel works unchanged on a paused task, config retunes compose with it, and — unlike `task cancel` — pausing a task that is *between attempts* works, parking the queued retry.
 

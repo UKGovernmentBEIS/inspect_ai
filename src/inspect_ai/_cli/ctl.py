@@ -461,7 +461,7 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
 )
 @_json_option("the mutation result envelope")
 def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
-    """Pause a running task (stop starting new work).
+    """Pause a running task (stop dispatching new work; in-flight finishes).
 
     In-flight samples finish naturally (with scoring and log writes); queued
     samples and a queued retry attempt hold, unstarted — spending none of
@@ -1070,7 +1070,7 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
 )
 @_json_option("the mutation result envelope")
 def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
-    """Pause a whole running eval or eval-set (stop starting new work).
+    """Pause a whole running eval or eval-set (stop dispatching new work; in-flight finishes).
 
     One process-scoped latch: no new eval-set tasks dispatch, no task
     retries start, and no samples dispatch in any task; in-flight samples
