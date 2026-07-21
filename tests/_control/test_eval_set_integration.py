@@ -726,7 +726,7 @@ def test_keep_alive_park_entered_with_completed_state(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -786,7 +786,7 @@ def test_keep_alive_works_when_all_logs_reused(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -837,7 +837,7 @@ def test_runtime_keep_parks_eval_set_launched_without_flag(
 
     captured: dict[str, bool] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["parked"] = True
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
