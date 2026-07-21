@@ -89,8 +89,8 @@ Monitor from another shell: inspect ctl task list   (inspect ctl --help)
 
 **Where.** The bind site in `_eval/eval.py`, immediately after the
 `control_server(...)` context manager yields and alongside
-`emit_launch_handoff` (`src/inspect_ai/_eval/eval.py:994-1010`) — the one
-place that knows the server actually bound, before any task work begins.
+`emit_launch_handoff` (`src/inspect_ai/_eval/eval.py:994-1010`) — a site
+that knows the server actually bound, before any task work begins.
 Not the task startup panel (`src/inspect_ai/_display/core/panel.py:109`'s
 `Log:` line): the panel renders per-task, so an eval-set would repeat the
 pointer for every task; the panel also has two implementations (rich and
@@ -98,6 +98,19 @@ plain) that would each need the change, and under rich the panel repaints —
 a one-shot notice doesn't belong in a repainting region. A stderr write at
 the bind site precedes the live display taking the screen, so it cannot be
 garbled by or garble the rich renderer.
+
+**Also the eval-set park bind.** There is a second bind site: the eval-set
+keep-alive park (`_keep_alive_park`, `src/inspect_ai/_eval/evalset.py:919`)
+binds a fresh server after the run — and when every task was reused, no eval
+ran, so the park's is the *only* bind, yet its control surface is queryable
+(`inspect ctl task list` shows the reused EvalStates registered by
+`_register_reused_logs`). The park should call the same print helper: the
+once-per-process latch makes it a no-op for a normal eval-set (the run's
+earlier bind already printed), and in the all-reused case it closes the same
+hole the park already closes for `--json` consumers by emitting the launch
+handoff itself (the `launch_handoff_emitted()` guard). The park notice alone
+doesn't substitute — it names only `process release`, and 1c exists precisely
+because release-only mentions don't teach observation.
 
 **Once per process.** Guard with a module-level latch (same pattern as the
 keep-alive intent latch in `_control/server.py`). The standalone bind fires
@@ -215,7 +228,8 @@ all of them.
 
 ## Implementation notes
 
-- 1a spans `_eval/eval.py` (the bind-site print and latch) and `_cli/eval.py`
+- 1a spans `_eval/eval.py` (the bind-site print and latch),
+  `_eval/evalset.py` (the same print at the park bind), and `_cli/eval.py`
   (the process-wide arm set by the `eval`/`eval-set`/`eval-retry` entry
   points, likely alongside `set_launch_handoff_listener` in
   `_eval/handoff.py`); 1c/2a touch only help text in `_cli/eval.py`; 2b/3b
@@ -223,8 +237,10 @@ all of them.
 - Tests: extend `tests/_control/test_ctl.py` for the 3b footer (assert
   presence with errored rows, absence without, absence under `--json`);
   extend `tests/_cli/test_ctl_server_flag.py` (or a sibling) for 1a's gating
-  (printed once on a plain CLI run; absent under `--display none` and
-  `--json`; absent from a direct `eval()` call, which never arms the pointer).
+  (printed once on a plain CLI run; printed exactly once for an eval-set,
+  including the all-reused case where only the park binds; absent under
+  `--display none` and `--json`; absent from a direct `eval()` call, which
+  never arms the pointer).
   Help-text items (1c/2a/2b) are covered by `--help` snapshot-style assertions
   only if such tests already exist — otherwise not worth pinning prose.
 - CHANGELOG: one line, e.g. "`inspect eval` now prints a pointer to
