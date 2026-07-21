@@ -172,9 +172,10 @@ pattern-match from examples. Add one line each, at the end of the docstring:
 - `sample_events_command`: `Example: inspect ctl sample events my-task sample-1 --tail 20`
 - `config_command`: `Example: inspect ctl config --max-connections 20 --dry-run`
 
-The examples show the flags an agent most needs to see composed (`--json`
-everywhere; `--tail` on events because the unseeded default is a recent tail;
-`--dry-run` on the one mutation, reinforcing the check-before-acting shape).
+The examples show the flags an agent most needs to see composed (`--json` on
+the list commands; `--tail` on events because the unseeded default is a
+recent tail; `--dry-run` on the one mutation, reinforcing the
+check-before-acting shape).
 Other subcommands keep their current docstrings — these four are the hot
 entry points, and blanket examples dilute the signal.
 
