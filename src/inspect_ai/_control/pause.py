@@ -1,6 +1,6 @@
 """Pause / resume directives for the control channel.
 
-Implements the quiesce semantics of ``design/pause-resume.md``: **pause**
+Implements the quiesce semantics of ``design/ctl/pause-resume.md``: **pause**
 stops a run from *starting* work — no new samples leave the queue, no task
 retry attempts start, no eval-set tasks dispatch — while everything already
 in flight completes normally (solving, scoring, log writes) under its
@@ -132,9 +132,9 @@ _task_gates: dict[str, PauseGate] = {}
 # like the keep-alive intent.
 _process_gate = PauseGate()
 
-# Wake callbacks of the task dispatchers (`run_multiple` /
-# `run_task_retry_attempts` register their dispatch-loop wake here) so a
-# resume re-evaluates task dispatch without polling.
+# Wake callbacks of the task dispatchers (`run_task_retry_attempts`
+# registers its dispatch-loop wake here) so a resume re-evaluates task
+# dispatch without polling.
 _dispatch_wakers: list[Callable[[], None]] = []
 
 # Dispatched samples per task, maintained by PauseGatedSemaphore at the true
@@ -143,7 +143,7 @@ _dispatch_wakers: list[Callable[[], None]] = []
 # only after real await points (base64 content materialization, sandbox
 # connections), so a pause landing in that window would read quiesced — and
 # auto-flush — then flip back when the sample registers, the exact
-# non-monotonicity ``design/pause-resume.md`` rules out. Reset with the task
+# non-monotonicity ``design/ctl/pause-resume.md`` rules out. Reset with the task
 # gates (samples never span an ``eval()`` call).
 _dispatch_counts: dict[str, int] = {}
 
@@ -466,7 +466,7 @@ class PauseGatedSemaphore(AbstractAsyncContextManager[None]):
 
     Exiting releases the slot and, when the task is paused, runs the quiesce
     auto-flush — the last dispatched sample of a paused task completing is
-    exactly the quiesce transition ``design/pause-resume.md`` makes durable.
+    exactly the quiesce transition ``design/ctl/pause-resume.md`` makes durable.
 
     Reusable and concurrency-safe like the limiter it wraps (no per-entry
     state); the in-run sample retry path re-enters the same instance, so a

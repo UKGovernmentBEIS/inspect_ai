@@ -10,15 +10,16 @@ eval-set`` (the latter via its single ``eval()`` call under
 Default-on with graceful degradation: bind failures (read-only
 filesystem, restricted sandbox, etc.) log a warning and continue
 without the surface — eval correctness never depends on the control
-channel coming up. See ``design/control-channel.md`` "Implementation
+channel coming up. See ``design/ctl/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
-/evals/{id}/sample`` (summary + error detail), and ``GET
-/evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
+/evals/{id}/sample`` (summary + error detail), ``GET
+/evals/{id}/sample/events`` (cursored transcript pull), and
+``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``, and
 the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
@@ -61,6 +62,7 @@ from inspect_ai._control.limits import (
     process_limits,
     task_limits,
 )
+from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.pause import (
     pause_process,
     pause_task,
@@ -525,6 +527,30 @@ class ControlServer:
                 )
             return page
 
+        # Per-sample conversation snapshot (`TaskState.messages`). Like the
+        # other per-sample routes, `sample_id` is a query param (ids may carry
+        # URL-reserved characters). Deliberately not cursored — the message
+        # list is rewritable (compaction / solver edits), so each call returns
+        # the current conversation (or a `tail`), enveloped with `as_of` /
+        # `status` / `count`. `full` returns raw ChatMessage JSON.
+        @app.get("/evals/{eval_id}/sample/messages")
+        async def get_sample_messages(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            tail: int | None = None,
+            full: bool = False,
+        ) -> Any:
+            page = await sample_messages(
+                eval_id, sample_id, epoch, tail=tail, full=full
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
         # Flush the task's buffered completed samples to the (possibly remote,
         # eg. S3) log now, so they're readable without waiting for the flush
         # buffer to fill. Keyed by task_id (resolved to the latest attempt),
@@ -579,7 +605,7 @@ class ControlServer:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
-        # Pause / resume a running task (phase 3 — see design/pause-resume.md).
+        # Pause / resume a running task (phase 3 — see design/ctl/pause-resume.md).
         # Task-keyed like `config` / `log-flush` / `cancel` (a pause handle
         # must not dangle across a retry). Quiesce semantics: pause stops new
         # samples (and a queued in-run retry attempt) from starting while
@@ -612,7 +638,7 @@ class ControlServer:
         # defaulted epoch would silently target the epoch-1 attempt on a
         # multi-epoch task (the read routes keep their harmless `= 1`
         # default; see the selector conventions in
-        # design/control-channel.md). `action` selects the outcome: "score"
+        # design/ctl/control-channel.md). `action` selects the outcome: "score"
         # completes the sample and scores the work done so far; "error"
         # marks it errored (rejected for fail-on-error samples); "cancel"
         # records it as cancelled (transcript preserved, no scoring, not

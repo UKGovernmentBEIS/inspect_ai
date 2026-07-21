@@ -1,4 +1,4 @@
-"""Tests for the control-channel pause/resume directives (design/pause-resume.md).
+"""Tests for the control-channel pause/resume directives (design/ctl/pause-resume.md).
 
 Covers the gate primitive and sample-dispatch wrapper in
 ``inspect_ai._control.pause``, the directive functions (task pause/resume:

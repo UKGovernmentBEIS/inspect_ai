@@ -173,7 +173,13 @@ class SampleBuffer(abc.ABC):
         epoch: int,
         n: int,
     ) -> AbstractContextManager["SampleHistory"]:
-        """Open a consistent snapshot of the last ``n`` sample events."""
+        """Open a consistent snapshot of the last ``n`` sample events.
+
+        The yielded history is page-scoped: its pools carry only the entries
+        referenced by the page's events (position-keyed, possibly sparse) and
+        ``SampleHistory.events_data`` raises ``RuntimeError``. Use
+        ``open_sample_history`` when dense full pools are required.
+        """
         ...
 
     @abc.abstractmethod
@@ -189,6 +195,11 @@ class SampleBuffer(abc.ABC):
         ``limit`` caps the number of events read (``None`` = through the end),
         so cursored page readers don't materialize the full remaining history
         to serve one page.
+
+        The yielded history is page-scoped: its pools carry only the entries
+        referenced by the page's events (position-keyed, possibly sparse) and
+        ``SampleHistory.events_data`` raises ``RuntimeError``. Use
+        ``open_sample_history`` when dense full pools are required.
         """
         ...
 

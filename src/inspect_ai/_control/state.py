@@ -55,7 +55,7 @@ SAMPLE_STATUSES = ("running", "completed", "error", "cancelled", "pending", "que
 # `inspect ctl sample list`). The listing is otherwise linear in sample
 # count — a 10k-sample eval-set would return ~10k rows in one response,
 # flooding an LLM agent's context (see "Shape constraints from agent
-# consumers" in design/control-channel.md, constraint 2). Rows sort
+# consumers" in design/ctl/control-channel.md, constraint 2). Rows sort
 # running → terminal → pending, so the cap keeps the most relevant rows;
 # the envelope's `counts` histogram keeps the aggregate answer complete
 # and `truncated` reports the cap structurally.
@@ -935,7 +935,7 @@ def _build_summary(
 
     # which pause latch holds the task (None when dispatchable), and whether
     # it has quiesced — paused with nothing dispatched, the "safe to kill"
-    # signal for the durable-pause workflow (design/pause-resume.md). A
+    # signal for the durable-pause workflow (design/ctl/pause-resume.md). A
     # finished task reports neither (there is nothing left to hold) — but a
     # task *between attempts* (completed_at set, retry pending) is still
     # holdable (the gate parks its queued retry, the same guard pause_task
@@ -982,7 +982,7 @@ def _build_summary(
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch
         # would silently target a different sample — see the selector
-        # conventions in design/control-channel.md).
+        # conventions in design/ctl/control-channel.md).
         "epochs": latest.epochs,
         "samples": {
             "total": total,

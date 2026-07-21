@@ -21,10 +21,32 @@ def _should_eval_fail(
 
 
 class SampleErrorHandler:
-    def __init__(self, fail_on_error: bool | float | None, total_samples: int) -> None:
+    def __init__(
+        self,
+        fail_on_error: bool | float | None,
+        total_samples: int,
+        defer_fractional: bool = False,
+    ) -> None:
+        """Handle sample errors, aborting the eval when `fail_on_error` says to.
+
+        Args:
+            fail_on_error: `True` to fail on any error, a fraction (< 1) of
+                `total_samples`, or an absolute count (>= 1).
+            total_samples: Planned sample runs (denominator for fractional
+                thresholds). May be grown while running (`SampleSource`).
+            defer_fractional: Don't abort mid-run on a fractional threshold —
+                leave it to the end-of-run check. Used by `SampleSource`-driven
+                tasks, whose planned total grows while they run: an early error
+                would otherwise be measured against a transiently small
+                denominator (e.g. a 1-sample seed erroring trips `1 >= 0.5*1`
+                before the source has produced the rest). Absolute-count and
+                any-error thresholds don't depend on the denominator and still
+                abort mid-run.
+        """
         self.error_count = 0
         self.fail_on_error = True if fail_on_error is None else fail_on_error
         self.total_samples = total_samples
+        self.defer_fractional = defer_fractional
 
     def __call__(self, ex: BaseException) -> tuple[EvalError, BaseException | None]:
         # increment error count
@@ -39,7 +61,13 @@ class SampleErrorHandler:
             ), ex if raise_error else None
 
         # check against limits
-        raise_error = _should_eval_fail(
-            self.error_count, self.total_samples, self.fail_on_error
-        )
+        if self.defer_fractional and self._is_fractional():
+            raise_error = False
+        else:
+            raise_error = _should_eval_fail(
+                self.error_count, self.total_samples, self.fail_on_error
+            )
         return sample_error(raise_error=raise_error)
+
+    def _is_fractional(self) -> bool:
+        return not isinstance(self.fail_on_error, bool) and 0 < self.fail_on_error < 1

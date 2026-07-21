@@ -1,0 +1,29 @@
+# Moonshot AI Model Database
+#
+# Hand-maintained entries for Moonshot AI models served via the moonshot
+# provider or gateway hosting providers (e.g. cloudflare/moonshotai/kimi-k3).
+# Models served via Together are auto-generated into together.yml under the
+# same organization key.
+
+moonshotai:
+  display_name: Moonshot AI
+  models:
+    kimi-k3:
+      display_name: "Kimi K3"
+      release_date: 2026-07-16
+      # Knowledge cutoff undisclosed (no model card published yet); omit for now.
+      context_length: 1048576
+      # Default output cap is 131072 but it is settable up to the full 1M window.
+      output_tokens: 1048576
+      reasoning: True
+      # K3 thinking is always on; reasoning_effort currently only accepts "max".
+      # https://platform.kimi.ai/docs/guide/use-thinking-effort
+      reasoning_effort_default: max
+    # K2.5/K2.6 also appear in the auto-generated together.yml under the same
+    # case-normalized lookup keys; keep context_length in agreement with it.
+    kimi-k2.6:
+      display_name: "Kimi K2.6"
+      context_length: 262144
+    kimi-k2.5:
+      display_name: "Kimi K2.5"
+      context_length: 262144
