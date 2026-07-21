@@ -95,9 +95,26 @@ Not the task startup panel (`src/inspect_ai/_display/core/panel.py:109`'s
 `Log:` line): the panel renders per-task, so an eval-set would repeat the
 pointer for every task; the panel also has two implementations (rich and
 plain) that would each need the change, and under rich the panel repaints —
-a one-shot notice doesn't belong in a repainting region. A stderr write at
-the bind site precedes the live display taking the screen, so it cannot be
-garbled by or garble the rich renderer.
+a one-shot notice doesn't belong in a repainting region. Under the rich and
+plain renderers — which includes the primary audience, since an agent's
+non-TTY run always resolves to `RichDisplay` — a stderr write at the bind
+site precedes the live display taking the screen, so it cannot be garbled by
+or garble the renderer.
+
+**Except under the textual display, where the pointer is gated off.** The
+default interactive display — `--display full` on a TTY outside Jupyter —
+is the full-screen textual app (`src/inspect_ai/_display/core/active.py:24-34`),
+and its `run_task_app` starts the app *before* `eval_async` runs: the bind
+happens inside the running app, and a stderr write races app startup. Landing
+before capture begins (`begin_capture_print` in `on_mount`) it goes to the
+alternate screen and is lost; landing after, it is routed to the Console tab
+and replayed only once the app exits — when "monitor from another shell" is
+stale advice. Neither outcome is useful, and the textual user isn't
+shortchanged: the app itself is the monitoring surface the pointer exists to
+advertise. So the gate below checks the active display *implementation*, not
+TTY-ness — the textual display is itself TTY-selected, but the distinction
+matters because the no-TTY-detection stance below is about never suppressing
+the agent's non-TTY case, which this gate cannot touch.
 
 **Also the eval-set park bind.** There is a second bind site: the eval-set
 keep-alive park (`_keep_alive_park`, `src/inspect_ai/_eval/evalset.py:919`)
@@ -110,7 +127,12 @@ earlier bind already printed), and in the all-reused case it closes the same
 hole the park already closes for `--json` consumers by emitting the launch
 handoff itself (the `launch_handoff_emitted()` guard). The park notice alone
 doesn't substitute — it names only `process release`, and 1c exists precisely
-because release-only mentions don't teach observation.
+because release-only mentions don't teach observation. The textual gate
+applies at the park bind too (the resolved display implementation is
+process-wide, even after the app exits or when it never ran): acceptable,
+because the suppressed case is an interactive human who already gets the
+park notice, while the agent's non-TTY park resolves to `RichDisplay` and
+prints normally.
 
 **Once per process.** Guard with a module-level latch (same pattern as the
 keep-alive intent latch in `_control/server.py`). The standalone bind fires
@@ -128,6 +150,8 @@ and would otherwise repeat the line.
   would be redundant noise);
 - not quiet (`--display none` is how quiet is spelled for eval runs — no
   separate flag needed);
+- the active display is not the textual full-screen app (see "Except under
+  the textual display" above);
 - the process was entered via the CLI (see below).
 
 **Python-API callers are out of scope.** The bind site is shared with the
@@ -222,7 +246,8 @@ truncation footer when capped, and `sample errors` *is* the follow-up.
 Every embedded hint is **one line**, on **stderr** for launch-time surfaces /
 appended to the human table for `ctl` reads, and **absent from `--json`
 stdout** in all cases. Suppression is via display mode (`--display none`,
-`--json`), not TTY detection (see 1a). If a pointer can't satisfy all three,
+`--json`) or display implementation (the textual app), not TTY detection
+(see 1a). If a pointer can't satisfy all three,
 it doesn't ship — hints that become noise teach agents and humans to ignore
 all of them.
 
@@ -240,7 +265,10 @@ all of them.
   (printed once on a plain CLI run; printed exactly once for an eval-set,
   including the all-reused case where only the park binds; absent under
   `--display none` and `--json`; absent from a direct `eval()` call, which
-  never arms the pointer).
+  never arms the pointer). Those cases all run non-TTY and so never select
+  the textual display; the textual gate needs its own test that exercises
+  the gate predicate directly (e.g. against a forced `TextualDisplay`)
+  rather than a real TTY run.
   Help-text items (1c/2a/2b) are covered by `--help` snapshot-style assertions
   only if such tests already exist — otherwise not worth pinning prose.
 - CHANGELOG: one line, e.g. "`inspect eval` now prints a pointer to
