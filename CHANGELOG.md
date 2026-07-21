@@ -1,6 +1,8 @@
-## Unreleased
+## 0.3.249 (20 July 2026)
 
 - Model API: New `moonshot` provider for Moonshot AI Kimi models (e.g. `moonshot/kimi-k3`), with built-in model info for Kimi K3 and detection of `kimi-*` model names on hosting providers.
+- CloudFlare/Moonshot: Automatically populate empty assistant messages with "(no content)" (these APIs reject replay of assistant messages with empty content).
+- CloudFlare/Moonshot: Retry requests that fail with HTTP status 503 (service overloaded) as rate limits, scaling down adaptive concurrency.
 - Control Channel: `inspect ctl sample list` no longer recomputes sample summaries on every request, so polling an eval buffering many large samples (e.g. a retry's carried transcripts) can no longer stall the eval process.
 - Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
