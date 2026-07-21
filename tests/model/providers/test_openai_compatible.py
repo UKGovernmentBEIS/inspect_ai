@@ -2,7 +2,8 @@ from typing import Any
 
 import httpx
 import pytest
-from openai import APIStatusError
+from openai import APIStatusError, LengthFinishReasonError
+from openai.types.chat import ChatCompletion
 from test_helpers.utils import (
     skip_if_no_openai,
     skip_if_no_together,
@@ -17,6 +18,7 @@ from inspect_ai.model import (
     StopReason,
     get_model,
 )
+from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
 from inspect_ai.tool import ToolInfo
@@ -333,3 +335,53 @@ async def test_together_stream_end_to_end() -> None:
         input=[ChatMessageUser(content="This is a test string. What are you?")]
     )
     assert len(response.completion) >= 1
+
+
+async def test_openai_compatible_streaming_returns_partial_on_length(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream=True,
+    )
+
+    partial = ChatCompletion.model_validate(
+        {
+            "id": "partial",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "gpt-5",
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": "length",
+                    "message": {"role": "assistant", "content": "truncated"},
+                }
+            ],
+        }
+    )
+
+    class _LengthTruncatedStream:
+        async def __aenter__(self) -> "_LengthTruncatedStream":
+            return self
+
+        async def __aexit__(self, *exc: object) -> None:
+            return None
+
+        async def get_final_completion(self) -> ChatCompletion:
+            raise LengthFinishReasonError(completion=partial)
+
+    monkeypatch.setattr(
+        api.client.chat.completions,
+        "stream",
+        lambda **kwargs: _LengthTruncatedStream(),
+    )
+
+    try:
+        result = await api._generate_completion({}, GenerateConfig())
+        assert result is partial
+        assert chat_choices_from_openai(result, [])[0].stop_reason == "max_tokens"
+    finally:
+        await api.aclose()

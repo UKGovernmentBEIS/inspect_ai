@@ -12,7 +12,7 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
   ``drain`` are planned.
 - ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
   ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``,
-  ``cancel``; ``requeue`` is planned.
+  ``messages``, ``cancel``; ``requeue`` is planned.
 - ``config`` — a top-level *command* (not a group): view / retune launch
   configuration mid-flight (concurrency limits, log buffering). Scope is a
   property of each knob (task vs process), labeled in the output.
@@ -88,6 +88,12 @@ if TYPE_CHECKING:
 # backlog — the first call must never be empty or a context-flooding dump
 # (see the agent output contract in design/ctl/control-channel.md).
 _DEFAULT_EVENTS_TAIL = 20
+
+# Messages shown on an unseeded `sample messages` read (no --tail / --all): a
+# recent tail rather than the whole conversation, which for a long agentic run
+# can exceed a watching agent's context. Same "never empty, never a flood"
+# rationale as the events tail.
+_DEFAULT_MESSAGES_TAIL = 20
 
 # One source of truth for each retunable config knob's scope. The `ctl config`
 # option help tags, the composed JSON view's per-knob "scope" labels, and the
@@ -725,6 +731,69 @@ def sample_events_command(
         full=full,
         since_time=since_time,
         until=until,
+        as_json=as_json,
+    )
+
+
+@sample_group.command("messages")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=1)
+@click.option(
+    "--tail",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        "Only the last N messages (default: the recent tail — "
+        f"{_DEFAULT_MESSAGES_TAIL}). Use --all for the whole conversation."
+    ),
+)
+@click.option(
+    "--all",
+    "show_all",
+    is_flag=True,
+    default=False,
+    help="Show the whole conversation instead of a recent tail.",
+)
+@click.option(
+    "--full",
+    is_flag=True,
+    default=False,
+    help="Return raw ChatMessage JSON instead of the compact summary.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the `{as_of, status, count, messages}` envelope).",
+)
+def sample_messages_command(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    tail: int | None,
+    show_all: bool,
+    full: bool,
+    as_json: bool,
+) -> None:
+    """Read one sample's current conversation (a snapshot).
+
+    Returns the sample's `TaskState.messages` as they look right now — a
+    snapshot, not a stream: the message list is rewritable (compaction,
+    solver edits), so there is no resume cursor. The default is a recent tail;
+    pass `--all` for the whole conversation or `--tail N` for a specific
+    window, and `--full` for raw `ChatMessage` JSON. For incremental,
+    event-grain watching use `inspect ctl sample events`. EPOCH defaults to 1
+    (the response echoes the resolved epoch).
+    """
+    _run_sample_messages(
+        task,
+        sample_id,
+        epoch,
+        tail=tail,
+        show_all=show_all,
+        full=full,
         as_json=as_json,
     )
 
@@ -1985,7 +2054,80 @@ def _run_sample_events(
         click.echo(json_lib.dumps(page, indent=2))
         return
 
-    _print_events(page)
+    _print_events(page, full=full)
+
+
+@_envelope_failures
+def _run_sample_messages(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    tail: int | None,
+    show_all: bool,
+    full: bool,
+    as_json: bool,
+) -> None:
+    # `--all` and `--tail` are mutually exclusive ways to size the window;
+    # an explicit --tail with --all is contradictory, so reject it rather
+    # than silently letting one win.
+    if show_all and tail is not None:
+        _fail(
+            "invalid_request",
+            "--all and --tail are mutually exclusive (--all shows every "
+            "message; --tail sizes a recent window).",
+        )
+    # The unseeded default is a recent tail — never an overwhelming first
+    # page. --all disables it; an explicit --tail overrides it.
+    if not show_all and tail is None:
+        tail = _DEFAULT_MESSAGES_TAIL
+
+    fetched = _fetch_sample_summaries()
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            # Uniform --json shape even on the empty page (task_id is
+            # unresolvable with no running evals; as_of is None because no
+            # server stamped a read time).
+            empty_page: dict[str, Any] = {
+                "task_id": None,
+                "sample_id": sample_id,
+                "epoch": epoch,
+                "as_of": None,
+                "status": None,
+                "count": 0,
+                "messages": [],
+            }
+            click.echo(json_lib.dumps(empty_page, indent=2))
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    page = _fetch_sample_messages(
+        target["socket_path"],
+        target["eval_id"],
+        sample_id,
+        epoch,
+        tail=tail,
+        full=full,
+    )
+    # Echo the resolved identifiers so a defaulted epoch is visible and the
+    # row round-trips into other commands' selectors.
+    page = {
+        "task_id": target.get("task_id"),
+        "sample_id": sample_id,
+        "epoch": epoch,
+        **page,
+    }
+
+    if as_json:
+        click.echo(json_lib.dumps(page, indent=2))
+        return
+
+    click.echo(_task_header(target))
+    click.echo()
+    _print_messages(page, full=full)
 
 
 def _looks_like_timestamp(value: str) -> bool:
@@ -3717,6 +3859,45 @@ def _fetch_sample_events(
     )
 
 
+_MESSAGES_ROUTE_MISSING = (
+    "This process is running an older inspect without the sample "
+    "messages endpoint; restart the eval to pick up the current version."
+)
+
+
+def _fetch_sample_messages(
+    socket_path: str,
+    eval_id: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    tail: int | None,
+    full: bool,
+) -> dict[str, Any]:
+    """Query one control server for a snapshot of a sample's conversation.
+
+    The authoritative read behind ``sample messages``: like the sample detail
+    and events reads, it rides the full narrated busy-retry policy rather than
+    failing on a momentary event-loop stall.
+    """
+    # sample_id (and all params) go in the query string so reserved-char ids
+    # address correctly; drop unset options so server defaults apply.
+    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    if tail is not None:
+        params["tail"] = tail
+    return _request_json(
+        socket_path,
+        f"/evals/{eval_id}/sample/messages",
+        params=params,
+        what=f"messages for sample {sample_id}",
+        not_found=(
+            f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
+            "not have started or not yet been written to the log."
+        ),
+        not_found_missing_route=_MESSAGES_ROUTE_MISSING,
+    )
+
+
 def _request_json(
     socket_path: str,
     path: str,
@@ -4170,10 +4351,15 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         click.echo(f"  note: {note}")
 
 
-def _print_events(page: dict[str, Any]) -> None:
+def _print_events(page: dict[str, Any], *, full: bool) -> None:
     """Render a page of transcript events (table) plus a cursor footer."""
     events = page.get("events") or []
-    if not events:
+    if full:
+        # Raw mode is for machine consumption; the human rendering is the
+        # compact projection (whose flattened fields the table expects), so
+        # just pretty-print the raw events.
+        click.echo(json_lib.dumps(events, indent=2))
+    elif not events:
         click.echo("(no events)")
     else:
         rows: list[tuple[str, ...]] = []
@@ -4195,6 +4381,52 @@ def _print_events(page: dict[str, Any]) -> None:
     nxt = page.get("next")
     if nxt and not page.get("done"):
         click.echo(f"next: {nxt}  (resume with --cursor)")
+
+
+def _print_messages(page: dict[str, Any], *, full: bool) -> None:
+    """Render a conversation snapshot (per-message rows) plus a count footer."""
+    messages = page.get("messages") or []
+    count = int(page.get("count") or 0)
+    status = page.get("status")
+
+    if full:
+        # Raw mode is for machine consumption; the human rendering is the
+        # compact projection, so just pretty-print the raw messages.
+        click.echo(json_lib.dumps(messages, indent=2))
+    elif not messages:
+        click.echo("(no messages)")
+    else:
+        rows: list[tuple[str, ...]] = []
+        for m in messages:
+            rows.append(
+                (
+                    str(m.get("index", "")),
+                    str(m.get("role", "") or ""),
+                    _message_summary(m),
+                )
+            )
+        _render_table(("#", "role", "content"), rows)
+
+    shown = len(messages)
+    footer = f"{shown} of {count} message" + ("" if count == 1 else "s")
+    if shown < count:
+        footer += " (use --all for the whole conversation)"
+    if status:
+        footer += f"  ·  {status}"
+    click.echo()
+    click.echo(footer)
+
+
+def _message_summary(m: dict[str, Any]) -> str:
+    """One-line summary for a message row (best-effort over compact fields)."""
+    parts = [str(m.get("content") or "")]
+    for call in m.get("tool_calls") or []:
+        parts.append(
+            f"→ {call.get('function') or '?'}({_truncate(str(call.get('arguments') or ''), 30)})"
+        )
+    if m.get("error"):
+        parts.append(f"error: {m['error']}")
+    return _truncate("  ".join(p for p in parts if p), 100)
 
 
 def _event_summary(e: dict[str, Any]) -> str:

@@ -88,6 +88,12 @@
   author: "[Eirik Botten Nicolaysen](https://github.com/avalyset)"
   categories: ["Analysis"]
 
+- name: "[Inspect Judge Drift](https://github.com/avalyset/inspect-judge-drift)"
+  description: |
+    Judge-drift measurement — re-grades a stored eval log with two graders over the same samples, so the judge model is the only variable. Grade-parse failures are reported as unscored, never fabricated into verdicts.
+  author: "[Eirik Botten Nicolaysen](https://github.com/avalyset)"
+  categories: ["Analysis"]
+
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
   description: |
     Workflow orchestration for reproducibly running evals at scale.

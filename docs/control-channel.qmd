@@ -1,6 +1,6 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, stall diagnosis from trace logs, task and sample cancellation, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
@@ -18,6 +18,7 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 | `inspect ctl sample errors` | List samples that errored or were retried. |
 | `inspect ctl sample show` | Show one sample's summary and error history. |
 | `inspect ctl sample events` | Read one sample's transcript events. |
+| `inspect ctl sample messages` | Read one sample's current conversation. |
 | `inspect ctl sample cancel` | Cancel one running sample. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl process list` | List running Inspect processes. |
@@ -27,7 +28,7 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -223,6 +224,33 @@ Other options:
 : {tbl-colwidths=[35,65]}
 
 Note that `--cursor` takes the opaque `next` token, never a timestamp — for a wall-clock window use `--since-time`. Events for samples that have already completed are also readable — they are served from the eval's log.
+
+## Conversation Snapshots
+
+`inspect ctl sample messages` reads one sample's current conversation — its message list as it stands right now:
+
+```bash
+$ inspect ctl sample messages gpqa 17 --tail 3
+#   role       content
+--  ---------  --------------------------------------------------
+12  assistant  Let me check the data.  → bash(ls /data)
+13  tool       README.md results.csv
+14  assistant  Based on the results, the compound is...
+
+3 of 15 messages (use --all for the whole conversation)  ·  running
+```
+
+Unlike `sample events`, this is a snapshot, not a stream: solver and agent code can rewrite the message list (for example, compaction replaces a prefix with a summary), so there is no resume cursor. Each call returns the conversation as it looks at that moment — by default a recent tail (the last 20 messages), with each row carrying its absolute index so a tailed view lines up with the full one. To watch a sample incrementally, poll and compare the reported total `count` (the cheap staleness signal), or use `inspect ctl sample events` for event-grain resumable reads.
+
+| Option | Description |
+|----|----|
+| `--tail N` | Only the last N messages (default 20). Mutually exclusive with `--all`. |
+| `--all` | The whole conversation instead of a recent tail. |
+| `--full` | Return raw `ChatMessage` JSON instead of compact one-line summaries. |
+
+: {tbl-colwidths=[35,65]}
+
+With `--json` the response is an `{as_of, status, count, messages}` envelope, prefixed with the resolved `task_id` / `sample_id` / `epoch` (so a defaulted epoch is visible). As with events, `EPOCH` defaults to 1, and conversations of samples that have already completed are also readable — they are served from the eval's log.
 
 ## Cancellation
 
