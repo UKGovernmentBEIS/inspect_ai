@@ -6,10 +6,12 @@ from openai.types.chat import ChatCompletionMessageParam
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai._util.http import parse_retry_after_from_exception, status_code_of
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 
 from ...model import ChatMessage, GenerateConfig
+from .._model import RetryDecision
 from .._openai import fill_empty_assistant_content
 from .util import environment_prerequisite_error
 
@@ -71,6 +73,18 @@ class CloudFlareAPI(OpenAICompatibleAPI):
                     self.model_name, content=content, stop_reason="model_length"
                 )
         return ex
+
+    # the service returns 503 when overloaded -- classify as a rate limit so
+    # the adaptive concurrency controller scales down (checked before the
+    # base classifier, which would treat an SDK-shaped 503 as transient,
+    # pausing scale-up without backing off)
+    @override
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        if status_code_of(ex) == 503:
+            return RetryDecision.rate_limit(
+                retry_after=parse_retry_after_from_exception(ex)
+            )
+        return super().should_retry(ex)
 
     # cloudflare enforces rate limits by model for each account
     @override
