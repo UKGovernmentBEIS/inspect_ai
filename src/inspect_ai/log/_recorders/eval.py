@@ -156,9 +156,14 @@ class EvalRecorder(FileRecorder):
         await log.start(start)
 
     @override
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
         log = self.data[self._log_file_key(eval)]
-        await log.buffer_sample(sample)
+        if write_through:
+            await log.buffer_sample_write_through(sample)
+        else:
+            await log.buffer_sample(sample)
 
     @override
     async def log_sample_streaming(
@@ -768,6 +773,41 @@ class ZipLogFile:
         buffered = _BufferedSample(sample=sample, summary=sample.summary())
         async with self._lock:
             self._samples.append(buffered)
+
+    async def buffer_sample_write_through(self, sample: EvalSample) -> None:
+        """Write a completed sample straight into the temp-file zip.
+
+        The bulk re-log counterpart to :meth:`buffer_sample` (used for a
+        retry's reused completed samples): the full sample — events included —
+        goes into the temp zip immediately, so it lands on local disk instead
+        of staying resident in ``_samples`` until the next flush (anything in
+        the temp zip reaches the destination on any later flush, which copies
+        the whole file). Mirrors :meth:`buffer_sample_streaming`: only an
+        event-less copy is retained in ``_streaming_samples`` (cleared by
+        ``flush`` once the sample is on-disk-readable) so control-channel
+        reads of error detail / scores keep working pre-flush — event reads
+        are unavailable until the next flush — and the summary is journalled
+        immediately with the same replace-by-``(id, epoch)`` dedupe. Nothing
+        is appended to ``_samples``.
+        """
+        async with self._lock:
+            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
+
+            self._streaming_samples[(sample.id, sample.epoch)] = sample.model_copy(
+                update={"events": [], "events_data": None}
+            )
+
+            self._summary_counter += 1
+            summary = sample.summary()
+            summary_file = _journal_summary_file(self._summary_counter)
+            summary_path = _journal_summary_path(summary_file)
+            self._zip_writestr(summary_path, [summary])
+            self._summaries = [
+                s
+                for s in self._summaries
+                if (s.id, s.epoch) != (summary.id, summary.epoch)
+            ]
+            self._summaries.append(summary)
 
     async def buffer_sample_streaming(
         self, sample: EvalSample, history: "SampleHistory"

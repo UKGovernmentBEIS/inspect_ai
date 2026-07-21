@@ -93,6 +93,7 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders.buffer.transcript_history_provider import (
     BufferTranscriptHistoryProvider,
 )
+from inspect_ai.log._recorders.eval import _sample_filename
 from inspect_ai.log._recorders.streaming import (
     eval_retry_error_from_history,
     materialize_streaming_sample,
@@ -228,6 +229,12 @@ SampleLookup = Callable[
     [int | str, int], Awaitable[EvalSample | ResumeCheckpoint | PreviousError | None]
 ]
 ErrorHistoryIds = Callable[[], Awaitable[set[tuple[int | str, int]]]]
+PriorExists = Callable[[int | str, int], Awaitable[bool]]
+
+
+async def _never_prior_exists(id: int | str, epoch: int) -> bool:
+    """Default presence probe: no cheap probe available, so don't throttle."""
+    return False
 
 
 class EvalSampleSource(NamedTuple):
@@ -238,10 +245,17 @@ class EvalSampleSource(NamedTuple):
     returns the `(id, epoch)` pairs that errored in the prior attempt —
     the only candidates that can yield a `PreviousError` — so teardown
     carry-forward can probe just those instead of the full plan.
+    `prior_exists` is a cheap presence probe for the prior attempt's record
+    of a sample, used to decide whether its lookup must take the bounded
+    reuse read throttle (a presence hit reads a full sample body; misses
+    must not queue behind those reads). False means "don't throttle" —
+    the sample is known absent, or this source's lookups are cheap
+    (in-memory list scans).
     """
 
     lookup: SampleLookup
     error_history_ids: ErrorHistoryIds
+    prior_exists: PriorExists = _never_prior_exists
 
 
 # Units allocated for sample progress - the total units
@@ -249,6 +263,44 @@ class EvalSampleSource(NamedTuple):
 # the remainder are increments of progress within a sample (and
 # must sum to the total_progress_units when the sample is complete)
 SAMPLE_TOTAL_PROGRESS_UNITS = 1
+
+# How many prior-attempt sample bodies a retry's reuse sweep reads (and
+# re-logs) concurrently. All run_sample coroutines start at once, so without
+# a bound the whole reused set can be mid-read simultaneously; 25 matches the
+# bounded concurrency used for journal summary reads in
+# `_read_all_summaries_async`.
+REUSED_SAMPLE_READ_CONCURRENCY = 25
+
+
+class _ReuseSweepCountdown:
+    """Fires the reused-sample settle flush when the reuse sweep completes.
+
+    Counts planned ``(sample, epoch)`` runs; each ``run_sample`` settles one
+    as soon as its prior-attempt lookup (and any re-log) has resolved. The
+    final settle means the re-logged reused set is complete, so
+    ``TaskLogger.schedule_quiet_flush`` writes it to the destination in one
+    deterministic flush — keyed to an exact event rather than a stale timer,
+    it fires no earlier (no partial-sweep flushes), no later (no idle wait),
+    and not at all when nothing was reused (the flush is a no-op with nothing
+    quiet pending). A SampleSource-driven task can add planned runs after the
+    seed sweep settles; ``add`` raises the count again so a later settle
+    drains any follow-up reuse.
+
+    No lock: count mutations happen on the eval's single event-loop thread
+    with no await point between read and write.
+    """
+
+    def __init__(self, logger: TaskLogger, planned_runs: int) -> None:
+        self._logger = logger
+        self._remaining = planned_runs
+
+    def add(self, planned_runs: int) -> None:
+        self._remaining += planned_runs
+
+    def settle_one(self) -> None:
+        self._remaining -= 1
+        if self._remaining == 0:
+            self._logger.schedule_quiet_flush()
 
 
 def _sample_transcript_config(
@@ -582,6 +634,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task_id=logger.eval.task_id,
             )
 
+            # retry reuse sweep coordination: a throttle bounding concurrent
+            # prior-sample body reads/re-logs, and a countdown that schedules
+            # one destination flush of the re-logged set once every planned
+            # sample has resolved its reuse check
+            reuse_read_throttle = anyio.Semaphore(REUSED_SAMPLE_READ_CONCURRENCY)
+            reuse_settle = _ReuseSweepCountdown(logger, store_len * epochs)
+
             # Register this eval with the process-level state aggregate
             # so the control channel (and other readers) can answer
             # "how many samples queued / running / done?" without
@@ -712,68 +771,106 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # PreviousError); kept distinct from the sample-level
                     # retry list so it doesn't suppress sample init/start emits
                     previous_attempt_errors: list[EvalRetryError] = []
-                    if sample_source and sample_id is not None:
-                        previous_sample = await sample_source.lookup(sample_id, epoch)
-                        if isinstance(previous_sample, EvalSample):
-                            progress(SAMPLE_TOTAL_PROGRESS_UNITS)
-                            if logger and log_samples:
-                                await logger.complete_sample(
-                                    condense_sample(previous_sample, log_images),
-                                    flush=False,
+                    previous_sample: (
+                        EvalSample | ResumeCheckpoint | PreviousError | None
+                    ) = None
+                    try:
+                        if sample_source and sample_id is not None:
+                            # a presence hit reads a full prior sample body, so
+                            # it takes the reuse read throttle; the probe itself
+                            # stays outside so true misses — samples absent from
+                            # the prior log — proceed immediately rather than
+                            # queueing behind reused-sample body reads
+                            throttled = await sample_source.prior_exists(
+                                sample_id, epoch
+                            )
+                            if throttled:
+                                await reuse_read_throttle.acquire()
+                            try:
+                                previous_sample = await sample_source.lookup(
+                                    sample_id, epoch
                                 )
-                            sample_scores = (
-                                {
-                                    key: SampleScore(
-                                        score=score,
-                                        sample_id=previous_sample.id,
-                                        sample_metadata=previous_sample.metadata,
-                                        scorer=key,
-                                    )
-                                    for key, score in previous_sample.scores.items()
-                                }
-                                if previous_sample.scores
-                                else {}
-                            )
-                            await resume_scan_previous_sample(
-                                previous_sample,
-                                scanner,
-                                scanned_per_scanner,
-                                sample_semaphore,
-                                scan_id=scan_id,
-                                eval_id=logger.eval.eval_id,
-                                log_location=profile.log_location,
-                                model=str(model),
-                                eval_spec=logger.eval,
-                            )
-                            await sample_complete(sample_id, epoch, sample_scores)
-                            # notify the task's SampleSource of the reused
-                            # sample: a completion-driven source regenerates
-                            # its follow-ups on retry from these notifications
-                            # (the follow-ups are then themselves reused via
-                            # this same prior-attempt lookup)
-                            if sample_feed is not None:
-                                _enqueue_source_samples(
-                                    await sample_feed.sample_complete(previous_sample)
+                                if isinstance(previous_sample, EvalSample):
+                                    progress(SAMPLE_TOTAL_PROGRESS_UNITS)
+                                    if logger and log_samples:
+                                        # write_through: the reused set is
+                                        # re-logged in bulk before any flush
+                                        # trigger, so park each sample in the
+                                        # recorder's temp zip rather than
+                                        # keeping the whole set resident
+                                        await logger.complete_sample(
+                                            condense_sample(
+                                                previous_sample, log_images
+                                            ),
+                                            flush=False,
+                                            write_through=True,
+                                        )
+                            finally:
+                                if throttled:
+                                    reuse_read_throttle.release()
+                    finally:
+                        # settle before resume_scan_previous_sample (which
+                        # acquires the sample semaphore and can block behind
+                        # long-running live samples) and sample_complete
+                        # (which awaits the early-stopping hook) so they can't
+                        # delay the sweep's settle flush; a cancelled
+                        # run_sample still settles here
+                        reuse_settle.settle_one()
+
+                    if isinstance(previous_sample, EvalSample):
+                        sample_scores = (
+                            {
+                                key: SampleScore(
+                                    score=score,
+                                    sample_id=previous_sample.id,
+                                    sample_metadata=previous_sample.metadata,
+                                    scorer=key,
                                 )
-                            # reused sample: accumulate its own logged usage
-                            record_sample_completed(
-                                logger.eval.eval_id,
-                                tokens=sum(
-                                    u.total_tokens
-                                    for u in previous_sample.model_usage.values()
-                                ),
-                                messages=len(previous_sample.messages),
+                                for key, score in previous_sample.scores.items()
+                            }
+                            if previous_sample.scores
+                            else {}
+                        )
+                        await resume_scan_previous_sample(
+                            previous_sample,
+                            scanner,
+                            scanned_per_scanner,
+                            sample_semaphore,
+                            scan_id=scan_id,
+                            eval_id=logger.eval.eval_id,
+                            log_location=profile.log_location,
+                            model=str(model),
+                            eval_spec=logger.eval,
+                        )
+                        await sample_complete(previous_sample.id, epoch, sample_scores)
+                        # notify the task's SampleSource of the reused
+                        # sample: a completion-driven source regenerates
+                        # its follow-ups on retry from these notifications
+                        # (the follow-ups are then themselves reused via
+                        # this same prior-attempt lookup)
+                        if sample_feed is not None:
+                            _enqueue_source_samples(
+                                await sample_feed.sample_complete(previous_sample)
                             )
-                            return sample_scores
-                        elif isinstance(previous_sample, ResumeCheckpoint):
-                            # signal intent — agent code can branch on
-                            # `cp.attempt`. Hydration runs inside
-                            # `_CheckpointerSetup.__aenter__`.
-                            resume_checkpoint = previous_sample
-                        elif isinstance(previous_sample, PreviousError):
-                            previous_attempt_errors = _seed_error_retries(
-                                previous_sample.sample
-                            )
+                        # reused sample: accumulate its own logged usage
+                        record_sample_completed(
+                            logger.eval.eval_id,
+                            tokens=sum(
+                                u.total_tokens
+                                for u in previous_sample.model_usage.values()
+                            ),
+                            messages=len(previous_sample.messages),
+                        )
+                        return sample_scores
+                    elif isinstance(previous_sample, ResumeCheckpoint):
+                        # signal intent — agent code can branch on
+                        # `cp.attempt`. Hydration runs inside
+                        # `_CheckpointerSetup.__aenter__`.
+                        resume_checkpoint = previous_sample
+                    elif isinstance(previous_sample, PreviousError):
+                        previous_attempt_errors = _seed_error_retries(
+                            previous_sample.sample
+                        )
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
@@ -945,7 +1042,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         if added.indexes:
                             # grow the planned totals (display denominator,
                             # fail_on_error threshold, control-channel counters)
+                            # and the reuse-sweep countdown (added samples run
+                            # the same prior-attempt lookup)
                             total_samples += len(added.indexes) * epochs
+                            reuse_settle.add(len(added.indexes) * epochs)
                             sample_error_handler.total_samples = total_samples
                             record_samples_added(
                                 logger.eval.eval_id,
@@ -2429,6 +2529,7 @@ def eval_log_sample_source(
         return EvalSampleSource(no_sample_source, no_error_history)
     elif eval_log_info:
         reader: AsyncZipReader | None = None
+        prior_entry_names: set[str] | None = None
 
         async def read_from_file(
             id: int | str, epoch: int
@@ -2450,7 +2551,34 @@ def eval_log_sample_source(
                 return sample
             return await _resume_or_seed_retry(id, epoch, sample)
 
-        return EvalSampleSource(read_from_file, error_history_from_file)
+        async def prior_exists_in_file(id: int | str, epoch: int) -> bool:
+            """Presence of the prior sample's zip entry, without a body read.
+
+            Shares `read_from_file`'s reader, whose central directory is
+            fetched once and cached — index-only, so it's safe to call for
+            every planned sample before deciding to take the throttled body
+            read. Presence is broader than "reusable": an errored or
+            invalidated prior sample is a presence hit too (error status
+            lives in the sample body) — accepted, since errored transcripts
+            can be as large as completed ones and equally need bounded
+            concurrent residency. An unreadable/absent prior log reports no
+            presence (cached, so it's probed at most once) and leaves the
+            unthrottled lookup to surface and handle the same condition.
+            """
+            nonlocal reader, prior_entry_names
+            if prior_entry_names is None:
+                if not reader:
+                    reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
+                try:
+                    cd = await reader.entries()
+                    prior_entry_names = {e.filename for e in cd.entries}
+                except Exception:
+                    prior_entry_names = set()
+            return _sample_filename(id, epoch) in prior_entry_names
+
+        return EvalSampleSource(
+            read_from_file, error_history_from_file, prior_exists_in_file
+        )
     else:
 
         async def read_from_memory(

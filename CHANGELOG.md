@@ -4,6 +4,7 @@
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
 - Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
 - Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
+- Retry: Samples reused from a prior attempt no longer stay resident in memory awaiting a flush, and are written to the new attempt's log (readable by `inspect ctl` and viewers) as soon as the reuse sweep completes.
 
 ## 0.3.249 (20 July 2026)
 
