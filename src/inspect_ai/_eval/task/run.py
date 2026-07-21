@@ -93,7 +93,7 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders.buffer.transcript_history_provider import (
     BufferTranscriptHistoryProvider,
 )
-from inspect_ai.log._recorders.eval import _sample_filename
+from inspect_ai.log._recorders.eval import EvalRecorder, _sample_filename
 from inspect_ai.log._recorders.streaming import (
     eval_retry_error_from_history,
     materialize_streaming_sample,
@@ -270,6 +270,13 @@ SAMPLE_TOTAL_PROGRESS_UNITS = 1
 # bounded concurrency used for journal summary reads in
 # `_read_all_summaries_async`.
 REUSED_SAMPLE_READ_CONCURRENCY = 25
+
+# How many times the reuse presence probe re-attempts a failed central
+# directory fetch before giving up (which disables the reuse read throttle
+# for the sweep). Failures other than FileNotFoundError may be transient
+# (e.g. a remote filesystem blip), so a single failure must not be cached;
+# but a persistently unreadable log must not be re-fetched per probe either.
+PRIOR_PROBE_MAX_FAILURES = 3
 
 
 class _ReuseSweepCountdown:
@@ -2530,6 +2537,7 @@ def eval_log_sample_source(
     elif eval_log_info:
         reader: AsyncZipReader | None = None
         prior_entry_names: set[str] | None = None
+        probe_failures = 0
 
         async def read_from_file(
             id: int | str, epoch: int
@@ -2561,23 +2569,47 @@ def eval_log_sample_source(
             invalidated prior sample is a presence hit too (error status
             lives in the sample body) — accepted, since errored transcripts
             can be as large as completed ones and equally need bounded
-            concurrent residency. An unreadable/absent prior log reports no
-            presence (cached, so it's probed at most once) and leaves the
-            unthrottled lookup to surface and handle the same condition.
+            concurrent residency. A missing prior log (the prior attempt
+            failed before its first flush) definitively has no entries, so
+            no-presence is cached and the unthrottled lookup surfaces the
+            same condition. Any other fetch failure may be transient, so
+            it is retried on subsequent probes — up to
+            PRIOR_PROBE_MAX_FAILURES, so a persistently unreadable log
+            isn't re-fetched per probe — before giving up with a warning
+            that the reuse read throttle is disabled for this retry.
             """
-            nonlocal reader, prior_entry_names
+            nonlocal reader, prior_entry_names, probe_failures
             if prior_entry_names is None:
+                if probe_failures >= PRIOR_PROBE_MAX_FAILURES:
+                    return False
                 if not reader:
                     reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
                 try:
                     cd = await reader.entries()
                     prior_entry_names = {e.filename for e in cd.entries}
-                except Exception:
+                except FileNotFoundError:
                     prior_entry_names = set()
+                except Exception as ex:
+                    probe_failures += 1
+                    if probe_failures >= PRIOR_PROBE_MAX_FAILURES:
+                        py_logger.warning(
+                            "Unable to read the retry log file's central directory "
+                            + f"after {probe_failures} attempts — reused sample reads "
+                            + f"will not be throttled for this retry: {ex}"
+                        )
+                    return False
             return _sample_filename(id, epoch) in prior_entry_names
 
         return EvalSampleSource(
-            read_from_file, error_history_from_file, prior_exists_in_file
+            read_from_file,
+            error_history_from_file,
+            # presence probing reads the zip central directory, so it only
+            # applies to .eval prior logs; a .json prior log keeps the
+            # default never-probe (its lookups read the whole file — no
+            # index exists to answer presence cheaply)
+            prior_exists_in_file
+            if EvalRecorder.handles_location(eval_log_info.name)
+            else _never_prior_exists,
         )
     else:
 

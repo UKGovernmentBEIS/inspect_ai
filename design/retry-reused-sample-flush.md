@@ -123,6 +123,16 @@ realtime buffer-db presence in either world — the reuse path never calls
 `start_sample`, and `SampleBufferDatabase.complete_sample` is UPDATE-only, so
 no row ever exists there.
 
+A second boundary on the memory guarantee: the throttle bounds concurrent
+*reads*, not downstream residency. When a scanner is configured and the prior
+scan is incomplete, each reused sample's coroutine still holds the full
+un-condensed body while `resume_scan_previous_sample` queues on the sample
+semaphore behind long-running live samples — so in that case the entire
+reused set can be resident simultaneously, unbounded by the read throttle.
+This is inherent (the scan genuinely needs the body); in the incident
+scenario — no scanner — the reference is dropped as soon as the re-log
+completes.
+
 Caveat: on the in-memory sample source path (`read_from_memory`, when the
 caller passed the prior attempt as an already-loaded `EvalLog` object rather
 than a file reference), the source closure captures `eval_log` and scans
