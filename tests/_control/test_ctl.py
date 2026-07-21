@@ -2220,6 +2220,221 @@ def test_knob_since_table_is_consistent() -> None:
 
     assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
     assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
+    # the provenance params' gate must not outrun the constant either
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+
+    assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
+
+
+def test_config_provenance_sent_with_mutations_on_current_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A config mutation carries a defaulted author (and any --reason).
+
+    The author is resolved client-side (git identity / OS user); a pure read
+    sends no provenance (there is nothing to record).
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.clear()
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "requested": {"max_samples": 3},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--reason", "ramp up"]
+    )
+    assert result.exit_code == 0, result.output
+    assert isinstance(sent["author"], str) and sent["author"]
+    assert sent["reason"] == "ramp up"
+
+    # an explicit --author wins over the default
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--author", "alice"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["author"] == "alice"
+    assert sent["reason"] is None
+
+    # a pure read resolves no provenance
+    result = cli_runner().invoke(ctl_command, ["config"])
+    assert result.exit_code == 0, result.output
+    assert sent["author"] is None
+    assert sent["reason"] is None
+
+
+def test_config_provenance_gated_on_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provenance params gate on the server version (see _PROVENANCE_SINCE).
+
+    An older strict server 400s the whole mutation on the unknown params, so
+    an explicit --author/--reason hard-errors before sending, while the
+    *defaulted* author (which the user never typed) is silently dropped and
+    the mutation proceeds without it.
+    """
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_PROVENANCE_SINCE - 1)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.clear()
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "requested": {"max_samples": 3},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--reason", "why"]
+    )
+    assert result.exit_code == 1
+    assert "--reason not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+    assert not sent  # the mutation was never sent
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--author", "alice"]
+    )
+    assert result.exit_code == 1
+    assert "--author not supported" in result.stderr
+
+    # the defaulted author is dropped rather than failing the retune
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 0, result.output
+    assert sent["author"] is None
+    assert sent["reason"] is None
+
+
+def test_config_provenance_requires_set_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit --author/--reason on a pure read hard-errors pre-send.
+
+    A read records nothing, so the provenance would be silently dropped —
+    e.g. a user who types `--reason` but forgets the knob. Erroring (like
+    --log-buffer with nothing to apply to) makes the mistake visible.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.clear()
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "requested": {},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=False,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--reason", "provider incident"]
+    )
+    assert result.exit_code == 1
+    assert "--reason" in result.stderr
+    assert "no set option" in result.stderr
+    assert not sent  # the read was never sent
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--author", "alice", "--reason", "why"]
+    )
+    assert result.exit_code == 1
+    assert "--author / --reason" in result.stderr
+    assert not sent
+
+
+def test_config_provenance_rides_key_only_retune(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A key-only retune is a recorded mutation and carries provenance.
+
+    `--key` changes are recorded in the eval log like any other knob
+    (as `config="concurrency"` changes), so an explicit --reason goes
+    through and a defaulted author is resolved client-side.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "concurrency": [
+                    {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
+                ],
+                "requested": {"concurrency:my_api": 2},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--key", "my_api", "2", "--reason", "provider incident"],
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["key"] == ("my_api", 2)
+    assert sent["reason"] == "provider incident"
+    assert isinstance(sent["author"], str) and sent["author"]
 
 
 def test_config_gates_newer_knob_on_older_server(

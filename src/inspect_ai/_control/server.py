@@ -709,8 +709,12 @@ class ControlServer:
         # entry by exact name (400 for a name with no entry — named limits are
         # created lazily on first use). The retry knobs (timeout /
         # attempt_timeout / max_retries) set live overrides; the keyword
-        # `clear` removes one. `dry_run=true` reports the intended change
-        # without applying it. Never 404s — a process always exists.
+        # `clear` removes one. `author`/`reason` are provenance for the eval-log
+        # record of any applied change (see EvalLog.config_updates); the
+        # response's `persisted` reports per applied knob whether that record
+        # was written. `dry_run=true` reports the intended change
+        # without applying it (and records nothing). Never 404s — a process
+        # always exists.
         # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
@@ -723,6 +727,8 @@ class ControlServer:
             timeout: str | None = None,
             attempt_timeout: str | None = None,
             max_retries: str | None = None,
+            author: str | None = None,
+            reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -752,6 +758,8 @@ class ControlServer:
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
                     max_retries=retry_knobs["max_retries"],
+                    author=author,
+                    reason=reason,
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:
@@ -779,7 +787,10 @@ class ControlServer:
         # omitting all makes this a read, like GET. `dry_run=true` validates
         # and reports the intended change without applying it (the phase-3
         # agent-shape constraint). Idempotent: re-applying the same value is a
-        # no-op. Returns the resulting config view (with any warnings for a
+        # no-op. `author`/`reason` are provenance for the eval-log record of
+        # any applied change (see EvalLog.config_updates); `persisted` in the
+        # response reports whether that record was written. Returns the
+        # resulting config view (with any warnings for a
         # knob that isn't adjustable for this task). Unknown query params 400
         # (fail closed) rather than partially applying.
         @app.patch("/tasks/{task_id}/config")
@@ -797,6 +808,8 @@ class ControlServer:
             timeout: str | None = None,
             attempt_timeout: str | None = None,
             max_retries: str | None = None,
+            author: str | None = None,
+            reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -833,6 +846,8 @@ class ControlServer:
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
                     max_retries=retry_knobs["max_retries"],
+                    author=author,
+                    reason=reason,
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:

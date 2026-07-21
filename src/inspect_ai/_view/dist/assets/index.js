@@ -86,7 +86,18 @@ var require_scheduler_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 			return localDate.now() - initialTime;
 		};
 	}
-	var taskQueue = [], timerQueue = [], taskIdCounter = 1, currentTask = null, currentPriorityLevel = 3, isPerformingWork = !1, isHostCallbackScheduled = !1, isHostTimeoutScheduled = !1, needsPaint = !1, localSetTimeout = "function" === typeof setTimeout ? setTimeout : null, localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null, localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
+	var taskQueue = [];
+	var timerQueue = [];
+	var taskIdCounter = 1;
+	var currentTask = null;
+	var currentPriorityLevel = 3;
+	var isPerformingWork = !1;
+	var isHostCallbackScheduled = !1;
+	var isHostTimeoutScheduled = !1;
+	var needsPaint = !1;
+	var localSetTimeout = "function" === typeof setTimeout ? setTimeout : null;
+	var localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null;
+	var localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
 	function advanceTimers(currentTime) {
 		for (var timer = peek(timerQueue); null !== timer;) {
 			if (null === timer.callback) pop(timerQueue);
@@ -104,7 +115,10 @@ var require_scheduler_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 			null !== firstTimer && requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
 		}
 	}
-	var isMessageLoopRunning = !1, taskTimeoutID = -1, frameInterval = 5, startTime = -1;
+	var isMessageLoopRunning = !1;
+	var taskTimeoutID = -1;
+	var frameInterval = 5;
+	var startTime = -1;
 	function shouldYieldToHost() {
 		return needsPaint ? !0 : exports.unstable_now() - startTime < frameInterval ? !1 : !0;
 	}
@@ -316,7 +330,8 @@ var require_react_dom_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 		},
 		p: 0,
 		findDOMNode: null
-	}, REACT_PORTAL_TYPE = Symbol.for("react.portal");
+	};
+	var REACT_PORTAL_TYPE = Symbol.for("react.portal");
 	function createPortal$1(children, containerInfo, implementation) {
 		var key = 3 < arguments.length && void 0 !== arguments[3] ? arguments[3] : null;
 		return {
@@ -445,7 +460,9 @@ var require_react_dom = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 * LICENSE file in the root directory of this source tree.
 */
 var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((exports) => {
-	var Scheduler = require_scheduler(), React = require_react(), ReactDOM = require_react_dom();
+	var Scheduler = require_scheduler();
+	var React = require_react();
+	var ReactDOM = require_react_dom();
 	function formatProdErrorMessage(code) {
 		var url = "https://react.dev/errors/" + code;
 		if (1 < arguments.length) {
@@ -565,7 +582,20 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return null;
 	}
-	var assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+	var assign = Object.assign;
+	var REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element");
+	var REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element");
+	var REACT_PORTAL_TYPE = Symbol.for("react.portal");
+	var REACT_FRAGMENT_TYPE = Symbol.for("react.fragment");
+	var REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode");
+	var REACT_PROFILER_TYPE = Symbol.for("react.profiler");
+	var REACT_CONSUMER_TYPE = Symbol.for("react.consumer");
+	var REACT_CONTEXT_TYPE = Symbol.for("react.context");
+	var REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref");
+	var REACT_SUSPENSE_TYPE = Symbol.for("react.suspense");
+	var REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list");
+	var REACT_MEMO_TYPE = Symbol.for("react.memo");
+	var REACT_LAZY_TYPE = Symbol.for("react.lazy");
 	var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
 	var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
 	var MAYBE_ITERATOR_SYMBOL = Symbol.iterator;
@@ -606,12 +636,17 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return null;
 	}
-	var isArrayImpl = Array.isArray, ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, sharedNotPendingObject = {
+	var isArrayImpl = Array.isArray;
+	var ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+	var ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+	var sharedNotPendingObject = {
 		pending: !1,
 		data: null,
 		method: null,
 		action: null
-	}, valueStack = [], index = -1;
+	};
+	var valueStack = [];
+	var index = -1;
 	function createCursor(defaultValue) {
 		return { current: defaultValue };
 	}
@@ -623,7 +658,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		valueStack[index] = cursor.current;
 		cursor.current = value;
 	}
-	var contextStackCursor = createCursor(null), contextFiberStackCursor = createCursor(null), rootInstanceStackCursor = createCursor(null), hostTransitionProviderCursor = createCursor(null);
+	var contextStackCursor = createCursor(null);
+	var contextFiberStackCursor = createCursor(null);
+	var rootInstanceStackCursor = createCursor(null);
+	var hostTransitionProviderCursor = createCursor(null);
 	function pushHostContainer(fiber, nextRootInstance) {
 		push(rootInstanceStackCursor, nextRootInstance);
 		push(contextFiberStackCursor, fiber);
@@ -662,7 +700,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		contextFiberStackCursor.current === fiber && (pop(contextStackCursor), pop(contextFiberStackCursor));
 		hostTransitionProviderCursor.current === fiber && (pop(hostTransitionProviderCursor), HostTransitionContext._currentValue = sharedNotPendingObject);
 	}
-	var prefix, suffix;
+	var prefix;
+	var suffix;
 	function describeBuiltInComponentFrame(name) {
 		if (void 0 === prefix) try {
 			throw Error();
@@ -769,19 +808,38 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			return "\nError generating stack: " + x.message + "\n" + x.stack;
 		}
 	}
-	var hasOwnProperty = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null;
+	var hasOwnProperty = Object.prototype.hasOwnProperty;
+	var scheduleCallback$3 = Scheduler.unstable_scheduleCallback;
+	var cancelCallback$1 = Scheduler.unstable_cancelCallback;
+	var shouldYield = Scheduler.unstable_shouldYield;
+	var requestPaint = Scheduler.unstable_requestPaint;
+	var now = Scheduler.unstable_now;
+	var getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel;
+	var ImmediatePriority = Scheduler.unstable_ImmediatePriority;
+	var UserBlockingPriority = Scheduler.unstable_UserBlockingPriority;
+	var NormalPriority$1 = Scheduler.unstable_NormalPriority;
+	var LowPriority = Scheduler.unstable_LowPriority;
+	var IdlePriority = Scheduler.unstable_IdlePriority;
+	var log$1 = Scheduler.log;
+	var unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue;
+	var rendererID = null;
+	var injectedHook = null;
 	function setIsStrictModeForDevtools(newIsStrictMode) {
 		"function" === typeof log$1 && unstable_setDisableYieldValue(newIsStrictMode);
 		if (injectedHook && "function" === typeof injectedHook.setStrictMode) try {
 			injectedHook.setStrictMode(rendererID, newIsStrictMode);
 		} catch (err) {}
 	}
-	var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log = Math.log, LN2 = Math.LN2;
+	var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback;
+	var log = Math.log;
+	var LN2 = Math.LN2;
 	function clz32Fallback(x) {
 		x >>>= 0;
 		return 0 === x ? 32 : 31 - (log(x) / LN2 | 0) | 0;
 	}
-	var nextTransitionUpdateLane = 256, nextTransitionDeferredLane = 262144, nextRetryLane = 4194304;
+	var nextTransitionUpdateLane = 256;
+	var nextTransitionDeferredLane = 262144;
+	var nextRetryLane = 4194304;
 	function getHighestPriorityLanes(lanes) {
 		var pendingSyncLanes = lanes & 42;
 		if (0 !== pendingSyncLanes) return pendingSyncLanes;
@@ -983,7 +1041,15 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			ReactDOMSharedInternals.p = previousPriority;
 		}
 	}
-	var randomKey = Math.random().toString(36).slice(2), internalInstanceKey = "__reactFiber$" + randomKey, internalPropsKey = "__reactProps$" + randomKey, internalContainerInstanceKey = "__reactContainer$" + randomKey, internalEventHandlersKey = "__reactEvents$" + randomKey, internalEventHandlerListenersKey = "__reactListeners$" + randomKey, internalEventHandlesSetKey = "__reactHandles$" + randomKey, internalRootNodeResourcesKey = "__reactResources$" + randomKey, internalHoistableMarker = "__reactMarker$" + randomKey;
+	var randomKey = Math.random().toString(36).slice(2);
+	var internalInstanceKey = "__reactFiber$" + randomKey;
+	var internalPropsKey = "__reactProps$" + randomKey;
+	var internalContainerInstanceKey = "__reactContainer$" + randomKey;
+	var internalEventHandlersKey = "__reactEvents$" + randomKey;
+	var internalEventHandlerListenersKey = "__reactListeners$" + randomKey;
+	var internalEventHandlesSetKey = "__reactHandles$" + randomKey;
+	var internalRootNodeResourcesKey = "__reactResources$" + randomKey;
+	var internalHoistableMarker = "__reactMarker$" + randomKey;
 	function detachDeletedInstance(node) {
 		delete node[internalInstanceKey];
 		delete node[internalPropsKey];
@@ -1031,7 +1097,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function markNodeAsHoistable(node) {
 		node[internalHoistableMarker] = !0;
 	}
-	var allNativeEvents = /* @__PURE__ */ new Set(), registrationNameDependencies = {};
+	var allNativeEvents = /* @__PURE__ */ new Set();
+	var registrationNameDependencies = {};
 	function registerTwoPhaseEvent(registrationName, dependencies) {
 		registerDirectEvent(registrationName, dependencies);
 		registerDirectEvent(registrationName + "Capture", dependencies);
@@ -1040,7 +1107,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		registrationNameDependencies[registrationName] = dependencies;
 		for (registrationName = 0; registrationName < dependencies.length; registrationName++) allNativeEvents.add(dependencies[registrationName]);
 	}
-	var VALID_ATTRIBUTE_NAME_REGEX = RegExp("^[:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$"), illegalAttributeNameCache = {}, validatedAttributeNameCache = {};
+	var VALID_ATTRIBUTE_NAME_REGEX = RegExp("^[:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$");
+	var illegalAttributeNameCache = {};
+	var validatedAttributeNameCache = {};
 	function isAttributeNameSafe(attributeName) {
 		if (hasOwnProperty.call(validatedAttributeNameCache, attributeName)) return !0;
 		if (hasOwnProperty.call(illegalAttributeNameCache, attributeName)) return !1;
@@ -1366,7 +1435,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		["writingMode", "writing-mode"],
 		["xmlnsXlink", "xmlns:xlink"],
 		["xHeight", "x-height"]
-	]), isJavaScriptProtocol = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
+	]);
+	var isJavaScriptProtocol = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
 	function sanitizeURL(url) {
 		return isJavaScriptProtocol.test("" + url) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : url;
 	}
@@ -1377,7 +1447,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		nativeEvent.correspondingUseElement && (nativeEvent = nativeEvent.correspondingUseElement);
 		return 3 === nativeEvent.nodeType ? nativeEvent.parentNode : nativeEvent;
 	}
-	var restoreTarget = null, restoreQueue = null;
+	var restoreTarget = null;
+	var restoreQueue = null;
 	function restoreStateOfTarget(target) {
 		var internalInstance = getInstanceFromNode(target);
 		if (internalInstance && (target = internalInstance.stateNode)) {
@@ -1446,7 +1517,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		if (stateNode && "function" !== typeof stateNode) throw Error(formatProdErrorMessage(231, registrationName, typeof stateNode));
 		return stateNode;
 	}
-	var canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement), passiveBrowserEventsSupported = !1;
+	var canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement);
+	var passiveBrowserEventsSupported = !1;
 	if (canUseDOM) try {
 		var options = {};
 		Object.defineProperty(options, "passive", { get: function() {
@@ -1457,7 +1529,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	} catch (e) {
 		passiveBrowserEventsSupported = !1;
 	}
-	var root = null, startText = null, fallbackText = null;
+	var root = null;
+	var startText = null;
+	var fallbackText = null;
 	function getData() {
 		if (fallbackText) return fallbackText;
 		var start, startValue = startText, startLength = startValue.length, end, endValue = "value" in root ? root.value : root.textContent, endLength = endValue.length;
@@ -1515,10 +1589,17 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		},
 		defaultPrevented: 0,
 		isTrusted: 0
-	}, SyntheticEvent = createSyntheticEvent(EventInterface), UIEventInterface = assign({}, EventInterface, {
+	};
+	var SyntheticEvent = createSyntheticEvent(EventInterface);
+	var UIEventInterface = assign({}, EventInterface, {
 		view: 0,
 		detail: 0
-	}), SyntheticUIEvent = createSyntheticEvent(UIEventInterface), lastMovementX, lastMovementY, lastMouseEvent, MouseEventInterface = assign({}, UIEventInterface, {
+	});
+	var SyntheticUIEvent = createSyntheticEvent(UIEventInterface);
+	var lastMovementX;
+	var lastMovementY;
+	var lastMouseEvent;
+	var MouseEventInterface = assign({}, UIEventInterface, {
 		screenX: 0,
 		screenY: 0,
 		clientX: 0,
@@ -1543,13 +1624,20 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		movementY: function(event) {
 			return "movementY" in event ? event.movementY : lastMovementY;
 		}
-	}), SyntheticMouseEvent = createSyntheticEvent(MouseEventInterface), SyntheticDragEvent = createSyntheticEvent(assign({}, MouseEventInterface, { dataTransfer: 0 })), SyntheticFocusEvent = createSyntheticEvent(assign({}, UIEventInterface, { relatedTarget: 0 })), SyntheticAnimationEvent = createSyntheticEvent(assign({}, EventInterface, {
+	});
+	var SyntheticMouseEvent = createSyntheticEvent(MouseEventInterface);
+	var SyntheticDragEvent = createSyntheticEvent(assign({}, MouseEventInterface, { dataTransfer: 0 }));
+	var SyntheticFocusEvent = createSyntheticEvent(assign({}, UIEventInterface, { relatedTarget: 0 }));
+	var SyntheticAnimationEvent = createSyntheticEvent(assign({}, EventInterface, {
 		animationName: 0,
 		elapsedTime: 0,
 		pseudoElement: 0
-	})), SyntheticClipboardEvent = createSyntheticEvent(assign({}, EventInterface, { clipboardData: function(event) {
+	}));
+	var SyntheticClipboardEvent = createSyntheticEvent(assign({}, EventInterface, { clipboardData: function(event) {
 		return "clipboardData" in event ? event.clipboardData : window.clipboardData;
-	} })), SyntheticCompositionEvent = createSyntheticEvent(assign({}, EventInterface, { data: 0 })), normalizeKey = {
+	} }));
+	var SyntheticCompositionEvent = createSyntheticEvent(assign({}, EventInterface, { data: 0 }));
+	var normalizeKey = {
 		Esc: "Escape",
 		Spacebar: " ",
 		Left: "ArrowLeft",
@@ -1562,7 +1650,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		Apps: "ContextMenu",
 		Scroll: "ScrollLock",
 		MozPrintableKey: "Unidentified"
-	}, translateToKey = {
+	};
+	var translateToKey = {
 		8: "Backspace",
 		9: "Tab",
 		12: "Clear",
@@ -1599,7 +1688,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		144: "NumLock",
 		145: "ScrollLock",
 		224: "Meta"
-	}, modifierKeyToProp = {
+	};
+	var modifierKeyToProp = {
 		Alt: "altKey",
 		Control: "ctrlKey",
 		Meta: "metaKey",
@@ -1638,7 +1728,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		which: function(event) {
 			return "keypress" === event.type ? getEventCharCode(event) : "keydown" === event.type || "keyup" === event.type ? event.keyCode : 0;
 		}
-	})), SyntheticPointerEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
+	}));
+	var SyntheticPointerEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
 		pointerId: 0,
 		width: 0,
 		height: 0,
@@ -1649,7 +1740,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		twist: 0,
 		pointerType: 0,
 		isPrimary: 0
-	})), SyntheticTouchEvent = createSyntheticEvent(assign({}, UIEventInterface, {
+	}));
+	var SyntheticTouchEvent = createSyntheticEvent(assign({}, UIEventInterface, {
 		touches: 0,
 		targetTouches: 0,
 		changedTouches: 0,
@@ -1658,11 +1750,13 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		ctrlKey: 0,
 		shiftKey: 0,
 		getModifierState: getEventModifierState
-	})), SyntheticTransitionEvent = createSyntheticEvent(assign({}, EventInterface, {
+	}));
+	var SyntheticTransitionEvent = createSyntheticEvent(assign({}, EventInterface, {
 		propertyName: 0,
 		elapsedTime: 0,
 		pseudoElement: 0
-	})), SyntheticWheelEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
+	}));
+	var SyntheticWheelEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
 		deltaX: function(event) {
 			return "deltaX" in event ? event.deltaX : "wheelDeltaX" in event ? -event.wheelDeltaX : 0;
 		},
@@ -1671,17 +1765,24 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		},
 		deltaZ: 0,
 		deltaMode: 0
-	})), SyntheticToggleEvent = createSyntheticEvent(assign({}, EventInterface, {
+	}));
+	var SyntheticToggleEvent = createSyntheticEvent(assign({}, EventInterface, {
 		newState: 0,
 		oldState: 0
-	})), END_KEYCODES = [
+	}));
+	var END_KEYCODES = [
 		9,
 		13,
 		27,
 		32
-	], canUseCompositionEvent = canUseDOM && "CompositionEvent" in window, documentMode = null;
+	];
+	var canUseCompositionEvent = canUseDOM && "CompositionEvent" in window;
+	var documentMode = null;
 	canUseDOM && "documentMode" in document && (documentMode = document.documentMode);
-	var canUseTextInputEvent = canUseDOM && "TextEvent" in window && !documentMode, useFallbackCompositionData = canUseDOM && (!canUseCompositionEvent || documentMode && 8 < documentMode && 11 >= documentMode), SPACEBAR_CHAR = String.fromCharCode(32), hasSpaceKeypress = !1;
+	var canUseTextInputEvent = canUseDOM && "TextEvent" in window && !documentMode;
+	var useFallbackCompositionData = canUseDOM && (!canUseCompositionEvent || documentMode && 8 < documentMode && 11 >= documentMode);
+	var SPACEBAR_CHAR = String.fromCharCode(32);
+	var hasSpaceKeypress = !1;
 	function isFallbackCompositionEnd(domEventName, nativeEvent) {
 		switch (domEventName) {
 			case "keyup": return -1 !== END_KEYCODES.indexOf(nativeEvent.keyCode);
@@ -1751,7 +1852,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			listeners: inst
 		}));
 	}
-	var activeElement$1 = null, activeElementInst$1 = null;
+	var activeElement$1 = null;
+	var activeElementInst$1 = null;
 	function runEventInBatch(dispatchQueue) {
 		processDispatchQueue(dispatchQueue, 0);
 	}
@@ -1862,7 +1964,11 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		var nodeName = elem && elem.nodeName && elem.nodeName.toLowerCase();
 		return nodeName && ("input" === nodeName && ("text" === elem.type || "search" === elem.type || "tel" === elem.type || "url" === elem.type || "password" === elem.type) || "textarea" === nodeName || "true" === elem.contentEditable);
 	}
-	var skipSelectionChangeEvent = canUseDOM && "documentMode" in document && 11 >= document.documentMode, activeElement = null, activeElementInst = null, lastSelection = null, mouseDown = !1;
+	var skipSelectionChangeEvent = canUseDOM && "documentMode" in document && 11 >= document.documentMode;
+	var activeElement = null;
+	var activeElementInst = null;
+	var lastSelection = null;
+	var mouseDown = !1;
 	function constructSelectEvent(dispatchQueue, nativeEvent, nativeEventTarget) {
 		var doc = nativeEventTarget.window === nativeEventTarget ? nativeEventTarget.document : 9 === nativeEventTarget.nodeType ? nativeEventTarget : nativeEventTarget.ownerDocument;
 		mouseDown || null == activeElement || activeElement !== getActiveElement(doc) || (doc = activeElement, "selectionStart" in doc && hasSelectionCapabilities(doc) ? doc = {
@@ -1893,7 +1999,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		transitionstart: makePrefixMap("Transition", "TransitionStart"),
 		transitioncancel: makePrefixMap("Transition", "TransitionCancel"),
 		transitionend: makePrefixMap("Transition", "TransitionEnd")
-	}, prefixedEventNames = {}, style = {};
+	};
+	var prefixedEventNames = {};
+	var style = {};
 	canUseDOM && (style = document.createElement("div").style, "AnimationEvent" in window || (delete vendorPrefixes.animationend.animation, delete vendorPrefixes.animationiteration.animation, delete vendorPrefixes.animationstart.animation), "TransitionEvent" in window || delete vendorPrefixes.transitionend.transition);
 	function getVendorPrefixedEventName(eventName) {
 		if (prefixedEventNames[eventName]) return prefixedEventNames[eventName];
@@ -1902,7 +2010,15 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		for (styleProp in prefixMap) if (prefixMap.hasOwnProperty(styleProp) && styleProp in style) return prefixedEventNames[eventName] = prefixMap[styleProp];
 		return eventName;
 	}
-	var ANIMATION_END = getVendorPrefixedEventName("animationend"), ANIMATION_ITERATION = getVendorPrefixedEventName("animationiteration"), ANIMATION_START = getVendorPrefixedEventName("animationstart"), TRANSITION_RUN = getVendorPrefixedEventName("transitionrun"), TRANSITION_START = getVendorPrefixedEventName("transitionstart"), TRANSITION_CANCEL = getVendorPrefixedEventName("transitioncancel"), TRANSITION_END = getVendorPrefixedEventName("transitionend"), topLevelEventsToReactNames = /* @__PURE__ */ new Map(), simpleEventPluginEvents = "abort auxClick beforeToggle cancel canPlay canPlayThrough click close contextMenu copy cut drag dragEnd dragEnter dragExit dragLeave dragOver dragStart drop durationChange emptied encrypted ended error gotPointerCapture input invalid keyDown keyPress keyUp load loadedData loadedMetadata loadStart lostPointerCapture mouseDown mouseMove mouseOut mouseOver mouseUp paste pause play playing pointerCancel pointerDown pointerMove pointerOut pointerOver pointerUp progress rateChange reset resize seeked seeking stalled submit suspend timeUpdate touchCancel touchEnd touchStart volumeChange scroll toggle touchMove waiting wheel".split(" ");
+	var ANIMATION_END = getVendorPrefixedEventName("animationend");
+	var ANIMATION_ITERATION = getVendorPrefixedEventName("animationiteration");
+	var ANIMATION_START = getVendorPrefixedEventName("animationstart");
+	var TRANSITION_RUN = getVendorPrefixedEventName("transitionrun");
+	var TRANSITION_START = getVendorPrefixedEventName("transitionstart");
+	var TRANSITION_CANCEL = getVendorPrefixedEventName("transitioncancel");
+	var TRANSITION_END = getVendorPrefixedEventName("transitionend");
+	var topLevelEventsToReactNames = /* @__PURE__ */ new Map();
+	var simpleEventPluginEvents = "abort auxClick beforeToggle cancel canPlay canPlayThrough click close contextMenu copy cut drag dragEnd dragEnter dragExit dragLeave dragOver dragStart drop durationChange emptied encrypted ended error gotPointerCapture input invalid keyDown keyPress keyUp load loadedData loadedMetadata loadStart lostPointerCapture mouseDown mouseMove mouseOut mouseOver mouseUp paste pause play playing pointerCancel pointerDown pointerMove pointerOut pointerOver pointerUp progress rateChange reset resize seeked seeking stalled submit suspend timeUpdate touchCancel touchEnd touchStart volumeChange scroll toggle touchMove waiting wheel".split(" ");
 	simpleEventPluginEvents.push("scrollEnd");
 	function registerSimpleEvent(domEventName, reactName) {
 		topLevelEventsToReactNames.set(domEventName, reactName);
@@ -1922,7 +2038,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			return;
 		}
 		console.error(error);
-	}, concurrentQueues = [], concurrentQueuesIndex = 0, concurrentlyUpdatedLanes = 0;
+	};
+	var concurrentQueues = [];
+	var concurrentQueuesIndex = 0;
+	var concurrentlyUpdatedLanes = 0;
 	function finishQueueingConcurrentUpdates() {
 		for (var endIndex = concurrentQueuesIndex, i = concurrentlyUpdatedLanes = concurrentQueuesIndex = 0; i < endIndex;) {
 			var fiber = concurrentQueues[i];
@@ -2111,7 +2230,15 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			stack: getStackByFiberInDevAndProd(source)
 		};
 	}
-	var forkStack = [], forkStackIndex = 0, treeForkProvider = null, treeForkCount = 0, idStack = [], idStackIndex = 0, treeContextProvider = null, treeContextId = 1, treeContextOverflow = "";
+	var forkStack = [];
+	var forkStackIndex = 0;
+	var treeForkProvider = null;
+	var treeForkCount = 0;
+	var idStack = [];
+	var idStackIndex = 0;
+	var treeContextProvider = null;
+	var treeContextId = 1;
+	var treeContextOverflow = "";
 	function pushTreeFork(workInProgress, totalChildren) {
 		forkStack[forkStackIndex++] = treeForkCount;
 		forkStack[forkStackIndex++] = treeForkProvider;
@@ -2153,7 +2280,12 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		treeContextOverflow = suspendedContext.overflow;
 		treeContextProvider = workInProgress;
 	}
-	var hydrationParentFiber = null, nextHydratableInstance = null, isHydrating = !1, hydrationErrors = null, rootOrSingletonContext = !1, HydrationMismatchException = Error(formatProdErrorMessage(519));
+	var hydrationParentFiber = null;
+	var nextHydratableInstance = null;
+	var isHydrating = !1;
+	var hydrationErrors = null;
+	var rootOrSingletonContext = !1;
+	var HydrationMismatchException = Error(formatProdErrorMessage(519));
 	function throwOnHydrationMismatch(fiber) {
 		queueHydrationError(createCapturedValueAtFiber(Error(formatProdErrorMessage(418, 1 < arguments.length && void 0 !== arguments[1] && arguments[1] ? "text" : "HTML", "")), fiber));
 		throw HydrationMismatchException;
@@ -2250,7 +2382,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function queueHydrationError(error) {
 		null === hydrationErrors ? hydrationErrors = [error] : hydrationErrors.push(error);
 	}
-	var valueCursor = createCursor(null), currentlyRenderingFiber$1 = null, lastContextDependency = null;
+	var valueCursor = createCursor(null);
+	var currentlyRenderingFiber$1 = null;
+	var lastContextDependency = null;
 	function pushProvider(providerFiber, context, nextValue) {
 		push(valueCursor, context._currentValue);
 		context._currentValue = nextValue;
@@ -2390,7 +2524,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 				return listener();
 			});
 		};
-	}, scheduleCallback$2 = Scheduler.unstable_scheduleCallback, NormalPriority = Scheduler.unstable_NormalPriority, CacheContext = {
+	};
+	var scheduleCallback$2 = Scheduler.unstable_scheduleCallback;
+	var NormalPriority = Scheduler.unstable_NormalPriority;
+	var CacheContext = {
 		$$typeof: REACT_CONTEXT_TYPE,
 		Consumer: null,
 		Provider: null,
@@ -2411,7 +2548,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			cache.controller.abort();
 		});
 	}
-	var currentEntangledListeners = null, currentEntangledPendingCount = 0, currentEntangledLane = 0, currentEntangledActionThenable = null;
+	var currentEntangledListeners = null;
+	var currentEntangledPendingCount = 0;
+	var currentEntangledLane = 0;
+	var currentEntangledActionThenable = null;
 	function entangleAsyncAction(transition, thenable) {
 		if (null === currentEntangledListeners) {
 			var entangledListeners = currentEntangledListeners = [];
@@ -2480,7 +2620,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			pool: cacheFromPool
 		};
 	}
-	var SuspenseException = Error(formatProdErrorMessage(460)), SuspenseyCommitException = Error(formatProdErrorMessage(474)), SuspenseActionException = Error(formatProdErrorMessage(542)), noopSuspenseyCommitThenable = { then: function() {} };
+	var SuspenseException = Error(formatProdErrorMessage(460));
+	var SuspenseyCommitException = Error(formatProdErrorMessage(474));
+	var SuspenseActionException = Error(formatProdErrorMessage(542));
+	var noopSuspenseyCommitThenable = { then: function() {} };
 	function isThenableResolved(thenable) {
 		thenable = thenable.status;
 		return "fulfilled" === thenable || "rejected" === thenable;
@@ -2539,7 +2682,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function checkIfUseWrappedInAsyncCatch(rejectedReason) {
 		if (rejectedReason === SuspenseException || rejectedReason === SuspenseActionException) throw Error(formatProdErrorMessage(483));
 	}
-	var thenableState$1 = null, thenableIndexCounter$1 = 0;
+	var thenableState$1 = null;
+	var thenableIndexCounter$1 = 0;
 	function unwrapThenable(thenable) {
 		var index = thenableIndexCounter$1;
 		thenableIndexCounter$1 += 1;
@@ -2801,7 +2945,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			}
 		};
 	}
-	var reconcileChildFibers = createChildReconciler(!0), mountChildFibers = createChildReconciler(!1), hasForceUpdate = !1;
+	var reconcileChildFibers = createChildReconciler(!0);
+	var mountChildFibers = createChildReconciler(!1);
+	var hasForceUpdate = !1;
 	function initializeUpdateQueue(fiber) {
 		fiber.updateQueue = {
 			baseState: fiber.memoizedState,
@@ -2983,7 +3129,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		var callbacks = updateQueue.callbacks;
 		if (null !== callbacks) for (updateQueue.callbacks = null, updateQueue = 0; updateQueue < callbacks.length; updateQueue++) callCallback(callbacks[updateQueue], context);
 	}
-	var currentTreeHiddenStackCursor = createCursor(null), prevEntangledRenderLanesCursor = createCursor(0);
+	var currentTreeHiddenStackCursor = createCursor(null);
+	var prevEntangledRenderLanesCursor = createCursor(0);
 	function pushHiddenContext(fiber, context) {
 		fiber = entangledRenderLanes;
 		push(prevEntangledRenderLanesCursor, fiber);
@@ -2999,7 +3146,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		pop(currentTreeHiddenStackCursor);
 		pop(prevEntangledRenderLanesCursor);
 	}
-	var suspenseHandlerStackCursor = createCursor(null), shellBoundary = null;
+	var suspenseHandlerStackCursor = createCursor(null);
+	var shellBoundary = null;
 	function pushPrimaryTreeSuspenseHandler(handler) {
 		var current = handler.alternate;
 		push(suspenseStackCursor, suspenseStackCursor.current & 1);
@@ -3046,7 +3194,17 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return null;
 	}
-	var renderLanes = 0, currentlyRenderingFiber = null, currentHook = null, workInProgressHook = null, didScheduleRenderPhaseUpdate = !1, didScheduleRenderPhaseUpdateDuringThisPass = !1, shouldDoubleInvokeUserFnsInHooksDEV = !1, localIdCounter = 0, thenableIndexCounter = 0, thenableState = null, globalClientIdCounter = 0;
+	var renderLanes = 0;
+	var currentlyRenderingFiber = null;
+	var currentHook = null;
+	var workInProgressHook = null;
+	var didScheduleRenderPhaseUpdate = !1;
+	var didScheduleRenderPhaseUpdateDuringThisPass = !1;
+	var shouldDoubleInvokeUserFnsInHooksDEV = !1;
+	var localIdCounter = 0;
+	var thenableIndexCounter = 0;
+	var thenableState = null;
+	var globalClientIdCounter = 0;
 	function throwInvalidHookError() {
 		throw Error(formatProdErrorMessage(321));
 	}
@@ -4028,7 +4186,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 				return ref.impl.apply(void 0, arguments);
 			};
 		}
-	}, HooksDispatcherOnUpdate = {
+	};
+	var HooksDispatcherOnUpdate = {
 		readContext,
 		use,
 		useCallback: updateCallback,
@@ -4262,7 +4421,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		} while (null !== sourceFiber);
 		return !1;
 	}
-	var SelectiveHydrationException = Error(formatProdErrorMessage(461)), didReceiveUpdate = !1;
+	var SelectiveHydrationException = Error(formatProdErrorMessage(461));
+	var didReceiveUpdate = !1;
 	function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
 		workInProgress.child = null === current ? mountChildFibers(workInProgress, null, nextChildren, renderLanes) : reconcileChildFibers(workInProgress, current.child, nextChildren, renderLanes);
 	}
@@ -5455,7 +5615,11 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			captureCommitPhaseError(finishedWork, finishedWork.return, error);
 		}
 	}
-	var offscreenSubtreeIsHidden = !1, offscreenSubtreeWasHidden = !1, needsFormReset = !1, PossiblyWeakSet = "function" === typeof WeakSet ? WeakSet : Set, nextEffect = null;
+	var offscreenSubtreeIsHidden = !1;
+	var offscreenSubtreeWasHidden = !1;
+	var needsFormReset = !1;
+	var PossiblyWeakSet = "function" === typeof WeakSet ? WeakSet : Set;
+	var nextEffect = null;
 	function commitBeforeMutationEffects(root, firstChild) {
 		root = root.containerInfo;
 		eventsEnabled = _enabled;
@@ -5668,7 +5832,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		fiber.stateNode = null;
 		fiber.updateQueue = null;
 	}
-	var hostParent = null, hostParentIsContainer = !1;
+	var hostParent = null;
+	var hostParentIsContainer = !1;
 	function recursivelyTraverseDeletionEffects(finishedRoot, nearestMountedAncestor, parent) {
 		for (parent = parent.child; null !== parent;) commitDeletionEffectsOnFiber(finishedRoot, nearestMountedAncestor, parent), parent = parent.sibling;
 	}
@@ -6427,7 +6592,41 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		cacheSignal: function() {
 			return readContext(CacheContext).controller.signal;
 		}
-	}, PossiblyWeakMap = "function" === typeof WeakMap ? WeakMap : Map, executionContext = 0, workInProgressRoot = null, workInProgress = null, workInProgressRootRenderLanes = 0, workInProgressSuspendedReason = 0, workInProgressThrownValue = null, workInProgressRootDidSkipSuspendedSiblings = !1, workInProgressRootIsPrerendering = !1, workInProgressRootDidAttachPingListener = !1, entangledRenderLanes = 0, workInProgressRootExitStatus = 0, workInProgressRootSkippedLanes = 0, workInProgressRootInterleavedUpdatedLanes = 0, workInProgressRootPingedLanes = 0, workInProgressDeferredLane = 0, workInProgressSuspendedRetryLanes = 0, workInProgressRootConcurrentErrors = null, workInProgressRootRecoverableErrors = null, workInProgressRootDidIncludeRecursiveRenderUpdate = !1, globalMostRecentFallbackTime = 0, globalMostRecentTransitionTime = 0, workInProgressRootRenderTargetTime = Infinity, workInProgressTransitions = null, legacyErrorBoundariesThatAlreadyFailed = null, pendingEffectsStatus = 0, pendingEffectsRoot = null, pendingFinishedWork = null, pendingEffectsLanes = 0, pendingEffectsRemainingLanes = 0, pendingPassiveTransitions = null, pendingRecoverableErrors = null, nestedUpdateCount = 0, rootWithNestedUpdates = null;
+	};
+	var PossiblyWeakMap = "function" === typeof WeakMap ? WeakMap : Map;
+	var executionContext = 0;
+	var workInProgressRoot = null;
+	var workInProgress = null;
+	var workInProgressRootRenderLanes = 0;
+	var workInProgressSuspendedReason = 0;
+	var workInProgressThrownValue = null;
+	var workInProgressRootDidSkipSuspendedSiblings = !1;
+	var workInProgressRootIsPrerendering = !1;
+	var workInProgressRootDidAttachPingListener = !1;
+	var entangledRenderLanes = 0;
+	var workInProgressRootExitStatus = 0;
+	var workInProgressRootSkippedLanes = 0;
+	var workInProgressRootInterleavedUpdatedLanes = 0;
+	var workInProgressRootPingedLanes = 0;
+	var workInProgressDeferredLane = 0;
+	var workInProgressSuspendedRetryLanes = 0;
+	var workInProgressRootConcurrentErrors = null;
+	var workInProgressRootRecoverableErrors = null;
+	var workInProgressRootDidIncludeRecursiveRenderUpdate = !1;
+	var globalMostRecentFallbackTime = 0;
+	var globalMostRecentTransitionTime = 0;
+	var workInProgressRootRenderTargetTime = Infinity;
+	var workInProgressTransitions = null;
+	var legacyErrorBoundariesThatAlreadyFailed = null;
+	var pendingEffectsStatus = 0;
+	var pendingEffectsRoot = null;
+	var pendingFinishedWork = null;
+	var pendingEffectsLanes = 0;
+	var pendingEffectsRemainingLanes = 0;
+	var pendingPassiveTransitions = null;
+	var pendingRecoverableErrors = null;
+	var nestedUpdateCount = 0;
+	var rootWithNestedUpdates = null;
 	function requestUpdateLane() {
 		return 0 !== (executionContext & 2) && 0 !== workInProgressRootRenderLanes ? workInProgressRootRenderLanes & -workInProgressRootRenderLanes : null !== ReactSharedInternals.T ? requestTransitionLane() : resolveUpdatePriority();
 	}
@@ -7158,7 +7357,12 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function scheduleCallback$1(priorityLevel, callback) {
 		return scheduleCallback$3(priorityLevel, callback);
 	}
-	var firstScheduledRoot = null, lastScheduledRoot = null, didScheduleMicrotask = !1, mightHavePendingSyncWork = !1, isFlushingWork = !1, currentEventTransitionLane = 0;
+	var firstScheduledRoot = null;
+	var lastScheduledRoot = null;
+	var didScheduleMicrotask = !1;
+	var mightHavePendingSyncWork = !1;
+	var isFlushingWork = !1;
+	var currentEventTransitionLane = 0;
 	function ensureRootIsScheduled(root) {
 		root !== lastScheduledRoot && null === root.next && (null === lastScheduledRoot ? firstScheduledRoot = lastScheduledRoot = root : lastScheduledRoot = lastScheduledRoot.next = root);
 		mightHavePendingSyncWork = !0;
@@ -7346,7 +7550,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	registerTwoPhaseEvent("onCompositionEnd", "compositionend focusout keydown keypress keyup mousedown".split(" "));
 	registerTwoPhaseEvent("onCompositionStart", "compositionstart focusout keydown keypress keyup mousedown".split(" "));
 	registerTwoPhaseEvent("onCompositionUpdate", "compositionupdate focusout keydown keypress keyup mousedown".split(" "));
-	var mediaEventTypes = "abort canplay canplaythrough durationchange emptied encrypted ended error loadeddata loadedmetadata loadstart pause play playing progress ratechange resize seeked seeking stalled suspend timeupdate volumechange waiting".split(" "), nonDelegatedEvents = new Set("beforetoggle cancel close invalid load scroll scrollend toggle".split(" ").concat(mediaEventTypes));
+	var mediaEventTypes = "abort canplay canplaythrough durationchange emptied encrypted ended error loadeddata loadedmetadata loadstart pause play playing progress ratechange resize seeked seeking stalled suspend timeupdate volumechange waiting".split(" ");
+	var nonDelegatedEvents = new Set("beforetoggle cancel close invalid load scroll scrollend toggle".split(" ").concat(mediaEventTypes));
 	function processDispatchQueue(dispatchQueue, eventSystemFlags) {
 		eventSystemFlags = 0 !== (eventSystemFlags & 4);
 		for (var i = 0; i < dispatchQueue.length; i++) {
@@ -7707,7 +7912,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			listeners
 		});
 	}
-	var NORMALIZE_NEWLINES_REGEX = /\r\n?/g, NORMALIZE_NULL_AND_REPLACEMENT_REGEX = /\u0000|\uFFFD/g;
+	var NORMALIZE_NEWLINES_REGEX = /\r\n?/g;
+	var NORMALIZE_NULL_AND_REPLACEMENT_REGEX = /\u0000|\uFFFD/g;
 	function normalizeMarkupForTextOrAttribute(markup) {
 		return ("string" === typeof markup ? markup : "" + markup).replace(NORMALIZE_NEWLINES_REGEX, "\n").replace(NORMALIZE_NULL_AND_REPLACEMENT_REGEX, "");
 	}
@@ -8274,7 +8480,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return navigator.connection && (count = navigator.connection.downlink, "number" === typeof count) ? count : 5;
 	}
-	var eventsEnabled = null, selectionInformation = null;
+	var eventsEnabled = null;
+	var selectionInformation = null;
 	function getOwnerDocumentFromRootContainer(rootContainerElement) {
 		return 9 === rootContainerElement.nodeType ? rootContainerElement : rootContainerElement.ownerDocument;
 	}
@@ -8307,7 +8514,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		currentPopstateTransitionEvent = null;
 		return !1;
 	}
-	var scheduleTimeout = "function" === typeof setTimeout ? setTimeout : void 0, cancelTimeout = "function" === typeof clearTimeout ? clearTimeout : void 0, localPromise = "function" === typeof Promise ? Promise : void 0, scheduleMicrotask = "function" === typeof queueMicrotask ? queueMicrotask : "undefined" !== typeof localPromise ? function(callback) {
+	var scheduleTimeout = "function" === typeof setTimeout ? setTimeout : void 0;
+	var cancelTimeout = "function" === typeof clearTimeout ? clearTimeout : void 0;
+	var localPromise = "function" === typeof Promise ? Promise : void 0;
+	var scheduleMicrotask = "function" === typeof queueMicrotask ? queueMicrotask : "undefined" !== typeof localPromise ? function(callback) {
 		return localPromise.resolve(null).then(callback).catch(handleErrorInNextTick);
 	} : scheduleTimeout;
 	function handleErrorInNextTick(error) {
@@ -8508,7 +8718,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		for (var attributes = instance.attributes; attributes.length;) instance.removeAttributeNode(attributes[0]);
 		detachDeletedInstance(instance);
 	}
-	var preloadPropsMap = /* @__PURE__ */ new Map(), preconnectsSet = /* @__PURE__ */ new Set();
+	var preloadPropsMap = /* @__PURE__ */ new Map();
+	var preconnectsSet = /* @__PURE__ */ new Set();
 	function getHoistableRoot(container) {
 		return "function" === typeof container.getRootNode ? container.getRootNode() : 9 === container.nodeType ? container : container.ownerDocument;
 	}
@@ -9246,7 +9457,14 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			default: return 32;
 		}
 	}
-	var hasScheduledReplayAttempt = !1, queuedFocus = null, queuedDrag = null, queuedMouse = null, queuedPointers = /* @__PURE__ */ new Map(), queuedPointerCaptures = /* @__PURE__ */ new Map(), queuedExplicitHydrationTargets = [], discreteReplayableEvents = "mousedown mouseup touchcancel touchend touchstart auxclick dblclick pointercancel pointerdown pointerup dragend dragstart drop compositionend compositionstart keydown keypress keyup input textInput copy cut paste click change contextmenu reset".split(" ");
+	var hasScheduledReplayAttempt = !1;
+	var queuedFocus = null;
+	var queuedDrag = null;
+	var queuedMouse = null;
+	var queuedPointers = /* @__PURE__ */ new Map();
+	var queuedPointerCaptures = /* @__PURE__ */ new Map();
+	var queuedExplicitHydrationTargets = [];
+	var discreteReplayableEvents = "mousedown mouseup touchcancel touchend touchstart auxclick dblclick pointercancel pointerdown pointerup dragend dragstart drop compositionend compositionstart keydown keypress keyup input textInput copy cut paste click change contextmenu reset".split(" ");
 	function clearIfContinuousEvent(domEventName, nativeEvent) {
 		switch (domEventName) {
 			case "focusin":
@@ -12979,7 +13197,8 @@ function binop(name, prec) {
 		binop: prec
 	});
 }
-var beforeExpr = { beforeExpr: true }, startsExpr = { startsExpr: true };
+var beforeExpr = { beforeExpr: true };
+var startsExpr = { startsExpr: true };
 var keywords = {};
 function kw(name, options) {
 	if (options === void 0) options = {};
@@ -13231,11 +13450,26 @@ function pushComment(options, array) {
 		array.push(comment);
 	};
 }
-var SCOPE_TOP = 1, SCOPE_FUNCTION = 2, SCOPE_ASYNC = 4, SCOPE_GENERATOR = 8, SCOPE_ARROW = 16, SCOPE_SIMPLE_CATCH = 32, SCOPE_SUPER = 64, SCOPE_DIRECT_SUPER = 128, SCOPE_CLASS_STATIC_BLOCK = 256, SCOPE_CLASS_FIELD_INIT = 512, SCOPE_VAR = SCOPE_TOP | SCOPE_FUNCTION | SCOPE_CLASS_STATIC_BLOCK;
+var SCOPE_TOP = 1;
+var SCOPE_FUNCTION = 2;
+var SCOPE_ASYNC = 4;
+var SCOPE_GENERATOR = 8;
+var SCOPE_ARROW = 16;
+var SCOPE_SIMPLE_CATCH = 32;
+var SCOPE_SUPER = 64;
+var SCOPE_DIRECT_SUPER = 128;
+var SCOPE_CLASS_STATIC_BLOCK = 256;
+var SCOPE_CLASS_FIELD_INIT = 512;
+var SCOPE_VAR = SCOPE_TOP | SCOPE_FUNCTION | SCOPE_CLASS_STATIC_BLOCK;
 function functionFlags(async, generator) {
 	return SCOPE_FUNCTION | (async ? SCOPE_ASYNC : 0) | (generator ? SCOPE_GENERATOR : 0);
 }
-var BIND_NONE = 0, BIND_VAR = 1, BIND_LEXICAL = 2, BIND_FUNCTION = 3, BIND_SIMPLE_CATCH = 4, BIND_OUTSIDE = 5;
+var BIND_NONE = 0;
+var BIND_VAR = 1;
+var BIND_LEXICAL = 2;
+var BIND_FUNCTION = 3;
+var BIND_SIMPLE_CATCH = 4;
+var BIND_OUTSIDE = 5;
 var Parser$2 = function Parser(options, input, startPos) {
 	this.options = options = getOptions(options);
 	this.sourceFile = options.sourceFile;
@@ -13456,7 +13690,8 @@ pp$8.parseTopLevel = function(node) {
 	node.sourceType = this.options.sourceType;
 	return this.finishNode(node, "Program");
 };
-var loopLabel = { kind: "loop" }, switchLabel = { kind: "switch" };
+var loopLabel = { kind: "loop" };
+var switchLabel = { kind: "switch" };
 pp$8.isLet = function(context) {
 	if (this.options.ecmaVersion < 6 || !this.isContextual("let")) return false;
 	skipWhiteSpace.lastIndex = this.pos;
@@ -13869,7 +14104,9 @@ pp$8.parseVarId = function(decl, kind) {
 	decl.id = kind === "using" || kind === "await using" ? this.parseIdent() : this.parseBindingAtom();
 	this.checkLValPattern(decl.id, kind === "var" ? BIND_VAR : BIND_LEXICAL, false);
 };
-var FUNC_STATEMENT = 1, FUNC_HANGING_STATEMENT = 2, FUNC_NULLABLE_ID = 4;
+var FUNC_STATEMENT = 1;
+var FUNC_HANGING_STATEMENT = 2;
+var FUNC_NULLABLE_ID = 4;
 pp$8.parseFunction = function(node, statement, allowExpressionBody, isAsync, forInit) {
 	this.initFunction(node);
 	if (this.options.ecmaVersion >= 9 || this.options.ecmaVersion >= 6 && !isAsync) {
@@ -25147,7 +25384,8 @@ function objectToString$1(value) {
 //#endregion
 //#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_baseGetTag.js
 /** `Object#toString` result references. */
-var nullTag = "[object Null]", undefinedTag = "[object Undefined]";
+var nullTag = "[object Null]";
+var undefinedTag = "[object Undefined]";
 /** Built-in value references. */
 var symToStringTag = Symbol$1 ? Symbol$1.toStringTag : void 0;
 /**
@@ -25348,7 +25586,8 @@ var now = function() {
 //#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/debounce.js
 /** Error message constants. */
 var FUNC_ERROR_TEXT = "Expected a function";
-var nativeMax = Math.max, nativeMin = Math.min;
+var nativeMax = Math.max;
+var nativeMin = Math.min;
 /**
 * Creates a debounced function that delays invoking `func` until after `wait`
 * milliseconds have elapsed since the last time the debounced function was
@@ -28841,7 +29080,10 @@ var IDLE_BLOCKER = {
 var defaultMapRouteProperties = (route) => ({ hasErrorBoundary: Boolean(route.hasErrorBoundary) });
 var TRANSITIONS_STORAGE_KEY = "remix-router-transitions";
 var ResetLoaderDataSymbol = Symbol("ResetLoaderData");
-var _routes, _branches, _hmrRoutes, _hmrBranches;
+var _routes;
+var _branches;
+var _hmrRoutes;
+var _hmrBranches;
 var DataRoutes = class {
 	constructor(routes) {
 		__privateAdd(this, _routes);
@@ -36838,7 +37080,9 @@ var e$11 = /* @__PURE__ */ new Set([
 	"ref",
 	"style",
 	"className"
-]), n$8 = /* @__PURE__ */ new WeakMap(), t$5 = (e, t, o, l, a) => {
+]);
+var n$8 = /* @__PURE__ */ new WeakMap();
+var t$5 = (e, t, o, l, a) => {
 	const s = a?.[t];
 	void 0 === s ? (e[t] = o, null == o && t in HTMLElement.prototype && e.removeAttribute(t)) : o !== l && ((e, t, o) => {
 		let l = n$8.get(e);
@@ -36846,7 +37090,8 @@ var e$11 = /* @__PURE__ */ new Set([
 		let a = l.get(t);
 		void 0 !== o ? void 0 === a ? (l.set(t, a = { handleEvent: o }), e.addEventListener(t, a)) : a.handleEvent = o : void 0 !== a && (l.delete(t), e.removeEventListener(t, a));
 	})(e, s, o);
-}, o$7 = ({ react: n, tagName: o, elementClass: l, events: a, displayName: s }) => {
+};
+var o$7 = ({ react: n, tagName: o, elementClass: l, events: a, displayName: s }) => {
 	const c = new Set(Object.keys(a ?? {})), r = n.forwardRef(((s, r) => {
 		const i = n.useRef(/* @__PURE__ */ new Map()), d = n.useRef(null), f = {}, u = {};
 		for (const [n, t] of Object.entries(s)) e$11.has(n) ? f["className" === n ? "class" : n] = t : c.has(n) || n in l.prototype ? u[n] = t : f[n] = t;
@@ -36874,7 +37119,10 @@ var e$11 = /* @__PURE__ */ new Set([
 * Copyright 2019 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
-var t$4 = globalThis, e$10 = t$4.ShadowRoot && (void 0 === t$4.ShadyCSS || t$4.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, s$6 = Symbol(), o$6 = /* @__PURE__ */ new WeakMap();
+var t$4 = globalThis;
+var e$10 = t$4.ShadowRoot && (void 0 === t$4.ShadyCSS || t$4.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
+var s$6 = Symbol();
+var o$6 = /* @__PURE__ */ new WeakMap();
 var n$7 = class {
 	constructor(t, e, o) {
 		if (this._$cssResult$ = !0, o !== s$6) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
@@ -36893,19 +37141,22 @@ var n$7 = class {
 		return this.cssText;
 	}
 };
-var r$6 = (t) => new n$7("string" == typeof t ? t : t + "", void 0, s$6), i$8 = (t, ...e) => {
+var r$6 = (t) => new n$7("string" == typeof t ? t : t + "", void 0, s$6);
+var i$8 = (t, ...e) => {
 	return new n$7(1 === t.length ? t[0] : e.reduce((e, s, o) => e + ((t) => {
 		if (!0 === t._$cssResult$) return t.cssText;
 		if ("number" == typeof t) return t;
 		throw Error("Value passed to 'css' function must be a 'css' function result: " + t + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
 	})(s) + t[o + 1], t[0]), t, s$6);
-}, S$1 = (s, o) => {
+};
+var S$1 = (s, o) => {
 	if (e$10) s.adoptedStyleSheets = o.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
 	else for (const e of o) {
 		const o = document.createElement("style"), n = t$4.litNonce;
 		void 0 !== n && o.setAttribute("nonce", n), o.textContent = e.cssText, s.appendChild(o);
 	}
-}, c$5 = e$10 ? (t) => t : (t) => t instanceof CSSStyleSheet ? ((t) => {
+};
+var c$5 = e$10 ? (t) => t : (t) => t instanceof CSSStyleSheet ? ((t) => {
 	let e = "";
 	for (const s of t.cssRules) e += s.cssText;
 	return r$6(e);
@@ -37147,11 +37398,38 @@ y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$2("eleme
 * Copyright 2017 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
-var t$3 = globalThis, i$6 = (t) => t, s$5 = t$3.trustedTypes, e$8 = s$5 ? s$5.createPolicy("lit-html", { createHTML: (t) => t }) : void 0, h$1 = "$lit$", o$4 = `lit$${Math.random().toFixed(9).slice(2)}$`, n$5 = "?" + o$4, r$4 = `<${n$5}>`, l$1 = document, c$3 = () => l$1.createComment(""), a = (t) => null === t || "object" != typeof t && "function" != typeof t, u$2 = Array.isArray, d$1 = (t) => u$2(t) || "function" == typeof t?.[Symbol.iterator], f$1 = "[ 	\n\f\r]", v$1 = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, _$1 = /-->/g, m$1 = />/g, p$1 = RegExp(`>|${f$1}(?:([^\\s"'>=/]+)(${f$1}*=${f$1}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`, "g"), g = /'/g, $$1 = /"/g, y = /^(?:script|style|textarea|title)$/i, x$2 = (t) => (i, ...s) => ({
+var t$3 = globalThis;
+var i$6 = (t) => t;
+var s$5 = t$3.trustedTypes;
+var e$8 = s$5 ? s$5.createPolicy("lit-html", { createHTML: (t) => t }) : void 0;
+var h$1 = "$lit$";
+var o$4 = `lit$${Math.random().toFixed(9).slice(2)}$`;
+var n$5 = "?" + o$4;
+var r$4 = `<${n$5}>`;
+var l$1 = document;
+var c$3 = () => l$1.createComment("");
+var a = (t) => null === t || "object" != typeof t && "function" != typeof t;
+var u$2 = Array.isArray;
+var d$1 = (t) => u$2(t) || "function" == typeof t?.[Symbol.iterator];
+var f$1 = "[ 	\n\f\r]";
+var v$1 = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
+var _$1 = /-->/g;
+var m$1 = />/g;
+var p$1 = RegExp(`>|${f$1}(?:([^\\s"'>=/]+)(${f$1}*=${f$1}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`, "g");
+var g = /'/g;
+var $$1 = /"/g;
+var y = /^(?:script|style|textarea|title)$/i;
+var x$2 = (t) => (i, ...s) => ({
 	_$litType$: t,
 	strings: i,
 	values: s
-}), b = x$2(1), w = x$2(2), E$1 = Symbol.for("lit-noChange"), A$1 = Symbol.for("lit-nothing"), C$1 = /* @__PURE__ */ new WeakMap(), P$1 = l$1.createTreeWalker(l$1, 129);
+});
+var b = x$2(1);
+var w = x$2(2);
+var E$1 = Symbol.for("lit-noChange");
+var A$1 = Symbol.for("lit-nothing");
+var C$1 = /* @__PURE__ */ new WeakMap();
+var P$1 = l$1.createTreeWalker(l$1, 129);
 function V(t, i) {
 	if (!u$2(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
 	return void 0 !== e$8 ? e$8.createHTML(i) : i;
@@ -37396,7 +37674,8 @@ var j$2 = {
 	U: z$1,
 	B: I,
 	F: Z
-}, B$1 = t$3.litHtmlPolyfillSupport;
+};
+var B$1 = t$3.litHtmlPolyfillSupport;
 B$1?.(S, k), (t$3.litHtmlVersions ??= []).push("3.3.2");
 var D = (t, i, s) => {
 	const e = s?.renderBefore ?? i;
@@ -37452,7 +37731,8 @@ o$3?.({ LitElement: i$5 });
 	converter: u$3,
 	reflect: !1,
 	hasChanged: f$2
-}, r$3 = (t = o$2, e, r) => {
+};
+var r$3 = (t = o$2, e, r) => {
 	const { kind: n, metadata: i } = r;
 	let s = globalThis.litPropertyMetadata.get(i);
 	if (void 0 === s && globalThis.litPropertyMetadata.set(i, s = /* @__PURE__ */ new Map()), "setter" === n && ((t = Object.create(t)).wrapped = !0), s.set(r.name, t), "accessor" === n) {
@@ -37739,7 +38019,8 @@ var t$2 = {
 	BOOLEAN_ATTRIBUTE: 4,
 	EVENT: 5,
 	ELEMENT: 6
-}, e$4 = (t) => (...e) => ({
+};
+var e$4 = (t) => (...e) => ({
 	_$litDirective$: t,
 	values: e
 });
@@ -40263,7 +40544,8 @@ var u = (e, s, t) => {
 	const r = /* @__PURE__ */ new Map();
 	for (let l = s; l <= t; l++) r.set(e[l], l);
 	return r;
-}, c$1 = e$4(class extends i$4 {
+};
+var c$1 = e$4(class extends i$4 {
 	constructor(e) {
 		if (super(e), e.type !== t$2.CHILD) throw Error("repeat() can only be used in text expressions");
 	}
@@ -50752,7 +51034,7 @@ function escapedSplit(str) {
 	result.push(current + str.substring(lastPos));
 	return result;
 }
-function table$4(state, startLine, endLine, silent) {
+function table$5(state, startLine, endLine, silent) {
 	if (startLine + 2 > endLine) return false;
 	let nextLine = startLine + 1;
 	if (state.sCount[nextLine] < state.blkIndent) return false;
@@ -51601,7 +51883,7 @@ function paragraph(state, startLine, endLine) {
 var _rules$1 = [
 	[
 		"table",
-		table$4,
+		table$5,
 		["paragraph", "reference"]
 	],
 	["code", code$5],
@@ -54138,8 +54420,8 @@ var markdownRenderers = {
 };
 var renderMarkdown = (markdown, renderer = defaultMarkdownRenderer) => markdownRenderers[renderer](markdown);
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.11/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.11 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.11/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.12/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.12 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.12/LICENSE */
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -54180,9 +54462,17 @@ function _unsupportedIterableToArray(r, a) {
 		return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0;
 	}
 }
-var entries = Object.entries, setPrototypeOf = Object.setPrototypeOf, isFrozen$1 = Object.isFrozen, getPrototypeOf$1 = Object.getPrototypeOf, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-var freeze$1 = Object.freeze, seal = Object.seal, create$1 = Object.create;
-var _ref = typeof Reflect !== "undefined" && Reflect, apply = _ref.apply, construct = _ref.construct;
+var entries = Object.entries;
+var setPrototypeOf = Object.setPrototypeOf;
+var isFrozen$1 = Object.isFrozen;
+var getPrototypeOf$1 = Object.getPrototypeOf;
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var freeze$1 = Object.freeze;
+var seal = Object.seal;
+var create$1 = Object.create;
+var _ref = typeof Reflect !== "undefined" && Reflect;
+var apply = _ref.apply;
+var construct = _ref.construct;
 if (!freeze$1) freeze$1 = function freeze(x) {
 	return x;
 };
@@ -54474,7 +54764,7 @@ var html$1 = freeze$1([
 	"video",
 	"wbr"
 ]);
-var svg$1 = freeze$1([
+var svg$1$1 = freeze$1([
 	"svg",
 	"a",
 	"altglyph",
@@ -54778,6 +55068,7 @@ var svg$2 = freeze$1([
 	"direction",
 	"display",
 	"divisor",
+	"dominant-baseline",
 	"dur",
 	"edgemode",
 	"elevation",
@@ -54905,6 +55196,7 @@ var svg$2 = freeze$1([
 	"transform-origin",
 	"text-anchor",
 	"text-decoration",
+	"text-orientation",
 	"text-rendering",
 	"textlength",
 	"type",
@@ -55087,7 +55379,7 @@ var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) 
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.11";
+	DOMPurify.version = "3.4.12";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -55164,7 +55456,7 @@ function createDOMPurify() {
 	let ALLOWED_TAGS = null;
 	const DEFAULT_ALLOWED_TAGS = addToSet({}, [
 		...html$1,
-		...svg$1,
+		...svg$1$1,
 		...svgFilters,
 		...mathMl$1,
 		...text$3
@@ -55386,7 +55678,7 @@ function createDOMPurify() {
 				addToSet(ALLOWED_ATTR, html);
 			}
 			if (USE_PROFILES.svg === true) {
-				addToSet(ALLOWED_TAGS, svg$1);
+				addToSet(ALLOWED_TAGS, svg$1$1);
 				addToSet(ALLOWED_ATTR, svg$2);
 				addToSet(ALLOWED_ATTR, xml);
 			}
@@ -55458,7 +55750,7 @@ function createDOMPurify() {
 		CONFIG = cfg;
 	};
 	const ALL_SVG_TAGS = addToSet({}, [
-		...svg$1,
+		...svg$1$1,
 		...svgFilters,
 		...svgDisallowed
 	]);
@@ -55554,6 +55846,7 @@ function createDOMPurify() {
 	* @param root the in-place root to empty
 	*/
 	const _neutralizeRoot = function _neutralizeRoot(root) {
+		_neutralizeSubtree(root);
 		const childNodes = getChildNodes(root);
 		if (childNodes) {
 			const snapshot = [];
@@ -55650,6 +55943,65 @@ function createDOMPurify() {
 		while (stack.length > 0) {
 			const node = stack.pop();
 			if ((getNodeType ? getNodeType(node) : node.nodeType) === NODE_TYPE.element) _stripDisallowedAttributes(node);
+			const childNodes = getChildNodes(node);
+			if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push(childNodes[i]);
+		}
+	};
+	/**
+	* _neutralizePatchLinkage
+	*
+	* IN_PLACE entry pre-pass (declarative-partial-updates / streaming
+	* hardening, https://github.com/WICG/declarative-partial-updates).
+	*
+	* The main walk strips patch linkage (`for`/`patchsrc`) and removes range
+	* markers (PIs / markup comments) node-by-node, in document order, AS it
+	* reaches each node. On a live in-place root that leaves a window: from the
+	* moment the root is connected until the walk arrives at a given node, that
+	* node's linkage is live. A patch applied on connection/stream can fire as
+	* a microtask during the walk and inject or teleport an unsanitized DOM
+	* range into a region the iterator has already passed and will not revisit,
+	* so the post-return "tree is sanitized" contract is violated. Sweep the
+	* whole tree once up front and sever every linkage before the walk begins,
+	* closing that window.
+	*
+	* This CANNOT undo a patch that already fired before sanitize ran — that is
+	* the irreducible "do not IN_PLACE a live-connected attacker tree" caveat —
+	* but it closes everything from sanitize-start onward. Gated on SAFE_FOR_XML
+	* to group with the rest of the declarative-partial-updates handling and
+	* stay overridable, consistent with the codebase.
+	*
+	* Clobber-safe traversal (cached childNodes getter); per-node try/catch so a
+	* clobbered root cannot defeat the sweep of its non-clobbered descendants.
+	*
+	* NOTE (pending real-Chrome confirmation, see test/declarative-patch-probe
+	* .html Q1): this mirrors the existing policy of keeping `for` on
+	* <label>/<output>. If the shipping feature can drive a patch through a
+	* surviving `for`-on-label/output + `id` pair, this pre-pass and the
+	* attribute check at _isBasicCustomElement's caller must additionally drop
+	* that pair on the IN_PLACE path. Left as-is until the taxonomy is verified.
+	*
+	* @param root the in-place root to sweep
+	*/
+	const _neutralizePatchLinkage = function _neutralizePatchLinkage(root) {
+		if (!SAFE_FOR_XML) return;
+		const stack = [root];
+		while (stack.length > 0) {
+			const node = stack.pop();
+			const nodeType = getNodeType ? getNodeType(node) : node.nodeType;
+			if (nodeType === NODE_TYPE.processingInstruction || nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, node.data)) {
+				try {
+					remove(node);
+				} catch (_) {}
+				continue;
+			}
+			if (nodeType === NODE_TYPE.element) {
+				const element = node;
+				const lcTag = transformCaseFunc(getNodeName ? getNodeName(node) : node.nodeName);
+				try {
+					if (element.hasAttribute && element.hasAttribute("patchsrc")) element.removeAttribute("patchsrc");
+					if (element.hasAttribute && element.hasAttribute("for") && lcTag !== "label" && lcTag !== "output") element.removeAttribute("for");
+				} catch (_) {}
+			}
 			const childNodes = getChildNodes(node);
 			if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push(childNodes[i]);
 		}
@@ -55822,9 +56174,15 @@ function createDOMPurify() {
 	/**
 	* Handle a node whose tag is forbidden or not allowlisted: keep
 	* allowed custom elements (false return exits _sanitizeElements
-	* early - namespace/fallback checks and the afterSanitizeElements
-	* hook are intentionally skipped for kept custom elements), else
-	* hoist content per KEEP_CONTENT and remove.
+	* early - the namespace and fallback-tag removal checks are
+	* intentionally skipped for kept custom elements), else hoist
+	* content per KEEP_CONTENT and remove.
+	*
+	* A kept custom element is the ONLY case in which this function
+	* returns false, so the caller uses that return value to run the
+	* afterSanitizeElements hook on the kept element and keep the
+	* element-hook lifecycle consistent with normal allowlisted
+	* elements (GHSA-c2j3-45gr-mqc4).
 	*
 	* @param currentNode the disallowed node
 	* @param tagName the node's transformCaseFunc'd tag name
@@ -55858,8 +56216,9 @@ function createDOMPurify() {
 	* @param currentNode to check for permission to exist
 	* @return true if node was killed, false if left alive
 	*/
-	const _sanitizeElements = function _sanitizeElements(currentNode) {
+	const _sanitizeElements = function _sanitizeElements(currentNode, root) {
 		_executeHooks(hooks.beforeSanitizeElements, currentNode, null);
+		if (currentNode !== root && getParentNode(currentNode) === null) return true;
 		if (_isClobbered(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
@@ -55869,11 +56228,16 @@ function createDOMPurify() {
 			tagName,
 			allowedTags: ALLOWED_TAGS
 		});
+		if (currentNode !== root && getParentNode(currentNode) === null) return true;
 		if (_isUnsafeNode(currentNode, tagName)) {
 			_forceRemove(currentNode);
 			return true;
 		}
-		if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) return _sanitizeDisallowedNode(currentNode, tagName);
+		if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
+			const removed = _sanitizeDisallowedNode(currentNode, tagName);
+			if (removed === false) _executeHooks(hooks.afterSanitizeElements, currentNode, null);
+			return removed;
+		}
 		if ((getNodeType ? getNodeType(currentNode) : currentNode.nodeType) === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
@@ -55902,6 +56266,8 @@ function createDOMPurify() {
 	*/
 	const _isValidAttribute = function _isValidAttribute(lcTag, lcName, value) {
 		if (FORBID_ATTR[lcName]) return false;
+		if (SAFE_FOR_XML && lcName === "patchsrc") return false;
+		if (SAFE_FOR_XML && lcName === "for" && lcTag !== "label" && lcTag !== "output") return false;
 		if (SANITIZE_DOM && (lcName === "id" || lcName === "name") && (value in document || value in formElement)) return false;
 		const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
 		if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName));
@@ -56055,7 +56421,7 @@ function createDOMPurify() {
 		_executeHooks(hooks.beforeSanitizeShadowDOM, fragment, null);
 		while (shadowNode = shadowIterator.nextNode()) {
 			_executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
-			_sanitizeElements(shadowNode);
+			_sanitizeElements(shadowNode, fragment);
 			_sanitizeAttributes(shadowNode);
 			if (_isDocumentFragment(shadowNode.content)) _sanitizeShadowDOM2(shadowNode.content);
 			if ((getNodeType ? getNodeType(shadowNode) : shadowNode.nodeType) === NODE_TYPE.element) {
@@ -56149,12 +56515,19 @@ function createDOMPurify() {
 		DOMPurify.removed = [];
 		const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
 		if (inPlace) {
+			_neutralizePatchLinkage(dirty);
 			const nn = getNodeName ? getNodeName(dirty) : dirty.nodeName;
 			if (typeof nn === "string") {
 				const tagName = transformCaseFunc(nn);
-				if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
+				if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
+					_neutralizeRoot(dirty);
+					throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
+				}
 			}
-			if (_isClobbered(dirty)) throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
+			if (_isClobbered(dirty)) {
+				_neutralizeRoot(dirty);
+				throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
+			}
 			try {
 				_sanitizeAttachedShadowRoots(dirty);
 			} catch (error) {
@@ -56174,15 +56547,21 @@ function createDOMPurify() {
 			if (!body) return RETURN_DOM ? null : RETURN_TRUSTED_TYPE ? emptyHTML : "";
 		}
 		if (body && FORCE_BODY) _forceRemove(body.firstChild);
-		const nodeIterator = _createNodeIterator(inPlace ? dirty : body);
+		const walkRoot = inPlace ? dirty : body;
+		const nodeIterator = _createNodeIterator(walkRoot);
 		try {
 			while (currentNode = nodeIterator.nextNode()) {
-				_sanitizeElements(currentNode);
+				_sanitizeElements(currentNode, walkRoot);
 				_sanitizeAttributes(currentNode);
 				if (_isDocumentFragment(currentNode.content)) _sanitizeShadowDOM2(currentNode.content);
 			}
 		} catch (error) {
-			if (inPlace) _neutralizeRoot(dirty);
+			if (inPlace) {
+				_neutralizeRoot(dirty);
+				arrayForEach(DOMPurify.removed, (entry) => {
+					if (entry.element) _neutralizeSubtree(entry.element);
+				});
+			}
 			throw error;
 		}
 		if (inPlace) {
@@ -60109,6 +60488,33 @@ var defaultRetry = (failureCount, error) => !globalThis.__TEST_DISABLE_RETRY && 
 */
 var queryClient = new QueryClient({ defaultOptions: { queries: { retry: defaultRetry } } });
 //#endregion
+//#region src/log_data/databaseListings.ts
+var databaseLogsListingKeyRoot = [
+	"log_data",
+	"dexie-listing",
+	"logs"
+];
+var databaseLogsListingKey = (universe, accessorsKey, filter, orderBy, pagination) => [
+	...databaseLogsListingKeyRoot,
+	universe ?? null,
+	accessorsKey,
+	filter ?? null,
+	orderBy ?? null,
+	pagination ?? null
+];
+/** The universe slot of a {@link databaseLogsListingKey} — for same-universe
+*  checks (placeholders) without hard-coding the key shape at call sites. */
+var listingKeyUniverse = (queryKey) => queryKey[databaseLogsListingKeyRoot.length];
+/**
+* Coalesce replication bursts into at most one refetch of observed Dexie
+* listings per 100ms. A throttle, not a debounce: the flush loops can write
+* back-to-back for a whole sync, and a trailing-only debounce would postpone
+* the invalidation for the entire burst instead of updating incrementally.
+*/
+var invalidateDatabaseLogsListings = throttle(() => {
+	queryClient.invalidateQueries({ queryKey: databaseLogsListingKeyRoot });
+}, 100, { leading: false });
+//#endregion
 //#region src/log_data/samplesListing.ts
 var EMPTY_ROWS = [];
 /** The whole key family for a dir — the invalidation target. */
@@ -60357,13 +60763,20 @@ var clearCache = (logDir) => {
 * remove. "Clear Local Database" (`clearAll`) wipes them along with
 * everything else.
 */
-var warnedScopes = /* @__PURE__ */ new Set();
+var cacheOnlyScopes = /* @__PURE__ */ new Set();
+/**
+* Whether `logDir`'s listing degraded to cache-only persistence
+* (out-of-namespace names — see `namesInScope`). Session-sticky: once a
+* listing sync detects the degrade, listing reads for the dir serve from
+* the react-query cache instead of the database.
+*/
+var isCacheOnlyListingScope = (logDir) => cacheOnlyScopes.has(scopePrefix(logDir));
 var namesInScope = (logDir, handles) => {
 	const prefix = scopePrefix(logDir);
 	const misnamed = handles.find((handle) => !handle.name.startsWith(prefix));
 	if (misnamed !== void 0) {
-		if (!warnedScopes.has(prefix)) {
-			warnedScopes.add(prefix);
+		if (!cacheOnlyScopes.has(prefix)) {
+			cacheOnlyScopes.add(prefix);
 			log$4.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
 		}
 		return false;
@@ -60383,15 +60796,18 @@ var writeListing = async (db, logDir, handles) => {
 		const all = await db.readLogs({ prefix: logDir });
 		if (all) {
 			setRows(logDir, all);
+			invalidateDatabaseLogsListings();
 			return all;
 		}
 	}
 	setListing(logDir, handles);
+	invalidateDatabaseLogsListings();
 	return currentLogs(logDir);
 };
 var writePreviews = async (db, logDir, previews) => {
 	mergePreviews(logDir, previews);
 	if (db?.opened()) await db.writeLogPreviews(previews);
+	invalidateDatabaseLogsListings();
 };
 /**
 * Details INGESTION: normalize each transport payload into the entity
@@ -60399,10 +60815,11 @@ var writePreviews = async (db, logDir, previews) => {
 * own store. Cache updates land synchronously; samples rows land BEFORE the
 * row merge (the status flip is what drops a running log's pending-buffer
 * rows, so a render between the two updates must already have the settled
-* rows). Persistence is one transaction per call; the invalidation sweep
-* then refreshes prefix-scope listings from the committed rows. In db-less
-* sessions the pushes are the only landing spot, and invalidating would
-* clobber them with an empty read — so the sweep is persistence-gated.
+* rows). Persistence is one transaction per call. The samples sweep is
+* persistence-gated: samples listings read from the database, and in db-less
+* sessions invalidating would clobber the pushes — the only landing spot —
+* with an empty read. Log listings have a cache-backed read path, so their
+* invalidation is unconditional.
 */
 var writeDetails = async (db, logDir, details) => {
 	const prepared = Object.entries(details).map(([name, payload]) => [name, prepareLogDetails(payload)]);
@@ -60412,6 +60829,7 @@ var writeDetails = async (db, logDir, details) => {
 		await db.writeLogDetails(Object.fromEntries(prepared));
 		invalidateSamplesListings(logDir);
 	}
+	invalidateDatabaseLogsListings();
 };
 var writeFetchStates = async (db, logDir, states) => {
 	mergeFetchStates(logDir, states);
@@ -60434,16 +60852,19 @@ var resetDepth = async (db, logDir, names) => {
 	queryClient.setQueryData(logsKey(logDir), next);
 	for (const row of next) if (nameSet.has(row.name)) pushLog(logDir, row);
 	if (db?.opened()) await db.resetDepth(names);
+	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearFile = async (db, logDir, name) => {
 	evictFile(logDir, name);
 	if (db?.opened()) await db.clearCacheForFile(name);
+	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearAll = async (db, logDir) => {
 	clearCache(logDir);
 	if (db?.opened()) await db.clearAllData();
+	invalidateDatabaseLogsListings();
 };
 /**
 * The seam as a fetch-engine sink: the write surface bound to a directory and
@@ -60453,6 +60874,7 @@ var clearAll = async (db, logDir) => {
 var createLogsContentSink = (db, logDir) => ({
 	seedRows: (rows) => {
 		setRows(logDir, rows);
+		invalidateDatabaseLogsListings();
 		invalidateSamplesListings(logDir);
 	},
 	setListing: (handles) => setListing(logDir, handles),
@@ -60707,6 +61129,271 @@ var imperativeLogData = {
 	}
 };
 //#endregion
+//#region src/client/database/listing.ts
+/** Slice one page (with its continuation cursor) off filtered+sorted rows. */
+var pageRows = (rows, pagination) => {
+	if (!pagination) return {
+		items: rows,
+		next_cursor: null
+	};
+	const offset = pagination.cursor && typeof pagination.cursor.offset === "number" ? pagination.cursor.offset : 0;
+	const end = offset + pagination.limit;
+	return {
+		items: rows.slice(offset, end),
+		next_cursor: end < rows.length ? { offset: end } : null
+	};
+};
+//#endregion
+//#region src/utils/uri.ts
+/** First segment of a relative path ("" when empty). */
+var rootName = (relativePath) => relativePath.split("/")[0] ?? "";
+var directoryRelativeUrl = (file, dir) => {
+	if (!dir) return uriEncodePathSegments(file);
+	const normalizedFile = file.replace(/\\/g, "/");
+	const normalizedLogDir = dir.replace(/\\/g, "/");
+	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile.substring(dirWithSlash.length).split("/").map((segment) => encodeURIComponent(segment)).join("/");
+	return uriEncodePathSegments(normalizedFile);
+};
+var uriEncodePathSegments = (path) => {
+	return path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+};
+var join = (file, dir) => {
+	if (!dir) return file;
+	const normalizedFile = file.replace(/\\/g, "/");
+	const normalizedLogDir = dir.replace(/\\/g, "/");
+	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile;
+	return dirWithSlash + normalizedFile;
+};
+/**
+* Encodes the path segments of a URL or relative path to ensure special characters
+* (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
+*
+* This function will encode file names and path portions of both absolute URLs and
+* relative paths. It ensures that components of a full URL, such as the protocol and
+* query parameters, remain intact, while only encoding the path.
+*/
+function encodePathParts(url) {
+	if (!url) return url;
+	try {
+		const fullUrl = new URL(url);
+		fullUrl.pathname = fullUrl.pathname.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
+		return fullUrl.toString();
+	} catch {
+		return url.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
+	}
+}
+/**
+* Tests whether a string is a valid URI.
+*
+* @param value - The string to test
+* @returns true if the string is a valid URI, false otherwise
+*/
+var isUri = (value) => {
+	if (!value) return false;
+	try {
+		new URL(value);
+		return true;
+	} catch {
+		return false;
+	}
+};
+var prettyDirUri = (uri) => {
+	if (uri.startsWith("file://")) return uri.replace("file://", "");
+	else return uri;
+};
+//#endregion
+//#region src/log_data/logListing.ts
+/**
+* The listing read: one row per log file in the directory — the Log entity
+* row with retried runs marked. Content fills in as depth increases; that
+* the tiers are fetched separately is not observable here beyond attribute
+* columns being briefly undefined. Lives here (not in state/) so the
+* paged-listing migration can swap its internals (whole-dir read → paged
+* Dexie query) without touching consumers.
+*/
+var isActiveStatus = (status) => status === "started" || status === "success";
+/**
+* Pure dedup logic for {@link useLogListing}.
+*
+* Groups logs by (parent directory, task_id) so that logs sharing a task_id
+* across different folders (e.g. copied log directories under a shared parent)
+* are not treated as retries of each other. Within each group, logs whose
+* status is `started` or `success` rank above other statuses; ties are
+* broken by filename descending so the newest run wins. The winner is
+* marked `retried: false`; the rest are marked `retried: true`.
+*/
+var computeLogsWithRetried = (logs) => {
+	const logsByGroup = logs.reduce((acc, log) => {
+		const taskId = log.task_id;
+		if (taskId) {
+			const slash = log.name.lastIndexOf("/");
+			const key = `${slash >= 0 ? log.name.substring(0, slash) : ""}|${taskId}`;
+			(acc[key] ??= []).push(log);
+		}
+		return acc;
+	}, {});
+	const bestByName = {};
+	for (const items of Object.values(logsByGroup)) {
+		const best = [...items].sort((a, b) => {
+			const aActive = isActiveStatus(a.status);
+			if (aActive !== isActiveStatus(b.status)) return aActive ? -1 : 1;
+			return b.name.localeCompare(a.name);
+		})[0];
+		if (best !== void 0) bestByName[best.name] = {
+			...best,
+			retried: false
+		};
+	}
+	return logs.map((log) => bestByName[log.name] ?? {
+		...log,
+		retried: log.task_id ? true : void 0
+	});
+};
+var useLogListing = (logDir) => {
+	return useMapAsyncData((0, import_react.useDeferredValue)(useLogs(logDir)), computeLogsWithRetried);
+};
+//#endregion
+//#region src/log_data/logsListingRead.ts
+/**
+* Where listing queries for `logDir` read their rows — an explicit,
+* scope-level decision rather than a per-query fallback:
+*
+* - "database": the normal dir-mode path; IndexedDB holds the replicated
+*   rows and is the row source.
+* - "cache": the react-query logs cache is the row source. This serves the
+*   out-of-namespace degrade (listing persistence skipped — see
+*   `namesInScope` in logsContent) and db-less sessions (the database
+*   failed to open; single-file mode renders no log list at all).
+*/
+var logsListingSource = (logDir) => getDatabaseService().opened() && !isCacheOnlyListingScope(logDir) ? "database" : "cache";
+var scanRows = async (logDir, prefix) => {
+	if (logsListingSource(logDir) === "database") {
+		const logs = await getDatabaseService().readLogs({ prefix });
+		if (logs !== null) return logs;
+	}
+	if (isCacheOnlyListingScope(logDir)) return getLogRows(logDir);
+	const scope = scopePrefix(prefix);
+	return getLogRows(logDir).filter((row) => row.name.startsWith(scope));
+};
+/**
+* Run a listing plan over `logDir`'s rows: scan the source, mark retried
+* runs (a cross-row derivation, so it runs over the scan, before `toRow`),
+* shape each record through `toRow` (which owns row-universe membership —
+* it drops records the view has no row for), then filter, sort, paginate.
+*
+* Deliberately NOT gated on the scope's sync state: results reflect
+* whatever has replicated so far — a warm cache from a prior session, or a
+* partially-landed sync — and the write path's invalidation refreshes
+* observers as further writes land. Callers surface sync progress
+* separately rather than hiding rows behind it.
+*
+* `prefix` narrows the scan (folder mode lists a subdirectory). Retried
+* grouping keys on a row's exact parent directory, so a boundary-safe
+* prefix scan never splits a group and the marking matches a whole-dir
+* scan's.
+*/
+var scanListingRows = async (logDir, prefix, toRow, plan) => {
+	const scanned = await scanRows(logDir, prefix);
+	const rows = [];
+	for (const log of computeLogsWithRetried(scanned)) {
+		const row = toRow(log);
+		if (row !== void 0 && plan.matches(row)) rows.push(row);
+	}
+	if (plan.compare) rows.sort(plan.compare);
+	return rows;
+};
+var readLogsListing = async (logDir, prefix, toRow, plan) => {
+	const rows = await scanListingRows(logDir, prefix, toRow, plan);
+	const total_count = rows.length;
+	return {
+		...pageRows(rows, plan.pagination),
+		total_count
+	};
+};
+/** Immediate subdirectories of `currentDir` with per-folder log counts. */
+var deriveFolders = (rows, currentDir) => {
+	const dirWithSlash = ensureTrailingSlash(currentDir);
+	const sortedNames = rows.map((row) => row.name).sort();
+	const lowerBound = (target) => {
+		let lo = 0;
+		let hi = sortedNames.length;
+		while (lo < hi) {
+			const mid = lo + hi >> 1;
+			const name = sortedNames[mid];
+			if (name !== void 0 && name < target) lo = mid + 1;
+			else hi = mid;
+		}
+		return lo;
+	};
+	const countWithPrefix = (prefix) => lowerBound(prefix + "￿") - lowerBound(prefix);
+	const folders = [];
+	const seen = /* @__PURE__ */ new Set();
+	for (const row of rows) {
+		const name = row.name;
+		if (isInDirectory(name, currentDir) || !name.startsWith(dirWithSlash)) continue;
+		const relativePath = directoryRelativeUrl(name, currentDir);
+		const dirName = decodeURIComponent(rootName(relativePath));
+		if (seen.has(dirName)) continue;
+		seen.add(dirName);
+		folders.push({
+			name: dirName,
+			itemCount: countWithPrefix(dirWithSlash + dirName + "/")
+		});
+	}
+	return folders;
+};
+/**
+* One scan of `logDir`'s rows producing the page-level aggregates: pending
+* anti-join input, progress/footer counts, retried presence, the sole-file
+* redirect target, and folder summaries. These are the derivations that
+* would otherwise force the full row list into memory beside the row query;
+* keeping them behind one read means pagination only changes this module.
+* Like `readLogsListing`, deliberately not gated on sync state.
+*/
+var readLogsOverview = async (logDir, view) => {
+	const rows = computeLogsWithRetried(await scanRows(logDir, logDir));
+	const taskIds = /* @__PURE__ */ new Set();
+	let fileCount = 0;
+	let startedCount = 0;
+	let retriedCount = 0;
+	let soleFileName;
+	for (const log of rows) {
+		if (log.task_id) taskIds.add(log.task_id);
+		if (!view.isCandidate(log)) continue;
+		if (log.retried) {
+			retriedCount += 1;
+			if (!view.showRetriedLogs) continue;
+		}
+		fileCount += 1;
+		soleFileName = fileCount === 1 ? log.name : void 0;
+		if (log.status === "started") startedCount += 1;
+	}
+	return {
+		taskIds: [...taskIds],
+		fileCount,
+		startedCount,
+		retriedCount,
+		soleFileName,
+		folders: view.folderDir === void 0 ? [] : deriveFolders(rows, view.folderDir)
+	};
+};
+/**
+* Ids of the rows whose searchable text contains `term`
+* (case-insensitive), in listing order under the same universe + plan as
+* the row query — the find band's data-level backing. Runs over the scan
+* today; under keys-first pagination it becomes a snapshot projection, so
+* matches keep covering rows outside the loaded pages.
+*/
+var readLogsListingMatches = async (logDir, prefix, toRow, plan, find) => {
+	const rows = await scanListingRows(logDir, prefix, toRow, plan);
+	const term = find.term.toLowerCase();
+	const ids = [];
+	for (const row of rows) if (find.rowText(row).includes(term)) ids.push(find.getRowId(row));
+	return ids;
+};
+//#endregion
 //#region src/log_data/log.ts
 /**
 * One log's entity row as a per-entity, db-backed cache entry. The `queryFn`
@@ -60784,57 +61471,6 @@ var useLogHeader = (logDir, logFile, opts) => {
 var useLogFetchState = (logDir, name) => {
 	const row = useLogRow(logDir, name);
 	return (0, import_react.useMemo)(() => row.loading || row.error ? row : data$1(row.data ?? void 0), [row]);
-};
-//#endregion
-//#region src/log_data/logListing.ts
-/**
-* The listing read: one row per log file in the directory — the Log entity
-* row with retried runs marked. Content fills in as depth increases; that
-* the tiers are fetched separately is not observable here beyond attribute
-* columns being briefly undefined. Lives here (not in state/) so the
-* paged-listing migration can swap its internals (whole-dir read → paged
-* Dexie query) without touching consumers.
-*/
-var isActiveStatus = (status) => status === "started" || status === "success";
-/**
-* Pure dedup logic for {@link useLogListing}.
-*
-* Groups logs by (parent directory, task_id) so that logs sharing a task_id
-* across different folders (e.g. copied log directories under a shared parent)
-* are not treated as retries of each other. Within each group, logs whose
-* status is `started` or `success` rank above other statuses; ties are
-* broken by filename descending so the newest run wins. The winner is
-* marked `retried: false`; the rest are marked `retried: true`.
-*/
-var computeLogsWithRetried = (logs) => {
-	const logsByGroup = logs.reduce((acc, log) => {
-		const taskId = log.task_id;
-		if (taskId) {
-			const slash = log.name.lastIndexOf("/");
-			const key = `${slash >= 0 ? log.name.substring(0, slash) : ""}|${taskId}`;
-			(acc[key] ??= []).push(log);
-		}
-		return acc;
-	}, {});
-	const bestByName = {};
-	for (const items of Object.values(logsByGroup)) {
-		const best = [...items].sort((a, b) => {
-			const aActive = isActiveStatus(a.status);
-			if (aActive !== isActiveStatus(b.status)) return aActive ? -1 : 1;
-			return b.name.localeCompare(a.name);
-		})[0];
-		if (best !== void 0) bestByName[best.name] = {
-			...best,
-			retried: false
-		};
-	}
-	return logs.map((log) => bestByName[log.name] ?? {
-		...log,
-		retried: log.task_id ? true : void 0
-	});
-};
-var useLogListing = (logDir) => {
-	return useMapAsyncData((0, import_react.useDeferredValue)(useLogs(logDir)), computeLogsWithRetried);
 };
 //#endregion
 //#region src/log_data/pendingSamples.ts
@@ -61650,64 +62286,6 @@ function scorerMapsEqual(a, b) {
 var asyncScorerMapsEqual = (a, b) => a.loading === b.loading && a.error === b.error && (a.data !== void 0 && b.data !== void 0 ? scorerMapsEqual(a.data, b.data) : a.data === b.data);
 var useScoreSchema = (logDir, scopeDir) => {
 	return useStableValue(useMapAsyncData(useLogs(logDir), (0, import_react.useCallback)((rows) => computeScorerMap(rows, scopeDir), [scopeDir])), asyncScorerMapsEqual);
-};
-//#endregion
-//#region src/utils/uri.ts
-var directoryRelativeUrl = (file, dir) => {
-	if (!dir) return uriEncodePathSegments(file);
-	const normalizedFile = file.replace(/\\/g, "/");
-	const normalizedLogDir = dir.replace(/\\/g, "/");
-	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile.substring(dirWithSlash.length).split("/").map((segment) => encodeURIComponent(segment)).join("/");
-	return uriEncodePathSegments(normalizedFile);
-};
-var uriEncodePathSegments = (path) => {
-	return path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
-};
-var join = (file, dir) => {
-	if (!dir) return file;
-	const normalizedFile = file.replace(/\\/g, "/");
-	const normalizedLogDir = dir.replace(/\\/g, "/");
-	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile;
-	return dirWithSlash + normalizedFile;
-};
-/**
-* Encodes the path segments of a URL or relative path to ensure special characters
-* (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
-*
-* This function will encode file names and path portions of both absolute URLs and
-* relative paths. It ensures that components of a full URL, such as the protocol and
-* query parameters, remain intact, while only encoding the path.
-*/
-function encodePathParts(url) {
-	if (!url) return url;
-	try {
-		const fullUrl = new URL(url);
-		fullUrl.pathname = fullUrl.pathname.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
-		return fullUrl.toString();
-	} catch {
-		return url.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
-	}
-}
-/**
-* Tests whether a string is a valid URI.
-*
-* @param value - The string to test
-* @returns true if the string is a valid URI, false otherwise
-*/
-var isUri = (value) => {
-	if (!value) return false;
-	try {
-		new URL(value);
-		return true;
-	} catch {
-		return false;
-	}
-};
-var prettyDirUri = (uri) => {
-	if (uri.startsWith("file://")) return uri.replace("file://", "");
-	else return uri;
 };
 //#endregion
 //#region ../../node_modules/.pnpm/immer@11.1.11/node_modules/immer/dist/immer.mjs
@@ -64943,7 +65521,9 @@ var wk = (function(c, id, msg, transfer, cb) {
 	w.postMessage(msg, transfer);
 	return w;
 });
-var u8$1 = Uint8Array, u16$1 = Uint16Array, i32$1 = Int32Array;
+var u8$1 = Uint8Array;
+var u16$1 = Uint16Array;
+var i32$1 = Int32Array;
 var fleb = new u8$1([
 	0,
 	0,
@@ -65043,9 +65623,12 @@ var freb = function(eb, start) {
 		r
 	};
 };
-var _a$1 = freb(fleb, 2), fl = _a$1.b, revfl = _a$1.r;
+var _a$1 = freb(fleb, 2);
+var fl = _a$1.b;
+var revfl = _a$1.r;
 fl[28] = 258, revfl[258] = 28;
-var _b = freb(fdeb, 0), fd = _b.b;
+var _b = freb(fdeb, 0);
+var fd = _b.b;
 _b.r;
 var rev = new u16$1(32768);
 for (var i$1 = 0; i$1 < 32768; ++i$1) {
@@ -65084,7 +65667,8 @@ for (var i$1 = 256; i$1 < 280; ++i$1) flt[i$1] = 7;
 for (var i$1 = 280; i$1 < 288; ++i$1) flt[i$1] = 8;
 var fdt = new u8$1(32);
 for (var i$1 = 0; i$1 < 32; ++i$1) fdt[i$1] = 5;
-var flrm = /*#__PURE__*/ hMap(flt, 9, 1), fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
+var flrm = /*#__PURE__*/ hMap(flt, 9, 1);
+var fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
 var max$1 = function(a) {
 	var m = a[0];
 	for (var i = 1; i < a.length; ++i) if (a[i] > m) m = a[i];
@@ -65415,7 +65999,11 @@ try {
 } catch (e) {}
 //#endregion
 //#region ../../node_modules/.pnpm/fzstd@0.1.1/node_modules/fzstd/esm/index.mjs
-var ab = ArrayBuffer, u8 = Uint8Array, u16 = Uint16Array, i16 = Int16Array, i32 = Int32Array;
+var ab = ArrayBuffer;
+var u8 = Uint8Array;
+var u16 = Uint16Array;
+var i16 = Int16Array;
+var i32 = Int32Array;
 var slc = function(v, s, e) {
 	if (u8.prototype.slice) return u8.prototype.slice.call(v, s, e);
 	if (s == null || s < 0) s = 0;
@@ -70347,7 +70935,10 @@ var entryRecords = (entries) => {
 };
 //#endregion
 //#region ../../node_modules/.pnpm/react-virtuoso@4.18.10_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-virtuoso/dist/index.mjs
-var we = 0, Pt = 1, Xt = 2, Pn = 4;
+var we = 0;
+var Pt = 1;
+var Xt = 2;
+var Pn = 4;
 function mn(t) {
 	return () => t;
 }
@@ -70591,12 +71182,15 @@ var ft = {
 	WARN: 2,
 	/** Error messages for failures (default level) */
 	ERROR: 3
-}, Bo = {
+};
+var Bo = {
 	[ft.DEBUG]: "debug",
 	[ft.ERROR]: "error",
 	[ft.INFO]: "log",
 	[ft.WARN]: "warn"
-}, Oo = () => typeof globalThis > "u" ? window : globalThis, Gt = j(() => {
+};
+var Oo = () => typeof globalThis > "u" ? window : globalThis;
+var Gt = j(() => {
 	const t = T(ft.ERROR);
 	return {
 		log: T((n, o, r = ft.INFO) => {
@@ -70604,7 +71198,8 @@ var ft = {
 		}),
 		logLevel: t
 	};
-}, [], { singleton: !0 }), Ve = /* @__PURE__ */ new WeakMap();
+}, [], { singleton: !0 });
+var Ve = /* @__PURE__ */ new WeakMap();
 function An(t) {
 	return "self" in t ? t.document.documentElement : t;
 }
@@ -70750,7 +71345,8 @@ var It = j(() => {
 		statefulScrollTop: r,
 		viewportHeight: s
 	};
-}, [], { singleton: !0 }), se = { lvl: 0 };
+}, [], { singleton: !0 });
+var se = { lvl: 0 };
 function Nn(t, e) {
 	const n = t.length;
 	if (n === 0) return [];
@@ -71067,7 +71663,8 @@ function Do(t) {
 var $o = {
 	offsetHeight: "height",
 	offsetWidth: "width"
-}, kt = j(([{ log: t }, { recalcInProgress: e }]) => {
+};
+var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 	const n = U(), o = U(), r = ht(o, 0), s = U(), i = U(), l = T(0), c = T([]), d = T(void 0), m = T(void 0), v = T(void 0), p = T(void 0), I = T((u, g) => Ht(u, $o[g])), w = T(void 0), R = T(0), h = Vo(), f = ht(x(n, $(c, t, R), Ot(Mo, h), nt()), h), a = ht(x(c, nt(), Ot((u, g) => ({
 		current: g,
 		prev: u.current
@@ -71274,7 +71871,8 @@ var Xn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, sc
 		groupCounts: s,
 		topItemsIndexes: i
 	};
-}, rt(kt, It)), At = j(([{ log: t }]) => {
+}, rt(kt, It));
+var At = j(([{ log: t }]) => {
 	const e = T(!1), n = Tt(x(e, P((o) => o), nt()));
 	return Y(e, (o) => {
 		o && it(t)("props updated", {}, ft.DEBUG);
@@ -71282,7 +71880,8 @@ var Xn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, sc
 		didMount: n,
 		propsReady: e
 	};
-}, rt(Gt), { singleton: !0 }), Ko = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
+}, rt(Gt), { singleton: !0 });
+var Ko = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
 function Jn(t) {
 	const e = typeof t == "number" ? { index: t } : { ...t };
 	return e.align || (e.align = "start"), (!e.behavior || !Ko) && (e.behavior = "auto"), e.offset === void 0 && (e.offset = 0), e;
@@ -71370,7 +71969,10 @@ var me = j(([{ defaultItemSize: t, listRefresh: e, sizes: n }, { scrollTop: o },
 function Qn(t, e) {
 	return Math.abs(t - e) < 1.01;
 }
-var ue = "up", ne = "down", qo = "none", Yo = {
+var ue = "up";
+var ne = "down";
+var qo = "none";
+var Yo = {
 	atBottom: !1,
 	notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
 	state: {
@@ -71379,7 +71981,9 @@ var ue = "up", ne = "down", qo = "none", Yo = {
 		scrollTop: 0,
 		viewportHeight: 0
 	}
-}, Zo = 0, pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r, viewportHeight: s }]) => {
+};
+var Zo = 0;
+var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r, viewportHeight: s }]) => {
 	const i = T(!1), l = T(!0), c = U(), d = U(), m = T(4), v = T(Zo), p = ht(x(Fe(x(W(r), Ut(1), Bt(!0)), x(W(r), Ut(1), Bt(!1), hn(100))), nt()), !1), I = ht(x(Fe(x(n, Bt(!0)), x(n, Bt(!1), hn(200))), nt()), !1);
 	z(x(at(W(r), W(v)), B(([a, S]) => a <= S), nt()), l), z(x(l, zt(50)), d);
 	const w = Tt(x(at(o, W(s), W(e), W(t), W(m)), Ot((a, [{ scrollHeight: S, scrollTop: H }, y, L, u, g]) => {
@@ -71456,7 +72060,10 @@ var ue = "up", ne = "down", qo = "none", Yo = {
 		scrollDirection: h,
 		scrollVelocity: f
 	};
-}, rt(It)), ae = "top", de = "bottom", Tn = "none";
+}, rt(It));
+var ae = "top";
+var de = "bottom";
+var Tn = "none";
 function Cn(t, e, n) {
 	return typeof t == "number" ? n === ue && e === ae || n === ne && e === de ? t : 0 : n === ue ? e === ae ? t.main : t.reverse : e === de ? t.main : t.reverse;
 }
@@ -71683,19 +72290,23 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 		topItemsIndexes: R,
 		...p
 	};
-}, rt(kt, Xn, Ze, me, fe, pe, At, Ke), { singleton: !0 }), eo = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
+}, rt(kt, Xn, Ze, me, fe, pe, At, Ke), { singleton: !0 });
+var eo = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
 	const s = U(), i = ht(x(at(n, t, o, e, r), B(([l, c, d, m, v]) => l + c + d + m + v.offsetBottom + v.bottom)), 0);
 	return z(W(i), s), {
 		totalListHeight: i,
 		totalListHeightChanged: s
 	};
-}, rt(It, Kt), { singleton: !0 }), Jo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
+}, rt(It, Kt), { singleton: !0 });
+var Jo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
 	const n = T(!1);
 	return {
 		alignToBottom: n,
 		paddingTopAddition: ht(x(at(n, t, e), P(([r]) => r), B(([, r, s]) => Math.max(0, r - s)), zt(0), nt()), 0)
 	};
-}, rt(It, eo), { singleton: !0 }), no = j(() => ({ context: T(null) })), Qo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
+}, rt(It, eo), { singleton: !0 });
+var no = j(() => ({ context: T(null) }));
+var Qo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
 	...r,
 	align: n ?? "start",
 	...o === void 0 ? {} : { behavior: o }
@@ -71703,7 +72314,8 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 	...r,
 	align: n ?? "end",
 	...o === void 0 ? {} : { behavior: o }
-} : null, oo = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
+} : null;
+var oo = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
 	const m = U();
 	return z(x(m, $(e, c, n, s, r, o, l), $(t), B(([[v, p, I, w, R, h, f, a], S]) => {
 		const { calculateViewLocation: H = Qo, done: y, ...L } = v, u = Zn(v, p, w - 1), g = ce(u, p.offsetTree, S) + R + h, C = g + Rt(p.sizeTree, u)[1], k = a + h, V = H({
@@ -71719,7 +72331,8 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 function Rn(t) {
 	return t === !1 ? !1 : t === "smooth" ? "smooth" : "auto";
 }
-var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
+var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t);
+var er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
 	const w = T(!1), R = U();
 	let h = null;
 	function f(y) {
@@ -71778,7 +72391,9 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 		followOutput: w,
 		scrollIntoViewOnChange: S
 	};
-}, rt(kt, pe, fe, me, At, Gt, It, no, oo)), nr = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => to(c, d, m, v, p, I))), i), {}), rt(kt, me, Kt, At), { singleton: !0 }), or = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
+}, rt(kt, pe, fe, me, At, Gt, It, no, oo));
+var nr = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => to(c, d, m, v, p, I))), i), {}), rt(kt, me, Kt, At), { singleton: !0 });
+var or = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
 	const o = T(0);
 	return Y(x(t, $(o), P(([, r]) => r !== 0), B(([, r]) => ({ top: r }))), (r) => {
 		yt(x(n, Ut(1), P((s) => s.items.length > 1)), () => {
@@ -71787,7 +72402,8 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 			});
 		});
 	}), { initialScrollTop: o };
-}, rt(At, It, Kt), { singleton: !0 }), ro = j(([{ scrollVelocity: t }]) => {
+}, rt(At, It, Kt), { singleton: !0 });
+var ro = j(([{ scrollVelocity: t }]) => {
 	const e = T(!1), n = U(), o = T(!1);
 	return z(x(t, $(o, e, n), P(([r, s]) => s !== !1 && s !== void 0), B(([r, s, i, l]) => {
 		const { enter: c, exit: d } = s;
@@ -71803,7 +72419,8 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 		scrollSeekRangeChanged: n,
 		scrollVelocity: t
 	};
-}, rt(pe), { singleton: !0 }), Xe = j(([{ scrollContainerState: t, scrollTo: e }]) => {
+}, rt(pe), { singleton: !0 });
+var Xe = j(([{ scrollContainerState: t, scrollTo: e }]) => {
 	const n = U(), o = U(), r = U(), s = T(!1), i = T(void 0);
 	return z(x(at(n, o), B(([{ scrollTop: l, viewportHeight: c }, { offsetTop: d, listHeight: m }]) => ({
 		scrollHeight: m,
@@ -71819,7 +72436,8 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 		windowScrollTo: r,
 		windowViewportRect: o
 	};
-}, rt(It)), rr = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
+}, rt(It));
+var rr = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
 	const d = U(), m = T(void 0), v = T(null), p = T(null);
 	return z(l, v), z(c, p), Y(x(d, $(e, o, i, v, p, n)), ([I, w, R, h, f, a, S]) => {
 		const H = _o(w.sizeTree);
@@ -71847,7 +72465,8 @@ function so(t) {
 	let e = !1, n;
 	return (() => (e || (e = !0, n = t()), n));
 }
-var lr = so(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent)), io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, L, { topItemCount: u }, { groupCounts: g }, C]) => {
+var lr = so(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent));
+var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, L, { topItemCount: u }, { groupCounts: g }, C]) => {
 	const { listState: k, minOverscanItemCount: O, topItemsIndexes: V, rangeChanged: N, ...Z } = H;
 	return z(N, C.scrollSeekRangeChanged), z(x(C.windowViewportRect, B((F) => F.visibleHeight)), f.viewportHeight), {
 		data: t,
@@ -72025,11 +72644,16 @@ function Je(t, e, n) {
 		usePublisher: p
 	};
 }
-var Re = import_react.createContext(void 0), lo = import_react.createContext(void 0), Le = "-webkit-sticky", Hn = "sticky", Qe = so(() => {
+var Re = import_react.createContext(void 0);
+var lo = import_react.createContext(void 0);
+var Le = "-webkit-sticky";
+var Hn = "sticky";
+var Qe = so(() => {
 	if (typeof document > "u") return Hn;
 	const t = document.createElement("div");
 	return t.style.position = Le, t.style.position === Le ? Le : Hn;
-}), co = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
+});
+var co = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
 function ke(t) {
 	return "self" in t;
 }
@@ -72136,15 +72760,20 @@ var mr = /* @__PURE__ */ j(([t, e]) => ({
 		ScrollSeekPlaceholder: i("ScrollSeekPlaceholder"),
 		TopItemListComponent: i("TopItemList")
 	};
-}))), pr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } }), hr = {
+})));
+var pr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } });
+var hr = {
 	overflowAnchor: "none",
 	position: Qe(),
 	zIndex: 1
-}, ao = { overflowAnchor: "none" }, gr = {
+};
+var ao = { overflowAnchor: "none" };
+var gr = {
 	...ao,
 	display: "inline-block",
 	height: "100%"
-}, En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
+};
+var En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
 	const n = A("listState"), o = Ct("sizeRanges"), r = A("useWindowScroll"), s = A("customScrollParent"), i = Ct("windowScrollContainerState"), l = Ct("scrollContainerState"), c = s || r ? i : l, d = A("itemContent"), m = A("context"), v = A("groupContent"), p = A("trackItemSizes"), I = A("itemSize"), w = A("log"), R = Ct("gap"), h = A("horizontalDirection"), { callbackRef: f } = _n(o, I, p, e ? Jt : c, w, R, s, h, A("skipAnimationFrameInResizeObserver")), [a, S] = import_react.useState(0);
 	rn("deviation", (F) => {
 		a !== F && S(F);
@@ -72198,17 +72827,20 @@ var mr = /* @__PURE__ */ j(([t, e]) => ({
 			}, O ? d(F.index, F.groupIndex, F.data, m) : d(F.index, F.data, m));
 		})
 	});
-}), Ir = {
+});
+var Ir = {
 	height: "100%",
 	outline: "none",
 	overflowY: "auto",
 	position: "relative",
 	WebkitOverflowScrolling: "touch"
-}, Sr = {
+};
+var Sr = {
 	outline: "none",
 	overflowX: "auto",
 	position: "relative"
-}, He = (t) => ({
+};
+var He = (t) => ({
 	height: "100%",
 	position: "absolute",
 	top: 0,
@@ -72217,11 +72849,13 @@ var mr = /* @__PURE__ */ j(([t, e]) => ({
 		display: "flex",
 		flexDirection: "column"
 	} : void 0
-}), en = (t, e, n = 0) => ({
+});
+var en = (t, e, n = 0) => ({
 	...He(t),
 	position: e ? "relative" : "absolute",
 	top: e ? -n : 0
-}), xr = {
+});
+var xr = {
 	position: Qe(),
 	top: 0,
 	width: "100%",
@@ -72241,7 +72875,8 @@ var vr = /* @__PURE__ */ import_react.memo(function() {
 		ref: r,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
 	}) : null;
-}), Tr = /* @__PURE__ */ import_react.memo(function() {
+});
+var Tr = /* @__PURE__ */ import_react.memo(function() {
 	const e = A("FooterComponent"), n = Ct("footerHeight"), o = A("HeaderFooterTag"), r = Lt(import_react.useMemo(() => (i) => {
 		n(Ht(i, "height"));
 	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
@@ -77783,6 +78418,55 @@ var ColumnSelectorPopover = ({ showing, setShowing, columns, onVisibilityChange,
 	});
 };
 //#endregion
+//#region src/app/log-list/fileLogItem.ts
+/**
+* The path-derived part of a file item — id, display name, and url — or
+* `undefined` when the path isn't a file row of the view (folder mode: not
+* directly in the current directory; it displays through its folder
+* instead). Pure path logic: display toggles like retried-hiding live in
+* {@link fileLogItem}, so overview facts that need pre-hide membership (and
+* URL derivations that have only a name) can use this directly.
+*/
+var fileLogIdentity = (name, view) => {
+	if (view.mode === "tasks") {
+		const relativePath = directoryRelativeUrl(name, view.logDir);
+		const decodedPath = decodeURIComponent(relativePath);
+		return {
+			id: name,
+			name: decodedPath,
+			url: tasksUrl(decodedPath, view.logDir)
+		};
+	}
+	if (!isInDirectory(name, view.currentDir)) return void 0;
+	const dirName = directoryRelativeUrl(view.currentDir, view.logDir);
+	const relativePath = directoryRelativeUrl(name, view.currentDir);
+	const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+	return {
+		id: fileOrFolderName,
+		name: fileOrFolderName,
+		url: logsUrl(join(decodeURIComponent(relativePath), decodeURIComponent(dirName)), view.logDir)
+	};
+};
+/**
+* Map a listing row to the file item it displays as under `view`, or
+* `undefined` when the view has no file row for it: a retried run while
+* retried logs are hidden, or (folder mode) a file that isn't directly in
+* the current directory.
+*
+* This is the row-universe membership + identity function for the log list:
+* LogsPanel builds its items through it, and the listing query applies it to
+* database records, so the two can never disagree about which files are rows.
+*/
+var fileLogItem = (logFile, view) => {
+	if (!view.showRetriedLogs && logFile.retried) return void 0;
+	const identity = fileLogIdentity(logFile.name, view);
+	return identity === void 0 ? void 0 : {
+		...identity,
+		type: "file",
+		log: logFile
+	};
+};
+//#endregion
 //#region src/utils/evallog.ts
 var kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
 /** Log file names carry a filesystem-safe ISO timestamp (colons replaced
@@ -77889,7 +78573,7 @@ var styles = {
 };
 var EmptyCell$1 = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: "-" });
 var kNoScorerMap = {};
-var kNoListingRows$1 = [];
+var kNoListingRows = [];
 var displayModelRoles = (row) => {
 	if (!row) return [];
 	if (row.model && row.model !== "none/none") return [];
@@ -78426,7 +79110,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		}
 		return allCols;
 	}, [scorerMap, mode]);
-	const listingRows = useLogListing(logDir).data ?? kNoListingRows$1;
+	const listingRows = useLogListing(logDir).data ?? kNoListingRows;
 	const hasSampleLimits = (0, import_react.useMemo)(() => {
 		const prefix = scopeDir ? scopePrefix(scopeDir) : void 0;
 		return listingRows.some((row) => (!prefix || row.name.startsWith(prefix)) && (row.header?.sampleLimits.length ?? 0) > 0);
@@ -78491,6 +79175,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		}, [columnsById]),
 		getComparator: (0, import_react.useCallback)((columnId) => columnsById.get(columnId)?.meta?.sortComparator, [columnsById]),
 		getFilterType: (0, import_react.useCallback)((columnId) => columnsById.get(columnId)?.meta?.filterType, [columnsById]),
+		accessorsKey: (0, import_react.useMemo)(() => Object.entries(scorerMap).map(([key, { valueType }]) => `${key}:${valueType}`).sort().join(","), [scorerMap]),
 		setColumnVisibility
 	};
 };
@@ -80922,7 +81607,7 @@ function useReactTable(options) {
 	return tableRef.current;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.3/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function createLazyMeasurementsView(count, flat, getItemKey) {
 	const cache = new Array(count);
 	return new Proxy(cache, { get(target, prop, receiver) {
@@ -80952,7 +81637,7 @@ function createLazyMeasurementsView(count, flat, getItemKey) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.3/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$8(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -80984,7 +81669,7 @@ var debounce = (targetWindow, fn, ms) => {
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.3/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -81290,6 +81975,9 @@ var Virtualizer = class {
 				this.rafId = null;
 			}
 			this.scrollState = null;
+			this._iosDeferredAdjustment = 0;
+			this._iosTouching = false;
+			this._iosJustTouchEnded = false;
 			this.scrollElement = null;
 			this.targetWindow = null;
 		};
@@ -81411,22 +82099,6 @@ var Virtualizer = class {
 			this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
 			return this.scrollOffset;
 		};
-		this.getFurthestMeasurement = (measurements, index) => {
-			const furthestMeasurementsFound = /* @__PURE__ */ new Map();
-			const furthestMeasurements = /* @__PURE__ */ new Map();
-			for (let m = index - 1; m >= 0; m--) {
-				const measurement = measurements[m];
-				if (furthestMeasurementsFound.has(measurement.lane)) continue;
-				const previousFurthestMeasurement = furthestMeasurements.get(measurement.lane);
-				if (previousFurthestMeasurement == null || measurement.end > previousFurthestMeasurement.end) furthestMeasurements.set(measurement.lane, measurement);
-				else if (measurement.end < previousFurthestMeasurement.end) furthestMeasurementsFound.set(measurement.lane, true);
-				if (furthestMeasurementsFound.size === this.options.lanes) break;
-			}
-			return furthestMeasurements.size === this.options.lanes ? Array.from(furthestMeasurements.values()).sort((a, b) => {
-				if (a.end === b.end) return a.index - b.index;
-				return a.end - b.end;
-			})[0] : void 0;
-		};
 		this.getMeasurementOptions = memo$8(() => [
 			this.options.count,
 			this.options.paddingStart,
@@ -81434,8 +82106,9 @@ var Virtualizer = class {
 			this.options.getItemKey,
 			this.options.enabled,
 			this.options.lanes,
-			this.options.laneAssignmentMode
-		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode) => {
+			this.options.laneAssignmentMode,
+			this.options.gap
+		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap) => {
 			if (this.prevLanes !== void 0 && this.prevLanes !== lanes) this.lanesChangedFlag = true;
 			this.prevLanes = lanes;
 			this.pendingMin = null;
@@ -81446,10 +82119,11 @@ var Virtualizer = class {
 				getItemKey,
 				enabled,
 				lanes,
-				laneAssignmentMode
+				laneAssignmentMode,
+				gap
 			};
 		}, { key: false });
-		this.getMeasurements = memo$8(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode }, _itemSizeCacheVersion) => {
+		this.getMeasurements = memo$8(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap }, _itemSizeCacheVersion) => {
 			const itemSizeCache = this.itemSizeCache;
 			if (!enabled) {
 				this.measurementsCache = [];
@@ -81478,7 +82152,6 @@ var Virtualizer = class {
 			this.pendingMin = null;
 			if (this.lanesSettling && this.measurementsCache.length === count) this.lanesSettling = false;
 			if (lanes === 1) {
-				const gap = this.options.gap;
 				const need = count * 2;
 				let flat = this._flatMeasurements;
 				if (!flat || flat.length < need) {
@@ -81507,9 +82180,15 @@ var Virtualizer = class {
 			}
 			const measurements = this.measurementsCache.slice(0, min);
 			const laneLastIndex = new Array(lanes).fill(void 0);
+			const laneEnds = new Float64Array(lanes);
+			let filledLanes = 0;
 			for (let m = 0; m < min; m++) {
 				const item = measurements[m];
-				if (item) laneLastIndex[item.lane] = m;
+				if (item) {
+					if (laneLastIndex[item.lane] === void 0) filledLanes++;
+					laneLastIndex[item.lane] = m;
+					laneEnds[item.lane] = item.end;
+				}
 			}
 			for (let i = min; i < count; i++) {
 				const key = getItemKey(i);
@@ -81521,12 +82200,26 @@ var Virtualizer = class {
 					lane = cachedLane;
 					const prevIndex = laneLastIndex[lane];
 					const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
-					start = prevInLane ? prevInLane.end + this.options.gap : paddingStart + scrollMargin;
+					start = prevInLane ? prevInLane.end + gap : paddingStart + scrollMargin;
+				} else if (filledLanes === lanes) {
+					let bestLane = 0;
+					let bestEnd = laneEnds[0];
+					let bestIdx = laneLastIndex[0];
+					for (let l = 1; l < lanes; l++) {
+						const e = laneEnds[l];
+						if (e < bestEnd || e === bestEnd && laneLastIndex[l] < bestIdx) {
+							bestLane = l;
+							bestEnd = e;
+							bestIdx = laneLastIndex[l];
+						}
+					}
+					lane = bestLane;
+					start = bestEnd + gap;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
 				} else {
-					const furthestMeasurement = this.options.lanes === 1 ? measurements[i - 1] : this.getFurthestMeasurement(measurements, i);
-					start = furthestMeasurement ? furthestMeasurement.end + this.options.gap : paddingStart + scrollMargin;
-					lane = furthestMeasurement ? furthestMeasurement.lane : i % this.options.lanes;
-					if (this.options.lanes > 1 && shouldCacheLane) this.laneAssignments.set(i, lane);
+					lane = i % this.options.lanes;
+					start = paddingStart + scrollMargin;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
 				}
 				const measuredSize = itemSizeCache.get(key);
 				const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
@@ -81539,7 +82232,9 @@ var Virtualizer = class {
 					key,
 					lane
 				};
+				if (laneLastIndex[lane] === void 0) filledLanes++;
 				laneLastIndex[lane] = i;
+				laneEnds[lane] = end;
 			}
 			this.measurementsCache = measurements;
 			return measurements;
@@ -81974,7 +82669,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.5_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.6_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -83676,23 +84371,27 @@ function primitiveText(value) {
 	}
 }
 /**
-* Search index for the grid find band: lowercased plain-text per row id,
-* built from the visible columns' `textValue` (display formatting) or raw
-* accessor value. Data-level — searches all rows, not just the virtualized
-* window. Insertion order follows `rows`, so match order is row order.
+* One row's searchable text: lowercased plain-text built from the visible
+* columns' `textValue` (display formatting) or raw accessor value.
+*/
+function rowSearchText(row, columns) {
+	const parts = [];
+	for (const column of columns) {
+		let text = null;
+		if (column.textValue) text = column.textValue(row);
+		else if ("accessorFn" in column && column.accessorFn) text = primitiveText(column.accessorFn(row, 0));
+		if (text) parts.push(text);
+	}
+	return parts.join("\n").toLowerCase();
+}
+/**
+* Search index for the grid find band: searchable text per row id.
+* Data-level — searches all rows, not just the virtualized window.
+* Insertion order follows `rows`, so match order is row order.
 */
 function buildSearchIndex(rows, columns, getRowId) {
 	const index = /* @__PURE__ */ new Map();
-	for (const row of rows) {
-		const parts = [];
-		for (const column of columns) {
-			let text = null;
-			if (column.textValue) text = column.textValue(row);
-			else if ("accessorFn" in column && column.accessorFn) text = primitiveText(column.accessorFn(row, 0));
-			if (text) parts.push(text);
-		}
-		index.set(getRowId(row), parts.join("\n").toLowerCase());
-	}
+	for (const row of rows) index.set(getRowId(row), rowSearchText(row, columns));
 	return index;
 }
 /** Row ids whose search text contains `term` (case-insensitive), in row
@@ -83703,202 +84402,6 @@ function findMatches(index, term) {
 	const ids = [];
 	for (const [id, text] of index) if (text.includes(lowerTerm)) ids.push(id);
 	return ids;
-}
-//#endregion
-//#region src/app/log-list/grid/LogListGrid.tsx
-var LogListGrid = ({ rows, totalRowCount, sorting, columnFilters, currentPath, scopeKey, mode = "logs", busy }) => {
-	const { gridStateByScope, patchGridState } = useLogsListing();
-	const navigate = useNavigate();
-	const scopeDir = mode === "logs" ? currentPath : void 0;
-	const [scoresViewMode] = useProperty("log-list-scores-view", "mode", { defaultValue: "by-metric" });
-	const { columns, visibility } = useLogListColumns(mode, scopeDir, scoresViewMode);
-	const handleRowActivate = (0, import_react.useCallback)((row) => {
-		if (row.url) navigate(row.url);
-	}, [navigate]);
-	const columnSizing = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnSizing : void 0, [gridStateByScope, scopeKey]);
-	const columnOrder = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnOrder : void 0, [gridStateByScope, scopeKey]);
-	const persistedSelectedId = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.selectedRowId : void 0, [gridStateByScope, scopeKey]);
-	const handleSortingChange = (0, import_react.useCallback)((next) => {
-		if (scopeKey) patchGridState(scopeKey, { sorting: next });
-	}, [scopeKey, patchGridState]);
-	const handleColumnFilterChange = (0, import_react.useCallback)((columnId, filterType, spec) => {
-		if (!scopeKey) return;
-		const next = { ...columnFilters };
-		if (spec === null) delete next[columnId];
-		else next[columnId] = {
-			columnId,
-			filterType,
-			spec
-		};
-		patchGridState(scopeKey, { columnFilters: next });
-	}, [
-		scopeKey,
-		patchGridState,
-		columnFilters
-	]);
-	const handleColumnSizingChange = (0, import_react.useCallback)((next) => {
-		if (scopeKey) patchGridState(scopeKey, { columnSizing: next });
-	}, [scopeKey, patchGridState]);
-	const handleColumnOrderChange = (0, import_react.useCallback)((next) => {
-		if (scopeKey) patchGridState(scopeKey, { columnOrder: next });
-	}, [scopeKey, patchGridState]);
-	const persistSelectedId = (0, import_react.useCallback)((id) => {
-		if (scopeKey) patchGridState(scopeKey, { selectedRowId: id });
-	}, [scopeKey, patchGridState]);
-	const openBandMatchIdRef = (0, import_react.useRef)(void 0);
-	const handleSelectedRowChange = (0, import_react.useCallback)((row) => {
-		openBandMatchIdRef.current = void 0;
-		persistSelectedId(row.id);
-	}, [persistSelectedId]);
-	const [showFind, setShowFind] = (0, import_react.useState)(false);
-	const [findTerm, setFindTerm] = (0, import_react.useState)("");
-	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
-	const findInputRef = (0, import_react.useRef)(null);
-	const searchColumns = (0, import_react.useMemo)(() => columns.filter((col) => col.id !== void 0 && visibility[col.id]), [columns, visibility]);
-	const searchIndex = (0, import_react.useMemo)(() => showFind ? buildSearchIndex(rows, searchColumns, (row) => row.id) : void 0, [
-		showFind,
-		rows,
-		searchColumns
-	]);
-	const matchIds = (0, import_react.useMemo)(() => searchIndex ? findMatches(searchIndex, findTerm) : [], [searchIndex, findTerm]);
-	const handleFindTermChange = (0, import_react.useCallback)(() => {
-		setFindTerm(findInputRef.current?.value ?? "");
-		setCurrentMatchIndex(0);
-	}, []);
-	const goToMatch = (0, import_react.useCallback)((index) => {
-		if (matchIds.length === 0) return;
-		setCurrentMatchIndex((index % matchIds.length + matchIds.length) % matchIds.length);
-	}, [matchIds.length]);
-	const activeMatchIndex = Math.min(currentMatchIndex, Math.max(matchIds.length - 1, 0));
-	const activeMatchId = matchIds.length > 0 ? matchIds[activeMatchIndex] : void 0;
-	const closeFind = (0, import_react.useCallback)(() => {
-		const id = openBandMatchIdRef.current;
-		if (id !== void 0) persistSelectedId(id);
-		openBandMatchIdRef.current = void 0;
-		setShowFind(false);
-		setFindTerm("");
-		setCurrentMatchIndex(0);
-	}, [persistSelectedId]);
-	(0, import_react.useEffect)(() => {
-		openBandMatchIdRef.current = showFind ? activeMatchId : void 0;
-	}, [showFind, activeMatchId]);
-	(0, import_react.useEffect)(() => () => {
-		const id = openBandMatchIdRef.current;
-		if (id !== void 0) persistSelectedId(id);
-	}, [persistSelectedId]);
-	const handleFindInputKeyDown = (0, import_react.useCallback)((e) => {
-		if (e.key === "Escape") closeFind();
-		else if (e.key === "Enter") {
-			e.preventDefault();
-			goToMatch(activeMatchIndex + (e.shiftKey ? -1 : 1));
-		}
-	}, [
-		goToMatch,
-		activeMatchIndex,
-		closeFind
-	]);
-	useFindBandShortcut((0, import_react.useCallback)(() => {
-		setShowFind(true);
-		setTimeout(() => findInputRef.current?.focus(), 100);
-	}, []), {
-		onClose: closeFind,
-		isOpen: showFind
-	});
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(gridCells_module_default.gridWrapper),
-		children: [showFind && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FindBandUI, {
-			inputRef: findInputRef,
-			value: findTerm,
-			onChange: handleFindTermChange,
-			onKeyDown: handleFindInputKeyDown,
-			onClose: closeFind,
-			onPrevious: () => goToMatch(activeMatchIndex - 1),
-			onNext: () => goToMatch(activeMatchIndex + 1),
-			disableNav: matchIds.length === 0,
-			noResults: !!findTerm && matchIds.length === 0,
-			matchCount: findTerm ? matchIds.length : void 0,
-			matchIndex: findTerm ? activeMatchIndex : void 0
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(gridCells_module_default.gridContainer),
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DataGrid, {
-				data: rows,
-				columns,
-				columnVisibility: visibility,
-				sorting,
-				onSortingChange: handleSortingChange,
-				columnFilters,
-				onColumnFilterChange: handleColumnFilterChange,
-				columnSizing,
-				onColumnSizingChange: handleColumnSizingChange,
-				columnOrder,
-				onColumnOrderChange: handleColumnOrderChange,
-				getRowId: (row) => row.id,
-				selectedRowId: activeMatchId ?? persistedSelectedId,
-				onSelectedRowChange: handleSelectedRowChange,
-				onRowActivate: handleRowActivate,
-				autoFocus: true,
-				ariaLabel: "Evaluation logs",
-				loading: totalRowCount === 0 && busy
-			}, scopeKey ?? "pending")
-		})]
-	});
-};
-//#endregion
-//#region src/app/shared/useKeyedMemo.ts
-var shallowEqual = (a, b) => {
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
-	return true;
-};
-/**
-* Map a list to derived values, reusing the prior output object for any item
-* whose per-item deps are unchanged.
-*
-* `useMemo` is all-or-nothing: any dep change rebuilds every element, handing
-* a consumer (e.g. a data grid's row list) all-new identities and forcing a full refresh.
-* This keeps a per-key cache so only the items that actually changed get a new
-* object — the rest keep reference identity. Reuse is gated on `itemDeps`, so
-* the cache must be pure: same deps must always yield the same value.
-*
-* The list is re-walked on every render; reuse keeps that cheap (a shallow dep
-* compare per item, builds only on change). The returned array keeps the same
-* reference when nothing changed, so consumers that key off its identity (deps
-* arrays, a grid's row-data diff) don't re-run on unrelated renders.
-*/
-function useKeyedMemo(source, getKey, itemDeps, build) {
-	"use no memo";
-	const cacheRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
-	const resultRef = (0, import_react.useRef)([]);
-	const prev = cacheRef.current;
-	const next = /* @__PURE__ */ new Map();
-	let changed = source.length !== resultRef.current.length;
-	const result = source.map((item, i) => {
-		const key = getKey(item);
-		const deps = itemDeps(item);
-		const hit = prev.get(key);
-		const value = hit && shallowEqual(hit.deps, deps) ? hit.value : build(item);
-		next.set(key, {
-			deps,
-			value
-		});
-		if (!changed && resultRef.current[i] !== value) changed = true;
-		return value;
-	});
-	cacheRef.current = next;
-	if (changed) resultRef.current = result;
-	return resultRef.current;
-}
-//#endregion
-//#region src/app/log-list/listing/combineFilters.ts
-/**
-* AND-combine a scope's per-column filter specs into a single `Condition`
-* (`undefined` when none are active). Mirrors scout's `useFilterConditions`.
-* Entries persisted by pre-FilterSpec builds (which stored a compiled
-* `condition`) fail the guard and are dropped.
-*/
-function combineFilters(columnFilters) {
-	if (!columnFilters) return void 0;
-	return Object.values(columnFilters).map((f) => isColumnFilter(f) ? specToCondition(f.columnId, f.filterType, f.spec) : null).filter((c) => c !== null && c !== void 0).reduce((acc, c) => acc ? acc.and(c) : c, void 0);
 }
 //#endregion
 //#region src/app/log-list/listing/evaluator.ts
@@ -84022,19 +84525,42 @@ function compareByOrderBy(orderBy, getValue, getComparator) {
 	};
 }
 //#endregion
-//#region src/app/log-list/listing/applyListingQuery.ts
-var paginate = (rows, pagination) => {
-	if (!pagination) return {
-		page: rows,
-		next_cursor: null
-	};
-	const offset = pagination.cursor && typeof pagination.cursor.offset === "number" ? pagination.cursor.offset : 0;
-	const end = offset + pagination.limit;
+//#region src/app/log-list/listing/planner.ts
+/**
+* Compile the wire filter and ordering into record-level listing operations.
+*
+* `compare` has no position tiebreak: executors sort stably over the
+* source's listing order, so ties (and the unsorted listing) keep it.
+*/
+var createListingPlan = (query) => {
+	const { filter, getValue, getFilterType, getComparator, pagination } = query;
+	const orderBy = query.orderBy ? Array.isArray(query.orderBy) ? query.orderBy : [query.orderBy] : [];
 	return {
-		page: rows.slice(offset, end),
-		next_cursor: end < rows.length ? { offset: end } : null
+		matches: filter ? (row) => evaluateCondition(row, filter, getValue, getFilterType) : () => true,
+		compare: orderBy.length > 0 ? compareByOrderBy(orderBy, getValue, getComparator) : void 0,
+		pagination
 	};
 };
+//#endregion
+//#region src/app/log-list/listing/applyListingQuery.ts
+/**
+* Merge two individually-sorted row lists into one sorted list; ties place
+* `base` rows first. Without a comparator the overlay is appended (the
+* unsorted listing shows transient rows after files). This is how transient
+* rows (e.g. pending tasks, which have no database record) join a
+* database-produced page without forcing the whole listing back into memory.
+*/
+function mergeSortedRows(base, overlay, compare) {
+	if (overlay.length === 0) return base;
+	if (!compare || base.length === 0) return [...base, ...overlay];
+	const merged = [];
+	let i = 0;
+	let j = 0;
+	while (i < base.length && j < overlay.length) merged.push(compare(base[i], overlay[j]) <= 0 ? base[i++] : overlay[j++]);
+	while (i < base.length) merged.push(base[i++]);
+	while (j < overlay.length) merged.push(overlay[j++]);
+	return merged;
+}
 /**
 * TRANSITIONAL client-side stand-in for a server `getLogsListing(dir, filter,
 * orderBy, pagination)`. Filters → sorts → paginates the in-memory rows and
@@ -84042,18 +84568,13 @@ var paginate = (rows, pagination) => {
 * by an API fetch; the react-query boundary above it stays.
 */
 function applyListingQuery(rows, query) {
-	const { filter, orderBy, pagination, getValue, getComparator, getFilterType } = query;
-	let result = filter ? rows.filter((row) => evaluateCondition(row, filter, getValue, getFilterType)) : rows;
-	if (orderBy) {
-		const orderArr = Array.isArray(orderBy) ? orderBy : [orderBy];
-		if (orderArr.length > 0) result = [...result].sort(compareByOrderBy(orderArr, getValue, getComparator));
-	}
+	const plan = createListingPlan(query);
+	let result = rows.filter(plan.matches);
+	if (plan.compare) result = [...result].sort(plan.compare);
 	const total_count = result.length;
-	const { page, next_cursor } = paginate(result, pagination);
 	return {
-		items: page,
-		total_count,
-		next_cursor
+		...pageRows(result, plan.pagination),
+		total_count
 	};
 }
 //#endregion
@@ -84064,13 +84585,11 @@ var sortingStateToOrderBy = (sorting) => sorting.map((s) => ({
 	direction: s.desc ? "DESC" : "ASC"
 }));
 /**
-* The log listing query: filter + sort + paginate over the rows. Mirrors
-* scout's `getTranscripts(filter, orderBy, pagination)` tail and response shape.
-*
-* Client-side for now — a derived `useMemo` over the (reactive) rows. The async
-* data source already lives in the react-query logs-content cache; when inspect
-* moves filter/sort server-side this hook becomes a `useQuery` that fetches a
-* filtered/sorted page instead.
+* The generic in-memory listing query: filter + sort + paginate over the
+* rows. Mirrors scout's `getTranscripts(filter, orderBy, pagination)` tail
+* and response shape. Retained for samples listings, which don't have a
+* database-backed path yet — the log list uses
+* {@link useDatabaseLogsListingQuery}.
 */
 function useLogsListingQuery({ rows, filter, orderBy, pagination, getValue, getComparator, getFilterType }) {
 	return (0, import_react.useMemo)(() => applyListingQuery(rows, {
@@ -84090,8 +84609,255 @@ function useLogsListingQuery({ rows, filter, orderBy, pagination, getValue, getC
 		getFilterType
 	]);
 }
+/**
+* The log listing query: rows are read from the listing source (IndexedDB
+* in dir mode — see `readLogsListing`) and shaped per view inside the
+* queryFn, so the full row list never has to live in memory for the grid's
+* sake. Results are asynchronous by design: the first read shows whatever
+* has replicated so far, and the write path's throttled invalidation
+* streams further rows in as they land. `loading` covers hydration and the
+* universe's first read; within one universe a re-filter/sort reports the
+* previous result as `data` (no loading flash) until the new read lands.
+*/
+function useDatabaseLogsListingQuery({ filter, orderBy, pagination, getValue, getComparator, getFilterType, accessorsKey, listing }) {
+	const { logDir, prefix, universe, toRow } = listing;
+	return useAsyncDataFromQuery({
+		queryKey: databaseLogsListingKey(universe, accessorsKey, filter, orderBy, pagination),
+		queryFn: () => readLogsListing(logDir, prefix, toRow, createListingPlan({
+			filter,
+			orderBy,
+			pagination,
+			getValue,
+			getComparator,
+			getFilterType
+		})),
+		enabled: universe !== void 0,
+		placeholderData: (previousData, previousQuery) => universe !== void 0 && previousQuery !== void 0 && listingKeyUniverse(previousQuery.queryKey) === universe ? previousData : void 0,
+		staleTime: 0,
+		gcTime: 3e4,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false
+	});
+}
+/**
+* The find band's data-level match query, beside the row query so the two
+* share key shape and universe semantics: the key is the row query's key
+* (same universe slot, so `listingKeyUniverse` and the root invalidation
+* cover both) extended with the find-only inputs, and the placeholder keeps
+* previous matches only within one universe — folder-mode row ids are
+* basenames, so another directory's ids could otherwise mark unrelated
+* same-named rows as matches while a scope change's refetch is in flight.
+*/
+function useLogsListingMatches({ filter, orderBy, getValue, getComparator, getFilterType, accessorsKey, listing, term, enabled, getRowId, rowText, searchKey }) {
+	const [matchTerm, setMatchTerm] = (0, import_react.useState)("");
+	const syncMatchTerm = useDebouncedCallback(() => setMatchTerm(term), 100);
+	(0, import_react.useEffect)(() => {
+		syncMatchTerm();
+	}, [term, syncMatchTerm]);
+	const reset = (0, import_react.useCallback)(() => {
+		syncMatchTerm.cancel();
+		setMatchTerm("");
+	}, [syncMatchTerm]);
+	const { logDir, prefix, universe, toRow } = listing;
+	const query = useQuery({
+		queryKey: [
+			...databaseLogsListingKey(universe, accessorsKey, filter, orderBy),
+			"find",
+			matchTerm,
+			searchKey
+		],
+		queryFn: () => readLogsListingMatches(logDir, prefix, toRow, createListingPlan({
+			filter,
+			orderBy,
+			getValue,
+			getComparator,
+			getFilterType
+		}), {
+			term: matchTerm,
+			getRowId,
+			rowText
+		}),
+		enabled: enabled && matchTerm !== "" && universe !== void 0,
+		placeholderData: (previousData, previousQuery) => universe !== void 0 && previousQuery !== void 0 && listingKeyUniverse(previousQuery.queryKey) === universe ? previousData : void 0,
+		staleTime: 0,
+		gcTime: 3e4,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false
+	});
+	return {
+		ids: query.data,
+		settled: term === matchTerm && !query.isPending && !query.isPlaceholderData && !query.isError,
+		reset
+	};
+}
 //#endregion
-//#region src/app/log-list/grid/useLogListData.ts
+//#region src/app/log-list/grid/LogListGrid.tsx
+var LogListGrid = ({ rows, totalRowCount, sorting, columnFilters, filter, orderBy, currentPath, scopeKey, mode = "logs", busy, listing }) => {
+	const { gridStateByScope, patchGridState } = useLogsListing();
+	const navigate = useNavigate();
+	const scopeDir = mode === "logs" ? currentPath : void 0;
+	const [scoresViewMode] = useProperty("log-list-scores-view", "mode", { defaultValue: "by-metric" });
+	const { columns, visibility, getValue, getComparator, getFilterType, accessorsKey } = useLogListColumns(mode, scopeDir, scoresViewMode);
+	const handleRowActivate = (0, import_react.useCallback)((row) => {
+		if (row.url) navigate(row.url);
+	}, [navigate]);
+	const columnSizing = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnSizing : void 0, [gridStateByScope, scopeKey]);
+	const columnOrder = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnOrder : void 0, [gridStateByScope, scopeKey]);
+	const persistedSelectedId = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.selectedRowId : void 0, [gridStateByScope, scopeKey]);
+	const handleSortingChange = (0, import_react.useCallback)((next) => {
+		if (scopeKey) patchGridState(scopeKey, { sorting: next });
+	}, [scopeKey, patchGridState]);
+	const handleColumnFilterChange = (0, import_react.useCallback)((columnId, filterType, spec) => {
+		if (!scopeKey) return;
+		const next = { ...columnFilters };
+		if (spec === null) delete next[columnId];
+		else next[columnId] = {
+			columnId,
+			filterType,
+			spec
+		};
+		patchGridState(scopeKey, { columnFilters: next });
+	}, [
+		scopeKey,
+		patchGridState,
+		columnFilters
+	]);
+	const handleColumnSizingChange = (0, import_react.useCallback)((next) => {
+		if (scopeKey) patchGridState(scopeKey, { columnSizing: next });
+	}, [scopeKey, patchGridState]);
+	const handleColumnOrderChange = (0, import_react.useCallback)((next) => {
+		if (scopeKey) patchGridState(scopeKey, { columnOrder: next });
+	}, [scopeKey, patchGridState]);
+	const persistSelectedId = (0, import_react.useCallback)((id) => {
+		if (scopeKey) patchGridState(scopeKey, { selectedRowId: id });
+	}, [scopeKey, patchGridState]);
+	const openBandMatchIdRef = (0, import_react.useRef)(void 0);
+	const handleSelectedRowChange = (0, import_react.useCallback)((row) => {
+		openBandMatchIdRef.current = void 0;
+		persistSelectedId(row.id);
+	}, [persistSelectedId]);
+	const [showFind, setShowFind] = (0, import_react.useState)(false);
+	const [findTerm, setFindTerm] = (0, import_react.useState)("");
+	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
+	const findInputRef = (0, import_react.useRef)(null);
+	const searchColumns = (0, import_react.useMemo)(() => columns.filter((col) => col.id !== void 0 && visibility[col.id]), [columns, visibility]);
+	const searchKey = (0, import_react.useMemo)(() => searchColumns.map((col) => col.id ?? ""), [searchColumns]);
+	const rowText = (0, import_react.useCallback)((row) => rowSearchText(row, searchColumns), [searchColumns]);
+	const fileMatches = useLogsListingMatches({
+		filter,
+		orderBy,
+		getValue,
+		getComparator,
+		getFilterType,
+		accessorsKey,
+		listing,
+		term: findTerm,
+		enabled: showFind,
+		getRowId: (0, import_react.useCallback)((row) => row.id, []),
+		rowText,
+		searchKey
+	});
+	const { reset: resetMatches } = fileMatches;
+	const overlayIndex = (0, import_react.useMemo)(() => showFind ? buildSearchIndex(rows.filter((row) => row.type !== "file"), searchColumns, (row) => row.id) : void 0, [
+		showFind,
+		rows,
+		searchColumns
+	]);
+	const matchIds = (0, import_react.useMemo)(() => {
+		if (!findTerm) return [];
+		const matchSet = /* @__PURE__ */ new Set([...fileMatches.ids ?? [], ...overlayIndex ? findMatches(overlayIndex, findTerm) : []]);
+		return rows.filter((row) => matchSet.has(row.id)).map((row) => row.id);
+	}, [
+		findTerm,
+		fileMatches.ids,
+		overlayIndex,
+		rows
+	]);
+	const handleFindTermChange = (0, import_react.useCallback)(() => {
+		setFindTerm(findInputRef.current?.value ?? "");
+		setCurrentMatchIndex(0);
+	}, []);
+	const goToMatch = (0, import_react.useCallback)((index) => {
+		if (matchIds.length === 0) return;
+		setCurrentMatchIndex((index % matchIds.length + matchIds.length) % matchIds.length);
+	}, [matchIds.length]);
+	const activeMatchIndex = Math.min(currentMatchIndex, Math.max(matchIds.length - 1, 0));
+	const activeMatchId = matchIds.length > 0 ? matchIds[activeMatchIndex] : void 0;
+	const closeFind = (0, import_react.useCallback)(() => {
+		const id = openBandMatchIdRef.current;
+		if (id !== void 0) persistSelectedId(id);
+		openBandMatchIdRef.current = void 0;
+		setShowFind(false);
+		setFindTerm("");
+		resetMatches();
+		setCurrentMatchIndex(0);
+	}, [persistSelectedId, resetMatches]);
+	(0, import_react.useEffect)(() => {
+		openBandMatchIdRef.current = showFind ? activeMatchId : void 0;
+	}, [showFind, activeMatchId]);
+	(0, import_react.useEffect)(() => () => {
+		const id = openBandMatchIdRef.current;
+		if (id !== void 0) persistSelectedId(id);
+	}, [persistSelectedId]);
+	const handleFindInputKeyDown = (0, import_react.useCallback)((e) => {
+		if (e.key === "Escape") closeFind();
+		else if (e.key === "Enter") {
+			e.preventDefault();
+			goToMatch(activeMatchIndex + (e.shiftKey ? -1 : 1));
+		}
+	}, [
+		goToMatch,
+		activeMatchIndex,
+		closeFind
+	]);
+	useFindBandShortcut((0, import_react.useCallback)(() => {
+		setShowFind(true);
+		setTimeout(() => findInputRef.current?.focus(), 100);
+	}, []), {
+		onClose: closeFind,
+		isOpen: showFind
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(gridCells_module_default.gridWrapper),
+		children: [showFind && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FindBandUI, {
+			inputRef: findInputRef,
+			value: findTerm,
+			onChange: handleFindTermChange,
+			onKeyDown: handleFindInputKeyDown,
+			onClose: closeFind,
+			onPrevious: () => goToMatch(activeMatchIndex - 1),
+			onNext: () => goToMatch(activeMatchIndex + 1),
+			disableNav: matchIds.length === 0,
+			noResults: !!findTerm && matchIds.length === 0 && fileMatches.settled,
+			matchCount: findTerm ? matchIds.length : void 0,
+			matchIndex: findTerm ? activeMatchIndex : void 0
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(gridCells_module_default.gridContainer),
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DataGrid, {
+				data: rows,
+				columns,
+				columnVisibility: visibility,
+				sorting,
+				onSortingChange: handleSortingChange,
+				columnFilters,
+				onColumnFilterChange: handleColumnFilterChange,
+				columnSizing,
+				onColumnSizingChange: handleColumnSizingChange,
+				columnOrder,
+				onColumnOrderChange: handleColumnOrderChange,
+				getRowId: (row) => row.id,
+				selectedRowId: activeMatchId ?? persistedSelectedId,
+				onSelectedRowChange: handleSelectedRowChange,
+				onRowActivate: handleRowActivate,
+				autoFocus: true,
+				ariaLabel: "Evaluation logs",
+				loading: totalRowCount === 0 && busy
+			})
+		})]
+	});
+};
+//#endregion
+//#region src/app/log-list/grid/logListRow.ts
 var rowForItem = (item) => item.type === "file" ? item.log : void 0;
 var buildLogListRow = (item) => {
 	const log = rowForItem(item);
@@ -84130,51 +84896,154 @@ var buildLogListRow = (item) => {
 	if (derived?.scores) for (const [scorerName, metrics] of Object.entries(derived.scores)) for (const [metricName, value] of Object.entries(metrics)) row[`score_${scorerName}/${metricName}`] = value;
 	return row;
 };
+//#endregion
+//#region src/app/shared/useKeyedMemo.ts
+var shallowEqual = (a, b) => {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+	return true;
+};
 /**
-* The log-list data pipeline: shape items into rows, apply the scope's
-* persisted sorting/filters via the listing query, and pin folders on top.
-* Called by LogsPanel (the panel owns shaping — see `useLogsListingQuery`);
-* the grid just renders the result.
+* Map a list to derived values, reusing the prior output object for any item
+* whose per-item deps are unchanged.
+*
+* `useMemo` is all-or-nothing: any dep change rebuilds every element, handing
+* a consumer (e.g. a data grid's row list) all-new identities and forcing a full refresh.
+* This keeps a per-key cache so only the items that actually changed get a new
+* object — the rest keep reference identity. Reuse is gated on `itemDeps`, so
+* the cache must be pure: same deps must always yield the same value.
+*
+* The list is re-walked on every render; reuse keeps that cheap (a shallow dep
+* compare per item, builds only on change). The returned array keeps the same
+* reference when nothing changed, so consumers that key off its identity (deps
+* arrays, a grid's row-data diff) don't re-run on unrelated renders.
 */
-var useLogListData = ({ items, scopeKey, getValue, getComparator, getFilterType }) => {
+function useKeyedMemo(source, getKey, itemDeps, build) {
+	"use no memo";
+	const cacheRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
+	const resultRef = (0, import_react.useRef)([]);
+	const prev = cacheRef.current;
+	const next = /* @__PURE__ */ new Map();
+	let changed = source.length !== resultRef.current.length;
+	const result = source.map((item, i) => {
+		const key = getKey(item);
+		const deps = itemDeps(item);
+		const hit = prev.get(key);
+		const value = hit && shallowEqual(hit.deps, deps) ? hit.value : build(item);
+		next.set(key, {
+			deps,
+			value
+		});
+		if (!changed && resultRef.current[i] !== value) changed = true;
+		return value;
+	});
+	cacheRef.current = next;
+	if (changed) resultRef.current = result;
+	return resultRef.current;
+}
+//#endregion
+//#region src/app/log-list/listing/combineFilters.ts
+/**
+* AND-combine a scope's per-column filter specs into a single `Condition`
+* (`undefined` when none are active). Mirrors scout's `useFilterConditions`.
+* Entries persisted by pre-FilterSpec builds (which stored a compiled
+* `condition`) fail the guard and are dropped.
+*/
+function combineFilters(columnFilters) {
+	if (!columnFilters) return void 0;
+	return Object.values(columnFilters).map((f) => isColumnFilter(f) ? specToCondition(f.columnId, f.filterType, f.spec) : null).filter((c) => c !== null && c !== void 0).reduce((acc, c) => acc ? acc.and(c) : c, void 0);
+}
+//#endregion
+//#region src/app/log-list/grid/useLogListData.ts
+var kNoRows = [];
+/** Pending rows minus the tasks that already have a file row in `fileRows`
+*  (pending row ids are task ids; file rows carry their record's task_id). */
+var dropSettledPendingRows = (pendingRows, fileRows) => {
+	if (pendingRows.length === 0 || fileRows.length === 0) return pendingRows;
+	const fileTaskIds = /* @__PURE__ */ new Set();
+	for (const row of fileRows) {
+		const taskId = row.log?.task_id;
+		if (taskId) fileTaskIds.add(taskId);
+	}
+	if (fileTaskIds.size === 0) return pendingRows;
+	return pendingRows.filter((row) => !fileTaskIds.has(row.id));
+};
+/**
+* The log-list data pipeline: run the scope's persisted sorting/filters as a
+* listing query against the listing source (IndexedDB in dir mode), shape the
+* resulting records into grid rows, merge in transient rows (pending tasks),
+* and pin folders on top. Called by LogsPanel; the grid just renders the
+* result.
+*/
+var useLogListData = ({ overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing }) => {
 	const { gridStateByScope } = useLogsListing();
-	const data = useKeyedMemo(items, (item) => item.id, (item) => [
+	const overlayData = useKeyedMemo(overlayItems, (item) => item.id, (item) => [
 		item.id,
 		item.type,
 		item.url,
 		item.name,
 		item.displayIndex,
-		rowForItem(item),
 		item.type === "folder" ? item.itemCount : void 0,
 		item.type === "pending-task" ? item.model : void 0
 	], (item) => buildLogListRow(item));
+	const { folders, pendingRows } = (0, import_react.useMemo)(() => {
+		const folders = [];
+		const pendingRows = [];
+		for (const row of overlayData) (row.type === "folder" ? folders : pendingRows).push(row);
+		return {
+			folders,
+			pendingRows
+		};
+	}, [overlayData]);
 	const sorting = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.sorting ?? [] : [], [gridStateByScope, scopeKey]);
 	const orderBy = (0, import_react.useMemo)(() => sortingStateToOrderBy(sorting), [sorting]);
 	const columnFilters = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnFilters : void 0, [gridStateByScope, scopeKey]);
 	const filter = (0, import_react.useMemo)(() => combineFilters(columnFilters), [columnFilters]);
-	const { folders, files } = (0, import_react.useMemo)(() => {
-		const folders = [];
-		const files = [];
-		for (const row of data) (row.type === "folder" ? folders : files).push(row);
-		return {
-			folders,
-			files
-		};
-	}, [data]);
-	const { items: sortedFiles, total_count } = useLogsListingQuery({
-		rows: files,
+	const { data: result, loading: pending, error } = useDatabaseLogsListingQuery({
+		filter,
+		orderBy,
+		getValue,
+		getComparator,
+		getFilterType,
+		accessorsKey,
+		listing
+	});
+	const visiblePendingRows = (0, import_react.useMemo)(() => dropSettledPendingRows(pendingRows, result?.items ?? kNoRows), [pendingRows, result]);
+	const overlay = (0, import_react.useMemo)(() => visiblePendingRows.length === 0 ? void 0 : applyListingQuery(visiblePendingRows, {
 		filter,
 		orderBy,
 		getValue,
 		getComparator,
 		getFilterType
-	});
+	}), [
+		visiblePendingRows,
+		filter,
+		orderBy,
+		getValue,
+		getComparator,
+		getFilterType
+	]);
+	const files = (0, import_react.useMemo)(() => {
+		const base = result?.items ?? kNoRows;
+		if (!overlay) return base;
+		const compare = orderBy.length > 0 ? compareByOrderBy(orderBy, getValue, getComparator) : void 0;
+		return mergeSortedRows(base, overlay.items, compare);
+	}, [
+		result,
+		overlay,
+		orderBy,
+		getValue,
+		getComparator
+	]);
 	return {
-		rows: (0, import_react.useMemo)(() => folders.length > 0 ? [...folders, ...sortedFiles] : sortedFiles, [folders, sortedFiles]),
-		totalRowCount: data.length,
-		filteredCount: folders.length + total_count,
+		rows: (0, import_react.useMemo)(() => folders.length > 0 ? [...folders, ...files] : files, [folders, files]),
+		filteredCount: folders.length + (result?.total_count ?? 0) + (overlay?.total_count ?? 0),
 		sorting,
-		columnFilters
+		columnFilters,
+		filter,
+		orderBy,
+		pending,
+		error
 	};
 };
 var LogListFooter_module_default = {
@@ -84225,127 +85094,118 @@ var LogsPanel_module_default = {
 	list: "_list_16dj8_8"
 };
 //#endregion
-//#region src/app/log-list/LogsPanel.tsx
-var rootName = (relativePath) => {
-	return relativePath.split("/")[0] ?? "";
+//#region src/app/log-list/useLogsOverview.ts
+/**
+* The page-level aggregates beside the row query (see `readLogsOverview`).
+* Keyed under the listing root so the write path's throttled invalidation
+* refreshes it alongside the row queries.
+*/
+var useLogsOverview = ({ logDir, universe, view }) => {
+	return useAsyncDataFromQuery({
+		queryKey: [
+			...databaseLogsListingKeyRoot,
+			"overview",
+			logDir,
+			universe
+		],
+		queryFn: () => readLogsOverview(logDir, view),
+		enabled: universe !== void 0,
+		staleTime: 0,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false
+	});
 };
-var kNoListingRows = [];
+//#endregion
+//#region src/app/log-list/LogsPanel.tsx
 var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
 	const showRetriedLogs = useUserSettings((state) => state.showRetriedLogs);
 	const setShowRetriedLogs = useUserSettings((state) => state.setShowRetriedLogs);
 	const logDir = useLogDir();
-	const listing = useLogListing(logDir);
-	const logFiles = listing.data ?? kNoListingRows;
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
 	const evalSet = useEvalSet(logPath || "").data;
 	const sync = useLogsSync(logDir, logPath ?? "");
-	const busy = sync.busy || listing.loading;
-	const navbarLoading = sync.loading || listing.loading;
-	const error = sync.error ?? listing.error;
 	const currentDir = join(logPath || "", logDir);
 	const scopeKey = logDir === void 0 ? void 0 : `${mode}::${currentDir}`;
+	const universe = scopeKey === void 0 ? void 0 : `${scopeKey}::retried=${showRetriedLogs}`;
 	const flowData = useFlowQuery(logPath || "").data;
 	(0, import_react.useEffect)(() => {
 		setDocumentTitle({ logDir });
 	}, [logDir]);
-	const [logItems, hasRetriedLogs] = (0, import_react.useMemo)(() => {
-		if (mode === "tasks") {
-			const fileItems = [];
-			const existingLogTaskIds = /* @__PURE__ */ new Set();
-			let _hasRetriedLogs = false;
-			for (const logFile of logFiles) {
-				if (logFile.task_id) existingLogTaskIds.add(logFile.task_id);
-				if (logFile.retried) _hasRetriedLogs = true;
-				if (showRetriedLogs || !logFile.retried) {
-					const relativePath = directoryRelativeUrl(logFile.name, logDir);
-					const decodedPath = decodeURIComponent(relativePath);
-					fileItems.push({
-						id: logFile.name,
-						name: decodedPath,
-						type: "file",
-						url: tasksUrl(decodedPath, logDir),
-						log: logFile
-					});
-				}
-			}
-			return [appendPendingItems(evalSet, existingLogTaskIds, fileItems), _hasRetriedLogs];
-		}
-		const folderItems = [];
-		const fileItems = [];
-		const processedFolders = /* @__PURE__ */ new Set();
-		const existingLogTaskIds = /* @__PURE__ */ new Set();
-		let _hasRetriedLogs = false;
-		const sortedNames = logFiles.map((f) => f.name).sort();
-		const lowerBound = (target) => {
-			let lo = 0;
-			let hi = sortedNames.length;
-			while (lo < hi) {
-				const mid = lo + hi >> 1;
-				const name = sortedNames[mid];
-				if (name !== void 0 && name < target) lo = mid + 1;
-				else hi = mid;
-			}
-			return lo;
-		};
-		const countWithPrefix = (prefix) => lowerBound(prefix + "￿") - lowerBound(prefix);
-		for (const logFile of logFiles) {
-			if (logFile.task_id) existingLogTaskIds.add(logFile.task_id);
-			const name = logFile.name;
-			const cleanDir = currentDir.endsWith("/") ? currentDir.slice(0, -1) : currentDir;
-			const dirWithSlash = !currentDir.endsWith("/") ? currentDir + "/" : currentDir;
-			if (isInDirectory(name, cleanDir)) {
-				const dirName = directoryRelativeUrl(currentDir, logDir);
-				const relativePath = directoryRelativeUrl(name, currentDir);
-				const fileOrFolderName = decodeURIComponent(rootName(relativePath));
-				const path = join(decodeURIComponent(relativePath), decodeURIComponent(dirName));
-				if (logFile.retried) _hasRetriedLogs = true;
-				if (showRetriedLogs || !logFile.retried) fileItems.push({
-					id: fileOrFolderName,
-					name: fileOrFolderName,
-					type: "file",
-					url: logsUrl(path, logDir),
-					log: logFile
-				});
-			} else if (name.startsWith(dirWithSlash)) {
-				const relativePath = directoryRelativeUrl(name, currentDir);
-				const dirName = decodeURIComponent(rootName(relativePath));
-				const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
-				const url = join(dirName, decodeURIComponent(currentDirRelative));
-				if (!processedFolders.has(dirName)) {
-					folderItems.push({
-						id: dirName,
-						name: dirName,
-						type: "folder",
-						url: logsUrl(url, logDir),
-						itemCount: countWithPrefix(dirname(name))
-					});
-					processedFolders.add(dirName);
-				}
-			}
-		}
-		const orderedItems = [...folderItems, ...fileItems];
-		return [appendPendingItems(evalSet, existingLogTaskIds, orderedItems), _hasRetriedLogs];
-	}, [
+	const itemView = (0, import_react.useMemo)(() => ({
 		mode,
-		evalSet,
-		logFiles,
-		currentDir,
 		logDir,
+		currentDir,
+		showRetriedLogs
+	}), [
+		mode,
+		logDir,
+		currentDir,
 		showRetriedLogs
 	]);
+	const isCandidate = (0, import_react.useCallback)((log) => fileLogIdentity(log.name, itemView) !== void 0, [itemView]);
+	const overviewQuery = useLogsOverview({
+		logDir,
+		universe,
+		view: {
+			folderDir: mode === "logs" ? currentDir : void 0,
+			showRetriedLogs,
+			isCandidate
+		}
+	});
+	const overview = overviewQuery.data;
+	const busy = sync.busy;
+	const navbarLoading = sync.loading || overviewQuery.loading;
+	const logItems = (0, import_react.useMemo)(() => {
+		const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
+		const folderItems = (overview?.folders ?? []).map((folder) => ({
+			id: folder.name,
+			name: folder.name,
+			type: "folder",
+			url: logsUrl(join(folder.name, decodeURIComponent(currentDirRelative)), logDir),
+			itemCount: folder.itemCount
+		}));
+		return appendPendingItems(evalSet, new Set(overview?.taskIds), folderItems);
+	}, [
+		overview,
+		evalSet,
+		currentDir,
+		logDir
+	]);
+	const hasRetriedLogs = (overview?.retriedCount ?? 0) > 0;
 	const scopeDir = mode === "logs" ? currentDir : void 0;
 	const [scoresViewMode, setScoresViewMode] = useProperty("log-list-scores-view", "mode", { defaultValue: "by-metric" });
-	const { pickerColumns, visibility, setColumnVisibility, getValue, getComparator, getFilterType } = useLogListColumns(mode, scopeDir, scoresViewMode);
+	const { pickerColumns, visibility, setColumnVisibility, getValue, getComparator, getFilterType, accessorsKey } = useLogListColumns(mode, scopeDir, scoresViewMode);
+	const toRow = (0, import_react.useCallback)((log) => {
+		const item = fileLogItem(log, itemView);
+		return item === void 0 ? void 0 : buildLogListRow(item);
+	}, [itemView]);
+	const listing = (0, import_react.useMemo)(() => ({
+		logDir,
+		prefix: mode === "logs" ? currentDir : logDir,
+		universe,
+		toRow
+	}), [
+		logDir,
+		mode,
+		currentDir,
+		universe,
+		toRow
+	]);
 	const listData = useLogListData({
-		items: logItems,
+		overlayItems: logItems,
 		scopeKey,
 		getValue,
 		getComparator,
-		getFilterType
+		getFilterType,
+		accessorsKey,
+		listing
 	});
+	const totalRowCount = (overview?.fileCount ?? 0) + logItems.length;
+	const listBusy = busy || listData.pending || overviewQuery.loading;
+	const error = sync.error ?? overviewQuery.error ?? listData.error;
 	const currentColumnVisibility = useStore((state) => state.logs.listing.columnVisibility);
 	const filteredFields = (0, import_react.useMemo)(() => Object.keys(listData.columnFilters ?? {}), [listData.columnFilters]);
 	const hasFilter = filteredFields.length > 0;
@@ -84375,20 +85235,16 @@ var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 		patchGridState
 	]);
 	const progress = (0, import_react.useMemo)(() => {
-		let pending = 0;
-		let total = 0;
-		for (const item of logItems) if (item.type === "file" || item.type === "pending-task") {
-			total += 1;
-			if (item.type === "pending-task" || item.log?.status === "started") pending += 1;
-		}
+		const pendingTasks = logItems.filter((item) => item.type === "pending-task").length;
+		const total = (overview?.fileCount ?? 0) + pendingTasks;
 		return {
-			complete: total - pending,
+			complete: total - ((overview?.startedCount ?? 0) + pendingTasks),
 			total
 		};
-	}, [logItems]);
-	const onlyItem = logItems.length === 1 ? logItems[0] : void 0;
-	if (maybeShowSingleLog && onlyItem?.url) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Navigate, {
-		to: onlyItem.url,
+	}, [logItems, overview]);
+	const soleItemUrl = soleItemRedirectUrl(overview, logItems, itemView);
+	if (maybeShowSingleLog && soleItemUrl) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Navigate, {
+		to: soleItemUrl,
 		replace: true
 	});
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -84449,18 +85305,21 @@ var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 				className: clsx(LogsPanel_module_default.list, "text-size-smaller"),
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogListGrid, {
 					rows: listData.rows,
-					totalRowCount: listData.totalRowCount,
+					totalRowCount,
 					sorting: listData.sorting,
 					columnFilters: listData.columnFilters,
+					filter: listData.filter,
+					orderBy: listData.orderBy,
 					currentPath: currentDir,
 					scopeKey,
 					mode,
-					busy
-				})
+					busy: listBusy,
+					listing
+				}, scopeKey ?? "pending")
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogListFooter, {
-				itemCount: logItems.length,
+				itemCount: totalRowCount,
 				filteredCount: listData.filteredCount,
-				progressText: busy ? "Syncing data" : void 0,
+				progressText: listBusy ? "Syncing data" : void 0,
 				progressBar: progress.total !== progress.complete ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ProgressBar, {
 					min: 0,
 					max: progress.total,
@@ -84471,7 +85330,14 @@ var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 		]
 	});
 };
-var appendPendingItems = (evalSet, tasksWithLogFiles, collapsedLogItems) => {
+/** The redirect target when the view holds exactly one item (folder, file,
+*  or pending task — the latter has no url, so no redirect). */
+var soleItemRedirectUrl = (overview, logItems, itemView) => {
+	if ((overview?.fileCount ?? 0) + logItems.length !== 1) return void 0;
+	if (logItems.length === 1) return logItems[0]?.url;
+	return overview?.soleFileName !== void 0 ? fileLogIdentity(overview.soleFileName, itemView)?.url : void 0;
+};
+var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	const pendingTasks = new Array();
 	for (const task of evalSet?.tasks || []) if (!tasksWithLogFiles.has(task.task_id)) pendingTasks.push({
 		id: task.task_id,
@@ -84480,8 +85346,8 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, collapsedLogItems) => {
 		type: "pending-task"
 	});
 	pendingTasks.sort((a, b) => a.name.localeCompare(b.name));
-	collapsedLogItems.push(...pendingTasks);
-	return collapsedLogItems;
+	items.push(...pendingTasks);
+	return items;
 };
 //#endregion
 //#region src/app/shared/openInNewTab.ts
@@ -86592,11 +87458,11 @@ var ToolCallView = ({ id, tool, functionCall, input, selfAnnotation, inputScreen
 	if (actionElement) outputContent = hasContent ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(NavPills, {
 		id: `${id}-browser-action`,
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			title: "Result",
-			children: outputSection
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			title: "Action",
 			children: actionElement
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			title: "Result",
+			children: outputSection
 		})]
 	}) : actionElement;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -88447,6 +89313,20 @@ var injectScorersSpan = (events) => {
 	}
 	return results;
 };
+/**
+* Remove span/step nodes with no visible children (filtering recursively, in
+* place on each node's `children`). Nodes with an attached `sourceSpan`
+* (agent cards) and structural `fork_nav`/`empty_branch` spans are preserved
+* even when childless.
+*/
+var filterEmptySpans = (eventNodes) => {
+	return eventNodes.filter((node) => {
+		if (node.children && node.children.length > 0) node.children = filterEmptySpans(node.children);
+		if (node.sourceSpan) return true;
+		if (node.event.event === "span_begin" && (node.event.type === "fork_nav" || node.event.type === "empty_branch")) return true;
+		return node.event.event !== "span_begin" && node.event.event !== "step" || node.children && node.children.length > 0;
+	});
+};
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
 var cancelErrors = /* @__PURE__ */ new Set([
@@ -88856,6 +89736,23 @@ function spanHasBranches(span) {
 	if (span.branches.length > 0) return true;
 	for (const item of span.content) if (item.type === "span" && spanHasBranches(item)) return true;
 	return false;
+}
+/**
+* Count utility spans in `span`'s content tree.
+*
+* Used to surface how many utility agents are elided from display when the
+* "Utility agents" option is off, so they never disappear without a trace.
+* Branches are deliberately excluded: the indicator's contract is "what the
+* utility toggle reveals", and branch content stays hidden behind the
+* separate branches option regardless of the utility setting.
+*/
+function countUtilitySpans(span) {
+	let count = 0;
+	for (const item of span.content) if (item.type === "span") {
+		if (item.utility) count++;
+		count += countUtilitySpans(item);
+	}
+	return count;
 }
 /**
 * Creates a display-ready TimelineSpan from a branch span.
@@ -89425,13 +90322,15 @@ function getSystemPromptForEvent(event) {
 	const input = event.input;
 	if (!input) return null;
 	for (const msg of input) if (msg.role === "system") {
-		if (typeof msg.content === "string") return normalizeSystemPrompt(msg.content);
-		if (Array.isArray(msg.content)) {
+		let raw;
+		if (typeof msg.content === "string") raw = msg.content;
+		else if (Array.isArray(msg.content)) {
 			const parts = [];
 			for (const c of msg.content) if ("text" in c && typeof c.text === "string") parts.push(c.text);
-			const raw = parts.length > 0 ? parts.join("\n") : null;
-			return raw ? normalizeSystemPrompt(raw) : null;
-		}
+			raw = parts.join("\n");
+		} else return null;
+		const normalized = normalizeSystemPrompt(raw);
+		return normalized ? normalized : null;
 	}
 	return null;
 }
@@ -89454,6 +90353,13 @@ function hasToolCalls(event) {
 * This function detects them and wraps each one in a TimelineSpan
 * with utility=true so downstream code treats them as utility agents.
 *
+* The primary trajectory is identified by the system prompt of the first
+* tool-calling ModelEvent. When a span contains no tool-calling model
+* events there is no agentic loop to distinguish helpers from — plain
+* workflows of generate() calls routinely mix system prompts — so
+* foreign-prompt wrapping is skipped entirely (warmup calls are still
+* wrapped; they are identified independently of prompts).
+*
 * Operates recursively on the entire span tree.
 */
 function wrapUtilityEvents(agent) {
@@ -89465,46 +90371,33 @@ function wrapUtilityEvents(agent) {
 			break;
 		}
 	}
-	if (primaryPrompt === null) {
-		for (const item of agent.content) if (item.type === "event" && item.event.event === "model") {
-			primaryPrompt = getSystemPromptForEvent(item.event);
-			break;
-		}
-	}
-	if (primaryPrompt === null) {
-		for (const item of agent.content) if (item.type === "span") wrapUtilityEvents(item);
-		for (const branch of agent.branches) {
-			wrapUtilityEvents(branch);
-			for (const item of branch.content) if (item.type === "span") wrapUtilityEvents(item);
-		}
-		return;
-	}
+	const utilityWrapper = (item, index) => {
+		const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? `${agent.id}-${index}`}`, "utility", "agent", [item]);
+		wrapper.utility = true;
+		return wrapper;
+	};
+	const originalSpans = agent.content.filter((item) => item.type === "span");
 	const newContent = [];
-	for (const item of agent.content) {
+	for (const [index, item] of agent.content.entries()) {
 		if (item.type === "event" && item.event.event === "model") {
 			const modelEvt = item.event;
 			if (isWarmupCall(modelEvt)) {
-				const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? "unknown"}`, "utility", "agent", [item]);
-				wrapper.utility = true;
-				newContent.push(wrapper);
+				newContent.push(utilityWrapper(item, index));
 				continue;
 			}
-			const evtPrompt = getSystemPromptForEvent(modelEvt);
-			if (evtPrompt !== null && evtPrompt !== primaryPrompt && !hasToolCalls(modelEvt)) {
-				const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? "unknown"}`, "utility", "agent", [item]);
-				wrapper.utility = true;
-				newContent.push(wrapper);
-				continue;
+			if (primaryPrompt !== null && !hasToolCalls(modelEvt)) {
+				const evtPrompt = getSystemPromptForEvent(modelEvt);
+				if (evtPrompt !== null && evtPrompt !== primaryPrompt) {
+					newContent.push(utilityWrapper(item, index));
+					continue;
+				}
 			}
 		}
 		newContent.push(item);
 	}
 	agent.content = newContent;
-	for (const item of agent.content) if (item.type === "span") wrapUtilityEvents(item);
-	for (const branch of agent.branches) {
-		wrapUtilityEvents(branch);
-		for (const item of branch.content) if (item.type === "span") wrapUtilityEvents(item);
-	}
+	for (const item of originalSpans) wrapUtilityEvents(item);
+	for (const branch of agent.branches) wrapUtilityEvents(branch);
 }
 function isWarmupCall(event) {
 	if (event.config?.max_tokens == null || event.config.max_tokens > 1) return false;
@@ -89520,24 +90413,11 @@ function isWarmupCall(event) {
 	return false;
 }
 /**
-* Extract system prompt from the first ModelEvent in span's direct content.
+* Extract the normalized system prompt from the first ModelEvent in span's
+* direct content (see getSystemPromptForEvent).
 */
 function getSystemPrompt(span) {
-	for (const item of span.content) if (item.type === "event" && item.event.event === "model") {
-		const input = item.event.input;
-		if (input) {
-			for (const msg of input) if (msg.role === "system") {
-				if (typeof msg.content === "string") return normalizeSystemPrompt(msg.content);
-				if (Array.isArray(msg.content)) {
-					const parts = [];
-					for (const c of msg.content) if ("text" in c && typeof c.text === "string") parts.push(c.text);
-					if (parts.length > 0) return normalizeSystemPrompt(parts.join("\n"));
-					return null;
-				}
-			}
-		}
-		return null;
-	}
+	for (const item of span.content) if (item.type === "event" && item.event.event === "model") return getSystemPromptForEvent(item.event);
 	return null;
 }
 /**
@@ -89563,18 +90443,29 @@ function isSingleTurn(span) {
 	return false;
 }
 /**
+* Check whether span's direct content contains a tool-calling ModelEvent.
+*/
+function hasAgenticLoop(span) {
+	for (const item of span.content) if (item.type === "event" && item.event.event === "model" && hasToolCalls(item.event)) return true;
+	return false;
+}
+/**
 * Classify utility agents in the tree via post-processing.
 *
 * An agent is utility if it has a single turn (or single tool-calling turn)
-* and a different system prompt than its parent.
+* and a different system prompt than its parent. Classification only applies
+* when the parent runs an agentic (tool-calling) loop: absent a loop there
+* is no main trajectory for a helper to be subordinate to — plain workflows
+* of generate() calls routinely mix system prompts.
 */
-function classifyUtilityAgents(node, parentSystemPrompt = null) {
+function classifyUtilityAgents(node, parentSystemPrompt = null, parentHasLoop = false) {
 	const agentSystemPrompt = getSystemPrompt(node);
-	if (parentSystemPrompt !== null && agentSystemPrompt !== null && !node.toolInvoked) {
+	if (parentSystemPrompt !== null && parentHasLoop && agentSystemPrompt !== null && !node.toolInvoked) {
 		if (agentSystemPrompt !== parentSystemPrompt && isSingleTurn(node)) node.utility = true;
 	}
 	const effectivePrompt = agentSystemPrompt ?? parentSystemPrompt;
-	for (const item of node.content) if (item.type === "span") classifyUtilityAgents(item, effectivePrompt);
+	const effectiveHasLoop = node.content.some((item) => item.type === "event" && item.event.event === "model") ? hasAgenticLoop(node) : parentHasLoop;
+	for (const item of node.content) if (item.type === "span") classifyUtilityAgents(item, effectivePrompt, effectiveHasLoop);
 }
 /**
 * Build a Timeline from a flat event list.
@@ -92482,1873 +93373,6 @@ function useListPositionManager(baseListId, selected, scrollRef, hasScrollTarget
 	return { effectiveListId };
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/icons.ts
-/**
-* Bootstrap icon class names used by transcript event components.
-* Both apps (scout and inspect) use the same Bootstrap icons,
-* so these are safe to hardcode as string constants.
-*/
-var TranscriptIcons = {
-	agent: "bi bi-grid",
-	approve: "bi bi-shield",
-	cancel: "bi bi-x-circle",
-	checkpoint: "bi bi-bookmark-check-fill",
-	approvals: {
-		approve: "bi bi-shield-check",
-		reject: "bi bi-shield-x",
-		terminate: "bi bi-shield-exclamation",
-		escalate: "bi bi-box-arrow-up",
-		modify: "bi bi-pencil-square"
-	},
-	arrows: { right: "bi bi-arrow-right" },
-	expand: "bi bi-chevron-up",
-	compaction: "bi bi-arrows-collapse-vertical",
-	edit: "bi bi-pencil-square",
-	error: "bi bi-exclamation-circle-fill",
-	fork: "bi bi-sign-intersection-y-fill",
-	info: "bi bi-info-circle",
-	input: "bi bi-terminal",
-	interrupt: "bi bi-slash-circle",
-	limits: {
-		messages: "bi bi-chat-right-text",
-		custom: "bi bi-exclamation-triangle",
-		operator: "bi bi-person-workspace",
-		tokens: "bi bi-list",
-		turns: "bi bi-arrow-repeat",
-		time: "bi bi-clock",
-		execution: "bi bi-stopwatch",
-		cost: "bi bi-currency-dollar"
-	},
-	logging: {
-		notset: "bi bi-card-text",
-		debug: "bi bi-bug",
-		http: "bi bi-download",
-		info: "bi bi-info-square",
-		warning: "bi bi-exclamation-triangle",
-		error: "bi bi-x-circle",
-		critical: "bi bi-fire"
-	},
-	model: "bi bi-grid-3x3-gap",
-	sample: "bi bi-database",
-	sandbox: "bi bi-box-seam",
-	scorer: "bi bi-calculator",
-	solvers: { use_tools: "bi bi-tools" }
-};
-var OutlineRow_module_default = {
-	eventRow: "_eventRow_lpuxs_1",
-	selected: "_selected_lpuxs_9",
-	toggle: "_toggle_lpuxs_13",
-	eventLink: "_eventLink_lpuxs_18",
-	label: "_label_lpuxs_31",
-	iconSlot: "_iconSlot_lpuxs_37",
-	progress: "_progress_lpuxs_49",
-	loadingRow: "_loadingRow_lpuxs_53",
-	spinner: "_spinner_lpuxs_57",
-	"outline-spin": "_outline-spin_lpuxs_1",
-	popover: "_popover_lpuxs_78"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
-var OutlineRow = ({ node, running, selected, getEventUrl, onSelect, onNavigateToEvent, getCollapsed, setCollapsed, renderLink }) => {
-	const collapsed = getCollapsed?.(node.id) ?? false;
-	const icon = iconForNode(node);
-	const toggle = toggleIcon(node, collapsed);
-	const eventUrl = getEventUrl?.(node.id);
-	const labelText = parsePackageName(labelForNode(node)).module;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(OutlineRow_module_default.eventRow, "text-size-smaller", selected ? OutlineRow_module_default.selected : ""),
-		style: { paddingLeft: `${node.depth * .75}em` },
-		"data-unsearchable": true,
-		onClick: () => {
-			onSelect?.(node.id);
-			onNavigateToEvent?.(node.id);
-		},
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: OutlineRow_module_default.toggle,
-			onClick: () => {
-				if (node.children.length > 0) setCollapsed?.(node.id, !collapsed);
-			},
-			children: toggle ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(toggle) }) : void 0
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: clsx(OutlineRow_module_default.label),
-			"data-depth": node.depth,
-			title: tooltipForNode(node),
-			children: [
-				icon && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: OutlineRow_module_default.iconSlot,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon) })
-				}),
-				eventUrl ? renderLink ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: clsx(OutlineRow_module_default.eventLink),
-					children: renderLink(eventUrl, labelText)
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-					href: eventUrl,
-					className: clsx(OutlineRow_module_default.eventLink),
-					children: labelText
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: labelText }),
-				running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
-					size: "small",
-					className: clsx(OutlineRow_module_default.progress),
-					subtle: false
-				}) : void 0
-			]
-		})]
-	}) });
-};
-/** A row rendered below the last outline item while events are still loading. */
-var OutlineLoadingRow = () => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-	className: clsx(OutlineRow_module_default.eventRow, OutlineRow_module_default.loadingRow, "text-size-smaller"),
-	style: { paddingLeft: 0 },
-	"data-unsearchable": true,
-	children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: OutlineRow_module_default.toggle }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(OutlineRow_module_default.label),
-		role: "status",
-		"aria-live": "polite",
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			className: OutlineRow_module_default.iconSlot,
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: OutlineRow_module_default.spinner,
-				"aria-hidden": "true"
-			})
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "loading" })]
-	})]
-});
-var toggleIcon = (node, collapsed) => {
-	if (node.children.length > 0) return collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
-};
-var iconForNode = (node) => {
-	if (node.sourceSpan?.spanType === "agent") return TranscriptIcons.agent;
-	if (node.sourceSpan?.spanType === "branch") return TranscriptIcons.fork;
-	if (node.event.event === "span_begin" && node.event.type === "fork_nav") return TranscriptIcons.fork;
-	switch (node.event.event) {
-		case "sample_limit": return TranscriptIcons.limits.custom;
-		case "score": return TranscriptIcons.scorer;
-		case "error": return TranscriptIcons.error;
-		case "compaction": return TranscriptIcons.compaction;
-	}
-};
-/** Tooltip for the outline row (description for agent nodes, undefined otherwise). */
-var tooltipForNode = (node) => {
-	if (node.sourceSpan?.spanType === "agent" && node.sourceSpan.description) return node.sourceSpan.description;
-};
-var labelForNode = (node) => {
-	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name.toLowerCase();
-	if (node.sourceSpan?.spanType === "branch") return node.sourceSpan.name.toLowerCase();
-	if (node.event.event === "span_begin") switch (node.event.type) {
-		case "solver": return node.event.name;
-		case "tool": return node.event.name;
-		default:
-			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
-			return node.event.name;
-	}
-	else switch (node.event.event) {
-		case "subtask": return node.event.name;
-		case "approval": switch (node.event.decision) {
-			case "approve": return "approved";
-			case "reject": return "rejected";
-			case "escalate": return "escalated";
-			case "modify": return "modified";
-			case "terminate": return "terminated";
-			default: return node.event.decision;
-		}
-		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
-		case "score": return "scoring";
-		case "step":
-			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
-			return node.event.name;
-		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
-		default: return node.event.event;
-	}
-};
-var TranscriptOutline_module_default = {
-	node: "_node_1eney_1",
-	rootHeader: "_rootHeader_1eney_7",
-	panel: "_panel_1eney_18"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/useOutlineWidth.ts
-var kMinWidth = 120;
-var kMaxWidth = 600;
-/** Lazily-created off-screen measurement container. Never removed. */
-var measureRoot = null;
-function getOrCreateMeasureRoot() {
-	if (!measureRoot) {
-		measureRoot = document.createElement("div");
-		measureRoot.style.position = "fixed";
-		measureRoot.style.top = "-9999px";
-		measureRoot.style.left = "-9999px";
-		measureRoot.style.visibility = "hidden";
-		measureRoot.style.pointerEvents = "none";
-		measureRoot.style.width = "max-content";
-		document.body.appendChild(measureRoot);
-	}
-	return measureRoot;
-}
-/**
-* Computes the ideal outline column width by rendering labels into a hidden
-* DOM container that mirrors the real outline structure (same CSS-module
-* classes and inline styles), then reading its natural width.
-*
-* Result is clamped to [kMinWidth, kMaxWidth] px.
-*/
-function useOutlineWidth(outlineNodes, _font, agentName) {
-	return (0, import_react.useMemo)(() => {
-		if (outlineNodes.length === 0 && !agentName) return kMinWidth;
-		const root = getOrCreateMeasureRoot();
-		root.innerHTML = "";
-		root.style.paddingLeft = "0.5rem";
-		root.style.paddingRight = "0.5rem";
-		if (agentName) {
-			const header = document.createElement("div");
-			header.className = [
-				TranscriptOutline_module_default.rootHeader ?? "",
-				"text-size-smaller",
-				"text-style-secondary"
-			].join(" ");
-			header.style.overflow = "visible";
-			header.style.textOverflow = "clip";
-			header.textContent = parsePackageName(agentName).module;
-			root.appendChild(header);
-		}
-		for (const node of outlineNodes) {
-			const row = document.createElement("div");
-			row.className = [OutlineRow_module_default.eventRow ?? "", "text-size-smaller"].join(" ");
-			row.style.paddingLeft = `${node.depth * .75}em`;
-			row.style.fontWeight = "800";
-			const toggle = document.createElement("div");
-			toggle.className = OutlineRow_module_default.toggle ?? "";
-			row.appendChild(toggle);
-			const label = document.createElement("div");
-			label.className = OutlineRow_module_default.label ?? "";
-			label.style.overflow = "visible";
-			label.style.width = "max-content";
-			if (iconForNode(node) !== void 0) {
-				const iconSpan = document.createElement("span");
-				iconSpan.className = OutlineRow_module_default.iconSlot ?? "";
-				iconSpan.innerHTML = "&#x25C6;";
-				label.appendChild(iconSpan);
-			}
-			label.appendChild(document.createTextNode(parsePackageName(labelForOutlineNode(node)).module));
-			row.appendChild(label);
-			root.appendChild(row);
-		}
-		const width = root.getBoundingClientRect().width;
-		return Math.min(kMaxWidth, Math.max(kMinWidth, Math.ceil(width)));
-	}, [outlineNodes, agentName]);
-}
-/**
-* Simplified label extraction matching OutlineRow's labelForNode.
-* Only needs the text content for width measurement.
-*/
-function labelForOutlineNode(node) {
-	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name;
-	if (node.event.event === "span_begin") return node.event.name;
-	switch (node.event.event) {
-		case "subtask": return node.event.name;
-		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
-		case "score": return "scoring";
-		case "step": return node.event.name;
-		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
-		default: return node.event.event;
-	}
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
-var kFramesToStabilize = 10;
-var outlineNodeRunning = ({ running, backfilling, isLast }) => running && !backfilling && isLast;
-var EventPaddingNode = {
-	id: "padding",
-	event: {
-		event: "info",
-		source: "",
-		data: "",
-		timestamp: "",
-		pending: false,
-		working_start: 0,
-		span_id: null,
-		uuid: null,
-		metadata: null
-	},
-	depth: 0,
-	children: []
-};
-var OutlineLoadingNode = {
-	...EventPaddingNode,
-	id: "loading"
-};
-var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, agentName, onHasNodesChange, onWidthChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, getCollapsed, setCollapsed, collapsedEvents, setCollapsedEvents, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
-	const id = "transcript-tree";
-	const listHandle = (0, import_react.useRef)(null);
-	const { getRestoreState } = useVirtuosoState(listHandle, id);
-	const isProgrammaticScrolling = (0, import_react.useRef)(false);
-	const lastScrollPosition = (0, import_react.useRef)(null);
-	const stableFrameCount = (0, import_react.useRef)(0);
-	const beginProgrammaticScroll = (0, import_react.useCallback)(() => {
-		isProgrammaticScrolling.current = true;
-		lastScrollPosition.current = null;
-		stableFrameCount.current = 0;
-		const checkScrollStabilized = () => {
-			if (!isProgrammaticScrolling.current) return;
-			const currentPosition = scrollRef?.current?.scrollTop ?? null;
-			if (currentPosition === lastScrollPosition.current) {
-				stableFrameCount.current++;
-				if (stableFrameCount.current >= kFramesToStabilize) {
-					isProgrammaticScrolling.current = false;
-					return;
-				}
-			} else {
-				stableFrameCount.current = 0;
-				lastScrollPosition.current = currentPosition;
-			}
-			requestAnimationFrame(checkScrollStabilized);
-		};
-		requestAnimationFrame(checkScrollStabilized);
-	}, [scrollRef]);
-	const handleOutlineSelect = (0, import_react.useCallback)((nodeId) => {
-		setSelectedOutlineId?.(nodeId);
-		beginProgrammaticScroll();
-	}, [setSelectedOutlineId, beginProgrammaticScroll]);
-	const outlineNodeList = (0, import_react.useMemo)(() => {
-		return collapseScoring(collapseTurns(makeTurns(flatTree(eventNodes, (collapsedEvents ? collapsedEvents : void 0) || defaultCollapsedIds, [
-			removeNodeVisitor("logger"),
-			removeNodeVisitor("info"),
-			removeNodeVisitor("state"),
-			removeNodeVisitor("store"),
-			removeNodeVisitor("approval"),
-			removeNodeVisitor("input"),
-			removeNodeVisitor("sandbox"),
-			removeStepSpanNameVisitor(kSandboxSignalName),
-			noScorerChildren()
-		]))));
-	}, [
-		eventNodes,
-		collapsedEvents,
-		defaultCollapsedIds
-	]);
-	const hasOutlineNodes = outlineNodeList.length > 0;
-	(0, import_react.useEffect)(() => {
-		onHasNodesChange?.(hasOutlineNodes);
-	}, [hasOutlineNodes, onHasNodesChange]);
-	const outlineWidth = useOutlineWidth(outlineNodeList, void 0, agentName);
-	(0, import_react.useEffect)(() => {
-		onWidthChange?.(outlineWidth);
-	}, [outlineWidth, onWidthChange]);
-	const rootRef = (0, import_react.useRef)(null);
-	(0, import_react.useEffect)(() => {
-		const el = rootRef.current;
-		if (!el) return;
-		let ancestor = el.parentElement;
-		while (ancestor) {
-			if (getComputedStyle(ancestor).display === "grid") {
-				ancestor.style.setProperty("--outline-width", `${outlineWidth}px`);
-				return;
-			}
-			ancestor = ancestor.parentElement;
-		}
-	}, [outlineWidth]);
-	const allNodesList = (0, import_react.useMemo)(() => {
-		return flatTree(eventNodes, null);
-	}, [eventNodes]);
-	const elementIds = allNodesList.map((node) => node.id);
-	const findNearestOutlineAbove = (0, import_react.useCallback)((targetId) => {
-		const targetIndex = allNodesList.findIndex((node) => node.id === targetId);
-		if (targetIndex === -1) return null;
-		const outlineIds = new Set(outlineNodeList.map((node) => node.id));
-		for (let i = targetIndex; i >= 0; i--) {
-			const node = allNodesList[i];
-			if (node !== void 0 && node.id) {
-				if (outlineIds.has(node.id)) return node;
-			}
-		}
-		return null;
-	}, [allNodesList, outlineNodeList]);
-	useScrollTrack(elementIds, (scrolledId) => {
-		if (!isProgrammaticScrolling.current) {
-			const parentNode = findNearestOutlineAbove(scrolledId);
-			if (parentNode) setSelectedOutlineId?.(parentNode.id);
-		}
-	}, scrollRef, { topOffset: scrollTrackOffset });
-	(0, import_react.useEffect)(() => {
-		if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) setCollapsedEvents?.(defaultCollapsedIds);
-	}, [
-		defaultCollapsedIds,
-		collapsedEvents,
-		setCollapsedEvents
-	]);
-	const renderRow = (0, import_react.useCallback)((index, node) => {
-		if (node === EventPaddingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(TranscriptOutline_module_default.eventPadding),
-			style: { height: "2em" }
-		}, node.id);
-		else if (node === OutlineLoadingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineLoadingRow, {}, node.id);
-		else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineRow, {
-			node,
-			running: outlineNodeRunning({
-				running: running === true,
-				backfilling: backfilling === true,
-				isLast: index === outlineNodeList.length - 1
-			}),
-			selected: selectedOutlineId ? selectedOutlineId === node.id : index === 0,
-			getEventUrl,
-			onSelect: handleOutlineSelect,
-			onNavigateToEvent,
-			getCollapsed,
-			setCollapsed,
-			renderLink
-		}, node.id);
-	}, [
-		outlineNodeList,
-		running,
-		backfilling,
-		selectedOutlineId,
-		getEventUrl,
-		handleOutlineSelect,
-		onNavigateToEvent,
-		getCollapsed,
-		setCollapsed,
-		renderLink
-	]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		ref: rootRef,
-		style,
-		children: [agentName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(TranscriptOutline_module_default.rootHeader, "text-size-smaller", "text-style-secondary"),
-			children: agentName
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(rs, {
-			ref: listHandle,
-			customScrollParent: outlineScrollEl ?? void 0,
-			id,
-			data: backfilling ? [
-				...outlineNodeList,
-				OutlineLoadingNode,
-				EventPaddingNode
-			] : [...outlineNodeList, EventPaddingNode],
-			defaultItemHeight: 50,
-			itemContent: renderRow,
-			atBottomThreshold: 30,
-			increaseViewportBy: {
-				top: 300,
-				bottom: 300
-			},
-			overscan: {
-				main: 10,
-				reverse: 10
-			},
-			className: clsx(className, "transcript-outline"),
-			skipAnimationFrameInResizeObserver: true,
-			restoreStateFrom: getRestoreState(),
-			tabIndex: 0
-		})]
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/search/sampleSearch.ts
-/**
-* Build a map from event ID to the swimlane row key that contains it.
-*
-* Walks each row's agents. Within each agent, iterates through its `content`
-* but stops descending into nested agent spans — those events belong to
-* their own row (a separate entry in `state.rows`).
-*
-* If `state.rows` is sorted with deeper rows after their parents (the convention
-* established by `useTimeline`), processing them in order means the deepest row
-* wins when the same event would otherwise be reachable via multiple rows
-* (defensive — normally each event has exactly one containing row).
-*/
-function buildEventToRowMap(rows) {
-	const map = /* @__PURE__ */ new Map();
-	const ordered = [...rows].sort((a, b) => a.depth - b.depth);
-	for (const row of ordered) for (const rowSpan of row.spans) for (const agent of getAgents(rowSpan)) recordRowEvents(agent, row.key, map);
-	return map;
-}
-function recordRowEvents(agent, rowKey, out) {
-	const stack = [agent];
-	while (stack.length > 0) {
-		const span = stack.pop();
-		for (const item of span.content) if (item.type === "event") {
-			const uuid = item.event.uuid;
-			if (uuid) out.set(uuid, rowKey);
-		} else {
-			if (item.spanType === "agent") continue;
-			stack.push(item);
-		}
-	}
-}
-/**
-* Find every occurrence of `term` across the sample's events.
-*
-* Reuses `extractEventFields` so the searchable text exactly matches what
-* `eventSearchText` (the per-row counter) would extract. Events whose uuid
-* isn't in `eventToRow` are skipped (they're not addressable by row switch).
-*
-* Order: events in input order, fields in `extractEventFields` order,
-* occurrences left-to-right. Stable across calls with the same inputs.
-*/
-function findAllMatches(events, term, eventToRow) {
-	if (!term) return [];
-	const prepared = prepareSearchTerm(term);
-	const variants = [
-		prepared.simple,
-		...prepared.unquoted ? [prepared.unquoted] : [],
-		...prepared.jsonEscaped ? [prepared.jsonEscaped] : []
-	];
-	const out = [];
-	for (const event of events) {
-		const uuid = event.uuid;
-		if (!uuid) continue;
-		const rowKey = eventToRow.get(uuid);
-		if (rowKey === void 0) continue;
-		const fields = extractEventFields(event);
-		let fieldIndex = 0;
-		for (const [fieldKey, text] of fields) {
-			const positions = findVariantPositions(text.toLowerCase(), variants);
-			for (let i = 0; i < positions.length; i++) out.push({
-				rowKey,
-				eventId: uuid,
-				fieldKey,
-				fieldIndex,
-				occurrenceIndex: i
-			});
-			fieldIndex++;
-		}
-	}
-	return out;
-}
-/**
-* Find every occurrence of any `variants` substring in `lowered`, deduped by
-* range so a JSON-quoted form `"foo"` matched by both `simple` and `unquoted`
-* counts as one occurrence (the longer variant wins). Mirrors the variant
-* matching `LiveVirtualList.searchInText` does for the chat counter so the
-* two counters agree on the total.
-*/
-function findVariantPositions(lowered, variants) {
-	const hits = [];
-	for (const v of variants) {
-		if (!v) continue;
-		let from = 0;
-		let p = 0;
-		while ((p = lowered.indexOf(v, from)) !== -1) {
-			hits.push({
-				pos: p,
-				len: v.length
-			});
-			from = p + v.length;
-		}
-	}
-	hits.sort((a, b) => a.pos - b.pos || b.len - a.len);
-	const out = [];
-	let endOfLast = -1;
-	for (const h of hits) if (h.pos >= endOfLast) {
-		out.push(h.pos);
-		endOfLast = h.pos + h.len;
-	}
-	return out;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
-var DEFAULT_ID = "transcript-sample";
-var SETTLE_LIMIT = 90;
-/**
-* Registers a sample-wide search source with ExtendedFindContext.
-*
-* - count(term): findAllMatches over the full sample. Cached per term.
-* - searchFn(term, dir): finds the next match across the entire sample,
-*   switches swimlane row if needed, sets the find target (auto-expand),
-*   then delegates to viewNodesRef.scrollToEvent.
-*
-* Preconditions: must be mounted inside an `ExtendedFindProvider`. The
-* `FindTargetProvider` is optional — its setter no-ops when absent.
-*/
-function useTranscriptSearchSource(options) {
-	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id = DEFAULT_ID } = options;
-	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
-	const setFindTarget = useFindTargetSetter();
-	const eventToRow = (0, import_react.useMemo)(() => buildEventToRowMap(rows), [rows]);
-	const cacheRef = (0, import_react.useRef)(null);
-	const getMatches = (0, import_react.useCallback)((term) => {
-		const c = cacheRef.current;
-		if (c && c.events === events && c.eventToRow === eventToRow && c.term === term) return c.matches;
-		const matches = findAllMatches(events, term, eventToRow);
-		cacheRef.current = {
-			events,
-			eventToRow,
-			term,
-			matches
-		};
-		return matches;
-	}, [events, eventToRow]);
-	const selectedRef = (0, import_react.useRef)(selected);
-	(0, import_react.useEffect)(() => {
-		selectedRef.current = selected;
-	}, [selected]);
-	const lastResolvedRef = (0, import_react.useRef)(null);
-	const invocationIdRef = (0, import_react.useRef)(0);
-	const pendingTimersRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
-	(0, import_react.useEffect)(() => {
-		const timers = pendingTimersRef.current;
-		return () => {
-			for (const t of timers) clearTimeout(t);
-			timers.clear();
-		};
-	}, []);
-	const activeTermRef = (0, import_react.useRef)("");
-	(0, import_react.useEffect)(() => {
-		if (typeof document === "undefined") return;
-		const onSelectionChange = () => {
-			const term = activeTermRef.current;
-			if (!term) return;
-			const sel = document.getSelection();
-			if (!sel || sel.rangeCount === 0) return;
-			const range = sel.getRangeAt(0);
-			if (range.startContainer !== range.endContainer) return;
-			if (range.endOffset - range.startOffset !== term.length) return;
-			if (range.toString().toLowerCase() !== term.toLowerCase()) return;
-			const match = matchAtSelection(getMatches(term), term);
-			if (match) lastResolvedRef.current = {
-				match,
-				term
-			};
-		};
-		document.addEventListener("selectionchange", onSelectionChange);
-		return () => document.removeEventListener("selectionchange", onSelectionChange);
-	}, [getMatches]);
-	const countFn = (0, import_react.useCallback)((term) => {
-		activeTermRef.current = term;
-		return getMatches(term).length;
-	}, [getMatches]);
-	const searchFn = (0, import_react.useCallback)(async (term, direction, onContentReady) => {
-		const myId = ++invocationIdRef.current;
-		const isStale = () => myId !== invocationIdRef.current;
-		const matches = getMatches(term);
-		if (matches.length === 0) return false;
-		activeTermRef.current = term;
-		onHeadroomResetAnchor?.(true);
-		onHeadroomSetHidden?.(direction === "forward");
-		let position = resolvePosition(matches, lastResolvedRef.current, viewNodesRef.current, selectedRef.current, term);
-		const SKIP_LIMIT = Math.min(matches.length, 8);
-		let next = null;
-		for (let attempt = 0; attempt < SKIP_LIMIT; attempt++) {
-			next = pickNext(matches, position, direction);
-			if (next.rowKey !== selectedRef.current) {
-				onSelect(next.rowKey);
-				const ready = await waitForRow(viewNodesRef, next.eventId);
-				if (isStale()) return false;
-				if (!ready) {
-					position = matches.indexOf(next);
-					lastResolvedRef.current = {
-						match: next,
-						term
-					};
-					continue;
-				}
-			}
-			setFindTarget({
-				term,
-				eventId: next.eventId
-			});
-			await raf();
-			if (isStale()) return false;
-			await raf();
-			if (isStale()) return false;
-			viewNodesRef.current?.scrollToEvent(next.eventId);
-			const inDom = await waitForEventInDOM(next.eventId);
-			if (isStale()) return false;
-			if (inDom) break;
-			const skippedEventId = next.eventId;
-			let lastSkipIdx = matches.indexOf(next);
-			const stride = direction === "forward" ? 1 : -1;
-			for (let idx = lastSkipIdx + stride; idx >= 0 && idx < matches.length && matches[idx].eventId === skippedEventId; idx += stride) lastSkipIdx = idx;
-			position = lastSkipIdx;
-			lastResolvedRef.current = {
-				match: matches[lastSkipIdx],
-				term
-			};
-			next = null;
-		}
-		if (!next) return false;
-		positionSelectionAroundTerm(next.eventId, term, direction);
-		lastResolvedRef.current = {
-			match: next,
-			term
-		};
-		onContentReady();
-		const reselectId = next.eventId;
-		const timer = window.setTimeout(() => {
-			if (isStale()) return;
-			reselectTermInPanel(reselectId, term);
-		}, 300);
-		pendingTimersRef.current.add(timer);
-		return true;
-	}, [
-		getMatches,
-		viewNodesRef,
-		onSelect,
-		setFindTarget,
-		onHeadroomResetAnchor,
-		onHeadroomSetHidden
-	]);
-	(0, import_react.useEffect)(() => {
-		const unCount = registerMatchCounter(id, countFn);
-		const unSearch = registerVirtualList(id, searchFn);
-		return () => {
-			unCount();
-			unSearch();
-		};
-	}, [
-		id,
-		registerMatchCounter,
-		registerVirtualList,
-		countFn,
-		searchFn
-	]);
-}
-function pickNext(matches, position, dir) {
-	const len = matches.length;
-	if (position < 0) return dir === "forward" ? matches[0] : matches[len - 1];
-	return dir === "forward" ? matches[(position + 1) % len] : matches[(position - 1 + len) % len];
-}
-function resolvePosition(matches, last, view, selected, term) {
-	if (last && last.term === term) {
-		const idx = matches.findIndex((m) => m.eventId === last.match.eventId && m.fieldKey === last.match.fieldKey && m.fieldIndex === last.match.fieldIndex && m.occurrenceIndex === last.match.occurrenceIndex);
-		if (idx !== -1) return idx;
-	}
-	const range = view?.getVisibleRange();
-	const flattened = view?.getFlattenedNodes() ?? [];
-	if (!range || flattened.length === 0) return -1;
-	const visibleIds = new Set(flattened.slice(range.startIndex, range.endIndex + 1).map((n) => n.id));
-	return matches.findIndex((m) => m.rowKey === selected && visibleIds.has(m.eventId));
-}
-/**
-* Find the SampleMatch corresponding to the current document selection, if any.
-*
-* Walks up from the selection's startContainer to find an event-panel element
-* (one whose `id` is in `matches`'s eventId set). Then counts how many
-* occurrences of `term` precede the selection within that event's text — that
-* count is the DOM-order occurrence index, which we map to the n-th match in
-* our array for that event.
-*
-* Returns `null` if there is no selection, no event ancestor, or the count
-* runs past the matches we know about (e.g. selection isn't actually on a
-* `term` instance).
-*/
-function matchAtSelection(matches, term) {
-	if (typeof window === "undefined" || !term) return null;
-	const sel = window.getSelection();
-	if (!sel || sel.rangeCount === 0) return null;
-	const range = sel.getRangeAt(0);
-	const eventIds = new Set(matches.map((m) => m.eventId));
-	let el = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
-	while (el && !eventIds.has(el.id)) el = el.parentElement;
-	if (!el) return null;
-	const eventId = el.id;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-	let occurrenceInEvent = 0;
-	let node;
-	while (node = walker.nextNode()) {
-		const textNode = node;
-		if (textNode === range.startContainer) {
-			const head = textNode.data.slice(0, range.startOffset).toLowerCase();
-			let from = 0;
-			while ((from = head.indexOf(lowered, from)) !== -1) {
-				occurrenceInEvent++;
-				from += lowered.length;
-			}
-			break;
-		}
-		const text = textNode.data.toLowerCase();
-		let from = 0;
-		while ((from = text.indexOf(lowered, from)) !== -1) {
-			occurrenceInEvent++;
-			from += lowered.length;
-		}
-	}
-	let seen = 0;
-	for (const m of matches) {
-		if (m.eventId !== eventId) continue;
-		if (seen === occurrenceInEvent) return m;
-		seen++;
-	}
-	return null;
-}
-/**
-* Walk the DOM under the event element with `eventId` and place a collapsed
-* selection adjacent to the FIRST occurrence of `term` (forward) or the LAST
-* occurrence (backward), so FindBand's subsequent `window.find` advances onto
-* exactly that occurrence.
-*
-* Forward: cursor BEFORE the first match — `window.find` searches forward
-* from the cursor and lands on the term.
-* Backward: cursor AFTER the last match — `window.find` with backward=true
-* searches backward from the cursor and lands on the term. (If we collapsed
-* before instead, backward would skip past it and either find nothing or
-* land in unrelated DOM, which makes findExtendedInDOM return false and the
-* counter fail to update.)
-*
-* If the panel isn't mounted or doesn't render the term as text (e.g. the
-* match was in a JSON-stringified field we don't render), bail silently —
-* FindBand will fall back to its default windowFind behavior.
-*/
-function positionSelectionAroundTerm(eventId, term, direction) {
-	const root = document.getElementById(eventId);
-	if (!root) return false;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	let target = null;
-	for (let node; node = walker.nextNode();) {
-		const textNode = node;
-		const text = textNode.data.toLowerCase();
-		let from = 0;
-		while ((from = text.indexOf(lowered, from)) !== -1) {
-			target = {
-				node: textNode,
-				idx: from
-			};
-			from += lowered.length;
-			if (direction === "forward") break;
-		}
-		if (target && direction === "forward") break;
-	}
-	if (!target) return false;
-	const sel = window.getSelection();
-	if (!sel) return false;
-	const range = document.createRange();
-	range.setStart(target.node, direction === "forward" ? target.idx : target.idx + term.length);
-	range.collapse(true);
-	sel.removeAllRanges();
-	sel.addRange(range);
-	return true;
-}
-/**
-* If the current selection no longer covers `term` inside the panel
-* (because a late settling pass — Virtuoso re-render, lazy syntax
-* highlighting, ExpandablePanel auto-expand reflow — detached the text
-* node `window.find` was anchored on), re-anchor the selection to the
-* first occurrence of `term` in the panel. Returns false (no-op) when
-* the existing highlight is intact.
-*/
-function reselectTermInPanel(eventId, term) {
-	const root = document.getElementById(eventId);
-	if (!root) return false;
-	const sel = window.getSelection();
-	if (!sel) return false;
-	if (sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && sel.getRangeAt(0).toString().toLowerCase() === term.toLowerCase() && root.contains(sel.getRangeAt(0).startContainer)) return true;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	for (let node; node = walker.nextNode();) {
-		const idx = (node.textContent ?? "").toLowerCase().indexOf(lowered);
-		if (idx === -1) continue;
-		const range = document.createRange();
-		range.setStart(node, idx);
-		range.setEnd(node, idx + term.length);
-		sel.removeAllRanges();
-		sel.addRange(range);
-		return true;
-	}
-	return false;
-}
-function raf() {
-	return new Promise((resolve) => typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame(() => resolve()) : setTimeout(resolve, 0));
-}
-/**
-* Wait for the freshly-selected row to mount: poll until the target eventId
-* is present in the flattened-node list, or the budget expires.
-* Returns false if the view is not mounted or the event never appears.
-*/
-async function waitForRow(viewNodesRef, eventId) {
-	for (let i = 0; i < SETTLE_LIMIT; i++) {
-		const view = viewNodesRef.current;
-		if (!view) return false;
-		if (view.getFlattenedNodes().some((n) => n.id === eventId)) return true;
-		await raf();
-	}
-	return false;
-}
-/**
-* Wait until the event panel is actually rendered to the DOM. After
-* `scrollToEvent` triggers a Virtuoso scroll for an off-screen target, the
-* panel takes several frames to mount. Returns false on timeout. The budget
-* is shorter than for row mount because we use this to detect unreachable
-* matches and skip them — too long a wait makes skipping feel laggy.
-*/
-async function waitForEventInDOM(eventId) {
-	if (typeof document === "undefined") return false;
-	const DOM_BUDGET = 30;
-	for (let i = 0; i < DOM_BUDGET; i++) {
-		if (document.getElementById(eventId)) return true;
-		await raf();
-	}
-	return false;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/TimelineSelectContext.ts
-var TimelineSelectContext = (0, import_react.createContext)(null);
-function useTimelineSelect() {
-	return (0, import_react.useContext)(TimelineSelectContext);
-}
-var TimelineRowSelectContext = (0, import_react.createContext)(null);
-function useTimelineRowSelect() {
-	return (0, import_react.useContext)(TimelineRowSelectContext);
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/markers.ts
-var defaultMarkerConfig = {
-	kinds: ["compaction", "branch"],
-	depth: "direct"
-};
-/**
-* Returns true if the event is an error event.
-*
-* An event is an error if:
-* - It's a ToolEvent with a non-null `.error`
-* - It's a ModelEvent with a non-null `.error`
-*
-* Noneable fields are stripped during serialization (`exclude_none=True`), so
-* `null`/missing both manifest as `undefined` at runtime — hence the `!= null`
-* check. See packages/inspect-common/src/types/index.ts.
-*
-* Note: `ModelOutput.error` (a soft-refusal/content-filter channel populated
-* by some providers without raising) is intentionally excluded — the
-* transcript's ModelEventView only renders `event.error`, so flagging on
-* `output.error` produces markers that navigate to a card with no visible
-* error.
-*/
-function isErrorEvent(event) {
-	if (event.event === "tool") return event.error != null;
-	if (event.event === "model") return event.error != null;
-	return false;
-}
-/**
-* Returns true if the event is a compaction event.
-*/
-function isCompactionEvent(event) {
-	return event.event === "compaction";
-}
-/**
-* Builds a tooltip string for an error event.
-*/
-function errorTooltip(event) {
-	if (event.event === "tool") {
-		const msg = event.error?.message ?? "Unknown error";
-		return `Error (${event.function}): ${msg}`;
-	}
-	if (event.event === "model") {
-		const msg = (typeof event.error === "string" ? event.error : null) ?? "Unknown error";
-		return `Error (${event.model}): ${msg}`;
-	}
-	return "Error";
-}
-/**
-* Collects timeline markers from a TimelineSpan at the specified depth.
-*
-* - `"direct"`: Only markers from the span's own TimelineEvent content.
-* - `"children"`: Own events + events from direct child spans.
-* - `"recursive"`: Full subtree traversal.
-*
-* Branch markers are always collected from the span's own branches
-* (not from child spans), regardless of depth.
-*
-* Results are sorted by timestamp.
-*/
-function collectMarkers(node, depth) {
-	const markers = [];
-	collectEventMarkers(node, depth, 0, markers);
-	collectBranchMarkers(node, markers);
-	markers.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-	return markers;
-}
-/**
-* Collects error and compaction markers from event nodes.
-*
-* @param node The span to scan
-* @param depth The depth mode
-* @param currentLevel 0 = the root node itself, 1 = direct children, etc.
-* @param markers Accumulator array
-*/
-function collectEventMarkers(node, depth, currentLevel, markers) {
-	for (const item of node.content) if (item.type === "event") addEventMarker(item, markers);
-	else if (item.type === "span" && shouldDescend(depth, currentLevel)) collectEventMarkers(item, depth, currentLevel + 1, markers);
-}
-/**
-* Determines whether to descend into a child span based on depth mode.
-*/
-function shouldDescend(depth, currentLevel) {
-	if (depth === "direct") return false;
-	if (depth === "children") return currentLevel === 0;
-	return true;
-}
-/**
-* Adds a marker for a timeline event if it's an error or compaction event.
-*/
-function addEventMarker(eventNode, markers) {
-	const event = eventNode.event;
-	const uuid = event.uuid;
-	if (isErrorEvent(event)) markers.push({
-		kind: "error",
-		timestamp: eventNode.startTime(),
-		reference: uuid ?? "",
-		tooltip: errorTooltip(event)
-	});
-	else if (isCompactionEvent(event)) {
-		const ce = event;
-		const before = ce.tokens_before?.toLocaleString() ?? "?";
-		const after = ce.tokens_after?.toLocaleString() ?? "?";
-		markers.push({
-			kind: "compaction",
-			timestamp: eventNode.startTime(),
-			reference: uuid ?? "",
-			tooltip: `Context compaction: ${before} → ${after} tokens`
-		});
-	}
-}
-/**
-* Collects branch markers from a span's branches.
-*
-* Emits one marker per branch, positioned at the fork point event in the
-* parent span (resolved via the branch's `branchedFrom` identifier).
-* Clicking a branch marker toggles the showBranches display option.
-*/
-function collectBranchMarkers(node, markers) {
-	for (const branch of node.branches) markers.push({
-		kind: "branch",
-		timestamp: resolveForkTimestamp(node, branch),
-		reference: branch.branchedFrom ?? "",
-		tooltip: branchTooltip([branch])
-	});
-}
-/**
-* Resolves the fork point timestamp from the parent span's content.
-*
-* `branch.branchedFrom` is a message ID (not an event UUID). Searches
-* parent events for one that produced or carries this message ID.
-*
-* When `branchedFrom` is empty the branch is unrolled from the very
-* beginning, so we return the parent's start time.
-*
-* Falls back to `parent.startTime()` when no matching event is found.
-*/
-function resolveForkTimestamp(parent, branch) {
-	if (!branch.branchedFrom) return parent.startTime();
-	for (const item of parent.content) if (item.type === "event" && item.matchesForkPoint(branch.branchedFrom)) return item.startTime();
-	return parent.startTime();
-}
-/**
-* Builds a tooltip string summarizing branches at a fork point.
-*/
-function branchTooltip(branches) {
-	const count = branches.length;
-	const tokenStr = formatCompactTokens(branches.reduce((sum, b) => sum + b.totalTokens(), 0));
-	const envelope = computeTimeEnvelope(branches);
-	const duration = formatDuration$1(envelope.startTime, envelope.endTime);
-	return `${count === 1 ? "1 branch" : `${count} branches`} (${tokenStr}, ${duration})`;
-}
-/**
-* Formats a token count compactly with " tokens" suffix: "48.5k tokens", "1.2M tokens", etc.
-*/
-function formatCompactTokens(tokens) {
-	return `${formatTokenCount(tokens)} tokens`;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneLayout.ts
-/**
-* Swimlane layout computation for the timeline UI.
-*
-* Maps swimlane rows + a time range to percentage-based positions for CSS
-* rendering. All functions are pure with no DOM or React dependencies.
-*/
-/**
-* Computes a single percentage position for a timestamp within a view range.
-* Result is clamped to [0, 100]. Returns 0 for zero-duration view ranges.
-*/
-function timestampToPercent(timestamp, viewStart, viewEnd) {
-	const range = viewEnd.getTime() - viewStart.getTime();
-	if (range <= 0) return 0;
-	const offset = timestamp.getTime() - viewStart.getTime();
-	return Math.max(0, Math.min(100, offset / range * 100));
-}
-/**
-* Computes the bar position (left + width) for a time range within a view range.
-* Both left and width are clamped so the bar stays within [0, 100].
-*/
-function computeBarPosition(spanStart, spanEnd, viewStart, viewEnd) {
-	const left = timestampToPercent(spanStart, viewStart, viewEnd);
-	const right = timestampToPercent(spanEnd, viewStart, viewEnd);
-	return {
-		left,
-		width: Math.max(0, right - left)
-	};
-}
-/**
-* Computes the time envelope (earliest start, latest end) of a non-empty array.
-* Useful for computing the bounding range of parallel agents or branches.
-*/
-function computeTimeEnvelope(items) {
-	const first = items[0];
-	let startTime = first.startTime();
-	let endTime = first.endTime();
-	for (let i = 1; i < items.length; i++) {
-		const item = items[i];
-		if (item.startTime() < startTime) startTime = item.startTime();
-		if (item.endTime() > endTime) endTime = item.endTime();
-	}
-	return {
-		startTime,
-		endTime
-	};
-}
-/**
-* Formats a token count for compact display: "48.5k", "1.2M", etc.
-* Uses rounding thresholds so values like 999,950 display as "1.0M" not "1000.0k".
-*/
-function formatTokenCount(tokens) {
-	if (tokens >= 999950) return `${formatPrettyDecimal(tokens / 1e6, 1)}M`;
-	if (tokens >= 1e3) return `${formatPrettyDecimal(tokens / 1e3, 1)}k`;
-	return String(tokens);
-}
-/**
-* Computes the full layout for all swimlane rows.
-*
-* The TimeMapping defines how timestamps map to percentage positions. When
-* gap compression is active, idle gaps are compressed into narrow regions.
-* Markers are collected at the specified depth for each row's spans.
-*/
-function computeRowLayouts(rows, mapping, markerDepth, markerKinds, branchMappings) {
-	return rows.map((row) => {
-		const isParent = row.depth === 0;
-		const rowMapping = branchMappings?.get(row.key) ?? mapping;
-		const spans = row.spans.map((rowSpan) => {
-			if (isSingleSpan(rowSpan)) return {
-				bar: computeBarFromMapping(rowSpan.agent.startTime(false), rowSpan.agent.endTime(false), rowMapping),
-				drillable: false,
-				childCount: 0,
-				parallelCount: null,
-				description: rowSpan.agent.description ?? null
-			};
-			const agents = rowSpan.agents;
-			let envStart = agents[0].startTime(false);
-			let envEnd = agents[0].endTime(false);
-			for (let i = 1; i < agents.length; i++) {
-				const a = agents[i];
-				if (a.startTime(false) < envStart) envStart = a.startTime(false);
-				if (a.endTime(false) > envEnd) envEnd = a.endTime(false);
-			}
-			return {
-				bar: computeBarFromMapping(envStart, envEnd, rowMapping),
-				drillable: false,
-				childCount: 0,
-				parallelCount: agents.length,
-				description: null
-			};
-		});
-		const allMarkers = collectRowMarkers(row, markerDepth, rowMapping);
-		const markers = markerKinds ? allMarkers.filter((m) => markerKinds.includes(m.kind)) : allMarkers;
-		const rowParallelCount = spans.length === 1 && spans[0].parallelCount !== null ? spans[0].parallelCount : null;
-		return {
-			key: row.key,
-			name: row.name,
-			isParent,
-			depth: row.depth,
-			spans,
-			markers,
-			totalTokens: row.totalTokens,
-			parallelCount: rowParallelCount,
-			branch: row.branch
-		};
-	});
-}
-/** Computes bar position using a TimeMapping (which may compress gaps). */
-function computeBarFromMapping(spanStart, spanEnd, mapping) {
-	const left = mapping.toPercent(spanStart);
-	const right = mapping.toPercent(spanEnd);
-	return {
-		left,
-		width: Math.max(0, right - left)
-	};
-}
-/** Returns true if a TimelineSpan has any TimelineEvent items in its content tree. */
-function spanHasEvents(span) {
-	for (const item of span.content) {
-		if (item.type === "event") return true;
-		if (item.type === "span" && spanHasEvents(item)) return true;
-	}
-	return false;
-}
-/** Returns true if any agent across all spans in a row has events. */
-function rowHasEvents(row) {
-	return row.spans.some((rowSpan) => getAgents(rowSpan).some(spanHasEvents));
-}
-/**
-* Collects and positions markers for a single row.
-*
-* For the parent row, markers come from the parent span itself.
-* For child rows, markers are collected from each span's agent and merged.
-*/
-function collectRowMarkers(row, depth, mapping) {
-	const allMarkers = [];
-	for (const rowSpan of row.spans) {
-		const agents = getAgents(rowSpan);
-		for (const agent of agents) {
-			const markers = collectMarkers(agent, depth);
-			for (const m of markers) allMarkers.push({
-				left: mapping.toPercent(m.timestamp),
-				kind: m.kind,
-				reference: m.reference,
-				tooltip: m.tooltip
-			});
-		}
-	}
-	allMarkers.sort((a, b) => a.left - b.left);
-	let compactionIdx = 0;
-	for (const m of allMarkers) if (m.kind === "compaction") m.compactionIndex = compactionIdx++;
-	return allMarkers;
-}
-var AgentCardView_module_default = {
-	card: "_card_fxgye_1",
-	branchCard: "_branchCard_fxgye_13",
-	utilityCard: "_utilityCard_fxgye_21",
-	header: "_header_fxgye_30",
-	icon: "_icon_fxgye_39",
-	title: "_title_fxgye_43",
-	meta: "_meta_fxgye_49",
-	disclosure: "_disclosure_fxgye_54",
-	description: "_description_fxgye_59",
-	resultPanel: "_resultPanel_fxgye_64"
-};
-var TimelineIconsContext = (0, import_react.createContext)({
-	error: "bi bi-exclamation-circle-fill",
-	compaction: "bi bi-arrows-collapse-vertical",
-	fork: "bi bi-sign-intersection-y-fill",
-	agent: "bi bi-grid",
-	threeDots: "bi bi-three-dots",
-	expand: { down: "bi bi-chevron-down" },
-	collapse: { up: "bi bi-chevron-up" },
-	chevron: {
-		down: "bi bi-chevron-down",
-		left: "bi bi-chevron-left",
-		right: "bi bi-chevron-right"
-	},
-	solvers: { default: "bi bi-arrow-return-right" },
-	punchDown: "bi bi-arrows-angle-expand"
-});
-function useTimelineIcons() {
-	return (0, import_react.useContext)(TimelineIconsContext);
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/AgentCardView.tsx
-var AgentCardView = ({ span, className }) => {
-	const icons = useTimelineIcons();
-	const select = useTimelineSelect();
-	const handleClick = (0, import_react.useCallback)(() => {
-		select?.(span.id);
-	}, [select, span.id]);
-	const stopPropagation = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-	}, []);
-	const resultOutput = (0, import_react.useMemo)(() => getSpanToolResult(span), [span]);
-	const isUtility = span.utility;
-	const isBranch = span.spanType === "branch";
-	const title = isUtility ? getUtilityAgentLabel(span) : span.name.toLowerCase();
-	const tokens = formatTokenCount(span.totalTokens());
-	const duration = formatDurationShort(span.startTime(), span.endTime());
-	const iconClass = isBranch ? icons.fork : icons.agent;
-	const label = isBranch ? "branch" : isUtility ? "utility" : "sub-agent";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(AgentCardView_module_default.card, isUtility && AgentCardView_module_default.utilityCard, isBranch && AgentCardView_module_default.branchCard, className),
-		onClick: isBranch ? void 0 : handleClick,
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(AgentCardView_module_default.header, "text-size-small"),
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(iconClass, AgentCardView_module_default.icon, "text-style-secondary") }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: clsx(AgentCardView_module_default.title, "text-style-secondary", "text-style-label"),
-						children: [
-							label,
-							": ",
-							title
-						]
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: clsx(AgentCardView_module_default.meta, "text-style-secondary"),
-						children: [
-							tokens,
-							" · ",
-							duration
-						]
-					}),
-					!isBranch && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icons.chevron.right, AgentCardView_module_default.disclosure, "text-style-secondary") })
-				]
-			}),
-			!isUtility && span.description && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx(AgentCardView_module_default.description, "text-size-small"),
-				children: span.description
-			}),
-			resultOutput && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: AgentCardView_module_default.resultPanel,
-				onClick: stopPropagation,
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
-					id: `agent-result-${span.id}`,
-					collapse: true,
-					lines: 15,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: resultOutput })
-				})
-			})
-		]
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/timeMapping.ts
-/** Same threshold as computeIdleTime in timeline.ts — 5 minutes. */
-var GAP_THRESHOLD_MS = 3e5;
-/** Each compressed gap gets zero width — gaps simply vanish from the timeline. */
-var GAP_PERCENT = 0;
-/** Maximum total percentage allocated to all gaps combined. */
-var MAX_TOTAL_GAP_PERCENT = 0;
-/**
-* Creates an identity (linear) time mapping with no compression.
-* Useful as a fallback or for timelines without idle gaps.
-*/
-function createIdentityMapping(viewStart, viewEnd) {
-	const startMs = viewStart.getTime();
-	const range = viewEnd.getTime() - startMs;
-	return {
-		toPercent(timestamp) {
-			if (range <= 0) return 0;
-			const offset = timestamp.getTime() - startMs;
-			return Math.max(0, Math.min(100, offset / range * 100));
-		},
-		hasCompression: false,
-		gaps: []
-	};
-}
-/**
-* Compute the full view range of a node, including branches recursively.
-*
-* The span's own startTime/endTime cover only direct content. Branches
-* (and their nested branches) may extend beyond that range. The view
-* range is the recursive union of the span's time range and all branch
-* time ranges, giving the full time extent needed by the swimlane
-* visualization.
-*/
-function computeViewRange(node) {
-	const items = [node];
-	collectBranches(node, items);
-	let start = items[0].startTime(false);
-	let end = items[0].endTime(false);
-	for (let i = 1; i < items.length; i++) {
-		const s = items[i];
-		if (s.content.length === 0) continue;
-		const st = s.startTime(false);
-		const et = s.endTime(false);
-		if (st < start) start = st;
-		if (et > end) end = et;
-	}
-	return {
-		start,
-		end
-	};
-}
-/** Recursively collect all branch spans for view range computation. */
-function collectBranches(node, out) {
-	for (const branch of node.branches) {
-		out.push(branch);
-		collectBranches(branch, out);
-	}
-	for (const item of node.content) if (item.type === "span") collectBranches(item, out);
-}
-/**
-* Computes a TimeMapping for a timeline node.
-*
-* The mapping covers the full view range (content + branches) so that
-* branch rows render at correct positions within the swimlane.
-*
-* If the node has no idle time (idleTime === 0), returns an identity mapping
-* with zero overhead. Otherwise, detects gaps between content items and
-* compresses them into small fixed-width regions.
-*/
-function computeTimeMapping(node) {
-	const { start: viewStart, end: viewEnd } = computeViewRange(node);
-	if (node.idleTime() === 0) return createIdentityMapping(viewStart, viewEnd);
-	const nodeStartMs = viewStart.getTime();
-	const nodeEndMs = viewEnd.getTime();
-	if (nodeEndMs - nodeStartMs <= 0) return createIdentityMapping(viewStart, viewEnd);
-	const intervals = extractIntervals([...node.content, ...node.branches]);
-	if (intervals.length === 0) return createIdentityMapping(viewStart, viewEnd);
-	const activeRegions = mergeIntervals(intervals);
-	const rawGaps = findGaps(nodeStartMs, nodeEndMs, activeRegions);
-	if (rawGaps.length === 0) return createIdentityMapping(viewStart, viewEnd);
-	const totalActiveMs = activeRegions.reduce((sum, r) => sum + (r.endMs - r.startMs), 0);
-	let gapPercentEach = GAP_PERCENT;
-	if (rawGaps.length * gapPercentEach > MAX_TOTAL_GAP_PERCENT) gapPercentEach = MAX_TOTAL_GAP_PERCENT / rawGaps.length;
-	const activePercent = 100 - rawGaps.length * gapPercentEach;
-	const segments = [];
-	const gapRegions = [];
-	let currentPercent = 0;
-	let gapIdx = 0;
-	if (rawGaps.length > 0 && rawGaps[0].startMs === nodeStartMs) {
-		const gap = rawGaps[0];
-		const percentEnd = currentPercent + gapPercentEach;
-		segments.push({
-			startMs: gap.startMs,
-			endMs: gap.endMs,
-			percentStart: currentPercent,
-			percentEnd
-		});
-		gapRegions.push({
-			startMs: gap.startMs,
-			endMs: gap.endMs,
-			durationMs: gap.endMs - gap.startMs,
-			percentStart: currentPercent,
-			percentEnd
-		});
-		currentPercent = percentEnd;
-		gapIdx = 1;
-	}
-	for (let i = 0; i < activeRegions.length; i++) {
-		const region = activeRegions[i];
-		const regionDurationMs = region.endMs - region.startMs;
-		const regionPercent = totalActiveMs > 0 ? regionDurationMs / totalActiveMs * activePercent : activePercent / activeRegions.length;
-		const percentEnd = currentPercent + regionPercent;
-		segments.push({
-			startMs: region.startMs,
-			endMs: region.endMs,
-			percentStart: currentPercent,
-			percentEnd
-		});
-		currentPercent = percentEnd;
-		if (gapIdx < rawGaps.length) {
-			const gap = rawGaps[gapIdx];
-			if (gap.startMs >= region.endMs - 1) {
-				const gapPercentEnd = currentPercent + gapPercentEach;
-				segments.push({
-					startMs: gap.startMs,
-					endMs: gap.endMs,
-					percentStart: currentPercent,
-					percentEnd: gapPercentEnd
-				});
-				gapRegions.push({
-					startMs: gap.startMs,
-					endMs: gap.endMs,
-					durationMs: gap.endMs - gap.startMs,
-					percentStart: currentPercent,
-					percentEnd: gapPercentEnd
-				});
-				currentPercent = gapPercentEnd;
-				gapIdx++;
-			}
-		}
-	}
-	const frozenSegments = segments;
-	return {
-		toPercent(timestamp) {
-			const ms = timestamp.getTime();
-			if (ms <= nodeStartMs) return 0;
-			if (ms >= nodeEndMs) return 100;
-			const seg = findSegment(frozenSegments, ms);
-			if (!seg) return 0;
-			const segRange = seg.endMs - seg.startMs;
-			if (segRange <= 0) return seg.percentStart;
-			const t = (ms - seg.startMs) / segRange;
-			return seg.percentStart + t * (seg.percentEnd - seg.percentStart);
-		},
-		hasCompression: true,
-		gaps: gapRegions
-	};
-}
-/**
-* Compute active time (seconds) within [startMs, endMs] by subtracting
-* overlapping gap durations from the mapping.
-*/
-function computeActiveTime(mapping, startMs, endMs) {
-	const wallClockMs = endMs - startMs;
-	let gapMs = 0;
-	for (const gap of mapping.gaps) {
-		const overlapStart = Math.max(gap.startMs, startMs);
-		const overlapEnd = Math.min(gap.endMs, endMs);
-		if (overlapEnd > overlapStart) gapMs += overlapEnd - overlapStart;
-	}
-	return Math.max(0, (wallClockMs - gapMs) / 1e3);
-}
-/** Recursively extract [startMs, endMs] intervals from leaf content items. */
-function extractIntervals(content) {
-	const intervals = [];
-	for (const item of content) if (item.type === "event") intervals.push({
-		startMs: item.startTime().getTime(),
-		endMs: item.endTime().getTime()
-	});
-	else {
-		const childIntervals = extractIntervals(item.content);
-		if (childIntervals.length > 0) intervals.push(...childIntervals);
-		else intervals.push({
-			startMs: item.startTime().getTime(),
-			endMs: item.endTime().getTime()
-		});
-	}
-	return intervals;
-}
-/** Sort intervals by start time and merge overlapping ones. */
-function mergeIntervals(intervals) {
-	if (intervals.length === 0) return [];
-	const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs);
-	const merged = [{ ...sorted[0] }];
-	for (let i = 1; i < sorted.length; i++) {
-		const current = sorted[i];
-		const last = merged[merged.length - 1];
-		if (current.startMs <= last.endMs) last.endMs = Math.max(last.endMs, current.endMs);
-		else merged.push({ ...current });
-	}
-	return merged;
-}
-/** Find gaps between active regions that exceed the threshold. */
-function findGaps(nodeStartMs, nodeEndMs, activeRegions) {
-	const gaps = [];
-	if (activeRegions.length > 0) {
-		const firstStart = activeRegions[0].startMs;
-		if (firstStart - nodeStartMs > GAP_THRESHOLD_MS) gaps.push({
-			startMs: nodeStartMs,
-			endMs: firstStart
-		});
-	}
-	for (let i = 1; i < activeRegions.length; i++) {
-		const prevEnd = activeRegions[i - 1].endMs;
-		const nextStart = activeRegions[i].startMs;
-		if (nextStart - prevEnd > GAP_THRESHOLD_MS) gaps.push({
-			startMs: prevEnd,
-			endMs: nextStart
-		});
-	}
-	if (activeRegions.length > 0) {
-		const lastEnd = activeRegions[activeRegions.length - 1].endMs;
-		if (nodeEndMs - lastEnd > GAP_THRESHOLD_MS) gaps.push({
-			startMs: lastEnd,
-			endMs: nodeEndMs
-		});
-	}
-	return gaps;
-}
-/** Binary search for the segment containing a given timestamp. */
-function findSegment(segments, ms) {
-	let lo = 0;
-	let hi = segments.length - 1;
-	while (lo <= hi) {
-		const mid = lo + hi >>> 1;
-		const seg = segments[mid];
-		if (ms < seg.startMs) hi = mid - 1;
-		else if (ms > seg.endMs) lo = mid + 1;
-		else return seg;
-	}
-	if (lo < segments.length) return segments[lo];
-	if (hi >= 0) return segments[hi];
-	return null;
-}
-var TimelineMinimap_module_default = {
-	container: "_container_1h53w_3",
-	stableLabel: "_stableLabel_1h53w_17",
-	alignRight: "_alignRight_1h53w_32",
-	alignLeft: "_alignLeft_1h53w_36",
-	hidden: "_hidden_1h53w_40",
-	minimap: "_minimap_1h53w_44",
-	track: "_track_1h53w_53",
-	regionFill: "_regionFill_1h53w_66",
-	marker: "_marker_1h53w_79",
-	selectionRegion: "_selectionRegion_1h53w_96",
-	sectionTime: "_sectionTime_1h53w_114",
-	sectionTimePill: "_sectionTimePill_1h53w_126",
-	scrubber: "_scrubber_1h53w_142",
-	scrubberLine: "_scrubberLine_1h53w_153",
-	scrubberCaretUp: "_scrubberCaretUp_1h53w_161"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineMinimap.tsx
-/**
-* Compact minimap showing the selected row's position within the full timeline.
-*
-* Renders as a self-contained flex row: mode label + bar area.
-* Designed to sit inside the breadcrumb row, right-aligned.
-*/
-var TimelineMinimap = ({ root, selection, mapping, scrubberProgress, onScrub }) => {
-	const regionRef = (0, import_react.useRef)(null);
-	const draggingRef = (0, import_react.useRef)(false);
-	const localProgressRef = (0, import_react.useRef)(null);
-	const [dragging, setDragging] = (0, import_react.useState)(false);
-	const [localProgress, setLocalProgress] = (0, import_react.useState)(null);
-	const progressFromPointer = (0, import_react.useCallback)((clientX) => {
-		const rect = regionRef.current?.getBoundingClientRect();
-		if (!rect || rect.width === 0) return 0;
-		return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-	}, []);
-	const handlePointerDown = (0, import_react.useCallback)((e) => {
-		if (!onScrub) return;
-		e.preventDefault();
-		draggingRef.current = true;
-		const p = progressFromPointer(e.clientX);
-		localProgressRef.current = p;
-		setDragging(true);
-		setLocalProgress(p);
-		regionRef.current?.setPointerCapture(e.pointerId);
-	}, [onScrub, progressFromPointer]);
-	const handlePointerMove = (0, import_react.useCallback)((e) => {
-		if (!draggingRef.current) return;
-		const p = progressFromPointer(e.clientX);
-		localProgressRef.current = p;
-		setLocalProgress(p);
-	}, [progressFromPointer]);
-	const handlePointerUp = (0, import_react.useCallback)((e) => {
-		if (!draggingRef.current) return;
-		draggingRef.current = false;
-		setDragging(false);
-		const progress = progressFromPointer(e.clientX);
-		localProgressRef.current = progress;
-		setLocalProgress(progress);
-		onScrub?.(progress);
-	}, [onScrub, progressFromPointer]);
-	const handleLostCapture = (0, import_react.useCallback)(() => {
-		if (!draggingRef.current) return;
-		draggingRef.current = false;
-		setDragging(false);
-		const progress = localProgressRef.current;
-		if (progress !== null) onScrub?.(progress);
-	}, [onScrub]);
-	const [prevScrubberProgress, setPrevScrubberProgress] = (0, import_react.useState)(scrubberProgress);
-	if (prevScrubberProgress !== scrubberProgress) {
-		setPrevScrubberProgress(scrubberProgress);
-		if (!dragging && localProgress !== null) setLocalProgress(null);
-	}
-	const [showTokens, setShowTokens] = useProperty("timeline", "minimapShowTokens", { defaultValue: false });
-	const isTokenMode = !!showTokens;
-	const toggle = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		setShowTokens(!isTokenMode);
-	}, [isTokenMode, setShowTokens]);
-	const displayProgress = localProgress !== null ? localProgress : scrubberProgress;
-	const bar = selection ? mapping ? {
-		left: mapping.toPercent(selection.startTime),
-		width: Math.max(0, mapping.toPercent(selection.endTime) - mapping.toPercent(selection.startTime))
-	} : computeBarPosition(selection.startTime, selection.endTime, root.startTime(), root.endTime()) : null;
-	const showRegion = bar !== null;
-	const useShortFormat = bar !== null && bar.width <= 15;
-	const hasCompression = mapping?.hasCompression ?? false;
-	const timeRightLabel = hasCompression && mapping ? formatTime$1(computeActiveTime(mapping, root.startTime().getTime(), root.endTime().getTime())) : formatDuration$1(root.startTime(false), root.endTime(false));
-	const tokenRightLabel = formatTokenCount(root.totalTokens(false));
-	const computeSectionLabel = () => {
-		if (!selection) return "";
-		if (isTokenMode) return formatTokenCount(selection.totalTokens);
-		if (hasCompression && mapping) return formatTime$1(computeActiveTime(mapping, selection.startTime.getTime(), selection.endTime.getTime()));
-		return useShortFormat ? formatDurationShort(selection.startTime, selection.endTime) : formatDuration$1(selection.startTime, selection.endTime);
-	};
-	const sectionLabel = computeSectionLabel();
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineMinimap_module_default.container,
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignRight),
-				onClick: toggle,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
-					children: "time"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
-					children: "tokens"
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: TimelineMinimap_module_default.minimap,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.track }), showRegion && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					ref: regionRef,
-					className: TimelineMinimap_module_default.selectionRegion,
-					style: bar.left + bar.width / 2 < 50 ? {
-						left: `${bar.left}%`,
-						minWidth: `${bar.width}%`
-					} : {
-						right: `${100 - bar.left - bar.width}%`,
-						minWidth: `${bar.width}%`
-					},
-					onPointerDown: onScrub ? handlePointerDown : void 0,
-					onPointerMove: onScrub ? handlePointerMove : void 0,
-					onPointerUp: onScrub ? handlePointerUp : void 0,
-					onLostPointerCapture: onScrub ? handleLostCapture : void 0,
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.regionFill }),
-						displayProgress != null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: TimelineMinimap_module_default.scrubber,
-							style: { left: `${displayProgress * 100}%` },
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberLine }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberCaretUp })]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: TimelineMinimap_module_default.sectionTime,
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: TimelineMinimap_module_default.sectionTimePill,
-								onClick: toggle,
-								children: sectionLabel
-							})
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker })
-					]
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignLeft),
-				onClick: toggle,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
-					children: timeRightLabel
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
-					children: tokenRightLabel
-				})]
-			})
-		]
-	});
-};
-var TimelineOptionsPopover_module_default = {
-	title: "_title_1f23l_1",
-	rows: "_rows_1f23l_8",
-	row: "_row_1f23l_8",
-	groupHeader: "_groupHeader_1f23l_29"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineOptionsPopover.tsx
-var kMarkerKindLabels = [{
-	kind: "error",
-	label: "Errors"
-}, {
-	kind: "compaction",
-	label: "Compaction"
-}];
-var TimelineOptionsPopover = ({ isOpen, setIsOpen, positionEl, config, onToggleBranches }) => {
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(PopOver, {
-		id: "timeline-options-popover",
-		positionEl,
-		isOpen,
-		setIsOpen,
-		placement: "bottom-end",
-		hoverDelay: -1,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: `${TimelineOptionsPopover_module_default.title} text-size-smaller`,
-			children: "View Options"
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: `${TimelineOptionsPopover_module_default.rows} text-size-smaller`,
-			children: [
-				kMarkerKindLabels.map(({ kind, label }) => {
-					const checked = config.markerKinds.includes(kind);
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: TimelineOptionsPopover_module_default.row,
-						onClick: () => config.toggleMarkerKind(kind),
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-							type: "checkbox",
-							checked,
-							onChange: (e) => {
-								e.stopPropagation();
-								config.toggleMarkerKind(kind);
-							}
-						}), label]
-					}, kind);
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: () => config.setIncludeUtility(!config.includeUtility),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.includeUtility,
-						onChange: (e) => {
-							e.stopPropagation();
-							config.setIncludeUtility(!config.includeUtility);
-						}
-					}), "Utility agents"]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: TimelineOptionsPopover_module_default.groupHeader,
-					children: "Branches"
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: onToggleBranches,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.showBranches,
-						onChange: (e) => {
-							e.stopPropagation();
-							onToggleBranches();
-						}
-					}), "Show branches"]
-				}),
-				config.showBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: () => config.setForkRelative(!config.forkRelative),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.forkRelative,
-						onChange: (e) => {
-							e.stopPropagation();
-							config.setForkRelative(!config.forkRelative);
-						}
-					}), "Fork-relative branches"]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: () => config.setShowEmptyBranches(!config.showEmptyBranches),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.showEmptyBranches,
-						onChange: (e) => {
-							e.stopPropagation();
-							config.setShowEmptyBranches(!config.showEmptyBranches);
-						}
-					}), "Show empty branches"]
-				})] })
-			]
-		})]
-	});
-};
-var TimelineSelector_module_default = {
-	selectorContainer: "_selectorContainer_djjmp_1",
-	selectorButton: "_selectorButton_djjmp_8",
-	chevron: "_chevron_djjmp_28",
-	backdrop: "_backdrop_djjmp_33",
-	dropdownMenu: "_dropdownMenu_djjmp_42",
-	dropdownItem: "_dropdownItem_djjmp_57",
-	dropdownItemActive: "_dropdownItemActive_djjmp_74"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSelector.tsx
-var TimelineSelector = ({ timelines, activeIndex, onSelect }) => {
-	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
-	const handleSelect = (0, import_react.useCallback)((index) => {
-		onSelect(index);
-		setIsOpen(false);
-	}, [onSelect]);
-	if (timelines.length <= 1) return null;
-	const active = timelines[activeIndex];
-	if (!active) return null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineSelector_module_default.selectorContainer,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
-			className: TimelineSelector_module_default.selectorButton,
-			onClick: () => setIsOpen((prev) => !prev),
-			title: active.description,
-			"aria-haspopup": "listbox",
-			"aria-expanded": isOpen,
-			children: [active.name, /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi-chevron-down", TimelineSelector_module_default.chevron) })]
-		}), isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: TimelineSelector_module_default.backdrop,
-			onClick: () => setIsOpen(false)
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: TimelineSelector_module_default.dropdownMenu,
-			role: "listbox",
-			children: timelines.map((tl, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				type: "button",
-				className: clsx(TimelineSelector_module_default.dropdownItem, i === activeIndex && TimelineSelector_module_default.dropdownItemActive),
-				role: "option",
-				"aria-selected": i === activeIndex,
-				onClick: () => handleSelect(i),
-				children: tl.name
-			}, tl.name))
-		})] })]
-	});
-};
-//#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/timelineEventNodes.ts
 /**
 * Parses a selection string into row key + optional span index + optional region index.
@@ -94911,637 +93935,542 @@ function attachSourceSpans(nodes, spanMap) {
 		if (node.children.length > 0) attachSourceSpans(node.children, spanMap);
 	}
 }
-var TimelineSwimLanes_module_default = {
-	swimlane: "_swimlane_1itnu_1",
-	pinnedSection: "_pinnedSection_1itnu_17",
-	scrollSection: "_scrollSection_1itnu_25",
-	collapsibleSection: "_collapsibleSection_1itnu_40",
-	collapsibleCollapsed: "_collapsibleCollapsed_1itnu_53",
-	swimlaneSticky: "_swimlaneSticky_1itnu_63",
-	collapsibleInner: "_collapsibleInner_1itnu_67",
-	collapseToggle: "_collapseToggle_1itnu_77",
-	row: "_row_1itnu_105",
-	label: "_label_1itnu_111",
-	labelSelected: "_labelSelected_1itnu_129",
-	labelHighlighted: "_labelHighlighted_1itnu_134",
-	chevron: "_chevron_1itnu_141",
-	chevronSpacer: "_chevronSpacer_1itnu_156",
-	punchDownBtn: "_punchDownBtn_1itnu_162",
-	viewStackBack: "_viewStackBack_1itnu_184",
-	barArea: "_barArea_1itnu_203",
-	barInner: "_barInner_1itnu_209",
-	fill: "_fill_1itnu_215",
-	fillParent: "_fillParent_1itnu_233",
-	fillSelected: "_fillSelected_1itnu_237",
-	fillHighlight: "_fillHighlight_1itnu_245",
-	fillDimmed: "_fillDimmed_1itnu_256",
-	regionSegment: "_regionSegment_1itnu_263",
-	regionDefault: "_regionDefault_1itnu_262",
-	regionHover: "_regionHover_1itnu_262",
-	regionFirst: "_regionFirst_1itnu_283",
-	regionLast: "_regionLast_1itnu_287",
-	regionMiddle: "_regionMiddle_1itnu_291",
-	parallelBadge: "_parallelBadge_1itnu_295",
-	marker: "_marker_1itnu_302",
-	markerBranch: "_markerBranch_1itnu_316",
-	markerError: "_markerError_1itnu_330",
-	markerCompaction: "_markerCompaction_1itnu_351",
-	branchConnector: "_branchConnector_1itnu_371",
-	connectorArrow: "_connectorArrow_1itnu_382",
-	breadcrumbRow: "_breadcrumbRow_1itnu_410",
-	optionsButton: "_optionsButton_1itnu_419",
-	breadcrumbTrail: "_breadcrumbTrail_1itnu_443",
-	breadcrumbSegment: "_breadcrumbSegment_1itnu_451",
-	breadcrumbDivider: "_breadcrumbDivider_1itnu_457",
-	breadcrumbLink: "_breadcrumbLink_1itnu_465",
-	breadcrumbCurrent: "_breadcrumbCurrent_1itnu_479",
-	tokens: "_tokens_1itnu_490"
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useDeepLinkResolution.ts
+/**
+* View-model hook for transcript deep links (`?event=` / `?message=`).
+*
+* Resolves the deep-link target against the timeline and drives the
+* selection side effects needed to make it visible:
+* - message ID → event resolution (selected span first, then root/branches)
+* - cross-timeline switch when the target lives in another root timeline
+* - swimlane row selection when the target is outside the visible rows
+*
+* Each side effect fires once per deep-link key change, guarded by refs —
+* see the comments on each effect for the races those guards prevent.
+*/
+function useDeepLinkResolution(options) {
+	const { initialEventId, initialMessageId, timeline: { timeline: timelineData, state: timelineState, multiTimeline: { timelines, activeIndex: activeTimelineIndex, setActive: setActiveTimeline }, selection: { branchScrollTarget } }, spanSelectKeys, showSwimlanes, nodeFeedEvents, onHeadroomResetAnchor } = options;
+	const resolvedLocal = (0, import_react.useMemo)(() => {
+		if (initialEventId || !initialMessageId) return void 0;
+		const selectedSpans = getSelectedSpans(timelineState.rows, timelineState.selected);
+		for (const span of selectedSpans) {
+			const result = resolveMessageToEvent(initialMessageId, span);
+			if (result && !result.agentSpanId) return result;
+		}
+	}, [
+		initialEventId,
+		initialMessageId,
+		timelineState.rows,
+		timelineState.selected
+	]);
+	const resolvedRoot = (0, import_react.useMemo)(() => {
+		if (initialEventId || !initialMessageId || resolvedLocal) return void 0;
+		const main = resolveMessageToEvent(initialMessageId, timelineData.root);
+		if (main) return main;
+		return resolveMessageInBranches(initialMessageId, timelineData.root);
+	}, [
+		initialEventId,
+		initialMessageId,
+		resolvedLocal,
+		timelineData.root
+	]);
+	const resolved = resolvedLocal ?? resolvedRoot;
+	const deepLinkTimelineIndex = (0, import_react.useMemo)(() => {
+		if (timelines.length <= 1) return -1;
+		if (initialEventId) {
+			const active = timelines[activeTimelineIndex];
+			if (!active || timelineContainsEvent(initialEventId, active)) return -1;
+			return findTimelineIndexForEvent(initialEventId, timelines);
+		}
+		if (initialMessageId && !resolvedLocal && !resolvedRoot) return findTimelineIndexForMessage(initialMessageId, timelines);
+		return -1;
+	}, [
+		initialEventId,
+		initialMessageId,
+		resolvedLocal,
+		resolvedRoot,
+		timelines,
+		activeTimelineIndex
+	]);
+	const prevMessageIdRef = (0, import_react.useRef)(void 0);
+	(0, import_react.useEffect)(() => {
+		if (prevMessageIdRef.current === initialMessageId) return;
+		if (deepLinkTimelineIndex >= 0) return;
+		prevMessageIdRef.current = initialMessageId;
+		if (!resolvedRoot) return;
+		let targetKey = null;
+		if (resolvedRoot.branchRowKey) targetKey = resolvedRoot.branchRowKey;
+		else if (resolvedRoot.agentSpanId) targetKey = spanSelectKeys.get(resolvedRoot.agentSpanId)?.key ?? null;
+		if (timelineState.selected === targetKey) return;
+		timelineState.select(targetKey, { preserveDeepLink: true });
+	}, [
+		initialMessageId,
+		deepLinkTimelineIndex,
+		resolvedRoot,
+		spanSelectKeys,
+		timelineState
+	]);
+	const prevDeepLinkRef = (0, import_react.useRef)(null);
+	(0, import_react.useEffect)(() => {
+		if (timelines.length <= 1) return;
+		const key = initialEventId ?? initialMessageId ?? null;
+		if (key === null) {
+			prevDeepLinkRef.current = null;
+			return;
+		}
+		if (prevDeepLinkRef.current === key) return;
+		if (deepLinkTimelineIndex < 0) return;
+		prevDeepLinkRef.current = key;
+		if (deepLinkTimelineIndex === activeTimelineIndex) return;
+		setActiveTimeline(deepLinkTimelineIndex);
+	}, [
+		initialEventId,
+		initialMessageId,
+		deepLinkTimelineIndex,
+		activeTimelineIndex,
+		setActiveTimeline,
+		timelines.length
+	]);
+	const resolvedEventSpan = (0, import_react.useMemo)(() => {
+		if (!initialEventId || !showSwimlanes) return void 0;
+		if (nodeFeedEvents.some((e) => e.uuid === initialEventId)) return void 0;
+		return resolveEventToSpan(initialEventId, timelineData.root) ?? resolveEventInBranches(initialEventId, timelineData.root);
+	}, [
+		initialEventId,
+		showSwimlanes,
+		nodeFeedEvents,
+		timelineData.root
+	]);
+	const prevEventIdRef = (0, import_react.useRef)(void 0);
+	(0, import_react.useEffect)(() => {
+		if (prevEventIdRef.current === initialEventId) return;
+		if (deepLinkTimelineIndex >= 0) return;
+		prevEventIdRef.current = initialEventId;
+		if (!resolvedEventSpan) return;
+		let targetKey = null;
+		if (resolvedEventSpan.branchRowKey) targetKey = resolvedEventSpan.branchRowKey;
+		else if (resolvedEventSpan.agentSpanId) targetKey = spanSelectKeys.get(resolvedEventSpan.agentSpanId)?.key ?? null;
+		if (!targetKey) return;
+		if (timelineState.selected === targetKey) return;
+		timelineState.select(targetKey, { preserveDeepLink: true });
+	}, [
+		initialEventId,
+		deepLinkTimelineIndex,
+		resolvedEventSpan,
+		spanSelectKeys,
+		timelineState
+	]);
+	const effectiveInitialEventId = initialEventId ?? resolved?.eventId ?? branchScrollTarget ?? null;
+	(0, import_react.useEffect)(() => {
+		if (effectiveInitialEventId) onHeadroomResetAnchor?.(true);
+	}, [effectiveInitialEventId, onHeadroomResetAnchor]);
+	return { effectiveInitialEventId };
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/labels.ts
+/**
+* Derive tool-event labels from message labels.
+*
+* A tool event inherits the label of the tool message it produced — matched
+* via `ToolEvent.message_id`, or via tool-role input messages on model
+* events (keyed by `tool_call_id`).
+*/
+var buildToolLabels = (events, messageLabels) => {
+	if (!messageLabels) return void 0;
+	const toolLabels = {};
+	for (const event of events) if (event.event === "tool") {
+		const label = event.message_id ? messageLabels[event.message_id] : void 0;
+		if (label) toolLabels[event.id] = label;
+	} else if (event.event === "model") for (const message of event.input ?? []) {
+		if (message.role !== "tool" || !message.id) continue;
+		const label = messageLabels[message.id];
+		if (label && message.tool_call_id) toolLabels[message.tool_call_id] = label;
+	}
+	return Object.keys(toolLabels).length > 0 ? toolLabels : void 0;
+};
+/**
+* Restrict the message-label map to messages actually present in `events`.
+*
+* The map is shared across the whole sample, but timelines (e.g. auditor vs
+* target) show different events — without this an unlabeled timeline would
+* reserve label-column space just because another timeline is labeled.
+*/
+var scopeMessageLabels = (events, messageLabels) => {
+	if (!messageLabels) return void 0;
+	const present = /* @__PURE__ */ new Set();
+	for (const event of events) if (event.event === "model") {
+		for (const message of event.input ?? []) if (message.id) present.add(message.id);
+		for (const choice of event.output?.choices ?? []) if (choice.message?.id) present.add(choice.message.id);
+	} else if (event.event === "tool" && event.message_id) present.add(event.message_id);
+	const scoped = {};
+	for (const [id, label] of Object.entries(messageLabels)) if (present.has(id)) scoped[id] = label;
+	return Object.keys(scoped).length > 0 ? scoped : void 0;
 };
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSwimLanes.tsx
-/**
-* Builds breadcrumb segments from the layouts and selected key.
-*
-* The selected key encodes tree position (e.g. "transcript/build/test").
-* We find ancestor rows by matching prefix keys, producing a trail like:
-* [main, Build, Test] where "Test" is the currently selected row.
-*/
-function buildBreadcrumbs(layouts, selectedRowKey) {
-	if (!selectedRowKey) return [];
-	const byKey = /* @__PURE__ */ new Map();
-	for (const layout of layouts) byKey.set(layout.key, layout);
-	const parts = selectedRowKey.split("/");
-	const segments = [];
-	for (let i = 1; i <= parts.length; i++) {
-		const ancestorKey = parts.slice(0, i).join("/");
-		const layout = byKey.get(ancestorKey);
-		if (layout) {
-			const label = layout.depth === 0 && layout.name === "solvers" ? "main" : layout.name;
-			segments.push({
-				label,
-				key: layout.key
+//#region ../../packages/inspect-components/src/transcript/timeline/retryGrouping.ts
+var retryAttemptKey = (event) => {
+	if (event.uuid) return `uuid:${event.uuid}`;
+	const epoch = Date.parse(event.timestamp);
+	const tsPart = Number.isNaN(epoch) ? event.timestamp : String(epoch);
+	return `ts:${event.span_id ?? ""}:${tsPart}`;
+};
+function toolChoiceEqual(a, b) {
+	if (a === b) return true;
+	if (typeof a === "string" || typeof b === "string") return a === b;
+	return a?.name === b?.name;
+}
+function toolsEqual(a, b) {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (a[i]?.name !== b[i]?.name) return false;
+	return true;
+}
+function isSameCall(failed, success) {
+	return failed.model === success.model && failed.input.length === success.input.length && toolsEqual(failed.tools, success.tools) && toolChoiceEqual(failed.tool_choice, success.tool_choice);
+}
+function groupRetryAttempts(events) {
+	const attempts = /* @__PURE__ */ new Map();
+	const pendingFailed = /* @__PURE__ */ new Map();
+	const dropIndices = /* @__PURE__ */ new Set();
+	for (let i = 0; i < events.length; i++) {
+		const e = events[i];
+		if (e.event !== "model") continue;
+		const m = e;
+		const key = m.span_id ?? "";
+		if (m.error != null) {
+			const run = pendingFailed.get(key) ?? [];
+			run.push({
+				event: m,
+				index: i
 			});
+			pendingFailed.set(key, run);
+			continue;
+		}
+		const run = pendingFailed.get(key);
+		if (run && run.length > 0) {
+			const matches = run.filter((p) => isSameCall(p.event, m));
+			if (matches.length > 0) {
+				attempts.set(retryAttemptKey(m), [...matches.map((p) => p.event), m]);
+				for (const p of matches) dropIndices.add(p.index);
+			}
+			pendingFailed.delete(key);
 		}
 	}
-	return segments;
-}
-var TimelineSwimLanes = ({ layouts, timeline, header, isSticky, onMarkerNavigate, headroomCollapsed = false, onLayoutShift, regionCounts, defaultCollapsed: defaultCollapsedProp, highlightedKeys, onPunchDown }) => {
-	const icons = useTimelineIcons();
-	const { selected, select: onSelect, clearSelection } = timeline;
-	const [collapsed, setCollapsed] = useProperty("timeline", "swimlanesCollapsed");
-	const isFlat = layouts.length <= 1;
-	const [headroomOverride, setHeadroomOverride] = (0, import_react.useState)(false);
-	const [prevHeadroomCollapsed, setPrevHeadroomCollapsed] = (0, import_react.useState)(headroomCollapsed);
-	if (prevHeadroomCollapsed !== headroomCollapsed) {
-		setPrevHeadroomCollapsed(headroomCollapsed);
-		setHeadroomOverride(false);
-	}
-	const isCollapsed = (collapsed ?? defaultCollapsedProp ?? isFlat) || headroomCollapsed && !headroomOverride;
-	const toggleCollapsed = (0, import_react.useCallback)(() => {
-		onLayoutShift?.();
-		setHeadroomOverride(true);
-		setCollapsed(!isCollapsed);
-	}, [
-		isCollapsed,
-		setCollapsed,
-		onLayoutShift
-	]);
-	const [stableCollapsedBucket, setRowCollapsedById] = useCollapsibleIds("timeline-swimlane-rows");
-	const parentKeys = (0, import_react.useMemo)(() => {
-		const keys = /* @__PURE__ */ new Set();
-		for (const layout of layouts) {
-			const prefix = layout.key + "/";
-			for (const other of layouts) if (other.key.startsWith(prefix)) {
-				keys.add(layout.key);
-				break;
-			}
-		}
-		return keys;
-	}, [layouts]);
-	const expandableKeys = (0, import_react.useMemo)(() => {
-		const keys = new Set(parentKeys);
-		for (const layout of layouts) if (layout.markers.some((m) => m.kind === "branch")) keys.add(layout.key);
-		return keys;
-	}, [layouts, parentKeys]);
-	const isRowCollapsed = (0, import_react.useCallback)((rowKey) => {
-		const explicit = stableCollapsedBucket?.[rowKey];
-		if (explicit !== void 0) return explicit;
-		const layout = layouts.find((l) => l.key === rowKey);
-		if (!layout) return false;
-		if (layout.branch) return false;
-		if (!parentKeys.has(rowKey) && expandableKeys.has(rowKey)) return true;
-		return layout.depth >= 1 && parentKeys.has(rowKey);
-	}, [
-		stableCollapsedBucket,
-		layouts,
-		parentKeys,
-		expandableKeys
-	]);
-	const visibleLayouts = (0, import_react.useMemo)(() => {
-		return layouts.filter((layout) => {
-			const parts = layout.key.split("/");
-			for (let i = 1; i < parts.length; i++) {
-				const ancestorKey = parts.slice(0, i).join("/");
-				if (isRowCollapsed(ancestorKey)) return false;
-			}
-			return true;
-		});
-	}, [layouts, isRowCollapsed]);
-	const handleToggleRowCollapse = (0, import_react.useCallback)((rowKey) => {
-		const current = isRowCollapsed(rowKey);
-		if (current && !header?.timelineConfig?.showBranches) {
-			if (layouts.find((l) => l.key === rowKey)?.markers.some((m) => m.kind === "branch")) header?.timelineConfig?.setShowBranches(true);
-		}
-		setRowCollapsedById(rowKey, !current);
-	}, [
-		isRowCollapsed,
-		setRowCollapsedById,
-		header?.timelineConfig,
-		layouts
-	]);
-	const handleBranchMarkerClick = (0, import_react.useCallback)((rowKey) => {
-		if (!header?.timelineConfig?.showBranches) header?.timelineConfig?.setShowBranches(true);
-		setRowCollapsedById(rowKey, false);
-	}, [header?.timelineConfig, setRowCollapsedById]);
-	const handleBranchToggle = (0, import_react.useCallback)(() => {
-		const turningOff = header?.timelineConfig?.showBranches;
-		header?.timelineConfig?.setShowBranches(!turningOff);
-		if (turningOff && selected && /\/branch-/.test(selected)) clearSelection();
-	}, [
-		header?.timelineConfig,
-		selected,
-		clearSelection
-	]);
-	const parsedSelection = (0, import_react.useMemo)(() => parseSelection(selected), [selected]);
-	const selectedRowKey = parsedSelection?.rowKey ?? null;
-	const breadcrumbs = (0, import_react.useMemo)(() => buildBreadcrumbs(layouts, selectedRowKey), [layouts, selectedRowKey]);
-	const handleKeyDown = (0, import_react.useCallback)((e) => {
-		const rowKeys = visibleLayouts.map((l) => l.key);
-		const currentIndex = selectedRowKey ? rowKeys.indexOf(selectedRowKey) : -1;
-		switch (e.key) {
-			case "ArrowDown": {
-				e.preventDefault();
-				const key = rowKeys[currentIndex < rowKeys.length - 1 ? currentIndex + 1 : currentIndex];
-				if (key !== void 0) onSelect(key);
-				break;
-			}
-			case "ArrowUp": {
-				e.preventDefault();
-				const key = rowKeys[currentIndex > 0 ? currentIndex - 1 : 0];
-				if (key !== void 0) onSelect(key);
-				break;
-			}
-			case "Escape":
-				e.preventDefault();
-				clearSelection();
-				break;
-		}
-	}, [
-		visibleLayouts,
-		selectedRowKey,
-		onSelect,
-		clearSelection
-	]);
-	const parentRow = visibleLayouts[0];
-	const childRows = visibleLayouts.slice(1);
-	const branchConnectors = (0, import_react.useMemo)(() => computeBranchConnectors(visibleLayouts), [visibleLayouts]);
-	const renderRow = (layout, displayName) => {
-		const isRowSelected = selectedRowKey === layout.key;
-		const selectedSpanIndex = isRowSelected ? parsedSelection?.spanIndex ?? null : null;
-		const selectedRegionIndex = isRowSelected ? parsedSelection?.regionIndex ?? null : null;
-		const hasChildren = expandableKeys.has(layout.key);
-		const isRowExpanded = hasChildren ? !isRowCollapsed(layout.key) : void 0;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SwimlaneRow, {
-			layout,
-			displayName,
-			isRowSelected,
-			highlightClip: highlightedKeys?.get(layout.key),
-			selectedSpanIndex,
-			selectedRegionIndex,
-			regionCount: regionCounts?.get(layout.key),
-			isExpanded: isRowExpanded,
-			onToggleExpand: hasChildren ? () => handleToggleRowCollapse(layout.key) : void 0,
-			onSelectRow: () => onSelect(layout.key),
-			onSelectSpan: (spanIndex) => onSelect(buildSelectionKey(layout.key, spanIndex)),
-			onSelectRegion: (spanIndex, regionIndex) => onSelect(buildSelectionKey(layout.key, spanIndex, regionIndex)),
-			onBranchToggle: () => handleBranchMarkerClick(layout.key),
-			onMarkerNavigate,
-			connector: branchConnectors.get(layout.key),
-			onPunchDown: layout.branch && onPunchDown ? () => onPunchDown(layout.key, layout.name) : void 0
-		}, layout.key);
+	if (dropIndices.size === 0) return {
+		events,
+		attempts
 	};
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(TimelineSwimLanes_module_default.swimlane, isSticky && TimelineSwimLanes_module_default.swimlaneSticky),
-		tabIndex: 0,
-		onKeyDown: handleKeyDown,
-		role: "grid",
-		"aria-label": "Timeline swimlane",
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.pinnedSection,
-				children: header && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HeaderRow, {
-					...header,
-					breadcrumbs,
-					onBreadcrumbSelect: onSelect,
-					onToggleBranches: handleBranchToggle
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx(TimelineSwimLanes_module_default.collapsibleSection, isCollapsed && TimelineSwimLanes_module_default.collapsibleCollapsed),
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: TimelineSwimLanes_module_default.collapsibleInner,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: TimelineSwimLanes_module_default.scrollSection,
-						children: [parentRow && renderRow(parentRow, parentRow.name === "solvers" ? "main" : void 0), childRows.map((layout) => renderRow(layout))]
-					})
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				className: TimelineSwimLanes_module_default.collapseToggle,
-				onClick: toggleCollapsed,
-				title: isCollapsed ? "Expand swimlanes" : "Collapse swimlanes",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isCollapsed ? icons.expand.down : icons.collapse.up })
-			})
-		]
-	});
-};
-var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
-/**
-* For each branch row, compute the connector from its parent's fork marker
-* down to the branch bar start.
-*/
-function computeBranchConnectors(layouts) {
-	const connectors = /* @__PURE__ */ new Map();
-	const indexByKey = /* @__PURE__ */ new Map();
-	for (let i = 0; i < layouts.length; i++) indexByKey.set(layouts[i].key, i);
-	for (let i = 0; i < layouts.length; i++) {
-		const layout = layouts[i];
-		if (!layout.branch) continue;
-		const match = kBranchKeyPattern$1.exec(layout.key);
-		if (!match) continue;
-		const branchedFrom = match[1];
-		const parentKey = layout.key.replace(kBranchKeyPattern$1, "");
-		const parentIndex = indexByKey.get(parentKey);
-		if (parentIndex === void 0) continue;
-		const marker = layouts[parentIndex].markers.find((m) => m.kind === "branch" && m.reference === branchedFrom);
-		if (!marker) continue;
-		const barLeft = layout.spans[0]?.bar.left ?? 0;
-		connectors.set(layout.key, {
-			markerLeft: marker.left,
-			barLeft,
-			rowGap: i - parentIndex
-		});
-	}
-	return connectors;
+	const filtered = [];
+	for (let i = 0; i < events.length; i++) if (!dropIndices.has(i)) filtered.push(events[i]);
+	return {
+		events: filtered,
+		attempts
+	};
 }
-var SwimlaneRow = ({ layout, displayName, isRowSelected, highlightClip, selectedSpanIndex, selectedRegionIndex, regionCount, isExpanded, onToggleExpand, onSelectRow, onSelectSpan, onSelectRegion, onBranchToggle, onMarkerNavigate, connector, onPunchDown }) => {
-	const icons = useTimelineIcons();
-	const hasMultipleSpans = layout.spans.length > 1;
-	const hasChildren = isExpanded !== void 0;
-	const compactionMarkerPositions = (0, import_react.useMemo)(() => {
-		if (!regionCount || regionCount <= 1) return null;
-		const positions = [];
-		for (const marker of layout.markers) if (marker.compactionIndex !== void 0) positions.push(marker.left);
-		return positions.length > 0 ? positions : null;
-	}, [regionCount, layout.markers]);
-	const handleChevronClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onToggleExpand?.();
-	}, [onToggleExpand]);
-	const handleMarkerNavigate = (0, import_react.useMemo)(() => {
-		if (!onMarkerNavigate) return void 0;
-		return (eventId) => onMarkerNavigate(eventId, layout.key);
-	}, [onMarkerNavigate, layout.key]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineSwimLanes_module_default.row,
-		role: "row",
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(TimelineSwimLanes_module_default.label, isRowSelected && TimelineSwimLanes_module_default.labelSelected, highlightClip !== void 0 && !isRowSelected && TimelineSwimLanes_module_default.labelHighlighted),
-				style: { paddingLeft: `${.3 + layout.depth * .5}rem` },
-				onClick: onSelectRow,
-				children: [
-					hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: TimelineSwimLanes_module_default.chevron,
-						onClick: handleChevronClick,
-						role: "button",
-						"aria-label": isExpanded ? "Collapse" : "Expand",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isExpanded ? icons.chevron.down : icons.chevron.right })
-					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: TimelineSwimLanes_module_default.chevronSpacer }),
-					displayName ?? (layout.branch ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.solvers.default }),
-						" ",
-						layout.name
-					] }) : layout.name),
-					onPunchDown && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: TimelineSwimLanes_module_default.punchDownBtn,
-						title: "Open as standalone timeline",
-						onClick: (e) => {
-							e.stopPropagation();
-							onPunchDown();
-						},
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.punchDown })
-					})
-				]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.barArea,
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineSwimLanes_module_default.barInner,
-					children: [
-						layout.spans.map((span, spanIndex) => {
-							const isBarSelected = isRowSelected && (!hasMultipleSpans || selectedSpanIndex === null || selectedSpanIndex === spanIndex);
-							const isBarDimmed = isRowSelected && hasMultipleSpans && selectedSpanIndex !== null && selectedSpanIndex !== spanIndex;
-							if (compactionMarkerPositions !== null && (!hasMultipleSpans || selectedSpanIndex === spanIndex)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RegionBarFill, {
-								span,
-								isParent: layout.isParent,
-								isBarSelected,
-								isBarDimmed,
-								selectedRegionIndex,
-								compactionPositions: compactionMarkerPositions,
-								onSelectBar: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
-								onSelectRegion: (regionIndex) => onSelectRegion(hasMultipleSpans ? spanIndex : void 0, regionIndex),
-								onDoubleClick: onToggleExpand
-							}, spanIndex);
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BarFill, {
-								span,
-								isParent: layout.isParent,
-								isSelected: isBarSelected,
-								isDimmed: isBarDimmed,
-								onSelect: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
-								onDoubleClick: onToggleExpand,
-								insetPx: connector ? 1.5 : void 0
-							}, spanIndex);
-						}),
-						highlightClip !== void 0 && !isRowSelected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HighlightOverlay, {
-							spans: layout.spans,
-							clipRight: highlightClip
-						}),
-						layout.markers.map((marker, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkerGlyph, {
-							marker,
-							onBranchToggle,
-							onMarkerNavigate: handleMarkerNavigate
-						}, i)),
-						connector && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BranchConnectorLine, { connector })
-					]
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.tokens,
-				children: formatTokenCount(layout.totalTokens)
-			})
-		]
-	});
-};
-var HeaderRow = ({ rootLabel, minimap, onScrollToTop, breadcrumbs, onBreadcrumbSelect, timelineConfig, timelineSelector, onToggleBranches, viewStack, onPopView }) => {
-	const icons = useTimelineIcons();
-	const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 1;
-	const rootDisplay = rootLabel === "solvers" ? "main" : rootLabel;
-	const [optionsOpen, setOptionsOpen] = (0, import_react.useState)(false);
-	const optionsButtonRef = (0, import_react.useRef)(null);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineSwimLanes_module_default.breadcrumbRow,
-		children: [
-			timelineSelector && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSelector, { ...timelineSelector }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: TimelineSwimLanes_module_default.breadcrumbDivider,
-				children: "/"
-			})] }),
-			viewStack && viewStack.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-				className: TimelineSwimLanes_module_default.viewStackBack,
-				onClick: onPopView,
-				title: "Back to branch overview",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.chevron.left }), viewStack.at(-1).label]
-			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: TimelineSwimLanes_module_default.breadcrumbDivider,
-				children: "/"
-			})] }),
-			hasBreadcrumbs ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.breadcrumbTrail,
-				children: breadcrumbs.map((segment, i) => {
-					const isLast = i === breadcrumbs.length - 1;
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-						className: TimelineSwimLanes_module_default.breadcrumbSegment,
-						children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: TimelineSwimLanes_module_default.breadcrumbDivider,
-							children: "/"
-						}), isLast ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: TimelineSwimLanes_module_default.breadcrumbCurrent,
-							children: segment.label
-						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							className: TimelineSwimLanes_module_default.breadcrumbLink,
-							onClick: () => onBreadcrumbSelect?.(segment.key),
-							children: segment.label
-						})]
-					}, segment.key);
-				})
-			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				className: TimelineSwimLanes_module_default.breadcrumbCurrent,
-				onClick: onScrollToTop,
-				children: rootDisplay
-			}),
-			timelineConfig && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				ref: optionsButtonRef,
-				type: "button",
-				className: TimelineSwimLanes_module_default.optionsButton,
-				onClick: () => setOptionsOpen((prev) => !prev),
-				title: "Timeline options",
-				"aria-label": "Timeline options",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.threeDots })
-			}),
-			minimap && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineMinimap, { ...minimap }),
-			timelineConfig && onToggleBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineOptionsPopover, {
-				isOpen: optionsOpen,
-				setIsOpen: setOptionsOpen,
-				positionEl: optionsButtonRef.current,
-				config: timelineConfig,
-				onToggleBranches
-			})
-		]
-	});
-};
-var BarFill = ({ span, isParent, isSelected, isDimmed, onSelect, onDoubleClick, insetPx }) => {
-	const handleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onSelect();
-	}, [onSelect]);
-	const handleDoubleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onDoubleClick?.();
-	}, [onDoubleClick]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, isSelected && TimelineSwimLanes_module_default.fillSelected, isDimmed && TimelineSwimLanes_module_default.fillDimmed),
-		style: {
-			left: insetPx ? `calc(${span.bar.left}% + ${insetPx}px)` : `${span.bar.left}%`,
-			width: insetPx ? `calc(${span.bar.width}% - ${insetPx}px)` : `${span.bar.width}%`
-		},
-		title: span.description ?? void 0,
-		onClick: handleClick,
-		onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
-	});
-};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
+var EPSILON_MS = 1;
 /**
-* Renders an overlay on the bar area to indicate which portion of the row's
-* spans are "active" (shown in the transcript). Positioned as a sibling of
-* .fill so it has independent opacity instead of stacking with the bar's own.
+* Return `events` with retry-inverted ModelEvent timestamps repaired.
 *
-* - clipRight = 100 → covers the full span range (e.g. the branch row itself).
-* - clipRight < 100 → covers from the first span's left edge to the clip
-*   percentage (e.g. a parent bar up to the fork point marker).
+* Returns the input array reference unchanged when no inversion is
+* detected, so callers can safely memoize on the result.
+*
+* Comparisons are done in parsed epoch milliseconds so mixed input
+* formats (the backend emits `+00:00`; corrected outputs use `Z`) sort
+* correctly. The output timestamp is always normalized to ISO-Z via
+* `new Date(epoch).toISOString()`.
 */
-var HighlightOverlay = ({ spans, clipRight }) => {
-	const firstSpan = spans[0];
-	if (!firstSpan) return null;
-	const barLeft = firstSpan.bar.left;
-	const lastSpan = spans[spans.length - 1] ?? firstSpan;
-	const barRight = lastSpan.bar.left + lastSpan.bar.width;
-	const width = Math.max(0, (clipRight >= 100 ? barRight : Math.min(clipRight, barRight)) - barLeft);
-	if (width <= 0) return null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: TimelineSwimLanes_module_default.fillHighlight,
-		style: {
-			left: `${barLeft}%`,
-			width: `${width}%`
+function correctRetryTimestamps(events) {
+	const lastModelTs = /* @__PURE__ */ new Map();
+	let result = null;
+	for (let i = 0; i < events.length; i++) {
+		const e = events[i];
+		if (e.event !== "model") continue;
+		if (!e.timestamp) continue;
+		const epoch = Date.parse(e.timestamp);
+		if (Number.isNaN(epoch)) continue;
+		const key = e.span_id ?? null;
+		const prev = lastModelTs.get(key);
+		if (prev != null && epoch < prev) {
+			const correctedEpoch = prev + EPSILON_MS;
+			const correctedIso = new Date(correctedEpoch).toISOString();
+			if (!result) result = events.slice();
+			result[i] = {
+				...e,
+				timestamp: correctedIso
+			};
+			lastModelTs.set(key, correctedEpoch);
+		} else lastModelTs.set(key, epoch);
+	}
+	return result ?? events;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/collapse.ts
+var collapseFilters = [
+	(event) => event.type === "solver" && event.name === "system_message",
+	(event) => {
+		if (event.event === "step" || event.event === "span_begin") return event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA" || event.name === "init" || event.name === "sample_init";
+		return false;
+	},
+	(event) => event.event === "tool" && !event.agent && !event.failed,
+	(event) => event.event === "subtask"
+];
+/**
+* Compute the node IDs that start collapsed by default (system messages,
+* init spans, successful non-agent tool calls, subtasks).
+*/
+var computeDefaultCollapsedIds = (eventNodes) => {
+	const defaultCollapsedIds = {};
+	const findCollapsibleEvents = (nodes) => {
+		for (const node of nodes) {
+			if (kCollapsibleEventTypes.includes(node.event.event) && collapseFilters.some((filter) => filter(node.event))) defaultCollapsedIds[node.id] = true;
+			findCollapsibleEvents(node.children);
 		}
-	});
+	};
+	findCollapsibleEvents(eventNodes);
+	return defaultCollapsedIds;
 };
 /**
-* Renders a bar fill split into clickable region segments at compaction marker
-* positions. Each segment spans from one compaction marker to the next (or
-* bar start/end). When no region is selected, all segments look like one
-* continuous bar. When a region is selected, the selected segment is
-* highlighted and others are dimmed.
+* Collect every collapsible node ID in the tree (tree-collapsible and
+* content-collapsible), for bulk collapse-all.
 */
-var RegionBarFill = ({ span, isParent, isBarSelected, isBarDimmed, selectedRegionIndex, compactionPositions, onSelectBar, onSelectRegion, onDoubleClick }) => {
-	const barLeft = span.bar.left;
-	const barRight = span.bar.left + span.bar.width;
-	const boundaries = [
-		barLeft,
-		...compactionPositions,
-		barRight
-	];
-	const regionCount = boundaries.length - 1;
-	const [hoveredIndex, setHoveredIndex] = (0, import_react.useState)(null);
-	const suppressHoverRef = (0, import_react.useRef)(false);
-	const handleDoubleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onDoubleClick?.();
-	}, [onDoubleClick]);
-	if (isBarDimmed) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, TimelineSwimLanes_module_default.fillDimmed),
-		style: {
-			left: `${barLeft}%`,
-			width: `${span.bar.width}%`
-		},
-		title: span.description ?? void 0,
-		onClick: (e) => {
-			e.stopPropagation();
-			onSelectBar();
+var collectAllCollapsibleIds = (nodes) => {
+	const result = {};
+	const traverse = (nodeList) => {
+		for (const node of nodeList) {
+			if (kCollapsibleEventTypes.includes(node.event.event) || kContentCollapsibleEventTypes.includes(node.event.event)) result[node.id] = true;
+			if (node.children.length > 0) traverse(node.children);
 		}
-	});
-	const hasRegionSelection = isBarSelected && selectedRegionIndex !== null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: boundaries.map((start, i) => {
-		if (i >= regionCount) return null;
-		const end = boundaries[i + 1];
-		if (end === void 0 || end <= start) return null;
-		const segmentLeft = start;
-		const segmentWidth = end - start;
-		const isSegmentSelected = hasRegionSelection && selectedRegionIndex === i;
-		const isFirst = i === 0;
-		const isLast = i === regionCount - 1;
-		let opacityClass;
-		if (hasRegionSelection) if (isSegmentSelected) opacityClass = TimelineSwimLanes_module_default.fillSelected;
-		else if (hoveredIndex === i) opacityClass = TimelineSwimLanes_module_default.regionHover;
-		else opacityClass = TimelineSwimLanes_module_default.fillDimmed;
-		else if (isBarSelected) if (hoveredIndex !== null && hoveredIndex !== i) opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
-		else opacityClass = TimelineSwimLanes_module_default.fillSelected;
-		else if (hoveredIndex !== null) opacityClass = TimelineSwimLanes_module_default.regionHover;
-		else opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(TimelineSwimLanes_module_default.regionSegment, opacityClass, isFirst && TimelineSwimLanes_module_default.regionFirst, isLast && TimelineSwimLanes_module_default.regionLast, !isFirst && !isLast && TimelineSwimLanes_module_default.regionMiddle),
-			style: {
-				left: `${segmentLeft}%`,
-				width: `${segmentWidth}%`
-			},
-			title: span.description ?? void 0,
-			onMouseEnter: () => {
-				if (!suppressHoverRef.current) setHoveredIndex(i);
-			},
-			onMouseLeave: () => {
-				suppressHoverRef.current = false;
-				setHoveredIndex(null);
-			},
-			onClick: (e) => {
-				e.stopPropagation();
-				suppressHoverRef.current = true;
-				setHoveredIndex(null);
-				if (isBarSelected && selectedRegionIndex === null) onSelectRegion(i);
-				else if (hasRegionSelection && selectedRegionIndex === i) onSelectBar();
-				else if (hasRegionSelection) onSelectRegion(i);
-				else onSelectBar();
-			},
-			onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
-		}, i);
-	}) });
+	};
+	traverse(nodes);
+	return result;
 };
-var kRowHeight = 18;
-var BranchConnectorLine = ({ connector }) => {
-	const { markerLeft, barLeft, rowGap } = connector;
-	const topY = -(rowGap * kRowHeight) + kRowHeight / 2;
-	const midY = kRowHeight / 2;
-	const endLeft = Math.max(barLeft, markerLeft + .5);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
-		className: TimelineSwimLanes_module_default.branchConnector,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
-			x1: `${markerLeft}%`,
-			y1: topY,
-			x2: `${markerLeft}%`,
-			y2: 9.5,
-			stroke: "var(--vscode-descriptionForeground, #717171)",
-			strokeWidth: 1
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
-			x1: `${markerLeft}%`,
-			y1: midY,
-			x2: `${endLeft}%`,
-			y2: midY,
-			stroke: "var(--vscode-descriptionForeground, #717171)",
-			strokeWidth: 1
-		})]
-	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: TimelineSwimLanes_module_default.connectorArrow,
-		style: { left: `calc(${endLeft}% + 4px)` }
-	})] });
-};
-var MarkerGlyph = ({ marker, onBranchToggle, onMarkerNavigate }) => {
-	const icons = useTimelineIcons();
-	const icon = {
-		error: icons.error,
-		compaction: icons.compaction,
-		branch: icons.fork
-	}[marker.kind] ?? "bi bi-question-circle";
-	const kindClass = marker.kind === "error" ? TimelineSwimLanes_module_default.markerError : marker.kind === "compaction" ? TimelineSwimLanes_module_default.markerCompaction : TimelineSwimLanes_module_default.markerBranch;
-	const handleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		if (marker.kind === "branch") onBranchToggle();
-		else if (marker.reference && onMarkerNavigate) onMarkerNavigate(marker.reference);
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodes.ts
+/**
+* Shared hook that builds an EventNode tree from raw events.
+*
+* Handles fixup, treeification, empty-span filtering, source-span attachment
+* (for agent card rendering), and default-collapse computation.
+*/
+var useEventNodes = (events, running, sourceSpans) => {
+	const { eventTree, defaultCollapsedIds, retryAttempts } = (0, import_react.useMemo)(() => {
+		const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
+		const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0);
+		if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
+		const eventTree = filterEmptySpans(rawEventTree);
+		return {
+			eventTree,
+			defaultCollapsedIds: computeDefaultCollapsedIds(eventTree),
+			retryAttempts
+		};
 	}, [
-		marker.kind,
-		marker.reference,
-		onMarkerNavigate,
-		onBranchToggle
+		events,
+		running,
+		sourceSpans
 	]);
-	const isBranch = marker.kind === "branch";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-		className: clsx(TimelineSwimLanes_module_default.marker, kindClass),
-		style: { left: `${marker.left}%` },
-		title: marker.tooltip,
-		onClick: handleClick,
-		tabIndex: isBranch ? 0 : void 0,
-		role: isBranch ? "button" : void 0,
-		"aria-label": isBranch ? "Toggle branches" : void 0,
-		children: marker.kind !== "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icon })
-	});
+	return {
+		eventNodes: eventTree,
+		defaultCollapsedIds,
+		retryAttempts
+	};
 };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodeData.ts
+/**
+* View-model hook producing the EventNode tree and its render context from an
+* EventNodeFeed (see useTimelinePipeline).
+*/
+var useEventNodeData = (nodeFeed, running, extraContext) => {
+	const { eventNodes, defaultCollapsedIds, retryAttempts } = useEventNodes(nodeFeed.events, running, nodeFeed.sourceSpans);
+	return {
+		eventNodes,
+		defaultCollapsedIds,
+		eventNodeContext: (0, import_react.useMemo)(() => {
+			const messageLabels = scopeMessageLabels(nodeFeed.events, extraContext?.messageLabels);
+			const toolLabels = buildToolLabels(nodeFeed.events, messageLabels);
+			return {
+				...extraContext,
+				messageLabels,
+				retryAttempts,
+				...toolLabels ? { toolLabels } : {}
+			};
+		}, [
+			nodeFeed.events,
+			extraContext,
+			retryAttempts
+		])
+	};
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useOutlineAutoHide.ts
+/**
+* View-model hook for outline auto-hide.
+*
+* Tracks whether the outline component reports displayable nodes. When the
+* outline is collapsed (unmounted), it can't report, so we optimistically
+* fall back to eventNodes.length > 0 to keep the toggle enabled.
+*
+* Auto-hides the outline when content has no nodes (e.g. utility agent)
+* without touching the user's persistent preference. When the user navigates
+* back to an agent with outline content, the preference is still intact.
+*/
+function useOutlineAutoHide(options) {
+	const { eventNodes, hasOutline, outlineCollapsed } = options;
+	const [reportedHasNodes, setReportedHasNodes] = (0, import_react.useState)(true);
+	const [prevEventNodes, setPrevEventNodes] = (0, import_react.useState)(eventNodes);
+	if (prevEventNodes !== eventNodes) {
+		setPrevEventNodes(eventNodes);
+		if (!reportedHasNodes) setReportedHasNodes(true);
+	}
+	const hasMatchingEvents = eventNodes.length > 0;
+	const isOutlineCollapsed = !hasOutline || !!outlineCollapsed || (hasOutline ? !reportedHasNodes && !outlineCollapsed : false);
+	return {
+		isOutlineCollapsed,
+		outlineHasNodes: isOutlineCollapsed ? hasMatchingEvents : reportedHasNodes,
+		onOutlineHasNodesChange: (0, import_react.useCallback)((hasNodes) => {
+			setReportedHasNodes(hasNodes);
+		}, [])
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useSelectionActions.ts
+/**
+* View-model hook for user-driven swimlane selection: agent-card clicks
+* (span id → row key) and inline fork-navigator clicks (which preserve the
+* clicked element's viewport position via a scroll anchor), plus the
+* pending-scroll-target signal that suppresses scroll-to-top on selection
+* change.
+*/
+function useSelectionActions(options) {
+	const { timelineState, scrollRef, initialEventId, initialMessageId } = options;
+	const [scrollAnchor, setScrollAnchor] = (0, import_react.useState)(null);
+	const hasScrollTarget = !!(initialEventId || initialMessageId || scrollAnchor);
+	const spanSelectKeys = (0, import_react.useMemo)(() => buildSpanSelectKeys(timelineState.rows), [timelineState.rows]);
+	const selectBySpanId = (0, import_react.useCallback)((spanId) => {
+		const key = spanSelectKeys.get(spanId);
+		if (!key) return;
+		timelineState.select(key.key);
+	}, [spanSelectKeys, timelineState]);
+	const selectByRowKey = (0, import_react.useCallback)((rowKey, anchorEl) => {
+		if (anchorEl && scrollRef.current) setScrollAnchor({ scrollTop: scrollRef.current.scrollTop });
+		timelineState.select(rowKey, { preserveScroll: true });
+	}, [timelineState, scrollRef]);
+	(0, import_react.useEffect)(() => {
+		if (!scrollAnchor) return;
+		requestAnimationFrame(() => {
+			scrollRef.current?.scrollTo({ top: scrollAnchor.scrollTop });
+		});
+	}, [scrollAnchor, scrollRef]);
+	return {
+		spanSelectKeys,
+		selectBySpanId,
+		selectByRowKey,
+		hasScrollTarget
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useSidebarScrollCoupling.ts
+/**
+* Couples sticky sidebars to the main scroll container.
+*
+* Forwards wheel events from a sidebar to the main scroller only while the
+* header above the tabs is still visible. Once the sidebar is stuck at its
+* sticky top (header fully out), wheel events stop chaining so the main
+* content doesn't scroll along with the sidebar. Also dispatches a synthetic
+* scroll event when a sidebar mounts/unmounts: the layout reflows but no
+* scroll/resize event fires, so sticky-state observers (useStickyObserver,
+* StickyScroll) would otherwise keep stale state.
+*
+* Nothing here is transcript-specific; candidate for @tsmono/react/hooks.
+*/
+function useSidebarScrollCoupling(options) {
+	const { mainScrollRef, sidebars } = options;
+	const sidebarsRef = (0, import_react.useRef)(sidebars);
+	(0, import_react.useEffect)(() => {
+		sidebarsRef.current = sidebars;
+	});
+	const structureKey = sidebars.map((s) => String(s.remountKey)).join("|");
+	(0, import_react.useEffect)(() => {
+		const el = mainScrollRef.current;
+		if (!el) return;
+		const timer = setTimeout(() => {
+			el.dispatchEvent(new Event("scroll"));
+		}, 0);
+		return () => clearTimeout(timer);
+	}, [structureKey, mainScrollRef]);
+	(0, import_react.useEffect)(() => {
+		const main = mainScrollRef.current;
+		if (!main) return;
+		const makeHandler = (sidebar, index) => (e) => {
+			const mainMaxTop = main.scrollHeight - main.clientHeight;
+			const mainRect = main.getBoundingClientRect();
+			if (!(sidebar.getBoundingClientRect().top - mainRect.top <= (sidebarsRef.current[index]?.stickyTop ?? 0) + 1)) {
+				if (e.deltaY > 0 && main.scrollTop < mainMaxTop - .5 || e.deltaY < 0 && main.scrollTop > .5) {
+					e.preventDefault();
+					main.scrollBy({
+						top: e.deltaY,
+						behavior: "auto"
+					});
+				}
+			} else if (e.deltaY < 0 && sidebar.scrollTop <= 0 && main.scrollTop > 0) {
+				e.preventDefault();
+				main.scrollBy({
+					top: e.deltaY,
+					behavior: "auto"
+				});
+			}
+		};
+		const entries = sidebarsRef.current.flatMap((target, index) => {
+			const el = target.scrollRef?.current;
+			if (!el) return [];
+			const handler = makeHandler(el, index);
+			el.addEventListener("wheel", handler, { passive: false });
+			return [{
+				el,
+				handler
+			}];
+		});
+		return () => {
+			for (const { el, handler } of entries) el.removeEventListener("wheel", handler);
+		};
+	}, [mainScrollRef, structureKey]);
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useSwimlaneHeader.ts
+/**
+* View-model hook for the swimlane header row: owns the minimap scrubber
+* wiring (progress tracking + headroom anchor reset on scrub) and assembles
+* the memoized `TimelineHeaderProps` object for `TimelineSwimLanes`.
+*/
+function useSwimlaneHeader(options) {
+	const { scrollRef, onScrollToTop, onHeadroomResetAnchor, timelineConfig, hiddenUtilityCount, minimap, multiTimeline, views } = options;
+	const [scrubberProgress, scrubTo] = useScrubberProgress(scrollRef);
+	const handleScrub = (0, import_react.useCallback)((progress) => {
+		onHeadroomResetAnchor?.(true);
+		scrubTo(progress);
+	}, [onHeadroomResetAnchor, scrubTo]);
+	return (0, import_react.useMemo)(() => ({
+		onScrollToTop,
+		minimap,
+		scrubberProgress,
+		onScrub: handleScrub,
+		timelineConfig,
+		hiddenUtilityCount,
+		multiTimeline,
+		views
+	}), [
+		onScrollToTop,
+		minimap,
+		scrubberProgress,
+		handleScrub,
+		timelineConfig,
+		hiddenUtilityCount,
+		multiTimeline,
+		views
+	]);
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/hooks/useActiveTimeline.ts
 /**
@@ -95624,6 +94553,318 @@ function useTimeline(timeline, options, props) {
 			onSelect?.(null);
 		}, [onSelect])
 	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneLayout.ts
+/**
+* Swimlane layout computation for the timeline UI.
+*
+* Maps swimlane rows + a time range to percentage-based positions for CSS
+* rendering. All functions are pure with no DOM or React dependencies.
+*/
+/**
+* Computes a single percentage position for a timestamp within a view range.
+* Result is clamped to [0, 100]. Returns 0 for zero-duration view ranges.
+*/
+function timestampToPercent(timestamp, viewStart, viewEnd) {
+	const range = viewEnd.getTime() - viewStart.getTime();
+	if (range <= 0) return 0;
+	const offset = timestamp.getTime() - viewStart.getTime();
+	return Math.max(0, Math.min(100, offset / range * 100));
+}
+/**
+* Computes the bar position (left + width) for a time range within a view range.
+* Both left and width are clamped so the bar stays within [0, 100].
+*/
+function computeBarPosition(spanStart, spanEnd, viewStart, viewEnd) {
+	const left = timestampToPercent(spanStart, viewStart, viewEnd);
+	const right = timestampToPercent(spanEnd, viewStart, viewEnd);
+	return {
+		left,
+		width: Math.max(0, right - left)
+	};
+}
+/**
+* Computes the time envelope (earliest start, latest end) of a non-empty array.
+* Useful for computing the bounding range of parallel agents or branches.
+*/
+function computeTimeEnvelope(items) {
+	const first = items[0];
+	let startTime = first.startTime();
+	let endTime = first.endTime();
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (item.startTime() < startTime) startTime = item.startTime();
+		if (item.endTime() > endTime) endTime = item.endTime();
+	}
+	return {
+		startTime,
+		endTime
+	};
+}
+/**
+* Formats a token count for compact display: "48.5k", "1.2M", etc.
+* Uses rounding thresholds so values like 999,950 display as "1.0M" not "1000.0k".
+*/
+function formatTokenCount(tokens) {
+	if (tokens >= 999950) return `${formatPrettyDecimal(tokens / 1e6, 1)}M`;
+	if (tokens >= 1e3) return `${formatPrettyDecimal(tokens / 1e3, 1)}k`;
+	return String(tokens);
+}
+/**
+* Computes the full layout for all swimlane rows.
+*
+* The TimeMapping defines how timestamps map to percentage positions. When
+* gap compression is active, idle gaps are compressed into narrow regions.
+* Markers are collected at the specified depth for each row's spans.
+*/
+function computeRowLayouts(rows, mapping, markerDepth, markerKinds, branchMappings) {
+	return rows.map((row) => {
+		const isParent = row.depth === 0;
+		const rowMapping = branchMappings?.get(row.key) ?? mapping;
+		const spans = row.spans.map((rowSpan) => {
+			if (isSingleSpan(rowSpan)) return {
+				bar: computeBarFromMapping(rowSpan.agent.startTime(false), rowSpan.agent.endTime(false), rowMapping),
+				drillable: false,
+				childCount: 0,
+				parallelCount: null,
+				description: rowSpan.agent.description ?? null
+			};
+			const agents = rowSpan.agents;
+			let envStart = agents[0].startTime(false);
+			let envEnd = agents[0].endTime(false);
+			for (let i = 1; i < agents.length; i++) {
+				const a = agents[i];
+				if (a.startTime(false) < envStart) envStart = a.startTime(false);
+				if (a.endTime(false) > envEnd) envEnd = a.endTime(false);
+			}
+			return {
+				bar: computeBarFromMapping(envStart, envEnd, rowMapping),
+				drillable: false,
+				childCount: 0,
+				parallelCount: agents.length,
+				description: null
+			};
+		});
+		const allMarkers = collectRowMarkers(row, markerDepth, rowMapping);
+		const markers = markerKinds ? allMarkers.filter((m) => markerKinds.includes(m.kind)) : allMarkers;
+		const rowParallelCount = spans.length === 1 && spans[0].parallelCount !== null ? spans[0].parallelCount : null;
+		return {
+			key: row.key,
+			name: row.name,
+			isParent,
+			depth: row.depth,
+			spans,
+			markers,
+			totalTokens: row.totalTokens,
+			parallelCount: rowParallelCount,
+			branch: row.branch
+		};
+	});
+}
+/** Computes bar position using a TimeMapping (which may compress gaps). */
+function computeBarFromMapping(spanStart, spanEnd, mapping) {
+	const left = mapping.toPercent(spanStart);
+	const right = mapping.toPercent(spanEnd);
+	return {
+		left,
+		width: Math.max(0, right - left)
+	};
+}
+/** Returns true if a TimelineSpan has any TimelineEvent items in its content tree. */
+function spanHasEvents(span) {
+	for (const item of span.content) {
+		if (item.type === "event") return true;
+		if (item.type === "span" && spanHasEvents(item)) return true;
+	}
+	return false;
+}
+/** Returns true if any agent across all spans in a row has events. */
+function rowHasEvents(row) {
+	return row.spans.some((rowSpan) => getAgents(rowSpan).some(spanHasEvents));
+}
+/**
+* Collects and positions markers for a single row.
+*
+* For the parent row, markers come from the parent span itself.
+* For child rows, markers are collected from each span's agent and merged.
+*/
+function collectRowMarkers(row, depth, mapping) {
+	const allMarkers = [];
+	for (const rowSpan of row.spans) {
+		const agents = getAgents(rowSpan);
+		for (const agent of agents) {
+			const markers = collectMarkers(agent, depth);
+			for (const m of markers) allMarkers.push({
+				left: mapping.toPercent(m.timestamp),
+				kind: m.kind,
+				reference: m.reference,
+				tooltip: m.tooltip
+			});
+		}
+	}
+	allMarkers.sort((a, b) => a.left - b.left);
+	let compactionIdx = 0;
+	for (const m of allMarkers) if (m.kind === "compaction") m.compactionIndex = compactionIdx++;
+	return allMarkers;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/markers.ts
+var defaultMarkerConfig = {
+	kinds: ["compaction", "branch"],
+	depth: "direct"
+};
+/**
+* Returns true if the event is an error event.
+*
+* An event is an error if:
+* - It's a ToolEvent with a non-null `.error`
+* - It's a ModelEvent with a non-null `.error`
+*
+* Noneable fields are stripped during serialization (`exclude_none=True`), so
+* `null`/missing both manifest as `undefined` at runtime — hence the `!= null`
+* check. See packages/inspect-common/src/types/index.ts.
+*
+* Note: `ModelOutput.error` (a soft-refusal/content-filter channel populated
+* by some providers without raising) is intentionally excluded — the
+* transcript's ModelEventView only renders `event.error`, so flagging on
+* `output.error` produces markers that navigate to a card with no visible
+* error.
+*/
+function isErrorEvent(event) {
+	if (event.event === "tool") return event.error != null;
+	if (event.event === "model") return event.error != null;
+	return false;
+}
+/**
+* Returns true if the event is a compaction event.
+*/
+function isCompactionEvent(event) {
+	return event.event === "compaction";
+}
+/**
+* Builds a tooltip string for an error event.
+*/
+function errorTooltip(event) {
+	if (event.event === "tool") {
+		const msg = event.error?.message ?? "Unknown error";
+		return `Error (${event.function}): ${msg}`;
+	}
+	if (event.event === "model") {
+		const msg = (typeof event.error === "string" ? event.error : null) ?? "Unknown error";
+		return `Error (${event.model}): ${msg}`;
+	}
+	return "Error";
+}
+/**
+* Collects timeline markers from a TimelineSpan at the specified depth.
+*
+* - `"direct"`: Only markers from the span's own TimelineEvent content.
+* - `"children"`: Own events + events from direct child spans.
+* - `"recursive"`: Full subtree traversal.
+*
+* Branch markers are always collected from the span's own branches
+* (not from child spans), regardless of depth.
+*
+* Results are sorted by timestamp.
+*/
+function collectMarkers(node, depth) {
+	const markers = [];
+	collectEventMarkers(node, depth, 0, markers);
+	collectBranchMarkers(node, markers);
+	markers.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+	return markers;
+}
+/**
+* Collects error and compaction markers from event nodes.
+*
+* @param node The span to scan
+* @param depth The depth mode
+* @param currentLevel 0 = the root node itself, 1 = direct children, etc.
+* @param markers Accumulator array
+*/
+function collectEventMarkers(node, depth, currentLevel, markers) {
+	for (const item of node.content) if (item.type === "event") addEventMarker(item, markers);
+	else if (item.type === "span" && shouldDescend(depth, currentLevel)) collectEventMarkers(item, depth, currentLevel + 1, markers);
+}
+/**
+* Determines whether to descend into a child span based on depth mode.
+*/
+function shouldDescend(depth, currentLevel) {
+	if (depth === "direct") return false;
+	if (depth === "children") return currentLevel === 0;
+	return true;
+}
+/**
+* Adds a marker for a timeline event if it's an error or compaction event.
+*/
+function addEventMarker(eventNode, markers) {
+	const event = eventNode.event;
+	const uuid = event.uuid;
+	if (isErrorEvent(event)) markers.push({
+		kind: "error",
+		timestamp: eventNode.startTime(),
+		reference: uuid ?? "",
+		tooltip: errorTooltip(event)
+	});
+	else if (isCompactionEvent(event)) {
+		const ce = event;
+		const before = ce.tokens_before?.toLocaleString() ?? "?";
+		const after = ce.tokens_after?.toLocaleString() ?? "?";
+		markers.push({
+			kind: "compaction",
+			timestamp: eventNode.startTime(),
+			reference: uuid ?? "",
+			tooltip: `Context compaction: ${before} → ${after} tokens`
+		});
+	}
+}
+/**
+* Collects branch markers from a span's branches.
+*
+* Emits one marker per branch, positioned at the fork point event in the
+* parent span (resolved via the branch's `branchedFrom` identifier).
+* Clicking a branch marker toggles the showBranches display option.
+*/
+function collectBranchMarkers(node, markers) {
+	for (const branch of node.branches) markers.push({
+		kind: "branch",
+		timestamp: resolveForkTimestamp(node, branch),
+		reference: branch.branchedFrom ?? "",
+		tooltip: branchTooltip([branch])
+	});
+}
+/**
+* Resolves the fork point timestamp from the parent span's content.
+*
+* `branch.branchedFrom` is a message ID (not an event UUID). Searches
+* parent events for one that produced or carries this message ID.
+*
+* When `branchedFrom` is empty the branch is unrolled from the very
+* beginning, so we return the parent's start time.
+*
+* Falls back to `parent.startTime()` when no matching event is found.
+*/
+function resolveForkTimestamp(parent, branch) {
+	if (!branch.branchedFrom) return parent.startTime();
+	for (const item of parent.content) if (item.type === "event" && item.matchesForkPoint(branch.branchedFrom)) return item.startTime();
+	return parent.startTime();
+}
+/**
+* Builds a tooltip string summarizing branches at a fork point.
+*/
+function branchTooltip(branches) {
+	const count = branches.length;
+	const tokenStr = formatCompactTokens(branches.reduce((sum, b) => sum + b.totalTokens(), 0));
+	const envelope = computeTimeEnvelope(branches);
+	const duration = formatDuration$1(envelope.startTime, envelope.endTime);
+	return `${count === 1 ? "1 branch" : `${count} branches`} (${tokenStr}, ${duration})`;
+}
+/**
+* Formats a token count compactly with " tokens" suffix: "48.5k tokens", "1.2M tokens", etc.
+*/
+function formatCompactTokens(tokens) {
+	return `${formatTokenCount(tokens)} tokens`;
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelineConfig.ts
@@ -95715,42 +94956,249 @@ function useTimelineConfig(options = {}) {
 	};
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
-var EPSILON_MS = 1;
+//#region ../../packages/inspect-components/src/transcript/timeline/timeMapping.ts
+/** Same threshold as computeIdleTime in timeline.ts — 5 minutes. */
+var GAP_THRESHOLD_MS = 3e5;
+/** Each compressed gap gets zero width — gaps simply vanish from the timeline. */
+var GAP_PERCENT = 0;
+/** Maximum total percentage allocated to all gaps combined. */
+var MAX_TOTAL_GAP_PERCENT = 0;
 /**
-* Return `events` with retry-inverted ModelEvent timestamps repaired.
-*
-* Returns the input array reference unchanged when no inversion is
-* detected, so callers can safely memoize on the result.
-*
-* Comparisons are done in parsed epoch milliseconds so mixed input
-* formats (the backend emits `+00:00`; corrected outputs use `Z`) sort
-* correctly. The output timestamp is always normalized to ISO-Z via
-* `new Date(epoch).toISOString()`.
+* Creates an identity (linear) time mapping with no compression.
+* Useful as a fallback or for timelines without idle gaps.
 */
-function correctRetryTimestamps(events) {
-	const lastModelTs = /* @__PURE__ */ new Map();
-	let result = null;
-	for (let i = 0; i < events.length; i++) {
-		const e = events[i];
-		if (e.event !== "model") continue;
-		if (!e.timestamp) continue;
-		const epoch = Date.parse(e.timestamp);
-		if (Number.isNaN(epoch)) continue;
-		const key = e.span_id ?? null;
-		const prev = lastModelTs.get(key);
-		if (prev != null && epoch < prev) {
-			const correctedEpoch = prev + EPSILON_MS;
-			const correctedIso = new Date(correctedEpoch).toISOString();
-			if (!result) result = events.slice();
-			result[i] = {
-				...e,
-				timestamp: correctedIso
-			};
-			lastModelTs.set(key, correctedEpoch);
-		} else lastModelTs.set(key, epoch);
+function createIdentityMapping(viewStart, viewEnd) {
+	const startMs = viewStart.getTime();
+	const range = viewEnd.getTime() - startMs;
+	return {
+		toPercent(timestamp) {
+			if (range <= 0) return 0;
+			const offset = timestamp.getTime() - startMs;
+			return Math.max(0, Math.min(100, offset / range * 100));
+		},
+		hasCompression: false,
+		gaps: []
+	};
+}
+/**
+* Compute the full view range of a node, including branches recursively.
+*
+* The span's own startTime/endTime cover only direct content. Branches
+* (and their nested branches) may extend beyond that range. The view
+* range is the recursive union of the span's time range and all branch
+* time ranges, giving the full time extent needed by the swimlane
+* visualization.
+*/
+function computeViewRange(node) {
+	const items = [node];
+	collectBranches(node, items);
+	let start = items[0].startTime(false);
+	let end = items[0].endTime(false);
+	for (let i = 1; i < items.length; i++) {
+		const s = items[i];
+		if (s.content.length === 0) continue;
+		const st = s.startTime(false);
+		const et = s.endTime(false);
+		if (st < start) start = st;
+		if (et > end) end = et;
 	}
-	return result ?? events;
+	return {
+		start,
+		end
+	};
+}
+/** Recursively collect all branch spans for view range computation. */
+function collectBranches(node, out) {
+	for (const branch of node.branches) {
+		out.push(branch);
+		collectBranches(branch, out);
+	}
+	for (const item of node.content) if (item.type === "span") collectBranches(item, out);
+}
+/**
+* Computes a TimeMapping for a timeline node.
+*
+* The mapping covers the full view range (content + branches) so that
+* branch rows render at correct positions within the swimlane.
+*
+* If the node has no idle time (idleTime === 0), returns an identity mapping
+* with zero overhead. Otherwise, detects gaps between content items and
+* compresses them into small fixed-width regions.
+*/
+function computeTimeMapping(node) {
+	const { start: viewStart, end: viewEnd } = computeViewRange(node);
+	if (node.idleTime() === 0) return createIdentityMapping(viewStart, viewEnd);
+	const nodeStartMs = viewStart.getTime();
+	const nodeEndMs = viewEnd.getTime();
+	if (nodeEndMs - nodeStartMs <= 0) return createIdentityMapping(viewStart, viewEnd);
+	const intervals = extractIntervals([...node.content, ...node.branches]);
+	if (intervals.length === 0) return createIdentityMapping(viewStart, viewEnd);
+	const activeRegions = mergeIntervals(intervals);
+	const rawGaps = findGaps(nodeStartMs, nodeEndMs, activeRegions);
+	if (rawGaps.length === 0) return createIdentityMapping(viewStart, viewEnd);
+	const totalActiveMs = activeRegions.reduce((sum, r) => sum + (r.endMs - r.startMs), 0);
+	let gapPercentEach = GAP_PERCENT;
+	if (rawGaps.length * gapPercentEach > MAX_TOTAL_GAP_PERCENT) gapPercentEach = MAX_TOTAL_GAP_PERCENT / rawGaps.length;
+	const activePercent = 100 - rawGaps.length * gapPercentEach;
+	const segments = [];
+	const gapRegions = [];
+	let currentPercent = 0;
+	let gapIdx = 0;
+	if (rawGaps.length > 0 && rawGaps[0].startMs === nodeStartMs) {
+		const gap = rawGaps[0];
+		const percentEnd = currentPercent + gapPercentEach;
+		segments.push({
+			startMs: gap.startMs,
+			endMs: gap.endMs,
+			percentStart: currentPercent,
+			percentEnd
+		});
+		gapRegions.push({
+			startMs: gap.startMs,
+			endMs: gap.endMs,
+			durationMs: gap.endMs - gap.startMs,
+			percentStart: currentPercent,
+			percentEnd
+		});
+		currentPercent = percentEnd;
+		gapIdx = 1;
+	}
+	for (let i = 0; i < activeRegions.length; i++) {
+		const region = activeRegions[i];
+		const regionDurationMs = region.endMs - region.startMs;
+		const regionPercent = totalActiveMs > 0 ? regionDurationMs / totalActiveMs * activePercent : activePercent / activeRegions.length;
+		const percentEnd = currentPercent + regionPercent;
+		segments.push({
+			startMs: region.startMs,
+			endMs: region.endMs,
+			percentStart: currentPercent,
+			percentEnd
+		});
+		currentPercent = percentEnd;
+		if (gapIdx < rawGaps.length) {
+			const gap = rawGaps[gapIdx];
+			if (gap.startMs >= region.endMs - 1) {
+				const gapPercentEnd = currentPercent + gapPercentEach;
+				segments.push({
+					startMs: gap.startMs,
+					endMs: gap.endMs,
+					percentStart: currentPercent,
+					percentEnd: gapPercentEnd
+				});
+				gapRegions.push({
+					startMs: gap.startMs,
+					endMs: gap.endMs,
+					durationMs: gap.endMs - gap.startMs,
+					percentStart: currentPercent,
+					percentEnd: gapPercentEnd
+				});
+				currentPercent = gapPercentEnd;
+				gapIdx++;
+			}
+		}
+	}
+	const frozenSegments = segments;
+	return {
+		toPercent(timestamp) {
+			const ms = timestamp.getTime();
+			if (ms <= nodeStartMs) return 0;
+			if (ms >= nodeEndMs) return 100;
+			const seg = findSegment(frozenSegments, ms);
+			if (!seg) return 0;
+			const segRange = seg.endMs - seg.startMs;
+			if (segRange <= 0) return seg.percentStart;
+			const t = (ms - seg.startMs) / segRange;
+			return seg.percentStart + t * (seg.percentEnd - seg.percentStart);
+		},
+		hasCompression: true,
+		gaps: gapRegions
+	};
+}
+/**
+* Compute active time (seconds) within [startMs, endMs] by subtracting
+* overlapping gap durations from the mapping.
+*/
+function computeActiveTime(mapping, startMs, endMs) {
+	const wallClockMs = endMs - startMs;
+	let gapMs = 0;
+	for (const gap of mapping.gaps) {
+		const overlapStart = Math.max(gap.startMs, startMs);
+		const overlapEnd = Math.min(gap.endMs, endMs);
+		if (overlapEnd > overlapStart) gapMs += overlapEnd - overlapStart;
+	}
+	return Math.max(0, (wallClockMs - gapMs) / 1e3);
+}
+/** Recursively extract [startMs, endMs] intervals from leaf content items. */
+function extractIntervals(content) {
+	const intervals = [];
+	for (const item of content) if (item.type === "event") intervals.push({
+		startMs: item.startTime().getTime(),
+		endMs: item.endTime().getTime()
+	});
+	else {
+		const childIntervals = extractIntervals(item.content);
+		if (childIntervals.length > 0) intervals.push(...childIntervals);
+		else intervals.push({
+			startMs: item.startTime().getTime(),
+			endMs: item.endTime().getTime()
+		});
+	}
+	return intervals;
+}
+/** Sort intervals by start time and merge overlapping ones. */
+function mergeIntervals(intervals) {
+	if (intervals.length === 0) return [];
+	const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs);
+	const merged = [{ ...sorted[0] }];
+	for (let i = 1; i < sorted.length; i++) {
+		const current = sorted[i];
+		const last = merged[merged.length - 1];
+		if (current.startMs <= last.endMs) last.endMs = Math.max(last.endMs, current.endMs);
+		else merged.push({ ...current });
+	}
+	return merged;
+}
+/** Find gaps between active regions that exceed the threshold. */
+function findGaps(nodeStartMs, nodeEndMs, activeRegions) {
+	const gaps = [];
+	if (activeRegions.length > 0) {
+		const firstStart = activeRegions[0].startMs;
+		if (firstStart - nodeStartMs > GAP_THRESHOLD_MS) gaps.push({
+			startMs: nodeStartMs,
+			endMs: firstStart
+		});
+	}
+	for (let i = 1; i < activeRegions.length; i++) {
+		const prevEnd = activeRegions[i - 1].endMs;
+		const nextStart = activeRegions[i].startMs;
+		if (nextStart - prevEnd > GAP_THRESHOLD_MS) gaps.push({
+			startMs: prevEnd,
+			endMs: nextStart
+		});
+	}
+	if (activeRegions.length > 0) {
+		const lastEnd = activeRegions[activeRegions.length - 1].endMs;
+		if (nodeEndMs - lastEnd > GAP_THRESHOLD_MS) gaps.push({
+			startMs: lastEnd,
+			endMs: nodeEndMs
+		});
+	}
+	return gaps;
+}
+/** Binary search for the segment containing a given timestamp. */
+function findSegment(segments, ms) {
+	let lo = 0;
+	let hi = segments.length - 1;
+	while (lo <= hi) {
+		const mid = lo + hi >>> 1;
+		const seg = segments[mid];
+		if (ms < seg.startMs) hi = mid - 1;
+		else if (ms > seg.endMs) lo = mid + 1;
+		else return seg;
+	}
+	if (lo < segments.length) return segments[lo];
+	if (hi >= 0) return segments[hi];
+	return null;
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelinesArray.ts
@@ -96071,44 +95519,84 @@ function useTranscriptTimeline(options) {
 		state.rows,
 		layouts
 	]);
+	const hasTimeline = timeline.root.content.length > 0 && (timeline.root.content.some((item) => item.type === "span" || item.type === "event" && item.event.event === "span_begin") || timeline.root.branches.length > 0);
+	const hasAgentTimeline = visibleRows.some((row) => {
+		if (row.depth < 1) return false;
+		const rowSpan = row.spans[0];
+		if (!rowSpan) return false;
+		const span = getAgents(rowSpan)[0];
+		return !!span && !PHASE_SPAN_TYPES.has(span.spanType ?? "");
+	});
+	const selectedRowName = (0, import_react.useMemo)(() => {
+		if (!state.selected) return timeline.root.name;
+		const rowKey = parseSelection(state.selected)?.rowKey ?? state.selected;
+		return state.rows.find((r) => r.key === rowKey)?.name ?? timeline.root.name;
+	}, [
+		state.selected,
+		state.rows,
+		timeline.root.name
+	]);
+	const swimlanes = (0, import_react.useMemo)(() => ({
+		layouts,
+		regionCounts,
+		highlightedKeys,
+		timeMapping
+	}), [
+		layouts,
+		regionCounts,
+		highlightedKeys,
+		timeMapping
+	]);
+	const minimap = (0, import_react.useMemo)(() => ({
+		mapping: rootTimeMapping,
+		selection: minimapSelection
+	}), [rootTimeMapping, minimapSelection]);
+	const multiTimeline = (0, import_react.useMemo)(() => ({
+		timelines,
+		activeIndex: activeTimelineIndex,
+		setActive: setActiveTimeline
+	}), [
+		timelines,
+		activeTimelineIndex,
+		setActiveTimeline
+	]);
+	const pushViewByRowKey = (0, import_react.useCallback)((rowKey, label) => {
+		const span = state.rows.find((r) => r.key === rowKey)?.spans[0];
+		if (span && "agent" in span) pushView(span.agent, label);
+	}, [state.rows, pushView]);
 	return {
 		timeline,
 		state,
-		layouts,
-		timeMapping,
-		rootTimeMapping,
-		selectedEvents,
-		sourceSpans,
-		minimapSelection,
-		hasTimeline: timeline.root.content.length > 0 && (timeline.root.content.some((item) => item.type === "span" || item.type === "event" && item.event.event === "span_begin") || timeline.root.branches.length > 0),
-		hasAgentTimeline: visibleRows.some((row) => {
-			if (row.depth < 1) return false;
-			const rowSpan = row.spans[0];
-			if (!rowSpan) return false;
-			const span = getAgents(rowSpan)[0];
-			return !!span && !PHASE_SPAN_TYPES.has(span.spanType ?? "");
-		}),
-		timelines,
-		activeTimelineIndex,
-		setActiveTimeline,
-		regionCounts,
-		branchScrollTarget,
-		highlightedKeys,
-		selectedRowName: (0, import_react.useMemo)(() => {
-			if (!state.selected) return timeline.root.name;
-			const rowKey = parseSelection(state.selected)?.rowKey ?? state.selected;
-			return state.rows.find((r) => r.key === rowKey)?.name ?? timeline.root.name;
-		}, [
-			state.selected,
-			state.rows,
-			timeline.root.name
+		hasTimeline,
+		hasAgentTimeline,
+		swimlanes,
+		minimap,
+		multiTimeline,
+		views: (0, import_react.useMemo)(() => ({
+			stack: viewStack,
+			push: pushView,
+			pushByRowKey: pushViewByRowKey,
+			pop: popView
+		}), [
+			viewStack,
+			pushView,
+			pushViewByRowKey,
+			popView
 		]),
-		viewStack,
-		pushView,
-		popView
+		selection: (0, import_react.useMemo)(() => ({
+			events: selectedEvents,
+			sourceSpans,
+			branchScrollTarget,
+			rowName: selectedRowName
+		}), [
+			selectedEvents,
+			sourceSpans,
+			branchScrollTarget,
+			selectedRowName
+		])
 	};
 }
-var kBranchKeyPattern = /\/branch-([^/]*)-(\d+)$/;
+var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
 /**
 * Compute per-row time mappings for fork-relative layout.
 *
@@ -96145,7 +95633,7 @@ function computeBranchMappings(rows, trunkMapping) {
 			logicalStart.set(row.key, ancLogical + (row.startTime.getTime() - ancStart));
 			continue;
 		}
-		const parentKey = row.key.replace(kBranchKeyPattern, "");
+		const parentKey = row.key.replace(kBranchKeyPattern$1, "");
 		const parentSpan = singleSpan(rowByKey.get(parentKey));
 		const branchSpan = singleSpan(row);
 		if (!parentSpan || !branchSpan) continue;
@@ -96177,119 +95665,653 @@ function computeBranchMappings(rows, trunkMapping) {
 	return mappings;
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/retryGrouping.ts
-var retryAttemptKey = (event) => {
-	if (event.uuid) return `uuid:${event.uuid}`;
-	const epoch = Date.parse(event.timestamp);
-	const tsPart = Number.isNaN(epoch) ? event.timestamp : String(epoch);
-	return `ts:${event.span_id ?? ""}:${tsPart}`;
-};
-function toolChoiceEqual(a, b) {
-	if (a === b) return true;
-	if (typeof a === "string" || typeof b === "string") return a === b;
-	return a?.name === b?.name;
-}
-function toolsEqual(a, b) {
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++) if (a[i]?.name !== b[i]?.name) return false;
-	return true;
-}
-function isSameCall(failed, success) {
-	return failed.model === success.model && failed.input.length === success.input.length && toolsEqual(failed.tools, success.tools) && toolChoiceEqual(failed.tool_choice, success.tool_choice);
-}
-function groupRetryAttempts(events) {
-	const attempts = /* @__PURE__ */ new Map();
-	const pendingFailed = /* @__PURE__ */ new Map();
-	const dropIndices = /* @__PURE__ */ new Set();
-	for (let i = 0; i < events.length; i++) {
-		const e = events[i];
-		if (e.event !== "model") continue;
-		const m = e;
-		const key = m.span_id ?? "";
-		if (m.error != null) {
-			const run = pendingFailed.get(key) ?? [];
-			run.push({
-				event: m,
-				index: i
-			});
-			pendingFailed.set(key, run);
-			continue;
-		}
-		const run = pendingFailed.get(key);
-		if (run && run.length > 0) {
-			const matches = run.filter((p) => isSameCall(p.event, m));
-			if (matches.length > 0) {
-				attempts.set(retryAttemptKey(m), [...matches.map((p) => p.event), m]);
-				for (const p of matches) dropIndices.add(p.index);
-			}
-			pendingFailed.delete(key);
-		}
-	}
-	if (dropIndices.size === 0) return {
-		events,
-		attempts
-	};
-	const filtered = [];
-	for (let i = 0; i < events.length; i++) if (!dropIndices.has(i)) filtered.push(events[i]);
+//#region ../../packages/inspect-components/src/transcript/hooks/useTimelinePipeline.ts
+/**
+* View-model hook for the transcript's timeline section.
+*
+* Encapsulates the dataflow from raw events + configuration to everything the
+* swimlane UI and the event-node tree need: event-type filtering, branch
+* detection, config resolution, the timeline pipeline itself, the swimlane
+* visibility policy, and the choice of which events feed the node tree.
+*/
+function useTimelinePipeline(options) {
+	const { events, hiddenEventTypes, serverTimelines, markerConfig: markerConfigOverride, agentConfig: agentConfigOverride, showSwimlanes: showSwimlanesOption = "auto", timelineSelection, activeTimeline } = options;
+	const eventsForTimeline = (0, import_react.useMemo)(() => {
+		if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
+		return events.filter((e) => e.event === "anchor" || !hiddenEventTypes.includes(e.event));
+	}, [events, hiddenEventTypes]);
+	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
+	const timelineConfig = useTimelineConfig({ branchesPresent: (0, import_react.useMemo)(() => timelinesForBranchDetection.some((tl) => spanHasBranches(tl.root)), [timelinesForBranchDetection]) });
+	const timeline = useTranscriptTimeline({
+		events: eventsForTimeline,
+		markerConfig: markerConfigOverride ?? timelineConfig.markerConfig,
+		timelineOptions: agentConfigOverride ?? timelineConfig.agentConfig,
+		serverTimelines,
+		timelineProps: timelineSelection,
+		activeTimelineProps: activeTimeline
+	});
+	const { hasTimeline, hasAgentTimeline } = timeline;
+	const { regionCounts } = timeline.swimlanes;
+	const { timelines } = timeline.multiTimeline;
+	const { events: selectedEvents, sourceSpans } = timeline.selection;
+	const showSwimlanes = (0, import_react.useMemo)(() => {
+		if (showSwimlanesOption === "auto") return hasTimeline || regionCounts.size > 0 || timelines.length > 1;
+		return showSwimlanesOption;
+	}, [
+		showSwimlanesOption,
+		hasTimeline,
+		regionCounts,
+		timelines.length
+	]);
+	const swimlanesDefaultCollapsed = (0, import_react.useMemo)(() => {
+		if (showSwimlanesOption === "auto" && !hasTimeline && regionCounts.size === 0) return true;
+		if (hasTimeline) return hasAgentTimeline ? false : true;
+	}, [
+		showSwimlanesOption,
+		hasTimeline,
+		hasAgentTimeline,
+		regionCounts
+	]);
+	const rawEventsForNodes = showSwimlanes ? selectedEvents : events;
+	const eventsForNodes = (0, import_react.useMemo)(() => hiddenEventTypes && hiddenEventTypes.length > 0 ? rawEventsForNodes.filter((e) => !hiddenEventTypes.includes(e.event)) : rawEventsForNodes, [rawEventsForNodes, hiddenEventTypes]);
 	return {
-		events: filtered,
-		attempts
+		timeline,
+		timelineConfig,
+		showSwimlanes,
+		swimlanesDefaultCollapsed,
+		nodeFeed: (0, import_react.useMemo)(() => ({
+			events: eventsForNodes,
+			sourceSpans: showSwimlanes ? sourceSpans : void 0
+		}), [
+			eventsForNodes,
+			showSwimlanes,
+			sourceSpans
+		]),
+		searchableEvents: (0, import_react.useMemo)(() => {
+			if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
+			const hidden = new Set(hiddenEventTypes);
+			return events.filter((e) => !hidden.has(e.event));
+		}, [events, hiddenEventTypes])
 	};
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/hooks/useEventNodes.ts
+//#region ../../packages/inspect-components/src/transcript/hooks/useTranscriptCollapse.ts
 /**
-* Shared hook that builds an EventNode tree from raw events.
+* View-model hook for transcript collapse state.
 *
-* Handles fixup, treeification, empty-span filtering, source-span attachment
-* (for agent card rendering), and default-collapse computation.
+* Bridges the app store's collapse callbacks (TranscriptCollapseState) to the
+* event list: bulk collapse/expand, lazy default seeding on the first
+* individual toggle, and batched expansion for deep links.
 */
-var collapseFilters = [
-	(event) => event.type === "solver" && event.name === "system_message",
-	(event) => {
-		if (event.event === "step" || event.event === "span_begin") return event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA" || event.name === "init" || event.name === "sample_init";
-		return false;
-	},
-	(event) => event.event === "tool" && !event.agent && !event.failed,
-	(event) => event.event === "subtask"
-];
-var useEventNodes = (events, running, sourceSpans) => {
-	const { eventTree, defaultCollapsedIds, retryAttempts } = (0, import_react.useMemo)(() => {
-		const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
-		const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0);
-		if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
-		const filterEmpty = (eventNodes) => {
-			return eventNodes.filter((node) => {
-				if (node.children && node.children.length > 0) node.children = filterEmpty(node.children);
-				if (node.sourceSpan) return true;
-				if (node.event.event === "span_begin" && (node.event.type === "fork_nav" || node.event.type === "empty_branch")) return true;
-				return node.event.event !== "span_begin" && node.event.event !== "step" || node.children && node.children.length > 0;
-			});
-		};
-		const eventTree = filterEmpty(rawEventTree);
-		const defaultCollapsedIds = {};
-		const findCollapsibleEvents = (nodes) => {
-			for (const node of nodes) {
-				if (kCollapsibleEventTypes.includes(node.event.event) && collapseFilters.some((filter) => filter(node.event))) defaultCollapsedIds[node.id] = true;
-				findCollapsibleEvents(node.children);
-			}
-		};
-		findCollapsibleEvents(eventTree);
-		return {
-			eventTree,
-			defaultCollapsedIds,
-			retryAttempts
-		};
+function useTranscriptCollapse(options) {
+	const { eventNodes, defaultCollapsedIds, collapseState, bulkCollapse, eventCount } = options;
+	const onSetTranscriptCollapsed = collapseState?.onSetTranscriptCollapsed;
+	(0, import_react.useEffect)(() => {
+		if (eventCount <= 0 || !bulkCollapse || !onSetTranscriptCollapsed) return;
+		if (bulkCollapse === "expand") onSetTranscriptCollapsed({});
+		else if (bulkCollapse === "collapse") {
+			const allCollapsibleIds = collectAllCollapsibleIds(eventNodes);
+			onSetTranscriptCollapsed(allCollapsibleIds);
+		}
 	}, [
-		events,
-		running,
-		sourceSpans
+		eventNodes,
+		bulkCollapse,
+		onSetTranscriptCollapsed,
+		eventCount
+	]);
+	const onCollapseTranscriptRaw = collapseState?.onCollapseTranscript;
+	const onCollapseTranscript = (0, import_react.useCallback)((nodeId, collapsed) => {
+		if (!onCollapseTranscriptRaw || !onSetTranscriptCollapsed) return;
+		if (!collapseState?.transcript) onSetTranscriptCollapsed({
+			...defaultCollapsedIds,
+			[nodeId]: collapsed
+		});
+		else onCollapseTranscriptRaw(nodeId, collapsed);
+	}, [
+		onCollapseTranscriptRaw,
+		onSetTranscriptCollapsed,
+		collapseState?.transcript,
+		defaultCollapsedIds
+	]);
+	const onExpandNodes = (0, import_react.useCallback)((nodeIds) => {
+		if (!onSetTranscriptCollapsed) return;
+		const next = { ...collapseState?.transcript ?? defaultCollapsedIds };
+		for (const id of nodeIds) next[id] = false;
+		onSetTranscriptCollapsed(next);
+	}, [
+		onSetTranscriptCollapsed,
+		collapseState?.transcript,
+		defaultCollapsedIds
 	]);
 	return {
-		eventNodes: eventTree,
-		defaultCollapsedIds,
-		retryAttempts
+		onCollapseTranscript,
+		onExpandNodes: onSetTranscriptCollapsed ? onExpandNodes : void 0
 	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/icons.ts
+/**
+* Bootstrap icon class names used by transcript event components.
+* Both apps (scout and inspect) use the same Bootstrap icons,
+* so these are safe to hardcode as string constants.
+*/
+var TranscriptIcons = {
+	agent: "bi bi-grid",
+	approve: "bi bi-shield",
+	cancel: "bi bi-x-circle",
+	checkpoint: "bi bi-bookmark-check-fill",
+	approvals: {
+		approve: "bi bi-shield-check",
+		reject: "bi bi-shield-x",
+		terminate: "bi bi-shield-exclamation",
+		escalate: "bi bi-box-arrow-up",
+		modify: "bi bi-pencil-square"
+	},
+	arrows: { right: "bi bi-arrow-right" },
+	expand: "bi bi-chevron-up",
+	compaction: "bi bi-arrows-collapse-vertical",
+	edit: "bi bi-pencil-square",
+	error: "bi bi-exclamation-circle-fill",
+	fork: "bi bi-sign-intersection-y-fill",
+	info: "bi bi-info-circle",
+	input: "bi bi-terminal",
+	interrupt: "bi bi-slash-circle",
+	limits: {
+		messages: "bi bi-chat-right-text",
+		custom: "bi bi-exclamation-triangle",
+		operator: "bi bi-person-workspace",
+		tokens: "bi bi-list",
+		turns: "bi bi-arrow-repeat",
+		time: "bi bi-clock",
+		execution: "bi bi-stopwatch",
+		cost: "bi bi-currency-dollar"
+	},
+	logging: {
+		notset: "bi bi-card-text",
+		debug: "bi bi-bug",
+		http: "bi bi-download",
+		info: "bi bi-info-square",
+		warning: "bi bi-exclamation-triangle",
+		error: "bi bi-x-circle",
+		critical: "bi bi-fire"
+	},
+	model: "bi bi-grid-3x3-gap",
+	sample: "bi bi-database",
+	sandbox: "bi bi-box-seam",
+	scorer: "bi bi-calculator",
+	solvers: { use_tools: "bi bi-tools" }
+};
+var OutlineRow_module_default = {
+	eventRow: "_eventRow_lpuxs_1",
+	selected: "_selected_lpuxs_9",
+	toggle: "_toggle_lpuxs_13",
+	eventLink: "_eventLink_lpuxs_18",
+	label: "_label_lpuxs_31",
+	iconSlot: "_iconSlot_lpuxs_37",
+	progress: "_progress_lpuxs_49",
+	loadingRow: "_loadingRow_lpuxs_53",
+	spinner: "_spinner_lpuxs_57",
+	"outline-spin": "_outline-spin_lpuxs_1",
+	popover: "_popover_lpuxs_78"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
+var OutlineRow = ({ node, running, selected, getEventUrl, onSelect, onNavigateToEvent, getCollapsed, setCollapsed, renderLink }) => {
+	const collapsed = getCollapsed?.(node.id) ?? false;
+	const icon = iconForNode(node);
+	const toggle = toggleIcon(node, collapsed);
+	const eventUrl = getEventUrl?.(node.id);
+	const labelText = parsePackageName(labelForNode(node)).module;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(OutlineRow_module_default.eventRow, "text-size-smaller", selected ? OutlineRow_module_default.selected : ""),
+		style: { paddingLeft: `${node.depth * .75}em` },
+		"data-unsearchable": true,
+		onClick: () => {
+			onSelect?.(node.id);
+			onNavigateToEvent?.(node.id);
+		},
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: OutlineRow_module_default.toggle,
+			onClick: () => {
+				if (node.children.length > 0) setCollapsed?.(node.id, !collapsed);
+			},
+			children: toggle ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(toggle) }) : void 0
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: clsx(OutlineRow_module_default.label),
+			"data-depth": node.depth,
+			title: tooltipForNode(node),
+			children: [
+				icon && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: OutlineRow_module_default.iconSlot,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon) })
+				}),
+				eventUrl ? renderLink ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: clsx(OutlineRow_module_default.eventLink),
+					children: renderLink(eventUrl, labelText)
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
+					href: eventUrl,
+					className: clsx(OutlineRow_module_default.eventLink),
+					children: labelText
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: labelText }),
+				running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
+					size: "small",
+					className: clsx(OutlineRow_module_default.progress),
+					subtle: false
+				}) : void 0
+			]
+		})]
+	}) });
+};
+/** A row rendered below the last outline item while events are still loading. */
+var OutlineLoadingRow = () => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+	className: clsx(OutlineRow_module_default.eventRow, OutlineRow_module_default.loadingRow, "text-size-smaller"),
+	style: { paddingLeft: 0 },
+	"data-unsearchable": true,
+	children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: OutlineRow_module_default.toggle }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(OutlineRow_module_default.label),
+		role: "status",
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: OutlineRow_module_default.iconSlot,
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: OutlineRow_module_default.spinner,
+				"aria-hidden": "true"
+			})
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "loading" })]
+	})]
+});
+var toggleIcon = (node, collapsed) => {
+	if (node.children.length > 0) return collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
+};
+var iconForNode = (node) => {
+	if (node.sourceSpan?.spanType === "agent") return TranscriptIcons.agent;
+	if (node.sourceSpan?.spanType === "branch") return TranscriptIcons.fork;
+	if (node.event.event === "span_begin" && node.event.type === "fork_nav") return TranscriptIcons.fork;
+	switch (node.event.event) {
+		case "sample_limit": return TranscriptIcons.limits.custom;
+		case "score": return TranscriptIcons.scorer;
+		case "error": return TranscriptIcons.error;
+		case "compaction": return TranscriptIcons.compaction;
+	}
+};
+/** Tooltip for the outline row (description for agent nodes, undefined otherwise). */
+var tooltipForNode = (node) => {
+	if (node.sourceSpan?.spanType === "agent" && node.sourceSpan.description) return node.sourceSpan.description;
+};
+var labelForNode = (node) => {
+	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name.toLowerCase();
+	if (node.sourceSpan?.spanType === "branch") return node.sourceSpan.name.toLowerCase();
+	if (node.event.event === "span_begin") switch (node.event.type) {
+		case "solver": return node.event.name;
+		case "tool": return node.event.name;
+		default:
+			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
+			return node.event.name;
+	}
+	else switch (node.event.event) {
+		case "subtask": return node.event.name;
+		case "approval": switch (node.event.decision) {
+			case "approve": return "approved";
+			case "reject": return "rejected";
+			case "escalate": return "escalated";
+			case "modify": return "modified";
+			case "terminate": return "terminated";
+			default: return node.event.decision;
+		}
+		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
+		case "score": return "scoring";
+		case "step":
+			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
+			return node.event.name;
+		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
+		default: return node.event.event;
+	}
+};
+var TranscriptOutline_module_default = {
+	node: "_node_1eney_1",
+	rootHeader: "_rootHeader_1eney_7",
+	panel: "_panel_1eney_18"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineCollapse.ts
+/**
+* View-model hook for outline collapse state (the outline twin of
+* useTranscriptCollapse).
+*
+* Bridges the app store's outline collapse scope to the outline component:
+* resolves the collapsed-id map (store state falling back to defaults),
+* derives the per-row accessors, and seeds the store with the defaults on
+* first mount so individual toggles preserve the other rows' default state.
+*/
+/** Project the transcript-level collapse store down to the outline scope. */
+function outlineCollapseState(collapseState) {
+	return collapseState ? {
+		collapsed: collapseState.outline,
+		onCollapse: collapseState.onCollapseOutline,
+		onSetCollapsed: collapseState.onSetOutlineCollapsed
+	} : void 0;
+}
+function useOutlineCollapse(defaultCollapsedIds, collapse) {
+	const collapsedEvents = collapse?.collapsed;
+	const onSetCollapsed = collapse?.onSetCollapsed;
+	(0, import_react.useEffect)(() => {
+		if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) onSetCollapsed?.(defaultCollapsedIds);
+	}, [
+		defaultCollapsedIds,
+		collapsedEvents,
+		onSetCollapsed
+	]);
+	const getCollapsed = (0, import_react.useMemo)(() => collapsedEvents ? (id) => collapsedEvents[id] === true : void 0, [collapsedEvents]);
+	return {
+		collapsedIds: collapsedEvents ?? defaultCollapsedIds,
+		getCollapsed,
+		setCollapsed: collapse?.onCollapse
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineNodes.ts
+/**
+* Derivation of the outline's row list from the transcript EventNode tree.
+*/
+/**
+* Build the outline's row list: flatten the tree with the outline's
+* visibility visitors, then group model/tool runs into turns and collapse
+* consecutive turns and scoring events.
+*/
+var buildOutlineNodeList = (eventNodes, collapsedIds) => {
+	return collapseScoring(collapseTurns(makeTurns(flatTree(eventNodes, collapsedIds, [
+		removeNodeVisitor("logger"),
+		removeNodeVisitor("info"),
+		removeNodeVisitor("state"),
+		removeNodeVisitor("store"),
+		removeNodeVisitor("approval"),
+		removeNodeVisitor("input"),
+		removeNodeVisitor("sandbox"),
+		removeStepSpanNameVisitor(kSandboxSignalName),
+		noScorerChildren()
+	]))));
+};
+var useOutlineNodes = (eventNodes, collapsedIds) => {
+	return {
+		outlineNodeList: (0, import_react.useMemo)(() => buildOutlineNodeList(eventNodes, collapsedIds), [eventNodes, collapsedIds]),
+		allNodesList: (0, import_react.useMemo)(() => {
+			return flatTree(eventNodes, null);
+		}, [eventNodes])
+	};
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineScrollSync.ts
+/**
+* Scroll↔selection sync for the transcript outline.
+*
+* Tracks which transcript node is scrolled into view and reflects it as the
+* outline selection (via the nearest outline row at or above the scrolled
+* node). Outline clicks scroll the transcript programmatically; while that
+* scroll settles, tracking is suppressed so the selection doesn't flicker
+* through intermediate rows.
+*/
+var kFramesToStabilize = 10;
+/**
+* Find the nearest outline row at or above `targetId` in flat-list order.
+* Returns null when the target is not in the list or no outline row
+* precedes it.
+*/
+function findNearestOutlineAbove(targetId, allNodesList, outlineIds) {
+	const targetIndex = allNodesList.findIndex((node) => node.id === targetId);
+	if (targetIndex === -1) return null;
+	for (let i = targetIndex; i >= 0; i--) {
+		const node = allNodesList[i];
+		if (node !== void 0 && node.id) {
+			if (outlineIds.has(node.id)) return node;
+		}
+	}
+	return null;
+}
+function useOutlineScrollSync(options) {
+	const { allNodesList, outlineNodeList, scrollRef, scrollTrackOffset, setSelectedOutlineId } = options;
+	const isProgrammaticScrolling = (0, import_react.useRef)(false);
+	const lastScrollPosition = (0, import_react.useRef)(null);
+	const stableFrameCount = (0, import_react.useRef)(0);
+	const beginProgrammaticScroll = (0, import_react.useCallback)(() => {
+		isProgrammaticScrolling.current = true;
+		lastScrollPosition.current = null;
+		stableFrameCount.current = 0;
+		const checkScrollStabilized = () => {
+			if (!isProgrammaticScrolling.current) return;
+			const currentPosition = scrollRef?.current?.scrollTop ?? null;
+			if (currentPosition === lastScrollPosition.current) {
+				stableFrameCount.current++;
+				if (stableFrameCount.current >= kFramesToStabilize) {
+					isProgrammaticScrolling.current = false;
+					return;
+				}
+			} else {
+				stableFrameCount.current = 0;
+				lastScrollPosition.current = currentPosition;
+			}
+			requestAnimationFrame(checkScrollStabilized);
+		};
+		requestAnimationFrame(checkScrollStabilized);
+	}, [scrollRef]);
+	const onOutlineSelect = (0, import_react.useCallback)((nodeId) => {
+		setSelectedOutlineId?.(nodeId);
+		beginProgrammaticScroll();
+	}, [setSelectedOutlineId, beginProgrammaticScroll]);
+	useScrollTrack(allNodesList.map((node) => node.id), (scrolledId) => {
+		if (!isProgrammaticScrolling.current) {
+			const outlineIds = new Set(outlineNodeList.map((node) => node.id));
+			const parentNode = findNearestOutlineAbove(scrolledId, allNodesList, outlineIds);
+			if (parentNode) setSelectedOutlineId?.(parentNode.id);
+		}
+	}, scrollRef, { topOffset: scrollTrackOffset });
+	return { onOutlineSelect };
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineWidth.ts
+var kMinWidth = 120;
+var kMaxWidth = 600;
+/** Lazily-created off-screen measurement container. Never removed. */
+var measureRoot = null;
+function getOrCreateMeasureRoot() {
+	if (!measureRoot) {
+		measureRoot = document.createElement("div");
+		measureRoot.style.position = "fixed";
+		measureRoot.style.top = "-9999px";
+		measureRoot.style.left = "-9999px";
+		measureRoot.style.visibility = "hidden";
+		measureRoot.style.pointerEvents = "none";
+		measureRoot.style.width = "max-content";
+		document.body.appendChild(measureRoot);
+	}
+	return measureRoot;
+}
+/**
+* Computes the ideal outline column width by rendering labels into a hidden
+* DOM container that mirrors the real outline structure (same CSS-module
+* classes and inline styles), then reading its natural width.
+*
+* Result is clamped to [kMinWidth, kMaxWidth] px.
+*/
+function useOutlineWidth(outlineNodes, _font, agentName) {
+	return (0, import_react.useMemo)(() => {
+		if (outlineNodes.length === 0 && !agentName) return kMinWidth;
+		const root = getOrCreateMeasureRoot();
+		root.innerHTML = "";
+		root.style.paddingLeft = "0.5rem";
+		root.style.paddingRight = "0.5rem";
+		if (agentName) {
+			const header = document.createElement("div");
+			header.className = [
+				TranscriptOutline_module_default.rootHeader ?? "",
+				"text-size-smaller",
+				"text-style-secondary"
+			].join(" ");
+			header.style.overflow = "visible";
+			header.style.textOverflow = "clip";
+			header.textContent = parsePackageName(agentName).module;
+			root.appendChild(header);
+		}
+		for (const node of outlineNodes) {
+			const row = document.createElement("div");
+			row.className = [OutlineRow_module_default.eventRow ?? "", "text-size-smaller"].join(" ");
+			row.style.paddingLeft = `${node.depth * .75}em`;
+			row.style.fontWeight = "800";
+			const toggle = document.createElement("div");
+			toggle.className = OutlineRow_module_default.toggle ?? "";
+			row.appendChild(toggle);
+			const label = document.createElement("div");
+			label.className = OutlineRow_module_default.label ?? "";
+			label.style.overflow = "visible";
+			label.style.width = "max-content";
+			if (iconForNode(node) !== void 0) {
+				const iconSpan = document.createElement("span");
+				iconSpan.className = OutlineRow_module_default.iconSlot ?? "";
+				iconSpan.innerHTML = "&#x25C6;";
+				label.appendChild(iconSpan);
+			}
+			label.appendChild(document.createTextNode(parsePackageName(labelForOutlineNode(node)).module));
+			row.appendChild(label);
+			root.appendChild(row);
+		}
+		const width = root.getBoundingClientRect().width;
+		return Math.min(kMaxWidth, Math.max(kMinWidth, Math.ceil(width)));
+	}, [outlineNodes, agentName]);
+}
+/**
+* Simplified label extraction matching OutlineRow's labelForNode.
+* Only needs the text content for width measurement.
+*/
+function labelForOutlineNode(node) {
+	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name;
+	if (node.event.event === "span_begin") return node.event.name;
+	switch (node.event.event) {
+		case "subtask": return node.event.name;
+		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
+		case "score": return "scoring";
+		case "step": return node.event.name;
+		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
+		default: return node.event.event;
+	}
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
+var outlineNodeRunning = ({ running, backfilling, isLast }) => running && !backfilling && isLast;
+var EventPaddingNode = {
+	id: "padding",
+	event: {
+		event: "info",
+		source: "",
+		data: "",
+		timestamp: "",
+		pending: false,
+		working_start: 0,
+		span_id: null,
+		uuid: null,
+		metadata: null
+	},
+	depth: 0,
+	children: []
+};
+var OutlineLoadingNode = {
+	...EventPaddingNode,
+	id: "loading"
+};
+var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, agentName, onHasNodesChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, collapse, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
+	const id = "transcript-tree";
+	const listHandle = (0, import_react.useRef)(null);
+	const { getRestoreState } = useVirtuosoState(listHandle, id);
+	const { collapsedIds, getCollapsed, setCollapsed } = useOutlineCollapse(defaultCollapsedIds, collapse);
+	const { outlineNodeList, allNodesList } = useOutlineNodes(eventNodes, collapsedIds);
+	const { onOutlineSelect } = useOutlineScrollSync({
+		allNodesList,
+		outlineNodeList,
+		scrollRef,
+		scrollTrackOffset,
+		setSelectedOutlineId
+	});
+	const hasOutlineNodes = outlineNodeList.length > 0;
+	(0, import_react.useEffect)(() => {
+		onHasNodesChange?.(hasOutlineNodes);
+	}, [hasOutlineNodes, onHasNodesChange]);
+	const outlineWidth = useOutlineWidth(outlineNodeList, void 0, agentName);
+	const rootRef = (0, import_react.useRef)(null);
+	(0, import_react.useEffect)(() => {
+		const el = rootRef.current;
+		if (!el) return;
+		let ancestor = el.parentElement;
+		while (ancestor) {
+			if (getComputedStyle(ancestor).display === "grid") {
+				ancestor.style.setProperty("--outline-width", `${outlineWidth}px`);
+				return;
+			}
+			ancestor = ancestor.parentElement;
+		}
+	}, [outlineWidth]);
+	const renderRow = (0, import_react.useCallback)((index, node) => {
+		if (node === EventPaddingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(TranscriptOutline_module_default.eventPadding),
+			style: { height: "2em" }
+		}, node.id);
+		else if (node === OutlineLoadingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineLoadingRow, {}, node.id);
+		else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineRow, {
+			node,
+			running: outlineNodeRunning({
+				running: running === true,
+				backfilling: backfilling === true,
+				isLast: index === outlineNodeList.length - 1
+			}),
+			selected: selectedOutlineId ? selectedOutlineId === node.id : index === 0,
+			getEventUrl,
+			onSelect: onOutlineSelect,
+			onNavigateToEvent,
+			getCollapsed,
+			setCollapsed,
+			renderLink
+		}, node.id);
+	}, [
+		outlineNodeList,
+		running,
+		backfilling,
+		selectedOutlineId,
+		getEventUrl,
+		onOutlineSelect,
+		onNavigateToEvent,
+		getCollapsed,
+		setCollapsed,
+		renderLink
+	]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		ref: rootRef,
+		style,
+		children: [agentName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(TranscriptOutline_module_default.rootHeader, "text-size-smaller", "text-style-secondary"),
+			children: agentName
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(rs, {
+			ref: listHandle,
+			customScrollParent: outlineScrollEl ?? void 0,
+			id,
+			data: backfilling ? [
+				...outlineNodeList,
+				OutlineLoadingNode,
+				EventPaddingNode
+			] : [...outlineNodeList, EventPaddingNode],
+			defaultItemHeight: 50,
+			itemContent: renderRow,
+			atBottomThreshold: 30,
+			increaseViewportBy: {
+				top: 300,
+				bottom: 300
+			},
+			overscan: {
+				main: 10,
+				reverse: 10
+			},
+			className: clsx(className, "transcript-outline"),
+			skipAnimationFrameInResizeObserver: true,
+			restoreStateFrom: getRestoreState(),
+			tabIndex: 0
+		})]
+	});
 };
 var TranscriptLayout_module_default = {
 	root: "_root_1t7mh_1",
@@ -96307,6 +96329,1579 @@ var TranscriptLayout_module_default = {
 	sidebarHeaderTitle: "_sidebarHeaderTitle_1t7mh_96",
 	sidebarHeaderCloseAnchor: "_sidebarHeaderCloseAnchor_1t7mh_112",
 	sidebarHeaderClose: "_sidebarHeaderClose_1t7mh_112"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/OutlineSidebar.tsx
+/**
+* The transcript's sticky outline sidebar: the expanded panel (header, close
+* button, outline tree) or the collapsed show-outline toggle, pinned below
+* the swimlanes via StickyScroll.
+*/
+var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventNodes, defaultCollapsedIds, scrollRef, running, backfilling, agentName, offsetTop, collapseState, getEventUrl }) => {
+	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
+	const { scrollRef: externalScrollRef } = outline;
+	const handleOutlineScrollRef = (0, import_react.useCallback)((el) => {
+		setOutlineScrollEl(el);
+		if (externalScrollRef) externalScrollRef.current = el;
+	}, [externalScrollRef]);
+	const collapse = (0, import_react.useMemo)(() => outlineCollapseState(collapseState), [collapseState]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyScroll, {
+		ref: handleOutlineScrollRef,
+		scrollRef,
+		className: TranscriptLayout_module_default.outline,
+		offsetTop,
+		children: !isCollapsed ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			outline.title && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TranscriptLayout_module_default.sidebarHeader,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: clsx(TranscriptLayout_module_default.sidebarHeaderTitle, "text-size-smaller"),
+					children: outline.title
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TranscriptLayout_module_default.sidebarHeaderCloseAnchor,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: TranscriptLayout_module_default.sidebarHeaderClose,
+					onClick: () => outline.onCollapsedChange(true),
+					"aria-label": "Hide outline",
+					title: outline.toggleTitle ?? "Hide outline",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-x" })
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptOutline, {
+				eventNodes,
+				defaultCollapsedIds,
+				scrollRef,
+				outlineScrollEl,
+				running,
+				backfilling,
+				agentName,
+				scrollTrackOffset: offsetTop,
+				collapse,
+				selectedOutlineId: outline.selectedId,
+				setSelectedOutlineId: outline.setSelectedId,
+				getEventUrl,
+				renderLink: outline.renderLink,
+				onNavigateToEvent: outline.onNavigateToEvent,
+				onHasNodesChange
+			})
+		] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: TranscriptLayout_module_default.outlineToggle,
+			onClick: hasNodes && !outline.toggleDisabled ? () => outline.onCollapsedChange(false) : void 0,
+			"aria-disabled": outline.toggleDisabled || !hasNodes,
+			title: outline.toggleTitle ?? (!hasNodes ? "No outline available for the current filter" : void 0),
+			"aria-label": "Show outline",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: outline.toggleIcon })
+		})
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TranscriptLayout_module_default.separator })] });
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/search/sampleSearch.ts
+/**
+* Build a map from event ID to the swimlane row key that contains it.
+*
+* Walks each row's agents. Within each agent, iterates through its `content`
+* but stops descending into nested agent spans — those events belong to
+* their own row (a separate entry in `state.rows`).
+*
+* If `state.rows` is sorted with deeper rows after their parents (the convention
+* established by `useTimeline`), processing them in order means the deepest row
+* wins when the same event would otherwise be reachable via multiple rows
+* (defensive — normally each event has exactly one containing row).
+*/
+function buildEventToRowMap(rows) {
+	const map = /* @__PURE__ */ new Map();
+	const ordered = [...rows].sort((a, b) => a.depth - b.depth);
+	for (const row of ordered) for (const rowSpan of row.spans) for (const agent of getAgents(rowSpan)) recordRowEvents(agent, row.key, map);
+	return map;
+}
+function recordRowEvents(agent, rowKey, out) {
+	const stack = [agent];
+	while (stack.length > 0) {
+		const span = stack.pop();
+		for (const item of span.content) if (item.type === "event") {
+			const uuid = item.event.uuid;
+			if (uuid) out.set(uuid, rowKey);
+		} else {
+			if (item.spanType === "agent") continue;
+			stack.push(item);
+		}
+	}
+}
+/**
+* Find every occurrence of `term` across the sample's events.
+*
+* Reuses `extractEventFields` so the searchable text exactly matches what
+* `eventSearchText` (the per-row counter) would extract. Events whose uuid
+* isn't in `eventToRow` are skipped (they're not addressable by row switch).
+*
+* Order: events in input order, fields in `extractEventFields` order,
+* occurrences left-to-right. Stable across calls with the same inputs.
+*/
+function findAllMatches(events, term, eventToRow) {
+	if (!term) return [];
+	const prepared = prepareSearchTerm(term);
+	const variants = [
+		prepared.simple,
+		...prepared.unquoted ? [prepared.unquoted] : [],
+		...prepared.jsonEscaped ? [prepared.jsonEscaped] : []
+	];
+	const out = [];
+	for (const event of events) {
+		const uuid = event.uuid;
+		if (!uuid) continue;
+		const rowKey = eventToRow.get(uuid);
+		if (rowKey === void 0) continue;
+		const fields = extractEventFields(event);
+		let fieldIndex = 0;
+		for (const [fieldKey, text] of fields) {
+			const positions = findVariantPositions(text.toLowerCase(), variants);
+			for (let i = 0; i < positions.length; i++) out.push({
+				rowKey,
+				eventId: uuid,
+				fieldKey,
+				fieldIndex,
+				occurrenceIndex: i
+			});
+			fieldIndex++;
+		}
+	}
+	return out;
+}
+/**
+* Find every occurrence of any `variants` substring in `lowered`, deduped by
+* range so a JSON-quoted form `"foo"` matched by both `simple` and `unquoted`
+* counts as one occurrence (the longer variant wins). Mirrors the variant
+* matching `LiveVirtualList.searchInText` does for the chat counter so the
+* two counters agree on the total.
+*/
+function findVariantPositions(lowered, variants) {
+	const hits = [];
+	for (const v of variants) {
+		if (!v) continue;
+		let from = 0;
+		let p = 0;
+		while ((p = lowered.indexOf(v, from)) !== -1) {
+			hits.push({
+				pos: p,
+				len: v.length
+			});
+			from = p + v.length;
+		}
+	}
+	hits.sort((a, b) => a.pos - b.pos || b.len - a.len);
+	const out = [];
+	let endOfLast = -1;
+	for (const h of hits) if (h.pos >= endOfLast) {
+		out.push(h.pos);
+		endOfLast = h.pos + h.len;
+	}
+	return out;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
+var DEFAULT_ID = "transcript-sample";
+var SETTLE_LIMIT = 90;
+/**
+* Registers a sample-wide search source with ExtendedFindContext.
+*
+* - count(term): findAllMatches over the full sample. Cached per term.
+* - searchFn(term, dir): finds the next match across the entire sample,
+*   switches swimlane row if needed, sets the find target (auto-expand),
+*   then delegates to viewNodesRef.scrollToEvent.
+*
+* Preconditions: must be mounted inside an `ExtendedFindProvider`. The
+* `FindTargetProvider` is optional — its setter no-ops when absent.
+*/
+function useTranscriptSearchSource(options) {
+	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id = DEFAULT_ID } = options;
+	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
+	const setFindTarget = useFindTargetSetter();
+	const eventToRow = (0, import_react.useMemo)(() => buildEventToRowMap(rows), [rows]);
+	const cacheRef = (0, import_react.useRef)(null);
+	const getMatches = (0, import_react.useCallback)((term) => {
+		const c = cacheRef.current;
+		if (c && c.events === events && c.eventToRow === eventToRow && c.term === term) return c.matches;
+		const matches = findAllMatches(events, term, eventToRow);
+		cacheRef.current = {
+			events,
+			eventToRow,
+			term,
+			matches
+		};
+		return matches;
+	}, [events, eventToRow]);
+	const selectedRef = (0, import_react.useRef)(selected);
+	(0, import_react.useEffect)(() => {
+		selectedRef.current = selected;
+	}, [selected]);
+	const lastResolvedRef = (0, import_react.useRef)(null);
+	const invocationIdRef = (0, import_react.useRef)(0);
+	const pendingTimersRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+	(0, import_react.useEffect)(() => {
+		const timers = pendingTimersRef.current;
+		return () => {
+			for (const t of timers) clearTimeout(t);
+			timers.clear();
+		};
+	}, []);
+	const activeTermRef = (0, import_react.useRef)("");
+	(0, import_react.useEffect)(() => {
+		if (typeof document === "undefined") return;
+		const onSelectionChange = () => {
+			const term = activeTermRef.current;
+			if (!term) return;
+			const sel = document.getSelection();
+			if (!sel || sel.rangeCount === 0) return;
+			const range = sel.getRangeAt(0);
+			if (range.startContainer !== range.endContainer) return;
+			if (range.endOffset - range.startOffset !== term.length) return;
+			if (range.toString().toLowerCase() !== term.toLowerCase()) return;
+			const match = matchAtSelection(getMatches(term), term);
+			if (match) lastResolvedRef.current = {
+				match,
+				term
+			};
+		};
+		document.addEventListener("selectionchange", onSelectionChange);
+		return () => document.removeEventListener("selectionchange", onSelectionChange);
+	}, [getMatches]);
+	const countFn = (0, import_react.useCallback)((term) => {
+		activeTermRef.current = term;
+		return getMatches(term).length;
+	}, [getMatches]);
+	const searchFn = (0, import_react.useCallback)(async (term, direction, onContentReady) => {
+		const myId = ++invocationIdRef.current;
+		const isStale = () => myId !== invocationIdRef.current;
+		const matches = getMatches(term);
+		if (matches.length === 0) return false;
+		activeTermRef.current = term;
+		onHeadroomResetAnchor?.(true);
+		onHeadroomSetHidden?.(direction === "forward");
+		let position = resolvePosition(matches, lastResolvedRef.current, viewNodesRef.current, selectedRef.current, term);
+		const SKIP_LIMIT = Math.min(matches.length, 8);
+		let next = null;
+		for (let attempt = 0; attempt < SKIP_LIMIT; attempt++) {
+			next = pickNext(matches, position, direction);
+			if (next.rowKey !== selectedRef.current) {
+				onSelect(next.rowKey);
+				const ready = await waitForRow(viewNodesRef, next.eventId);
+				if (isStale()) return false;
+				if (!ready) {
+					position = matches.indexOf(next);
+					lastResolvedRef.current = {
+						match: next,
+						term
+					};
+					continue;
+				}
+			}
+			setFindTarget({
+				term,
+				eventId: next.eventId
+			});
+			await raf();
+			if (isStale()) return false;
+			await raf();
+			if (isStale()) return false;
+			viewNodesRef.current?.scrollToEvent(next.eventId);
+			const inDom = await waitForEventInDOM(next.eventId);
+			if (isStale()) return false;
+			if (inDom) break;
+			const skippedEventId = next.eventId;
+			let lastSkipIdx = matches.indexOf(next);
+			const stride = direction === "forward" ? 1 : -1;
+			for (let idx = lastSkipIdx + stride; idx >= 0 && idx < matches.length && matches[idx].eventId === skippedEventId; idx += stride) lastSkipIdx = idx;
+			position = lastSkipIdx;
+			lastResolvedRef.current = {
+				match: matches[lastSkipIdx],
+				term
+			};
+			next = null;
+		}
+		if (!next) return false;
+		positionSelectionAroundTerm(next.eventId, term, direction);
+		lastResolvedRef.current = {
+			match: next,
+			term
+		};
+		onContentReady();
+		const reselectId = next.eventId;
+		const timer = window.setTimeout(() => {
+			if (isStale()) return;
+			reselectTermInPanel(reselectId, term);
+		}, 300);
+		pendingTimersRef.current.add(timer);
+		return true;
+	}, [
+		getMatches,
+		viewNodesRef,
+		onSelect,
+		setFindTarget,
+		onHeadroomResetAnchor,
+		onHeadroomSetHidden
+	]);
+	(0, import_react.useEffect)(() => {
+		const unCount = registerMatchCounter(id, countFn);
+		const unSearch = registerVirtualList(id, searchFn);
+		return () => {
+			unCount();
+			unSearch();
+		};
+	}, [
+		id,
+		registerMatchCounter,
+		registerVirtualList,
+		countFn,
+		searchFn
+	]);
+}
+function pickNext(matches, position, dir) {
+	const len = matches.length;
+	if (position < 0) return dir === "forward" ? matches[0] : matches[len - 1];
+	return dir === "forward" ? matches[(position + 1) % len] : matches[(position - 1 + len) % len];
+}
+function resolvePosition(matches, last, view, selected, term) {
+	if (last && last.term === term) {
+		const idx = matches.findIndex((m) => m.eventId === last.match.eventId && m.fieldKey === last.match.fieldKey && m.fieldIndex === last.match.fieldIndex && m.occurrenceIndex === last.match.occurrenceIndex);
+		if (idx !== -1) return idx;
+	}
+	const range = view?.getVisibleRange();
+	const flattened = view?.getFlattenedNodes() ?? [];
+	if (!range || flattened.length === 0) return -1;
+	const visibleIds = new Set(flattened.slice(range.startIndex, range.endIndex + 1).map((n) => n.id));
+	return matches.findIndex((m) => m.rowKey === selected && visibleIds.has(m.eventId));
+}
+/**
+* Find the SampleMatch corresponding to the current document selection, if any.
+*
+* Walks up from the selection's startContainer to find an event-panel element
+* (one whose `id` is in `matches`'s eventId set). Then counts how many
+* occurrences of `term` precede the selection within that event's text — that
+* count is the DOM-order occurrence index, which we map to the n-th match in
+* our array for that event.
+*
+* Returns `null` if there is no selection, no event ancestor, or the count
+* runs past the matches we know about (e.g. selection isn't actually on a
+* `term` instance).
+*/
+function matchAtSelection(matches, term) {
+	if (typeof window === "undefined" || !term) return null;
+	const sel = window.getSelection();
+	if (!sel || sel.rangeCount === 0) return null;
+	const range = sel.getRangeAt(0);
+	const eventIds = new Set(matches.map((m) => m.eventId));
+	let el = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+	while (el && !eventIds.has(el.id)) el = el.parentElement;
+	if (!el) return null;
+	const eventId = el.id;
+	const lowered = term.toLowerCase();
+	const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+	let occurrenceInEvent = 0;
+	let node;
+	while (node = walker.nextNode()) {
+		const textNode = node;
+		if (textNode === range.startContainer) {
+			const head = textNode.data.slice(0, range.startOffset).toLowerCase();
+			let from = 0;
+			while ((from = head.indexOf(lowered, from)) !== -1) {
+				occurrenceInEvent++;
+				from += lowered.length;
+			}
+			break;
+		}
+		const text = textNode.data.toLowerCase();
+		let from = 0;
+		while ((from = text.indexOf(lowered, from)) !== -1) {
+			occurrenceInEvent++;
+			from += lowered.length;
+		}
+	}
+	let seen = 0;
+	for (const m of matches) {
+		if (m.eventId !== eventId) continue;
+		if (seen === occurrenceInEvent) return m;
+		seen++;
+	}
+	return null;
+}
+/**
+* Walk the DOM under the event element with `eventId` and place a collapsed
+* selection adjacent to the FIRST occurrence of `term` (forward) or the LAST
+* occurrence (backward), so FindBand's subsequent `window.find` advances onto
+* exactly that occurrence.
+*
+* Forward: cursor BEFORE the first match — `window.find` searches forward
+* from the cursor and lands on the term.
+* Backward: cursor AFTER the last match — `window.find` with backward=true
+* searches backward from the cursor and lands on the term. (If we collapsed
+* before instead, backward would skip past it and either find nothing or
+* land in unrelated DOM, which makes findExtendedInDOM return false and the
+* counter fail to update.)
+*
+* If the panel isn't mounted or doesn't render the term as text (e.g. the
+* match was in a JSON-stringified field we don't render), bail silently —
+* FindBand will fall back to its default windowFind behavior.
+*/
+function positionSelectionAroundTerm(eventId, term, direction) {
+	const root = document.getElementById(eventId);
+	if (!root) return false;
+	const lowered = term.toLowerCase();
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let target = null;
+	for (let node; node = walker.nextNode();) {
+		const textNode = node;
+		const text = textNode.data.toLowerCase();
+		let from = 0;
+		while ((from = text.indexOf(lowered, from)) !== -1) {
+			target = {
+				node: textNode,
+				idx: from
+			};
+			from += lowered.length;
+			if (direction === "forward") break;
+		}
+		if (target && direction === "forward") break;
+	}
+	if (!target) return false;
+	const sel = window.getSelection();
+	if (!sel) return false;
+	const range = document.createRange();
+	range.setStart(target.node, direction === "forward" ? target.idx : target.idx + term.length);
+	range.collapse(true);
+	sel.removeAllRanges();
+	sel.addRange(range);
+	return true;
+}
+/**
+* If the current selection no longer covers `term` inside the panel
+* (because a late settling pass — Virtuoso re-render, lazy syntax
+* highlighting, ExpandablePanel auto-expand reflow — detached the text
+* node `window.find` was anchored on), re-anchor the selection to the
+* first occurrence of `term` in the panel. Returns false (no-op) when
+* the existing highlight is intact.
+*/
+function reselectTermInPanel(eventId, term) {
+	const root = document.getElementById(eventId);
+	if (!root) return false;
+	const sel = window.getSelection();
+	if (!sel) return false;
+	if (sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && sel.getRangeAt(0).toString().toLowerCase() === term.toLowerCase() && root.contains(sel.getRangeAt(0).startContainer)) return true;
+	const lowered = term.toLowerCase();
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	for (let node; node = walker.nextNode();) {
+		const idx = (node.textContent ?? "").toLowerCase().indexOf(lowered);
+		if (idx === -1) continue;
+		const range = document.createRange();
+		range.setStart(node, idx);
+		range.setEnd(node, idx + term.length);
+		sel.removeAllRanges();
+		sel.addRange(range);
+		return true;
+	}
+	return false;
+}
+function raf() {
+	return new Promise((resolve) => typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame(() => resolve()) : setTimeout(resolve, 0));
+}
+/**
+* Wait for the freshly-selected row to mount: poll until the target eventId
+* is present in the flattened-node list, or the budget expires.
+* Returns false if the view is not mounted or the event never appears.
+*/
+async function waitForRow(viewNodesRef, eventId) {
+	for (let i = 0; i < SETTLE_LIMIT; i++) {
+		const view = viewNodesRef.current;
+		if (!view) return false;
+		if (view.getFlattenedNodes().some((n) => n.id === eventId)) return true;
+		await raf();
+	}
+	return false;
+}
+/**
+* Wait until the event panel is actually rendered to the DOM. After
+* `scrollToEvent` triggers a Virtuoso scroll for an off-screen target, the
+* panel takes several frames to mount. Returns false on timeout. The budget
+* is shorter than for row mount because we use this to detect unreachable
+* matches and skip them — too long a wait makes skipping feel laggy.
+*/
+async function waitForEventInDOM(eventId) {
+	if (typeof document === "undefined") return false;
+	const DOM_BUDGET = 30;
+	for (let i = 0; i < DOM_BUDGET; i++) {
+		if (document.getElementById(eventId)) return true;
+		await raf();
+	}
+	return false;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/TimelineSelectContext.ts
+var TimelineSelectContext = (0, import_react.createContext)(null);
+function useTimelineSelect() {
+	return (0, import_react.useContext)(TimelineSelectContext);
+}
+var TimelineRowSelectContext = (0, import_react.createContext)(null);
+function useTimelineRowSelect() {
+	return (0, import_react.useContext)(TimelineRowSelectContext);
+}
+var AgentCardView_module_default = {
+	card: "_card_fxgye_1",
+	branchCard: "_branchCard_fxgye_13",
+	utilityCard: "_utilityCard_fxgye_21",
+	header: "_header_fxgye_30",
+	icon: "_icon_fxgye_39",
+	title: "_title_fxgye_43",
+	meta: "_meta_fxgye_49",
+	disclosure: "_disclosure_fxgye_54",
+	description: "_description_fxgye_59",
+	resultPanel: "_resultPanel_fxgye_64"
+};
+var TimelineIconsContext = (0, import_react.createContext)({
+	error: "bi bi-exclamation-circle-fill",
+	compaction: "bi bi-arrows-collapse-vertical",
+	fork: "bi bi-sign-intersection-y-fill",
+	agent: "bi bi-grid",
+	threeDots: "bi bi-three-dots",
+	expand: { down: "bi bi-chevron-down" },
+	collapse: { up: "bi bi-chevron-up" },
+	chevron: {
+		down: "bi bi-chevron-down",
+		left: "bi bi-chevron-left",
+		right: "bi bi-chevron-right"
+	},
+	solvers: { default: "bi bi-arrow-return-right" },
+	punchDown: "bi bi-arrows-angle-expand"
+});
+function useTimelineIcons() {
+	return (0, import_react.useContext)(TimelineIconsContext);
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/AgentCardView.tsx
+var AgentCardView = ({ span, className }) => {
+	const icons = useTimelineIcons();
+	const select = useTimelineSelect();
+	const handleClick = (0, import_react.useCallback)(() => {
+		select?.(span.id);
+	}, [select, span.id]);
+	const stopPropagation = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+	}, []);
+	const resultOutput = (0, import_react.useMemo)(() => getSpanToolResult(span), [span]);
+	const isUtility = span.utility;
+	const isBranch = span.spanType === "branch";
+	const title = isUtility ? getUtilityAgentLabel(span) : span.name.toLowerCase();
+	const tokens = formatTokenCount(span.totalTokens());
+	const duration = formatDurationShort(span.startTime(), span.endTime());
+	const iconClass = isBranch ? icons.fork : icons.agent;
+	const label = isBranch ? "branch" : isUtility ? "utility" : "sub-agent";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(AgentCardView_module_default.card, isUtility && AgentCardView_module_default.utilityCard, isBranch && AgentCardView_module_default.branchCard, className),
+		onClick: isBranch ? void 0 : handleClick,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(AgentCardView_module_default.header, "text-size-small"),
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(iconClass, AgentCardView_module_default.icon, "text-style-secondary") }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: clsx(AgentCardView_module_default.title, "text-style-secondary", "text-style-label"),
+						children: [
+							label,
+							": ",
+							title
+						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: clsx(AgentCardView_module_default.meta, "text-style-secondary"),
+						children: [
+							tokens,
+							" · ",
+							duration
+						]
+					}),
+					!isBranch && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icons.chevron.right, AgentCardView_module_default.disclosure, "text-style-secondary") })
+				]
+			}),
+			!isUtility && span.description && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx(AgentCardView_module_default.description, "text-size-small"),
+				children: span.description
+			}),
+			resultOutput && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: AgentCardView_module_default.resultPanel,
+				onClick: stopPropagation,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+					id: `agent-result-${span.id}`,
+					collapse: true,
+					lines: 15,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: resultOutput })
+				})
+			})
+		]
+	});
+};
+var TimelineMinimap_module_default = {
+	container: "_container_1h53w_3",
+	stableLabel: "_stableLabel_1h53w_17",
+	alignRight: "_alignRight_1h53w_32",
+	alignLeft: "_alignLeft_1h53w_36",
+	hidden: "_hidden_1h53w_40",
+	minimap: "_minimap_1h53w_44",
+	track: "_track_1h53w_53",
+	regionFill: "_regionFill_1h53w_66",
+	marker: "_marker_1h53w_79",
+	selectionRegion: "_selectionRegion_1h53w_96",
+	sectionTime: "_sectionTime_1h53w_114",
+	sectionTimePill: "_sectionTimePill_1h53w_126",
+	scrubber: "_scrubber_1h53w_142",
+	scrubberLine: "_scrubberLine_1h53w_153",
+	scrubberCaretUp: "_scrubberCaretUp_1h53w_161"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineMinimap.tsx
+/**
+* Compact minimap showing the selected row's position within the full timeline.
+*
+* Renders as a self-contained flex row: mode label + bar area.
+* Designed to sit inside the breadcrumb row, right-aligned.
+*/
+var TimelineMinimap = ({ root, selection, mapping, scrubberProgress, onScrub }) => {
+	const regionRef = (0, import_react.useRef)(null);
+	const draggingRef = (0, import_react.useRef)(false);
+	const localProgressRef = (0, import_react.useRef)(null);
+	const [dragging, setDragging] = (0, import_react.useState)(false);
+	const [localProgress, setLocalProgress] = (0, import_react.useState)(null);
+	const progressFromPointer = (0, import_react.useCallback)((clientX) => {
+		const rect = regionRef.current?.getBoundingClientRect();
+		if (!rect || rect.width === 0) return 0;
+		return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+	}, []);
+	const handlePointerDown = (0, import_react.useCallback)((e) => {
+		if (!onScrub) return;
+		e.preventDefault();
+		draggingRef.current = true;
+		const p = progressFromPointer(e.clientX);
+		localProgressRef.current = p;
+		setDragging(true);
+		setLocalProgress(p);
+		regionRef.current?.setPointerCapture(e.pointerId);
+	}, [onScrub, progressFromPointer]);
+	const handlePointerMove = (0, import_react.useCallback)((e) => {
+		if (!draggingRef.current) return;
+		const p = progressFromPointer(e.clientX);
+		localProgressRef.current = p;
+		setLocalProgress(p);
+	}, [progressFromPointer]);
+	const handlePointerUp = (0, import_react.useCallback)((e) => {
+		if (!draggingRef.current) return;
+		draggingRef.current = false;
+		setDragging(false);
+		const progress = progressFromPointer(e.clientX);
+		localProgressRef.current = progress;
+		setLocalProgress(progress);
+		onScrub?.(progress);
+	}, [onScrub, progressFromPointer]);
+	const handleLostCapture = (0, import_react.useCallback)(() => {
+		if (!draggingRef.current) return;
+		draggingRef.current = false;
+		setDragging(false);
+		const progress = localProgressRef.current;
+		if (progress !== null) onScrub?.(progress);
+	}, [onScrub]);
+	const [prevScrubberProgress, setPrevScrubberProgress] = (0, import_react.useState)(scrubberProgress);
+	if (prevScrubberProgress !== scrubberProgress) {
+		setPrevScrubberProgress(scrubberProgress);
+		if (!dragging && localProgress !== null) setLocalProgress(null);
+	}
+	const [showTokens, setShowTokens] = useProperty("timeline", "minimapShowTokens", { defaultValue: false });
+	const isTokenMode = !!showTokens;
+	const toggle = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		setShowTokens(!isTokenMode);
+	}, [isTokenMode, setShowTokens]);
+	const displayProgress = localProgress !== null ? localProgress : scrubberProgress;
+	const bar = selection ? mapping ? {
+		left: mapping.toPercent(selection.startTime),
+		width: Math.max(0, mapping.toPercent(selection.endTime) - mapping.toPercent(selection.startTime))
+	} : computeBarPosition(selection.startTime, selection.endTime, root.startTime(), root.endTime()) : null;
+	const showRegion = bar !== null;
+	const useShortFormat = bar !== null && bar.width <= 15;
+	const hasCompression = mapping?.hasCompression ?? false;
+	const timeRightLabel = hasCompression && mapping ? formatTime$1(computeActiveTime(mapping, root.startTime().getTime(), root.endTime().getTime())) : formatDuration$1(root.startTime(false), root.endTime(false));
+	const tokenRightLabel = formatTokenCount(root.totalTokens(false));
+	const computeSectionLabel = () => {
+		if (!selection) return "";
+		if (isTokenMode) return formatTokenCount(selection.totalTokens);
+		if (hasCompression && mapping) return formatTime$1(computeActiveTime(mapping, selection.startTime.getTime(), selection.endTime.getTime()));
+		return useShortFormat ? formatDurationShort(selection.startTime, selection.endTime) : formatDuration$1(selection.startTime, selection.endTime);
+	};
+	const sectionLabel = computeSectionLabel();
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineMinimap_module_default.container,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignRight),
+				onClick: toggle,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
+					children: "time"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
+					children: "tokens"
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: TimelineMinimap_module_default.minimap,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.track }), showRegion && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					ref: regionRef,
+					className: TimelineMinimap_module_default.selectionRegion,
+					style: bar.left + bar.width / 2 < 50 ? {
+						left: `${bar.left}%`,
+						minWidth: `${bar.width}%`
+					} : {
+						right: `${100 - bar.left - bar.width}%`,
+						minWidth: `${bar.width}%`
+					},
+					onPointerDown: onScrub ? handlePointerDown : void 0,
+					onPointerMove: onScrub ? handlePointerMove : void 0,
+					onPointerUp: onScrub ? handlePointerUp : void 0,
+					onLostPointerCapture: onScrub ? handleLostCapture : void 0,
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.regionFill }),
+						displayProgress != null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: TimelineMinimap_module_default.scrubber,
+							style: { left: `${displayProgress * 100}%` },
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberLine }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberCaretUp })]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: TimelineMinimap_module_default.sectionTime,
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: TimelineMinimap_module_default.sectionTimePill,
+								onClick: toggle,
+								children: sectionLabel
+							})
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker })
+					]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignLeft),
+				onClick: toggle,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
+					children: timeRightLabel
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
+					children: tokenRightLabel
+				})]
+			})
+		]
+	});
+};
+var TimelineOptionsPopover_module_default = {
+	title: "_title_1f23l_1",
+	rows: "_rows_1f23l_8",
+	row: "_row_1f23l_8",
+	groupHeader: "_groupHeader_1f23l_29"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineOptionsPopover.tsx
+var kMarkerKindLabels = [{
+	kind: "error",
+	label: "Errors"
+}, {
+	kind: "compaction",
+	label: "Compaction"
+}];
+var TimelineOptionsPopover = ({ isOpen, setIsOpen, positionEl, config, onToggleBranches }) => {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(PopOver, {
+		id: "timeline-options-popover",
+		positionEl,
+		isOpen,
+		setIsOpen,
+		placement: "bottom-end",
+		hoverDelay: -1,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: `${TimelineOptionsPopover_module_default.title} text-size-smaller`,
+			children: "View Options"
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: `${TimelineOptionsPopover_module_default.rows} text-size-smaller`,
+			children: [
+				kMarkerKindLabels.map(({ kind, label }) => {
+					const checked = config.markerKinds.includes(kind);
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: TimelineOptionsPopover_module_default.row,
+						onClick: () => config.toggleMarkerKind(kind),
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+							type: "checkbox",
+							checked,
+							onChange: (e) => {
+								e.stopPropagation();
+								config.toggleMarkerKind(kind);
+							}
+						}), label]
+					}, kind);
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: () => config.setIncludeUtility(!config.includeUtility),
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.includeUtility,
+						onChange: (e) => {
+							e.stopPropagation();
+							config.setIncludeUtility(!config.includeUtility);
+						}
+					}), "Utility agents"]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: TimelineOptionsPopover_module_default.groupHeader,
+					children: "Branches"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: onToggleBranches,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.showBranches,
+						onChange: (e) => {
+							e.stopPropagation();
+							onToggleBranches();
+						}
+					}), "Show branches"]
+				}),
+				config.showBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: () => config.setForkRelative(!config.forkRelative),
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.forkRelative,
+						onChange: (e) => {
+							e.stopPropagation();
+							config.setForkRelative(!config.forkRelative);
+						}
+					}), "Fork-relative branches"]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: () => config.setShowEmptyBranches(!config.showEmptyBranches),
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.showEmptyBranches,
+						onChange: (e) => {
+							e.stopPropagation();
+							config.setShowEmptyBranches(!config.showEmptyBranches);
+						}
+					}), "Show empty branches"]
+				})] })
+			]
+		})]
+	});
+};
+var TimelineSelector_module_default = {
+	selectorContainer: "_selectorContainer_djjmp_1",
+	selectorButton: "_selectorButton_djjmp_8",
+	chevron: "_chevron_djjmp_28",
+	backdrop: "_backdrop_djjmp_33",
+	dropdownMenu: "_dropdownMenu_djjmp_42",
+	dropdownItem: "_dropdownItem_djjmp_57",
+	dropdownItemActive: "_dropdownItemActive_djjmp_74"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSelector.tsx
+var TimelineSelector = ({ timelines, activeIndex, onSelect }) => {
+	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
+	const handleSelect = (0, import_react.useCallback)((index) => {
+		onSelect(index);
+		setIsOpen(false);
+	}, [onSelect]);
+	if (timelines.length <= 1) return null;
+	const active = timelines[activeIndex];
+	if (!active) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineSelector_module_default.selectorContainer,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: TimelineSelector_module_default.selectorButton,
+			onClick: () => setIsOpen((prev) => !prev),
+			title: active.description,
+			"aria-haspopup": "listbox",
+			"aria-expanded": isOpen,
+			children: [active.name, /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi-chevron-down", TimelineSelector_module_default.chevron) })]
+		}), isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: TimelineSelector_module_default.backdrop,
+			onClick: () => setIsOpen(false)
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: TimelineSelector_module_default.dropdownMenu,
+			role: "listbox",
+			children: timelines.map((tl, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
+				className: clsx(TimelineSelector_module_default.dropdownItem, i === activeIndex && TimelineSelector_module_default.dropdownItemActive),
+				role: "option",
+				"aria-selected": i === activeIndex,
+				onClick: () => handleSelect(i),
+				children: tl.name
+			}, tl.name))
+		})] })]
+	});
+};
+var TimelineSwimLanes_module_default = {
+	swimlane: "_swimlane_1rsxs_1",
+	pinnedSection: "_pinnedSection_1rsxs_17",
+	scrollSection: "_scrollSection_1rsxs_25",
+	collapsibleSection: "_collapsibleSection_1rsxs_40",
+	collapsibleCollapsed: "_collapsibleCollapsed_1rsxs_53",
+	swimlaneSticky: "_swimlaneSticky_1rsxs_63",
+	collapsibleInner: "_collapsibleInner_1rsxs_67",
+	collapseToggle: "_collapseToggle_1rsxs_77",
+	row: "_row_1rsxs_105",
+	label: "_label_1rsxs_111",
+	labelSelected: "_labelSelected_1rsxs_129",
+	labelHighlighted: "_labelHighlighted_1rsxs_134",
+	chevron: "_chevron_1rsxs_141",
+	chevronSpacer: "_chevronSpacer_1rsxs_156",
+	punchDownBtn: "_punchDownBtn_1rsxs_162",
+	viewStackBack: "_viewStackBack_1rsxs_184",
+	barArea: "_barArea_1rsxs_203",
+	barInner: "_barInner_1rsxs_209",
+	fill: "_fill_1rsxs_215",
+	fillParent: "_fillParent_1rsxs_233",
+	fillSelected: "_fillSelected_1rsxs_237",
+	fillHighlight: "_fillHighlight_1rsxs_245",
+	fillDimmed: "_fillDimmed_1rsxs_256",
+	regionSegment: "_regionSegment_1rsxs_263",
+	regionDefault: "_regionDefault_1rsxs_262",
+	regionHover: "_regionHover_1rsxs_262",
+	regionFirst: "_regionFirst_1rsxs_283",
+	regionLast: "_regionLast_1rsxs_287",
+	regionMiddle: "_regionMiddle_1rsxs_291",
+	parallelBadge: "_parallelBadge_1rsxs_295",
+	marker: "_marker_1rsxs_302",
+	markerBranch: "_markerBranch_1rsxs_316",
+	markerError: "_markerError_1rsxs_330",
+	markerCompaction: "_markerCompaction_1rsxs_351",
+	branchConnector: "_branchConnector_1rsxs_371",
+	connectorArrow: "_connectorArrow_1rsxs_382",
+	breadcrumbRow: "_breadcrumbRow_1rsxs_410",
+	optionsButton: "_optionsButton_1rsxs_419",
+	hiddenUtility: "_hiddenUtility_1rsxs_443",
+	breadcrumbTrail: "_breadcrumbTrail_1rsxs_462",
+	breadcrumbSegment: "_breadcrumbSegment_1rsxs_470",
+	breadcrumbDivider: "_breadcrumbDivider_1rsxs_476",
+	breadcrumbLink: "_breadcrumbLink_1rsxs_484",
+	breadcrumbCurrent: "_breadcrumbCurrent_1rsxs_498",
+	tokens: "_tokens_1rsxs_509"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSwimLanes.tsx
+/**
+* Builds breadcrumb segments from the layouts and selected key.
+*
+* The selected key encodes tree position (e.g. "transcript/build/test").
+* We find ancestor rows by matching prefix keys, producing a trail like:
+* [main, Build, Test] where "Test" is the currently selected row.
+*/
+function buildBreadcrumbs(layouts, selectedRowKey) {
+	if (!selectedRowKey) return [];
+	const byKey = /* @__PURE__ */ new Map();
+	for (const layout of layouts) byKey.set(layout.key, layout);
+	const parts = selectedRowKey.split("/");
+	const segments = [];
+	for (let i = 1; i <= parts.length; i++) {
+		const ancestorKey = parts.slice(0, i).join("/");
+		const layout = byKey.get(ancestorKey);
+		if (layout) {
+			const label = layout.depth === 0 && layout.name === "solvers" ? "main" : layout.name;
+			segments.push({
+				label,
+				key: layout.key
+			});
+		}
+	}
+	return segments;
+}
+var TimelineSwimLanes = ({ layouts, timeline, header, isSticky, onMarkerNavigate, headroomCollapsed = false, onLayoutShift, regionCounts, defaultCollapsed: defaultCollapsedProp, highlightedKeys, onPunchDown }) => {
+	const icons = useTimelineIcons();
+	const { selected, select: onSelect, clearSelection } = timeline;
+	const [collapsed, setCollapsed] = useProperty("timeline", "swimlanesCollapsed");
+	const isFlat = layouts.length <= 1;
+	const [headroomOverride, setHeadroomOverride] = (0, import_react.useState)(false);
+	const [prevHeadroomCollapsed, setPrevHeadroomCollapsed] = (0, import_react.useState)(headroomCollapsed);
+	if (prevHeadroomCollapsed !== headroomCollapsed) {
+		setPrevHeadroomCollapsed(headroomCollapsed);
+		setHeadroomOverride(false);
+	}
+	const isCollapsed = (collapsed ?? defaultCollapsedProp ?? isFlat) || headroomCollapsed && !headroomOverride;
+	const toggleCollapsed = (0, import_react.useCallback)(() => {
+		onLayoutShift?.();
+		setHeadroomOverride(true);
+		setCollapsed(!isCollapsed);
+	}, [
+		isCollapsed,
+		setCollapsed,
+		onLayoutShift
+	]);
+	const [stableCollapsedBucket, setRowCollapsedById] = useCollapsibleIds("timeline-swimlane-rows");
+	const parentKeys = (0, import_react.useMemo)(() => {
+		const keys = /* @__PURE__ */ new Set();
+		for (const layout of layouts) {
+			const prefix = layout.key + "/";
+			for (const other of layouts) if (other.key.startsWith(prefix)) {
+				keys.add(layout.key);
+				break;
+			}
+		}
+		return keys;
+	}, [layouts]);
+	const expandableKeys = (0, import_react.useMemo)(() => {
+		const keys = new Set(parentKeys);
+		for (const layout of layouts) if (layout.markers.some((m) => m.kind === "branch")) keys.add(layout.key);
+		return keys;
+	}, [layouts, parentKeys]);
+	const isRowCollapsed = (0, import_react.useCallback)((rowKey) => {
+		const explicit = stableCollapsedBucket?.[rowKey];
+		if (explicit !== void 0) return explicit;
+		const layout = layouts.find((l) => l.key === rowKey);
+		if (!layout) return false;
+		if (layout.branch) return false;
+		if (!parentKeys.has(rowKey) && expandableKeys.has(rowKey)) return true;
+		return layout.depth >= 1 && parentKeys.has(rowKey);
+	}, [
+		stableCollapsedBucket,
+		layouts,
+		parentKeys,
+		expandableKeys
+	]);
+	const visibleLayouts = (0, import_react.useMemo)(() => {
+		return layouts.filter((layout) => {
+			const parts = layout.key.split("/");
+			for (let i = 1; i < parts.length; i++) {
+				const ancestorKey = parts.slice(0, i).join("/");
+				if (isRowCollapsed(ancestorKey)) return false;
+			}
+			return true;
+		});
+	}, [layouts, isRowCollapsed]);
+	const handleToggleRowCollapse = (0, import_react.useCallback)((rowKey) => {
+		const current = isRowCollapsed(rowKey);
+		if (current && !header?.timelineConfig?.showBranches) {
+			if (layouts.find((l) => l.key === rowKey)?.markers.some((m) => m.kind === "branch")) header?.timelineConfig?.setShowBranches(true);
+		}
+		setRowCollapsedById(rowKey, !current);
+	}, [
+		isRowCollapsed,
+		setRowCollapsedById,
+		header?.timelineConfig,
+		layouts
+	]);
+	const handleBranchMarkerClick = (0, import_react.useCallback)((rowKey) => {
+		if (!header?.timelineConfig?.showBranches) header?.timelineConfig?.setShowBranches(true);
+		setRowCollapsedById(rowKey, false);
+	}, [header?.timelineConfig, setRowCollapsedById]);
+	const handleBranchToggle = (0, import_react.useCallback)(() => {
+		const turningOff = header?.timelineConfig?.showBranches;
+		header?.timelineConfig?.setShowBranches(!turningOff);
+		if (turningOff && selected && /\/branch-/.test(selected)) clearSelection();
+	}, [
+		header?.timelineConfig,
+		selected,
+		clearSelection
+	]);
+	const parsedSelection = (0, import_react.useMemo)(() => parseSelection(selected), [selected]);
+	const selectedRowKey = parsedSelection?.rowKey ?? null;
+	const breadcrumbs = (0, import_react.useMemo)(() => buildBreadcrumbs(layouts, selectedRowKey), [layouts, selectedRowKey]);
+	const handleKeyDown = (0, import_react.useCallback)((e) => {
+		const rowKeys = visibleLayouts.map((l) => l.key);
+		const currentIndex = selectedRowKey ? rowKeys.indexOf(selectedRowKey) : -1;
+		switch (e.key) {
+			case "ArrowDown": {
+				e.preventDefault();
+				const key = rowKeys[currentIndex < rowKeys.length - 1 ? currentIndex + 1 : currentIndex];
+				if (key !== void 0) onSelect(key);
+				break;
+			}
+			case "ArrowUp": {
+				e.preventDefault();
+				const key = rowKeys[currentIndex > 0 ? currentIndex - 1 : 0];
+				if (key !== void 0) onSelect(key);
+				break;
+			}
+			case "Escape":
+				e.preventDefault();
+				clearSelection();
+				break;
+		}
+	}, [
+		visibleLayouts,
+		selectedRowKey,
+		onSelect,
+		clearSelection
+	]);
+	const parentRow = visibleLayouts[0];
+	const childRows = visibleLayouts.slice(1);
+	const branchConnectors = (0, import_react.useMemo)(() => computeBranchConnectors(visibleLayouts), [visibleLayouts]);
+	const renderRow = (layout, displayName) => {
+		const isRowSelected = selectedRowKey === layout.key;
+		const selectedSpanIndex = isRowSelected ? parsedSelection?.spanIndex ?? null : null;
+		const selectedRegionIndex = isRowSelected ? parsedSelection?.regionIndex ?? null : null;
+		const hasChildren = expandableKeys.has(layout.key);
+		const isRowExpanded = hasChildren ? !isRowCollapsed(layout.key) : void 0;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SwimlaneRow, {
+			layout,
+			displayName,
+			isRowSelected,
+			highlightClip: highlightedKeys?.get(layout.key),
+			selectedSpanIndex,
+			selectedRegionIndex,
+			regionCount: regionCounts?.get(layout.key),
+			isExpanded: isRowExpanded,
+			onToggleExpand: hasChildren ? () => handleToggleRowCollapse(layout.key) : void 0,
+			onSelectRow: () => onSelect(layout.key),
+			onSelectSpan: (spanIndex) => onSelect(buildSelectionKey(layout.key, spanIndex)),
+			onSelectRegion: (spanIndex, regionIndex) => onSelect(buildSelectionKey(layout.key, spanIndex, regionIndex)),
+			onBranchToggle: () => handleBranchMarkerClick(layout.key),
+			onMarkerNavigate,
+			connector: branchConnectors.get(layout.key),
+			onPunchDown: layout.branch && onPunchDown ? () => onPunchDown(layout.key, layout.name) : void 0
+		}, layout.key);
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(TimelineSwimLanes_module_default.swimlane, isSticky && TimelineSwimLanes_module_default.swimlaneSticky),
+		tabIndex: 0,
+		onKeyDown: handleKeyDown,
+		role: "grid",
+		"aria-label": "Timeline swimlane",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.pinnedSection,
+				children: header && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HeaderRow, {
+					...header,
+					node: timeline.node,
+					breadcrumbs,
+					onBreadcrumbSelect: onSelect,
+					onToggleBranches: handleBranchToggle
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx(TimelineSwimLanes_module_default.collapsibleSection, isCollapsed && TimelineSwimLanes_module_default.collapsibleCollapsed),
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: TimelineSwimLanes_module_default.collapsibleInner,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: TimelineSwimLanes_module_default.scrollSection,
+						children: [parentRow && renderRow(parentRow, parentRow.name === "solvers" ? "main" : void 0), childRows.map((layout) => renderRow(layout))]
+					})
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				className: TimelineSwimLanes_module_default.collapseToggle,
+				onClick: toggleCollapsed,
+				title: isCollapsed ? "Expand swimlanes" : "Collapse swimlanes",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isCollapsed ? icons.expand.down : icons.collapse.up })
+			})
+		]
+	});
+};
+var kBranchKeyPattern = /\/branch-([^/]*)-(\d+)$/;
+/**
+* For each branch row, compute the connector from its parent's fork marker
+* down to the branch bar start.
+*/
+function computeBranchConnectors(layouts) {
+	const connectors = /* @__PURE__ */ new Map();
+	const indexByKey = /* @__PURE__ */ new Map();
+	for (let i = 0; i < layouts.length; i++) indexByKey.set(layouts[i].key, i);
+	for (let i = 0; i < layouts.length; i++) {
+		const layout = layouts[i];
+		if (!layout.branch) continue;
+		const match = kBranchKeyPattern.exec(layout.key);
+		if (!match) continue;
+		const branchedFrom = match[1];
+		const parentKey = layout.key.replace(kBranchKeyPattern, "");
+		const parentIndex = indexByKey.get(parentKey);
+		if (parentIndex === void 0) continue;
+		const marker = layouts[parentIndex].markers.find((m) => m.kind === "branch" && m.reference === branchedFrom);
+		if (!marker) continue;
+		const barLeft = layout.spans[0]?.bar.left ?? 0;
+		connectors.set(layout.key, {
+			markerLeft: marker.left,
+			barLeft,
+			rowGap: i - parentIndex
+		});
+	}
+	return connectors;
+}
+var SwimlaneRow = ({ layout, displayName, isRowSelected, highlightClip, selectedSpanIndex, selectedRegionIndex, regionCount, isExpanded, onToggleExpand, onSelectRow, onSelectSpan, onSelectRegion, onBranchToggle, onMarkerNavigate, connector, onPunchDown }) => {
+	const icons = useTimelineIcons();
+	const hasMultipleSpans = layout.spans.length > 1;
+	const hasChildren = isExpanded !== void 0;
+	const compactionMarkerPositions = (0, import_react.useMemo)(() => {
+		if (!regionCount || regionCount <= 1) return null;
+		const positions = [];
+		for (const marker of layout.markers) if (marker.compactionIndex !== void 0) positions.push(marker.left);
+		return positions.length > 0 ? positions : null;
+	}, [regionCount, layout.markers]);
+	const handleChevronClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onToggleExpand?.();
+	}, [onToggleExpand]);
+	const handleMarkerNavigate = (0, import_react.useMemo)(() => {
+		if (!onMarkerNavigate) return void 0;
+		return (eventId) => onMarkerNavigate(eventId, layout.key);
+	}, [onMarkerNavigate, layout.key]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineSwimLanes_module_default.row,
+		role: "row",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(TimelineSwimLanes_module_default.label, isRowSelected && TimelineSwimLanes_module_default.labelSelected, highlightClip !== void 0 && !isRowSelected && TimelineSwimLanes_module_default.labelHighlighted),
+				style: { paddingLeft: `${.3 + layout.depth * .5}rem` },
+				onClick: onSelectRow,
+				children: [
+					hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: TimelineSwimLanes_module_default.chevron,
+						onClick: handleChevronClick,
+						role: "button",
+						"aria-label": isExpanded ? "Collapse" : "Expand",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isExpanded ? icons.chevron.down : icons.chevron.right })
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: TimelineSwimLanes_module_default.chevronSpacer }),
+					displayName ?? (layout.branch ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.solvers.default }),
+						" ",
+						layout.name
+					] }) : layout.name),
+					onPunchDown && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: TimelineSwimLanes_module_default.punchDownBtn,
+						title: "Open as standalone timeline",
+						onClick: (e) => {
+							e.stopPropagation();
+							onPunchDown();
+						},
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.punchDown })
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.barArea,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineSwimLanes_module_default.barInner,
+					children: [
+						layout.spans.map((span, spanIndex) => {
+							const isBarSelected = isRowSelected && (!hasMultipleSpans || selectedSpanIndex === null || selectedSpanIndex === spanIndex);
+							const isBarDimmed = isRowSelected && hasMultipleSpans && selectedSpanIndex !== null && selectedSpanIndex !== spanIndex;
+							if (compactionMarkerPositions !== null && (!hasMultipleSpans || selectedSpanIndex === spanIndex)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RegionBarFill, {
+								span,
+								isParent: layout.isParent,
+								isBarSelected,
+								isBarDimmed,
+								selectedRegionIndex,
+								compactionPositions: compactionMarkerPositions,
+								onSelectBar: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
+								onSelectRegion: (regionIndex) => onSelectRegion(hasMultipleSpans ? spanIndex : void 0, regionIndex),
+								onDoubleClick: onToggleExpand
+							}, spanIndex);
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BarFill, {
+								span,
+								isParent: layout.isParent,
+								isSelected: isBarSelected,
+								isDimmed: isBarDimmed,
+								onSelect: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
+								onDoubleClick: onToggleExpand,
+								insetPx: connector ? 1.5 : void 0
+							}, spanIndex);
+						}),
+						highlightClip !== void 0 && !isRowSelected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HighlightOverlay, {
+							spans: layout.spans,
+							clipRight: highlightClip
+						}),
+						layout.markers.map((marker, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkerGlyph, {
+							marker,
+							onBranchToggle,
+							onMarkerNavigate: handleMarkerNavigate
+						}, i)),
+						connector && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BranchConnectorLine, { connector })
+					]
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.tokens,
+				children: formatTokenCount(layout.totalTokens)
+			})
+		]
+	});
+};
+var HeaderRow = ({ node, minimap, scrubberProgress, onScrub, onScrollToTop, breadcrumbs, onBreadcrumbSelect, timelineConfig, hiddenUtilityCount, multiTimeline, onToggleBranches, views }) => {
+	const icons = useTimelineIcons();
+	const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 1;
+	const rootDisplay = node.name === "solvers" ? "main" : node.name;
+	const [optionsOpen, setOptionsOpen] = (0, import_react.useState)(false);
+	const optionsButtonRef = (0, import_react.useRef)(null);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineSwimLanes_module_default.breadcrumbRow,
+		children: [
+			multiTimeline && multiTimeline.timelines.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSelector, {
+				timelines: multiTimeline.timelines,
+				activeIndex: multiTimeline.activeIndex,
+				onSelect: multiTimeline.setActive
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: TimelineSwimLanes_module_default.breadcrumbDivider,
+				children: "/"
+			})] }),
+			views && views.stack.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+				className: TimelineSwimLanes_module_default.viewStackBack,
+				onClick: views.pop,
+				title: "Back to branch overview",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.chevron.left }), views.stack.at(-1).label]
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: TimelineSwimLanes_module_default.breadcrumbDivider,
+				children: "/"
+			})] }),
+			hasBreadcrumbs ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.breadcrumbTrail,
+				children: breadcrumbs.map((segment, i) => {
+					const isLast = i === breadcrumbs.length - 1;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: TimelineSwimLanes_module_default.breadcrumbSegment,
+						children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: TimelineSwimLanes_module_default.breadcrumbDivider,
+							children: "/"
+						}), isLast ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: TimelineSwimLanes_module_default.breadcrumbCurrent,
+							children: segment.label
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							className: TimelineSwimLanes_module_default.breadcrumbLink,
+							onClick: () => onBreadcrumbSelect?.(segment.key),
+							children: segment.label
+						})]
+					}, segment.key);
+				})
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				className: TimelineSwimLanes_module_default.breadcrumbCurrent,
+				onClick: onScrollToTop,
+				children: rootDisplay
+			}),
+			timelineConfig && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				ref: optionsButtonRef,
+				type: "button",
+				className: TimelineSwimLanes_module_default.optionsButton,
+				onClick: () => setOptionsOpen((prev) => !prev),
+				title: "Timeline options",
+				"aria-label": "Timeline options",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.threeDots })
+			}),
+			timelineConfig && !timelineConfig.includeUtility && (hiddenUtilityCount ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+				type: "button",
+				className: TimelineSwimLanes_module_default.hiddenUtility,
+				onClick: () => timelineConfig.setIncludeUtility(true),
+				title: "Show utility agents",
+				children: [
+					hiddenUtilityCount,
+					" utility",
+					" ",
+					hiddenUtilityCount === 1 ? "agent" : "agents",
+					" hidden"
+				]
+			}),
+			minimap && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineMinimap, {
+				root: node,
+				mapping: minimap.mapping,
+				selection: minimap.selection,
+				scrubberProgress,
+				onScrub
+			}),
+			timelineConfig && onToggleBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineOptionsPopover, {
+				isOpen: optionsOpen,
+				setIsOpen: setOptionsOpen,
+				positionEl: optionsButtonRef.current,
+				config: timelineConfig,
+				onToggleBranches
+			})
+		]
+	});
+};
+var BarFill = ({ span, isParent, isSelected, isDimmed, onSelect, onDoubleClick, insetPx }) => {
+	const handleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onSelect();
+	}, [onSelect]);
+	const handleDoubleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onDoubleClick?.();
+	}, [onDoubleClick]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, isSelected && TimelineSwimLanes_module_default.fillSelected, isDimmed && TimelineSwimLanes_module_default.fillDimmed),
+		style: {
+			left: insetPx ? `calc(${span.bar.left}% + ${insetPx}px)` : `${span.bar.left}%`,
+			width: insetPx ? `calc(${span.bar.width}% - ${insetPx}px)` : `${span.bar.width}%`
+		},
+		title: span.description ?? void 0,
+		onClick: handleClick,
+		onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
+	});
+};
+/**
+* Renders an overlay on the bar area to indicate which portion of the row's
+* spans are "active" (shown in the transcript). Positioned as a sibling of
+* .fill so it has independent opacity instead of stacking with the bar's own.
+*
+* - clipRight = 100 → covers the full span range (e.g. the branch row itself).
+* - clipRight < 100 → covers from the first span's left edge to the clip
+*   percentage (e.g. a parent bar up to the fork point marker).
+*/
+var HighlightOverlay = ({ spans, clipRight }) => {
+	const firstSpan = spans[0];
+	if (!firstSpan) return null;
+	const barLeft = firstSpan.bar.left;
+	const lastSpan = spans[spans.length - 1] ?? firstSpan;
+	const barRight = lastSpan.bar.left + lastSpan.bar.width;
+	const width = Math.max(0, (clipRight >= 100 ? barRight : Math.min(clipRight, barRight)) - barLeft);
+	if (width <= 0) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: TimelineSwimLanes_module_default.fillHighlight,
+		style: {
+			left: `${barLeft}%`,
+			width: `${width}%`
+		}
+	});
+};
+/**
+* Renders a bar fill split into clickable region segments at compaction marker
+* positions. Each segment spans from one compaction marker to the next (or
+* bar start/end). When no region is selected, all segments look like one
+* continuous bar. When a region is selected, the selected segment is
+* highlighted and others are dimmed.
+*/
+var RegionBarFill = ({ span, isParent, isBarSelected, isBarDimmed, selectedRegionIndex, compactionPositions, onSelectBar, onSelectRegion, onDoubleClick }) => {
+	const barLeft = span.bar.left;
+	const barRight = span.bar.left + span.bar.width;
+	const boundaries = [
+		barLeft,
+		...compactionPositions,
+		barRight
+	];
+	const regionCount = boundaries.length - 1;
+	const [hoveredIndex, setHoveredIndex] = (0, import_react.useState)(null);
+	const suppressHoverRef = (0, import_react.useRef)(false);
+	const handleDoubleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onDoubleClick?.();
+	}, [onDoubleClick]);
+	if (isBarDimmed) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, TimelineSwimLanes_module_default.fillDimmed),
+		style: {
+			left: `${barLeft}%`,
+			width: `${span.bar.width}%`
+		},
+		title: span.description ?? void 0,
+		onClick: (e) => {
+			e.stopPropagation();
+			onSelectBar();
+		}
+	});
+	const hasRegionSelection = isBarSelected && selectedRegionIndex !== null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: boundaries.map((start, i) => {
+		if (i >= regionCount) return null;
+		const end = boundaries[i + 1];
+		if (end === void 0 || end <= start) return null;
+		const segmentLeft = start;
+		const segmentWidth = end - start;
+		const isSegmentSelected = hasRegionSelection && selectedRegionIndex === i;
+		const isFirst = i === 0;
+		const isLast = i === regionCount - 1;
+		let opacityClass;
+		if (hasRegionSelection) if (isSegmentSelected) opacityClass = TimelineSwimLanes_module_default.fillSelected;
+		else if (hoveredIndex === i) opacityClass = TimelineSwimLanes_module_default.regionHover;
+		else opacityClass = TimelineSwimLanes_module_default.fillDimmed;
+		else if (isBarSelected) if (hoveredIndex !== null && hoveredIndex !== i) opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
+		else opacityClass = TimelineSwimLanes_module_default.fillSelected;
+		else if (hoveredIndex !== null) opacityClass = TimelineSwimLanes_module_default.regionHover;
+		else opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(TimelineSwimLanes_module_default.regionSegment, opacityClass, isFirst && TimelineSwimLanes_module_default.regionFirst, isLast && TimelineSwimLanes_module_default.regionLast, !isFirst && !isLast && TimelineSwimLanes_module_default.regionMiddle),
+			style: {
+				left: `${segmentLeft}%`,
+				width: `${segmentWidth}%`
+			},
+			title: span.description ?? void 0,
+			onMouseEnter: () => {
+				if (!suppressHoverRef.current) setHoveredIndex(i);
+			},
+			onMouseLeave: () => {
+				suppressHoverRef.current = false;
+				setHoveredIndex(null);
+			},
+			onClick: (e) => {
+				e.stopPropagation();
+				suppressHoverRef.current = true;
+				setHoveredIndex(null);
+				if (isBarSelected && selectedRegionIndex === null) onSelectRegion(i);
+				else if (hasRegionSelection && selectedRegionIndex === i) onSelectBar();
+				else if (hasRegionSelection) onSelectRegion(i);
+				else onSelectBar();
+			},
+			onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
+		}, i);
+	}) });
+};
+var kRowHeight = 18;
+var BranchConnectorLine = ({ connector }) => {
+	const { markerLeft, barLeft, rowGap } = connector;
+	const topY = -(rowGap * kRowHeight) + kRowHeight / 2;
+	const midY = kRowHeight / 2;
+	const endLeft = Math.max(barLeft, markerLeft + .5);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+		className: TimelineSwimLanes_module_default.branchConnector,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+			x1: `${markerLeft}%`,
+			y1: topY,
+			x2: `${markerLeft}%`,
+			y2: 9.5,
+			stroke: "var(--vscode-descriptionForeground, #717171)",
+			strokeWidth: 1
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+			x1: `${markerLeft}%`,
+			y1: midY,
+			x2: `${endLeft}%`,
+			y2: midY,
+			stroke: "var(--vscode-descriptionForeground, #717171)",
+			strokeWidth: 1
+		})]
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: TimelineSwimLanes_module_default.connectorArrow,
+		style: { left: `calc(${endLeft}% + 4px)` }
+	})] });
+};
+var MarkerGlyph = ({ marker, onBranchToggle, onMarkerNavigate }) => {
+	const icons = useTimelineIcons();
+	const icon = {
+		error: icons.error,
+		compaction: icons.compaction,
+		branch: icons.fork
+	}[marker.kind] ?? "bi bi-question-circle";
+	const kindClass = marker.kind === "error" ? TimelineSwimLanes_module_default.markerError : marker.kind === "compaction" ? TimelineSwimLanes_module_default.markerCompaction : TimelineSwimLanes_module_default.markerBranch;
+	const handleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		if (marker.kind === "branch") onBranchToggle();
+		else if (marker.reference && onMarkerNavigate) onMarkerNavigate(marker.reference);
+	}, [
+		marker.kind,
+		marker.reference,
+		onMarkerNavigate,
+		onBranchToggle
+	]);
+	const isBranch = marker.kind === "branch";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+		className: clsx(TimelineSwimLanes_module_default.marker, kindClass),
+		style: { left: `${marker.left}%` },
+		title: marker.tooltip,
+		onClick: handleClick,
+		tabIndex: isBranch ? 0 : void 0,
+		role: isBranch ? "button" : void 0,
+		"aria-label": isBranch ? "Toggle branches" : void 0,
+		children: marker.kind !== "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icon })
+	});
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/AnchorEventView.tsx
@@ -96758,37 +98353,266 @@ var LoggerEventView = ({ eventNode, className }) => {
 		})
 	});
 };
+var ConnectionsLane_module_default = {
+	lane: "_lane_ax2f5_1",
+	statsLine: "_statsLine_ax2f5_5",
+	stripLabel: "_stripLabel_ax2f5_12",
+	stat: "_stat_ax2f5_5",
+	statLabel: "_statLabel_ax2f5_28",
+	statValue: "_statValue_ax2f5_33",
+	rateLimits: "_rateLimits_ax2f5_40",
+	logButton: "_logButton_ax2f5_47",
+	chart: "_chart_ax2f5_68",
+	svg: "_svg_ax2f5_74",
+	series: "_series_ax2f5_81",
+	rateLimitDot: "_rateLimitDot_ax2f5_87",
+	maxGuide: "_maxGuide_ax2f5_91",
+	baseline: "_baseline_ax2f5_96",
+	tickMark: "_tickMark_ax2f5_100",
+	tickLabel: "_tickLabel_ax2f5_104"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/usage/ConnectionsLane.tsx
+var kChartHeight = 70;
+var kPlotTop = 6;
+var kBaselineY = 52;
+var kTickLabelY = 66;
+var kAngledLabelY = 62;
+var kLabelAngle = -30;
+var kApproxCharPx = 5;
+var kNiceIntervals = [
+	60,
+	300,
+	900,
+	1800,
+	3600,
+	7200,
+	14400,
+	21600,
+	43200,
+	86400
+];
+var fmtTickTime = (sec) => (/* @__PURE__ */ new Date(sec * 1e3)).toLocaleTimeString(void 0, {
+	hour: "numeric",
+	minute: "2-digit"
+});
+var fmtTickDate = (sec) => (/* @__PURE__ */ new Date(sec * 1e3)).toLocaleDateString(void 0, {
+	month: "short",
+	day: "numeric"
+});
+var buildTicks = (timeWindow, width, x) => {
+	const span = timeWindow.end - timeWindow.start;
+	if (span <= 0 || width <= 0) return [];
+	const first = {
+		x: 0,
+		label: `${fmtTickDate(timeWindow.start)}, ${fmtTickTime(timeWindow.start)}`,
+		anchor: "start"
+	};
+	const last = {
+		x: width,
+		label: fmtTickTime(timeWindow.end),
+		anchor: "end"
+	};
+	const interval = kNiceIntervals.find((i) => i / span * width >= 55) ?? Math.ceil(55 * span / width / 86400) * 86400;
+	const interior = [];
+	let prevDate = fmtTickDate(timeWindow.start);
+	for (let t = Math.ceil(timeWindow.start / interval) * interval; t < timeWindow.end; t += interval) {
+		const px = x(t);
+		if (px < 90 || px > width - 45) continue;
+		const date = fmtTickDate(t);
+		const label = date !== prevDate ? `${date}, ${fmtTickTime(t)}` : fmtTickTime(t);
+		prevDate = date;
+		interior.push({
+			x: px,
+			label,
+			anchor: "end",
+			angled: true
+		});
+	}
+	return [
+		first,
+		...interior,
+		last
+	];
+};
+var ConnectionsLane = ({ data, timeWindow, variant, onShowLog }) => {
+	const [width, setWidth] = (0, import_react.useState)(0);
+	const chartRef = useResizeObserver((0, import_react.useCallback)((entry) => setWidth(entry.contentRect.width), []));
+	const span = timeWindow.end - timeWindow.start;
+	const yMax = Math.max(data.configuredMax ?? 0, data.peak) * 1.08 || 1;
+	const x = (t) => {
+		const clamped = Math.min(Math.max(t, timeWindow.start), timeWindow.end);
+		return span > 0 ? (clamped - timeWindow.start) / span * width : 0;
+	};
+	const y = (v) => kBaselineY - v / yMax * (kBaselineY - kPlotTop);
+	let path = `M ${x(timeWindow.start)} ${y(data.start)}`;
+	let prev = data.start;
+	for (const e of data.events) {
+		const ex = x(e.timestamp);
+		path += ` L ${ex} ${y(prev)} L ${ex} ${y(e.new_limit)}`;
+		prev = e.new_limit;
+	}
+	path += ` L ${width} ${y(prev)}`;
+	const ticks = width > 0 ? buildTicks(timeWindow, width, x) : [];
+	const maxAngledPx = ticks.reduce((m, t) => t.angled ? Math.max(m, t.label.length * kApproxCharPx) : m, 0);
+	const chartHeight = Math.max(kChartHeight, Math.ceil(kAngledLabelY + maxAngledPx / 2 + 4));
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: ConnectionsLane_module_default.lane,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: ConnectionsLane_module_default.statsLine,
+			children: [
+				variant === "strip" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: ConnectionsLane_module_default.stripLabel,
+					children: "Connections"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "start"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: data.start
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "peak"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: data.peak
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "avg"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: Math.round(data.avg)
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "final"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: data.final
+					})]
+				}),
+				data.rateLimitCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.rateLimits,
+					children: [
+						data.rateLimitCount,
+						" rate limit",
+						data.rateLimitCount === 1 ? "" : "s"
+					]
+				}),
+				onShowLog && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: ConnectionsLane_module_default.logButton,
+					title: "Change log",
+					"aria-label": `Connection change log for ${data.model}`,
+					onClick: onShowLog,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
+						className: "bi bi-clock-history",
+						"aria-hidden": "true"
+					}), variant === "strip" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Change log" })]
+				})
+			]
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			ref: chartRef,
+			className: ConnectionsLane_module_default.chart,
+			style: { height: chartHeight },
+			children: width > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+				className: ConnectionsLane_module_default.svg,
+				width,
+				height: chartHeight,
+				role: "img",
+				"aria-label": `Connection limit over time for ${data.model}`,
+				children: [
+					data.configuredMax !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+						className: ConnectionsLane_module_default.maxGuide,
+						x1: 0,
+						x2: width,
+						y1: y(data.configuredMax),
+						y2: y(data.configuredMax)
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+						className: ConnectionsLane_module_default.baseline,
+						x1: 0,
+						x2: width,
+						y1: kBaselineY,
+						y2: kBaselineY
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+						className: ConnectionsLane_module_default.series,
+						d: path
+					}),
+					data.events.filter((e) => e.reason === "rate_limit").map((e, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+						className: ConnectionsLane_module_default.rateLimitDot,
+						cx: x(e.timestamp),
+						cy: y(e.new_limit),
+						r: 2.5
+					}, i)),
+					ticks.map((tick, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+						className: ConnectionsLane_module_default.tickMark,
+						x1: tick.x,
+						x2: tick.x,
+						y1: kBaselineY,
+						y2: 55
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("text", {
+						className: ConnectionsLane_module_default.tickLabel,
+						x: tick.x,
+						y: tick.angled ? kAngledLabelY : kTickLabelY,
+						textAnchor: tick.anchor,
+						transform: tick.angled ? `rotate(${kLabelAngle} ${tick.x} ${kAngledLabelY})` : void 0,
+						children: tick.label
+					})] }, i))
+				]
+			})
+		})]
+	});
+};
 var ModelTokenTable_module_default = {
-	wrapper: "_wrapper_1cp7t_1",
-	table: "_table_1cp7t_7",
-	num: "_num_1cp7t_24",
-	modelRow: "_modelRow_1cp7t_28",
-	modelCell: "_modelCell_1cp7t_49",
-	modelName: "_modelName_1cp7t_55",
-	modelAlias: "_modelAlias_1cp7t_60",
-	modelTotal: "_modelTotal_1cp7t_69",
-	configSection: "_configSection_1cp7t_77",
-	configSectionLabel: "_configSectionLabel_1cp7t_84",
-	configTable: "_configTable_1cp7t_98",
-	configKey: "_configKey_1cp7t_110",
-	configVal: "_configVal_1cp7t_116",
-	composeCell: "_composeCell_1cp7t_131",
-	stack: "_stack_1cp7t_139",
-	pcts: "_pcts_1cp7t_154",
-	breakdown: "_breakdown_1cp7t_162",
-	breakdownLabel: "_breakdownLabel_1cp7t_170",
-	breakdownLeader: "_breakdownLeader_1cp7t_178",
-	breakdownValue: "_breakdownValue_1cp7t_185",
-	totalCell: "_totalCell_1cp7t_192",
-	perSampleCell: "_perSampleCell_1cp7t_199",
-	perSampleSub: "_perSampleSub_1cp7t_204",
-	swatch: "_swatch_1cp7t_213",
-	swatchSmall: "_swatchSmall_1cp7t_221",
-	catInput: "_catInput_1cp7t_227",
-	catCacheRead: "_catCacheRead_1cp7t_231",
-	catCacheWrite: "_catCacheWrite_1cp7t_235",
-	catOutput: "_catOutput_1cp7t_239",
-	catReasoning: "_catReasoning_1cp7t_243"
+	wrapper: "_wrapper_ylc06_1",
+	table: "_table_ylc06_7",
+	num: "_num_ylc06_24",
+	modelRow: "_modelRow_ylc06_28",
+	modelCell: "_modelCell_ylc06_49",
+	modelName: "_modelName_ylc06_55",
+	modelAlias: "_modelAlias_ylc06_60",
+	modelTotal: "_modelTotal_ylc06_69",
+	configSection: "_configSection_ylc06_77",
+	configSectionLabel: "_configSectionLabel_ylc06_84",
+	configTable: "_configTable_ylc06_98",
+	configKey: "_configKey_ylc06_110",
+	configVal: "_configVal_ylc06_116",
+	composeCell: "_composeCell_ylc06_131",
+	stack: "_stack_ylc06_139",
+	pcts: "_pcts_ylc06_154",
+	breakdown: "_breakdown_ylc06_162",
+	breakdownLabel: "_breakdownLabel_ylc06_170",
+	breakdownLeader: "_breakdownLeader_ylc06_178",
+	breakdownValue: "_breakdownValue_ylc06_185",
+	totalCell: "_totalCell_ylc06_192",
+	perSampleCell: "_perSampleCell_ylc06_199",
+	perSampleSub: "_perSampleSub_ylc06_204",
+	connectionsCell: "_connectionsCell_ylc06_213",
+	connectionsHead: "_connectionsHead_ylc06_219",
+	connectionsStripRow: "_connectionsStripRow_ylc06_224",
+	swatch: "_swatch_ylc06_229",
+	swatchSmall: "_swatchSmall_ylc06_237",
+	catInput: "_catInput_ylc06_243",
+	catCacheRead: "_catCacheRead_ylc06_247",
+	catCacheWrite: "_catCacheWrite_ylc06_251",
+	catOutput: "_catOutput_ylc06_255",
+	catReasoning: "_catReasoning_ylc06_259"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ModelTokenTable.tsx
@@ -96830,28 +98654,41 @@ var categoryValue = (usage, key) => {
 };
 var compositionTotal = (usage) => CAT_ORDER$1.reduce((a, k) => a + categoryValue(usage, k), 0);
 var usageTotal = (usage) => usage.total_tokens || compositionTotal(usage);
-var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_args, model_aliases, rowKeys, showTokenColumns = true }) => {
+var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_args, model_aliases, rowKeys, showTokenColumns = true, connections_by_row, connections_window, onShowConnectionLog }) => {
+	const [containerWidth, setContainerWidth] = (0, import_react.useState)(0);
+	const wrapperRef = useResizeObserver((0, import_react.useCallback)((entry) => setContainerWidth(entry.contentRect.width), []));
 	const models = rowKeys ?? (model_usage ? Object.keys(model_usage).filter((k) => model_usage[k]) : []);
 	if (models.length === 0) return null;
 	const showPerSample = showTokenColumns && samples !== void 0 && samples > 0;
+	const hasConnections = !!connections_window && !!connections_by_row && models.some((m) => connections_by_row[m]);
+	const narrow = containerWidth > 0 && containerWidth < 1e3;
+	const showConnectionsColumn = hasConnections && !narrow;
+	const columnCount = 1 + (showTokenColumns ? 2 : 0) + (showConnectionsColumn ? 1 : 0) + (showPerSample ? 1 : 0);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		ref: wrapperRef,
 		className: clsx(ModelTokenTable_module_default.wrapper, className),
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", {
 			className: ModelTokenTable_module_default.table,
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Model" }),
 				showTokenColumns && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Composition" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Breakdown" })] }),
+				showConnectionsColumn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+					className: ModelTokenTable_module_default.connectionsHead,
+					children: "Connections"
+				}),
 				showPerSample && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
 					className: ModelTokenTable_module_default.num,
 					children: "Per sample"
 				})
 			] }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: models.map((modelId) => {
 				const usage = model_usage?.[modelId];
+				const lane = connections_by_row?.[modelId];
 				const composeSum = usage ? compositionTotal(usage) : 0;
 				const total = usage ? usageTotal(usage) : 0;
 				const cacheRate = usage && total > 0 ? Math.round((usage.input_tokens_cache_read ?? 0) / total * 100) : 0;
 				const outputRate = usage && total > 0 ? Math.round((usage.output_tokens ?? 0) / total * 100) : 0;
-				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", {
+				const showLog = onShowConnectionLog && lane ? () => onShowConnectionLog(lane.model) : void 0;
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", {
 					className: ModelTokenTable_module_default.modelRow,
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
@@ -96895,6 +98732,7 @@ var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_a
 								})()
 							]
 						}),
+						showTokenColumns && !usage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { colSpan: 2 }),
 						showTokenColumns && usage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
 							className: ModelTokenTable_module_default.composeCell,
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -96929,6 +98767,16 @@ var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_a
 								] }, k);
 							})
 						}) })] }),
+						showConnectionsColumn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+							className: ModelTokenTable_module_default.connectionsCell,
+							children: lane && connections_window && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConnectionsLane, {
+								data: lane,
+								timeWindow: connections_window,
+								variant: "column",
+								onShowLog: showLog
+							})
+						}),
+						showPerSample && !usage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {}),
 						showPerSample && usage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
 							className: clsx(ModelTokenTable_module_default.num, ModelTokenTable_module_default.perSampleCell),
 							children: [formatNumber(Math.round(total / samples)), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -96937,7 +98785,18 @@ var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_a
 							})]
 						})
 					]
-				}, modelId);
+				}), hasConnections && narrow && lane && connections_window && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", {
+					className: ModelTokenTable_module_default.connectionsStripRow,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+						colSpan: columnCount,
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConnectionsLane, {
+							data: lane,
+							timeWindow: connections_window,
+							variant: "strip",
+							onShowLog: showLog
+						})
+					})
+				})] }, modelId);
 			}) })]
 		})
 	});
@@ -97162,6 +99021,204 @@ var ModelUsagePanel = ({ usage, timing, className }) => {
 		]
 	});
 };
+//#endregion
+//#region ../../packages/inspect-components/src/usage/connectionHistory.ts
+var kAdaptiveDefaultMax = 100;
+var isoToEpoch = (iso) => {
+	if (!iso) return void 0;
+	const ms = new Date(iso).getTime();
+	return Number.isFinite(ms) ? ms / 1e3 : void 0;
+};
+var connectionWindow = (history, startedAt, completedAt) => {
+	if (!history || history.length === 0) return void 0;
+	let first = Infinity;
+	let last = -Infinity;
+	for (const e of history) {
+		if (e.timestamp < first) first = e.timestamp;
+		if (e.timestamp > last) last = e.timestamp;
+	}
+	return {
+		start: Math.min(isoToEpoch(startedAt) ?? first, first),
+		end: Math.max(isoToEpoch(completedAt) ?? last, last)
+	};
+};
+var adaptiveMaxFromConfig = (config) => {
+	const adaptive = config?.["adaptive_connections"];
+	if (adaptive == null || adaptive === false) return void 0;
+	if (adaptive === true) return kAdaptiveDefaultMax;
+	if (typeof adaptive === "number") return adaptive;
+	if (typeof adaptive === "string") {
+		const parts = adaptive.split("-");
+		const max = Number(parts[parts.length - 1]);
+		return Number.isFinite(max) ? max : kAdaptiveDefaultMax;
+	}
+	if (typeof adaptive === "object") {
+		const max = adaptive.max;
+		return typeof max === "number" ? max : kAdaptiveDefaultMax;
+	}
+};
+var buildConnectionLanes = (history, window, configuredMax) => {
+	const lanes = {};
+	if (!history || history.length === 0 || !window) return lanes;
+	const byModel = {};
+	for (const e of history) (byModel[e.model] ??= []).push(e);
+	for (const [model, events] of Object.entries(byModel)) {
+		events.sort((a, b) => a.timestamp - b.timestamp);
+		const start = events[0].old_limit;
+		const final = events[events.length - 1].new_limit;
+		let peak = start;
+		let rateLimitCount = 0;
+		for (const e of events) {
+			peak = Math.max(peak, e.old_limit, e.new_limit);
+			if (e.reason === "rate_limit") rateLimitCount += 1;
+		}
+		let weighted = 0;
+		let prevT = window.start;
+		let prevV = start;
+		for (const e of events) {
+			const t = Math.min(Math.max(e.timestamp, window.start), window.end);
+			weighted += prevV * (t - prevT);
+			prevT = t;
+			prevV = e.new_limit;
+		}
+		weighted += prevV * (window.end - prevT);
+		const span = window.end - window.start;
+		const avg = span > 0 ? weighted / span : final;
+		lanes[model] = {
+			model,
+			events,
+			start,
+			peak,
+			final,
+			avg,
+			rateLimitCount,
+			configuredMax: configuredMax?.(model)
+		};
+	}
+	return lanes;
+};
+var ConnectionLogModal_module_default = {
+	table: "_table_16yk8_1",
+	time: "_time_16yk8_33",
+	limitHead: "_limitHead_16yk8_38",
+	limit: "_limit_16yk8_38",
+	oldLimit: "_oldLimit_16yk8_47",
+	arrowUp: "_arrowUp_16yk8_51",
+	arrowDown: "_arrowDown_16yk8_52",
+	newLimit: "_newLimit_16yk8_64",
+	badge: "_badge_16yk8_68",
+	badgeSlowStart: "_badgeSlowStart_16yk8_77",
+	badgeSteadyUp: "_badgeSteadyUp_16yk8_82",
+	badgeRateLimit: "_badgeRateLimit_16yk8_87",
+	badgeManual: "_badgeManual_16yk8_92"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/usage/timeFormat.ts
+var fmtCompactDuration = (s) => {
+	if (s < 60) return `${Math.round(s)}s`;
+	if (s < 3600) {
+		const m = Math.floor(s / 60);
+		const r = Math.round(s % 60);
+		return r > 0 ? `${m}m ${r}s` : `${m}m`;
+	}
+	if (s < 86400) {
+		const h = Math.floor(s / 3600);
+		const m = Math.round(s % 3600 / 60);
+		return m > 0 ? `${h}h ${m}m` : `${h}h`;
+	}
+	const d = Math.floor(s / 86400);
+	const h = Math.round(s % 86400 / 3600);
+	return h > 0 ? `${d}d ${h}h` : `${d}d`;
+};
+var fmtClock = (iso, showDate = false) => {
+	if (!iso) return "—";
+	try {
+		const d = new Date(iso);
+		const time = d.toLocaleTimeString(void 0, {
+			hour: "numeric",
+			minute: "2-digit",
+			second: "2-digit"
+		});
+		if (!showDate) return time;
+		return `${d.toLocaleDateString(void 0, {
+			month: "short",
+			day: "numeric"
+		})}, ${time}`;
+	} catch {
+		return iso;
+	}
+};
+//#endregion
+//#region ../../packages/inspect-components/src/usage/ConnectionLogModal.tsx
+var kReasonLabel = {
+	slow_start: "slow start",
+	steady_state_up: "steady up",
+	rate_limit: "rate limit",
+	manual: "manual"
+};
+var kReasonBadge = {
+	slow_start: ConnectionLogModal_module_default.badgeSlowStart,
+	steady_state_up: ConnectionLogModal_module_default.badgeSteadyUp,
+	rate_limit: ConnectionLogModal_module_default.badgeRateLimit,
+	manual: ConnectionLogModal_module_default.badgeManual
+};
+var ConnectionLogModal = ({ model, events, show, onHide }) => {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Modal, {
+		id: "connection-log",
+		show,
+		onHide,
+		title: `Connection Log — ${model}`,
+		width: "min(560px, 90vw)",
+		padded: false,
+		footer: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: clsx("btn", "btn-secondary", "text-size-smaller"),
+			onClick: onHide,
+			children: "Close"
+		}),
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", {
+			className: ConnectionLogModal_module_default.table,
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Time" }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+					className: ConnectionLogModal_module_default.limitHead,
+					children: "Limit"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Reason" })
+			] }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: events.map((e, i) => {
+				const down = e.new_limit < e.old_limit;
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+						className: ConnectionLogModal_module_default.time,
+						children: fmtClock((/* @__PURE__ */ new Date(e.timestamp * 1e3)).toISOString(), true)
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
+						className: ConnectionLogModal_module_default.limit,
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: ConnectionLogModal_module_default.oldLimit,
+								children: e.old_limit
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: down ? ConnectionLogModal_module_default.arrowDown : ConnectionLogModal_module_default.arrowUp,
+								"aria-label": down ? "decreased to" : "increased to",
+								children: down ? "↓" : "↑"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: ConnectionLogModal_module_default.newLimit,
+								children: e.new_limit
+							})
+						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: clsx(ConnectionLogModal_module_default.badge, kReasonBadge[e.reason]),
+						children: kReasonLabel[e.reason]
+					}) })
+				] }, i);
+			}) })]
+		})
+	});
+};
 var UsagePanel_module_default = {
 	panel: "_panel_ald9k_1",
 	head: "_head_ald9k_5",
@@ -97176,17 +99233,20 @@ var UsagePanel_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/UsagePanel.tsx
-var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by_role, args_by_model, args_by_role, role_aliases, samples, meta, className }) => {
+var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by_role, args_by_model, args_by_role, role_aliases, samples, meta, className, connection_limit_history, started_at, completed_at }) => {
 	const keysOf = (...maps) => {
 		const out = /* @__PURE__ */ new Set();
 		for (const m of maps) if (m) for (const k of Object.keys(m)) out.add(k);
 		return Array.from(out);
 	};
-	const modelKeys = keysOf(model_usage, configs_by_model, args_by_model);
+	const usageWindow = connectionWindow(connection_limit_history, started_at, completed_at);
+	const lanesByModel = buildConnectionLanes(connection_limit_history, usageWindow, (model) => adaptiveMaxFromConfig(configs_by_model?.[model]));
+	const modelKeys = keysOf(model_usage, configs_by_model, args_by_model, lanesByModel);
 	const roleKeys = keysOf(role_usage, configs_by_role, args_by_role, role_aliases);
 	const hasModel = modelKeys.length > 0;
 	const hasRole = roleKeys.length > 0;
 	const [mode, setMode] = (0, import_react.useState)(!!(role_usage && Object.keys(role_usage).length > 0) ? "role" : "model");
+	const [logModel, setLogModel] = useProperty("usage-connections", "log-model", { defaultValue: null });
 	if (!hasModel && !hasRole) return null;
 	const showSegmented = hasModel && hasRole;
 	const effectiveMode = showSegmented ? mode : hasRole ? "role" : "model";
@@ -97198,50 +99258,69 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 	const tableArgs = isModel ? args_by_model : args_by_role;
 	const tableAliases = !isModel ? role_aliases : void 0;
 	const tableRowKeys = isModel ? modelKeys : roleKeys;
+	const connectionsByRow = {};
+	if (isModel) Object.assign(connectionsByRow, lanesByModel);
+	else if (role_aliases) for (const [role, model] of Object.entries(role_aliases)) {
+		const lane = lanesByModel[model];
+		if (lane) connectionsByRow[role] = lane;
+	}
+	const logLane = logModel != null ? lanesByModel[logModel] : void 0;
 	const metaItems = hasUsageData ? meta?.filter((m) => m.value != null && m.value !== "") ?? [] : [];
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: clsx(UsagePanel_module_default.panel, className),
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: UsagePanel_module_default.head,
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: UsagePanel_module_default.headLeft,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx("text-style-label", UsagePanel_module_default.title),
-					children: resolvedLabel
-				}), showSegmented && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SegmentedControl, {
-					segments: [{
-						id: "role",
-						label: "Roles"
-					}, {
-						id: "model",
-						label: "Models"
-					}],
-					selectedId: effectiveMode,
-					onSegmentChange: (value) => setMode(value)
-				})]
-			}), metaItems.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: UsagePanel_module_default.meta,
-				children: metaItems.map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: UsagePanel_module_default.metaSep }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-					className: UsagePanel_module_default.metaItem,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: UsagePanel_module_default.metaLabel,
-						children: m.label
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: UsagePanel_module_default.metaValue,
-						children: m.value
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: UsagePanel_module_default.head,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: UsagePanel_module_default.headLeft,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: clsx("text-style-label", UsagePanel_module_default.title),
+						children: resolvedLabel
+					}), showSegmented && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SegmentedControl, {
+						segments: [{
+							id: "role",
+							label: "Roles"
+						}, {
+							id: "model",
+							label: "Models"
+						}],
+						selectedId: effectiveMode,
+						onSegmentChange: (value) => setMode(value)
 					})]
-				})] }, m.label))
-			})]
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModelTokenTable, {
-			model_usage: usageData,
-			model_configs: tableConfigs,
-			model_args: tableArgs,
-			model_aliases: tableAliases,
-			rowKeys: tableRowKeys,
-			showTokenColumns: hasUsageData,
-			samples,
-			className: UsagePanel_module_default.tableNoTop
-		})]
+				}), metaItems.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: UsagePanel_module_default.meta,
+					children: metaItems.map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: UsagePanel_module_default.metaSep }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: UsagePanel_module_default.metaItem,
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: UsagePanel_module_default.metaLabel,
+							children: m.label
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: UsagePanel_module_default.metaValue,
+							children: m.value
+						})]
+					})] }, m.label))
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModelTokenTable, {
+				model_usage: usageData,
+				model_configs: tableConfigs,
+				model_args: tableArgs,
+				model_aliases: tableAliases,
+				rowKeys: tableRowKeys,
+				showTokenColumns: hasUsageData,
+				samples,
+				className: UsagePanel_module_default.tableNoTop,
+				connections_by_row: connectionsByRow,
+				connections_window: usageWindow,
+				onShowConnectionLog: setLogModel
+			}),
+			logLane && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConnectionLogModal, {
+				model: logLane.model,
+				events: logLane.events,
+				show: true,
+				onHide: () => setLogModel(null)
+			})
+		]
 	});
 };
 //#endregion
@@ -97293,42 +99372,6 @@ var buildArgsByRole = (evalSpec) => {
 	const acc = {};
 	for (const [role, rc] of Object.entries(evalSpec.model_roles)) if (rc.args) acc[role] = stripNullish(rc.args);
 	return finalize(acc);
-};
-//#endregion
-//#region ../../packages/inspect-components/src/usage/timeFormat.ts
-var fmtCompactDuration = (s) => {
-	if (s < 60) return `${Math.round(s)}s`;
-	if (s < 3600) {
-		const m = Math.floor(s / 60);
-		const r = Math.round(s % 60);
-		return r > 0 ? `${m}m ${r}s` : `${m}m`;
-	}
-	if (s < 86400) {
-		const h = Math.floor(s / 3600);
-		const m = Math.round(s % 3600 / 60);
-		return m > 0 ? `${h}h ${m}m` : `${h}h`;
-	}
-	const d = Math.floor(s / 86400);
-	const h = Math.round(s % 86400 / 3600);
-	return h > 0 ? `${d}d ${h}h` : `${d}d`;
-};
-var fmtClock = (iso, showDate = false) => {
-	if (!iso) return "—";
-	try {
-		const d = new Date(iso);
-		const time = d.toLocaleTimeString(void 0, {
-			hour: "numeric",
-			minute: "2-digit",
-			second: "2-digit"
-		});
-		if (!showDate) return time;
-		return `${d.toLocaleDateString(void 0, {
-			month: "short",
-			day: "numeric"
-		})}, ${time}`;
-	} catch {
-		return iso;
-	}
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/attemptDuration.ts
@@ -99481,99 +101524,35 @@ var TranscriptViewNodes = (0, import_react.forwardRef)(function TranscriptViewNo
 * - Branch scroll target handling
 * - Empty state display
 */
-var collectAllCollapsibleIds = (nodes) => {
-	const result = {};
-	const traverse = (nodeList) => {
-		for (const node of nodeList) {
-			if (kCollapsibleEventTypes.includes(node.event.event) || kContentCollapsibleEventTypes.includes(node.event.event)) result[node.id] = true;
-			if (node.children.length > 0) traverse(node.children);
-		}
-	};
-	traverse(nodes);
-	return result;
-};
-var buildToolLabels = (events, messageLabels) => {
-	if (!messageLabels) return void 0;
-	const toolLabels = {};
-	for (const event of events) if (event.event === "tool") {
-		const label = event.message_id ? messageLabels[event.message_id] : void 0;
-		if (label) toolLabels[event.id] = label;
-	} else if (event.event === "model") for (const message of event.input ?? []) {
-		if (message.role !== "tool" || !message.id) continue;
-		const label = messageLabels[message.id];
-		if (label && message.tool_call_id) toolLabels[message.tool_call_id] = label;
-	}
-	return Object.keys(toolLabels).length > 0 ? toolLabels : void 0;
-};
-var scopeMessageLabels = (events, messageLabels) => {
-	if (!messageLabels) return void 0;
-	const present = /* @__PURE__ */ new Set();
-	for (const event of events) if (event.event === "model") {
-		for (const message of event.input ?? []) if (message.id) present.add(message.id);
-		for (const choice of event.output?.choices ?? []) if (choice.message?.id) present.add(choice.message.id);
-	} else if (event.event === "tool" && event.message_id) present.add(event.message_id);
-	const scoped = {};
-	for (const [id, label] of Object.entries(messageLabels)) if (present.has(id)) scoped[id] = label;
-	return Object.keys(scoped).length > 0 ? scoped : void 0;
-};
-var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling = false, scrollRef, offsetTop = 0, embedded = false, timelineSelection, activeTimeline, serverTimelines, markerConfig: markerConfigOverride, agentConfig: agentConfigOverride, showSwimlanes: showSwimlanesOption = "auto", onMarkerNavigate, onScrollToTop, headroomHidden, onHeadroomResetAnchor, onHeadroomSetHidden, listId, initialEventId, initialMessageId, eventsListRef, getEventUrl, linkingEnabled, bulkCollapse, collapseState, outline, outlineScrollRef, rightRail, rightRailPanelScrollRef, eventNodeContext, emptyText = "No events match the current filter", emptyBusy, className }) => {
-	const eventsForTimeline = (0, import_react.useMemo)(() => {
-		if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
-		return events.filter((e) => e.event === "anchor" || !hiddenEventTypes.includes(e.event));
-	}, [events, hiddenEventTypes]);
-	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
-	const timelineConfig = useTimelineConfig({ branchesPresent: (0, import_react.useMemo)(() => timelinesForBranchDetection.some((tl) => spanHasBranches(tl.root)), [timelinesForBranchDetection]) });
-	const { timeline: timelineData, state: timelineState, layouts: timelineLayouts, rootTimeMapping, selectedEvents, sourceSpans, minimapSelection, hasTimeline, hasAgentTimeline, timelines, activeTimelineIndex, setActiveTimeline, regionCounts, branchScrollTarget, highlightedKeys, selectedRowName, viewStack, pushView, popView } = useTranscriptTimeline({
-		events: eventsForTimeline,
-		markerConfig: markerConfigOverride ?? timelineConfig.markerConfig,
-		timelineOptions: agentConfigOverride ?? timelineConfig.agentConfig,
-		serverTimelines,
-		timelineProps: timelineSelection,
-		activeTimelineProps: activeTimeline
+function renderAgentCard(node, agentCardClassName) {
+	const span = node.sourceSpan;
+	if (!span) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AgentCardView, {
+		span,
+		className: agentCardClassName
 	});
-	const showSwimlanes = (0, import_react.useMemo)(() => {
-		if (showSwimlanesOption === "auto") return hasTimeline || regionCounts.size > 0 || timelines.length > 1;
-		return showSwimlanesOption;
-	}, [
-		showSwimlanesOption,
-		hasTimeline,
-		regionCounts,
-		timelines.length
-	]);
-	const swimlanesDefaultCollapsed = (0, import_react.useMemo)(() => {
-		if (showSwimlanesOption === "auto" && !hasTimeline && regionCounts.size === 0) return true;
-		if (hasTimeline) return hasAgentTimeline ? false : true;
-	}, [
-		showSwimlanesOption,
-		hasTimeline,
-		hasAgentTimeline,
-		regionCounts
-	]);
-	const rawEventsForNodes = showSwimlanes ? selectedEvents : events;
-	const eventsForNodes = (0, import_react.useMemo)(() => hiddenEventTypes && hiddenEventTypes.length > 0 ? rawEventsForNodes.filter((e) => !hiddenEventTypes.includes(e.event)) : rawEventsForNodes, [rawEventsForNodes, hiddenEventTypes]);
-	const { eventNodes, defaultCollapsedIds, retryAttempts } = useEventNodes(eventsForNodes, running, showSwimlanes ? sourceSpans : void 0);
-	const mergedEventNodeContext = (0, import_react.useMemo)(() => {
-		const messageLabels = scopeMessageLabels(eventsForNodes, eventNodeContext?.messageLabels);
-		const toolLabels = buildToolLabels(eventsForNodes, messageLabels);
-		return {
-			...eventNodeContext,
-			messageLabels,
-			retryAttempts,
-			...toolLabels ? { toolLabels } : {}
-		};
-	}, [
-		eventsForNodes,
-		eventNodeContext,
-		retryAttempts
-	]);
+}
+var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling = false, scrollRef, offsetTop = 0, embedded = false, timeline, deepLink, headroom, empty, listId, eventsListRef, getEventUrl, linkingEnabled, bulkCollapse, collapseState, outline, rightRail, eventNodeContext, className }) => {
+	const { selection: timelineSelection, active: activeTimeline, serverTimelines, markerConfig: markerConfigOverride, agentConfig: agentConfigOverride, showSwimlanes: showSwimlanesOption = "auto", onMarkerNavigate, onScrollToTop } = timeline ?? {};
+	const { eventId: initialEventId, messageId: initialMessageId } = deepLink ?? {};
+	const { hidden: headroomHidden, onSetHidden: onHeadroomSetHidden, onResetAnchor: onHeadroomResetAnchor } = headroom ?? {};
+	const { text: emptyText = "No events match the current filter", busy: emptyBusy } = empty ?? {};
+	const { timeline: transcriptTimeline, timelineConfig, showSwimlanes, swimlanesDefaultCollapsed, nodeFeed, searchableEvents } = useTimelinePipeline({
+		events,
+		hiddenEventTypes,
+		serverTimelines,
+		markerConfig: markerConfigOverride,
+		agentConfig: agentConfigOverride,
+		showSwimlanes: showSwimlanesOption,
+		timelineSelection,
+		activeTimeline
+	});
+	const { state: timelineState, swimlanes: { layouts: timelineLayouts, regionCounts, highlightedKeys }, minimap, multiTimeline, views, selection: { rowName: selectedRowName } } = transcriptTimeline;
+	const { eventNodes, defaultCollapsedIds, eventNodeContext: mergedEventNodeContext } = useEventNodeData(nodeFeed, running, eventNodeContext);
 	const nullViewNodesRef = (0, import_react.useRef)(null);
 	useTranscriptSearchSource({
 		id: listId,
-		events: (0, import_react.useMemo)(() => {
-			if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
-			const hidden = new Set(hiddenEventTypes);
-			return events.filter((e) => !hidden.has(e.event));
-		}, [events, hiddenEventTypes]),
+		events: searchableEvents,
 		rows: timelineState.rows,
 		selected: timelineSelection?.selected ?? null,
 		onSelect: timelineSelection?.onSelect ?? (() => {}),
@@ -99583,318 +101562,59 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 	});
 	const { stickySwimLaneHeight, isSwimLaneSticky, swimLaneStickyContentRef, handleSwimLaneStickyChange } = useStickySwimLaneHeight();
 	const effectiveOffsetTop = offsetTop + stickySwimLaneHeight;
-	const [scrollAnchor, setScrollAnchor] = (0, import_react.useState)(null);
-	const hasScrollTarget = !!(initialEventId || initialMessageId || scrollAnchor);
-	const { effectiveListId } = useListPositionManager(listId, timelineState.selected, scrollRef, hasScrollTarget);
-	const [scrubberProgress, scrubTo] = useScrubberProgress(scrollRef);
-	const handleScrub = (0, import_react.useCallback)((progress) => {
-		onHeadroomResetAnchor?.(true);
-		scrubTo(progress);
-	}, [onHeadroomResetAnchor, scrubTo]);
-	const swimlaneHeader = (0, import_react.useMemo)(() => ({
-		rootLabel: timelineData.root.name,
-		onScrollToTop,
-		minimap: {
-			root: timelineData.root,
-			selection: minimapSelection,
-			mapping: rootTimeMapping,
-			scrubberProgress,
-			onScrub: handleScrub
-		},
-		timelineConfig,
-		timelineSelector: timelines.length > 1 ? {
-			timelines,
-			activeIndex: activeTimelineIndex,
-			onSelect: setActiveTimeline
-		} : void 0,
-		viewStack,
-		onPopView: popView
-	}), [
-		timelineData.root,
-		onScrollToTop,
-		minimapSelection,
-		rootTimeMapping,
-		scrubberProgress,
-		handleScrub,
-		timelineConfig,
-		timelines,
-		activeTimelineIndex,
-		setActiveTimeline,
-		viewStack,
-		popView
-	]);
-	const handlePunchDown = (0, import_react.useCallback)((rowKey, label) => {
-		const span = timelineState.rows.find((r) => r.key === rowKey)?.spans[0];
-		if (span && "agent" in span) pushView(span.agent, label);
-	}, [timelineState.rows, pushView]);
-	const spanSelectKeys = (0, import_react.useMemo)(() => buildSpanSelectKeys(timelineState.rows), [timelineState.rows]);
-	const selectBySpanId = (0, import_react.useCallback)((spanId) => {
-		const key = spanSelectKeys.get(spanId);
-		if (!key) return;
-		timelineState.select(key.key);
-	}, [spanSelectKeys, timelineState]);
-	const selectByRowKey = (0, import_react.useCallback)((rowKey, anchorEl) => {
-		if (anchorEl && scrollRef.current) setScrollAnchor({ scrollTop: scrollRef.current.scrollTop });
-		timelineState.select(rowKey, { preserveScroll: true });
-	}, [timelineState, scrollRef]);
-	const resolvedLocal = (0, import_react.useMemo)(() => {
-		if (initialEventId || !initialMessageId) return void 0;
-		const selectedSpans = getSelectedSpans(timelineState.rows, timelineState.selected);
-		for (const span of selectedSpans) {
-			const result = resolveMessageToEvent(initialMessageId, span);
-			if (result && !result.agentSpanId) return result;
-		}
-	}, [
-		initialEventId,
-		initialMessageId,
-		timelineState.rows,
-		timelineState.selected
-	]);
-	const resolvedRoot = (0, import_react.useMemo)(() => {
-		if (initialEventId || !initialMessageId || resolvedLocal) return void 0;
-		const main = resolveMessageToEvent(initialMessageId, timelineData.root);
-		if (main) return main;
-		return resolveMessageInBranches(initialMessageId, timelineData.root);
-	}, [
-		initialEventId,
-		initialMessageId,
-		resolvedLocal,
-		timelineData.root
-	]);
-	const resolved = resolvedLocal ?? resolvedRoot;
-	const deepLinkTimelineIndex = (0, import_react.useMemo)(() => {
-		if (timelines.length <= 1) return -1;
-		if (initialEventId) {
-			const active = timelines[activeTimelineIndex];
-			if (!active || timelineContainsEvent(initialEventId, active)) return -1;
-			return findTimelineIndexForEvent(initialEventId, timelines);
-		}
-		if (initialMessageId && !resolvedLocal && !resolvedRoot) return findTimelineIndexForMessage(initialMessageId, timelines);
-		return -1;
-	}, [
-		initialEventId,
-		initialMessageId,
-		resolvedLocal,
-		resolvedRoot,
-		timelines,
-		activeTimelineIndex
-	]);
-	const prevMessageIdRef = (0, import_react.useRef)(void 0);
-	(0, import_react.useEffect)(() => {
-		if (prevMessageIdRef.current === initialMessageId) return;
-		if (deepLinkTimelineIndex >= 0) return;
-		prevMessageIdRef.current = initialMessageId;
-		if (!resolvedRoot) return;
-		let targetKey = null;
-		if (resolvedRoot.branchRowKey) targetKey = resolvedRoot.branchRowKey;
-		else if (resolvedRoot.agentSpanId) targetKey = spanSelectKeys.get(resolvedRoot.agentSpanId)?.key ?? null;
-		if (timelineState.selected === targetKey) return;
-		timelineState.select(targetKey, { preserveDeepLink: true });
-	}, [
-		initialMessageId,
-		deepLinkTimelineIndex,
-		resolvedRoot,
-		spanSelectKeys,
-		timelineState
-	]);
-	const prevDeepLinkRef = (0, import_react.useRef)(null);
-	(0, import_react.useEffect)(() => {
-		if (timelines.length <= 1) return;
-		const key = initialEventId ?? initialMessageId ?? null;
-		if (key === null) {
-			prevDeepLinkRef.current = null;
-			return;
-		}
-		if (prevDeepLinkRef.current === key) return;
-		if (deepLinkTimelineIndex < 0) return;
-		prevDeepLinkRef.current = key;
-		if (deepLinkTimelineIndex === activeTimelineIndex) return;
-		setActiveTimeline(deepLinkTimelineIndex);
-	}, [
-		initialEventId,
-		initialMessageId,
-		deepLinkTimelineIndex,
-		activeTimelineIndex,
-		setActiveTimeline,
-		timelines.length
-	]);
-	const resolvedEventSpan = (0, import_react.useMemo)(() => {
-		if (!initialEventId || !showSwimlanes) return void 0;
-		if (eventsForNodes.some((e) => e.uuid === initialEventId)) return void 0;
-		return resolveEventToSpan(initialEventId, timelineData.root) ?? resolveEventInBranches(initialEventId, timelineData.root);
-	}, [
-		initialEventId,
-		showSwimlanes,
-		eventsForNodes,
-		timelineData.root
-	]);
-	const prevEventIdRef = (0, import_react.useRef)(void 0);
-	(0, import_react.useEffect)(() => {
-		if (prevEventIdRef.current === initialEventId) return;
-		if (deepLinkTimelineIndex >= 0) return;
-		prevEventIdRef.current = initialEventId;
-		if (!resolvedEventSpan) return;
-		let targetKey = null;
-		if (resolvedEventSpan.branchRowKey) targetKey = resolvedEventSpan.branchRowKey;
-		else if (resolvedEventSpan.agentSpanId) targetKey = spanSelectKeys.get(resolvedEventSpan.agentSpanId)?.key ?? null;
-		if (!targetKey) return;
-		if (timelineState.selected === targetKey) return;
-		timelineState.select(targetKey, { preserveDeepLink: true });
-	}, [
-		initialEventId,
-		deepLinkTimelineIndex,
-		resolvedEventSpan,
-		spanSelectKeys,
-		timelineState
-	]);
-	const effectiveInitialEventId = initialEventId ?? resolved?.eventId ?? branchScrollTarget ?? null;
-	(0, import_react.useEffect)(() => {
-		if (!scrollAnchor) return;
-		requestAnimationFrame(() => {
-			scrollRef.current?.scrollTo({ top: scrollAnchor.scrollTop });
-		});
-	}, [scrollAnchor, scrollRef]);
-	(0, import_react.useEffect)(() => {
-		if (effectiveInitialEventId) onHeadroomResetAnchor?.(true);
-	}, [effectiveInitialEventId, onHeadroomResetAnchor]);
-	const onSetTranscriptCollapsed = collapseState?.onSetTranscriptCollapsed;
-	(0, import_react.useEffect)(() => {
-		if (events.length <= 0 || !bulkCollapse || !onSetTranscriptCollapsed) return;
-		if (bulkCollapse === "expand") onSetTranscriptCollapsed({});
-		else if (bulkCollapse === "collapse") {
-			const allCollapsibleIds = collectAllCollapsibleIds(eventNodes);
-			onSetTranscriptCollapsed(allCollapsibleIds);
-		}
-	}, [
-		eventNodes,
-		bulkCollapse,
-		onSetTranscriptCollapsed,
-		events.length
-	]);
-	const onCollapseTranscriptRaw = collapseState?.onCollapseTranscript;
-	const onCollapseTranscript = (0, import_react.useCallback)((nodeId, collapsed) => {
-		if (!onCollapseTranscriptRaw || !onSetTranscriptCollapsed) return;
-		if (!collapseState?.transcript) onSetTranscriptCollapsed({
-			...defaultCollapsedIds,
-			[nodeId]: collapsed
-		});
-		else onCollapseTranscriptRaw(nodeId, collapsed);
-	}, [
-		onCollapseTranscriptRaw,
-		onSetTranscriptCollapsed,
-		collapseState?.transcript,
-		defaultCollapsedIds
-	]);
-	const onExpandNodes = (0, import_react.useCallback)((nodeIds) => {
-		if (!onSetTranscriptCollapsed) return;
-		const next = { ...collapseState?.transcript ?? defaultCollapsedIds };
-		for (const id of nodeIds) next[id] = false;
-		onSetTranscriptCollapsed(next);
-	}, [
-		onSetTranscriptCollapsed,
-		collapseState?.transcript,
-		defaultCollapsedIds
-	]);
-	const [reportedHasNodes, setReportedHasNodes] = (0, import_react.useState)(true);
-	const [prevEventNodes, setPrevEventNodes] = (0, import_react.useState)(eventNodes);
-	if (prevEventNodes !== eventNodes) {
-		setPrevEventNodes(eventNodes);
-		if (!reportedHasNodes) setReportedHasNodes(true);
-	}
-	const hasMatchingEvents = eventNodes.length > 0;
-	const autoHidden = outline ? !reportedHasNodes && !outline.collapsed : false;
-	const isOutlineCollapsed = !outline || outline.collapsed || autoHidden;
-	const outlineHasNodes = isOutlineCollapsed ? hasMatchingEvents : reportedHasNodes;
-	const handleOutlineHasNodesChange = (0, import_react.useCallback)((hasNodes) => {
-		setReportedHasNodes(hasNodes);
-	}, []);
-	const renderAgentCard = (0, import_react.useCallback)((node, agentCardClassName) => {
-		const span = node.sourceSpan;
-		if (!span) return null;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AgentCardView, {
-			span,
-			className: agentCardClassName
-		});
-	}, []);
-	const handleLayoutShift = (0, import_react.useCallback)((debounce) => onHeadroomResetAnchor?.(debounce), [onHeadroomResetAnchor]);
-	const outlineCollapsedFlag = outline?.collapsed ?? null;
-	const railPanelOpenFlag = rightRail?.panel != null;
-	(0, import_react.useEffect)(() => {
-		const el = scrollRef.current;
-		if (!el) return;
-		const timer = setTimeout(() => {
-			el.dispatchEvent(new Event("scroll"));
-		}, 0);
-		return () => clearTimeout(timer);
-	}, [
-		outlineCollapsedFlag,
-		railPanelOpenFlag,
-		scrollRef
-	]);
-	const effectiveOffsetTopRef = (0, import_react.useRef)(effectiveOffsetTop);
-	(0, import_react.useEffect)(() => {
-		effectiveOffsetTopRef.current = effectiveOffsetTop;
-	}, [effectiveOffsetTop]);
-	const offsetTopRef = (0, import_react.useRef)(offsetTop);
-	(0, import_react.useEffect)(() => {
-		offsetTopRef.current = offsetTop;
-	}, [offsetTop]);
-	(0, import_react.useEffect)(() => {
-		const main = scrollRef.current;
-		const outlineEl = outlineScrollRef?.current ?? null;
-		const railPanelEl = rightRailPanelScrollRef?.current ?? null;
-		if (!main) return;
-		const makeHandler = (sidebar, stickyTopRef) => (e) => {
-			const mainMaxTop = main.scrollHeight - main.clientHeight;
-			const mainRect = main.getBoundingClientRect();
-			if (!(sidebar.getBoundingClientRect().top - mainRect.top <= stickyTopRef.current + 1)) {
-				if (e.deltaY > 0 && main.scrollTop < mainMaxTop - .5 || e.deltaY < 0 && main.scrollTop > .5) {
-					e.preventDefault();
-					main.scrollBy({
-						top: e.deltaY,
-						behavior: "auto"
-					});
-				}
-			} else if (e.deltaY < 0 && sidebar.scrollTop <= 0 && main.scrollTop > 0) {
-				e.preventDefault();
-				main.scrollBy({
-					top: e.deltaY,
-					behavior: "auto"
-				});
-			}
-		};
-		const targets = [];
-		if (outlineEl) targets.push({
-			el: outlineEl,
-			stickyTopRef: effectiveOffsetTopRef
-		});
-		if (railPanelEl) targets.push({
-			el: railPanelEl,
-			stickyTopRef: offsetTopRef
-		});
-		const entries = targets.map(({ el, stickyTopRef }) => {
-			const handler = makeHandler(el, stickyTopRef);
-			el.addEventListener("wheel", handler, { passive: false });
-			return {
-				el,
-				handler
-			};
-		});
-		return () => {
-			for (const { el, handler } of entries) el.removeEventListener("wheel", handler);
-		};
-	}, [
+	const { spanSelectKeys, selectBySpanId, selectByRowKey, hasScrollTarget } = useSelectionActions({
+		timelineState,
 		scrollRef,
-		outlineScrollRef,
-		rightRailPanelScrollRef,
-		outlineCollapsedFlag,
-		railPanelOpenFlag
-	]);
-	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
-	const handleOutlineScrollRef = (0, import_react.useCallback)((el) => {
-		setOutlineScrollEl(el);
-		if (outlineScrollRef) outlineScrollRef.current = el;
-	}, [outlineScrollRef]);
+		initialEventId,
+		initialMessageId
+	});
+	const { effectiveListId } = useListPositionManager(listId, timelineState.selected, scrollRef, hasScrollTarget);
+	const swimlaneHeader = useSwimlaneHeader({
+		scrollRef,
+		onScrollToTop,
+		onHeadroomResetAnchor,
+		timelineConfig,
+		hiddenUtilityCount: (0, import_react.useMemo)(() => countUtilitySpans(transcriptTimeline.timeline.root), [transcriptTimeline.timeline.root]),
+		minimap,
+		multiTimeline,
+		views
+	});
+	const { effectiveInitialEventId } = useDeepLinkResolution({
+		initialEventId,
+		initialMessageId,
+		timeline: transcriptTimeline,
+		spanSelectKeys,
+		showSwimlanes,
+		nodeFeedEvents: nodeFeed.events,
+		onHeadroomResetAnchor
+	});
+	const { onCollapseTranscript, onExpandNodes } = useTranscriptCollapse({
+		eventNodes,
+		defaultCollapsedIds,
+		collapseState,
+		bulkCollapse,
+		eventCount: events.length
+	});
+	const { isOutlineCollapsed, outlineHasNodes, onOutlineHasNodesChange } = useOutlineAutoHide({
+		eventNodes,
+		hasOutline: !!outline,
+		outlineCollapsed: outline?.collapsed
+	});
+	const hasMatchingEvents = eventNodes.length > 0;
+	const handleLayoutShift = (0, import_react.useCallback)((debounce) => onHeadroomResetAnchor?.(debounce), [onHeadroomResetAnchor]);
+	const railPanelScrollRef = (0, import_react.useRef)(null);
+	useSidebarScrollCoupling({
+		mainScrollRef: scrollRef,
+		sidebars: [{
+			scrollRef: outline?.scrollRef,
+			stickyTop: effectiveOffsetTop,
+			remountKey: outline?.collapsed ?? null
+		}, {
+			scrollRef: railPanelScrollRef,
+			stickyTop: offsetTop,
+			remountKey: rightRail?.panel != null
+		}]
+	});
 	const scrollerHeight = useElementHeight(scrollRef);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSelectContext.Provider, {
 		value: selectBySpanId,
@@ -99923,7 +101643,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 								defaultCollapsed: swimlanesDefaultCollapsed,
 								regionCounts,
 								highlightedKeys,
-								onPunchDown: handlePunchDown
+								onPunchDown: views.pushByRowKey
 							})
 						})
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -99932,60 +101652,21 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 							"--outline-top": `${effectiveOffsetTop}px`,
 							"--scroller-height": scrollerHeight ? `${scrollerHeight}px` : "100vh"
 						},
-						children: [outline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyScroll, {
-							ref: handleOutlineScrollRef,
+						children: [outline && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineSidebar, {
+							outline,
+							isCollapsed: isOutlineCollapsed,
+							hasNodes: outlineHasNodes,
+							onHasNodesChange: onOutlineHasNodesChange,
+							eventNodes,
+							defaultCollapsedIds,
 							scrollRef,
-							className: TranscriptLayout_module_default.outline,
+							running,
+							backfilling,
+							agentName: outline.name ?? (showSwimlanes ? selectedRowName : void 0),
 							offsetTop: effectiveOffsetTop,
-							children: !isOutlineCollapsed ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-								outline.title && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: TranscriptLayout_module_default.sidebarHeader,
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: clsx(TranscriptLayout_module_default.sidebarHeaderTitle, "text-size-smaller"),
-										children: outline.title
-									})
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: TranscriptLayout_module_default.sidebarHeaderCloseAnchor,
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: TranscriptLayout_module_default.sidebarHeaderClose,
-										onClick: () => outline.onCollapsedChange(true),
-										"aria-label": "Hide outline",
-										title: outline.toggleTitle ?? "Hide outline",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-x" })
-									})
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptOutline, {
-									eventNodes,
-									defaultCollapsedIds,
-									scrollRef,
-									outlineScrollEl,
-									running,
-									backfilling,
-									agentName: outline.name ?? (showSwimlanes ? selectedRowName : void 0),
-									scrollTrackOffset: effectiveOffsetTop,
-									getCollapsed: collapseState?.outline ? (nodeId) => collapseState.outline?.[nodeId] === true : void 0,
-									setCollapsed: collapseState?.onCollapseOutline,
-									collapsedEvents: collapseState?.outline,
-									setCollapsedEvents: collapseState?.onSetOutlineCollapsed,
-									selectedOutlineId: outline.selectedId,
-									setSelectedOutlineId: outline.setSelectedId,
-									getEventUrl,
-									renderLink: outline.renderLink,
-									onNavigateToEvent: outline.onNavigateToEvent,
-									onHasNodesChange: handleOutlineHasNodesChange
-								})
-							] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: TranscriptLayout_module_default.outlineToggle,
-								onClick: outlineHasNodes && !outline.toggleDisabled ? () => outline.onCollapsedChange(false) : void 0,
-								"aria-disabled": outline.toggleDisabled || !outlineHasNodes,
-								title: outline.toggleTitle ?? (!outlineHasNodes ? "No outline available for the current filter" : void 0),
-								"aria-label": "Show outline",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: outline.toggleIcon })
-							})
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TranscriptLayout_module_default.separator })] }), hasMatchingEvents ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
+							collapseState,
+							getEventUrl
+						}), hasMatchingEvents ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
 							ref: eventsListRef,
 							id: effectiveListId,
 							eventNodes,
@@ -100003,7 +101684,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 							collapsedTranscript: collapseState?.transcript,
 							collapsedOutline: collapseState?.outline,
 							onCollapseTranscript,
-							onExpandNodes: onSetTranscriptCollapsed ? onExpandNodes : void 0,
+							onExpandNodes,
 							eventNodeContext: mergedEventNodeContext
 						}, effectiveListId) : emptyText !== null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
 							text: emptyText,
@@ -100016,7 +101697,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 					scrollRef,
 					scrollerHeight,
 					offsetTop,
-					panelScrollRef: rightRailPanelScrollRef,
+					panelScrollRef: railPanelScrollRef,
 					railWidth: rightRail.railWidth,
 					panelWidth: rightRail.panelWidth,
 					onPanelWidthChange: rightRail.onPanelWidthChange,
@@ -100297,7 +101978,7 @@ var RetryEventsView = ({ retry, listId, scrollRef }) => {
 			scrollRef,
 			listId,
 			embedded: true,
-			showSwimlanes: false,
+			timeline: { showSwimlanes: false },
 			collapseState,
 			bulkCollapse,
 			eventNodeContext: { inlineExpansionUX: true }
@@ -104944,7 +106625,7 @@ var TranscriptFilterPopover = ({ showing, positionEl, setShowing }) => {
 * when the sample provides timeline data.
 */
 var TranscriptPanel = (0, import_react.memo)((props) => {
-	const { id, scrollRef, events, running, backfilling, initialEventId, initialMessageId, offsetTop, timelines: serverTimelines, eventNodeContext, rightRail, rightRailPanelScrollRef } = props;
+	const { id, scrollRef, events, running, backfilling, initialEventId, initialMessageId, offsetTop, timelines: serverTimelines, eventNodeContext, rightRail } = props;
 	const filteredEventTypes = useStore((state) => state.sample.eventFilter.filteredTypes);
 	const { isDefaultFilter } = useTranscriptFilter();
 	const timelineSelected = useStore((state) => state.sample.timelineSelected);
@@ -105062,26 +106743,30 @@ var TranscriptPanel = (0, import_react.memo)((props) => {
 		backfilling,
 		scrollRef,
 		offsetTop,
-		timelineSelection,
-		activeTimeline,
-		serverTimelines,
-		showSwimlanes: "auto",
-		onMarkerNavigate,
-		headroomHidden,
-		onHeadroomResetAnchor,
-		onHeadroomSetHidden: setHeadroomHidden,
+		timeline: {
+			selection: timelineSelection,
+			active: activeTimeline,
+			serverTimelines,
+			showSwimlanes: "auto",
+			onMarkerNavigate
+		},
+		headroom: {
+			hidden: headroomHidden,
+			onSetHidden: setHeadroomHidden,
+			onResetAnchor: onHeadroomResetAnchor
+		},
 		eventNodeContext,
 		listId: id,
-		initialEventId,
-		initialMessageId,
+		deepLink: {
+			eventId: initialEventId,
+			messageId: initialMessageId
+		},
 		getEventUrl: getFullEventUrl,
 		linkingEnabled: isHostedEnvironment(),
 		bulkCollapse,
 		collapseState,
 		eventsListRef,
-		outlineScrollRef,
 		rightRail,
-		rightRailPanelScrollRef,
 		outline: {
 			collapsed: outlineCollapsed,
 			onCollapsedChange: setOutlineCollapsed,
@@ -105090,10 +106775,13 @@ var TranscriptPanel = (0, import_react.memo)((props) => {
 			renderLink,
 			onNavigateToEvent: onOutlineNavigate,
 			selectedId: selectedOutlineId,
-			setSelectedId: setSelectedOutlineId
+			setSelectedId: setSelectedOutlineId,
+			scrollRef: outlineScrollRef
 		},
-		emptyText: backfilling && isDefaultFilter ? "Loading events" : running && isDefaultFilter ? "Sample is starting" : filteredEventTypes.length > 0 ? "The currently applied filter hides all events." : void 0,
-		emptyBusy: (running || backfilling) && isDefaultFilter
+		empty: {
+			text: backfilling && isDefaultFilter ? "Loading events" : running && isDefaultFilter ? "Sample is starting" : filteredEventTypes.length > 0 ? "The currently applied filter hides all events." : void 0,
+			busy: (running || backfilling) && isDefaultFilter
+		}
 	});
 });
 TranscriptPanel.displayName = "TranscriptPanel";
@@ -105269,7 +106957,6 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	const canSearch = searchContext !== null && searchScope !== void 0;
 	const closeDock = (0, import_react.useCallback)(() => setRightDock("none"), [setRightDock]);
 	const onRailSelect = (0, import_react.useCallback)((id) => setRightDock(rightDock === id ? "none" : id), [rightDock, setRightDock]);
-	const railPanelScrollRef = (0, import_react.useRef)(null);
 	const railPanelWidth = useStore((state) => {
 		const value = state.app.propertyBags["sidebar-widths"]?.["rail-panel"];
 		return typeof value === "number" ? value : void 0;
@@ -105506,8 +107193,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 									eventNodeContext: transcriptEventNodeContext,
 									initialEventId: sampleDetailNavigation.event,
 									initialMessageId: sampleDetailNavigation.message,
-									rightRail: hasRail ? transcriptRail : void 0,
-									rightRailPanelScrollRef: railPanelScrollRef
+									rightRail: hasRail ? transcriptRail : void 0
 								}, `${baseId}-transcript-display-${id}`)
 							})]
 						}, kSampleTranscriptTabId),
@@ -107041,7 +108727,7 @@ var useModelsTab = (evalSpec, evalStats, evalStatus) => {
 	return (0, import_react.useMemo)(() => {
 		return {
 			id: kLogViewModelsTabId,
-			label: "Models",
+			label: "Stats",
 			scrollable: true,
 			component: ModelTab,
 			componentProps: {
@@ -107108,7 +108794,10 @@ var ModelTab = ({ evalSpec, evalStats, evalStatus }) => {
 				args_by_model: argsByModel,
 				args_by_role: argsByRole,
 				role_aliases: roleAliases,
-				meta
+				meta,
+				connection_limit_history: evalStats?.connection_limit_history,
+				started_at: evalStats?.started_at,
+				completed_at: evalStats?.completed_at
 			})
 		})
 	});
@@ -107583,7 +109272,8 @@ var NodeSet = class NodeSet {
 		return new NodeSet(newTypes);
 	}
 };
-var CachedNode$1 = /* @__PURE__ */ new WeakMap(), CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
@@ -108845,7 +110535,8 @@ var StringInput = class {
 new NodeProp$1({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.3/node_modules/@marijn/find-cluster-break/src/index.js
-var rangeFrom = [], rangeTo = [];
+var rangeFrom = [];
+var rangeTo = [];
 (() => {
 	let numbers = "lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,3b,f,,w,1j,,,,4,8,4,,3,7,a,2,t,,1m,,,,2,4,8,,9,,a,2,q,,2,2,1l,,4,2,4,2,2,3,3,,u,2,3,,b,2,1l,,4,5,,2,4,,k,2,m,6,,,1m,,,2,,4,8,,7,3,a,2,u,,1n,,,,c,,9,,14,,3,,1l,3,5,3,,4,7,2,b,2,t,,1m,,2,,2,,3,,5,2,7,2,b,2,s,2,1l,2,,,2,4,8,,9,,a,2,t,,20,,4,,2,3,,,8,,29,,2,7,c,8,2q,,2,9,b,6,22,2,r,,,,,,1j,e,,5,,2,5,b,,10,9,,2u,4,,6,,2,2,2,p,2,4,3,g,4,d,,2,2,6,,f,,jj,3,qa,3,t,3,t,2,u,2,1s,2,,7,8,,2,b,9,,19,3,3b,2,y,,3a,3,4,2,9,,6,3,63,2,2,,1m,,,7,,,,,2,8,6,a,2,,1c,h,1r,4,1c,7,,,5,,14,9,c,2,w,4,2,2,,3,1k,,,2,3,,,3,1m,8,2,2,48,3,,d,,7,4,,6,,3,2,5i,1m,,5,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,p,2,5,,47,2,q,i,d,,12,8,p,b,1a,3,1c,,2,4,2,2,13,,1v,6,2,2,2,2,c,,8,,1b,,1f,,,3,2,2,5,2,,,16,2,8,,6m,,2,,4,,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,ar,2,49,b,4w,,1i,f,1k,3,1d,4,2,2,1x,3,10,5,,8,1q,,c,2,1g,9,a,4,2,,2n,3,2,,,2,6,,4g,,3,8,l,2,1l,2,,,,,m,,e,7,3,5,5f,8,2,3,,,n,,29,,2,6,,,2,,,2,,2,6j,,2,4,6,2,,2,r,2,2d,8,2,,,2,2y,,,,2,6,,,2t,3,2,4,,5,77,9,,2,6t,,a,2,,,4,,40,4,2,2,4,,w,a,14,6,2,4,8,,9,6,2,3,1a,d,,2,ba,7,,6,,,2a,m,2,7,,2,,2,3e,6,3,,,2,,7,,,20,2,3,,,,9n,2,f0b,5,1n,7,t4,,1r,4,29,,f5k,2,43q,,,3,4,5,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,79,7,c5,4,15s,7,31,7,240,5,gx7k,2o,3k,6o".split(",").map((s) => s ? parseInt(s, 36) : 1);
 	for (let i = 0, n = 0; i < numbers.length; i++) (i % 2 ? rangeTo : rangeFrom).push(n = n + numbers[i]);
@@ -113200,7 +114891,8 @@ var Direction = /*@__PURE__*/ (function(Direction) {
 	Direction[Direction["RTL"] = 1] = "RTL";
 	return Direction;
 })(Direction || (Direction = {}));
-var LTR = Direction.LTR, RTL = Direction.RTL;
+var LTR = Direction.LTR;
+var RTL = Direction.RTL;
 function dec(str) {
 	let result = [];
 	for (let i = 0; i < str.length; i++) result.push(1 << +str[i]);
@@ -113208,7 +114900,8 @@ function dec(str) {
 }
 var LowTypes = /*@__PURE__*/ dec("88888888888888888888888888888888888666888888787833333333337888888000000000000000000000000008888880000000000000000000000000088888888888888888888888888888888888887866668888088888663380888308888800000000000000000000000800000000000000000000000000000008");
 var ArabicTypes = /*@__PURE__*/ dec("4444448826627288999999999992222222222222222222222222222222222222222222222229999999999999999999994444444444644222822222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222999999949999999229989999223333333333");
-var Brackets = /*@__PURE__*/ Object.create(null), BracketStack = [];
+var Brackets = /*@__PURE__*/ Object.create(null);
+var BracketStack = [];
 for (let p of [
 	"()",
 	"[]",
@@ -116541,7 +118234,9 @@ function rangeForClick(view, pos, bias, type) {
 	}
 }
 var BadMouseDetail = browser.ie && browser.ie_version <= 11;
-var lastMouseDown = null, lastMouseDownCount = 0, lastMouseDownTime = 0;
+var lastMouseDown = null;
+var lastMouseDownCount = 0;
+var lastMouseDownTime = 0;
 function getClickType(event) {
 	if (!BadMouseDetail) return event.detail;
 	let last = lastMouseDown, lastTime = lastMouseDownTime;
@@ -118037,7 +119732,9 @@ function scaleBlock(block, scaler) {
 }
 var theme = /*@__PURE__*/ Facet.define({ combine: (strs) => strs.join(" ") });
 var darkTheme = /*@__PURE__*/ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
-var baseThemeID = /*@__PURE__*/ StyleModule.newName(), baseLightID = /*@__PURE__*/ StyleModule.newName(), baseDarkID = /*@__PURE__*/ StyleModule.newName();
+var baseThemeID = /*@__PURE__*/ StyleModule.newName();
+var baseLightID = /*@__PURE__*/ StyleModule.newName();
+var baseDarkID = /*@__PURE__*/ StyleModule.newName();
 var lightDarkIDs = {
 	"&light": "." + baseLightID,
 	"&dark": "." + baseDarkID
@@ -121662,7 +123359,8 @@ var NodeType = class NodeType {
 An empty dummy node type to use when no actual type is available.
 */
 NodeType.none = new NodeType("", Object.create(null), 0, 8);
-var CachedNode = /* @__PURE__ */ new WeakMap(), CachedInnerNode = /* @__PURE__ */ new WeakMap();
+var CachedNode = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
@@ -123137,7 +124835,20 @@ function getStyleTags(node) {
 	return rule || null;
 }
 var t = Tag.define;
-var comment = t(), name = t(), typeName = t(name), propertyName = t(name), literal = t(), string = t(literal), number = t(literal), content = t(), heading$1 = t(content), keyword = t(), operator = t(), punctuation = t(), bracket = t(punctuation), meta = t();
+var comment = t();
+var name = t();
+var typeName = t(name);
+var propertyName = t(name);
+var literal = t();
+var string = t(literal);
+var number = t(literal);
+var content = t();
+var heading$1 = t(content);
+var keyword = t();
+var operator = t();
+var punctuation = t();
+var bracket = t(punctuation);
+var meta = t();
 /**
 The default set of highlighting [tags](#highlight.Tag).
 
@@ -124661,7 +126372,8 @@ var baseTheme$2 = /*@__PURE__*/ EditorView.baseTheme({
 	"&.cm-focused .cm-matchingBracket": { backgroundColor: "#328c8252" },
 	"&.cm-focused .cm-nonmatchingBracket": { backgroundColor: "#bb555544" }
 });
-var DefaultScanDist = 1e4, DefaultBrackets = "()[]{}";
+var DefaultScanDist = 1e4;
+var DefaultBrackets = "()[]{}";
 var bracketMatchingConfig = /*@__PURE__*/ Facet.define({ combine(configs) {
 	return combineConfig(configs, {
 		afterCursor: true,
@@ -124670,7 +126382,8 @@ var bracketMatchingConfig = /*@__PURE__*/ Facet.define({ combine(configs) {
 		renderMatch: defaultRenderMatch
 	});
 } });
-var matchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-matchingBracket" }), nonmatchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-nonmatchingBracket" });
+var matchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-matchingBracket" });
+var nonmatchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-nonmatchingBracket" });
 function defaultRenderMatch(match) {
 	let decorations = [];
 	let mark = match.matched ? matchingMark : nonmatchingMark;
@@ -127621,7 +129334,8 @@ var RunningQuery = class {
 		this.done = void 0;
 	}
 };
-var MaxUpdateCount = 50, MinAbortTime = 1e3;
+var MaxUpdateCount = 50;
+var MinAbortTime = 1e3;
 var completionPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 	constructor(view) {
 		this.view = view;
