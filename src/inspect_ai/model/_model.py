@@ -69,6 +69,7 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai.model._generate_overrides import generate_config_override
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -83,6 +84,8 @@ from inspect_ai.util._limit import (
     record_model_cost,
     record_model_usage,
     record_turn,
+    token_limit_usage,
+    turn_count,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
@@ -627,7 +630,7 @@ async def ensure_model_controller(model: "Model", config: GenerateConfig) -> Non
     winning, so a controller created here from a divergent config would
     silently override the bounds generates resolve (and a controller created
     for a model whose generates take the static path would be a phantom —
-    reported and "retuned" by ``ctl limits`` while gating nothing).
+    reported and "retuned" by ``ctl config`` while gating nothing).
 
     A no-op for the ``NoModel`` sentinel (nothing will generate) and when the
     composed config says adaptive isn't active (explicit ``max_connections``,
@@ -1209,9 +1212,21 @@ class Model:
             )
 
             # create timeout context manager if we have an attempt timeout
+            # (resolved per attempt so a live `inspect ctl config` override
+            # applies from the next attempt onward). A batched call keeps its
+            # launch value: its attempt awaits an entire provider batch, and
+            # an override cancelling that wait would resubmit the request
+            # into a new batch on every retry (duplicated provider work) —
+            # the whole-batch blast radius the batchers' admin-op override
+            # opt-out exists to avoid.
+            attempt_timeout = (
+                config.attempt_timeout
+                if config.batch
+                else generate_config_override("attempt_timeout", config.attempt_timeout)
+            )
             timeout_cm = (
-                anyio.move_on_after(config.attempt_timeout)
-                if config.attempt_timeout is not None
+                anyio.move_on_after(attempt_timeout)
+                if attempt_timeout is not None
                 else contextlib.nullcontext()
             )
 
@@ -1245,7 +1260,7 @@ class Model:
                             isinstance(timeout_cm, anyio.CancelScope)
                             and timeout_cm.cancel_called
                         ):
-                            raise AttemptTimeoutError(config.attempt_timeout)
+                            raise AttemptTimeoutError(attempt_timeout)
                 except Exception as ex:
                     # Mark event as failed for uncaught provider exceptions
                     complete(ex, None)
@@ -1340,7 +1355,15 @@ class Model:
         # double-counting nested generations: model.compact() does not flow
         # through this path, and sub-agent/scorer generations are scoped by
         # their own turn_limit() contexts (or none).
-        record_turn()
+        from inspect_ai.log._samples import set_active_sample_total_turns
+
+        # record_turn() raises when a turn limit is exceeded, but it records
+        # the tripping turn first -- push in a finally so the control channel
+        # sees the final count for a sample halted by its turn limit
+        try:
+            record_turn()
+        finally:
+            set_active_sample_total_turns(turn_count() or 0)
 
         # notify the adaptive controller of a clean success (no retries during
         # this logical request, AND not a cache hit since cache hits don't
@@ -2450,6 +2473,7 @@ def record_and_check_model_usage(
     model: Model, usage: ModelUsage, role: str | None = None
 ) -> None:
     from inspect_ai.log._samples import (
+        set_active_sample_token_limit_usage,
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
@@ -2480,9 +2504,11 @@ def record_and_check_model_usage(
 
     record_model_usage(usage)
 
-    # compute total tokens and update active sample
+    # compute total tokens and update active sample (before check_token_limit()
+    # so the control channel sees the usage that tripped the limit)
     total_tokens = sample_total_tokens()
     set_active_sample_total_tokens(total_tokens)
+    set_active_sample_token_limit_usage(token_limit_usage())
     check_token_limit()
 
     # record cost to limit tree and check

@@ -802,6 +802,22 @@ memory(
 )
 ```
 
+### Separate Stores
+
+By default, all `memory()` tools within a sample share a single `/memories` store — every agent and subagent reads and writes the same files. This is usually what you want: a subagent can build on what the parent recorded, and vice versa.
+
+To run independent memory stores within one sample, pass an `instance` name. Each instance has its own files and is seeded independently:
+
+``` python
+# two independent memory stores in the same sample
+notes = memory(instance="notes")
+scratch = memory(instance="scratch")
+```
+
+This mirrors `skill(instance=...)`. Use it when two memory tools must not collide — for example, to give a subagent a private scratchpad, or to compare shared vs. separate memory as conditions in a study.
+
+Note that `instance` namespaces the data within the sample's in-memory store; it is **not** a security boundary, since everything still lives in the same process. For a hard boundary between agents, isolate them with a [Sandbox Environment](sandboxing.qmd) instead.
+
 ### Tool Binding
 
 The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the memory tool will automatically bind to the native Claude tool definition.
