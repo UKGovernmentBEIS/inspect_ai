@@ -1,0 +1,47 @@
+{
+  "description": "Nested same-name (different-type) steps: pure stack pairing closes the innermost open step first, so the first 'end phase' closes the scorer-typed inner step and the second closes the solver-typed outer step. A step-end with no open step (index 6) is kept as a plain root-level event (counts only).",
+  "events": [
+    {"event": "step", "action": "begin", "name": "phase", "type": "solver", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
+    {"event": "step", "action": "begin", "name": "phase", "type": "scorer", "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
+    {"event": "model", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:02+00:00", "working_start": 2.0},
+    {"event": "step", "action": "end", "name": "phase", "type": "scorer", "timestamp": "2026-01-01T00:00:03+00:00", "working_start": 3.0},
+    {"event": "model", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:04+00:00", "working_start": 4.0},
+    {"event": "step", "action": "end", "name": "phase", "type": "solver", "timestamp": "2026-01-01T00:00:05+00:00", "working_start": 5.0},
+    {"event": "step", "action": "end", "name": "phase", "timestamp": "2026-01-01T00:00:06+00:00", "working_start": 6.0}
+  ],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 7, "models": 2},
+    "spans": [
+      {
+        "id": "step-0",
+        "name": "phase",
+        "type": "solver",
+        "begin": 0,
+        "extent": [0, 5],
+        "t": ["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:05+00:00"],
+        "working": [0.0, 5.0],
+        "events": 6,
+        "models": 2,
+        "gap_models": [0, 1],
+        "children": {"model": 1}
+      },
+      {
+        "id": "step-1",
+        "parent": 0,
+        "name": "phase",
+        "type": "scorer",
+        "begin": 1,
+        "extent": [1, 3],
+        "t": ["2026-01-01T00:00:01+00:00", "2026-01-01T00:00:03+00:00"],
+        "working": [1.0, 3.0],
+        "events": 3,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"model": 1}
+      }
+    ],
+    "notables": [],
+    "overflow": {}
+  }
+}
