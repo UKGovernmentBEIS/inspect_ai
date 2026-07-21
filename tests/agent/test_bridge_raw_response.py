@@ -223,7 +223,7 @@ def anthropic_bridge_client() -> AsyncAnthropic:
 ANTHROPIC_MESSAGES = [{"role": "user", "content": "hello"}]
 
 
-async def consume_anthropic_raw_response(bridge_state: AgentState) -> AnthropicMessage:
+async def consume_anthropic_raw_response() -> AnthropicMessage:
     """Drive the `with_raw_response` + `.parse()` path through the Anthropic patch."""
     async with anthropic_bridge_client() as client:
         raw = await client.messages.with_raw_response.create(
@@ -243,7 +243,7 @@ def anthropic_raw_response_agent() -> Agent:
 
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
-            message = await consume_anthropic_raw_response(bridge.state)
+            message = await consume_anthropic_raw_response()
             block = message.content[0]
             assert isinstance(block, TextBlock)
             assert block.text == ANSWER
@@ -258,7 +258,7 @@ def anthropic_raw_response_tool_use_agent() -> Agent:
 
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
-            message = await consume_anthropic_raw_response(bridge.state)
+            message = await consume_anthropic_raw_response()
             tool_use = [b for b in message.content if isinstance(b, ToolUseBlock)]
             assert len(tool_use) == 1
             assert tool_use[0].name == "get_weather"
