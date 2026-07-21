@@ -744,7 +744,7 @@ def test_provider_translates_store_failures_to_domain_error(tmp_path):
         provider.events_from(0, 10)
 
 
-def test_pool_ref_registry_covers_all_ref_fields():
+def test_pool_ref_registry_covers_all_ref_fields() -> None:
     """``POOL_REF_FIELDS`` must register every ``*_refs`` field on event models.
 
     Page-scoped buffer reads load only the pool positions collected via the

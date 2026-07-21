@@ -284,6 +284,26 @@ class TestGrokCanonicalName:
             del os.environ["XAI_API_KEY"]
 
 
+class TestMoonshotCanonicalName:
+    """Tests for Moonshot provider canonical_name()."""
+
+    def test_moonshotai_prefix(self, monkeypatch):
+        """Test Moonshot model canonical name includes moonshotai/ prefix."""
+        from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+        monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
+        api = MoonshotAPI(model_name="kimi-k3")
+        assert api.canonical_name() == "moonshotai/kimi-k3"
+
+    def test_kimi_k2(self, monkeypatch):
+        """Test Kimi K2.x model canonical name."""
+        from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+        monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
+        api = MoonshotAPI(model_name="kimi-k2.5")
+        assert api.canonical_name() == "moonshotai/kimi-k2.5"
+
+
 class TestOpenRouterFirstPartyDetection:
     """Tests for OpenRouter first-party provider detection."""
 
