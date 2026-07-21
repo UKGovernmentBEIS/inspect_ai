@@ -4,7 +4,7 @@
 (concurrency caps, log-buffer params, retry-loop overrides). Each applied
 change is persisted into the affected eval logs as a
 :class:`ConfigUpdate` — an append-only, provenance-carrying record shaped
-like `log_updates` (see ``design/ctl-config-log-persistence.md``). The
+like `log_updates` (see ``design/ctl/config-log-persistence.md``). The
 launch config (`EvalSpec.config` / `EvalSpec.model_generate_config`) is
 never mutated: it stays the record of what the eval was *launched* with,
 and :func:`effective_eval_config` / :func:`effective_generate_config` fold

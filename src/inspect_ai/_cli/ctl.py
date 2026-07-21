@@ -104,7 +104,7 @@ _KNOB_SCOPE: dict[str, str] = {
 
 # Knobs that apply live but deliberately record nothing in the eval log —
 # named `concurrency()` limits have no config counterpart there (see
-# design/ctl-config-log-persistence.md). Provenance (`--author`/`--reason`)
+# design/ctl/config-log-persistence.md). Provenance (`--author`/`--reason`)
 # rides the recorded `ConfigUpdate`, so a request whose set options are all
 # recordless has nowhere to put it; `_run_config` hard-errors explicit
 # provenance in that case rather than silently dropping it.

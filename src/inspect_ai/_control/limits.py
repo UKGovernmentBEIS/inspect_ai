@@ -707,7 +707,7 @@ def _apply_process_knobs(
     # belongs only to an adaptive controller. Deliberately never added to
     # `applied`: named concurrency() limits have no recorded counterpart in
     # the log, so the change stays ephemeral (see
-    # design/ctl-config-log-persistence.md).
+    # design/ctl/config-log-persistence.md).
     if key is not None and key_limit is not None:
         requested[f"concurrency:{key}"] = key_limit
         matches = [sem for sem in _static_semaphores() if sem.name == key]
