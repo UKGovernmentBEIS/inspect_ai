@@ -30,7 +30,7 @@ rest.
 |---|------|--------|
 | 1a | Launch-time "observe from another shell" pointer | **Open** — designed below |
 | 1b | `inspect eval --json` startup output with a `control` block | **Shipped** — nothing to do |
-| 1c | Observe command in `--ctl-server` flag help | **Open** (help names the `inspect ctl` CLI but gives no runnable command) — designed below |
+| 1c | Observe command in `--ctl-server` flag help | **Open** (help names `inspect ctl` and the release command but no observe command) — designed below |
 | 2a | `eval` / `eval-set` help cross-link to `ctl` | **Open** — designed below |
 | 2b | Worked examples in hot `ctl` subcommand help | **Open** — designed below |
 | 3a | Structured `--json` error envelope with branchable fields | **Shipped** — nothing to do |
@@ -51,11 +51,13 @@ sleep-and-retry heuristic the issue targeted; no further work.
 **3a — structured error envelope.** Shipped as issue #44 (control-channel.md
 "Structure the error path too"): any terminal failure of a `--json` invocation
 emits `{"error": {kind, exception, message, status}}` on stdout, with `kind`
-drawn from a closed vocabulary (`busy`, `connect_error`, `not_found`,
-`ambiguous`, `http_error`, `invalid_request`, `invalid_response`, `internal`)
-and `exception` carrying the package-qualified class (`httpx.ReadTimeout`) —
-the field the issue asked for to diagnose event-loop starvation without
-scraping tracebacks. The envelope is advertised in `inspect ctl --help`
+drawn from a closed vocabulary (`busy`, `connect_timeout`, `read_timeout`,
+`connect_error`, `not_found`, `ambiguous`, `http_error`, `invalid_request`,
+`invalid_response`, `internal`) and `exception` carrying the package-qualified
+class (`httpx.ReadTimeout`). The event-loop starvation the issue wanted
+diagnosable without scraping tracebacks gets an even stronger signal than the
+`exception` field it asked for: a dedicated `read_timeout` kind. The envelope
+is advertised in `inspect ctl --help`
 (`src/inspect_ai/_cli/ctl.py:286`). The issue's `suggestion` field was not
 included; `message` is required to be self-contained (e.g. the ambiguity error
 folds candidate ids in) and the group-level unknown-command hints (`_NounGroup.hint`)
