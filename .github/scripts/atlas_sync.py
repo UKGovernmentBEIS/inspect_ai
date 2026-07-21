@@ -369,6 +369,19 @@ def sync_item(row) -> None:
                     actions.append(f"#{issue}: contributor responded -> Human Review")
         return
 
+    decision = pr.get("reviewDecision")
+
+    # The one transition allowed OUT of Human Review: the driver re-requested
+    # review upstream after a changes-requested round — the fork's analog of
+    # "you send it to a second reviewer", i.e. Human Review -> Sign-off. The
+    # signal is precise (sticky CHANGES_REQUESTED + a pending re-request), so
+    # a fresh promotion parked in Human Review (decision REVIEW_REQUIRED)
+    # stays parked.
+    if stage == "Human Review" and decision == "CHANGES_REQUESTED" and rerequested:
+        if set_stage(item, "Sign-off", stage):
+            actions.append(f"#{issue}: review re-requested upstream -> Sign-off")
+        return
+
     # Promotion tail — only while the ball is genuinely upstream. Stages a
     # human parked elsewhere (Agent Working, Human Review, ...) are out of this
     # mapping's domain: reviewDecision is sticky (CHANGES_REQUESTED persists
@@ -376,7 +389,6 @@ def sync_item(row) -> None:
     # here every hour.
     if stage not in TAIL_STAGES:
         return
-    decision = pr.get("reviewDecision")
     if decision == "CHANGES_REQUESTED" and rerequested:
         # Stale: fixes were pushed and a re-review requested; the recorded
         # decision persists until the reviewer acts. Treat as review-pending.
