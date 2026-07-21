@@ -58,15 +58,25 @@ What the invariant permits and forbids, concretely:
 
 ## Per-endpoint audit
 
+**Log-format scope.** The terminal-path analysis below (the "Fallback /
+terminal path" column and the per-section terminal notes) assumes the default
+`.eval` log format unless it says otherwise. Terminal reads dispatch by file
+extension: `.eval` lands in `EvalRecorder` (pre-thinned `summaries.json`,
+ijson field exclusion — the mitigations the sections below describe), while
+`--log-format=json` inherits `FileRecorder`'s read methods, which have none
+of them — every `.json` terminal read is a whole-log parse and the listing
+fallback re-summarizes full samples per request. That is finding 2, and it
+overlays every ⚠️/❌ terminal cell in the table for `.json` logs.
+
 | Endpoint | Live path | Fallback / terminal path | Verdict |
 |---|---|---|---|
 | `GET /tasks` | O(states + active samples) grouping over counters | Deferred per-log stats: once-only, memoized | ✅ holds |
-| `GET /evals/{id}/samples` | O(rows) over cached summaries + pending synthesis | Re-reads all summaries from the log **per request** | ⚠️ finding 2 |
-| `GET /evals/{id}/sample` (error detail) | O(active samples) scan | Streamed sample scan + a summaries listing read | ⚠️ finding 3 |
+| `GET /evals/{id}/samples` | O(rows) over cached summaries + pending synthesis | Re-reads all summaries from the log **per request** | ⚠️ findings 2, 3 |
+| `GET /evals/{id}/sample` (error detail) | O(active samples) scan | Streamed sample scan + a summaries listing read | ⚠️ finding 4 |
 | `GET /evals/{id}/sample/events` | Paged, bounded by `limit` | Full-transcript parse **per page** once flushed to disk | ❌ finding 1 |
 | `GET /evals/{id}/sample/messages` | O(conversation) copy + truncating projection | Excluded-field scan + attachment resolution | ✅ holds (payload = the response) |
 | `POST /tasks/{id}/log-flush` | Full-log write (the endpoint's job); repeats are no-ops | — | ✅ holds |
-| `POST .../cancel` (task, sample) | O(active samples) scans | Sample cancel's no-op branch reads error detail (inherits finding 3) | ✅ holds |
+| `POST .../cancel` (task, sample) | O(active samples) scans | Sample cancel's no-op branch reads error detail (inherits finding 4) | ✅ holds |
 | `GET`/`PATCH /config`, `/tasks/{id}/config` | O(registry entries) | — | ✅ holds |
 | `POST /keep`, `/release` | O(1) | — | ✅ holds |
 
@@ -107,33 +117,40 @@ Two sub-costs worth naming:
   seen-set and could be memoized on `EvalState`.
 - *`all=true`* uncaps the response — see "Response serialization" below.
 
-**Fallback path — finding 2.** Once the live recorder is gone (eval finished
-and torn down, reused log, superseded retry attempt), `_completed_sample_
-summaries` falls back to `read_eval_log_sample_summaries_async(log_location)`
-— a per-request re-read of the log's summaries (zip open, central directory,
+**Fallback path — findings 2 and 3.** Once the live recorder is gone (eval
+finished and torn down, reused log, superseded retry attempt),
+`_completed_sample_summaries` falls back to
+`read_eval_log_sample_summaries_async(log_location)` — a per-request re-read
+of the log's summaries (for `.eval`: zip open, central directory,
 `summaries.json` + journal parse, `EvalSampleSummary` validation for every
 sample), possibly from S3. The data is immutable at that point (the log is
 finalized), so every re-read after the first is pure waste. This is exactly
-the incident's shape — a keep-alive-parked process being polled every 30s —
-minus the worst constant (summaries are thinned, so it is row-count work with
-a validation constant, not transcript work). See finding 2.
+the incident's shape — a keep-alive-parked process being polled every 30s.
+For `.eval` logs it is minus the worst constant (summaries are pre-thinned,
+so it is row-count work with a validation constant, not transcript work) —
+finding 3. For `.json` logs the constant *is* the incident's:
+`FileRecorder.read_log_sample_summaries` re-runs `EvalSample.summary()` over
+every full-size sample on every request — finding 2.
 
 ### `GET /evals/{id}/sample` (error detail)
 
 **Running path — holds.** One `active_samples()` scan; error history comes
 off fields already on the `ActiveSample`.
 
-**Terminal path — mostly holds, inherits finding 2, one linear scan.**
-`_full_sample` excludes the heavy fields (`messages`, `events`, `store`,
-`attachments`, `output`); the exclusion is applied at *parse* time
-(`_read_member_json_excluding` streams the member with ijson and never
-builds or validates the excluded subtrees). The stream still scans the full
-member's bytes — linear in sample size, but with a small constant and no
-pydantic validation of the heavy fields; acceptable, though worth knowing it
-is not O(error-fields). The subsequent "pick this sample's summary row" step
-calls `_completed_sample_summaries` — the entire listing — which is cheap on
+**Terminal path — mostly holds on `.eval`, inherits finding 3, one linear
+scan.** `_full_sample` excludes the heavy fields (`messages`, `events`,
+`store`, `attachments`, `output`); for an `.eval` log the exclusion is
+applied at *parse* time (`_read_member_json_excluding` in `_recorders/eval.py`
+streams the member with ijson and never builds or validates the excluded
+subtrees). The stream still scans the full member's bytes — linear in sample
+size, but with a small constant and no pydantic validation of the heavy
+fields; acceptable, though worth knowing it is not O(error-fields). For a
+`.json` log, `FileRecorder.read_log_sample` ignores `exclude_fields` and
+parses the *whole log*, mitigated only by the single-entry parse cache —
+finding 2. The subsequent "pick this sample's summary row" step calls
+`_completed_sample_summaries` — the entire listing — which is cheap on
 the live path (cached) but on the fallback path adds a *second* full
-summaries read to the same request (finding 3). The response's
+summaries read to the same request (finding 4). The response's
 `error_retries` carry full tracebacks (message + plain + ANSI) per retry —
 proportional to retry history, bounded in practice by retry limits.
 
@@ -142,9 +159,10 @@ proportional to retry history, bounded in practice by retry limits.
 The checklist question was whether page assembly is bounded by `limit` rather
 than total transcript size. Three sources, three answers:
 
-- **Running sample — bounded.** `TranscriptHistory.events_from(offset,
-  limit)` serves resident events from memory and materializes evicted ones
-  from the realtime buffer with the `limit` riding down to the buffer query.
+- **Running sample — bounded.**
+  `TranscriptHistory.events_from(offset, limit)` serves resident events from
+  memory and materializes evicted ones from the realtime buffer with the
+  `limit` riding down to the buffer query.
 - **Terminal, streaming-completion sample not yet flushed — bounded.** The
   recorder's retained sample is event-less; pages go through the eval's
   buffer-backed events provider, again `limit`-bounded.
@@ -158,11 +176,15 @@ than total transcript size. Three sources, three answers:
   *poller* (`--follow`-style usage re-issuing the cursor) pays a full
   transcript parse per poll even when zero new events exist (a finished
   sample never has new events, but the source is re-resolved every time).
+  (That per-page-reparse profile is the `.eval` path; on `.json` the first
+  page parses the *whole log*, after which pages of the same log hit the
+  single-entry parse cache — finding 2's cost profile instead.)
 
-This is the one live invariant violation found. The `_full_sample` read is
-also needed just to derive the cursor nonce (`sample.uuid` +
-`error_retries` count) before the events are touched, so even the
-buffer-provider branch pays it (free in-memory pre-flush, full parse after).
+This is the most severe invariant violation on the default `.eval` path. The
+`_full_sample` read is also needed just to derive the cursor nonce
+(`sample.uuid` + `error_retries` count) before the events are touched, so
+even the buffer-provider branch pays it (free in-memory pre-flush, full parse
+after).
 
 ### `GET /evals/{id}/sample/messages`
 
@@ -170,7 +192,8 @@ The response *is* the conversation, so O(conversation) work is the endpoint's
 job rather than overhead. Running path copies the live message list
 (loop-shared, so the copy is coherent) and projects with truncation
 (`_TRUNCATE = 256` per field) — response size bounded per message. Terminal
-path excludes `events`/`store`/`output` at parse time and resolves
+path excludes `events`/`store`/`output` at parse time (`.eval`; on `.json`
+the whole log is parsed regardless — finding 2) and resolves
 attachments in `core` mode (messages only, not events) — linear in
 conversation size, once per request. `full=true` with no `tail` serializes
 the raw conversation — see "Response serialization". Deliberately
@@ -195,7 +218,7 @@ re-pulling at all.
   objects; firing `TaskCancel` / `ActiveSample.interrupt` is O(1) on the
   loop it must run on anyway. The sample-cancel "already finished" no-op
   branch reads `sample_error_detail`, inheriting that path's fallback costs
-  (finding 3) — acceptable for a mutation's terminal-state check.
+  (finding 4) — acceptable for a mutation's terminal-state check.
 - **Config GET/PATCH — holds.** Views enumerate concurrency registries and
   controller history tails (`_RECENT_CHANGES = 5`) — O(registry entries),
   all small.
@@ -223,8 +246,11 @@ events pages is worth considering if agent tooling starts defaulting to it.
 
 ## Findings
 
-Ranked. None reproduces the incident's severity (minutes of CPU per request);
-finding 1 is the same *kind* of defect at a smaller constant.
+Ranked. On the default `.eval` format none reproduces the incident's severity
+(minutes of CPU per request) — finding 1 is the same *kind* of defect at a
+smaller constant. Finding 2 *is* the incident's defect class verbatim
+(per-request re-summarization of full samples), gated only by the non-default
+`--log-format=json`.
 
 1. **Events pages over a flushed sample re-parse the whole transcript per
    page** (`events.py` `_logged_source` → `_full_sample` with no
@@ -240,13 +266,36 @@ finding 1 is the same *kind* of defect at a smaller constant.
    first, then a paged event read) — more invasive, only worth it if (a) is
    insufficient.
 
-2. **Finished/reused evals re-read summaries from the log on every listing
+2. **Every terminal read of a `.json`-format log re-parses and/or
+   re-summarizes the full log per request** (`log/_recorders/file.py`:
+   `FileRecorder.read_log_sample_summaries` / `read_log_sample`, inherited by
+   `JSONRecorder`; `read_eval_log_*` dispatches by file extension). The
+   listing fallback re-runs `EvalSample.summary()` — the `thin_data` /
+   `textwrap.shorten` pass that was the incident's expensive operation — over
+   every full-size sample on every request, *even when the parse is cached*.
+   The parse cache (`_log_file_maybe_cached`) is a single class-level entry
+   keyed by location, so a parked eval-set with several finished `.json` logs
+   polled alternately also re-pays the full-log parse (all samples, full
+   pydantic validation) per poll. And `read_log_sample` ignores
+   `exclude_fields`, so the ijson streaming exclusion the error-detail and
+   messages paths rely on does not exist for `.json`.
+   meridianlabs-ai/inspect_ai#116 fixed the *live* `.json` path
+   (`JSONLogFile.summaries` caches at log time); these terminal paths retain
+   the per-request re-summarization defect. Payload-proportional per poll —
+   the incident's class — but only under `--log-format=json`, hence ranked
+   below the default-format finding 1. Fix directions: cache computed
+   summaries alongside the parsed log in `_log_file_maybe_cached` (fixes
+   every reader, not just ctl), and/or the `EvalState` memo of finding 3,
+   which shields the ctl listing path for both formats.
+
+3. **Finished/reused evals re-read summaries from the log on every listing
    request** (`state.py` `_sample_summaries_from_log` →
    `read_eval_log_sample_summaries_async`). The log is finalized and
    immutable at that point; a keep-alive-parked process being polled re-pays
    the read (possibly against S3) every 30 seconds, per finished eval —
-   the incident's request shape. Row-count-proportional (summaries are
-   thinned), so the constant is far smaller than the incident's, but it is
+   the incident's request shape. For `.eval` logs it is
+   row-count-proportional (summaries are pre-thinned), so the constant is far
+   smaller than the incident's (the `.json` case is finding 2), but it is
    repeated waste on exactly the path designed for long-lived parked
    processes. Fix: memoize the summaries on `EvalState` once the live
    recorder is gone — `resolve_deferred_sample_stats` already demonstrates
@@ -255,13 +304,13 @@ finding 1 is the same *kind* of defect at a smaller constant.
    semantics (a superseded attempt's log can be deleted under it, and the
    current per-request read degrades to `[]` on `FileNotFoundError`).
 
-3. **Error detail on the fallback path does two log reads per request**
+4. **Error detail on the fallback path does two log reads per request**
    (`state.py` `sample_error_detail`): the excluded-field sample scan plus a
    full summaries listing read just to pick one row. Each is linear with a
-   small constant; together they make `ctl sample show` against a parked
-   process a two-round-trip remote read. Fixing finding 2 fixes the second
-   read for free; the first is inherent to serving error detail and already
-   parse-minimized. Low priority on its own.
+   small constant (on `.eval`; finding 2 covers `.json`); together they make
+   `ctl sample show` against a parked process a two-round-trip remote read.
+   Fixing finding 3 fixes the second read for free; the first is inherent to
+   serving error detail and already parse-minimized. Low priority on its own.
 
 Watch items (bounded today, could grow constants): pending-row synthesis on
 very large dataset × epoch grids (see the `/samples` section); `full=true`
