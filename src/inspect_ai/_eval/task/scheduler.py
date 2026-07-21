@@ -1,22 +1,26 @@
 """Live sample fanout for one task attempt (the injectable sample scheduler).
 
 Replaces the one-shot ``tg_collect`` fanout in ``task_run`` so samples can be
-re-added while the task runs (see ``design/ctl/sample-requeue.md``): all planned
-``(sample_index, epoch)`` coroutines start up front (unchanged behaviour), and
-a dispatcher loop inside the same task group drains re-run entries accepted by
-the control channel's sample-requeue directive, starting each re-run inside
-the group — a route handler must not ``start_soon`` into a nursery it isn't
-inside. Results collect into a dict keyed by ``(sample_index, epoch)`` so a
-re-run's fresh score replaces the prior attempt's entry (metrics follow the
-log, which supersedes by the same key), returned in plan order like the
-``tg_collect`` list it replaces. The fanout closes when no sample is
-outstanding and nothing is pending; a requeue after that is rejected.
+added while the task runs: all planned ``(sample_index, epoch)`` coroutines
+start up front (unchanged behaviour), and a dispatcher loop inside the same
+task group drains entries injected while the fanout is live, starting each
+inside the group — a route handler must not ``start_soon`` into a nursery it
+isn't inside. Two kinds of entry arrive mid-run: re-runs accepted by the
+control channel's sample-requeue directive (see
+``design/ctl/sample-requeue.md``) and fresh samples a ``SampleSource`` adds
+(``task_run``'s dynamic path runs its source-consuming feeder inside the
+fanout via :meth:`SampleScheduler.run`'s ``feeder`` argument, spawning through
+:meth:`SampleScheduler.add`). Results collect into a dict keyed by
+``(sample_index, epoch)`` so a re-run's fresh score replaces the prior
+attempt's entry (metrics follow the log, which supersedes by the same key),
+returned in plan order like the ``tg_collect`` list it replaces. The fanout
+closes when no sample is outstanding, nothing is pending, and no feeder hold
+remains; a requeue after that is rejected.
 
-:class:`SampleScheduler` is the generic fanout (the shared enabler the
-dynamic-sample work also needs); :class:`SampleRequeue` is the requeue-policy
-capability registered on the process-global ``EvalState`` — it resolves
-sample ids to fanout indexes, owns the pending-requeue set that makes a
-double requeue idempotent, and performs the counter reconciliation the
+:class:`SampleScheduler` is the generic fanout; :class:`SampleRequeue` is the
+requeue-policy capability registered on the process-global ``EvalState`` — it
+resolves sample ids to fanout indexes, owns the pending-requeue set that makes
+a double requeue idempotent, and performs the counter reconciliation the
 directive's accept path requires.
 """
 
@@ -53,32 +57,35 @@ the fanout has drained (nothing outstanding to keep the task open);
 
 
 @dataclass
-class _ScheduledRerun:
-    """One accepted re-run, queued for the dispatcher."""
+class _ScheduledRun:
+    """One mid-run entry queued for the dispatcher: a re-run or a fresh add."""
 
     sample_index: int
     epoch: int
-    prior: "EvalSample"
-    """The prior terminal record the re-run seeds from (retry history /
-    checkpoint resume — see ``run_sample``'s requeue path in ``run.py``)."""
-    on_terminal: Callable[[], None]
-    """Invoked when the re-run reaches a terminal outcome (clears the
+    prior: "EvalSample | None" = None
+    """For a re-run, the prior terminal record it seeds from (retry history /
+    checkpoint resume — see ``run_sample``'s requeue path in ``run.py``);
+    ``None`` for a fresh (source-added) entry."""
+    on_terminal: Callable[[], None] | None = None
+    """Invoked when a re-run reaches a terminal outcome (clears the
     pending-requeue key, making the sample requeueable again)."""
 
 
 class SampleScheduler:
-    """The task's live sample fanout: initial samples plus accepted re-runs.
+    """The task's live sample fanout: initial samples plus mid-run entries.
 
-    Single-loop discipline is what makes it race-free: :meth:`requeue` is
-    synchronous (no await between the open-check and the enqueue), so a
-    dispatcher woken by the last outstanding sample's decrement observes any
-    increment that preceded it, and two concurrent directives can't both
-    enqueue the same entry.
+    Single-loop discipline is what makes it race-free: :meth:`requeue` and
+    :meth:`add` are synchronous (no await between the open-check and the
+    enqueue), so a dispatcher woken by the last outstanding sample's
+    decrement observes any increment that preceded it, and two concurrent
+    directives can't both enqueue the same entry.
     """
 
     def __init__(self) -> None:
+        self._plan: list[tuple[int, int]] = []
         self._outstanding = 0
-        self._pending: list[_ScheduledRerun] = []
+        self._holds = 0
+        self._pending: list[_ScheduledRun] = []
         self._running = False
         self._wake = Wake()
 
@@ -87,13 +94,21 @@ class SampleScheduler:
         """Whether the fanout can still accept a re-run.
 
         Pending entries are counted in ``outstanding`` from the moment they
-        are accepted, so ``outstanding == 0`` means the dispatcher is exiting
-        (or has exited) and the task is finishing — accepting then would be
-        a lie (the re-run could never start).
+        are accepted, so ``outstanding == 0`` (with no feeder hold) means the
+        dispatcher is exiting (or has exited) and the task is finishing —
+        accepting then would be a lie (the re-run could never start). A live
+        feeder holds the fanout open even when nothing is running (the
+        source may yet produce more), so a requeue arriving while the run
+        idles on ``next_samples()`` is accepted and starts immediately.
         """
-        return self._running and self._outstanding > 0
+        return self._running and (self._outstanding > 0 or self._holds > 0)
 
-    def requeue(self, rerun: _ScheduledRerun) -> bool:
+    @property
+    def outstanding(self) -> int:
+        """Sample runs in flight or pending (excludes feeder holds)."""
+        return self._outstanding
+
+    def requeue(self, rerun: _ScheduledRun) -> bool:
         """Enqueue a re-run; False when the fanout has drained (or not begun)."""
         if not self.open:
             return False
@@ -102,12 +117,37 @@ class SampleScheduler:
         self._wake.set()
         return True
 
+    def add(self, entries: list[tuple[int, int]]) -> None:
+        """Enqueue fresh ``(sample_index, epoch)`` entries (source additions).
+
+        Called by the feeder (which runs inside :meth:`run`'s task group, so
+        the fanout is necessarily live). Entries extend the plan, preserving
+        arrival order in the returned results.
+        """
+        self._plan.extend(entries)
+        self._outstanding += len(entries)
+        self._pending.extend(
+            _ScheduledRun(sample_index=index, epoch=epoch) for index, epoch in entries
+        )
+        self._wake.set()
+
     async def run(
         self,
         plan: list[tuple[int, int]],
         run_sample: Callable[[int, int, "EvalSample | None"], Awaitable[T]],
+        *,
+        feeder: Callable[[], Awaitable[None]] | None = None,
+        on_settle: Callable[[], None] | None = None,
     ) -> dict[tuple[int, int], T]:
-        """Run every planned ``(sample_index, epoch)`` plus accepted re-runs.
+        """Run every planned ``(sample_index, epoch)`` plus mid-run entries.
+
+        ``feeder`` (the dynamic path's source consumer) runs inside the same
+        task group and holds the fanout open until it returns — so the run
+        doesn't finish while the source may still produce, and exceptions it
+        raises (duplicate ids, sandbox startup failures) tear the task down
+        like a sample's would. ``on_settle`` is invoked (synchronously) after
+        each run reaches a terminal outcome, letting the feeder wake and
+        re-check whether the run has gone idle.
 
         Exception semantics match ``tg_collect`` (which this replaces): the
         first inner exception propagates (tearing the group down), so a
@@ -118,37 +158,53 @@ class SampleScheduler:
         the logged reductions nondeterministic run to run.
         """
         results: dict[tuple[int, int], T] = {}
-        # count the full plan before the first await so `open` (which the
-        # accept path checks) is accurate from the moment the requeue handle
-        # becomes visible
+        # count the full plan (and the feeder hold) before the first await so
+        # `open` (which the accept path checks) is accurate from the moment
+        # the requeue handle becomes visible
+        self._plan = list(plan)
         self._outstanding = len(plan)
         self._running = True
+        if feeder is not None:
+            self._holds += 1
         try:
             async with anyio.create_task_group() as tg:
 
+                async def run_feeder(feeder: Callable[[], Awaitable[None]]) -> None:
+                    try:
+                        await feeder()
+                    finally:
+                        self._holds -= 1
+                        self._wake.set()
+
+                if feeder is not None:
+                    tg.start_soon(run_feeder, feeder)
+
                 async def run_one(
-                    sample_index: int, epoch: int, rerun: _ScheduledRerun | None
+                    sample_index: int, epoch: int, entry: _ScheduledRun | None
                 ) -> None:
                     try:
                         results[(sample_index, epoch)] = await run_sample(
-                            sample_index, epoch, rerun.prior if rerun else None
+                            sample_index, epoch, entry.prior if entry else None
                         )
                     finally:
-                        if rerun is not None:
-                            rerun.on_terminal()
+                        if entry is not None and entry.on_terminal is not None:
+                            entry.on_terminal()
                         self._outstanding -= 1
                         self._wake.set()
+                        if on_settle is not None:
+                            on_settle()
 
                 for sample_index, epoch in plan:
                     tg.start_soon(run_one, sample_index, epoch, None)
 
-                # dispatcher: start accepted re-runs until nothing is
-                # outstanding (pending entries count toward outstanding, so
-                # outstanding == 0 implies the pending list is empty too)
-                while self._outstanding > 0:
+                # dispatcher: start mid-run entries until nothing is
+                # outstanding and no feeder hold remains (pending entries
+                # count toward outstanding, so outstanding == 0 implies the
+                # pending list is empty too)
+                while self._outstanding > 0 or self._holds > 0:
                     if self._pending:
-                        rerun = self._pending.pop(0)
-                        tg.start_soon(run_one, rerun.sample_index, rerun.epoch, rerun)
+                        entry = self._pending.pop(0)
+                        tg.start_soon(run_one, entry.sample_index, entry.epoch, entry)
                         continue
                     await self._wake.wait()
         except ExceptionGroup as ex:
@@ -160,9 +216,11 @@ class SampleScheduler:
             # terminal callbacks so pending-requeue keys don't outlive the
             # task (a leaked key renders the sample `queued` forever).
             while self._pending:
-                self._pending.pop().on_terminal()
+                entry = self._pending.pop()
+                if entry.on_terminal is not None:
+                    entry.on_terminal()
         # re-runs replace at the same key, so the plan covers every key
-        return {key: results[key] for key in plan if key in results}
+        return {key: results[key] for key in self._plan if key in results}
 
 
 class SampleRequeue:
@@ -262,7 +320,7 @@ class SampleRequeue:
             return "unknown"
         self._pending.add(key)
         accepted = self._scheduler.requeue(
-            _ScheduledRerun(
+            _ScheduledRun(
                 sample_index=sample_index,
                 epoch=prior.epoch,
                 prior=prior,

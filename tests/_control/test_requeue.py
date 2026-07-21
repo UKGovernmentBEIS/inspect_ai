@@ -15,7 +15,7 @@ import httpx
 import pytest
 from test_helpers.live_eval_data import FakeLiveEvalData
 
-from inspect_ai import Task, eval_async
+from inspect_ai import SampleSource, Task, enqueue_sample, eval_async
 from inspect_ai._control.cancel import cancel_sample
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
@@ -40,8 +40,9 @@ from inspect_ai._eval.task.error import SampleErrorHandler
 from inspect_ai._eval.task.scheduler import (
     SampleRequeue,
     SampleScheduler,
-    _ScheduledRerun,
+    _ScheduledRun,
 )
+from inspect_ai._util._async import Wake
 from inspect_ai._util.error import EvalError, is_cancellation_message
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog, read_eval_log_async
@@ -544,7 +545,7 @@ async def test_scheduler_rejects_requeue_after_drain() -> None:
 
     await scheduler.run([(0, 1)], run_sample)
     accepted = scheduler.requeue(
-        _ScheduledRerun(
+        _ScheduledRun(
             sample_index=0, epoch=1, prior=_errored_sample(), on_terminal=lambda: None
         )
     )
@@ -584,7 +585,7 @@ async def test_scheduler_rerun_replaces_result_and_closes() -> None:
         assert scheduler.open  # the waiter keeps the fanout open
         terminal: list[bool] = []
         accepted = scheduler.requeue(
-            _ScheduledRerun(
+            _ScheduledRun(
                 sample_index=0,
                 epoch=1,
                 prior=prior,
@@ -621,7 +622,7 @@ async def test_scheduler_teardown_drains_undispatched_reruns() -> None:
         # the dispatcher (parked at its wake, cancelled with it) can start
         # the re-run
         accepted = scheduler.requeue(
-            _ScheduledRerun(
+            _ScheduledRun(
                 sample_index=0,
                 epoch=1,
                 prior=_errored_sample(),
@@ -635,6 +636,105 @@ async def test_scheduler_teardown_drains_undispatched_reruns() -> None:
         await scheduler.run([(0, 1)], run_sample)
 
     assert terminal == [True]
+    assert not scheduler.open
+
+
+async def test_scheduler_feeder_adds_entries_in_plan_order() -> None:
+    """Entries a feeder adds run and extend the plan-ordered results."""
+    scheduler = SampleScheduler()
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        return f"{sample_index}:{epoch}"
+
+    async def feeder() -> None:
+        scheduler.add([(1, 1), (2, 1)])
+
+    results = await scheduler.run([(0, 1)], run_sample, feeder=feeder)
+    assert list(results.items()) == [
+        ((0, 1), "0:1"),
+        ((1, 1), "1:1"),
+        ((2, 1), "2:1"),
+    ]
+    assert not scheduler.open
+
+
+async def test_scheduler_feeder_holds_fanout_open_for_requeue() -> None:
+    """An idle fanout held open by a live feeder still accepts a requeue.
+
+    The dynamic path's feeder blocks in ``next_samples()`` with nothing
+    outstanding; a requeue arriving then must be accepted and start
+    immediately (the dispatcher isn't blocked on the source).
+    """
+    scheduler = SampleScheduler()
+    feeder_wake = Wake()
+    feeder_idle = anyio.Event()
+    feeder_release = anyio.Event()
+    terminal: list[bool] = []
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        return "fresh" if prior is not None else "seed"
+
+    async def feeder() -> None:
+        while scheduler.outstanding > 0:
+            await feeder_wake.wait()
+        # idle but held open, like a blocking next_samples()
+        feeder_idle.set()
+        with anyio.fail_after(30):
+            await feeder_release.wait()
+
+    results: dict[tuple[int, int], str] = {}
+
+    async with anyio.create_task_group() as tg:
+
+        async def go() -> None:
+            results.update(
+                await scheduler.run(
+                    [(0, 1)], run_sample, feeder=feeder, on_settle=feeder_wake.set
+                )
+            )
+
+        tg.start_soon(go)
+        with anyio.fail_after(30):
+            await feeder_idle.wait()
+        assert scheduler.outstanding == 0
+        assert scheduler.open  # the feeder hold alone keeps it open
+        accepted = scheduler.requeue(
+            _ScheduledRun(
+                sample_index=0,
+                epoch=1,
+                prior=_errored_sample(),
+                on_terminal=lambda: terminal.append(True),
+            )
+        )
+        assert accepted is True
+        # the re-run starts and finishes while the feeder is still parked
+        with anyio.fail_after(30):
+            while not terminal:
+                await anyio.sleep(0.01)
+        feeder_release.set()
+
+    assert results == {(0, 1): "fresh"}
+    assert not scheduler.open
+
+
+async def test_scheduler_feeder_exception_fails_run() -> None:
+    """A feeder failure (duplicate id, sandbox startup) tears the run down."""
+    scheduler = SampleScheduler()
+
+    async def run_sample(
+        sample_index: int, epoch: int, prior: EvalSample | None
+    ) -> str:
+        return "ok"
+
+    async def feeder() -> None:
+        raise RuntimeError("source boom")
+
+    with pytest.raises(RuntimeError, match="source boom"):
+        await scheduler.run([(0, 1)], run_sample, feeder=feeder)
     assert not scheduler.open
 
 
@@ -1370,3 +1470,217 @@ async def test_requeue_after_operator_errored_sample() -> None:
     assert victim.error is None
     assert victim.error_retries is not None and len(victim.error_retries) == 1
     assert "interrupted by operator" in victim.error_retries[0].message
+
+
+# ---------------------------------------------------------------------------
+# End to end: requeue on a SampleSource-driven (dynamic) task
+# ---------------------------------------------------------------------------
+
+_DYN_ATTEMPTS: dict[str, int] = {}
+_DYN_RELEASE: anyio.Event | None = None
+
+
+@solver
+def _dyn_requeue_probe():
+    """The seeder enqueues `flaky` then parks; `flaky` errors its first attempt."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == "seeder":
+            enqueue_sample(Sample(id="flaky", input="x", target="y"))
+            assert _DYN_RELEASE is not None
+            with anyio.fail_after(60):
+                await _DYN_RELEASE.wait()
+            return state
+        _DYN_ATTEMPTS["flaky"] = _DYN_ATTEMPTS.get("flaky", 0) + 1
+        if _DYN_ATTEMPTS["flaky"] == 1:
+            raise RuntimeError("transient boom")
+        return state
+
+    return solve
+
+
+class _SeederSource(SampleSource):
+    def initial_samples(self) -> list[Sample]:
+        return [Sample(id="seeder", input="x", target="y")]
+
+    async def next_samples(self) -> list[Sample] | None:
+        return None
+
+
+async def test_requeue_dynamic_injected_sample() -> None:
+    """An errored *injected* sample can be requeued on a SampleSource task.
+
+    Exercises the injected-sample plumbing end to end: the requeue directive
+    resolves the injected id (grown into `sample_indexes`), and the re-run
+    finds its source data resident (an errored epoch keeps the injected
+    slot — it releases only once every epoch has completed).
+    """
+    global _DYN_RELEASE
+    _DYN_ATTEMPTS.clear()
+    _DYN_RELEASE = anyio.Event()
+
+    task = Task(
+        dataset=_SeederSource(),
+        solver=_dyn_requeue_probe(),
+        scorer=_always_correct(),
+        name="requeue_dyn",
+    )
+
+    init_display_type("none")
+    logs: list[EvalLog] = []
+
+    async with anyio.create_task_group() as tg:
+
+        async def run_eval() -> None:
+            logs.extend(
+                await eval_async(
+                    task,
+                    model="mockllm/model",
+                    fail_on_error=False,
+                    ctl_server=False,
+                    max_samples=2,
+                )
+            )
+
+        tg.start_soon(run_eval)
+
+        # wait for the injected flaky sample's terminal error
+        with anyio.fail_after(60):
+            while True:
+                states = get_eval_states()
+                if states and states[0].errored == 1:
+                    break
+                await anyio.sleep(0.01)
+        eval_id = states[0].eval_id
+
+        result = await requeue_sample(eval_id, "flaky", 1)
+        assert result is not None
+        assert result.get("ok") is True and result["changed"] is True
+        assert result["status"] == "error"
+        assert result["attempt"] == 2
+
+        # wait for the re-run's clean completion, then release the seeder
+        with anyio.fail_after(60):
+            while True:
+                state = get_eval_state(eval_id)
+                assert state is not None
+                if state.errored == 0 and state.completed == 1:
+                    break
+                await anyio.sleep(0.01)
+        _DYN_RELEASE.set()
+
+    assert _DYN_ATTEMPTS["flaky"] == 2
+
+    (log,) = logs
+    assert log.status == "success"
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    assert sorted(str(s.id) for s in log.samples) == ["flaky", "seeder"]
+    flaky = next(s for s in log.samples if s.id == "flaky")
+    assert flaky.error is None
+    assert flaky.error_retries is not None and len(flaky.error_retries) == 1
+    assert "transient boom" in flaky.error_retries[0].message
+    assert log.results is not None
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+_DYN_IDLE_ATTEMPTS: dict[str, int] = {}
+
+
+@solver
+def _dyn_idle_probe():
+    """Errors flaky's first attempt; the re-run completes immediately."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        _DYN_IDLE_ATTEMPTS["flaky"] = _DYN_IDLE_ATTEMPTS.get("flaky", 0) + 1
+        if _DYN_IDLE_ATTEMPTS["flaky"] == 1:
+            raise RuntimeError("transient boom")
+        return state
+
+    return solve
+
+
+class _BlockingSource(SampleSource):
+    """A source that parks in next_samples() until released (an RL loop shape)."""
+
+    def __init__(self) -> None:
+        self.consulted = anyio.Event()
+        self.release = anyio.Event()
+
+    def initial_samples(self) -> list[Sample]:
+        return [Sample(id="flaky", input="x", target="y")]
+
+    async def next_samples(self) -> list[Sample] | None:
+        self.consulted.set()
+        with anyio.fail_after(60):
+            await self.release.wait()
+        return None
+
+
+async def test_requeue_dynamic_while_awaiting_source() -> None:
+    """A requeue is accepted while the run idles inside next_samples().
+
+    Nothing is outstanding — only the feeder's hold keeps the fanout open —
+    and the accepted re-run starts immediately rather than waiting for the
+    source to produce.
+    """
+    _DYN_IDLE_ATTEMPTS.clear()
+    source = _BlockingSource()
+
+    task = Task(
+        dataset=source,
+        solver=_dyn_idle_probe(),
+        scorer=_always_correct(),
+        name="requeue_dyn_idle",
+    )
+
+    init_display_type("none")
+    logs: list[EvalLog] = []
+
+    async with anyio.create_task_group() as tg:
+
+        async def run_eval() -> None:
+            logs.extend(
+                await eval_async(
+                    task,
+                    model="mockllm/model",
+                    fail_on_error=False,
+                    ctl_server=False,
+                )
+            )
+
+        tg.start_soon(run_eval)
+
+        # wait until flaky has errored AND the feeder is parked in the source
+        with anyio.fail_after(60):
+            await source.consulted.wait()
+            while True:
+                states = get_eval_states()
+                if states and states[0].errored == 1:
+                    break
+                await anyio.sleep(0.01)
+        eval_id = states[0].eval_id
+
+        result = await requeue_sample(eval_id, "flaky", 1)
+        assert result is not None
+        assert result.get("ok") is True and result["changed"] is True
+
+        # the re-run completes while the source is still parked
+        with anyio.fail_after(60):
+            while True:
+                state = get_eval_state(eval_id)
+                assert state is not None
+                if state.errored == 0 and state.completed == 1:
+                    break
+                await anyio.sleep(0.01)
+        source.release.set()
+
+    assert _DYN_IDLE_ATTEMPTS["flaky"] == 2
+
+    (log,) = logs
+    assert log.status == "success"
+    log = await read_eval_log_async(log.location)
+    assert log.samples is not None
+    flaky = next(s for s in log.samples if s.id == "flaky")
+    assert flaky.error is None
+    assert flaky.error_retries is not None and len(flaky.error_retries) == 1
