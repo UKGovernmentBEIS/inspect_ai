@@ -48,6 +48,23 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   [Named size constants](#named-size-constants), [Converter](#converter),
   [old-format degradation](#degradation-policy-for-old-format-huge-samples-13),
   the effort A/B/F slicing, [Deferred open issues](#deferred-open-issues).
+- **2026-07-21 — Phase-1 efforts resequenced: viewer milestone next.** Effort
+  A is complete (epatey#20–#24). The next accomplishment is **the real viewer
+  working against the chunked format**, so effort C is split and pulled ahead
+  of B: **C1 — TS data layer (headless)** (TS skeleton/format readers
+  validated against the shared JSON fixtures, chunk-byte store, decode walk +
+  FilteredCursor; vitest-testable against the CI corpora, no UI surface) and
+  **C2 — viewer integration, the milestone** (row-window list-model fork,
+  outline/timeline from skeleton, filter counts, infinite-query wiring;
+  finish line: open a converted large log in the real viewer and
+  browse/collapse/jump end-to-end). Search (D) follows C2 but sits outside
+  the milestone. B and E defer behind the milestone — nothing viewer-side
+  reads via the Python APIs, and E still depends on B. The refuse-message
+  copy update moves from C to E (old-format degradation polish, not chunked
+  rendering). Principle 2 restated for C2: old-format render paths stay
+  behavior-identical; the list-model fork is the guarded seam. Within-phase
+  order: A → C1 → C2 → D → B → E; effort letters stay stable. Affected:
+  [Proposed slicing](#proposed-slicing-into-implementation-efforts).
 
 ---
 
@@ -919,12 +936,16 @@ message does **not** mention conversion for now.
 
 ## Proposed slicing into implementation efforts
 
-A proposal to seed planning, not a commitment. Ordering follows the phases;
-within phase 1 the efforts are largely parallel after A.
+A proposal to seed planning, not a commitment. Ordering follows the phases.
+**⚑ amended** ([Change log](#change-log), 2026-07-21): phase-1 ordering is
+resequenced — after A (complete), the next milestone is the real viewer
+working against the chunked format (C1 + C2); D follows C2; B and E defer
+behind the milestone. Within-phase order: A → C1 → C2 → D → B → E.
 
 **Phase 1 (read everywhere):**
 
-- **A. Format core + skeleton producer (Python).** Entry naming/dispatch
+- **A. Format core + skeleton producer (Python).** **Complete** (2026-07-21,
+  epatey#20–#24). Entry naming/dispatch
   (`format.py` lineage), the skeleton + stats producers on the timeline code,
   the shared Python/TS JSON test suite, the parity oracle harness, converter
   hardening (backfill skeleton/stats, always-chunk, `.eval2` naming retired).
@@ -932,18 +953,30 @@ within phase 1 the efforts are largely parallel after A.
   force-chunk knob is gone (always-chunk) and the named-constants table moves
   to B, landing with its first consumer (the hydration warning) — in phase 1
   no other code reads those constants.
+- **C1. TS data layer (headless).** **⚑ amended** ([Change log](#change-log),
+  2026-07-21, split from C). TS skeleton/format readers (twin of the Python
+  producer, validated against the shared JSON fixture suite), chunk-byte
+  store, decode walk + FilteredCursor. Vitest-testable against the CI
+  corpora; no UI surface. Depends on A.
+- **C2. Viewer integration — the milestone.** **⚑ amended**
+  ([Change log](#change-log), 2026-07-21, split from C). Infinite-query
+  parsed tier, row-window list-model fork, outline/timeline from skeleton,
+  filter counts. Finish line: open a converted large log in the real viewer,
+  browse/collapse/jump end-to-end. Old-format render paths stay
+  behavior-identical (principle 2); the list-model fork is the guarded seam.
+  Depends on C1. The refuse-message copy update moves to E.
+- **D. Search worker.** Scan worker, renderer-aligned extraction
+  (worker-importable check), match table, find-band integration. Depends on
+  C2; outside the viewer-works milestone.
 - **B. Python read primitives.** The sample reader, lazy `EvalSample`
   subclass, warnings (introducing the named-constants table with them —
   **⚑ amended**, moved here from A), existing-API integration, old-format
-  pre-parse warning. Depends on A.
-- **C. Viewer data layer + windowed transcript.** Chunk-byte store, infinite
-  query tier, decode walk + FilteredCursor, row-window list-model fork,
-  outline/timeline from skeleton, filter counts, refuse-message copy update.
-  Depends on A (format + skeleton), parallel with B.
-- **D. Search worker.** Scan worker, renderer-aligned extraction
-  (worker-importable check), match table, find-band integration. Depends on C.
+  pre-parse warning. Depends on A. **⚑ amended** ([Change log](#change-log),
+  2026-07-21): deferred behind the viewer milestone — nothing viewer-side
+  reads via the Python APIs.
 - **E. Downstream surfaces.** Scout + Scout viewer read support; verification
-  pass over the tooling matrix. Depends on B.
+  pass over the tooling matrix; refuse-message copy update (**⚑ amended**,
+  moved from C). Depends on B.
 
 **Phase 2 (opt-in write):**
 
