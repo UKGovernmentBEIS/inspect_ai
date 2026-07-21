@@ -124,10 +124,16 @@ realtime buffer-db presence in either world — the reuse path never calls
 no row ever exists there.
 
 Caveat: on the in-memory sample source path (`read_from_memory`, when the
-prior log was passed as an `EvalLog` object rather than a file), the prior
-log's samples are resident in the source closure regardless; part 1 removes
-the recorder's *duplicate* copy but not the source's. The incident path
-(retry from file) gets the full benefit.
+caller passed the prior attempt as an already-loaded `EvalLog` object rather
+than a file reference), the source closure captures `eval_log` and scans
+`eval_log.samples` on every lookup, so the whole prior log stays resident for
+the attempt regardless — that memory was spent by the caller loading the log
+before retry even started, and the caller's own reference would keep it alive
+even if the source dropped consumed samples. Part 1 still removes the
+recorder's *duplicate* copy; only the halved benefit is inherent. The
+incident path (retry from a log file) gets the full benefit: lookups read one
+sample body at a time and nothing pins the reused set once write-through
+lands it in the temp zip.
 
 ### 2. One deterministic destination flush when the reuse sweep settles
 
@@ -269,7 +275,9 @@ no full samples; `ctl` full-sample reads fall through to disk.
   case remains as is.
 - `.json` recorder memory profile (whole log in memory by design).
 - The in-memory sample source retaining the prior log's samples for the
-  attempt's lifetime (see caveat in part 1).
+  attempt's lifetime. Affects only callers who retry from an `EvalLog` object
+  they already loaded whole into memory — never retry-from-file — and the
+  residency is theirs, not the recorder's (see caveat in part 1).
 
 ## Testing
 
