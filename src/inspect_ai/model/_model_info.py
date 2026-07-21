@@ -110,6 +110,10 @@ def _detect_org_from_model_name(model_name: str) -> str | None:
     if name.startswith("gemini"):
         return "google"
 
+    # Moonshot AI models: kimi-*
+    if name.startswith("kimi"):
+        return "moonshotai"
+
     return None
 
 

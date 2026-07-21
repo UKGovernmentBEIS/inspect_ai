@@ -5,6 +5,7 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
 )
 
@@ -180,3 +181,9 @@ def test_mistral_structured_output():
 def test_grok_structured_output():
     check_color_structured_output("grok/grok-4-fast-reasoning")
     check_nested_pydantic_output("grok/grok-4-fast-reasoning")
+
+
+@skip_if_no_moonshot
+def test_moonshot_structured_output():
+    check_color_structured_output("moonshot/kimi-k3")
+    check_nested_pydantic_output("moonshot/kimi-k3")

@@ -256,13 +256,15 @@ enqueuer + source:
 
 `eval_run` wraps that with its own task preparation (`prepare_options`:
 `ResolvedTask` → `TaskRunOptions`, with incremental sandbox startup via
-`SandboxManager`) into a `PreparedFeed`, and hands it to `run_multiple(...,
-feed=...)`.
+`SandboxManager`) into a `PreparedFeed`, and hands it to
+`run_task_retry_attempts(..., feed=...)`.
 
-`run_multiple` ([run.py](../src/inspect_ai/_eval/run.py)) is a single dispatcher
-that serves both fixed and live runs — a fixed set (`feed is None`) is just a
-run whose feed is immediately exhausted (`_empty_feed`), so there is no separate
-"dynamic" function. Its dispatcher loop, per cycle: drains buffered injections
+`run_task_retry_attempts` ([run.py](../src/inspect_ai/_eval/run.py)) is a single
+dispatcher that serves both fixed and live runs — a fixed set (`feed is None`)
+is just a run whose feed is immediately exhausted (`_empty_feed`), so there is
+no separate "dynamic" function. It also owns per-task retries
+(`task_retry_attempts`); a run without retries is simply
+`task_retry_attempts==0`. Its dispatcher loop, per cycle: drains buffered injections
 (growing the display via `update_task_count`), dispatches up to `parallel`
 (model-balanced), and — when nothing is pending, nothing is in flight, and
 nothing was buffered — calls the (blocking) `feed.next()`. It completes when the
@@ -314,8 +316,9 @@ Implemented and tested in `eval()` / `eval_async()`:
 - [x] Threaded via `TaskRunOptions` (no global), per-sample and per-task firing.
 - [x] `enqueue_task` imperative primitive backed by a `ContextVar`.
 - [x] **Live injection** for `TaskSource` runs: single live `eval_run`, one
-      `run_multiple` dispatcher (fixed = empty-feed; no separate dynamic path),
-      incremental `SandboxManager`, growing display (rich / plain / textual).
+      `run_task_retry_attempts` dispatcher (fixed = empty-feed; no separate
+      dynamic path), incremental `SandboxManager`, growing display (rich /
+      plain / textual).
 - [x] **Live injection is `TaskSource`-only.** A run is live iff it was given a
       `TaskSource`. Plain evals take the unchanged batch-at-a-time `run_batches`
       path, where `enqueue_task` additions run as a *follow-up batch* after the
@@ -327,10 +330,6 @@ Implemented and tested in `eval()` / `eval_async()`:
 
 ## Next steps / future work
 
-- **`task_retry_attempts` + live injection** — a live run uses `run_multiple`;
-  the `run_task_retry_attempts` variant has no feed, so task-level retries and
-  live injection don't yet combine (not reached for plain `eval()` TaskSource
-  runs, where `task_retry_attempts` is 0).
 - **`eval_set`** — see below; live injection does not change the eval_set story.
 
 ### `eval_set` support — feasible, but only pays off for deterministic sources
