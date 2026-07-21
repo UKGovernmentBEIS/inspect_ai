@@ -49,8 +49,7 @@ def test_abort_cancel_produces_error_status() -> None:
             cancel_holder[0].cancel_task("abort")
             # Sleep to let the cancellation propagate. The abort is expected to
             # interrupt this; the duration is only an upper bound on the
-            # propagation window (kept short so the run_multiple path, where the
-            # abort does not interrupt the sleep, doesn't burn the full window).
+            # propagation window.
             await anyio.sleep(2)
             return state
 
@@ -80,12 +79,12 @@ def test_abort_cancel_produces_error_status() -> None:
         assert logs[0].status == "error"
 
 
-def test_abort_cancel_not_retried_in_run_multiple() -> None:
-    """Aborted task in run_multiple should not be retried by eval_set.
+def test_abort_cancel_not_retried_without_task_retries() -> None:
+    """Aborted task should not be retried when task_retry_attempts is 0.
 
-    run_multiple is used when max_tasks > 1 and task_retry_attempts is 0.
-    When a task is aborted, the worker should stop and not allow the outer
-    eval_set retry loop to re-run the aborted task.
+    task_retry_attempts is 0 when retry_immediate is False, so the dispatcher
+    grants no in-run retries. When a task is aborted, the worker should stop
+    and not allow the outer eval_set retry loop to re-run the aborted task.
     """
     cancel_holder: list[TaskCancel] = []
     run_count = 0
@@ -111,8 +110,7 @@ def test_abort_cancel_not_retried_in_run_multiple() -> None:
             cancel_holder[0].cancel_task("abort")
             # Sleep to let the cancellation propagate. The abort is expected to
             # interrupt this; the duration is only an upper bound on the
-            # propagation window (kept short so the run_multiple path, where the
-            # abort does not interrupt the sleep, doesn't burn the full window).
+            # propagation window.
             await anyio.sleep(2)
             return state
 
