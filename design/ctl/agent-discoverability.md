@@ -111,7 +111,19 @@ and would otherwise repeat the line.
   `control` block already carries strictly more information, so the pointer
   would be redundant noise);
 - not quiet (`--display none` is how quiet is spelled for eval runs — no
-  separate flag needed).
+  separate flag needed);
+- the process was entered via the CLI (see below).
+
+**Python-API callers are out of scope.** The bind site is shared with the
+programmatic `eval()` API, whose display defaults to `full` — so display-mode
+gating alone would print the pointer from every notebook, script, and pytest
+suite that calls `eval()` directly. Like the launch handoff, the pointer is a
+launch concern of the CLI process, not part of the public `eval()` surface
+(see the module docstring of `src/inspect_ai/_eval/handoff.py`), and it uses
+the same mechanism: a process-wide arm set by the CLI entry points
+(`eval`/`eval-set`/`eval-retry` in `_cli/eval.py`) before they call into
+`eval()` — mirroring `set_launch_handoff_listener` — rather than a parameter
+threaded through `eval()`. A bare `eval()` call never prints it.
 
 **Deliberately no TTY detection.** The issue's caveat suggests non-TTY
 suppression, but the primary audience — an agent driving `inspect eval`
@@ -176,7 +188,14 @@ placement and tone):
 N samples errored — see `inspect ctl sample errors`
 ```
 
-`N` sums `samples.errored` across rows. `--json` output is unchanged (the
+`N` sums `samples.errored` across rows. Note that `N` is deliberately
+narrower than the triage view it points at: `samples.errored` counts
+latest-attempt errors only (`_build_summary` in `_control/state.py` — a
+sample that errored on attempt 1 and succeeded on attempt 2 doesn't count),
+while `inspect ctl sample errors` also lists retried samples. So the view may
+show more rows than `N`, never fewer — the footer cannot fire spuriously —
+and the implementer should *not* "fix" the count to match the view's row
+count. `--json` output is unchanged (the
 counts are already in the envelope; hints in JSON are noise the agent contract
 forbids). No other reads grow footers now: `sample list` already prints a
 truncation footer when capped, and `sample errors` *is* the follow-up.
@@ -198,7 +217,8 @@ all of them.
 - Tests: extend `tests/_control/test_ctl.py` for the 3b footer (assert
   presence with errored rows, absence without, absence under `--json`);
   extend `tests/_cli/test_ctl_server_flag.py` (or a sibling) for 1a's gating
-  (printed once on a plain run; absent under `--display none` and `--json`).
+  (printed once on a plain CLI run; absent under `--display none` and
+  `--json`; absent from a direct `eval()` call, which never arms the pointer).
   Help-text items (1c/2a/2b) are covered by `--help` snapshot-style assertions
   only if such tests already exist — otherwise not worth pinning prose.
 - CHANGELOG: one line, e.g. "`inspect eval` now prints a pointer to
