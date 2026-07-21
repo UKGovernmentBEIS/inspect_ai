@@ -1,3 +1,17 @@
+## Unreleased
+
+- Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
+- Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
+- Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
+- Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
+- Bugfix: Fixed a memory leak where the result of any synchronous API call made from a context with no running event loop (e.g. each sample yielded by `read_eval_log_samples()`) was retained in memory forever after the caller released it.
+- OpenAI Compatible: A length-truncated streaming response (e.g. `-M stream=true` hitting `max_tokens`) now degrades gracefully to a `max_tokens` stop reason instead of raising `LengthFinishReasonError` and aborting the eval. (#4552)
+- OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
+- Sandbox: `Sandbox.exec` failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.
+- Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed `limit=0` instead of returning all samples.
+- Bugfix: Parameterized score reducers (e.g. `at_least(2)`, `pass_at(2)`, `pass_k(2)`) now round-trip through the registry instead of raising `LookupError` when restored from a log.
+- Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
+
 ## 0.3.249 (20 July 2026)
 
 - Model API: New `moonshot` provider for Moonshot AI Kimi models (e.g. `moonshot/kimi-k3`), with built-in model info for Kimi K3 and detection of `kimi-*` model names on hosting providers.
