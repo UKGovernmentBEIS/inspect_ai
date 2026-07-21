@@ -43,7 +43,7 @@ All async test functions automatically run under both asyncio and trio backends 
 
 Additional files provide context when working in specific areas:
 
-- [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/CLAUDE.md)
+- [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/AGENTS.md)
 
 ## Design Documentation
 
