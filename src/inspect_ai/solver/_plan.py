@@ -13,7 +13,7 @@ from inspect_ai._util.registry import (
 )
 
 from ._solver import Generate, Solver
-from ._task_state import TaskState
+from ._task_state import TaskState, set_sample_state
 
 logger = getLogger(__name__)
 
@@ -101,9 +101,12 @@ class Plan(Solver):
             # execute steps
             for index, solver in enumerate(self.steps):
                 # run solver
+                prev_state = state
                 async with solver_transcript(solver, state) as st:
                     state = await solver(state, generate)
                     st.complete(state)
+
+                set_sample_state(state, replacing=prev_state)
 
                 # check for completed
                 if state.completed:
@@ -112,9 +115,11 @@ class Plan(Solver):
 
             # execute finish
             if self.finish:
+                prev_state = state
                 async with solver_transcript(self.finish, state) as st:
                     state = await self.finish(state, generate)
                     st.complete(state)
+                set_sample_state(state, replacing=prev_state)
 
         finally:
             # always do cleanup if we have one

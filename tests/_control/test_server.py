@@ -558,6 +558,57 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert missing.status_code == 404
 
 
+async def test_sample_messages_endpoint_round_trips_and_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample-messages route passes `tail`/`full`, round-trips a reserved id, 404s.
+
+    `GET /evals/<id>/sample/messages`: `sample_id` as a query param (so
+    reserved chars address), `tail`/`full` forwarded, and a missing sample →
+    404. The helper logic is unit-tested in test_messages.py; this pins the
+    route wiring.
+    """
+    from inspect_ai._control import server as server_mod
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        sample_id: str,
+        epoch: int,
+        *,
+        tail: object,
+        full: object,
+    ) -> dict[str, object] | None:
+        seen["sample_id"] = sample_id
+        seen["tail"] = tail
+        seen["full"] = full
+        if sample_id == "missing":
+            return None
+        return {"as_of": 1.0, "status": "running", "count": 0, "messages": []}
+
+    monkeypatch.setattr(server_mod, "sample_messages", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.get(
+            "/evals/e1/sample/messages",
+            params={"sample_id": "case/001", "tail": 5, "full": "true"},
+        )
+        assert ok.status_code == 200, ok.text
+        assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
+        assert seen["tail"] == 5
+        assert seen["full"] is True
+
+        missing = await client.get(
+            "/evals/e1/sample/messages", params={"sample_id": "missing"}
+        )
+        assert missing.status_code == 404
+
+
 async def test_samples_endpoint_parses_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
