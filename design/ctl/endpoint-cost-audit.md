@@ -227,10 +227,14 @@ re-pulling at all.
 
 Encoding the response body is loop CPU proportional to response bytes, so
 response sizes are part of the invariant. Default shapes are bounded: the
-samples listing caps at 100 rows of thinned summaries; events pages cap at
-500 events of truncated compact projections; messages truncate per-message.
-Three explicit opt-outs are unbounded and rely on the caller knowing what
-they asked for:
+samples listing defaults to 100 rows of thinned summaries; events pages
+default to 500 events of truncated compact projections; messages truncate
+per-message. Note these are *defaults*, not caps — neither endpoint clamps
+`limit` upward (only `limit < 1` is rejected), so a bare oversized `limit`
+uncaps either response and, on the live events path, rides down to the
+buffer query and materializes an arbitrarily large page. That makes four
+unbounded knobs, all relying on the caller knowing what they asked for —
+the uncapped `limit` plus three explicit opt-outs:
 
 - `samples?all=true` — the full row dump (rows are small; the grid may not be).
 - `sample/events?full=true` — `limit` bounds the event *count*, not bytes; a
@@ -239,7 +243,7 @@ they asked for:
 - `sample/messages?full=true` (especially with no `tail`) — the raw
   conversation.
 
-These are acceptable as deliberate drill-downs (constraint 2 in
+All four are acceptable as deliberate drill-downs (constraint 2 in
 control-channel.md already pushes defaults toward summaries), but any future
 *default* response shape must stay bounded, and a byte-oriented cap on `full`
 events pages is worth considering if agent tooling starts defaulting to it.
