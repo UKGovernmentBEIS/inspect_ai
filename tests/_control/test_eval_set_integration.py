@@ -21,8 +21,6 @@ wait) live in ``test_server.py``.
 See ``tests/_control/control_probe.py`` for the observation primitives.
 """
 
-import tempfile
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -40,8 +38,10 @@ from inspect_ai._cli.ctl import (
 from inspect_ai._control.discovery import list_discovered_servers
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._control.events import decode_cursor, sample_events
+from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.state import (
     current_eval_summaries,
+    current_sample_listing,
     current_sample_summaries,
     sample_error_detail,
 )
@@ -50,62 +50,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._samples import active_samples
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
-
-@pytest.fixture(autouse=True)
-def _isolate_active_model() -> Iterator[None]:
-    """Keep ``eval_set``'s active-model contextvar from leaking across tests.
-
-    ``eval`` sets the process ``active_model`` contextvar. These tests run
-    ``eval_set`` *synchronously* in the test's own context (not a background
-    thread), so without isolation that set persists after the call and leaks
-    ``mockllm/model`` into later tests — e.g. one resolving a bare ``inspect``
-    model, which then resolves to the leaked active model instead of
-    ``INSPECT_EVAL_MODEL``. Restore the contextvar after each test.
-    """
-    from inspect_ai.model._model import active_model_context_var
-
-    token = active_model_context_var.set(active_model_context_var.get(None))
-    try:
-        yield
-    finally:
-        active_model_context_var.reset(token)
-
-
-@pytest.fixture
-def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
-    """Short data dir under /tmp so AF_UNIX paths fit in 104 chars.
-
-    macOS pytest tmp_path lives under ``/private/var/folders/...`` which blows
-    past the AF_UNIX limit. The control server still binds a socket during the
-    run (even though we observe in-loop, not over it), so the discovery dir
-    must stay short. Patches both control and ACP discovery modules so neither
-    subsystem writes outside the test's sandbox.
-    """
-    dirpath = Path(tempfile.mkdtemp(prefix="ctl_es_", dir="/tmp"))
-
-    def _stub(subdir: str | None) -> Path:
-        path = (dirpath / (subdir or "")).resolve()
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    monkeypatch.setattr("inspect_ai._control.discovery.inspect_data_dir", _stub)
-    monkeypatch.setattr("inspect_ai.agent._acp.discovery.inspect_data_dir", _stub)
-    try:
-        yield dirpath
-    finally:
-        for p in dirpath.rglob("*"):
-            try:
-                p.unlink()
-            except OSError:
-                pass
-        try:
-            for sub in sorted(dirpath.rglob("*"), reverse=True):
-                if sub.is_dir():
-                    sub.rmdir()
-            dirpath.rmdir()
-        except OSError:
-            pass
-
+# `_isolate_active_model` (autouse) and `short_data_dir` come from
+# tests/_control/conftest.py.
 
 # --- ls / GET /evals: per-eval listing -------------------------------------
 
@@ -164,6 +110,9 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         assert samples["queued"] == 0
         assert entry["status"] == "running"
         assert entry["completed_at"] is None
+        assert entry["model"] == "mockllm/model"
+        # the plan's terminal step — the gate solver — is the reported solver
+        assert entry["solver"] == "gate"
         # log_location points at this eval's log file, so an agent monitoring a
         # run it didn't launch can find where results are written — as a plain
         # local path (no `file://` prefix), directly usable.
@@ -691,6 +640,61 @@ def test_ctl_reused_log_eval_reports_usage(short_data_dir: Path) -> None:
     assert entry is not None
     assert entry["total_tokens"] > 0, entry
     assert entry["total_messages"] > 0, entry
+    # solver name recovered from the reused log's plan (terminal step)
+    assert entry["solver"] == "gen", entry
+
+
+def test_ctl_reused_log_solver_skips_finish_step() -> None:
+    """Reused-log solver derivation matches the live path for ``Plan(finish=...)``.
+
+    ``plan_to_eval_plan`` appends the plan's ``finish`` solver to the recorded
+    ``steps``, so the header's last step is the finish solver — not the
+    terminal solver ``plan_agent_name`` reports while the task runs. The
+    reused-log registration must skip it, or the same task shows one solver
+    while running and another after eval-set reuse.
+    """
+    from datetime import datetime, timezone
+
+    from inspect_ai._control.eval_state import clear_all_eval_states, get_eval_state
+    from inspect_ai._eval.evalset import Log, _register_reused_logs
+    from inspect_ai._eval.task.log import plan_to_eval_plan
+    from inspect_ai._eval.task.run import plan_agent_name
+    from inspect_ai.log._file import EvalLogInfo
+    from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.solver import Plan, system_message
+
+    plan = Plan([system_message("hi"), generate()], finish=system_message("bye"))
+    header = EvalLog(
+        eval=EvalSpec(
+            eval_id="e-finish",
+            created=datetime.now(timezone.utc).isoformat(),
+            task="task_finish",
+            task_id="tid-finish",
+            dataset=EvalDataset(),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=plan_to_eval_plan(plan, GenerateConfig()),
+    )
+    info = EvalLogInfo(
+        name="logs/e.eval",
+        type="file",
+        size=0,
+        mtime=None,
+        task="task_finish",
+        task_id="tid-finish",
+        suffix=None,
+    )
+
+    clear_all_eval_states()
+    try:
+        _register_reused_logs([Log(info=info, header=header, task_identifier="x")])
+        state = get_eval_state("e-finish")
+        assert state is not None
+        assert state.solver == "generate" == plan_agent_name(plan)
+    finally:
+        clear_all_eval_states()
 
 
 # --- keep-alive park -------------------------------------------------------
@@ -722,7 +726,7 @@ def test_keep_alive_park_entered_with_completed_state(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -782,7 +786,7 @@ def test_keep_alive_works_when_all_logs_reused(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -833,7 +837,7 @@ def test_runtime_keep_parks_eval_set_launched_without_flag(
 
     captured: dict[str, bool] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["parked"] = True
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -957,7 +961,6 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
     # CLI target resolution (pure over the summaries the endpoint returns).
     summaries = [entry]
-    assert _resolve_target_eval(summaries, None) is entry  # sole task
     assert _resolve_target_eval(summaries, entry["task_id"][:12]) is entry  # id prefix
     assert _resolve_target_eval(summaries, "task_mul") is entry  # task-name prefix
     with pytest.raises(click.exceptions.Exit):
@@ -1100,7 +1103,7 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
     directive end to end (read the live config off the running `TaskLogger`,
     then lower the flush buffer) to pin the provider wiring.
     """
-    from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+    from inspect_ai._control.buffer import flush_task_samples, task_buffer_config
 
     @task
     def task_nine() -> Task:
@@ -1125,7 +1128,7 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
         from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
         entry = (await current_eval_summaries(0.0))[0]
-        eval_id = entry["eval_id"]
+        task_id = entry["task_id"]
         location = next(s.log_location for s in get_eval_states() if s.log_location)
 
         async def on_disk_completed() -> set:
@@ -1136,13 +1139,13 @@ def test_ctl_flush_writes_buffered_samples_and_buffer_config(
             return {s.id for s in summaries if s.completed}
 
         before = await on_disk_completed()
-        config_before = await eval_buffer_config(eval_id)
-        flushed = await flush_eval_samples(eval_id)
+        config_before = task_buffer_config(task_id)
+        flushed = await flush_task_samples(task_id)
         after = await on_disk_completed()
         # a second flush with nothing newly completed is a no-op
-        flushed_again = await flush_eval_samples(eval_id)
-        # lower the flush buffer via the buffer directive
-        config_after = await eval_buffer_config(eval_id, log_buffer=1)
+        flushed_again = await flush_task_samples(task_id)
+        # lower the flush buffer via the config directive
+        config_after = task_buffer_config(task_id, log_buffer=1)
         return {
             "before": before,
             "flushed": flushed,
@@ -1559,6 +1562,16 @@ def test_ctl_samples_shows_retries_on_running_reattempt(short_data_dir: Path) ->
     detail = p.result["detail"]
     assert detail is not None
     assert detail["status"] == "running"
+    # The detail carries the running sample's summary fields (read off the
+    # same ActiveSample as its listing row), so `sample show` needs no
+    # supplemental listing fetch. Timing fields advance between the two
+    # capture reads, so assert identity-stable fields against the row and
+    # presence for the live ones.
+    row = next(r for r in p.result["rows"] if r["status"] == "running")
+    assert detail["started_at"] == row["started_at"]
+    assert detail["message_count"] == row["message_count"]
+    assert detail["total_tokens"] == row["total_tokens"]
+    assert detail["total_time"] is not None
     out2 = render(_print_sample_detail, detail, False)
     assert "running" in out2
     assert "prior attempts" in out2
@@ -1620,6 +1633,21 @@ def test_ctl_errors_and_sample_surface_prior_attempt_errors(
 
     detail = cap.error_detail("retry_task", "recABC", 1)
     assert detail is not None
+    # The detail folds in the sample's summary row, so it reports the same
+    # summary fields (timing / tokens / messages) as the listing — `sample
+    # show` needs no supplemental listing fetch.
+    row = next(r for r in rows if str(r["sample_id"]) == "recABC")
+    for field in (
+        "started_at",
+        "completed_at",
+        "total_time",
+        "total_tokens",
+        "message_count",
+        "limit",
+    ):
+        assert detail[field] == row[field], field
+    assert detail["message_count"] >= 1
+    assert detail["started_at"] is not None
     out = render(_print_sample_detail, detail, False)
     assert "prior attempts" in out
     assert "transient boom on attempt 1" in out
@@ -1838,6 +1866,17 @@ def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
     assert samples["queued"] == 0
     assert samples["in_flight"] == 0
 
+    # The per-sample detail (`ctl sample show`) agrees with the listing on
+    # the cancellation: no retry is coming, so sample 2 reads `cancelled`
+    # (not `error`) with the cancellation repr suppressed, in both views.
+    row = next(r for r in cap.eval_samples("failing") if r["sample_id"] == 2)
+    assert row["status"] == "cancelled"
+    assert row["error"] is None
+    detail = cap.error_detail("failing", 2)
+    assert detail is not None
+    assert detail["status"] == "cancelled"
+    assert detail["error"] is None
+
 
 def test_ctl_eval_finishes_when_queued_samples_are_cancelled(
     short_data_dir: Path,
@@ -1981,10 +2020,14 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
             "page": page,
             "model_only": await sample_events(eid, "1", 1, types=frozenset({"model"})),
             "resumed": await sample_events(eid, "1", 1, since=page["next"]),
-            "active_future": await current_sample_summaries(
-                eid, active_since=_time.time() + 1000
-            ),
-            "active_all": await current_sample_summaries(eid, active_since=0.0),
+            "active_future": (
+                await current_sample_listing(
+                    eid, active_since=_time.time() + 1000, limit=None
+                )
+            ).samples,
+            "active_all": (
+                await current_sample_listing(eid, active_since=0.0, limit=None)
+            ).samples,
         }
 
     with probe(ready, capture) as p:
@@ -2016,6 +2059,82 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
     # running sample shows up for active_since=0
     assert res["active_future"] == []
     assert any(r["sample_id"] == 1 for r in res["active_all"])
+
+
+# --- messages / GET /evals/<id>/sample/messages ----------------------------
+
+
+def test_ctl_messages_snapshots_running_sample_conversation(
+    short_data_dir: Path,
+) -> None:
+    """A running sample's live ``TaskState.messages`` are readable as a snapshot.
+
+    A solver runs ``generate()`` (appending the assistant reply to the
+    conversation) then parks in flight; the messages read must surface the live
+    conversation from ``ActiveSample.live_state`` — no log involved — with the
+    running ``status`` and the total ``count``, ``--tail`` must window from the
+    end, and the compact projection must carry role + content per message.
+    """
+
+    @solver
+    def gen_then_park() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            await park_now()  # hold the sample in flight after a model call
+            return state
+
+        return solve
+
+    @task
+    def task_one() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hello", target="ok")],
+            solver=[gen_then_park()],
+            name="task_one",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 1
+
+    async def capture() -> dict:
+        eid = (await current_eval_summaries(0.0))[0]["eval_id"]
+        return {
+            "page": await sample_messages(eid, "1", 1),
+            "tail": await sample_messages(eid, "1", 1, tail=1),
+        }
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[task_one()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+        )
+
+    res = p.result
+    assert res is not None, "sample never reached in-flight after generate()"
+
+    page = res["page"]
+    assert page is not None
+    assert set(page) >= {"as_of", "status", "count", "messages"}
+    # served live from TaskState.messages while the sample is parked in flight
+    assert page["status"] == "running"
+    # user prompt + assistant reply from generate()
+    assert page["count"] >= 2
+    roles = [m["role"] for m in page["messages"]]
+    assert "user" in roles and "assistant" in roles
+    assert all("content" in m and "index" in m for m in page["messages"])
+
+    # --tail windows from the end: one message, count unchanged, absolute index
+    tail = res["tail"]
+    assert tail is not None
+    assert len(tail["messages"]) == 1
+    assert tail["count"] == page["count"]
+    assert tail["messages"][0]["index"] == page["count"] - 1
 
 
 # Cross-sample channel for the transition test below: the subject sample (id 1)
@@ -2349,7 +2468,9 @@ def test_task_retry_detaches_superseded_attempt_live(
         ]
         orig_clear()
 
-    monkeypatch.setattr("inspect_ai._eval.evalset.clear_all_eval_states", spy_clear)
+    # patch the eval_state module itself: the run boundary reaches the clear
+    # through reset_run_registries(), which resolves it from module globals
+    monkeypatch.setattr(eval_state_mod, "clear_all_eval_states", spy_clear)
 
     ok, _ = eval_set(
         tasks=[task_flaky()],
@@ -2371,3 +2492,194 @@ def test_task_retry_detaches_superseded_attempt_live(
     assert latest[1] is True, (
         f"latest attempt's live data source must stay attached: {latest}"
     )
+
+
+# --- limits / GET + PATCH /tasks/<id>/config -------------------------------
+
+
+def test_ctl_limits_reflects_and_retunes_sample_limiter(short_data_dir: Path) -> None:
+    """The modify-limits directive sees the live sample limiter and can retune it.
+
+    Runs a real eval with an explicit ``max_samples`` (the static
+    ResizableLimiter path), parks its samples in flight, then verifies
+    ``task_limits`` reports the limit + in-use count and applies a new limit to
+    the underlying limiter mid-run.
+    """
+    from inspect_ai._control.limits import task_limits
+
+    @task
+    def limits_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[gate()],
+            name="limits_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 3
+
+    async def capture() -> dict:
+        task_id = (await current_eval_summaries(0.0))[0]["task_id"]
+        # read reflects the live limiter (max_samples=3, all three in flight)
+        read = await task_limits(task_id)
+        # retune it up and confirm the change is applied
+        applied = await task_limits(task_id, max_samples=7)
+        return {"read": read, "applied": applied}
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[limits_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=3,
+        )
+
+    assert p.result is not None, "samples never reached 'in flight'"
+    read = p.result["read"]
+    assert read["max_samples"] == {"limit": 3, "in_use": 3, "adjustable": True}
+    assert read["max_sandboxes"] == []
+    applied = p.result["applied"]
+    assert applied["max_samples"]["limit"] == 7
+    assert applied["requested"] == {"max_samples": 7}
+
+
+# --- cancel directives (phase 3) --------------------------------------------
+
+
+def test_ctl_sample_cancel_scores_work_so_far(short_data_dir: Path) -> None:
+    """Cancelling a running sample (action=score) completes and scores it.
+
+    Mid-run, one gated sample cancels its gated sibling via the sample-cancel
+    directive: the sibling is interrupted, proceeds to scoring (limit
+    "operator"), and the eval finishes successfully — the cancel is
+    per-sample, not per-task.
+    """
+    from inspect_ai._control.cancel import cancel_sample
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.log._samples import sample_active
+    from inspect_ai.scorer import Score, Target, accuracy, scorer
+
+    @scorer(metrics=[accuracy()])
+    def const_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+        return score
+
+    @task
+    def cancel_one_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[gate()],
+            scorer=const_scorer(),
+            name="cancel_one_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 2
+
+    async def capture() -> dict:
+        # the observer runs on one gated sample's task — cancel the *other*
+        # gated sample, so the interrupt doesn't tear down this capture
+        entry = (await current_eval_summaries(0.0))[0]
+        current = sample_active()
+        assert current is not None
+        other = next(i for i in (1, 2) if i != current.sample.id)
+        result = await cancel_sample(entry["eval_id"], str(other), 1)
+        repeat = await cancel_sample(entry["eval_id"], str(other), 1, dry_run=True)
+        return {"cancelled": other, "result": result, "repeat": repeat}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[cancel_one_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    assert p.result is not None, "two samples never reached 'in flight'"
+    result = p.result["result"]
+    assert result["ok"] is True and result["changed"] is True
+    assert result["action"] == "score"
+
+    # the cancel is per-sample: the eval itself completes successfully
+    assert success
+    assert logs[0].status == "success"
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None and len(log.samples) == 2
+    cancelled = next(s for s in log.samples if s.id == p.result["cancelled"])
+    assert cancelled.error is None
+    assert cancelled.limit is not None and cancelled.limit.type == "operator"
+    assert cancelled.scores  # the scorer ran on the work done so far
+
+
+def test_ctl_task_cancel_aborts_run(short_data_dir: Path) -> None:
+    """Cancelling a task tears down its in-flight samples and finalizes the log.
+
+    The directive fires the registered TaskCancel with "abort" — the same
+    path as the in-process display's cancel dialog — so the task's log ends
+    with an error status noting the user cancel, and eval_set does not retry
+    it.
+    """
+    from inspect_ai._control.cancel import cancel_task
+
+    @task
+    def cancel_whole_task() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[gate()],
+            name="cancel_whole_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 2
+
+    async def capture() -> dict:
+        entry = (await current_eval_summaries(0.0))[0]
+        dry = cancel_task(entry["task_id"], dry_run=True)
+        result = cancel_task(entry["task_id"])
+        repeat = cancel_task(entry["task_id"])
+        return {"dry": dry, "result": result, "repeat": repeat}
+
+    with probe(ready, capture) as p:
+        success, logs = eval_set(
+            tasks=[cancel_whole_task()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=1,
+            retry_immediate=True,
+            max_samples=2,
+        )
+
+    assert p.result is not None, "two samples never reached 'in flight'"
+    dry = p.result["dry"]
+    assert dry is not None and dry["changed"] is True and dry["dry_run"] is True
+    assert dry["in_flight"] == 2
+    result = p.result["result"]
+    assert result["ok"] is True and result["changed"] is True
+    # the repeat (issued in the same tick, before teardown lands) is the
+    # idempotent no-op — the cancel was already requested
+    repeat = p.result["repeat"]
+    assert repeat is not None and repeat["changed"] is False
+
+    # aborted: the log ends with an error status naming the user cancel, and
+    # eval_set does not retry the task
+    assert not success
+    assert len(logs) == 1
+    assert logs[0].status == "error"
+    assert logs[0].error is not None
+    assert "cancelled by user (abort)" in logs[0].error.message

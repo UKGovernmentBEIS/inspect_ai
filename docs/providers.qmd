@@ -39,7 +39,7 @@ The `openai` provider supports the following custom model args (other model args
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
 | `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
-| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
+| `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` models and for requests with `reasoning_mode="pro"`, and `False` otherwise. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
@@ -94,6 +94,17 @@ By default, Inspect's implementation of the Responses API does not store message
 ``` bash
 inspect eval math.py --model openai/o4-mini -M responses_store=True
 ```
+
+### Responses Metadata
+
+You can attach [`metadata`](https://platform.openai.com/docs/api-reference/responses/create#responses-create-metadata) key-value pairs to Responses API requests via the `extra_body` generation config. For example:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 \
+    -M extra_body='{"metadata": {"experiment": "baseline"}}'
+```
+
+The `metadata` returned on responses (the echoed request metadata, which some models augment with additional fields) is surfaced as `ModelOutput.metadata`. Note that request metadata is not sent when `responses_store=True`.
 
 ### Flex Processing
 
@@ -249,7 +260,7 @@ See the [Fallbacks](fallbacks.qmd) article for complete documentation, including
 
 #### Cache Diagnostics {#anthropic-cache-diagnostics}
 
-Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt cachijng. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt caching. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
@@ -335,8 +346,42 @@ The following environment variables are supported by the Google provider
 
 | Variable          | Description                      |
 |-------------------|----------------------------------|
-| `GOOGLE_API_KEY`  | API key credentials (required).  |
+| `GOOGLE_API_KEY`  | API key credentials (required unless using OAuth/ADC). |
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
+| `GOOGLE_USE_ADC` | Set to `true` to authenticate Gemini Developer API models with OAuth/ADC by default (optional). |
+| `GOOGLE_CLOUD_QUOTA_PROJECT` | Quota/billing project sent as `x-goog-user-project` when using OAuth/ADC (optional). |
+
+### Gemini Developer API with OAuth / ADC {#gemini-oauth}
+
+Some Gemini Developer API deployments (for example, partner-served models) are
+reachable only via an OAuth bearer token — Application Default Credentials (ADC)
+— plus a quota-project header, with no API key. Enable this **per model** (so a
+run can mix OAuth and API-key Google models) with `-M use_adc=true`:
+
+``` bash
+gcloud auth application-default login   # or an impersonated service account
+inspect eval task.py --model google/your-model \
+   -M use_adc=true -M quota_project_id=your-project
+```
+
+Alternatively, set `GOOGLE_USE_ADC=true` in the environment (e.g. in `.env`) to
+make OAuth the default for all Gemini Developer API models, so commands don't
+need to differ between API-key and OAuth environments; `-M use_adc=false`
+overrides it per model, and Vertex models ignore it (Vertex uses ADC natively).
+
+ADC covers all the standard credential sources: user credentials from
+`gcloud auth application-default login` (optionally with
+`--impersonate-service-account`), a service-account key or workload identity
+federation config via `GOOGLE_APPLICATION_CREDENTIALS`, and attached service
+accounts on GCP compute.
+
+Supported custom model args (`-M`): `use_adc` (bool), `scopes` (list, defaults
+to `cloud-platform`), and `quota_project_id` (falls back to the
+`GOOGLE_CLOUD_QUOTA_PROJECT` environment variable). Auth precedence: `-M
+use_adc` (or, when unset, `GOOGLE_USE_ADC`) selects OAuth; otherwise an
+explicit API key, then `GOOGLE_API_KEY`, is used. Inspect refreshes the token as needed before each
+request, so long-running evals are supported. Batch inference is **not** supported
+in this mode (the batch client is long-lived and cannot refresh the token).
 
 ### Gemini on Vertex AI {#gemini-on-vertex-ai}
 
@@ -469,6 +514,25 @@ export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
+
+## Moonshot AI {#moonshot-ai}
+
+To use the [Moonshot AI](https://platform.moonshot.ai/) provider (Kimi models), install the `openai` package (which the Moonshot AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export MOONSHOT_API_KEY=your-moonshot-api-key
+inspect eval arc.py --model moonshot/kimi-k3
+```
+
+Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3's thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
+
+The following environment variables are supported by the Moonshot AI provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `MOONSHOT_API_KEY` | API key credentials (required). |
+| `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
 
 ## Grok {#grok}
 
@@ -776,8 +840,10 @@ To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider,
 ``` bash
 export CLOUDFLARE_ACCOUNT_ID=account-id
 export CLOUDFLARE_API_TOKEN=api-token
-inspect eval arc.py --model cf/meta/llama-3.1-70b-instruct
+inspect eval arc.py --model cloudflare/@cf/meta/llama-3.1-70b-instruct
 ```
+
+Specify the model id exactly as it appears in Cloudflare's [model catalog](https://developers.cloudflare.com/workers-ai/models/): Workers AI model ids start with `@cf/`, while gateway-hosted models have plain ids (e.g. `cloudflare/moonshotai/kimi-k3`).
 
 For the `cloudflare` provider, custom model args (`-M`) are included as fields in the post body of the chat request.
 
@@ -905,6 +971,26 @@ eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remo
 ```
 
 The flag is applied to both the model and tokenizer `from_pretrained()` calls.
+
+### Model Class
+
+By default the Hugging Face provider loads models with `AutoModelForCausalLM`. Some architectures are not registered with that auto-class and must be loaded with a different one — for example the Mistral 3 series and other image-text-to-text models require `AutoModelForImageTextToText`. Use the `auto_model_class` model arg to name the `transformers` auto-class to use:
+
+``` bash
+inspect eval arc.py --model hf/mistralai/Ministral-3-8B-Instruct-2512 -M auto_model_class=AutoModelForImageTextToText
+```
+
+Or from Python:
+
+``` python
+eval(
+    "arc.py",
+    model="hf/mistralai/Ministral-3-8B-Instruct-2512",
+    model_args=dict(auto_model_class="AutoModelForImageTextToText"),
+)
+```
+
+The value must be the name of a class exported by `transformers`.
 
 ### Local Models
 
@@ -1092,7 +1178,7 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
 :::
 
-### Raw Text Completions
+### Raw Text Completions {#sec-vllm-completions}
 
 Use the `vllm-completions` provider when you want vLLM to receive a raw text prompt rather than chat messages rendered through a chat template:
 
@@ -1100,7 +1186,32 @@ Use the `vllm-completions` provider when you want vLLM to receive a raw text pro
 inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
 ```
 
-This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations.
+This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations. It additionally manages the vLLM server lifecycle for you — to target an already-running OpenAI-compatible server, the [`openai-api-completions`](#openai-api-completions) provider offers the same behavior for any provider/server.
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string. vLLM uses the IDs verbatim and skips re-tokenization, so you avoid an `ids → str → ids` round-trip that can change the sequence for non-bijective tokenizers.
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("vllm-completions/EleutherAI/pythia-70m")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to vLLM — the message's `content` is not used as the prompt. The `content` field is still part of the `ChatMessage` though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display:
+
+``` python
+ChatMessageUser(
+    content="Hello",  # what judges/transcripts see
+    metadata={"prompt_token_ids": token_ids},  # what the model actually receives
+)
+```
+
+vLLM only applies `add_special_tokens` when tokenizing a string prompt, so for `list[int]` prompts the IDs go through as-is regardless of that flag.
 
 ### Tool Use and Reasoning
 
@@ -1389,6 +1500,34 @@ You can enable the use of the streaming with the `openai-api` provider by passin
 ``` bash
 $ inspect eval arc.py --model openai-api/<provider>/<model> -M stream=true
 ```
+
+### Completions API {#openai-api-completions}
+
+Use the `openai-api-completions` provider when you want the model to receive a raw prompt through the legacy `/v1/completions` endpoint rather than chat messages rendered through a chat template:
+
+``` bash
+inspect eval task.py --model openai-api-completions/<provider>/<model>
+```
+
+It follows the same naming and environment variable conventions as `openai-api`, accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations (echo mode, fill-in-the-middle, perplexity benchmarks).
+
+#### Pre-Tokenized Prompts
+
+If you already have token IDs (custom tokenizer, pre-tokenized dataset, anything where you need exact control over the input sequence), pass them through `ChatMessage.metadata["prompt_token_ids"]` instead of a string:
+
+``` python
+from inspect_ai.model import ChatMessageUser, get_model
+
+token_ids = my_custom_tokenizer.encode("Hello")
+model = get_model("openai-api-completions/<provider>/<model>")
+response = await model.generate(
+    input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+)
+```
+
+When `prompt_token_ids` is present, only the IDs are sent to the server — the message's `content` is not used as the prompt. The `content` field is still part of the `ChatMessage` though, so it shows up in transcripts and is readable by scorers/judges. A common pattern is to put the decoded (or any human-readable) version of the prompt in `content` so downstream tooling has something useful to display.
+
+Token IDs are passed through verbatim; whether the server adds special tokens to pre-tokenized prompts is server-dependent (vLLM does not — see [vLLM Completions API](#sec-vllm-completions)).
 
 ## OpenRouter
 

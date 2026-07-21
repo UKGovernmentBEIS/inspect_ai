@@ -32,7 +32,7 @@ from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver, generate
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._limit import sample_limits
+from inspect_ai.util._limit import TokenLimit, sample_limits
 
 
 @pytest.fixture(autouse=True)
@@ -234,6 +234,83 @@ def test_token_limit_does_not_apply_to_scorer():
     # exceeded by the scorer.
     assert find_limit_event(log) is None
     assert log.status == "success"
+
+
+def test_output_token_limit():
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(input_tokens=10, output_tokens=2, total_tokens=12)
+    model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        token_limit=TokenLimit(tokens=5, type="output"),
+    )
+
+    log = eval(task, model=model)[0]
+    usage = log.stats.model_usage["mockllm/model"]
+    # total tokens exceed 5 on the first generation: only output tokens are
+    # metered, so the limit trips on the 3rd generation (6 output tokens)
+    assert usage.output_tokens == 6
+    assert usage.total_tokens == 36
+    check_limit_event(log, "token")
+    # the config records the decomposed (limit, type) pair
+    assert log.eval.config.token_limit == 5
+    assert log.eval.config.token_limit_type == "output"
+
+
+def test_output_token_limit_string_form():
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(input_tokens=10, output_tokens=2, total_tokens=12)
+    model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+    )
+
+    log = eval(task, model=model, token_limit="output:5")[0]
+    check_limit_event(log, "token")
+    assert log.eval.config.token_limit == 5
+    assert log.eval.config.token_limit_type == "output"
+
+
+def test_formula_token_limit():
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(input_tokens=100, output_tokens=2, total_tokens=102)
+    model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        # meters input*0.1 + output; per generation = 10 + 2 = 12
+        token_limit=TokenLimit(tokens=20, type="(input * 0.1) + output"),
+    )
+
+    log = eval(task, model=model)[0]
+    # gen 1: 12 (<=20); gen 2: 24 (>20) -> trips
+    check_limit_event(log, "token")
+    assert log.eval.config.token_limit == 20
+    assert log.eval.config.token_limit_type == "(input * 0.1) + output"
+
+
+def test_token_limit_type_absent_for_int_limit():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(mock_model_output(tokens=7)),
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        token_limit=10,
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.eval.config.token_limit == 10
+    assert log.eval.config.token_limit_type is None
+    # serialized config omits the type field entirely (old-log compatibility)
+    assert "token_limit_type" not in log.eval.config.model_dump_json(exclude_none=True)
 
 
 def test_turn_limit():

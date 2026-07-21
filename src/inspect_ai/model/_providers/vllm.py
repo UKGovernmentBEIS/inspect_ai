@@ -471,8 +471,16 @@ class VLLMAPI(OpenAICompatibleAPI):
         not the credential. Multiple vLLM servers on different hosts/ports
         are independent concurrency scopes, but all default to the same
         api_key (`"inspectai"`) and would otherwise collapse to one slot.
+
+        Keys on construction-time identity rather than the live ``base_url``,
+        which resolves lazily on the first generate — a connection key that
+        changes mid-run splits the pool / adaptive-controller state and
+        detaches the task's sample limiter (see ``ModelAPI.connection_key``).
+        An explicit endpoint (``base_url`` / ``port`` / ``VLLM_BASE_URL``) is
+        the scope when given; otherwise the base model is — auto-started
+        servers are keyed by base model, so same base model, same endpoint.
         """
-        return self.base_url or "vllm"
+        return self._init_base_url or os.environ.get("VLLM_BASE_URL") or self.base_model
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:

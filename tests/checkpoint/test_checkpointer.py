@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -51,7 +51,7 @@ from inspect_ai.util._checkpoint import (
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint._triggers import CheckpointTriggerKind
-from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import (
     CheckpointFailureLimitExceeded,
     _CheckpointerSetup,
@@ -61,6 +61,7 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationResult
+from inspect_ai.util._checkpoint.report import ResumeReport
 from inspect_ai.util._restic import ResticBackupSummary
 from inspect_ai.util._store import Store
 
@@ -497,6 +498,53 @@ def _checkpoint_resume_events(count: int) -> list[Event]:
     return _wrap_prior_run(events, parent_span_id="current")
 
 
+def _checkpoint_resume_events_with_failed_fires(
+    count: int, failed_at: int, n_failures: int = 1
+) -> list[Event]:
+    """Like ``_checkpoint_resume_events``, but with failed-fire retry spans.
+
+    Checkpoint ``failed_at`` is preceded by ``n_failures`` failed-fire retry
+    spans: a ``checkpoint {failed_at}`` span_begin + interior work + span_end
+    with NO ``CheckpointEvent`` — the on-disk fingerprint of a tolerated
+    (non-fatal) capture failure that reopened the same-named span.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _wrap_prior_run
+
+    events: list[Event] = []
+    for checkpoint_id in range(1, count + 1):
+        if checkpoint_id == failed_at:
+            for attempt in range(n_failures):
+                fail_span_id = f"checkpoint-{checkpoint_id}-fail-{attempt}"
+                events.extend(
+                    [
+                        SpanBeginEvent(
+                            id=fail_span_id,
+                            name=f"checkpoint {checkpoint_id}",
+                            type="checkpoint",
+                        ),
+                        InfoEvent(
+                            uuid=f"work-{checkpoint_id}-fail-{attempt}",
+                            data=f"work {checkpoint_id} failed fire {attempt}",
+                        ),
+                        SpanEndEvent(id=fail_span_id),
+                    ]
+                )
+        span_id = f"checkpoint-{checkpoint_id}"
+        events.extend(
+            [
+                SpanBeginEvent(
+                    id=span_id,
+                    name=f"checkpoint {checkpoint_id}",
+                    type="checkpoint",
+                ),
+                InfoEvent(uuid=f"work-{checkpoint_id}", data=f"work {checkpoint_id}"),
+                SpanEndEvent(id=span_id),
+                CheckpointEvent.from_details(_make_checkpoint(checkpoint_id)),
+            ]
+        )
+    return _wrap_prior_run(events, parent_span_id="current")
+
+
 def test_synthesize_trailing_checkpoint_event(tmp_path: Path) -> None:
     """Hydrate reconstructs the trailing CheckpointEvent from a checkpoint file."""
     from inspect_ai.util._checkpoint.hydrate import (
@@ -682,6 +730,66 @@ def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
     _validate_resume_state(events, str(sample_root), 3)
 
 
+def test_validate_resume_state_accepts_failed_fire_retry_span(
+    tmp_path: Path,
+) -> None:
+    """Resume must accept duplicate ``checkpoint K`` spans from failed fires.
+
+    A tolerated capture failure leaves a duplicate ``checkpoint K`` span
+    (no ``CheckpointEvent K``); resume must accept it rather than reject
+    the whole run.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    events = _checkpoint_resume_events_with_failed_fires(3, failed_at=2)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_accepts_multiple_consecutive_failed_fires(
+    tmp_path: Path,
+) -> None:
+    """`consecutive_failures > 1`: the same `checkpoint K` span repeats.
+
+    The same span repeats several times before its `CheckpointEvent K` commits.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    events = _checkpoint_resume_events_with_failed_fires(3, failed_at=3, n_failures=3)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_rejects_nonsequential_checkpoint_events(
+    tmp_path: Path,
+) -> None:
+    """Out-of-sequence CheckpointEvent.checkpoint_id triggers the ordered-walk check.
+
+    The ordered walk in ``_validate_resume_state`` has two sequential-order
+    checks: one on checkpoint *span names* (SpanBeginEvent.name) and a
+    distinct one on *CheckpointEvent.checkpoint_id*. This test covers the
+    second branch by leaving span names intact (so the span-name check passes)
+    while corrupting the checkpoint_id of the second ``CheckpointEvent`` so
+    that it is out of sequence.
+    """
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+    for event in events:
+        if isinstance(event, CheckpointEvent) and event.checkpoint_id == 2:
+            event.checkpoint_id = 3
+            break
+
+    with pytest.raises(RuntimeError, match="CheckpointEvents not sequential"):
+        _validate_resume_state(events, str(sample_root), 2)
+
+
 def test_validate_resume_state_rejects_missing_prior_run_wrap(tmp_path: Path) -> None:
     from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
 
@@ -756,8 +864,43 @@ def test_validate_resume_state_rejects_latest_committed_count_mismatch(
     _write_checkpoint_files(sample_root, 2)
     events = _checkpoint_resume_events(2)
 
-    with pytest.raises(RuntimeError, match="expected 1 checkpoint spans"):
+    with pytest.raises(RuntimeError, match="expected 1 committed checkpoints"):
         _validate_resume_state(events, str(sample_root), 1)
+
+
+def test_validate_resume_state_rejects_commit_without_span(tmp_path: Path) -> None:
+    """A committed checkpoint with no preceding span_begin is rejected.
+
+    Distinct from a tolerated retry, which repeats the span before the commit.
+    """
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 2)
+    events = _checkpoint_resume_events(2)
+    # Drop the `checkpoint 2` span_begin AND its paired span_end, keeping the
+    # CheckpointEvent 2 — a commit with no matching span.
+    drop_ids = {
+        e.id
+        for e in events
+        if isinstance(e, SpanBeginEvent)
+        and e.type == "checkpoint"
+        and e.name == "checkpoint 2"
+    }
+    events = [
+        e
+        for e in events
+        if not (
+            (isinstance(e, SpanBeginEvent) and e.id in drop_ids)
+            or (isinstance(e, SpanEndEvent) and e.id in drop_ids)
+        )
+    ]
+
+    with pytest.raises(
+        RuntimeError, match="has no preceding 'checkpoint 2' span_begin"
+    ):
+        _validate_resume_state(events, str(sample_root), 2)
 
 
 # --- tracing (inspect trace anomalies / dump --filter checkpoint) ---------
@@ -892,6 +1035,57 @@ async def test_limit_exceeded_chains_original_error(dirs: _Dirs) -> None:
     with pytest.raises(CheckpointFailureLimitExceeded) as excinfo:
         await cp.checkpoint()
     assert isinstance(excinfo.value.__cause__, _FlakyError)
+
+
+# --- on_checkpoint hook ---------------------------------------------------
+
+
+async def test_on_checkpoint_fires_on_each_fire(dirs: _Dirs) -> None:
+    calls: list[object] = []
+
+    async def on_checkpoint(state: object) -> None:
+        calls.append(state)
+
+    cp = _counting(
+        ResolvedCheckpointConfig(trigger=Manual(), on_checkpoint=on_checkpoint),
+        dirs,
+    )
+    await cp.checkpoint()
+    await cp.checkpoint()
+    assert len(calls) == 2
+
+
+async def test_on_checkpoint_failure_is_recorded_and_counted(dirs: _Dirs) -> None:
+    from inspect_ai.event._info import InfoEvent
+    from inspect_ai.util._checkpoint.checkpointer_impl import (
+        CheckpointFailureLimitExceeded,
+    )
+
+    async def on_checkpoint(state: object) -> None:
+        raise RuntimeError("flush failed")
+
+    cp = _counting(
+        ResolvedCheckpointConfig(
+            trigger=Manual(),
+            on_checkpoint=on_checkpoint,
+            max_consecutive_failures=1,
+        ),
+        dirs,
+    )
+    # First failure is tolerated (recorded, counted).
+    await cp.checkpoint()
+    infos = [
+        e
+        for e in dirs.events
+        if isinstance(e, InfoEvent)
+        and e.source == "checkpoint"
+        and isinstance(e.data, dict)
+        and e.data.get("event") == "checkpoint_failed"
+    ]
+    assert len(infos) == 1
+    # Second consecutive failure trips the limit.
+    with pytest.raises(CheckpointFailureLimitExceeded):
+        await cp.checkpoint()
 
 
 # === Outer-facade tests =====================================================
@@ -1379,6 +1573,12 @@ def test_track_noop_session() -> None:
 
 def test_attempt_noop_initial() -> None:
     assert _NoopCheckpointer().attempt == "initial"
+
+
+def test_noop_checkpointer_restored_is_none() -> None:
+    from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+    assert _NoopCheckpointer().restored is None
 
 
 def test_attempt_reflects_resume_checkpoint() -> None:
@@ -2001,7 +2201,12 @@ async def test_resume_resets_restored_transcript_store_before_seeding(
         setup.close()
 
     events = json.loads((snapshot / "events.json").read_text())
-    assert [event["data"] for event in events] == ["committed", "new"]
+    # The resume InfoEvent is emitted before _EnteredCheckpointer is constructed,
+    # so it lands in the transcript and is seeded into the transcript store.
+    data_values = [event["data"] for event in events]
+    assert data_values[0] == "committed"
+    assert isinstance(data_values[1], dict) and data_values[1].get("event") == "resume"
+    assert data_values[2] == "new"
 
 
 def test_resume_seed_skips_restored_resident_events(
@@ -2190,3 +2395,277 @@ async def test_materialize_pooled_model_event_expands_seed_payload(
     assert seeded_model.call is not None
     assert seeded_model.call.call_refs is None
     assert seeded_model.call.request == call_request
+
+
+def test_resume_report_defaults_and_coercion() -> None:
+    from inspect_ai.util._checkpoint.report import (
+        ResumeReport,
+        resolve_resume_report,
+    )
+
+    r = ResumeReport()
+    assert r.transparent is False
+    assert r.message is None
+    assert r.data is None
+
+    # str shorthand coerces to a message report
+    coerced = resolve_resume_report("redo step 9")
+    assert coerced == ResumeReport(message="redo step 9")
+
+    report = ResumeReport(transparent=True)
+    assert resolve_resume_report(report) is report
+    assert resolve_resume_report(None) is None
+
+
+def test_resume_report_exported_from_util() -> None:
+    from inspect_ai.util import ResumeReport as Exported
+    from inspect_ai.util._checkpoint.report import ResumeReport
+
+    assert Exported is ResumeReport
+
+
+async def _run_resume_outcome(
+    dirs: _Dirs,
+    on_resume: Any,
+) -> tuple[Checkpointer, list[InfoEvent]]:
+    """Build and enter a _CheckpointerSetup with a resume checkpoint; return (cp, resume_events)."""
+    from unittest.mock import patch
+
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=Manual(), on_resume=on_resume),
+        log_location=str(Path(dirs.checkpoints) / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
+        ),
+    )
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+        return_value=_fake_hydration(dirs.checkpoints, dirs.context),
+    ):
+        cp = await setup.__aenter__()
+    resume_events = [
+        e
+        for e in dirs.events
+        if isinstance(e, InfoEvent)
+        and e.source == "checkpoint"
+        and isinstance(e.data, dict)
+        and e.data.get("event") == "resume"
+    ]
+    return cp, resume_events
+
+
+async def _cb_full(state: object, attempt: str) -> ResumeReport:
+    return ResumeReport(message="redo step 9", data={"lost": ["out.json"]})
+
+
+async def _cb_str(state: object, attempt: str) -> str:
+    return "partial restore"
+
+
+async def _cb_transparent(state: object, attempt: str) -> ResumeReport:
+    return ResumeReport(transparent=True, message="x")
+
+
+@pytest.mark.parametrize(
+    "on_resume,expected_restored,expected_report",
+    [
+        pytest.param(
+            _cb_full,
+            ResumeReport(message="redo step 9", data={"lost": ["out.json"]}),
+            {
+                "transparent": False,
+                "message": "redo step 9",
+                "data": {"lost": ["out.json"]},
+            },
+            id="full_report",
+        ),
+        pytest.param(
+            _cb_str,
+            ResumeReport(message="partial restore"),
+            {"transparent": False, "message": "partial restore", "data": None},
+            id="str_shorthand",
+        ),
+        pytest.param(
+            None,
+            None,
+            None,
+            id="no_callback",
+        ),
+        pytest.param(
+            _cb_transparent,
+            ResumeReport(transparent=True, message="x"),
+            {"transparent": True, "message": "x", "data": None},
+            id="transparent",
+        ),
+    ],
+)
+async def test_resume_outcome(
+    dirs: _Dirs,
+    on_resume: Any,
+    expected_restored: ResumeReport | None,
+    expected_report: dict[str, object] | None,
+) -> None:
+    """on_resume outcome tests: restored value and resume InfoEvent payload."""
+    cp, resume_events = await _run_resume_outcome(dirs, on_resume)
+
+    assert cp.restored == expected_restored
+
+    assert len(resume_events) == 1
+    event_data = resume_events[0].data
+    assert isinstance(event_data, dict)
+    assert event_data["attempt"] == "resume"
+    assert event_data["report"] == expected_report
+
+
+async def test_on_resume_exception_fails_resume(dirs: _Dirs) -> None:
+    from unittest.mock import patch
+
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+
+    async def on_resume(state: object, attempt: str) -> None:
+        raise RuntimeError("cannot reconnect")
+
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=Manual(), on_resume=on_resume),
+        log_location=str(Path(dirs.checkpoints) / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
+        ),
+    )
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+        return_value=_fake_hydration(dirs.checkpoints, dirs.context),
+    ):
+        with pytest.raises(RuntimeError, match="cannot reconnect"):
+            await setup.__aenter__()
+
+
+async def test_on_resume_receives_attempt_resume_for_scoring(dirs: _Dirs) -> None:
+    """on_resume fires on resume_for_scoring and receives the attempt string."""
+    from unittest.mock import patch
+
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+
+    attempts_seen: list[str] = []
+
+    async def on_resume(state: object, attempt: str) -> None:
+        attempts_seen.append(attempt)
+
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=Manual(), on_resume=on_resume),
+        log_location=str(Path(dirs.checkpoints) / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir=dirs.checkpoints,
+            attempt="resume_for_scoring",
+        ),
+    )
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+        return_value=_fake_hydration(dirs.checkpoints, dirs.context),
+    ):
+        await setup.__aenter__()
+
+    assert attempts_seen == ["resume_for_scoring"]
+
+    resume_events = [
+        e
+        for e in dirs.events
+        if isinstance(e, InfoEvent)
+        and e.source == "checkpoint"
+        and isinstance(e.data, dict)
+        and e.data.get("event") == "resume"
+    ]
+    assert len(resume_events) == 1
+    assert isinstance(resume_events[0].data, dict)
+    assert resume_events[0].data["attempt"] == "resume_for_scoring"
+
+
+async def test_on_resume_fires_only_once_across_reentry(dirs: _Dirs) -> None:
+    """on_resume is called exactly once even when __aenter__ is called twice."""
+    from unittest.mock import patch
+
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+
+    calls: list[object] = []
+
+    async def on_resume(state: object, attempt: str) -> None:
+        calls.append(attempt)
+
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=Manual(), on_resume=on_resume),
+        log_location=str(Path(dirs.checkpoints) / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir=dirs.checkpoints, attempt="resume"
+        ),
+    )
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+        return_value=_fake_hydration(dirs.checkpoints, dirs.context),
+    ):
+        cp1 = await setup.__aenter__()
+        cp2 = await setup.__aenter__()
+
+    assert cp2 is cp1
+    assert len(calls) == 1
+
+
+async def test_on_checkpoint_mutations_captured_in_snapshot(dirs: _Dirs) -> None:
+    """on_checkpoint runs before _write_host_context, so its store writes land in the snapshot."""
+    from inspect_ai.util._checkpoint._layout.host_context import STORE
+
+    async def on_checkpoint(state: object) -> None:
+        state.store.set("flushed", "yes")  # type: ignore[attr-defined]
+
+    cp = _counting(
+        ResolvedCheckpointConfig(trigger=Manual(), on_checkpoint=on_checkpoint),
+        dirs,
+    )
+    await cp.checkpoint()
+
+    store_path = Path(dirs.context) / STORE
+    assert store_path.exists(), f"Store file not written: {store_path}"
+    store_data = json.loads(store_path.read_text())
+    assert store_data.get("flushed") == "yes"
+
+
+# === Task.on_checkpoint / Task.on_resume =====================================
+
+
+def test_task_stores_checkpoint_callbacks() -> None:
+    from inspect_ai import Task, task_with
+    from inspect_ai.dataset import Sample
+
+    async def on_checkpoint(state: object) -> None:
+        return None
+
+    async def on_resume(state: object, attempt: str) -> None:
+        return None
+
+    t = Task(
+        dataset=[Sample(input="hi")],
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
+    )
+    assert t.on_checkpoint is on_checkpoint
+    assert t.on_resume is on_resume
+
+    t2 = Task(dataset=[Sample(input="hi")])
+    assert t2.on_checkpoint is None
+    assert t2.on_resume is None
+
+    async def on_resume2(state: object, attempt: str) -> str:
+        return "x"
+
+    t3 = task_with(t, on_resume=on_resume2)
+    assert t3.on_resume is on_resume2
+    assert t3.on_checkpoint is on_checkpoint  # unchanged

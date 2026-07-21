@@ -1,11 +1,13 @@
 """Tests for the inspect view server."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
 import urllib.parse
 import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import IO, Any, ContextManager, Generator, TextIO, cast
 
@@ -22,8 +24,14 @@ import inspect_ai.dataset
 import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
+from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.common import get_direct_url
+from inspect_ai._view.common import (
+    get_direct_url,
+    list_eval_logs_async,
+    read_eval_set_info_async,
+)
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
@@ -398,7 +406,7 @@ def test_api_log_delete_rejects_passive_fetch_destinations(
     assert Path(full_path).exists()
 
 
-def test_api_log_delete_rejects_cross_origin_request(
+def test_api_log_delete_cross_origin_metadata_still_requires_frontend_header(
     view_client: ViewTestClient,
 ) -> None:
     fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
@@ -666,6 +674,22 @@ def test_api_logs_listing(view_client: ViewTestClient) -> None:
     assert tasks == {"t1", "t2"}
 
 
+def test_api_logs_listing_log_dir_uri(view_client: ViewTestClient) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    resp = view_client.request(
+        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    # The canonical dir URI shares the file names' namespace, so names are
+    # dir-prefixed identities (what the viewer's cache scoping relies on).
+    assert body["log_dir_uri"]
+    for f in body["files"]:
+        assert f["name"].startswith(body["log_dir_uri"] + "/")
+
+
 def test_api_log_headers(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname, status="started")
@@ -763,7 +787,7 @@ def test_api_log_message_rejects_passive_fetch_destinations(
     assert client_log_messages == []
 
 
-def test_api_log_message_rejects_cross_origin_request(
+def test_api_log_message_cross_origin_metadata_still_requires_frontend_header(
     view_client: ViewTestClient, client_log_messages: list[str]
 ) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
@@ -962,6 +986,160 @@ def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
     )
     resp.raise_for_status()
     assert resp.json() is None
+
+
+def test_api_eval_set_uses_fs_options_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> None:
+        calls.append((log_dir, fs_options))
+        return None
+
+    monkeypatch.setattr(fastapi_server, "read_eval_set_info", fake_read_eval_set_info)
+    app = fastapi_server.view_server_app(fs_options={"anon": True})
+    with fastapi.testclient.TestClient(app) as client:
+        resp = client.request(
+            "GET",
+            f"/eval-set?dir={urllib.parse.quote_plus('s3://bucket/logs')}",
+        )
+
+    resp.raise_for_status()
+    assert resp.json() is None
+    assert calls == [("s3://bucket/logs", {"anon": True})]
+
+
+def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub common.filesystem so az:// paths don't construct a real adlfs fs."""
+    from inspect_ai._view import common
+
+    class FlatFileSystem:
+        sep = "/"
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FlatFileSystem:
+        return FlatFileSystem()
+
+    monkeypatch.setattr(common, "filesystem", fake_filesystem)
+
+
+async def test_read_eval_set_info_async_suppresses_azure_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class AzureAuthErrorFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise Exception("Server failed to authenticate the request")
+
+    result = await read_eval_set_info_async(
+        "az://container/logs", cast(AsyncFilesystem, AzureAuthErrorFilesystem())
+    )
+    assert result is None
+
+
+async def test_read_eval_set_info_async_raises_non_auth_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class BrokenFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise RuntimeError("connection reset by peer")
+
+    with pytest.raises(RuntimeError):
+        await read_eval_set_info_async(
+            "az://container/logs", cast(AsyncFilesystem, BrokenFilesystem())
+        )
+
+
+async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util.file import FileInfo
+    from inspect_ai._view import common
+
+    filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return True
+
+        def is_async(self) -> bool:
+            return True
+
+        def _file_info(self, info: dict[str, Any]) -> FileInfo:
+            return FileInfo(
+                name=info["name"],
+                type=info["type"],
+                size=info.get("size", 0),
+                mtime=info.get("mtime"),
+                etag=None,
+            )
+
+    class FakeAsyncFileSystem:
+        async def _exists(self, log_dir: str) -> bool:
+            return True
+
+        def invalidate_cache(self, log_dir: str) -> None:
+            pass
+
+        async def _ls(self, log_dir: str, detail: bool = True) -> list[dict[str, Any]]:
+            return [
+                {
+                    "name": f"{log_dir}/2026-01-01T00-00-00_task_id.eval",
+                    "type": "file",
+                    "size": 123,
+                    "mtime": 1710000000.0,
+                }
+            ]
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FakeFileSystem:
+        filesystem_calls.append((path, fs_options))
+        return FakeFileSystem()
+
+    @contextlib.asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> Any:
+        async_filesystem_calls.append((location, fs_options))
+        yield FakeAsyncFileSystem()
+
+    class UnexpectedAsyncFilesystem:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("AsyncFilesystem fast path should not be used")
+
+    monkeypatch.setattr(common, "filesystem", fake_filesystem)
+    monkeypatch.setattr(common, "async_filesystem", fake_async_filesystem)
+    monkeypatch.setattr(common, "AsyncFilesystem", UnexpectedAsyncFilesystem)
+
+    logs = await list_eval_logs_async(
+        "s3://bucket/logs", recursive=False, fs_options={"anon": True}
+    )
+
+    assert filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    assert len(logs) == 1
+    assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
+    assert logs[0].task == "task"
+    assert logs[0].task_id == "id"
+
+
+async def test_list_eval_logs_async_s3_missing_bucket_returns_empty(
+    mock_s3: None,
+) -> None:
+    logs = await list_eval_logs_async("s3://no-such-bucket/logs")
+    assert logs == []
+
+
+async def test_list_eval_logs_async_s3_lists_logs(mock_s3: None) -> None:
+    s3_log = (
+        "s3://test-bucket/list-fast-path/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    await _write_eval_log_to_s3_async(s3_log)
+    logs = await list_eval_logs_async("s3://test-bucket/list-fast-path")
+    assert [log.name for log in logs] == [s3_log]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1673,13 +1851,8 @@ def test_api_pending_sample_data_urls_tail_without_cap_returns_all(
     assert body["has_more"] is False
 
 
-def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
-    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
-
-    Defaults to a finished log (``status="success"``) so edit tests pass
-    the in-progress gate; override for tests that need a running log.
-    """
-    eval_log = inspect_ai.log.EvalLog(
+def _make_s3_eval_log(status: str = "success") -> inspect_ai.log.EvalLog:
+    return inspect_ai.log.EvalLog(
         status=status,  # type: ignore[arg-type]
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
@@ -1690,7 +1863,23 @@ def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
             config=inspect_ai.log.EvalConfig(),
         ),
     )
-    inspect_ai.log.write_eval_log(eval_log, s3_path, "eval")
+
+
+def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
+    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
+
+    Defaults to a finished log (``status="success"``) so edit tests pass
+    the in-progress gate; override for tests that need a running log.
+    """
+    inspect_ai.log.write_eval_log(_make_s3_eval_log(status), s3_path, "eval")
+
+
+async def _write_eval_log_to_s3_async(s3_path: str, status: str = "success") -> None:
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        zf.writestr("header.json", to_json_safe(_make_s3_eval_log(status), indent=None))
+    async with AsyncFilesystem() as fs:
+        await fs.write_file(s3_path, buffer.getvalue())
 
 
 def test_api_log_returns_etag_header_for_s3(mock_s3: None, tmp_path: Path) -> None:

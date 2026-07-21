@@ -171,6 +171,7 @@ class TaskLogger:
         viewer: ViewerConfig | None,
         recorder: Recorder,
         header_only: bool,
+        dynamic_dataset: bool = False,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -195,7 +196,10 @@ class TaskLogger:
             [
                 sample.id
                 for sample in slice_dataset(
-                    dataset, eval_config.limit, eval_config.sample_id
+                    dataset,
+                    eval_config.limit,
+                    eval_config.sample_id,
+                    dynamic=dynamic_dataset,
                 )
             ],
         )
@@ -334,7 +338,14 @@ class TaskLogger:
         self._samples_completed = 0
         self.flush_pending = []
         self._finished = False
-        self._buffer_db = None
+        # normally log_finish() has already cleaned up the buffer db, but if
+        # the attempt failed before finishing its log (e.g. the log_start()
+        # write failed) it is still live — clean it up so the new attempt
+        # can't collide with it (the location repeats if `created` lands on
+        # the same second)
+        if self._buffer_db is not None:
+            self._buffer_db.cleanup()
+            self._buffer_db = None
         await self.init()
 
     def _bump_created_past_existing_logs(self) -> None:
@@ -530,7 +541,7 @@ class TaskLogger:
         This forces that write now — so the samples become readable in the log
         without waiting — and returns the number written (0 if none were
         pending, or the eval has finished). Handed to the control channel via
-        ``register_eval`` so ``inspect ctl flush`` can push a long-running
+        ``register_eval`` so ``inspect ctl task log-flush`` can push a long-running
         eval's results out to S3 on demand.
         """
         # an on-demand flush writes everything pending, so quiesce the stale
@@ -560,7 +571,7 @@ class TaskLogger:
         it does not flush samples already buffered under the previous threshold.
         Lowering it therefore takes effect when the next sample finalizes and
         crosses the new threshold; to write what's already pending now, use
-        ``inspect ctl flush``. (Keeping the directive policy-only avoids coupling
+        ``inspect ctl task log-flush``. (Keeping the directive policy-only avoids coupling
         a parameter change to a possibly-remote write.)
 
         ``log_shared`` cannot turn shared sync on at runtime: a buffer started
@@ -569,7 +580,7 @@ class TaskLogger:
         ("off") rather than echoing a value that won't take effect. It's also a
         no-op when realtime logging — and thus the buffer database — is off.
         Returns the resulting configuration. Handed to the control channel via
-        ``register_eval`` for ``inspect ctl buffer``.
+        ``register_eval`` for ``inspect ctl config``.
         """
         from inspect_ai._control.eval_state import BufferConfig
 
@@ -787,7 +798,7 @@ def collect_eval_data(stats: EvalStats) -> None:
                     model=model,
                     old_limit=old,
                     new_limit=new,
-                    reason=reason,  # type: ignore[arg-type]
+                    reason=reason,
                 )
             )
     history.sort(key=lambda e: e.timestamp)

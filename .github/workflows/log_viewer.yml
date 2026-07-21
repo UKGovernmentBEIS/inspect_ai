@@ -1,4 +1,4 @@
-name: Build Log Viewer
+name: Validate Embedded Viewer
 
 on:
   push:
@@ -8,6 +8,15 @@ on:
     branches:
       - "*"
 
+# Cancel superseded in-flight runs when a PR branch is updated; runs on
+# main queue rather than cancel so every merge commit gets a full build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
 env:
   UV_VERSION: 0.9.4
 
@@ -15,19 +24,19 @@ jobs:
   check-schema-and-types:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.11
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.3.2
         with:
           enable-cache: true
           version: "${{ env.UV_VERSION }}"
@@ -35,11 +44,11 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install --system .[dev]
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           cache: pnpm
@@ -93,7 +102,7 @@ jobs:
   submodule-on-main:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify submodule commit is on ts-mono main
         run: |
@@ -115,16 +124,16 @@ jobs:
   dist-validation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           cache: pnpm
@@ -136,7 +145,7 @@ jobs:
 
       - name: Build
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect build
+        run: pnpm --filter @meridianlabs/log-viewer build
 
       - name: Check dist is up-to-date
         run: |
@@ -146,7 +155,7 @@ jobs:
             echo ""
             echo "The build output has changed. Run:"
             echo "  cd src/inspect_ai/_view/ts-mono"
-            echo "  pnpm --filter inspect build"
+            echo "  pnpm --filter @meridianlabs/log-viewer build"
             echo ""
             echo "Then commit the updated dist/ directory."
             exit 1

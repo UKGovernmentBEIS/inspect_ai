@@ -17,6 +17,7 @@ from inspect_ai._control.eval_state import (
     get_eval_state,
     record_sample_completed,
     record_sample_errored,
+    record_samples_added,
     register_eval,
 )
 
@@ -41,6 +42,24 @@ def test_finalize_folds_unaccounted_samples_into_cancelled() -> None:
     assert state.errored == 1
     assert state.cancelled == 5
     assert state.is_finished
+    assert state.completed_at is not None
+
+
+def test_dynamic_eval_not_provisionally_finished() -> None:
+    # a SampleSource-driven eval's totals grow while it runs: counters
+    # reaching total (or an empty seed's 0 >= 0 at registration) must not
+    # read as finished — the task may be idle awaiting its source — so the
+    # stamp waits for finalize_eval, keeping task cancel and status honest
+    state = register_eval("e1", 0, dynamic=True)
+    assert state.completed_at is None
+
+    record_samples_added("e1", 2)
+    record_sample_completed("e1")
+    record_sample_completed("e1")
+    assert state.terminal == state.total
+    assert state.completed_at is None
+
+    finalize_eval("e1")
     assert state.completed_at is not None
 
 
@@ -120,6 +139,32 @@ def test_detach_eval_live_clears_live_data() -> None:
 
     # unregistered evals no-op
     detach_eval_live("never-registered")
+
+
+async def test_summary_carries_registration_metadata() -> None:
+    """Registration metadata (model, solver, epochs) flows through to /evals summaries.
+
+    ``epochs`` matters beyond display: the CLI's multi-epoch EPOCH guard for
+    sample mutations treats a missing field as an old server and falls back
+    to the epoch-1 default, so dropping it from the summary would silently
+    disable the guard with the CLI tests still green.
+    """
+    from inspect_ai._control.state import current_eval_summaries
+
+    register_eval(
+        "e1",
+        3,
+        task="t",
+        task_id="tid",
+        model="mockllm/model",
+        solver="react",
+        epochs=3,
+    )
+
+    [entry] = await current_eval_summaries(0.0)
+    assert entry["model"] == "mockllm/model"
+    assert entry["solver"] == "react"
+    assert entry["epochs"] == 3
 
 
 async def test_deferred_sample_stats_resolve_lazily_and_once() -> None:

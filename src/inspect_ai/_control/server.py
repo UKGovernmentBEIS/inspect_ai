@@ -10,16 +10,20 @@ eval-set`` (the latter via its single ``eval()`` call under
 Default-on with graceful degradation: bind failures (read-only
 filesystem, restricted sandbox, etc.) log a warning and continue
 without the surface — eval correctness never depends on the control
-channel coming up. See ``design/control-channel.md`` "Implementation
+channel coming up. See ``design/ctl/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
-Current scope is the phase 1-2 read surface: ``GET /evals`` (per-task
-summaries), ``GET /evals/{id}/samples`` (sample listing, with an
-``active_since`` recency delta), ``GET /evals/{id}/sample`` (error
-detail), and ``GET /evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control.
-State-mutating directives (cancel / drain / requeue) and SSE push land
-in phases 3-4.
+Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
+summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
+status histogram and an ``active_since`` recency delta), ``GET
+/evals/{id}/sample`` (summary + error detail), ``GET
+/evals/{id}/sample/events`` (cursored transcript pull), and
+``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+plus ``POST /release`` / ``POST /keep`` for keep-alive control
+and the first phase-3 directives: the config/log-flush mutations and
+``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
+The remaining directives (drain / requeue / add-task) and SSE push land
+with the rest of phases 3-4.
 """
 
 from __future__ import annotations
@@ -30,16 +34,38 @@ import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, NamedTuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Literal,
+    NamedTuple,
+    cast,
+    get_args,
+)
 
 import anyio
 
-from inspect_ai._control.buffer import eval_buffer_config, flush_eval_samples
+from inspect_ai._control import CONTROL_API_VERSION
+from inspect_ai._control.buffer import flush_task_samples
+from inspect_ai._control.cancel import (
+    TaskCancelAction,
+    cancel_sample,
+    cancel_task,
+)
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
-from inspect_ai._control.events import sample_events
+from inspect_ai._control.events import DEFAULT_PAGE_LIMIT, sample_events
+from inspect_ai._control.limits import (
+    UnknownConcurrencyKeyError,
+    process_limits,
+    task_limits,
+)
+from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.state import (
     current_eval_summaries,
-    current_sample_summaries,
+    current_sample_listing,
+    effective_sample_limit,
+    parse_status_filter,
     sample_error_detail,
 )
 from inspect_ai._util.discovery import (
@@ -49,7 +75,17 @@ from inspect_ai._util.discovery import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
 
+if TYPE_CHECKING:
+    from fastapi.responses import JSONResponse
+
 logger = getLogger(__name__)
+
+
+class _ParsedRetryKnobs(NamedTuple):
+    """Parsed retry-override knob values, or the 400 that rejects them."""
+
+    values: dict[str, "int | Literal['clear'] | None"]
+    error: "JSONResponse | None"
 
 
 # ---------------------------------------------------------------------------
@@ -77,7 +113,7 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
     - ``None`` / ``True`` — control server on (the default).
     - ``False`` — control server off.
     - ``"keep"`` — control server on, and the process parks after the eval
-      finishes (until ``inspect ctl release`` / ``POST /release``).
+      finishes (until ``inspect ctl process release`` / ``POST /release``).
 
     The CLI spellings (``"true"`` / ``"yes"`` / ``"1"``, ``"false"`` /
     ``"no"`` / ``"0"``, case-insensitive) are accepted too, so programmatic
@@ -115,14 +151,14 @@ def resolve_ctl_server(value: bool | str | None) -> CtlServerConfig:
 
 # Whether this process intends to park after the eval finishes. A single
 # last-write-wins flag: set at launch (``--ctl-server=keep``) and toggled at
-# runtime by ``POST /keep`` (``inspect ctl keep`` -> on) and ``POST /release``
-# (``inspect ctl release`` -> off). Last-write-wins rather than "release is
+# runtime by ``POST /keep`` (``inspect ctl process keep`` -> on) and ``POST /release``
+# (``inspect ctl process release`` -> off). Last-write-wins rather than "release is
 # sticky" so that, while the eval is still running, keep -> release -> keep
 # leaves the process in the keep state — each call simply overwrites the
 # intent. Module-level (not per-ControlServer) because the eval-set park binds
 # a FRESH server after the run's server has torn down — a per-server flag
 # couldn't carry the intent across that boundary — and it's the single source
-# of truth the ``/evals`` endpoint reports as each task's keep-alive status.
+# of truth the ``/tasks`` endpoint reports as each task's keep-alive status.
 # Reset at the outermost run boundary (``eval_async`` for standalone evals,
 # ``eval_set`` for eval-sets).
 _keep_alive = False
@@ -149,7 +185,7 @@ def request_release() -> None:
 def keep_alive_intent() -> bool:
     """Whether this process will park after the eval finishes.
 
-    The live value the ``/evals`` endpoint reports per task and that the parks
+    The live value the ``/tasks`` endpoint reports per task and that the parks
     gate on — the latest of the launch flag, ``POST /keep``, and ``POST
     /release`` (last-write-wins).
     """
@@ -221,11 +257,28 @@ class ControlServer:
         Imported lazily so module import doesn't pay the FastAPI cost
         when control is disabled.
         """
-        from fastapi import FastAPI, Request
+        from fastapi import Depends, FastAPI, Request
         from fastapi.responses import JSONResponse
 
-        app = FastAPI()
+        from inspect_ai._control.strict import (
+            UnknownQueryParamsError,
+            reject_unknown_query_params,
+        )
+
+        # Attached app-wide so every mutation route — including any added
+        # later — fails closed and atomically on unknown query params instead
+        # of partially applying, with no per-route annotation to remember.
+        # The dependency short-circuits on safe methods (see the strict
+        # module docstring for the rationale, including why GETs stay
+        # tolerant).
+        app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
         started_at = self._started_at
+
+        @app.exception_handler(UnknownQueryParamsError)
+        async def on_unknown_params(
+            request: Request, exc: UnknownQueryParamsError
+        ) -> JSONResponse:
+            return JSONResponse(status_code=400, content={"error": str(exc)})
 
         @app.exception_handler(Exception)
         async def on_error(request: Request, exc: Exception) -> JSONResponse:
@@ -240,25 +293,158 @@ class ControlServer:
                 status_code=500, content={"error": f"{type(exc).__name__}: {exc}"}
             )
 
-        @app.get("/evals")
-        async def list_evals() -> list[dict[str, Any]]:
+        # 404 convention: a handler 404 ("entity not found") MUST carry an
+        # {"error": ...} JSON body. The CLI reads the body shape to tell
+        # handler 404s apart from the router's stock {"detail": "Not Found"}
+        # (no such route — the server predates the endpoint) and reports
+        # version skew definitively (see `_handler_404` in
+        # `inspect_ai._cli.ctl`); a handler 404 without the key would
+        # misreport as skew. Pinned by a test in tests/_control/test_server.py.
+
+        def _limits_below_one(*knobs: tuple[str, int | None]) -> JSONResponse | None:
+            """400 for the first requested limit below 1, else None.
+
+            Shared by the routes that take integer knobs (both PATCH limits
+            routes and the samples listing) so the validation can't drift
+            between them.
+            """
+            for label, value in knobs:
+                if value is not None and value < 1:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": f"{label} must be >= 1 (got {value})"},
+                    )
+            return None
+
+        def _parse_retry_knobs(*knobs: tuple[str, str | None]) -> _ParsedRetryKnobs:
+            """Parse the retry-override knobs' raw query values.
+
+            Unlike the limits knobs these are declared ``str`` on the route:
+            every integer >= 0 is a real value (0 = fail after the first
+            attempt / a zero budget), so clearing an override is spelled with
+            the keyword ``clear`` rather than a sentinel integer. Values above
+            :data:`MAX_GENERATE_CONFIG_OVERRIDE` are rejected here too — the
+            store enforces the same bound, but a 400 at the wire beats a 500.
+            Returns the parsed values plus a 400 for the first invalid one
+            (a ``None`` passes through as "not requested").
+            """
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+
+            parsed: dict[str, int | Literal["clear"] | None] = {}
+            for label, raw in knobs:
+                if raw is None:
+                    parsed[label] = None
+                elif raw == "clear":
+                    parsed[label] = "clear"
+                else:
+                    try:
+                        value = int(raw)
+                    except ValueError:
+                        value = -1
+                    if value < 0 or value > MAX_GENERATE_CONFIG_OVERRIDE:
+                        return _ParsedRetryKnobs(
+                            values=parsed,
+                            error=JSONResponse(
+                                status_code=400,
+                                content={
+                                    "error": f"{label} must be an integer "
+                                    f"between 0 and "
+                                    f"{MAX_GENERATE_CONFIG_OVERRIDE} or "
+                                    f"'clear' (got {raw!r})"
+                                },
+                            ),
+                        )
+                    parsed[label] = value
+            return _ParsedRetryKnobs(values=parsed, error=None)
+
+        def _key_pair_error(
+            key: str | None, key_limit: int | None
+        ) -> JSONResponse | None:
+            """400 when only one of ``key`` / ``key_limit`` was provided.
+
+            Shared by both PATCH limits routes. A bare ``key`` has no value to
+            apply and a bare ``key_limit`` no target — either alone is a
+            malformed request, not a read.
+            """
+            if (key is None) != (key_limit is None):
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "key and key_limit must be provided together"},
+                )
+            return None
+
+        # Folded per-task summaries (retry attempts of a task collapse into
+        # one row keyed by task_id) — the wire behind `inspect ctl task list`
+        # and the selector-resolution step of every other command.
+        @app.get("/tasks")
+        async def list_tasks() -> list[dict[str, Any]]:
             summaries = await current_eval_summaries(started_at)
             # Keep-alive is a process-level property, so every task this
             # process hosts shares it. Stamp each row with the live value
             # (which reflects a runtime `POST /keep` or `/release`, not just
-            # the launch flag) so `inspect ctl tasks` can report it.
+            # the launch flag) so `inspect ctl task list` can report it.
             keep_alive = keep_alive_intent()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
+                # Advertise the control-API version so HTTP consumers can
+                # gate version-dependent requests (the CLI reads it from the
+                # discovery file, which also covers the pre-registration
+                # window when this listing is still empty).
+                summary["api_version"] = CONTROL_API_VERSION
             return summaries
 
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(
-            eval_id: str, active_since: float | None = None
-        ) -> list[dict[str, Any]]:
+            eval_id: str,
+            active_since: float | None = None,
+            status: str | None = None,
+            limit: int | None = None,
+            all: bool = False,
+            filter: Literal["errors"] | None = None,
+        ) -> Any:
             # `active_since` (unix ts) is the recency delta: only samples that
-            # started or updated since then. A filter, not a cursor.
-            return await current_sample_summaries(eval_id, active_since)
+            # started or updated since then. A filter, not a cursor. `status`
+            # is a comma-separated status filter; rows are capped at `limit`
+            # (default DEFAULT_SAMPLE_LIST_LIMIT) unless `all=true` asks for
+            # the full dump. `filter=errors` restricts to errored/retried
+            # samples and skips pending-row synthesis (the `sample errors`
+            # triage read); typed as a Literal so an unrecognized value is
+            # rejected (422) rather than silently answered with the full
+            # listing — the CLI trusts the filter was applied and keeps no
+            # client-side fallback. The response is an `{as_of, counts,
+            # samples, truncated}` envelope — `as_of` is stamped BEFORE the
+            # listing is built, so a client feeding it back as the next
+            # `active_since` can't miss changes that land mid-read; `counts`
+            # is the eval's status histogram over the (possibly
+            # `filter`-restricted) listing, complete even when rows are
+            # status-filtered or capped, and `truncated` reports a hit cap
+            # structurally.
+            if all and limit is not None:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit and all are mutually exclusive"},
+                )
+            if error := _limits_below_one(("limit", limit)):
+                return error
+            statuses, status_error = parse_status_filter(status)
+            if status_error is not None:
+                return JSONResponse(status_code=400, content={"error": status_error})
+            as_of = time.time()
+            listing = await current_sample_listing(
+                eval_id,
+                active_since,
+                statuses=statuses,
+                limit=effective_sample_limit(limit, all),
+                sample_filter=filter,
+            )
+            return {
+                "as_of": as_of,
+                "counts": listing.counts,
+                "samples": listing.samples,
+                "truncated": listing.truncated,
+            }
 
         # `sample_id` is a query parameter (not a path segment) here and on
         # `/sample/events`: sample ids are arbitrary strings and may contain
@@ -277,9 +463,10 @@ class ControlServer:
             return detail
 
         # Per-sample transcript events, cursored pull (phase 2). `type` is a
-        # comma-separated event-type filter (`*` = all; omitted = high-signal
-        # tier); `since` is an opaque cursor, `tail` an int, `full` a bool,
-        # `since_time`/`until` a wall-clock window.
+        # comma-separated event-type filter (`all` or `*` = everything;
+        # omitted = high-signal tier); `since` is an opaque cursor, `tail` an
+        # int, `full` a bool, `since_time`/`until` a wall-clock window,
+        # `limit` the page size (max events scanned per page).
         @app.get("/evals/{eval_id}/sample/events")
         async def get_sample_events(
             eval_id: str,
@@ -291,7 +478,15 @@ class ControlServer:
             full: bool = False,
             since_time: float | None = None,
             until: float | None = None,
+            limit: int = DEFAULT_PAGE_LIMIT,
         ) -> Any:
+            # a limit below 1 would serve an empty page whose unchanged `next`
+            # cursor loops a paging client forever
+            if limit < 1:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "limit must be at least 1"},
+                )
             # strip whitespace around the comma-separated members so natural
             # spellings like `--type "model, tool"` don't silently match
             # nothing
@@ -310,6 +505,7 @@ class ControlServer:
                 full=full,
                 since_time=since_time,
                 until=until,
+                limit=limit,
             )
             if page is None:
                 return JSONResponse(
@@ -318,49 +514,293 @@ class ControlServer:
                 )
             return page
 
-        # Flush the eval's buffered completed samples to the (possibly remote,
-        # eg. S3) log now, so they're readable without waiting for the flush
-        # buffer to fill. Idempotent — a flush with nothing pending writes
-        # nothing and reports `flushed: 0`.
-        @app.post("/evals/{eval_id}/flush")
-        async def flush_samples(eval_id: str) -> Any:
-            result = await flush_eval_samples(eval_id)
-            if result is None:
-                return JSONResponse(
-                    status_code=404,
-                    content={"error": f"eval {eval_id} not found or not flushable"},
-                )
-            return result
-
-        # Read the eval's sample-buffer parameters. The companion POST applies
-        # changes; GET is a pure read (no side effects).
-        @app.get("/evals/{eval_id}/buffer")
-        async def get_buffer(eval_id: str) -> Any:
-            result = await eval_buffer_config(eval_id)
-            if result is None:
-                return JSONResponse(
-                    status_code=404,
-                    content={"error": f"eval {eval_id} not found"},
-                )
-            return result
-
-        # Update the eval's sample-buffer parameters. `log_buffer` (completed
-        # samples buffered before a log write) and `log_shared` (shared-log
-        # sync interval, seconds) are optional query params — omitting both
-        # makes this a read, like GET. Returns the resulting config.
-        @app.post("/evals/{eval_id}/buffer")
-        async def set_buffer(
+        # Per-sample conversation snapshot (`TaskState.messages`). Like the
+        # other per-sample routes, `sample_id` is a query param (ids may carry
+        # URL-reserved characters). Deliberately not cursored — the message
+        # list is rewritable (compaction / solver edits), so each call returns
+        # the current conversation (or a `tail`), enveloped with `as_of` /
+        # `status` / `count`. `full` returns raw ChatMessage JSON.
+        @app.get("/evals/{eval_id}/sample/messages")
+        async def get_sample_messages(
             eval_id: str,
-            log_buffer: int | None = None,
-            log_shared: int | None = None,
+            sample_id: str,
+            epoch: int = 1,
+            tail: int | None = None,
+            full: bool = False,
         ) -> Any:
-            result = await eval_buffer_config(
-                eval_id, log_buffer=log_buffer, log_shared=log_shared
+            page = await sample_messages(
+                eval_id, sample_id, epoch, tail=tail, full=full
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
+        # Flush the task's buffered completed samples to the (possibly remote,
+        # eg. S3) log now, so they're readable without waiting for the flush
+        # buffer to fill. Keyed by task_id (resolved to the latest attempt),
+        # matching the CLI's `ctl task log-flush`. Idempotent — a flush with
+        # nothing pending writes nothing and reports `flushed: 0`.
+        @app.post("/tasks/{task_id}/log-flush")
+        async def log_flush(task_id: str) -> Any:
+            result = await flush_task_samples(task_id)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found or not flushable"},
+                )
+            return result
+
+        # Cancel a running task (phase 3). Task-keyed like `config` and
+        # `log-flush` — the handle never dangles across a retry. `action`
+        # selects how the task's samples resolve: "cancel" (the default)
+        # fires the latest attempt's TaskCancel with "abort" (the in-process
+        # display's user-cancel path — in-flight samples are interrupted,
+        # completed work is preserved, and the log finishes with an error
+        # status); "score"/"error" resolve gracefully — in-flight samples are
+        # interrupted with the matching action, queued samples are abandoned,
+        # and the task completes with its ordinary terminal status.
+        # Idempotent (a repeat — or a cancel of a finished task — reports
+        # `changed: false`); `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/cancel")
+        async def task_cancel(
+            task_id: str, action: str = "cancel", dry_run: bool = False
+        ) -> Any:
+            if action not in get_args(TaskCancelAction):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "action must be 'cancel', 'score' or "
+                            f"'error' (got '{action}')"
+                        )
+                    },
+                )
+            result = cancel_task(
+                task_id,
+                action=cast(TaskCancelAction, action),
+                dry_run=dry_run,
             )
             if result is None:
                 return JSONResponse(
                     status_code=404,
-                    content={"error": f"eval {eval_id} not found"},
+                    content={"error": f"task {task_id} not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Cancel one running sample (phase 3). `sample_id` is a query param
+        # like the other per-sample routes (ids may contain URL-reserved
+        # characters). `epoch` is required — this is a mutation, and a
+        # defaulted epoch would silently target the epoch-1 attempt on a
+        # multi-epoch task (the read routes keep their harmless `= 1`
+        # default; see the selector conventions in
+        # design/ctl/control-channel.md). `action` selects the outcome: "score"
+        # completes the sample and scores the work done so far; "error"
+        # marks it errored (rejected for fail-on-error samples); "cancel"
+        # records it as cancelled (transcript preserved, no scoring, not
+        # counted as an error). Idempotent
+        # — an already-terminal sample reports `changed: false`;
+        # `dry_run=true` reports without acting.
+        @app.post("/evals/{eval_id}/sample/cancel")
+        async def sample_cancel(
+            eval_id: str,
+            sample_id: str,
+            epoch: int | None = None,
+            action: str = "score",
+            dry_run: bool = False,
+        ) -> Any:
+            # Function-local: a module-level `inspect_ai.log` import from
+            # this module is circular (`inspect_ai` -> `_eval.eval` ->
+            # `_control.server`).
+            from inspect_ai.log._samples import SampleCancelAction
+
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently cancel the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
+            if action not in get_args(SampleCancelAction):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "action must be 'score', 'error' or 'cancel' "
+                            f"(got '{action}')"
+                        )
+                    },
+                )
+            result = await cancel_sample(
+                eval_id,
+                sample_id,
+                epoch,
+                action=cast(SampleCancelAction, action),
+                dry_run=dry_run,
+            )
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            if result.get("ok") is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Read the process-global concurrency limits (max_sandboxes /
+        # max_subprocesses / max_connections) without naming an eval — the
+        # common case for viewing or throttling a whole process. No max_samples
+        # (that's per-task; use the /tasks/<task-id>/config routes for it).
+        @app.get("/config")
+        async def get_process_limits(model: str | None = None) -> Any:
+            return await process_limits(model=model)
+
+        # Retune the process-global limits. Omitting every set value makes this a
+        # read, like GET. `model` filters the adaptive controllers (name start or
+        # after a `/`); `key`/`key_limit` retune a named concurrency() registry
+        # entry by exact name (400 for a name with no entry — named limits are
+        # created lazily on first use). The retry knobs (timeout /
+        # attempt_timeout / max_retries) set live overrides; the keyword
+        # `clear` removes one. `dry_run=true` reports the intended change
+        # without applying it. Never 404s — a process always exists.
+        # Unknown query params 400 (fail closed) rather than partially applying.
+        @app.patch("/config")
+        async def patch_process_limits(
+            max_sandboxes: int | None = None,
+            max_subprocesses: int | None = None,
+            max_connections: int | None = None,
+            model: str | None = None,
+            key: str | None = None,
+            key_limit: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            if error := _limits_below_one(
+                ("max_sandboxes", max_sandboxes),
+                ("max_subprocesses", max_subprocesses),
+                ("max_connections", max_connections),
+                ("key_limit", key_limit),
+            ):
+                return error
+            if error := _key_pair_error(key, key_limit):
+                return error
+            retry_knobs, retry_error = _parse_retry_knobs(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            )
+            if retry_error is not None:
+                return retry_error
+            try:
+                return await process_limits(
+                    max_sandboxes=max_sandboxes,
+                    max_subprocesses=max_subprocesses,
+                    max_connections=max_connections,
+                    model=model,
+                    key=key,
+                    key_limit=key_limit,
+                    timeout=retry_knobs["timeout"],
+                    attempt_timeout=retry_knobs["attempt_timeout"],
+                    max_retries=retry_knobs["max_retries"],
+                    dry_run=dry_run,
+                )
+            except UnknownConcurrencyKeyError as exc:
+                return JSONResponse(status_code=400, content={"error": str(exc)})
+
+        # Read the task's retunable config (max_samples / max_sandboxes /
+        # max_subprocesses / max_connections plus the log_buffer / log_shared
+        # buffer params).
+        # Keyed by task_id — stable across retry attempts, matching the knobs'
+        # own scope (max_samples and the buffer params are task-scoped; the
+        # other knobs process-wide) — where a per-attempt eval id would go
+        # stale on every retry. A pure read — the companion PATCH applies
+        # changes. `model` filters the adaptive controllers shown.
+        @app.get("/tasks/{task_id}/config")
+        async def get_limits(task_id: str, model: str | None = None) -> Any:
+            result = await task_limits(task_id, model=model)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            return result
+
+        # Retune the task's config. All knobs are optional query params —
+        # omitting all makes this a read, like GET. `dry_run=true` validates
+        # and reports the intended change without applying it (the phase-3
+        # agent-shape constraint). Idempotent: re-applying the same value is a
+        # no-op. Returns the resulting config view (with any warnings for a
+        # knob that isn't adjustable for this task). Unknown query params 400
+        # (fail closed) rather than partially applying.
+        @app.patch("/tasks/{task_id}/config")
+        async def patch_limits(
+            task_id: str,
+            max_samples: int | None = None,
+            max_sandboxes: int | None = None,
+            max_subprocesses: int | None = None,
+            max_connections: int | None = None,
+            model: str | None = None,
+            key: str | None = None,
+            key_limit: int | None = None,
+            log_buffer: int | None = None,
+            log_shared: int | None = None,
+            timeout: str | None = None,
+            attempt_timeout: str | None = None,
+            max_retries: str | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            if error := _limits_below_one(
+                ("max_samples", max_samples),
+                ("max_sandboxes", max_sandboxes),
+                ("max_subprocesses", max_subprocesses),
+                ("max_connections", max_connections),
+                ("key_limit", key_limit),
+                ("log_buffer", log_buffer),
+                ("log_shared", log_shared),
+            ):
+                return error
+            if error := _key_pair_error(key, key_limit):
+                return error
+            retry_knobs, retry_error = _parse_retry_knobs(
+                ("timeout", timeout),
+                ("attempt_timeout", attempt_timeout),
+                ("max_retries", max_retries),
+            )
+            if retry_error is not None:
+                return retry_error
+            try:
+                result = await task_limits(
+                    task_id,
+                    max_samples=max_samples,
+                    max_sandboxes=max_sandboxes,
+                    max_subprocesses=max_subprocesses,
+                    max_connections=max_connections,
+                    model=model,
+                    key=key,
+                    key_limit=key_limit,
+                    log_buffer=log_buffer,
+                    log_shared=log_shared,
+                    timeout=retry_knobs["timeout"],
+                    attempt_timeout=retry_knobs["attempt_timeout"],
+                    max_retries=retry_knobs["max_retries"],
+                    dry_run=dry_run,
+                )
+            except UnknownConcurrencyKeyError as exc:
+                return JSONResponse(status_code=400, content={"error": str(exc)})
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
                 )
             return result
 
@@ -372,9 +812,12 @@ class ControlServer:
         # directive.
         @app.post("/release")
         async def release() -> dict[str, bool]:
+            # `changed` lets the client report applied vs the idempotent
+            # already-in-that-state no-op (the agent output contract).
+            changed = keep_alive_intent()
             request_release()
             await self.notify_park_change()
-            return {"ok": True}
+            return {"ok": True, "keep_alive": False, "changed": changed}
 
         # Latches keep-alive ON for the process (the inverse of /release): it
         # parks after the eval finishes instead of exiting, even if launched
@@ -385,8 +828,9 @@ class ControlServer:
         # park to honour).
         @app.post("/keep")
         async def keep() -> dict[str, bool]:
+            changed = not keep_alive_intent()
             request_keep_alive()
-            return {"ok": True}
+            return {"ok": True, "keep_alive": True, "changed": changed}
 
         return app
 
@@ -455,6 +899,7 @@ class ControlServer:
                 "run_id": self._run_id,
                 "socket_path": str(socket_path),
                 "started_at": self._started_at,
+                "api_version": CONTROL_API_VERSION,
             },
         )
 

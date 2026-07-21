@@ -22,6 +22,11 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.util._concurrency import (
+    AdaptiveConcurrency,
+    AdaptiveConcurrencyController,
+    get_or_create_semaphore,
+)
 
 F = TypeVar("F", bound=Callable)
 P = ParamSpec("P")
@@ -302,6 +307,11 @@ def skip_if_no_fireworks(func):
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
 
 
+def skip_if_no_moonshot(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
 def skip_if_no_sambanova(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("SAMBANOVA_API_KEY", exists=False)(func))
@@ -558,3 +568,19 @@ def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, original_handler)
+
+
+async def register_adaptive_controller(
+    name: str = "openai/gpt-4", max: int = 100, start: int = 50
+) -> AdaptiveConcurrencyController:
+    """Register an adaptive connection controller in the concurrency registry.
+
+    Mirrors what a model's first generate does, so control-channel and
+    adaptive-connections tests can exercise controller-backed paths without a
+    real model. Caller is responsible for registry reset (init_concurrency).
+    """
+    ctrl = await get_or_create_semaphore(
+        name, 10, None, True, AdaptiveConcurrency(min=1, max=max, start=start)
+    )
+    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    return ctrl

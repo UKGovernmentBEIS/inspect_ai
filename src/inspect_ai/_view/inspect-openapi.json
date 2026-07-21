@@ -1392,6 +1392,17 @@
             ],
             "title": "Pending"
           },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
           "source": {
             "anyOf": [
               {
@@ -1491,13 +1502,21 @@
             "type": "integer"
           },
           "reason": {
-            "enum": [
-              "slow_start",
-              "steady_state_up",
-              "rate_limit"
+            "anyOf": [
+              {
+                "enum": [
+                  "slow_start",
+                  "steady_state_up",
+                  "rate_limit"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "manual",
+                "type": "string"
+              }
             ],
-            "title": "Reason",
-            "type": "string"
+            "title": "Reason"
           },
           "timestamp": {
             "title": "Timestamp",
@@ -2662,6 +2681,17 @@
             ],
             "title": "Token Limit"
           },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
           "turn_limit": {
             "anyOf": [
               {
@@ -3121,7 +3151,35 @@
             "anyOf": [
               {
                 "items": {
-                  "anyOf": [
+                  "discriminator": {
+                    "mapping": {
+                      "anchor": "#/components/schemas/AnchorEvent",
+                      "approval": "#/components/schemas/ApprovalEvent",
+                      "branch": "#/components/schemas/BranchEvent",
+                      "checkpoint": "#/components/schemas/CheckpointEvent",
+                      "compaction": "#/components/schemas/CompactionEvent",
+                      "error": "#/components/schemas/ErrorEvent",
+                      "info": "#/components/schemas/InfoEvent",
+                      "input": "#/components/schemas/InputEvent",
+                      "interrupt": "#/components/schemas/InterruptEvent",
+                      "logger": "#/components/schemas/LoggerEvent",
+                      "model": "#/components/schemas/ModelEvent",
+                      "sample_init": "#/components/schemas/SampleInitEvent",
+                      "sample_limit": "#/components/schemas/SampleLimitEvent",
+                      "sandbox": "#/components/schemas/SandboxEvent",
+                      "score": "#/components/schemas/ScoreEvent",
+                      "score_edit": "#/components/schemas/ScoreEditEvent",
+                      "span_begin": "#/components/schemas/SpanBeginEvent",
+                      "span_end": "#/components/schemas/SpanEndEvent",
+                      "state": "#/components/schemas/StateEvent",
+                      "step": "#/components/schemas/StepEvent",
+                      "store": "#/components/schemas/StoreEvent",
+                      "subtask": "#/components/schemas/SubtaskEvent",
+                      "tool": "#/components/schemas/ToolEvent"
+                    },
+                    "propertyName": "event"
+                  },
+                  "oneOf": [
                     {
                       "$ref": "#/components/schemas/SampleInitEvent"
                     },
@@ -3323,7 +3381,35 @@
           },
           "events": {
             "items": {
-              "anyOf": [
+              "discriminator": {
+                "mapping": {
+                  "anchor": "#/components/schemas/AnchorEvent",
+                  "approval": "#/components/schemas/ApprovalEvent",
+                  "branch": "#/components/schemas/BranchEvent",
+                  "checkpoint": "#/components/schemas/CheckpointEvent",
+                  "compaction": "#/components/schemas/CompactionEvent",
+                  "error": "#/components/schemas/ErrorEvent",
+                  "info": "#/components/schemas/InfoEvent",
+                  "input": "#/components/schemas/InputEvent",
+                  "interrupt": "#/components/schemas/InterruptEvent",
+                  "logger": "#/components/schemas/LoggerEvent",
+                  "model": "#/components/schemas/ModelEvent",
+                  "sample_init": "#/components/schemas/SampleInitEvent",
+                  "sample_limit": "#/components/schemas/SampleLimitEvent",
+                  "sandbox": "#/components/schemas/SandboxEvent",
+                  "score": "#/components/schemas/ScoreEvent",
+                  "score_edit": "#/components/schemas/ScoreEditEvent",
+                  "span_begin": "#/components/schemas/SpanBeginEvent",
+                  "span_end": "#/components/schemas/SpanEndEvent",
+                  "state": "#/components/schemas/StateEvent",
+                  "step": "#/components/schemas/StepEvent",
+                  "store": "#/components/schemas/StoreEvent",
+                  "subtask": "#/components/schemas/SubtaskEvent",
+                  "tool": "#/components/schemas/ToolEvent"
+                },
+                "propertyName": "event"
+              },
+              "oneOf": [
                 {
                   "$ref": "#/components/schemas/SampleInitEvent"
                 },
@@ -3615,6 +3701,39 @@
             ],
             "title": "Timelines"
           },
+          "token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit"
+          },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -3625,6 +3744,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
@@ -4044,6 +4174,39 @@
             ],
             "title": "Target"
           },
+          "token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit"
+          },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -4054,6 +4217,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
@@ -5186,6 +5360,21 @@
               }
             ],
             "title": "Reasoning History"
+          },
+          "reasoning_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "standard",
+                  "pro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Mode"
           },
           "reasoning_summary": {
             "anyOf": [
@@ -6432,6 +6621,17 @@
           "log_dir": {
             "title": "Log Dir",
             "type": "string"
+          },
+          "log_dir_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Dir Uri"
           }
         },
         "required": [
