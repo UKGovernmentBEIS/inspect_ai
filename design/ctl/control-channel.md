@@ -93,6 +93,10 @@ inspect ctl config [TASK] [--max-samples N] [--max-connections N] [--max-sandbox
 inspect ctl task log-flush [TASK]           # write a running eval's buffered samples to the log now (shipped)
 inspect ctl task cancel TASK [--action cancel|score|error] [--dry-run]  # cancel an eval — abort, or resolve in-flight samples and complete (shipped)
 inspect ctl sample cancel TASK SID [EPOCH] [--action score|error|cancel] [--dry-run]  # cancel one sample (shipped)
+inspect ctl task pause TASK [--dry-run]     # stop starting new samples/retries; in-flight finish; reversible (shipped)
+inspect ctl task resume TASK [--dry-run]    # resume a paused task (shipped)
+inspect ctl process pause [PID] [--dry-run] # pause the whole run incl. eval-set task dispatch (shipped)
+inspect ctl process resume [PID] [--dry-run]# resume a paused run (shipped)
 inspect ctl task add SPEC [--model M] [-T k=v] [--dry-run]  # add a task to a running --ctl-server=keep eval
 inspect ctl task drain TASK                 # stop accepting new samples; let in-flight finish
 inspect ctl sample requeue TASK SID EPOCH   # re-add a failed sample to the queue
@@ -134,8 +138,9 @@ inspect ctl
 │   ├── list                        # was: tasks (implied: bare `ctl task` ≡ `ctl task list`)
 │   ├── log-flush [TASK]            # was: flush (renamed: the object is the task's *log*)
 │   ├── cancel TASK                 # shipped (abort, or --action score/error sample resolution; a graceful-drain variant is future work)
+│   ├── pause [TASK] / resume [TASK]  # shipped (quiesce semantics — see design/ctl/pause-resume.md)
 │   ├── add SPEC [...]              # planned: add
-│   └── drain TASK                  # planned: drain
+│   └── drain TASK                  # planned: drain (a thin composition over the pause gate)
 ├── sample                      # one sample (TASK SAMPLE_ID [EPOCH]) or a task's samples
 │   ├── list [TASK]                 # was: samples (implied by bare `ctl sample`; no TASK = all tasks)
 │   ├── show TASK SID [EPOCH]       # was: sample
@@ -149,7 +154,8 @@ inspect ctl
 │   ├── list                        # new: pids / keep-alive / hosted tasks (implied by bare `ctl process`)
 │   ├── anomalies [PID]             # shipped: in-flight / anomalous actions from the trace file (client-side read)
 │   ├── keep [PID]                  # was: keep [--pid]
-│   └── release [PID]               # was: release [--pid]
+│   ├── release [PID]               # was: release [--pid]
+│   └── pause [PID] / resume [PID]  # shipped (the eval-set pause spelling — one process-scoped latch)
 └── eval-set                    # later, with the eval-set surface
     └── list / show / cancel
 ```
@@ -369,6 +375,8 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Add a task to a running eval | `POST /tasks` (task spec → new sibling eval under this run) | 3 |
 | Cancel task | `POST /tasks/<task-id>/cancel?action=cancel\|score\|error` | 3 ✅ |
 | Cancel sample | `POST /evals/<id>/sample/cancel?sample_id=<sid>&epoch=<n>&action=score\|error\|cancel` | 3 ✅ |
+| Pause / resume task | `POST /tasks/<task-id>/pause` / `…/resume` | 3 ✅ (see `design/ctl/pause-resume.md`) |
+| Pause / resume process (run) | `POST /pause` / `POST /resume` | 3 ✅ |
 | Drain | `POST /tasks/<task-id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` | 3 |
 | Modify per-sample limits (time / token / message) | `PATCH /tasks/<task-id>/config` (as further config knobs) | 3 |

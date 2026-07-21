@@ -1,6 +1,6 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, pause and resume, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
@@ -14,6 +14,8 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 | `inspect ctl task list` | List running tasks across all live Inspect processes. |
 | `inspect ctl task log-flush` | Write buffered completed samples to the log now. |
 | `inspect ctl task cancel` | Cancel a running task. |
+| `inspect ctl task pause` | Pause a running task (stop starting new work). |
+| `inspect ctl task resume` | Resume a paused task. |
 | `inspect ctl sample list` | List samples (running, completed, and pending). |
 | `inspect ctl sample errors` | List samples that errored or were retried. |
 | `inspect ctl sample show` | Show one sample's summary and error history. |
@@ -25,10 +27,12 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 | `inspect ctl process anomalies` | Show in-flight and anomalous actions from a process's trace log. |
 | `inspect ctl process keep` | Make a process stay alive after its eval finishes. |
 | `inspect ctl process release` | Let a keep-alive process exit. |
+| `inspect ctl process pause` | Pause a whole running eval or eval-set. |
+| `inspect ctl process resume` | Resume a paused eval or eval-set. |
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume` and `process pause`/`resume` stop and restart dispatch reversibly without touching in-flight work, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -279,6 +283,23 @@ $ inspect ctl task cancel gpqa --action score
 ```
 
 Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
+
+## Pause and Resume
+
+Pause is the missing state between "running" and "cancelled": it stops a run from *starting* new work while keeping the process, its queue, and this control surface alive, and it is non-destructive, idempotent, and reversible. The pause applies to dispatch, not to execution — think pausing a job queue, not suspending a process: samples already running (including model calls in flight) are never frozen or interrupted; they run to completion while new work holds. Typical uses: ride out a provider incident without feeding more samples into it, stop spending while a cost question is decided, yield shared rate-limit capacity to a more urgent eval, or hold a run steady while you investigate a suspicious transcript (the read commands keep answering while paused).
+
+```bash
+$ inspect ctl process pause     # pause the whole run (eval or eval-set)
+$ inspect ctl process resume    # pick up exactly where it left off
+```
+
+Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Held samples spend none of their time limits: they are exactly as resumable as before the pause. Quiesce time is therefore bounded by the longest in-flight work: a long-running agentic sample, or a batched generate call awaiting a provider batch, holds the run semi-active until it completes. When in-flight work must wind down faster than that, compose pause with `inspect ctl config --max-connections` (throttle in-flight demand without discarding progress) or a targeted `inspect ctl sample cancel`.
+
+`inspect ctl task pause` / `resume` scope the same thing to one task of an eval set. Task and process pauses are independent latches — `process resume` does not clear a task-level pause (and vice versa), so resuming a run after an incident never silently un-pauses a task you paused for its own reasons. Both verbs accept `--dry-run` and report `changed: false` on an idempotent repeat. Pause never blocks teardown: cancel works unchanged on a paused task, config retunes compose with it, and — unlike `task cancel` — pausing a task that is *between attempts* works, parking the queued retry.
+
+`inspect ctl task list` shows which latch holds a paused task (`task`, `process`, or `both`) — including one paused *between attempts*, whose row keeps its paused marker while the gate parks the queued retry — and reports `quiesced` once nothing is left in flight (a dispatched sample counts from the instant it leaves the queue, so one still initializing its sandbox holds off `quiesced` too). A quiesced task has auto-flushed its completed samples to the log, which makes pause the clean way to stop for a process restart: pause, wait for `quiesced`, kill the process, and later re-invoke `inspect eval-set` on the same log dir — the standard eval-set resume logic re-runs only what didn't complete. Pause state itself is in-memory only: a restarted process starts unpaused.
+
+Note the distinction with keep-alive: `process resume` resumes a *paused* run; `process release` ends a keep-alive *park* after the eval finishes. A paused run never finishes — resume (or cancel) it rather than waiting for it to exit.
 
 ## Stall Diagnosis
 
