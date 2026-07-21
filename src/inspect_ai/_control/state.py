@@ -160,6 +160,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         get_eval_states,
         resolve_deferred_sample_stats,
     )
+    from inspect_ai._control.pause import process_paused
     from inspect_ai.log._samples import active_samples
 
     states = get_eval_states()
@@ -256,6 +257,11 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                     default=started_at,
                 ),
                 "completed_at": None,
+                # a pre-registration attempt has no task_id, so only the
+                # process latch can hold it; mid-startup is never "safe to
+                # kill", hence quiesced stays False
+                "paused": "process" if process_paused() else None,
+                "quiesced": False,
                 "attempts": 1,
                 "samples": {
                     "total": 0,
@@ -913,6 +919,8 @@ def _build_summary(
         latest.started_at if latest.started_at is not None else started_at_fallback
     )
 
+    from inspect_ai._control.pause import task_dispatched_count, task_pause_scope
+
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
     ]
@@ -924,6 +932,25 @@ def _build_summary(
     queued = max(0, total - completed - errored - cancelled - in_flight)
     completed_at = latest.completed_at
     status = "completed" if completed_at is not None else "running"
+
+    # which pause latch holds the task (None when dispatchable), and whether
+    # it has quiesced — paused with nothing dispatched, the "safe to kill"
+    # signal for the durable-pause workflow (design/ctl/pause-resume.md). A
+    # finished task reports neither (there is nothing left to hold) — but a
+    # task *between attempts* (completed_at set, retry pending) is still
+    # holdable (the gate parks its queued retry, the same guard pause_task
+    # uses), so it keeps reporting its pause scope. quiesced uses the
+    # gate-boundary dispatched count rather than in_flight: a sample past
+    # the gate but still initializing (started=None, or not yet registered
+    # in active_samples at all) will run once its sandbox is up, and "safe
+    # to kill" must not flip true→false in that window (see
+    # task_dispatched_count in pause.py).
+    paused = (
+        task_pause_scope(latest.task_id)
+        if completed_at is None or latest.retry_pending
+        else None
+    )
+    quiesced = paused is not None and task_dispatched_count(latest.task_id) == 0
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the
@@ -949,6 +976,8 @@ def _build_summary(
         "status": status,
         "started_at": eval_started_at,
         "completed_at": completed_at,
+        "paused": paused,
+        "quiesced": quiesced,
         "attempts": attempts,
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch

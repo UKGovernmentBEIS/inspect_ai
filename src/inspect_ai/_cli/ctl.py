@@ -12,12 +12,12 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
   ``drain`` are planned.
 - ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
   ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``,
-  ``cancel``; ``requeue`` is planned.
+  ``messages``, ``cancel``; ``requeue`` is planned.
 - ``config`` — a top-level *command* (not a group): view / retune launch
   configuration mid-flight (concurrency limits, log buffering). Scope is a
   property of each knob (task vs process), labeled in the output.
 - ``process`` — the running Inspect process itself: ``list`` (implied by the
-  bare noun), ``keep``, ``release``.
+  bare noun), ``anomalies``, ``keep``, ``release``.
 
 The old flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
 ``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survive as hidden,
@@ -54,6 +54,14 @@ import click
 import httpx
 from click.core import ParameterSource
 
+from inspect_ai._cli.trace import (
+    TraceAnomalies,
+    anomalies_options,
+    anomaly_buckets_json,
+    filter_traces,
+    rendered_anomalies,
+    trace_anomalies,
+)
 from inspect_ai._control.cancel import TaskCancelAction
 from inspect_ai._control.discovery import (
     DiscoveredControlServer,
@@ -67,6 +75,8 @@ from inspect_ai._control.state import (
     parse_status_filter,
 )
 from inspect_ai._util.name_match import match_name_prefix
+from inspect_ai._util.process import pid_alive
+from inspect_ai._util.trace import inspect_trace_dir, read_trace_file
 
 if TYPE_CHECKING:
     # TYPE_CHECKING to keep the CLI import-light: `inspect_ai.log._samples`
@@ -78,6 +88,12 @@ if TYPE_CHECKING:
 # backlog — the first call must never be empty or a context-flooding dump
 # (see the agent output contract in design/ctl/control-channel.md).
 _DEFAULT_EVENTS_TAIL = 20
+
+# Messages shown on an unseeded `sample messages` read (no --tail / --all): a
+# recent tail rather than the whole conversation, which for a long agentic run
+# can exceed a watching agent's context. Same "never empty, never a flood"
+# rationale as the events tail.
+_DEFAULT_MESSAGES_TAIL = 20
 
 # One source of truth for each retunable config knob's scope. The `ctl config`
 # option help tags, the composed JSON view's per-knob "scope" labels, and the
@@ -455,6 +471,50 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
     )
 
 
+@task_group.command("pause")
+@click.argument("task", required=False)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be paused without doing it.",
+)
+@_json_option("the mutation result envelope")
+def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+    """Pause a running task (stop dispatching new work; in-flight finishes).
+
+    In-flight samples finish naturally (with scoring and log writes); queued
+    samples and a queued retry attempt hold, unstarted — spending none of
+    their time limits — until `inspect ctl task resume`. Non-destructive,
+    idempotent, and reversible; cancel and config changes still work on a
+    paused task. To pause a whole eval-set (every task plus its task/retry
+    dispatch), use `inspect ctl process pause`. TASK (a task-id prefix or
+    name) is required when several tasks run.
+    """
+    _run_task_pause_resume(task, verb="pause", dry_run=dry_run, as_json=as_json)
+
+
+@task_group.command("resume")
+@click.argument("task", required=False)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be resumed without doing it.",
+)
+@_json_option("the mutation result envelope")
+def task_resume_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+    """Resume a paused task (the inverse of `inspect ctl task pause`).
+
+    Queued samples dispatch again exactly as they would have before the
+    pause. Does not clear a process-level pause — a task also held by
+    `inspect ctl process pause` stays held until `inspect ctl process
+    resume`. Idempotent and last-write-wins. TASK (a task-id prefix or name)
+    is required when several tasks run.
+    """
+    _run_task_pause_resume(task, verb="resume", dry_run=dry_run, as_json=as_json)
+
+
 # ---------------------------------------------------------------------------
 # sample group
 # ---------------------------------------------------------------------------
@@ -719,6 +779,69 @@ def sample_events_command(
     )
 
 
+@sample_group.command("messages")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=1)
+@click.option(
+    "--tail",
+    type=click.IntRange(min=1),
+    default=None,
+    help=(
+        "Only the last N messages (default: the recent tail — "
+        f"{_DEFAULT_MESSAGES_TAIL}). Use --all for the whole conversation."
+    ),
+)
+@click.option(
+    "--all",
+    "show_all",
+    is_flag=True,
+    default=False,
+    help="Show the whole conversation instead of a recent tail.",
+)
+@click.option(
+    "--full",
+    is_flag=True,
+    default=False,
+    help="Return raw ChatMessage JSON instead of the compact summary.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the `{as_of, status, count, messages}` envelope).",
+)
+def sample_messages_command(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    tail: int | None,
+    show_all: bool,
+    full: bool,
+    as_json: bool,
+) -> None:
+    """Read one sample's current conversation (a snapshot).
+
+    Returns the sample's `TaskState.messages` as they look right now — a
+    snapshot, not a stream: the message list is rewritable (compaction,
+    solver edits), so there is no resume cursor. The default is a recent tail;
+    pass `--all` for the whole conversation or `--tail N` for a specific
+    window, and `--full` for raw `ChatMessage` JSON. For incremental,
+    event-grain watching use `inspect ctl sample events`. EPOCH defaults to 1
+    (the response echoes the resolved epoch).
+    """
+    _run_sample_messages(
+        task,
+        sample_id,
+        epoch,
+        tail=tail,
+        show_all=show_all,
+        full=full,
+        as_json=as_json,
+    )
+
+
 @sample_group.command("cancel")
 @click.argument("task")
 @click.argument("sample_id")
@@ -962,8 +1085,9 @@ def config_command(
 def process_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on running Inspect processes (bare `process` lists them).
 
-    The selector is a positional PID, optional when a single process is
-    running.
+    The selector is a positional PID: optional for `keep` / `release` when
+    a single process is running, and for `anomalies`, where no PID reads
+    every running process.
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(process_list_command, **mirrored)
@@ -976,7 +1100,8 @@ process_group.hint = lambda token: (
     f"No such command '{token}'. To list running processes: "
     "`inspect ctl process list` (or the bare `inspect ctl process`); to park "
     f"or release one: `inspect ctl process keep {token}` / "
-    f"`inspect ctl process release {token}`."
+    f"`inspect ctl process release {token}`; for one's in-flight actions: "
+    f"`inspect ctl process anomalies {token}`."
 )
 
 
@@ -1018,6 +1143,82 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
     the eval or affect in-flight samples.
     """
     _run_keep_alive(pid, keep=False, as_json=as_json)
+
+
+@process_group.command("pause")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be paused without doing it.",
+)
+@_json_option("the mutation result envelope")
+def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
+    """Pause a whole running eval or eval-set (stop dispatching new work; in-flight finishes).
+
+    One process-scoped latch: no new eval-set tasks dispatch, no task
+    retries start, and no samples dispatch in any task; in-flight samples
+    finish naturally. The process, its queue, and this control surface stay
+    alive — watch `inspect ctl task list` for `quiesced` (paused with
+    nothing in flight), after which completed work is flushed and the
+    process can be killed cleanly if needed. Resume with `inspect ctl
+    process resume`. Idempotent and non-destructive.
+    """
+    _run_process_pause_resume(pid, verb="pause", dry_run=dry_run, as_json=as_json)
+
+
+@process_group.command("resume")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be resumed without doing it.",
+)
+@_json_option("the mutation result envelope")
+def process_resume_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
+    """Resume a paused eval or eval-set (the inverse of `process pause`).
+
+    Dispatch picks up exactly where it left off. Task-level pauses (from
+    `inspect ctl task pause`) are deliberately left in place. Note the
+    distinction with `process release`: resume re-opens a *paused* run;
+    release ends a keep-alive *park* after the eval finishes.
+    """
+    _run_process_pause_resume(pid, verb="resume", dry_run=dry_run, as_json=as_json)
+
+
+@process_group.command("anomalies")
+@click.argument("pid", required=False, type=int)
+@anomalies_options(
+    "an `{as_of, processes}` envelope; each process entry carries `pid`, "
+    "`trace_file`, its own `as_of` (the timestamp running durations are "
+    "computed against), and the `running`/`cancelled`/`errors`/`timeouts` "
+    "buckets"
+)
+def process_anomalies_command(
+    pid: int | None, filter: str | None, all: bool, as_json: bool
+) -> None:
+    """Show in-flight and anomalous actions from a process's trace log.
+
+    Reconstructs from the pid's trace file what is running right now
+    (entered, never exited — with live durations) plus what was cancelled;
+    `--all` adds errored and timed-out actions. This is the "why" behind a
+    stalled sample: a single in-flight operation (model call, sandbox exec)
+    emits no transcript event until it returns, but its trace action is
+    visible here.
+
+    The trace file is read directly (nothing is asked of the process), so
+    this works against a busy or hung process — the escalation path when
+    another read reports "busy" — and even post-mortem: a PID with no live
+    process falls back to its trace file (`trace-<pid>.log`, or `.log.gz`
+    after a clean exit) while one still exists, with running durations dated
+    to the file's last write (approximately the time of death) rather than
+    now. No PID reads every running process, one section per pid. The
+    analysis is shared with `inspect trace anomalies`, which reads any trace
+    file by path.
+    """
+    _run_process_anomalies(pid, filter=filter, all=all, as_json=as_json)
 
 
 # ---------------------------------------------------------------------------
@@ -1940,7 +2141,80 @@ def _run_sample_events(
         click.echo(json_lib.dumps(page, indent=2))
         return
 
-    _print_events(page)
+    _print_events(page, full=full)
+
+
+@_envelope_failures
+def _run_sample_messages(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    tail: int | None,
+    show_all: bool,
+    full: bool,
+    as_json: bool,
+) -> None:
+    # `--all` and `--tail` are mutually exclusive ways to size the window;
+    # an explicit --tail with --all is contradictory, so reject it rather
+    # than silently letting one win.
+    if show_all and tail is not None:
+        _fail(
+            "invalid_request",
+            "--all and --tail are mutually exclusive (--all shows every "
+            "message; --tail sizes a recent window).",
+        )
+    # The unseeded default is a recent tail — never an overwhelming first
+    # page. --all disables it; an explicit --tail overrides it.
+    if not show_all and tail is None:
+        tail = _DEFAULT_MESSAGES_TAIL
+
+    fetched = _fetch_sample_summaries()
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            # Uniform --json shape even on the empty page (task_id is
+            # unresolvable with no running evals; as_of is None because no
+            # server stamped a read time).
+            empty_page: dict[str, Any] = {
+                "task_id": None,
+                "sample_id": sample_id,
+                "epoch": epoch,
+                "as_of": None,
+                "status": None,
+                "count": 0,
+                "messages": [],
+            }
+            click.echo(json_lib.dumps(empty_page, indent=2))
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    page = _fetch_sample_messages(
+        target["socket_path"],
+        target["eval_id"],
+        sample_id,
+        epoch,
+        tail=tail,
+        full=full,
+    )
+    # Echo the resolved identifiers so a defaulted epoch is visible and the
+    # row round-trips into other commands' selectors.
+    page = {
+        "task_id": target.get("task_id"),
+        "sample_id": sample_id,
+        "epoch": epoch,
+        **page,
+    }
+
+    if as_json:
+        click.echo(json_lib.dumps(page, indent=2))
+        return
+
+    click.echo(_task_header(target))
+    click.echo()
+    _print_messages(page, full=full)
 
 
 def _looks_like_timestamp(value: str) -> bool:
@@ -2241,6 +2515,170 @@ def _run_task_cancel(
         click.echo(f"Nothing to do: {reason}.")
 
 
+_PAUSE_ROUTE_MISSING = (
+    "This process is running an older inspect without the pause/resume "
+    "endpoints; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_task_pause_resume(
+    task: str | None,
+    *,
+    verb: Literal["pause", "resume"],
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Pause or resume one task (``POST /tasks/<task-id>/pause|resume``).
+
+    Follows the mutation selector rule with the sole-running-task default:
+    pause is non-destructive and trivially reversible, so it does not join
+    ``task cancel`` in the selector-always-required class (the same
+    reasoning that gives ``process keep`` / ``release`` the sole-target
+    default — the worst case of a wrongly targeted pause is a resume).
+    """
+    servers = list_discovered_servers()
+    summaries = _fetch_summaries(servers).summaries
+    scope = _resolve_scope(servers, summaries, task, per_task_option=f"task {verb}")
+    if scope is None:
+        if as_json:
+            click.echo("null")
+            return
+        _echo_no_running_evals()
+        return
+    assert scope.task_id is not None
+
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    # idempotent last-write-wins latch, so it may ride the narrated
+    # busy-retry policy like keep/release and cancel
+    result = _request_json(
+        scope.socket_path,
+        f"/tasks/{scope.task_id}/{verb}",
+        params=params,
+        what=f"{verb} of task {scope.task_id}",
+        not_found=(
+            f"Task '{scope.task_id}' not found in this process (it may have finished)."
+        ),
+        not_found_missing_route=_PAUSE_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        target = {"task_id": scope.task_id, "task": scope.task}
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope(target, result, dry_run=dry_run), indent=2
+            )
+        )
+        return
+
+    click.echo(scope.header)
+    click.echo()
+    if result.get("changed"):
+        if verb == "pause":
+            # `dispatched` counts samples past the gate, including ones still
+            # initializing their sandbox (which the listing shows as queued)
+            dispatched = int(result.get("dispatched", 0) or 0)
+            finishing = (
+                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
+                f"{'would' if dry_run else 'will'} finish naturally"
+            )
+            if dry_run:
+                click.echo(
+                    f"Would pause — {finishing}; no new samples or retry "
+                    "attempts would start."
+                )
+            else:
+                click.echo(
+                    f"Pause requested — {finishing}; no new samples or retry "
+                    "attempts will start. Resume with `inspect ctl task resume`."
+                )
+        elif dry_run:
+            click.echo("Would resume — queued samples would dispatch again.")
+        else:
+            click.echo("Resume requested — queued samples will dispatch again.")
+            # independent latches: a task resume does not clear a process
+            # pause, so say when the task is still held
+            if result.get("paused") == "process":
+                click.echo(
+                    "Note: the process is paused — samples stay held until "
+                    "`inspect ctl process resume`."
+                )
+    else:
+        reason = str(result.get("reason") or "already in that state")
+        click.echo(f"Nothing to do: {reason}.")
+        # "task is not paused" is technically right for a task held only by
+        # the process latch, but the operator wants it moving — point at the
+        # latch that actually holds it
+        if verb == "resume" and result.get("paused") in ("process", "both"):
+            click.echo(
+                "Note: the process is paused — samples stay held until "
+                "`inspect ctl process resume`."
+            )
+
+
+@_envelope_failures
+def _run_process_pause_resume(
+    pid: int | None,
+    *,
+    verb: Literal["pause", "resume"],
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Pause or resume a whole process (``POST /pause`` / ``POST /resume``)."""
+    target = _resolve_target_server(pid)
+    params: dict[str, Any] = {}
+    if dry_run:
+        params["dry_run"] = True
+    result = _request_json(
+        str(target.socket_path),
+        f"/{verb}",
+        params=params,
+        what=f"{verb} for pid {target.pid}",
+        not_found=_PAUSE_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope({"pid": target.pid}, result, dry_run=dry_run),
+                indent=2,
+            )
+        )
+        return
+
+    if result.get("changed"):
+        if verb == "pause":
+            if dry_run:
+                click.echo(
+                    f"Would pause pid {target.pid} — in-flight samples would "
+                    "finish; no new samples, task retries, or eval-set tasks "
+                    "would start."
+                )
+            else:
+                click.echo(
+                    f"Pause requested for pid {target.pid} — in-flight samples "
+                    "will finish; no new samples, task retries, or eval-set "
+                    "tasks will start. Watch `inspect ctl task list` for "
+                    "quiesced; resume with `inspect ctl process resume`."
+                )
+        elif dry_run:
+            click.echo(f"Would resume pid {target.pid}.")
+        else:
+            click.echo(
+                f"Resume requested for pid {target.pid} — dispatch picks up "
+                "where it left off (task-level pauses, if any, stay in place)."
+            )
+    else:
+        reason = str(result.get("reason") or "already in that state")
+        click.echo(f"Nothing to do: {reason} (pid {target.pid}).")
+
+
 @_envelope_failures
 def _run_sample_cancel(
     task: str,
@@ -2343,14 +2781,22 @@ def _run_process_list(as_json: bool) -> None:
     for server in servers:
         hosted = [s for s in summaries if s.get("pid") == server.pid]
         # keep-alive is a process-level property every hosted task shares;
-        # unknown (None) when no task has registered yet.
+        # unknown (None) when no task has registered yet. The process pause
+        # latch is likewise process-level (also None against an older server
+        # that doesn't report it).
         keep_alive = bool(hosted[0].get("keep_alive")) if hosted else None
+        paused = (
+            bool(hosted[0].get("process_paused"))
+            if hosted and hosted[0].get("process_paused") is not None
+            else None
+        )
         rows.append(
             {
                 "pid": server.pid,
                 "socket_path": str(server.socket_path),
                 "started_at": server.started_at,
                 "keep_alive": keep_alive,
+                "paused": paused,
                 "tasks": [
                     {
                         "task_id": t.get("task_id"),
@@ -2373,16 +2819,199 @@ def _run_process_list(as_json: bool) -> None:
     table_rows: list[tuple[str, ...]] = []
     for row in rows:
         keep = row["keep_alive"]
+        paused = row["paused"]
         tasks = row["tasks"]
         table_rows.append(
             (
                 str(row["pid"]),
                 "?" if keep is None else ("on" if keep else "off"),
+                "?" if paused is None else ("yes" if paused else "no"),
                 ", ".join(str(t.get("task") or "?") for t in tasks) or "(starting)",
                 _format_started(row["started_at"]),
             )
         )
-    _render_table(("pid", "keep-alive", "tasks", "started"), table_rows)
+    _render_table(("pid", "keep-alive", "paused", "tasks", "started"), table_rows)
+
+
+class _PidAnomalies(NamedTuple):
+    """One `process anomalies` section: a pid, its trace file, and the reconstruction.
+
+    ``as_of`` is the timestamp the section's running durations are computed
+    against: for a live pid, stamped just after its file is read (stamping
+    before could date an ``enter`` record that lands mid-read to the future,
+    i.e. a negative duration); for a dead pid's post-mortem read, the trace
+    file's last write (a proxy for time of death).
+    """
+
+    pid: int
+    trace_file: Path
+    anomalies: TraceAnomalies
+    as_of: float
+
+
+def _trace_file_for_pid(pid: int) -> Path | None:
+    """The pid's trace file: ``trace-<pid>.log``, or ``.log.gz`` after a clean exit.
+
+    ``None`` when neither exists (swept by the keep-newest-10 rotation).
+    Live and dead pids resolve the same way — the mapping is pure filename
+    convention, which is what makes the post-mortem read possible.
+    """
+    for name in (f"trace-{pid}.log", f"trace-{pid}.log.gz"):
+        path = inspect_trace_dir() / name
+        if path.exists():
+            return path
+    return None
+
+
+@_envelope_failures
+def _run_process_anomalies(
+    pid: int | None, *, filter: str | None, all: bool, as_json: bool
+) -> None:
+    """Anomalies from trace files: one section per targeted pid.
+
+    Deliberately a client-side file read with no HTTP endpoint — the prime
+    anomalies scenario is a wedged process, precisely when the control
+    server (which shares the eval's loop) can't answer (see "Trace-log
+    anomalies for stall diagnosis" in design/ctl/control-channel.md).
+    """
+    # Stamp the envelope as_of before the reads (same cursor rationale as the
+    # other read envelopes: anything that changes during them has a timestamp
+    # >= as_of and is caught by the next poll). Sections date their running
+    # durations to their own as_of instead (see _PidAnomalies), where
+    # stamp-after-read is the consistent choice — matching `inspect trace
+    # anomalies`, which cannot produce negative durations.
+    as_of = time.time()
+
+    servers: list[DiscoveredControlServer] = []
+    if pid is not None:
+        # An explicit PID needs no discovery: the trace file is pid-keyed on
+        # disk, so a dead process resolves exactly like a live one (the
+        # post-mortem read).
+        trace_file = _trace_file_for_pid(pid)
+        if trace_file is None:
+            looked_for = inspect_trace_dir() / f"trace-{pid}.log"
+            _fail(
+                "not_found",
+                f"No trace file found for pid {pid} (looked for "
+                f"{looked_for}[.gz]; rotation keeps only the newest 10 trace "
+                "files). If you have a copy elsewhere, read it with "
+                "`inspect trace anomalies <file>`.",
+            )
+        if pid_alive(pid):
+            post_mortem_as_of: float | None = None
+        else:
+            # Post-mortem read: date running durations to the trace file's
+            # last write — a proxy for the time of death — so an action in
+            # flight when the process died doesn't accrue wall-clock time
+            # since (an overnight death would otherwise show it "running"
+            # for hours).
+            post_mortem_as_of = trace_file.stat().st_mtime
+            click.echo(
+                f"note: pid {pid} is not running — durations are as of the "
+                "trace file's last write.",
+                err=True,
+            )
+        targets = [(pid, trace_file, post_mortem_as_of)]
+    else:
+        servers = list_discovered_servers()
+        targets = []
+        for server in servers:
+            server_trace = _trace_file_for_pid(server.pid)
+            if server_trace is None:
+                # same warn-and-skip as the unscoped fan-out reads: this
+                # pid's section can't be read, the others' still can
+                click.echo(
+                    f"note: no trace file found for pid {server.pid} — skipped.",
+                    err=True,
+                )
+                continue
+            # discovery only lists live pids, so durations date to the read
+            targets.append((server.pid, server_trace, None))
+
+    sections: list[_PidAnomalies] = []
+    for target_pid, target_file, target_post_mortem_as_of in targets:
+        try:
+            records = read_trace_file(target_file)
+        except Exception as ex:
+            # catch Exception, not (OSError, ValueError): "unreadable file"
+            # has no closed exception vocabulary — e.g. mid-stream gz
+            # corruption raises zlib.error, which is neither
+            if pid is not None:
+                # explicit-pid reads fail loudly (the caller asked for
+                # exactly this pid), with the same clean stderr-plus-envelope
+                # contract as every other terminal ctl error
+                message = (
+                    f"Could not read trace file {target_file} for pid "
+                    f"{target_pid}: {ex}"
+                )
+                click.echo(message, err=True)
+                raise _CtlFailure(
+                    "internal", message, exception=_exception_name(ex)
+                ) from ex
+            # the widened fan-out warns-and-skips like the missing-trace-file
+            # case, keeping the other sections readable
+            click.echo(
+                f"note: could not read {target_file} for pid {target_pid} "
+                f"({ex}) — skipped.",
+                err=True,
+            )
+            continue
+        anomalies = trace_anomalies(filter_traces(records, filter))
+        sections.append(
+            _PidAnomalies(
+                pid=target_pid,
+                trace_file=target_file,
+                anomalies=anomalies,
+                as_of=(
+                    time.time()
+                    if target_post_mortem_as_of is None
+                    else target_post_mortem_as_of
+                ),
+            )
+        )
+
+    if as_json:
+        envelope = {
+            "as_of": as_of,
+            "processes": [
+                {
+                    "pid": section.pid,
+                    "trace_file": section.trace_file.as_posix(),
+                    "as_of": section.as_of,
+                    **anomaly_buckets_json(section.anomalies, section.as_of),
+                }
+                for section in sections
+            ],
+        }
+        click.echo(json_lib.dumps(envelope, indent=2))
+        return
+
+    if not sections:
+        if servers:
+            click.echo(
+                "No readable trace files found for the running processes "
+                "(see notes above)."
+            )
+        else:
+            click.echo(
+                "No running inspect processes found. Pass a PID to read an "
+                "exited process's trace file post-mortem (`inspect trace "
+                "list` shows the trace files still on disk)."
+            )
+        return
+
+    click.echo(
+        "\n\n".join(
+            rendered_anomalies(
+                section.trace_file,
+                section.anomalies,
+                all,
+                pid=section.pid,
+                as_of=section.as_of,
+            )
+            for section in sections
+        )
+    )
 
 
 def _applied_knob_names(
@@ -3491,6 +4120,45 @@ def _fetch_sample_events(
     )
 
 
+_MESSAGES_ROUTE_MISSING = (
+    "This process is running an older inspect without the sample "
+    "messages endpoint; restart the eval to pick up the current version."
+)
+
+
+def _fetch_sample_messages(
+    socket_path: str,
+    eval_id: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    tail: int | None,
+    full: bool,
+) -> dict[str, Any]:
+    """Query one control server for a snapshot of a sample's conversation.
+
+    The authoritative read behind ``sample messages``: like the sample detail
+    and events reads, it rides the full narrated busy-retry policy rather than
+    failing on a momentary event-loop stall.
+    """
+    # sample_id (and all params) go in the query string so reserved-char ids
+    # address correctly; drop unset options so server defaults apply.
+    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    if tail is not None:
+        params["tail"] = tail
+    return _request_json(
+        socket_path,
+        f"/evals/{eval_id}/sample/messages",
+        params=params,
+        what=f"messages for sample {sample_id}",
+        not_found=(
+            f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
+            "not have started or not yet been written to the log."
+        ),
+        not_found_missing_route=_MESSAGES_ROUTE_MISSING,
+    )
+
+
 def _request_json(
     socket_path: str,
     path: str,
@@ -3944,10 +4612,15 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         click.echo(f"  note: {note}")
 
 
-def _print_events(page: dict[str, Any]) -> None:
+def _print_events(page: dict[str, Any], *, full: bool) -> None:
     """Render a page of transcript events (table) plus a cursor footer."""
     events = page.get("events") or []
-    if not events:
+    if full:
+        # Raw mode is for machine consumption; the human rendering is the
+        # compact projection (whose flattened fields the table expects), so
+        # just pretty-print the raw events.
+        click.echo(json_lib.dumps(events, indent=2))
+    elif not events:
         click.echo("(no events)")
     else:
         rows: list[tuple[str, ...]] = []
@@ -3969,6 +4642,52 @@ def _print_events(page: dict[str, Any]) -> None:
     nxt = page.get("next")
     if nxt and not page.get("done"):
         click.echo(f"next: {nxt}  (resume with --cursor)")
+
+
+def _print_messages(page: dict[str, Any], *, full: bool) -> None:
+    """Render a conversation snapshot (per-message rows) plus a count footer."""
+    messages = page.get("messages") or []
+    count = int(page.get("count") or 0)
+    status = page.get("status")
+
+    if full:
+        # Raw mode is for machine consumption; the human rendering is the
+        # compact projection, so just pretty-print the raw messages.
+        click.echo(json_lib.dumps(messages, indent=2))
+    elif not messages:
+        click.echo("(no messages)")
+    else:
+        rows: list[tuple[str, ...]] = []
+        for m in messages:
+            rows.append(
+                (
+                    str(m.get("index", "")),
+                    str(m.get("role", "") or ""),
+                    _message_summary(m),
+                )
+            )
+        _render_table(("#", "role", "content"), rows)
+
+    shown = len(messages)
+    footer = f"{shown} of {count} message" + ("" if count == 1 else "s")
+    if shown < count:
+        footer += " (use --all for the whole conversation)"
+    if status:
+        footer += f"  ·  {status}"
+    click.echo()
+    click.echo(footer)
+
+
+def _message_summary(m: dict[str, Any]) -> str:
+    """One-line summary for a message row (best-effort over compact fields)."""
+    parts = [str(m.get("content") or "")]
+    for call in m.get("tool_calls") or []:
+        parts.append(
+            f"→ {call.get('function') or '?'}({_truncate(str(call.get('arguments') or ''), 30)})"
+        )
+    if m.get("error"):
+        parts.append(f"error: {m['error']}")
+    return _truncate("  ".join(p for p in parts if p), 100)
 
 
 def _event_summary(e: dict[str, Any]) -> str:
@@ -4096,6 +4815,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     any_errors = any((s.get("samples") or {}).get("errored", 0) > 0 for s in summaries)
     any_retries = any(int(s.get("attempts", 1) or 1) > 1 for s in summaries)
     any_solver = any(s.get("solver") for s in summaries)
+    # shown only when some task is paused, so a paused run doesn't read as
+    # stalled (the cell names the holding latch; `quiesced` = nothing left
+    # in flight — the safe-to-kill signal)
+    any_paused = any(s.get("paused") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -4112,6 +4835,8 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         cells.append(_format_samples(samples))
         if any_errors:
             cells.append(str(samples.get("errored", 0)))
+        if any_paused:
+            cells.append(_format_paused(s))
         cells.append(_format_started(s.get("started_at", 0)))
         if any_retries:
             cells.append(str(int(s.get("attempts", 1) or 1)))
@@ -4123,11 +4848,21 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     headers_list.append("samples")
     if any_errors:
         headers_list.append("errors")
+    if any_paused:
+        headers_list.append("paused")
     headers_list.append("started")
     if any_retries:
         headers_list.append("attempts")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _format_paused(summary: dict[str, Any]) -> str:
+    """The task's paused cell: the holding latch, plus quiesced when idle."""
+    paused = summary.get("paused")
+    if not paused:
+        return ""
+    return f"{paused} (quiesced)" if summary.get("quiesced") else str(paused)
 
 
 def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
@@ -4147,6 +4882,25 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     else:
         on = sum(flags)
         click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
+
+    # flag paused work below the table (the per-row cell can scroll away and
+    # a paused run must not read as stalled). A paused run never finishes —
+    # either latch holds work the run awaits — so also surface the
+    # exit-when-done contradiction when keep-alive is off for a paused row.
+    paused = [s for s in summaries if s.get("paused")]
+    if paused:
+        quiesced = sum(1 for s in paused if s.get("quiesced"))
+        detail = f" ({quiesced} quiesced)" if quiesced else ""
+        click.echo(
+            f"paused: {len(paused)}/{len(summaries)} task"
+            f"{'' if len(summaries) == 1 else 's'}{detail}  ·  resume with "
+            "`inspect ctl task resume` / `inspect ctl process resume`"
+        )
+        if any(not s.get("keep_alive") for s in paused):
+            click.echo(
+                "note: a paused run never finishes — it will not exit until "
+                "resumed (or cancelled), despite keep-alive being off."
+            )
 
 
 def _task_header(target: dict[str, Any]) -> str:

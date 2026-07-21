@@ -16,11 +16,14 @@ notes" for the lifecycle / flag policy.
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
-/evals/{id}/sample`` (summary + error detail), and ``GET
-/evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
-and the first phase-3 directives: the config/log-flush mutations and
-``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
+/evals/{id}/sample`` (summary + error detail), ``GET
+/evals/{id}/sample/events`` (cursored transcript pull), and
+``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+plus ``POST /release`` / ``POST /keep`` for keep-alive control
+and the first phase-3 directives: the config/log-flush mutations,
+``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``, and
+the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
+process-scoped ``POST /pause`` / ``POST /resume``).
 The remaining directives (drain / requeue / add-task) and SSE push land
 with the rest of phases 3-4.
 """
@@ -58,6 +61,14 @@ from inspect_ai._control.limits import (
     UnknownConcurrencyKeyError,
     process_limits,
     task_limits,
+)
+from inspect_ai._control.messages import sample_messages
+from inspect_ai._control.pause import (
+    pause_process,
+    pause_task,
+    process_paused,
+    resume_process,
+    resume_task,
 )
 from inspect_ai._control.state import (
     current_eval_summaries,
@@ -384,8 +395,12 @@ class ControlServer:
             # (which reflects a runtime `POST /keep` or `/release`, not just
             # the launch flag) so `inspect ctl task list` can report it.
             keep_alive = keep_alive_intent()
+            # the process pause latch is likewise process-level (each row also
+            # carries a per-task `paused` scope — see _build_summary)
+            paused = process_paused()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
+                summary["process_paused"] = paused
                 # Advertise the control-API version so HTTP consumers can
                 # gate version-dependent requests (the CLI reads it from the
                 # discovery file, which also covers the pre-registration
@@ -512,6 +527,30 @@ class ControlServer:
                 )
             return page
 
+        # Per-sample conversation snapshot (`TaskState.messages`). Like the
+        # other per-sample routes, `sample_id` is a query param (ids may carry
+        # URL-reserved characters). Deliberately not cursored — the message
+        # list is rewritable (compaction / solver edits), so each call returns
+        # the current conversation (or a `tail`), enveloped with `as_of` /
+        # `status` / `count`. `full` returns raw ChatMessage JSON.
+        @app.get("/evals/{eval_id}/sample/messages")
+        async def get_sample_messages(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            tail: int | None = None,
+            full: bool = False,
+        ) -> Any:
+            page = await sample_messages(
+                eval_id, sample_id, epoch, tail=tail, full=full
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
         # Flush the task's buffered completed samples to the (possibly remote,
         # eg. S3) log now, so they're readable without waiting for the flush
         # buffer to fill. Keyed by task_id (resolved to the latest attempt),
@@ -564,6 +603,33 @@ class ControlServer:
                 )
             if result.get("ok") is False:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
+        # Pause / resume a running task (phase 3 — see design/ctl/pause-resume.md).
+        # Task-keyed like `config` / `log-flush` / `cancel` (a pause handle
+        # must not dangle across a retry). Quiesce semantics: pause stops new
+        # samples (and a queued in-run retry attempt) from starting while
+        # in-flight samples finish naturally; resume re-opens the gate.
+        # Idempotent (`changed: false` on a repeat or a finished task),
+        # last-write-wins, `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/pause")
+        async def task_pause(task_id: str, dry_run: bool = False) -> Any:
+            result = await pause_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            return result
+
+        @app.post("/tasks/{task_id}/resume")
+        async def task_resume(task_id: str, dry_run: bool = False) -> Any:
+            result = await resume_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
             return result
 
         # Cancel one running sample (phase 3). `sample_id` is a query param
@@ -805,6 +871,22 @@ class ControlServer:
             changed = not keep_alive_intent()
             request_keep_alive()
             return {"ok": True, "keep_alive": True, "changed": changed}
+
+        # Pause / resume the whole run (the eval-set spelling — one
+        # process-scoped latch every dispatch point checks, like keep-alive,
+        # NOT a fan-out over task pauses): under pause no new eval-set tasks
+        # dispatch, no task retry attempts start, and no samples dispatch in
+        # any task; in-flight samples finish naturally. `process resume` does
+        # not clear task-level pauses (independent latches). Never 404s — a
+        # process always exists. Note the state distinction with /release:
+        # resume re-opens a *paused* run; release ends a keep-alive *park*.
+        @app.post("/pause")
+        async def process_pause(dry_run: bool = False) -> Any:
+            return await pause_process(dry_run=dry_run)
+
+        @app.post("/resume")
+        async def process_resume(dry_run: bool = False) -> Any:
+            return await resume_process(dry_run=dry_run)
 
         return app
 
