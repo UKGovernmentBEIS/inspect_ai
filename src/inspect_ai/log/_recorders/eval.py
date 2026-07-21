@@ -896,10 +896,11 @@ class ZipLogFile:
         completion paths during the window before a sample is flushed to disk:
 
         - ``_samples`` — buffered whole samples (with events) awaiting a flush
-          (the reused-on-retry path).
-        - ``_streaming_samples`` — the streaming path's event-less samples
-          (their events live in the buffer database, so this carries error
-          detail / scores but not events).
+          (the default :meth:`buffer_sample` path).
+        - ``_streaming_samples`` — event-less samples from the streaming and
+          write-through paths (their events live in the buffer database and
+          the temp zip respectively, so this carries error detail / scores
+          but not events).
 
         Returns ``None`` once flushed (the on-disk log takes over) or for a
         recorder that doesn't buffer; callers fall back to the on-disk log.
