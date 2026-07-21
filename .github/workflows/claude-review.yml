@@ -28,6 +28,11 @@ jobs:
       (github.event.issue.pull_request != null &&
        contains(github.event.comment.body, '@review'))
     uses: meridianlabs-ai/agents/.github/workflows/claude-review.yml@main
+    # Machine-account PAT for the deterministic ack/stage steps only (eyes
+    # reaction + board stage); never handed to the review agent, which stays
+    # read-only. Absent -> those steps no-op.
+    secrets:
+      MARVIN_TOKEN: ${{ secrets.MARVIN_TOKEN }}
     permissions:
       contents: read
       pull-requests: write
