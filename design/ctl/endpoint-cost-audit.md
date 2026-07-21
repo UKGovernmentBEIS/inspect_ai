@@ -78,7 +78,7 @@ overlays every ⚠️/❌ terminal cell in the table for `.json` logs.
 | `GET /evals/{id}/samples` | O(rows) over cached summaries + pending synthesis | Re-reads all summaries from the log **per request** | ⚠️ findings 2, 3 |
 | `GET /evals/{id}/sample` (error detail) | O(active samples) scan | Streamed sample scan + a summaries listing read | ⚠️ finding 4 |
 | `GET /evals/{id}/sample/events` | Paged, bounded by `limit` | Full-transcript parse **per page** once flushed to disk | ❌ finding 1 |
-| `GET /evals/{id}/sample/messages` | O(conversation) copy + truncating projection | Excluded-field scan + attachment resolution | ✅ holds (payload = the response) |
+| `GET /evals/{id}/sample/messages` | O(conversation) copy + truncating projection | Excluded-field scan + attachment resolution | ✅ holds (payload = the response; terminal `tail` reads — watch item) |
 | `POST /tasks/{id}/log-flush` | Full-log write (the endpoint's job); repeats are no-ops | — | ✅ holds |
 | `POST .../cancel` (task, sample) | O(active samples) scans | Sample cancel's no-op branch reads error detail (inherits finding 4) | ✅ holds |
 | `GET`/`PATCH /config`, `/tasks/{id}/config` | O(registry entries) | — | ✅ holds |
@@ -199,8 +199,17 @@ job rather than overhead. Running path copies the live message list
 path excludes `events`/`store`/`output` at parse time (`.eval`; on `.json`
 the whole log is parsed regardless — finding 2) and resolves
 attachments in `core` mode (messages only, not events) — linear in
-conversation size, once per request. `full=true` with no `tail` serializes
-the raw conversation — see "Response serialization". Deliberately
+conversation size, once per request. One caveat: `tail` bounds the
+*response*, not the *read* — the parse and attachment resolution cover the
+whole conversation before the slice (`sample_messages` tails afterwards),
+and once the sample is finished that source is immutable, so a watcher that
+polls until it notices the terminal `status` re-pays the full-conversation
+work per poll. By this audit's own "immutable sources must not be re-read
+per request" criterion that is a watch item — finding 1's
+polling-amplification shape at a smaller constant (events are excluded
+here) — and the terminal-source cache of finding 1(a) would cover it.
+`full=true` with no `tail` serializes the raw conversation — see "Response
+serialization". Deliberately
 snapshot-not-cursored (the list is rewritable), so a poller re-transfers the
 conversation each poll; the compact projection and `tail` exist to keep that
 cheap, and the envelope's `count` is the documented staleness signal to avoid
@@ -322,7 +331,10 @@ smaller constant. Finding 2 *is* the incident's defect class verbatim
 
 Watch items (bounded today, could grow constants): pending-row synthesis on
 very large dataset × epoch grids (see the `/samples` section); `full=true`
-response byte sizes (see "Response serialization").
+response byte sizes (see "Response serialization"); terminal messages reads
+under `tail` (the parse + attachment resolution cover the full conversation
+before the slice, re-paid per poll against an immutable source — see the
+messages section; finding 1(a)'s terminal-source cache would cover it).
 
 ## Structural guards
 
