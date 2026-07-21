@@ -839,6 +839,11 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 ),
                                 messages=len(previous_sample.messages),
                             )
+                            # a reused injected sample never reaches
+                            # task_run_sample (whose sample_terminal callback
+                            # releases injected slots), so release here
+                            if sample_index >= store_len:
+                                note_injected_terminal(sample_index, epoch, "completed")
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
                             # signal intent — agent code can branch on
@@ -1666,6 +1671,8 @@ async def task_run_sample(
                     # count the halt as terminal (not an error) so the eval can
                     # reach `total` and be marked finished
                     record_sample_completed(task_id)
+                    if sample_terminal is not None:
+                        sample_terminal("completed")
                     return early_stop
 
             start_time: float | None = None
