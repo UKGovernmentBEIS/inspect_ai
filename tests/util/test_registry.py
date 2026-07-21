@@ -20,9 +20,10 @@ from inspect_ai.model._compaction.native import CompactionNative
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.scorer import Metric, ScoreReducer, metric
+from inspect_ai.scorer import Metric, ScoreReducer, at_least, metric, pass_at, pass_k
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.scorer._reducer.reducer import mean_score
+from inspect_ai.scorer._reducer.registry import reducer_log_name
 from inspect_ai.solver import Solver, solver, use_tools
 from inspect_ai.tool import Tool, bash
 
@@ -144,6 +145,28 @@ def test_registry_arg_instantiates_nested_score_reducer() -> None:
 
     assert restored is not mean_score
     assert isinstance(restored, ScoreReducer)
+
+
+def test_registry_arg_round_trips_parameterized_score_reducers() -> None:
+    """Reducer display suffixes must not replace their registered factory names."""
+    from inspect_ai._util.registry import registry_arg
+
+    for name, factory in (
+        ("at_least", at_least),
+        ("pass_at", pass_at),
+        ("pass_k", pass_k),
+    ):
+        encoded = registry_value(factory(2))
+
+        assert encoded == {
+            "type": "score_reducer",
+            "name": name,
+            "params": {"k": 2},
+        }
+
+        restored = registry_arg(encoded)
+        assert isinstance(restored, ScoreReducer)
+        assert reducer_log_name(restored) == f"{name}_2"
 
 
 def test_registry_arg_instantiates_nested_task_source() -> None:
