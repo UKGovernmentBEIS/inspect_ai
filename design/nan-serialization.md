@@ -41,9 +41,13 @@ serialization root for score-bearing data must therefore repeat the config:
 | `ScoreEvent`, `ScoreEditEvent` | realtime buffer db event rows |
 | `Samples`, `SampleData`, `Manifest` | buffer filestore sync, view server responses |
 | `Score`, `ScoreEdit` | direct dumps (defensive; unit-level consistency) |
+| `IntermediateScoring` | `store_jsonable()` dumps `HumanAgentState.scorings` entries directly |
 
-`test_non_finite_serialization_configured_on_all_wire_roots` guards this
-enumeration. FastAPI response serialization wraps response models in its own
+`test_non_finite_serialization_configured_on_all_wire_roots` documents the
+known roots and keeps their configs from being dropped -- it cannot discover
+new ones. Anything that dumps score-bearing models directly (as
+`store_jsonable()` does for `IntermediateScoring`) must be added to the list
+and covered by a round-trip test at its call site. FastAPI response serialization wraps response models in its own
 type adapter (a dump root without the config), so `/pending-samples` builds
 its `InspectJsonResponse` explicitly rather than returning the model.
 
@@ -55,7 +59,10 @@ effect of the unicode-surrogate fix (#2316), which preserved *scalar* NaN
 
 - Python `json.loads` and pydantic (jiter) parse the constants natively.
 - ijson does not; both streaming call sites fall back to `json.load` via
-  `is_ijson_nan_inf_error` (added in #3123 after the tokens appeared).
+  `is_ijson_nan_inf_error` (added in #3123 after the tokens appeared). Note
+  the yajl2 backend rejects `-Infinity` with a different message than
+  `NaN`/`Infinity` ("a digit is required after the minus sign"), which the
+  detector must also recognize.
 - The TS viewer's `asyncJsonParse` falls back to JSON5 when strict
   `JSON.parse` fails.
 - View server responses use `InspectJsonResponse` (`allow_nan=True`);

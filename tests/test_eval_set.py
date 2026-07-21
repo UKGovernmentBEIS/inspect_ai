@@ -551,12 +551,12 @@ def test_eval_set_preserves_token_usage():
 def test_eval_set_retry_nan_dict_score_leaves() -> None:
     """eval_set retry of a task whose dict scores contain NaN leaves.
 
-    NaN dict-score leaves are serialized to the eval log as JSON null, so
-    when a retry reloads completed samples from the failed log those leaves
-    come back as None. None leaves must be treated as unscored (like NaN):
-    excluded from metrics rather than crashing scalar metrics (Score.as_float
-    raises "This score is not a scalar" on None) or being silently coerced
-    to 0.0 by value_to_float().
+    NaN dict-score leaves must be serialized to the eval log as JSON NaN
+    constants so that a retry reloading completed samples from the failed
+    log sees NaN (excluded from metrics, counted as unscored). Serialized
+    as null they reload as None, which slips past NaN filtering: metrics
+    silently count the leaf as 0.0 via value_to_float() and custom scalar
+    metrics crash in Score.as_float().
     """
 
     @metric

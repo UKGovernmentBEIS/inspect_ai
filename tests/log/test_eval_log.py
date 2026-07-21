@@ -40,7 +40,17 @@ from inspect_ai.log._log import EvalLog, EvalSample
 from inspect_ai.model import get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import Score, Scorer, Target, exact, mean, scorer
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    exact,
+    mean,
+    metric,
+    scorer,
+)
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -1154,14 +1164,18 @@ def test_non_finite_scores_survive_log_round_trip(
 
 
 def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
-    """Every serialization root for score-bearing data emits NaN constants.
+    """Known serialization roots for score-bearing data emit NaN constants.
 
     Pydantic reads ser_json_inf_nan from the dump-root model only -- a
     nested Score's own config is ignored -- so each model that is itself
-    serialized to logs, the realtime buffer, or view server responses must
-    carry the setting. If this test fails for a new model, NaN scores it
-    contains will serialize as null (see design/nan-serialization.md).
+    serialized to logs, the realtime buffer, the store, or view server
+    responses must carry the setting. This test documents the known roots
+    and prevents the config from being dropped; it cannot discover new
+    roots, so anything that dumps score-bearing models directly must be
+    added here and covered by a round-trip test at its call site (see
+    design/nan-serialization.md).
     """
+    from inspect_ai.agent._human.state import IntermediateScoring
     from inspect_ai.event._score import ScoreEvent
     from inspect_ai.event._score_edit import ScoreEditEvent
     from inspect_ai.log._log import EvalSampleReductions, EvalSampleSummary
@@ -1181,6 +1195,47 @@ def test_non_finite_serialization_configured_on_all_wire_roots() -> None:
         Samples,
         SampleData,
         Manifest,
+        IntermediateScoring,
     ]
     for model in wire_roots:
         assert model.model_config.get("ser_json_inf_nan") == "constants", model.__name__
+
+
+def test_negative_infinity_survives_streaming_reads() -> None:
+    """-Infinity takes the NaN/Inf fallback in both ijson streaming readers.
+
+    The yajl2 ijson backend rejects -Infinity with a different message than
+    NaN/Infinity ("a digit is required after the minus sign"), which
+    is_ijson_nan_inf_error must also recognize: the header-only read of
+    .json logs and the exclude_fields sample read of .eval logs both stream
+    with ijson and fall back to standard json parsing on that error.
+    """
+
+    @metric
+    def neg_inf() -> Metric:
+        def compute(scores: list[SampleScore]) -> float:
+            return float("-inf")
+
+        return compute
+
+    @scorer(metrics=[neg_inf()])
+    def neg_inf_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float("-inf"))
+
+        return score
+
+    task = Task(dataset=[Sample(id=1, input="Say hello.")], scorer=neg_inf_scorer())
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # .json header-only read streams the header with ijson
+        log = eval(task, log_dir=log_dir, log_format="json", model="mockllm/model")[0]
+        header = read_eval_log(log.location, header_only=True)
+        assert header.results is not None
+        assert header.results.scores[0].metrics["neg_inf"].value == float("-inf")
+
+        # .eval exclude_fields sample read streams the sample with ijson
+        log = eval(task, log_dir=log_dir, log_format="eval", model="mockllm/model")[0]
+        sample = read_eval_log_sample(log.location, 1, exclude_fields={"messages"})
+        assert sample.scores is not None
+        assert sample.scores["neg_inf_scorer"].value == float("-inf")
