@@ -120,6 +120,7 @@ inspect-docs:
         - href: control-channel.qmd
         - href: early-stopping.qmd
         - href: task-source.qmd
+        - href: sample-source.qmd
         - href: tracing.qmd
     - text: Analysis
       href: analysis.qmd

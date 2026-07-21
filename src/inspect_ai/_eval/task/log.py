@@ -172,6 +172,7 @@ class TaskLogger:
         viewer: ViewerConfig | None,
         recorder: Recorder,
         header_only: bool,
+        dynamic_dataset: bool = False,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -196,7 +197,10 @@ class TaskLogger:
             [
                 sample.id
                 for sample in slice_dataset(
-                    dataset, eval_config.limit, eval_config.sample_id
+                    dataset,
+                    eval_config.limit,
+                    eval_config.sample_id,
+                    dynamic=dynamic_dataset,
                 )
             ],
         )

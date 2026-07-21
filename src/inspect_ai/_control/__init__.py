@@ -2,7 +2,7 @@
 
 Exposes live-eval read / direct / event-subscription operations to
 external clients (the `inspect ctl` CLI, TUIs, agents). See
-``design/control-channel.md`` for the full design.
+``design/ctl/control-channel.md`` for the full design.
 """
 
 # Control-channel API version, for CLI <-> server skew handling. `inspect
