@@ -28,7 +28,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 - **File Paths**: All code that handles file paths must support `s3://` URLs, `file://` URIs, and plain local paths. Use `filesystem()` from `inspect_ai._util.file` for filesystem operations and `local_path()` to resolve `file://` URIs to local paths before passing to APIs that only accept local paths (e.g. `ZipFile`).
 
-- **Respect existing code patterns when modifying files. Run linting before committing changes.
+- **Respect existing patterns**: Respect existing code patterns when modifying files. Run linting before committing changes.
 
 ## Testing Async Code
 
