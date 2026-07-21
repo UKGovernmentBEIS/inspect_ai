@@ -1,7 +1,7 @@
 """Tests for the control-channel sample-requeue directive (phase 3).
 
 Covers the resolver (``inspect_ai._control.requeue.requeue_sample`` — the
-decision table in ``design/sample-requeue.md``), the ``SampleScheduler`` /
+decision table in ``design/ctl/sample-requeue.md``), the ``SampleScheduler`` /
 ``SampleRequeue`` runner machinery (``inspect_ai._eval.task.scheduler``),
 the server route (``POST /evals/<id>/sample/requeue``), the samples-listing
 rendering of a pending requeue, and an end-to-end requeue through a live

@@ -222,7 +222,7 @@ class EvalState:
     sample_requeue: "SampleRequeue | None" = None
     """The running attempt's sample-requeue capability — the handle the
     control channel's requeue directive invokes (see
-    :mod:`inspect_ai._control.requeue` and ``design/sample-requeue.md``).
+    :mod:`inspect_ai._control.requeue` and ``design/ctl/sample-requeue.md``).
     Set by :func:`set_sample_requeue` when the attempt's sample fanout
     starts (the scheduler it closes over doesn't exist at
     :func:`register_eval` time); ``None`` for reused/synthetic evals, and
@@ -256,7 +256,19 @@ class EvalState:
     """Unix timestamp when this eval's last sample finished (i.e. when
     ``completed + errored`` first reached ``total``). ``None`` while the
     eval is still running. Used by the control endpoint to surface
-    completion to agents without forcing them to derive it from counters."""
+    completion to agents without forcing them to derive it from counters.
+    For a :attr:`dynamic` eval this is only stamped by :func:`finalize_eval`
+    (the task's finish point) — counters reaching ``total`` doesn't mean
+    done when the source can still add samples."""
+
+    dynamic: bool = False
+    """Whether this eval's planned sample set can grow while it runs (a
+    ``SampleSource``-driven task). While set, ``terminal >= total`` is not
+    proof of completion — the task may be idle awaiting its source (or have
+    an empty seed, ``total == 0``, at registration) — so the provisional
+    ``completed_at`` stamp is suppressed and consumers (task cancel, status
+    listings) correctly see the eval as running. Cleared by
+    :func:`finalize_eval`, the task's single true finish point."""
 
     started_at: float | None = None
     """Earliest observed sample-start time, tracked as a running minimum.
@@ -361,6 +373,7 @@ def register_eval(
     run_id: str | None = None,
     will_retry: bool = False,
     task_cancel: "TaskCancel | None" = None,
+    dynamic: bool = False,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
@@ -381,17 +394,23 @@ def register_eval(
             solver=solver or "",
             log_location=log_location,
             live=live,
-            sample_ids=sample_ids or [],
+            # copy: a SampleSource-driven task appends to its planned-ids list
+            # as samples are injected; the state's list must grow only via
+            # record_samples_added, not by aliasing the caller's list
+            sample_ids=list(sample_ids or []),
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
             task_cancel=task_cancel,
+            dynamic=dynamic,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
         # already finished — no sample will ever run to fire a terminal counter
         # and stamp ``completed_at`` via record_sample_*, so do it now. A no-op
-        # for the normal ``total > 0`` case (not yet finished at registration).
+        # for the normal ``total > 0`` case (not yet finished at registration)
+        # and for a dynamic eval (an empty seed just means the source hasn't
+        # produced yet — finalize_eval stamps it when the task truly ends).
         _maybe_mark_finished(state)
         return state
 
@@ -571,8 +590,8 @@ def record_sample_requeued(
     re-run torn down before recording). Cumulative usage
     (``total_tokens`` / ``total_messages``) is *not* rolled back — the
     prior attempt's spend was real. Called synchronously in the requeue
-    accept path (see ``design/sample-requeue.md``). Silently no-ops if the
-    eval isn't registered.
+    accept path (see ``design/ctl/sample-requeue.md``). Silently no-ops if
+    the eval isn't registered.
 
     Guarded against decrementing a bucket below zero: that would mean the
     caller's message-based classification of the prior record diverged from
@@ -606,6 +625,26 @@ def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.sample_requeue = handle
+
+
+def record_samples_added(
+    eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
+) -> None:
+    """Grow a running eval's planned totals when samples are added dynamically.
+
+    Called by ``task_run`` when a ``SampleSource`` injects samples mid-run:
+    ``total`` is the number of additional planned runs (samples × epochs) and
+    ``sample_ids`` the injected ids (so the per-sample listing can surface them
+    as pending). The eval is :attr:`EvalState.dynamic`, so no provisional
+    finish stamp needs clearing here — ``completed_at`` stays ``None`` until
+    :func:`finalize_eval`. No-ops if unregistered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.total += total
+            if sample_ids:
+                state.sample_ids.extend(sample_ids)
 
 
 def latest_eval_for_task(task_id: str) -> "EvalState | None":
@@ -698,6 +737,9 @@ def finalize_eval(eval_id: str) -> None:
             shortfall = state.total - state.terminal
             if shortfall > 0:
                 state.cancelled += shortfall
+            # the task has truly finished — no source can add samples now, so
+            # the dynamic suppression of the finish stamp no longer applies
+            state.dynamic = False
             _maybe_mark_finished(state)
 
 
@@ -707,12 +749,15 @@ def _maybe_mark_finished(state: EvalState) -> None:
     Fires the first time the terminal sum (``completed + errored +
     cancelled``) reaches ``total``; later updates are no-ops so a late
     counter update from a teardown race doesn't overwrite the original
-    finish time. Also drops
+    finish time. Suppressed for a :attr:`EvalState.dynamic` eval — its
+    counters reaching ``total`` doesn't mean done (the source may add more
+    samples); ``finalize_eval`` clears the flag at the task's true finish
+    point. Also drops
     ``sample_ids`` — a finished eval has no pending samples, so the
     planned-id list is dead weight (it's retained on the state until the
     run boundary clears it). Caller must hold the registry lock.
     """
-    if state.completed_at is None and state.is_finished:
+    if state.completed_at is None and not state.dynamic and state.is_finished:
         state.completed_at = time.time()
         state.sample_ids = []
 
@@ -749,9 +794,15 @@ def reset_run_registries() -> None:
     one boundary and leak stale state through the other — add new resets
     here, not at the call sites.
     """
+    from inspect_ai._control.pause import (
+        reset_process_pause,
+        reset_task_pause_gates,
+    )
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_task_pause_gates()
+    reset_process_pause()

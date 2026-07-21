@@ -960,7 +960,7 @@ async def _eval_async_inner(
         # live-eval read / direct / event-subscription operations to
         # `inspect ctl` CLI clients, TUIs, and agents. Bind failures are
         # logged and swallowed — eval correctness never depends on the
-        # control channel coming up. See design/control-channel.md
+        # control channel coming up. See design/ctl/control-channel.md
         # "Implementation notes".
         #
         ctl = resolve_ctl_server(ctl_server)

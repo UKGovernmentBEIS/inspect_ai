@@ -4,7 +4,7 @@ Re-adds one errored/cancelled sample to the live run: it goes to the back of
 the sample queue and re-runs under the task's normal machinery (shaped like a
 single-sample task-level retry — fresh sample uuid, prior errors seeded, a
 fresh ``retry_on_error`` budget), and the run's final log and counters
-reflect the fresh outcome. ``design/sample-requeue.md`` owns the semantics
+reflect the fresh outcome. ``design/ctl/sample-requeue.md`` owns the semantics
 this resolver implements, including the decision table.
 
 Shaped like :mod:`inspect_ai._control.cancel` and runs on the eval's own

@@ -1,7 +1,7 @@
 """Live sample fanout for one task attempt (the injectable sample scheduler).
 
 Replaces the one-shot ``tg_collect`` fanout in ``task_run`` so samples can be
-re-added while the task runs (see ``design/sample-requeue.md``): all planned
+re-added while the task runs (see ``design/ctl/sample-requeue.md``): all planned
 ``(sample_index, epoch)`` coroutines start up front (unchanged behaviour), and
 a dispatcher loop inside the same task group drains re-run entries accepted by
 the control channel's sample-requeue directive, starting each re-run inside
@@ -166,7 +166,7 @@ class SampleScheduler:
 
 
 class SampleRequeue:
-    """Attempt-scoped requeue capability (``design/sample-requeue.md``).
+    """Attempt-scoped requeue capability (``design/ctl/sample-requeue.md``).
 
     Registered on the process-global ``EvalState`` by ``task_run`` when the
     sample fanout starts (mirroring ``TaskCancel``) and invoked by the

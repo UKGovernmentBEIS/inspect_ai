@@ -6,7 +6,7 @@ from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 
 from ._solver import Generate, Solver, solver
-from ._task_state import TaskState
+from ._task_state import TaskState, set_sample_state
 
 
 @solver
@@ -82,9 +82,11 @@ class Chain(Sequence[Solver], Solver):
         from ._transcript import solver_transcript
 
         for slv in self._solvers:
+            prev_state = state
             async with solver_transcript(slv, state) as st:
                 state = await slv(state, generate)
                 st.complete(state)
+            set_sample_state(state, replacing=prev_state)
             if state.completed:
                 break
 

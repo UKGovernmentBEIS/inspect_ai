@@ -18,6 +18,7 @@ from typing import (
     BinaryIO,
     Generic,
     Iterator,
+    NamedTuple,
     SupportsIndex,
     TypeVar,
     cast,
@@ -716,6 +717,21 @@ def _copy_temp_to_local(temp_file: BinaryIO, dest: str, fsync: bool) -> None:
         shutil.copyfileobj(temp_file, out, length=1024 * 1024)
 
 
+class _BufferedSample(NamedTuple):
+    """A buffered sample paired with its summary, computed once at buffer time.
+
+    Building a summary is expensive for large samples — ``EvalSample.summary()``
+    runs the ``thin_data`` validator (``textwrap.shorten`` / JSON size probes)
+    over the full-size input, metadata, and scores. ``sample_summaries()`` is
+    polled by the control channel, and recomputing summaries there made each
+    listing request cost minutes of event-loop CPU on an eval buffering many
+    transcript-heavy samples (e.g. a retry's reused completed samples).
+    """
+
+    sample: EvalSample
+    summary: EvalSampleSummary
+
+
 class ZipLogFile:
     _zip: ZipFile | None
     _temp_file: BinaryIO
@@ -727,7 +743,7 @@ class ZipLogFile:
         self._fs = filesystem(file)
         self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
-        self._samples: list[EvalSample] = []
+        self._samples: list[_BufferedSample] = []
         self._streaming_samples: dict[tuple[str | int, int], EvalSample] = {}
         self._summary_counter = 0
         self._summaries: list[EvalSampleSummary] = []
@@ -755,6 +771,7 @@ class ZipLogFile:
             self._zip_writestr(_journal_path(START_JSON), start)
 
     async def buffer_sample(self, sample: EvalSample) -> None:
+        buffered = _BufferedSample(sample=sample, summary=sample.summary())
         async with self._lock:
             # supersede any not-yet-flushed prior record for the same
             # (id, epoch) — e.g. a requeued sample's re-run going terminal
@@ -764,9 +781,11 @@ class ZipLogFile:
             # streaming path, whose member is already zip-written) leave a
             # stale event-less fallback in ``_streaming_samples``.
             key = (sample.id, sample.epoch)
-            self._samples = [s for s in self._samples if (s.id, s.epoch) != key]
+            self._samples = [
+                s for s in self._samples if (s.sample.id, s.sample.epoch) != key
+            ]
             self._streaming_samples.pop(key, None)
-            self._samples.append(sample)
+            self._samples.append(buffered)
 
     async def buffer_sample_streaming(
         self, sample: EvalSample, history: "SampleHistory"
@@ -797,7 +816,9 @@ class ZipLogFile:
             # write above, and the readers' name-based last-entry-wins rule
             # would resolve the log to the stale prior
             self._samples = [
-                s for s in self._samples if (s.id, s.epoch) != (sample.id, sample.epoch)
+                s
+                for s in self._samples
+                if (s.sample.id, s.sample.epoch) != (sample.id, sample.epoch)
             ]
 
             # Retain the event-less sample so the control channel can read its
@@ -822,12 +843,13 @@ class ZipLogFile:
         async with self._lock:
             # Write the buffered samples
             summaries: list[EvalSampleSummary] = []
-            for sample in self._samples:
+            for buffered in self._samples:
+                sample = buffered.sample
                 # Write the sample
                 self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
 
                 # Capture the summary
-                summaries.append(sample.summary())
+                summaries.append(buffered.summary)
 
             self._samples.clear()
 
@@ -854,11 +876,15 @@ class ZipLogFile:
         A buffered sample supersedes a journalled row for the same
         ``(id, epoch)`` (a requeued sample's re-run ahead of its flush), so
         consumers see one row per key with the freshest outcome.
+
+        Pure dict building — the buffered summaries were computed at buffer
+        time (see :class:`_BufferedSample`), so this stays cheap no matter how
+        large the buffered samples are or how often the control channel polls.
         """
         async with self._lock:
             by_key = {(s.id, s.epoch): s for s in self._summaries}
-            for sample in self._samples:
-                by_key[(sample.id, sample.epoch)] = sample.summary()
+            for b in self._samples:
+                by_key[(b.summary.id, b.summary.epoch)] = b.summary
             return list(by_key.values())
 
     async def buffered_sample(self, id: str | int, epoch: int) -> EvalSample | None:
@@ -877,9 +903,9 @@ class ZipLogFile:
         recorder that doesn't buffer; callers fall back to the on-disk log.
         """
         async with self._lock:
-            for sample in self._samples:
-                if sample.id == id and sample.epoch == epoch:
-                    return sample
+            for buffered in self._samples:
+                if buffered.sample.id == id and buffered.sample.epoch == epoch:
+                    return buffered.sample
             return self._streaming_samples.get((id, epoch))
 
     async def write(self, filename: str, data: Any) -> None:
