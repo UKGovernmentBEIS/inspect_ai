@@ -5,7 +5,11 @@ by a control-channel incident (meridianlabs-ai/inspect_ai#118). Audited at
 `ef5fcba34` (2026-07-21), covering `src/inspect_ai/_control/` (`server.py`,
 `state.py`, `events.py`, `messages.py`, `cancel.py`, `limits.py`, `buffer.py`,
 `eval_state.py`) and the data-source paths they call into (`TaskLogger`,
-the recorders, `read_eval_log_*`).
+the recorders, `read_eval_log_*`). The two remaining `_control/` modules are
+checked but out of scope for the per-endpoint table: `discovery.py` is off the
+request path entirely (per-PID discovery files written at startup, read by CLI
+clients), and `strict.py` runs per mutation request but is O(declared query
+params) route introspection, independent of payload sizes.
 
 ## Background: the incident
 
