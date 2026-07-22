@@ -267,13 +267,6 @@ def chunked_sample(
         exclude={"messages", "events", "attachments", "events_data", "metadata"},
     )
     shell["message_refs"] = _compress_refs(indices)
-    # must mirror the chunk entry names written by _write_chunked_sample
-    shell["sequences"] = {
-        MESSAGES_SEQUENCE: chunk_boundaries(len(messages), chunk_size),
-        EVENTS_SEQUENCE: chunk_boundaries(len(events), chunk_size),
-        CALLS_SEQUENCE: chunk_boundaries(len(calls), chunk_size),
-        ATTACHMENTS_SEQUENCE: attachment_boundaries,
-    }
 
     return ChunkedSample(
         shell=shell,
@@ -351,7 +344,9 @@ def _write_chunked_sample(
     _write_sidecar(
         zip,
         events_stats_entry_name(sample.id, sample.epoch),
-        event_stats(converted.events, converted.shell["sequences"][EVENTS_SEQUENCE]),
+        event_stats(
+            converted.events, chunk_boundaries(len(converted.events), chunk_size)
+        ),
     )
 
     sequences: list[tuple[str, Sequence[Any]]] = [

@@ -191,6 +191,21 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   performance benefit by itself (old data stays fully in memory; rendering
   was already virtualized); its value is the seam. Affected:
   [Proposed slicing](#proposed-slicing-into-implementation-efforts) (C3).
+- **2026-07-22 — `sequences` dropped from the shell (reviewer feedback):
+  the central directory is the whole chunk layout.** The shell's cumulative
+  boundaries duplicated what start-named entry names already carry — a
+  two-sources-of-truth hazard (the field had to mirror the written entries).
+  `sample.json` no longer persists `sequences`; readers recover per-sequence
+  chunk starts from central-directory entry names (which every reader
+  fetches anyway — the CD was already the offset index). The one datum
+  boundaries carried beyond entry names, the total sequence count, is
+  deliberately not persisted: the events count is exact from the stats
+  sidecar (per-chunk type-count sums), the other sequences are only ever
+  accessed by known index/range (`message_refs`, `input_refs`/`call_refs`,
+  `attachment://<index>`), and a last chunk's end is learned when it is
+  parsed. Affected: [Chunked on-disk layout](#chunked-on-disk-layout-4-6)
+  (shell block + conventions), [Client data contract](#client-data-contract)
+  (item 1), Appendix A pattern 5, C3b format-candidate wording.
 
 ---
 
@@ -304,10 +319,9 @@ samples/
     │                        #   error, limit, timing, uuid…
     │                        #   + message_refs: [[0, 25], [26, 27]]  (final conversation,
     │                        #       half-open ranges into the message sequence)
-    │                        #   + sequences: cumulative end-exclusive chunk boundaries
-    │                        #       {messages: [1000, 2000, 2210], events: […],
-    │                        #        calls: […], attachments: […]}  (last = sequence count)
     │                        #   NO messages / events / attachments / events_data / metadata
+    │                        #   NO chunk layout (⚑ amended — `sequences` dropped;
+    │                        #       entry names are the layout)
     ├── metadata.json        # sample.metadata (only when non-empty; user-controlled,
     │                        #   arbitrarily large — kept out of the shell)
     ├── skeleton.json        # span-proportional structural skeleton (below)
@@ -335,8 +349,13 @@ Conventions:
 - **Chunk names carry the start index only** (`{start}.json`, no zero
   padding). Filenames have no range semantics; every range in *data* is
   half-open `[start, end_exclusive)`. The chunk holding index `i` is the one
-  with the greatest start ≤ `i`; a chunk's extent is the next chunk's start;
-  the last chunk's end is the sequence count from `shell.sequences`.
+  with the greatest start ≤ `i`; a chunk's extent is the next chunk's start.
+  The central directory's entry names are the *only* persisted record of the
+  chunk layout (**⚑ amended** — `sequences` dropped from the shell,
+  [Change log](#change-log), 2026-07-22): the last chunk's end — the
+  sequence count — is learned by parsing it; the events count is also exact
+  without any chunk read, as the sum of the stats sidecar's per-chunk type
+  counts.
 - **Encoding**: JSON-array chunks. Protobuf deferred behind a measurement
   trigger ([Levers](#measurement-triggered-levers)).
 - Per-sample enumeration is a central-directory prefix scan; everything for a
@@ -702,7 +721,9 @@ free.
 The complete surface the transcript + outline consume — no server, no other
 index:
 
-1. `shell.sequences` (chunk boundaries per sequence) + `message_refs`
+1. central-directory entry names (per-sequence chunk starts — **⚑ amended**,
+   `sequences` dropped, [Change log](#change-log), 2026-07-22) +
+   `shell.message_refs`
 2. `skeleton.json`
 3. `events/stats.json`
 4. `getRange(sequence, [lo, hi))` — chunk-cached random access, all four
@@ -1157,8 +1178,8 @@ behind the milestone. Within-phase order: A → C1 → C2 → D → B → E.
     The folding/numbering decision lives entirely in this source, behind
     the C3a contract: either unfolded rows with message-ordinal numbering
     (UX deviation needing sign-off) or write-time persisted block/folding
-    counts (format candidate: per-chunk cumulative block counts alongside
-    `sequences`). `?message=` deep links resolve by scan (same posture as
+    counts (format candidate: per-chunk cumulative block counts, e.g. a
+    messages stats sidecar). `?message=` deep links resolve by scan (same posture as
     `?event=`). Depends on C1 + C3a; independent of D.
 - **D. Search worker.** Scan worker, renderer-aligned extraction
   (worker-importable check), match table, find-band integration. Depends on
@@ -1273,7 +1294,7 @@ doc, updated to the ratified decisions):
 | 2 | Sample shell (metadata, scores, usage, error) | sample detail open; Python `exclude_fields` | `sample.json` — cheap by construction |
 | 3 | Page messages by index window | Messages tab virtual list | index→chunk via start-named entries; **⚑ amended** — owned by effort C3 ([Change log](#change-log), 2026-07-21); interim = full-hydration bridge |
 | 4 | Page events by index window | Transcript scroll | same |
-| 5 | Tail / jump-to-last / follow | auto-follow, open-at-end | last chunk from `shell.sequences` |
+| 5 | Tail / jump-to-last / follow | auto-follow, open-at-end | last chunk = greatest start-named entry; its end learned on parse |
 | 6 | Structure without content (tree, outline, timeline) | first render of Transcript tab | `skeleton.json` |
 | 7 | Deep links (event uuid, message→event) | URL deep links / citations | identity = sequence index; legacy uuid via one-time chunk scan |
 | 8 | Event-type filtering | Transcript filter menu | stats-sidecar pushdown; exact digits / approximate pixels |
