@@ -48,6 +48,17 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   [Named size constants](#named-size-constants), [Converter](#converter),
   [old-format degradation](#degradation-policy-for-old-format-huge-samples-13),
   the effort A/B/F slicing, [Deferred open issues](#deferred-open-issues).
+- **2026-07-21 — Default attachments chunk byte-target 2 MiB → 10 MiB.**
+  Writer policy only, no format consequence (readers infer extents from
+  entry names; mixed-policy logs read identically). Rationale: compression
+  is insensitive to the target (the 2/8/32 MiB null result), while
+  attachment-heavy reads are round-trip-bound — the mirror-code monster's
+  final-conversation hydration touched 46 attachment chunks at 2 MiB vs a
+  handful at 10 MiB. 10 MiB sits above the 1–8 MiB working band but under
+  the ~16 MiB ceiling; per-chunk parse cost rises accordingly (envelope
+  numbers unchanged as research record). The converter gained an
+  `attachments_chunk_bytes` knob for further measurement. Affected:
+  [Chunk-size envelope](#chunked-on-disk-layout-4-6).
 - **2026-07-21 — Phase-1 efforts resequenced: viewer milestone next.** Effort
   A is complete (epatey#20–#24). The next accomplishment is **the real viewer
   working against the chunked format**, so effort C is split and pulled ahead
@@ -65,6 +76,121 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   behavior-identical; the list-model fork is the guarded seam. Within-phase
   order: A → C1 → C2 → D → B → E; effort letters stay stable. Affected:
   [Proposed slicing](#proposed-slicing-into-implementation-efforts).
+- **2026-07-21 — Outline contract corrected: the legacy outline (and
+  transcript body) are projections of the *timeline layer's selected view*,
+  not the raw event tree.** Found via a real divergence (ais-decoder:
+  chunked outline showed `init / solver / 9×checkpoint / 9 turns / scorers`
+  where the browser shows `main / 10 turns / scoring`). What the legacy
+  viewer actually does: `buildTimeline` synthesizes a root agent **"main"**
+  (solvers content unwrapped, init prepended, scorers renamed "scoring",
+  utility model-calls wrapped/classified), the swimlane selection defaults
+  to that root row, `collectRawEvents` collects the selected view's events
+  (utility spans excluded), `useEventNodes` re-treeifies them (its
+  `transformTree` *discards* checkpoint/solvers spans and unwraps others),
+  the default event-type filter (`kDefaultExcludeEvents`, incl. `checkpoint`
+  and `sandbox`) prunes both stages, and only then do the outline visitors
+  and turn/scoring grouping run. Two consequences ratified:
+  1. **The mechanism-7 parity oracle froze the wrong branch.** The oracle
+     ported the outline transform fed with raw events —
+     `TranscriptLayout`'s `showSwimlanes=false` input — a path the real
+     viewer effectively never takes (a timeline builds for every log and the
+     root row is default-selected). Its 73/73 corpus parity validated
+     oracle-vs-candidate, never either-vs-browser. The oracle must be
+     re-frozen against the timeline-selected-view pipeline (deferred issue
+     10); until then the Python harness remains valid only as a raw-tree
+     regression pin.
+  2. **New mechanism (8): synthetic event stream, real pipeline.** Rather
+     than port the timeline layer (heuristic-heavy: utility classification,
+     span discards, retry grouping), the chunked viewer synthesizes a
+     minimal event stream from the skeleton — exact span/step tree, exact
+     per-gap model counts, exact notable positions, real span timestamps
+     (loose points interpolated inside their gap's real bounds), one
+     representative stray per direct-child event type for empty-span
+     survival — and runs the REAL exported pipeline over it
+     (`buildTimeline` → `collectRawEvents` → `buildEventNodes` → outline
+     visitors; components `TimelineSwimLanes` + `TranscriptOutline` render
+     it). No ported twin exists to drift; the twin test pins
+     synthetic-fed rows against real-events-fed rows through the identical
+     code across the fixture corpus (exact at the default filter). The
+     skeleton proved sufficient for this without format change.
+     Documented fidelity limits: utility-call detection needs model
+     payloads (utility calls count as turns on bridge logs);
+     error/compaction/sample_limit events are strays (position/multiplicity
+     collapse to one per span); root-level plain events are absent;
+     branch-tree logs render the flat main view (no fork navigation);
+     swimlane bar shapes are smoothed between span boundaries.
+  **Skeleton v1 amendment candidates** (format is not yet frozen; evaluate
+  before the phase-2 writer ships): (a) widen `NOTABLE_TYPES` with
+  `error`/`compaction`/`sample_limit` (exact outline rows + timeline
+  markers; the monster's 84 compactions currently collapse to one stray)
+  and `branch` (+ `from_anchor`) for fork navigation; (b) notable
+  timestamps (`t` on notables) for exact marker placement; (c) a root-level
+  `children` type-count record (legacy `sample_init`, interrupted-eval
+  `sample_limit` at root are currently lost); (d) writer-time utility
+  classification persisted per span/gap (the writer has full event
+  payloads; readers never will). Affected:
+  [Structural skeleton](#structural-skeleton-5) (mechanisms 7–8),
+  [Proposed slicing](#proposed-slicing-into-implementation-efforts) (C2),
+  [Deferred open issues](#deferred-open-issues) (new items 10–12).
+- **2026-07-21 — Windowed Messages tab promoted to an owned effort (C3).**
+  Access pattern 3 ("page messages by index window") was inventoried in
+  Appendix A but assigned to no effort — C2's deliverable list never named
+  the Messages tab, and the implementation shipped an unowned full-hydration
+  bridge (fetch + resolve the entire final conversation at tab open —
+  134,989 messages / ~125MB on the monster). Ratified: **materializing an
+  unbounded number of messages is a no-go**; a windowed Messages tab is a
+  phase-1 requirement, sliced as effort C3 (see
+  [Proposed slicing](#proposed-slicing-into-implementation-efforts) for the
+  design hazards: tool folding and block numbering are functions of all
+  prior message content; format candidate — write-time per-chunk cumulative
+  block counts). Interim mitigation applied to the bridge: attachment-chunk
+  prefetch pipelines per message range instead of serializing behind full
+  conversation assembly. Affected: Proposed slicing (new C3), Appendix A
+  pattern 3 landing note.
+- **2026-07-22 — Server-timeline rendering gap characterized (petri3
+  empirics; deferred issue 12 sharpened, new skeleton candidate e).**
+  Old/new comparison on the petri3 rollback log shows a wholesale
+  presentation divergence, and the diagnosis re-scopes issue 12. The legacy
+  viewer **default-selects the log-supplied timeline** when one exists
+  (`sample.timelines` → "target" selector, "branch 1" root), so the header
+  selector, swimlane rows, time axis, outline, and body are all projections
+  of that view; the chunked panel builds only the synthetic main-view
+  timeline, and its body is the raw tree (issue 11) — on this log the two
+  modes share almost nothing visually. Facts established:
+  1. **`timelines` already survive conversion into the chunked shell** — no
+     format change is needed to *carry* server timelines; the gap is
+     plumbing them into the chunked panel.
+  2. **Resolution is the real dependency**: `convertServerTimeline`
+     resolves the timeline tree's event references by REAL event uuid
+     against the loaded events array. The synthetic stream carries
+     synthetic uuids, and the `anchor` events this log's timeline leans on
+     (22 of them) are not represented in the skeleton at all.
+  3. **petri3 contains zero `branch` events** — its branching is expressed
+     entirely via server timelines + anchors. The issue-13 widening that
+     unblocks fork/timeline rendering on such logs is therefore
+     **timeline-referenced event addressability** (new candidate e), not
+     the `branch` notable (which still matters for client-side branch
+     detection on logs that do emit branch events).
+  Also observed on this log: dead utility classification (candidate d)
+  surfaces 13 `realism` judge spans as ordinary outline rows. Minor
+  mechanism-8 correction from the PR #451 review round folded in: stray
+  types that DO yield outline rows (e.g. `subtask`) collapse to one row per
+  span, and notable types past the persistence cap emit no stray at all.
+  Affected: [Deferred open issues](#deferred-open-issues) (12, 13),
+  [Structural skeleton](#structural-skeleton-5) (mechanism 8).
+- **2026-07-21 — C3 split into C3a/C3b (staging decision).** The windowed
+  Messages tab lands in two stages: **C3a** converts the legacy Messages tab
+  to infinite-query pagination over a page-source contract (in-memory
+  source, folding/numbering/count/id-resolution computed globally —
+  behavior-identical, ships on ts-mono main with no chunked coupling);
+  **C3b** swaps in the chunked page source, where the folding/numbering
+  decision lives behind the C3a contract. Rationale: the legacy path
+  *becomes* the windowed implementation before the chunked source exists —
+  the same lesson as mechanism 8 (never build chunked UI against a ported
+  understanding of legacy behavior), applied structurally. C3a carries no
+  performance benefit by itself (old data stays fully in memory; rendering
+  was already virtualized); its value is the seam. Affected:
+  [Proposed slicing](#proposed-slicing-into-implementation-efforts) (C3).
 
 ---
 
@@ -224,8 +350,9 @@ members per archive. In-member random access was ruled out (deflate needs an
 external index; zstd-seekable has no browser support), so **chunk boundary =
 member boundary**. One-member-per-event ruled out (~28 MB central directory at
 350k members; TTFB-bound per-event GETs). Defaults today: count-based 1000
-items for item sequences, ~2 MiB byte-target for attachments (an oversized
-item gets a chunk to itself). Default policy tuning (count vs byte-target) is
+items for item sequences, ~10 MiB byte-target for attachments (an oversized
+item gets a chunk to itself; **⚑ amended** from 2 MiB,
+[Change log](#change-log)). Default policy tuning (count vs byte-target) is
 an open tunable, settled by measurement — not a format property.
 
 ### Pools and attachments ([#6](https://github.com/epatey/inspect_ai/issues/6))
@@ -349,13 +476,39 @@ Ratified mechanisms:
    forbidden). Legacy `?event=<uuid>` deep links resolve by a one-time
    parallelizable chunk scan. The O(events) `elementIds` scroll-sync surface
    dies; sync = binary search over anchor ordinals.
-7. **Parity oracle**: acceptance is differential — the legacy in-memory
-   pipeline (frozen as an oracle) vs the skeleton-fed pipeline, compared
-   row-for-row across converted real logs and synthetic fixtures × collapse
-   states. Three divergence classes signed off (models nested directly under
-   tool events → skeleton's structural row wins; cross-span consecutive score
-   merging → two rows fine; "N turns" click anchor = gap lower bound). New
-   divergences require explicit sign-off.
+7. **Parity oracle** (**⚑ amended**, [Change log](#change-log), 2026-07-21):
+   acceptance is differential — the legacy in-memory pipeline (frozen as an
+   oracle) vs the skeleton-fed pipeline, compared row-for-row across
+   converted real logs and synthetic fixtures × collapse states. Three
+   divergence classes signed off (models nested directly under tool events →
+   skeleton's structural row wins; cross-span consecutive score merging →
+   two rows fine; "N turns" click anchor = gap lower bound). New divergences
+   require explicit sign-off. **Correction**: the frozen oracle models the
+   raw-event-tree outline (`showSwimlanes=false`), but the browser feeds the
+   outline from the timeline-selected view — the oracle needs a re-freeze
+   against that pipeline (deferred issue 10); its parity claims are valid
+   for the raw tree only. The shipped acceptance mechanism is now the
+   mechanism-8 twin test, which runs the *actual* pipeline code on both
+   sides and therefore cannot freeze the wrong branch.
+8. **Synthetic event stream — the skeleton's viewer consumption path**
+   (**⚑ amended**, ratified 2026-07-21, [Change log](#change-log)). The
+   legacy presentation layer (timeline swimlanes → selected-view collection
+   → re-treeify → outline visitors) is a function of the full event list and
+   is too heuristic-laden to port against. Instead, the viewer reconstructs
+   a minimal stand-in event stream from the skeleton — exact span/step tree
+   and per-gap model counts and notable positions (mechanism 2 makes model
+   and notable ordering exact), real span timestamps with loose points
+   interpolated inside their gap's real bounds, one representative stray per
+   direct-child event type (survival of `filterEmpty`/type-filter behavior;
+   strays carry the minimum payload the outline dereferences; types that DO
+   yield outline rows — e.g. `subtask` — collapse to one row per span, and
+   notable types past the persistence cap emit no stray, the persisted ones
+   covering survival) — and
+   runs the real, exported legacy pipeline over it. Acceptance: a twin test
+   pins synthetic-fed against real-events-fed output *through the identical
+   production code* per sample across the fixture corpus. Fidelity limits
+   and skeleton amendment candidates: change-log entries of 2026-07-21 and
+   2026-07-22.
 
 Parked (measurement-triggered): columnar skeleton encoding.
 
@@ -959,12 +1112,54 @@ behind the milestone. Within-phase order: A → C1 → C2 → D → B → E.
   store, decode walk + FilteredCursor. Vitest-testable against the CI
   corpora; no UI surface. Depends on A.
 - **C2. Viewer integration — the milestone.** **⚑ amended**
-  ([Change log](#change-log), 2026-07-21, split from C). Infinite-query
+  ([Change log](#change-log), 2026-07-21, split from C; amended again
+  2026-07-21 — outline/timeline delivered via mechanism 8). Infinite-query
   parsed tier, row-window list-model fork, outline/timeline from skeleton,
   filter counts. Finish line: open a converted large log in the real viewer,
   browse/collapse/jump end-to-end. Old-format render paths stay
   behavior-identical (principle 2); the list-model fork is the guarded seam.
   Depends on C1. The refuse-message copy update moves to E.
+  **Delivery note**: outline and timeline swimlanes ship as the *real*
+  legacy components fed by the mechanism-8 synthetic stream; swimlane and
+  outline selection scroll the body to the selected span. The transcript
+  *body* still renders the raw event tree (the legacy body renders the
+  selected timeline view — solvers/agent wrappers hidden); reconciling the
+  body is deferred issue 11, and branch-tree/server-timeline rendering is
+  deferred issue 12. Acceptance lesson recorded in the change log: never
+  ratify a projection against a ported oracle without a browser-real
+  comparison log in the corpus.
+- **C3. Windowed Messages tab.** **⚑ amended** ([Change log](#change-log),
+  2026-07-21 — requirement was inventoried but unowned; split into C3a/C3b
+  the same day, staging decision). Access pattern 3 made real:
+  **materializing an unbounded number of messages is a no-go** — the current
+  full-hydration bridge (tab-open hydration, attachment prefetch pipelined
+  per message chunk) matches the old path's profile and dies exactly where
+  the old path dies. Staged so the legacy path becomes the windowed
+  implementation before the chunked source exists (the mechanism-8 lesson
+  applied structurally — no ported oracle to diverge from):
+  - **C3a. Legacy pagination seam (lands on ts-mono main,
+    behavior-identical).** Convert the Messages tab to react-query
+    infinite-query pagination (the inspect_scout pattern) over a **page
+    source contract** while old logs keep the full message array in memory.
+    The source owns everything the chunked source will later need to
+    reinterpret: total row count, tool-message folding (pages deliver
+    *resolved rows*, not raw messages), per-row `startNumber`, and
+    message-id→row resolution (`?message=` deep links). The in-memory
+    source computes all of these globally and exactly, so rendering is
+    pixel-identical — this stage is a seam refactor with zero UX or
+    performance change, reviewable and landable on main independent of the
+    chunked format. Blast-radius note: `ChatViewVirtualList` is shared with
+    scout — keep its array-prop signature as a thin wrapper over the paged
+    core. No dependency on this effort's branches.
+  - **C3b. Chunked page source.** Swap the source: exact row count and
+    row→sequence mapping from `message_refs` prefix sums, windowed
+    `getRange` + per-batch attachment resolution, page materialization.
+    The folding/numbering decision lives entirely in this source, behind
+    the C3a contract: either unfolded rows with message-ordinal numbering
+    (UX deviation needing sign-off) or write-time persisted block/folding
+    counts (format candidate: per-chunk cumulative block counts alongside
+    `sequences`). `?message=` deep links resolve by scan (same posture as
+    `?event=`). Depends on C1 + C3a; independent of D.
 - **D. Search worker.** Scan worker, renderer-aligned extraction
   (worker-importable check), match table, find-band integration. Depends on
   C2; outside the viewer-works milestone.
@@ -1024,6 +1219,46 @@ Recorded here so they aren't lost; each is out of this effort's scope:
    ratified [#17](#small-sample-monolith-threshold-17) decision is retained as
    the design of record, reopened only if always-chunk costs on small samples
    prove material (measurement-triggered-lever posture).
+10. **Parity oracle re-freeze** ([Change log](#change-log), 2026-07-21) —
+    the Python oracle (#23) models the raw-tree outline branch the browser
+    doesn't take; re-freeze it against the timeline-selected-view pipeline
+    (or retire it in favor of extending the mechanism-8 twin corpus) and
+    re-derive the signed-off divergence classes.
+11. **Main-view transcript body for chunked samples** — the legacy body
+    renders the selected timeline view (wrappers dissolved, utility
+    extracted, scoring appended); the chunked body renders the raw tree via
+    the row-window model. Reconciling needs a view-row mapping over the
+    main-view ordering — design work, not a patch.
+12. **Branch-tree and server-timeline rendering for chunked samples**
+    (**⚑ amended**, [Change log](#change-log), 2026-07-22) — rollback/fork
+    logs (petri) get log-supplied timeline selectors and fork navigation in
+    the legacy viewer, and the legacy default selection IS the server
+    timeline when one exists — so on such logs the chunked path's flat main
+    view (plus its raw-tree body, issue 11) diverges wholesale, not
+    cosmetically. `timelines` already ride in the chunked shell; the work
+    is (a) plumbing them into the chunked panel and (b) resolving their
+    real-event-uuid references (incl. `anchor` events), which the synthetic
+    stream cannot satisfy — needs skeleton candidate (e) or an alternate
+    resolution path. petri3 empirics: zero `branch` events; branching there
+    is server-timeline + anchor only, so the `branch` notable widening is
+    neither sufficient nor necessary for this log class.
+13. **Skeleton v1 amendment candidates** ([Change log](#change-log),
+    2026-07-21 + 2026-07-22) — (a) widen `NOTABLE_TYPES` (`error`/
+    `compaction`/`sample_limit`/`branch`), (b) notable timestamps, (c)
+    root-level `children` counts, (d) writer-time utility classification,
+    (e) timeline-referenced event addressability: real uuids (or a
+    uuid→ordinal map) for events referenced by server timelines, plus
+    `anchor` representation, so `convertServerTimeline` can resolve against
+    a skeleton-derived stream (unblocks issue 12). Decide before the
+    phase-2 writer freezes the format.
+14. **Materialized-row eviction** (PR #451 review, 2026-07-22) —
+    `RowSpace.materializedRows` never evicts: decoded view rows (with
+    attachments inlined) accumulate for the panel's lifetime, at odds with
+    the byte store's budget and the parsed-chunk LRU. Fix shape: a cap that
+    drops far-away chunks' `rows` while keeping the corrected
+    `chunkRows`/`exact` entries, so accounting stays exact and only decode
+    work is repaid on revisit. Interacts with ordinal re-anchoring — design
+    it with issue 11 rather than patching ad hoc.
 
 ---
 
@@ -1036,7 +1271,7 @@ doc, updated to the ratified decisions):
 |---|---|---|---|
 | 1 | Header / summaries / listing | log list + sample list UI | unchanged (separate small entries) |
 | 2 | Sample shell (metadata, scores, usage, error) | sample detail open; Python `exclude_fields` | `sample.json` — cheap by construction |
-| 3 | Page messages by index window | Messages tab virtual list | index→chunk via start-named entries |
+| 3 | Page messages by index window | Messages tab virtual list | index→chunk via start-named entries; **⚑ amended** — owned by effort C3 ([Change log](#change-log), 2026-07-21); interim = full-hydration bridge |
 | 4 | Page events by index window | Transcript scroll | same |
 | 5 | Tail / jump-to-last / follow | auto-follow, open-at-end | last chunk from `shell.sequences` |
 | 6 | Structure without content (tree, outline, timeline) | first render of Transcript tab | `skeleton.json` |

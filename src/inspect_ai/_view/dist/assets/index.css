@@ -25253,6 +25253,61 @@ pre._value_8citi_25 {
 ._scores_las07_54 {
   padding-top: 1em;
 }
+._layout_6xi98_1 {
+  display: flex;
+  gap: 1em;
+  align-items: flex-start;
+}
+
+._swimlanes_6xi98_7 {
+  position: sticky;
+  z-index: 500;
+  background: var(--bs-body-bg);
+}
+
+._outline_6xi98_13 {
+  position: sticky;
+  flex: 0 0 220px;
+  overflow-y: auto;
+  font-size: var(--inspect-font-size-small, 0.9rem);
+  padding: 0.5em 0;
+}
+
+._list_6xi98_21 {
+  flex: 1 1 auto;
+  position: relative;
+  min-width: 0;
+}
+
+._row_6xi98_27 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding-bottom: 0.5em;
+}
+
+._placeholder_6xi98_35 {
+  height: 56px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--bs-secondary-bg, #eee) 25%,
+    var(--bs-tertiary-bg, #f6f6f6) 50%,
+    var(--bs-secondary-bg, #eee) 75%
+  );
+  background-size: 200% 100%;
+  animation: _shimmer_6xi98_1 1.2s infinite linear;
+}
+
+@keyframes _shimmer_6xi98_1 {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
 ._container_15sk8_1 {
   display: flex;
   flex-direction: column;
