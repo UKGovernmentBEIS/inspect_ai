@@ -81,6 +81,8 @@ inspect-docs:
       contents:
         - href: standard-scorers.qmd
         - href: custom-scorers.qmd
+        - text: Scoring Policy
+          href: scoring-policy.qmd
         - text: Model Grading
           href: model-graded.qmd
         - text: Scoring Metrics

@@ -131,6 +131,8 @@ return Score.unscored(
 
 Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
 
+For guidance on *when* to return `Score.unscored()` versus a score or an error, see [Scoring Policy](scoring-policy.qmd).
+
 ## Score Value
 
 `Value` is union over the main scalar types as well as a `list` or `dict` of the same types:
@@ -149,7 +151,13 @@ Next, we'll take a look at the source code for a couple of the built in scorers 
 
 ## Models in Scorers
 
-You'll often want to use models in the implementation of scorers. Use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
+You'll often want to use models in the implementation of scorers. The best way of doing this is to specify the grader model using [model roles](models.qmd#model-roles), allowing them to be chosen at runtime. By default, model-graded scorers look for the `"grader"` model role:
+
+```python
+grader_model = get_model(role="grader")
+```
+
+You can also use the `get_model()` function to get either the currently evaluated model or another model interface. For example:
 
 ``` python
 # use the model being evaluated for grading
@@ -246,14 +254,20 @@ def model_graded_qa(
                 explanation=result.completion,
             )
         else:
-            return Score(
-                value=INCORRECT,
+            # The grader failed to produce a parseable verdict. That is a
+            # failure of the measurement instrument, not a wrong answer from the
+            # model, so record it as unscored (excluded from metrics) rather than
+            # charging the model INCORRECT. See Scoring Policy for the rationale.
+            return Score.unscored(
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
+                metadata={"reason": "grader_parse_failure"},
             )
 
     return score
 ```
+
+The grade-parse-failure branch returns `Score.unscored()` rather than `INCORRECT`: a grader that cannot render a verdict is an instrument failure, not a verdict on the model. See [Scoring Policy](scoring-policy.qmd#model-graded-scorers) for when to score, raise, or return `Score.unscored()`.
 
 Note that the call to `model_grader.generate()` is done with `await`. This is critical to ensure that the scorer participates correctly in the scheduling of generation work.
 
