@@ -24976,13 +24976,13 @@ pre._value_8citi_25 {
 ._scores_las07_54 {
   padding-top: 1em;
 }
-._layout_3h7g3_1 {
+._layout_i5v0j_1 {
   display: flex;
   gap: 1em;
   align-items: flex-start;
 }
 
-._outline_3h7g3_7 {
+._outline_i5v0j_7 {
   position: sticky;
   flex: 0 0 220px;
   overflow-y: auto;
@@ -24990,7 +24990,14 @@ pre._value_8citi_25 {
   padding: 0.5em 0;
 }
 
-._outlineRow_3h7g3_15 {
+._outlineHeader_i5v0j_15 {
+  padding: 0.15em 0.4em;
+  font-weight: 600;
+  color: var(--bs-secondary-color, #888);
+  text-transform: none;
+}
+
+._outlineRow_i5v0j_22 {
   display: block;
   width: 100%;
   text-align: left;
@@ -25005,22 +25012,22 @@ pre._value_8citi_25 {
   text-overflow: ellipsis;
 }
 
-._outlineRow_3h7g3_15:hover {
+._outlineRow_i5v0j_22:hover {
   background-color: var(--bs-secondary-bg, rgba(0, 0, 0, 0.05));
 }
 
-._outlineTurns_3h7g3_34 {
+._outlineTurns_i5v0j_41 {
   color: var(--bs-secondary-color, #888);
   font-style: italic;
 }
 
-._list_3h7g3_39 {
+._list_i5v0j_46 {
   flex: 1 1 auto;
   position: relative;
   min-width: 0;
 }
 
-._row_3h7g3_45 {
+._row_i5v0j_52 {
   position: absolute;
   top: 0;
   left: 0;
@@ -25028,7 +25035,7 @@ pre._value_8citi_25 {
   padding-bottom: 0.5em;
 }
 
-._placeholder_3h7g3_53 {
+._placeholder_i5v0j_60 {
   height: 56px;
   border-radius: 4px;
   background: linear-gradient(
@@ -25038,10 +25045,10 @@ pre._value_8citi_25 {
     var(--bs-secondary-bg, #eee) 75%
   );
   background-size: 200% 100%;
-  animation: _shimmer_3h7g3_1 1.2s infinite linear;
+  animation: _shimmer_i5v0j_1 1.2s infinite linear;
 }
 
-@keyframes _shimmer_3h7g3_1 {
+@keyframes _shimmer_i5v0j_1 {
   from {
     background-position: 200% 0;
   }
