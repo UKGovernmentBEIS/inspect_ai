@@ -5,7 +5,11 @@ by a control-channel incident (meridianlabs-ai/inspect_ai#118). Audited at
 `ef5fcba34` (2026-07-21), covering `src/inspect_ai/_control/` (`server.py`,
 `state.py`, `events.py`, `messages.py`, `cancel.py`, `limits.py`, `buffer.py`,
 `eval_state.py`) and the data-source paths they call into (`TaskLogger`,
-the recorders, `read_eval_log_*`). The two remaining `_control/` modules are
+the recorders, `read_eval_log_*`); extended at `2fc34e792` (2026-07-22) to
+cover the control-surface work merged since: the pause/resume endpoints and
+quiesce auto-flush (#4531, `pause.py`), config-PATCH persistence into eval
+logs (#4575, `config_record.py`), and `GET /tasks`' per-row
+`paused`/`quiesced` fields. The two remaining `_control/` modules are
 checked but out of scope for the per-endpoint table: `discovery.py` is off the
 request path entirely (per-PID discovery files written at startup, read by CLI
 clients), and `strict.py` runs per mutation request but is O(declared query
@@ -81,7 +85,8 @@ overlays every ⚠️/❌ terminal cell in the table for `.json` logs.
 | `GET /evals/{id}/sample/messages` | O(conversation) copy + truncating projection | Excluded-field scan + attachment resolution | ✅ holds (payload = the response; terminal `tail` reads — watch item) |
 | `POST /tasks/{id}/log-flush` | Full-log write (the endpoint's job); repeats are no-ops | — | ✅ holds |
 | `POST .../cancel` (task, sample) | O(active samples) scans | Sample cancel's no-op branch reads error detail (inherits finding 4) | ✅ holds |
-| `GET`/`PATCH /config`, `/tasks/{id}/config` | O(registry entries) | — | ✅ holds |
+| `GET`/`PATCH /config`, `/tasks/{id}/config` | O(registry entries); PATCH writes applied changes to live logs | — | ✅ holds |
+| `POST /pause`, `/resume`, `/tasks/{id}/pause`, `/tasks/{id}/resume` | O(1) gate flip; pause runs the quiesce auto-flush (log-flush's write, same idempotency) | — | ✅ holds |
 | `POST /keep`, `/release` | O(1) | — | ✅ holds |
 
 ### `GET /tasks`
@@ -93,7 +98,11 @@ reads), is deliberately lazy and **once-only**: the provider is claimed under
 the registry lock before the read, so concurrent first requests perform at
 most one read; a failed read leaves the provisional header-derived values
 permanently (no retry storm); only a cancellation restores the claim for a
-later retry. Bounded and confirmed.
+later retry. Bounded and confirmed. The per-row `paused`/`quiesced` fields
+added by #4531 keep the listing counter-shaped: `task_pause_scope` and
+`task_dispatched_count` are O(1) lookups against in-memory gate state and a
+dispatch counter maintained at the sample gate (write time), not derived per
+request.
 
 ### `GET /evals/{id}/samples`
 
@@ -215,7 +224,7 @@ conversation each poll; the compact projection and `tail` exist to keep that
 cheap, and the envelope's `count` is the documented staleness signal to avoid
 re-pulling at all.
 
-### Mutations: `log-flush`, cancel, config
+### Mutations: `log-flush`, cancel, config, pause/resume
 
 - **`log-flush` — idempotent under a retrying client, confirmed.** All flush
   paths funnel through `_flush_pending_samples`, serialized by
@@ -234,7 +243,30 @@ re-pulling at all.
   (finding 4) — acceptable for a mutation's terminal-state check.
 - **Config GET/PATCH — holds.** Views enumerate concurrency registries and
   controller history tails (`_RECENT_CHANGES = 5`) — O(registry entries),
-  all small.
+  all small. Since #4575 a PATCH also persists: applied changes are grouped
+  into `ConfigUpdate` records (`config_record.py`) and written into every
+  affected task's live log (task scope → one log; process scope → every live
+  task log, plus a run-scoped inherited-updates list new loggers catch up
+  from). Records are written **only when a directive actually changed
+  something**, so a retried or no-op PATCH writes nothing — invariant-
+  compliant by the mutation rule. The per-log write is a small journal
+  member plus a push of the buffered zip to the destination on `.eval`
+  (`log-flush`'s write class, paid per applied retune — operator-rate, a
+  handful per run — not per poll; `.json` accumulates in memory until the
+  next flush). Recording failures degrade to `persisted: false` in the
+  response without failing the retune, and a finished log declines the
+  record rather than erroring.
+- **Pause / resume (task and process) — holds.** Four endpoints added by
+  #4531 (`pause.py`). The latches are plain in-memory gates: pause/resume is
+  an O(1) flag flip plus waking parked waiters and dispatchers (O(waiters),
+  all cheap resumptions). The one expensive step is deliberate: a pause that
+  actually changes state runs `flush_quiesced_tasks()` — an O(eval states)
+  scan plus `flush_samples()` for each quiesced (paused + zero dispatched)
+  task, making the pause durable. That write funnels through the same
+  `flush_samples`/`_flush_lock` drain as `log-flush`, with the same
+  idempotency (nothing pending → `0`, no write), and a repeated `pause`
+  returns `changed: false` *before* reaching the flush — a retrying client
+  cannot re-trigger the write. `dry_run` never mutates or flushes.
 
 ### Response serialization (FastAPI JSON encoding on the loop)
 
