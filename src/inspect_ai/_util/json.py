@@ -48,6 +48,27 @@ def is_ijson_nan_inf_error(
     )
 
 
+def _get_ijson_backend() -> Any:
+    """Return an ijson module compatible with the current async backend.
+
+    The default yajl2_c C backend implements ``parse_async`` with
+    asyncio-specific yields, which crash under trio. Fall back to the
+    pure-Python backend when running under trio so that async readers
+    (e.g. ``read_eval_log_async(..., exclude_fields=...)``) work there.
+    """
+    import ijson  # type: ignore[import-untyped]
+    import sniffio
+
+    try:
+        if sniffio.current_async_library() == "trio":
+            import ijson.backends.python as ijson_py  # type: ignore[import-untyped]
+
+            return ijson_py
+    except sniffio.AsyncLibraryNotFoundError:
+        pass
+    return ijson
+
+
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
 """Valid types within JSON schema."""
 
