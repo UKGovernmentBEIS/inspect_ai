@@ -120,7 +120,13 @@ class SandboxEnvironment(abc.ABC):
 
         By default, each output stream (stdout and stderr) is limited to 10 MiB. You can override this by setting the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable (specified in bytes).
 
-        The behaviour when a stream exceeds the limit is **provider-dependent**. Some providers (including the built-in Docker provider) pre-truncate each stream to the trailing bytes within the limit and return the truncated output rather than raising — so the caller receives the *last* N bytes with the beginning discarded. Other providers raise `OutputLimitExceededError`. Consequently, do not rely on an over-limit stream surfacing as an error: if you parse `exec` output that may be large (e.g. JSON), a silently truncated tail may reach your code and fail to parse. For large payloads, prefer writing to a file and reading it with `read_file()`, which checks the size up front and always raises `OutputLimitExceededError` when the limit is exceeded.
+        Behaviour above this limit depends on the sandbox provider. A provider may
+        raise `OutputLimitExceededError`, or return only the trailing portion of
+        the output with the beginning discarded. Callers should therefore not
+        assume that returned output is complete or rely on an exception to detect
+        overflow. This is particularly important when parsing structured output
+        such as JSON. For large output, write to a file and use `read_file()`,
+        which always raises `OutputLimitExceededError` when the limit is exceeded.
 
         Args:
           cmd: Command or command and arguments to execute.
@@ -147,8 +153,8 @@ class SandboxEnvironment(abc.ABC):
             characters which cannot be decoded.
           PermissionError: If the user does not have
             permission to execute the command.
-          OutputLimitExceededError: If an output stream exceeds the limit
-            and the sandbox provider does not pre-truncate it.
+          OutputLimitExceededError: May be raised if an output stream
+            exceeds the limit.
         """
         ...
 
