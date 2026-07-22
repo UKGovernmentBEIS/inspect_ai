@@ -17,6 +17,7 @@ from inspect_ai._control.eval_state import (
     get_eval_state,
     record_sample_completed,
     record_sample_errored,
+    record_samples_added,
     register_eval,
 )
 
@@ -41,6 +42,24 @@ def test_finalize_folds_unaccounted_samples_into_cancelled() -> None:
     assert state.errored == 1
     assert state.cancelled == 5
     assert state.is_finished
+    assert state.completed_at is not None
+
+
+def test_dynamic_eval_not_provisionally_finished() -> None:
+    # a SampleSource-driven eval's totals grow while it runs: counters
+    # reaching total (or an empty seed's 0 >= 0 at registration) must not
+    # read as finished — the task may be idle awaiting its source — so the
+    # stamp waits for finalize_eval, keeping task cancel and status honest
+    state = register_eval("e1", 0, dynamic=True)
+    assert state.completed_at is None
+
+    record_samples_added("e1", 2)
+    record_sample_completed("e1")
+    record_sample_completed("e1")
+    assert state.terminal == state.total
+    assert state.completed_at is None
+
+    finalize_eval("e1")
     assert state.completed_at is not None
 
 
