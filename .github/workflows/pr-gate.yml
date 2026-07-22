@@ -1,0 +1,40 @@
+# Contribution-policy gate — see CONTRIBUTING.md and .github/scripts/pr_gate.py.
+# DRY RUN: while DRY_RUN is "true" the gate only labels (`gate-dry-run`) and
+# comments "would have been closed"; it never closes. Flip to "false" after the
+# two-week observation window (single-line follow-up PR).
+#
+# SECURITY: pull_request_target grants a write token, so this workflow checks
+# out the BASE branch only (the default for actions/checkout on this event —
+# never add `ref: pull_request.head`) and passes no PR-controlled text through
+# a shell (author login and association are structurally constrained by GitHub).
+name: PR Gate
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7   # base branch: pr_gate.py + trusted.yml
+      - name: Run gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_AUTHOR_ASSOC: ${{ github.event.pull_request.author_association }}
+          DRY_RUN: "true"
+        run: python3 .github/scripts/pr_gate.py
