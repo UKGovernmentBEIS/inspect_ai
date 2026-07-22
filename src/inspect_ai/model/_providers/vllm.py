@@ -34,7 +34,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_data.model_data import ModelInfo
-from inspect_ai.model._model_info import get_model_info, set_model_info
+from inspect_ai.model._model_info import _get_model_info_direct, set_model_info
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -50,6 +50,12 @@ from .openai_compatible import OpenAICompatibleAPI
 
 VLLM_DEFAULT_SERVER_ARGS = "VLLM_DEFAULT_SERVER_ARGS"
 VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
+
+CONTEXT_WINDOW_TIMEOUT = 30.0
+"""Timeout for the /v1/models fetch that resolves the served context window."""
+
+CONTEXT_WINDOW_MAX_ATTEMPTS = 3
+"""Attempts to reach /v1/models before settling for the static catalog."""
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +174,8 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._init_base_url = f"http://localhost:{port}/v1" if port else base_url
         self._resolved_epoch = -1
         self._context_window_registered = False
+        self._context_window_attempts = 0
+        self._context_window_lock = anyio.Lock()
 
         self.is_mistral = is_mistral
         self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
@@ -263,32 +271,62 @@ class VLLMAPI(OpenAICompatibleAPI):
         """
         if self._context_window_registered:
             return
-        # Under the lock with a double-check so concurrent generate() calls
-        # don't each fetch /v1/models or race on set_model_info.
-        async with self._server._init_lock:
+        # Double-checked under a dedicated lock so concurrent generate() calls
+        # don't each fetch /v1/models or race on set_model_info. Not the
+        # server's _init_lock: the fetch would then block server startup for
+        # every other model sharing the server.
+        async with self._context_window_lock:
             if self._context_window_registered:
                 return
+            self._context_window_attempts += 1
+
+            headers: dict[str, str] = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            try:
+                resp = await self.http_client.get(
+                    f"{self._server_root()}/v1/models",
+                    headers=headers,
+                    timeout=CONTEXT_WINDOW_TIMEOUT,
+                )
+            except Exception as ex:
+                # No response at all: the server may be briefly unreachable,
+                # which generate() itself retries through. Latching here would
+                # revert to the catalog for the rest of the run, so leave the
+                # flag unset and let a later generate() retry, bounded since
+                # a permanently unreachable endpoint shouldn't be re-probed on
+                # every call.
+                if self._context_window_attempts >= CONTEXT_WINDOW_MAX_ATTEMPTS:
+                    self._context_window_registered = True
+                logger.debug(f"Could not reach vLLM /v1/models: {ex}")
+                return
+
+            # A response settles the question for this server, whatever it says.
             self._context_window_registered = True
             try:
-                headers: dict[str, str] = {}
-                if self.api_key:
-                    headers["Authorization"] = f"Bearer {self.api_key}"
-                resp = await self.http_client.get(
-                    f"{self._server_root()}/v1/models", headers=headers, timeout=30.0
-                )
                 resp.raise_for_status()
                 max_model_len = _server_context_length(
                     resp.json(), self.service_model_name()
                 )
                 if max_model_len:
                     name = self.input_tokens_name()
-                    existing = get_model_info(name)
+                    # direct (non provider-resolving) lookup: resolving would
+                    # instantiate whichever provider shares the model's org
+                    # prefix (e.g. "openai/gpt-oss-120b") just for metadata.
+                    existing = _get_model_info_direct(name)
                     previous = existing.context_length if existing is not None else None
-                    info = (
-                        existing.model_copy(update={"context_length": max_model_len})
-                        if existing is not None
-                        else ModelInfo(context_length=max_model_len)
-                    )
+                    if existing is not None:
+                        # rebuild from public fields rather than model_copy():
+                        # a copy carries over the private _input_tokens override
+                        # that ModelInfo.input_tokens prefers over context_length,
+                        # so the served window would be registered but not used.
+                        # Dropping it also caps input capacity at max_model_len,
+                        # which bounds input and output together.
+                        fields = existing.model_dump()
+                        fields["context_length"] = max_model_len
+                        info = ModelInfo(**fields)
+                    else:
+                        info = ModelInfo(context_length=max_model_len)
                     set_model_info(name, info)
                     if previous is not None and previous != max_model_len:
                         logger.info(
