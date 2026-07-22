@@ -15,6 +15,7 @@ Layout (per sample)::
     samples/{id}_epoch_{epoch}/messages/{start}.json
     samples/{id}_epoch_{epoch}/events/{start}.json
     samples/{id}_epoch_{epoch}/events/stats.json
+    samples/{id}_epoch_{epoch}/events/uuids.json
     samples/{id}_epoch_{epoch}/calls/{start}.json
     samples/{id}_epoch_{epoch}/attachments/{start}.json
 
@@ -55,6 +56,7 @@ SHELL_JSON = "sample.json"
 METADATA_JSON = "metadata.json"
 SKELETON_JSON = "skeleton.json"
 STATS_JSON = "stats.json"
+UUIDS_JSON = "uuids.json"
 
 MESSAGES_SEQUENCE = "messages"
 EVENTS_SEQUENCE = "events"
@@ -90,6 +92,17 @@ def events_stats_entry_name(id: str | int, epoch: int) -> str:
     numeric, so ``stats.json`` can never collide with one.
     """
     return f"{sample_prefix(id, epoch)}/{EVENTS_SEQUENCE}/{STATS_JSON}"
+
+
+def events_uuids_entry_name(id: str | int, epoch: int) -> str:
+    """Event uuids in ordinal order (position = ordinal), lazily fetched.
+
+    O(1) uuid->ordinal resolution for deep links and server-timeline
+    references at any sample size (design/large-samples.md, change log
+    2026-07-22). Identity facts only — ~1% of event bytes. Lives inside
+    ``events/`` like ``stats.json`` (numeric chunk names cannot collide).
+    """
+    return f"{sample_prefix(id, epoch)}/{EVENTS_SEQUENCE}/{UUIDS_JSON}"
 
 
 def chunk_entry_name(id: str | int, epoch: int, sequence: str, start: int) -> str:

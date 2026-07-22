@@ -63,6 +63,7 @@ from .format import (
     chunk_entry_name,
     chunk_ranges,
     events_stats_entry_name,
+    events_uuids_entry_name,
     metadata_entry_name,
     shell_entry_name,
     skeleton_entry_name,
@@ -347,6 +348,10 @@ def _write_chunked_sample(
         event_stats(
             converted.events, chunk_boundaries(len(converted.events), chunk_size)
         ),
+    )
+    zip.writestr(
+        events_uuids_entry_name(sample.id, sample.epoch),
+        to_json_safe([event.uuid for event in converted.events], indent=None),
     )
 
     sequences: list[tuple[str, Sequence[Any]]] = [

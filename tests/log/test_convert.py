@@ -27,6 +27,7 @@ from inspect_ai.log._recorders.chunked.format import (
     chunk_ranges,
     classify_sample_shape,
     events_stats_entry_name,
+    events_uuids_entry_name,
     metadata_entry_name,
     monolith_entry_name,
     sample_prefix,
@@ -451,6 +452,10 @@ def test_convert_chunked_layout(tmp_path: pathlib.Path):
             _read_chunked_sequence(zf, id, epoch, sequence) for sequence in _SEQUENCES
         )
 
+        # events/uuids.json mirrors the event sequence's uuids, in ordinal order
+        uuids = json.loads(zf.read(events_uuids_entry_name(id, epoch)))
+        assert uuids == [e.get("uuid") for e in events]
+
         # every ref is renumbered to a valid attachment sequence index
         # (no hash-form refs survive)
         refs = _ATTACHMENT_REF.findall(json.dumps([shell, messages, events, calls]))
@@ -643,6 +648,7 @@ def test_chunked_corpus_round_trip(
                 assert classify_sample_shape(names, id, epoch) == "chunked"
                 assert skeleton_entry_name(id, epoch) in names
                 assert events_stats_entry_name(id, epoch) in names
+                assert events_uuids_entry_name(id, epoch) in names
 
                 if any(len(_chunk_starts(names, id, epoch, s)) > 1 for s in _SEQUENCES):
                     multi_chunk_samples += 1
