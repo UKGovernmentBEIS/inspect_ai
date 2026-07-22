@@ -16,6 +16,7 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_name,
     registry_tag,
+    set_return_annotation,
 )
 
 from .task import Task
@@ -152,9 +153,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
             # Return the task instance
             return task_instance
 
-        # functools.wraps overrides the return type annotation of the inner function, so
-        # we explicitly set it again
-        wrapper.__annotations__["return"] = Task
+        set_return_annotation(wrapper, Task)
 
         # Register the task and return the wrapper
         return task_register(
@@ -283,8 +282,7 @@ def task_source(*args: Any, name: str | None = None, **attribs: Any) -> Any:
 
             return source_instance
 
-        # functools.wraps overrides the return annotation, so set it again
-        wrapper.__annotations__["return"] = TaskSource
+        set_return_annotation(wrapper, TaskSource)
 
         return task_source_register(
             task_source=cast(TaskSourceType, wrapper),

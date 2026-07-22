@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import sys
 from inspect import get_annotations, isclass
 from typing import (
     TYPE_CHECKING,
@@ -77,6 +78,48 @@ class RegistryInfo(BaseModel):
 
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Additional registry metadata."""
+
+
+def set_annotations(wrapper: Callable[..., Any], annotations: dict[str, Any]) -> None:
+    """Set `wrapper`'s annotations in both PEP 649 representations.
+
+    On Python 3.14+ a bare `wrapper.__annotations__ = ...` assignment sets the lazy
+    `__annotate__` to None, and mutating the dict in place doesn't update
+    `__annotate__` at all. Either way, a further `functools.wraps` layer (which
+    copies `__annotate__`, not `__annotations__`) then silently drops the
+    annotations — e.g. in user decorators that extend @task/@solver/@agent and
+    re-register their own wrapper. Setting both representations keeps annotations
+    consistent under further wrapping. Always use this instead of assigning
+    `__annotations__` directly.
+    """
+    annotations = dict(annotations)
+    wrapper.__annotations__ = annotations
+    if sys.version_info >= (3, 14):
+        from annotationlib import Format  # type: ignore[import-not-found,unused-ignore]
+
+        def __annotate__(format: Format) -> dict[str, Any]:
+            # NotImplementedError is the protocol's "format not supported" signal:
+            # PEP 749 requires it for VALUE_WITH_FAKE_GLOBALS (hand-written annotate
+            # functions can't run under fake globals), and annotationlib's consumers
+            # compute FORWARDREF/STRING themselves by falling back to VALUE. See
+            # "Format compatibility" in the annotationlib docs:
+            # https://docs.python.org/3.14/library/annotationlib.html
+            if format != Format.VALUE:
+                raise NotImplementedError(format)
+            return dict(annotations)
+
+        wrapper.__annotate__ = __annotate__  # type: ignore[attr-defined,unused-ignore]
+
+
+def set_return_annotation(wrapper: Callable[..., Any], return_type: type[Any]) -> None:
+    """Restore `wrapper`'s return annotation after `functools.wraps` clobbered it.
+
+    Decorators like @task wrap the user's function with `functools.wraps` (so name,
+    docstring, and params carry over) but need the wrapper itself to be annotated as
+    returning the registry type: `registry_create` consults the return
+    annotation to decide whether a registered callable is a factory to invoke.
+    """
+    set_annotations(wrapper, {**wrapper.__annotations__, "return": return_type})
 
 
 def registry_add(o: object, info: RegistryInfo) -> None:

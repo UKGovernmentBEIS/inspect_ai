@@ -23,6 +23,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
     registry_unqualified_name,
+    set_return_annotation,
 )
 from inspect_ai.solver._task_state import TaskState
 
@@ -187,6 +188,8 @@ def scorer(
                 **kwargs,
             )
             return scorer
+
+        set_return_annotation(scorer_wrapper, Scorer)
 
         # register the scorer
         return scorer_register(
