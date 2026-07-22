@@ -7,6 +7,7 @@ from inspect_ai.approval import (
     ApprovalPolicy,
     approval,
     auto_approver,
+    read_approval_policies,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
@@ -142,6 +143,18 @@ def test_approve_no_reject():
 
 def test_approve_config():
     check_approval("approve.yaml", decision="approve")
+
+
+def test_read_approval_policies_file_uri():
+    policy_file = (Path(__file__).parent / "approve.yaml").as_uri()
+
+    policies = read_approval_policies(policy_file)
+
+    assert [policy.tools for policy in policies] == [
+        "foo*",
+        "*",
+        ["foo*", "add*"],
+    ]
 
 
 def test_approve_config_reject():
