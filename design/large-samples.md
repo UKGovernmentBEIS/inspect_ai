@@ -147,6 +147,19 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   prefetch pipelines per message range instead of serializing behind full
   conversation assembly. Affected: Proposed slicing (new C3), Appendix A
   pattern 3 landing note.
+- **2026-07-21 — C3 split into C3a/C3b (staging decision).** The windowed
+  Messages tab lands in two stages: **C3a** converts the legacy Messages tab
+  to infinite-query pagination over a page-source contract (in-memory
+  source, folding/numbering/count/id-resolution computed globally —
+  behavior-identical, ships on ts-mono main with no chunked coupling);
+  **C3b** swaps in the chunked page source, where the folding/numbering
+  decision lives behind the C3a contract. Rationale: the legacy path
+  *becomes* the windowed implementation before the chunked source exists —
+  the same lesson as mechanism 8 (never build chunked UI against a ported
+  understanding of legacy behavior), applied structurally. C3a carries no
+  performance benefit by itself (old data stays fully in memory; rendering
+  was already virtualized); its value is the seam. Affected:
+  [Proposed slicing](#proposed-slicing-into-implementation-efforts) (C3).
 
 ---
 
@@ -1081,22 +1094,37 @@ behind the milestone. Within-phase order: A → C1 → C2 → D → B → E.
   ratify a projection against a ported oracle without a browser-real
   comparison log in the corpus.
 - **C3. Windowed Messages tab.** **⚑ amended** ([Change log](#change-log),
-  2026-07-21 — requirement was inventoried but unowned). Access pattern 3
-  made real: the Messages tab pages the final conversation by index window —
-  exact row count and row→sequence mapping from `message_refs` prefix sums,
-  windowed `getRange` + per-batch attachment resolution, virtualized rows
-  with page materialization. **Materializing an unbounded number of
-  messages is a no-go** — the current full-hydration bridge (tab-open
-  hydration, attachment prefetch pipelined per message chunk) matches the
-  old path's profile and dies exactly where the old path dies. Design
-  hazards to resolve here, not patch around: legacy tool-message folding
-  and cumulative block numbering are functions of all prior message
-  *content* (unknowable windowed) — either render unfolded with
-  message-ordinal numbering (UX deviation needing sign-off) or persist
-  block/folding counts at write time (format candidate: per-chunk
-  cumulative block counts alongside `sequences`). `?message=` deep links
-  resolve by scan (same posture as `?event=`). Depends on C1; independent
-  of D.
+  2026-07-21 — requirement was inventoried but unowned; split into C3a/C3b
+  the same day, staging decision). Access pattern 3 made real:
+  **materializing an unbounded number of messages is a no-go** — the current
+  full-hydration bridge (tab-open hydration, attachment prefetch pipelined
+  per message chunk) matches the old path's profile and dies exactly where
+  the old path dies. Staged so the legacy path becomes the windowed
+  implementation before the chunked source exists (the mechanism-8 lesson
+  applied structurally — no ported oracle to diverge from):
+  - **C3a. Legacy pagination seam (lands on ts-mono main,
+    behavior-identical).** Convert the Messages tab to react-query
+    infinite-query pagination (the inspect_scout pattern) over a **page
+    source contract** while old logs keep the full message array in memory.
+    The source owns everything the chunked source will later need to
+    reinterpret: total row count, tool-message folding (pages deliver
+    *resolved rows*, not raw messages), per-row `startNumber`, and
+    message-id→row resolution (`?message=` deep links). The in-memory
+    source computes all of these globally and exactly, so rendering is
+    pixel-identical — this stage is a seam refactor with zero UX or
+    performance change, reviewable and landable on main independent of the
+    chunked format. Blast-radius note: `ChatViewVirtualList` is shared with
+    scout — keep its array-prop signature as a thin wrapper over the paged
+    core. No dependency on this effort's branches.
+  - **C3b. Chunked page source.** Swap the source: exact row count and
+    row→sequence mapping from `message_refs` prefix sums, windowed
+    `getRange` + per-batch attachment resolution, page materialization.
+    The folding/numbering decision lives entirely in this source, behind
+    the C3a contract: either unfolded rows with message-ordinal numbering
+    (UX deviation needing sign-off) or write-time persisted block/folding
+    counts (format candidate: per-chunk cumulative block counts alongside
+    `sequences`). `?message=` deep links resolve by scan (same posture as
+    `?event=`). Depends on C1 + C3a; independent of D.
 - **D. Search worker.** Scan worker, renderer-aligned extraction
   (worker-importable check), match table, find-band integration. Depends on
   C2; outside the viewer-works milestone.
