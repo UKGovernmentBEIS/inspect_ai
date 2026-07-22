@@ -9,7 +9,7 @@ The sandbox-tools binary (`inspect-sandbox-tools`) is injected into user contain
 - **Published `-v{N}`**: built by maintainers and uploaded to S3. The PyPI publish flow downloads the S3 artifact and bundles it into the wheel (under `src/inspect_ai/binaries/`), so PyPI users resolve it via the local-file path with no runtime S3 access. Editable installs whose sandbox-tools source matches `main` fall through to an S3 download at first use and cache the result locally.
 - **`-v{N}-dev`**: built locally via Docker. Used by contributors iterating on the injectable source; never published to S3.
 
-Selection happens in `sandbox.py::_get_install_state()`, which classifies an editable install as `clean` or `edited` by diffing `src/inspect_sandbox_tools/` and `sandbox_tools_version.txt` against `main`. `edited` forces the `-dev` name; `clean` uses the published name. PyPI installs are classified `pypi` and always use the bundled non-dev binary.
+Selection happens in `sandbox.py::_get_install_state()`, which classifies an editable install as `clean` or `edited` by diffing `src/inspect_sandbox_tools/` and `sandbox_tools_version.txt` against `main`. The diff excludes paths that don't ship in the built binary (`*.md`, `design/`, `tests/` under the injectable tree) — the same exclusions as the CI `injectable_src` filter, and the two must stay in sync: CI skips the `-dev` build for excluded-only changes, so classifying them `edited` would resolve a `-dev` binary that was never built. `edited` forces the `-dev` name; `clean` uses the published name. PyPI installs are classified `pypi` and always use the bundled non-dev binary.
 
 The CI gates exist to prevent two failure modes:
 
