@@ -1,0 +1,129 @@
+# Lints CHANGELOG.md placement on PRs: new entries must land under the
+# '## Unreleased' section. Runs only when CHANGELOG.md is modified.
+#
+# What passes:
+# - Pure additions inside '## Unreleased' (including creating the header
+#   itself, e.g. the first entry after a release).
+# - Edits to already-released entries (hunks that also delete lines), so typo
+#   fixes in old sections are fine.
+# - Release-prep changes that rename '## Unreleased' to a version header.
+#
+# What fails:
+# - New entries added under an already-released version header (a common slip
+#   right after a release, when '## Unreleased' was just consumed).
+# - New entries when no '## Unreleased' section exists (the fix: add one at
+#   the top).
+#
+# Failures annotate the exact CHANGELOG.md lines in the PR diff view.
+
+name: Changelog Lint
+
+on:
+  pull_request:
+    paths:
+      - "CHANGELOG.md"
+
+permissions:
+  contents: read
+
+jobs:
+  placement:
+    name: entries-under-unreleased
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The pull_request checkout is the merge commit; depth 2 brings in
+          # both parents so HEAD^1 (the base branch tip) is available to diff.
+          fetch-depth: 2
+
+      - name: Check new entries are under '## Unreleased'
+        run: |
+          python3 - HEAD^1 <<'PY'
+          import re
+          import subprocess
+          import sys
+
+          BASE = sys.argv[1]
+          PATH = "CHANGELOG.md"
+
+          diff = subprocess.run(
+              ["git", "diff", "-U0", BASE, "HEAD", "--", PATH],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          if not diff.strip():
+              print("No CHANGELOG.md changes; nothing to lint.")
+              sys.exit(0)
+
+          # Parse hunks: added lines (with new-file line numbers) and deletions.
+          hunks = []
+          cur = None
+          for line in diff.splitlines():
+              m = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", line)
+              if m:
+                  cur = {"next": int(m.group(1)), "added": [], "deleted": []}
+                  hunks.append(cur)
+                  continue
+              if cur is None:
+                  continue
+              if line.startswith("+") and not line.startswith("+++"):
+                  cur["added"].append((cur["next"], line[1:]))
+                  cur["next"] += 1
+              elif line.startswith("-") and not line.startswith("---"):
+                  cur["deleted"].append(line[1:])
+
+          added_all = [(n, t) for h in hunks for (n, t) in h["added"]]
+          deleted_all = [t for h in hunks for t in h["deleted"]]
+
+          UNREL = re.compile(r"^##\s+Unreleased\s*$", re.IGNORECASE)
+          VERSION = re.compile(r"^##\s+v?\d")
+
+          # Release-prep carve-out: '## Unreleased' renamed to a version header.
+          if any(UNREL.match(t) for t in deleted_all) and any(
+              VERSION.match(t) for _, t in added_all
+          ):
+              print("Release-prep change (Unreleased -> version header); skipping placement lint.")
+              sys.exit(0)
+
+          new_lines = open(PATH).read().splitlines()
+          headers = [(i + 1, l) for i, l in enumerate(new_lines) if l.startswith("## ")]
+
+          unrel_range = None
+          unrel_is_first = True
+          for idx, (ln, text) in enumerate(headers):
+              if UNREL.match(text):
+                  end = headers[idx + 1][0] - 1 if idx + 1 < len(headers) else len(new_lines)
+                  unrel_range = (ln, end)
+                  unrel_is_first = idx == 0
+                  break
+
+          errors = []
+          pure_hunks = [h for h in hunks if not h["deleted"]]
+
+          if unrel_range is None:
+              if any(t.strip() for h in pure_hunks for _, t in h["added"]):
+                  first_line = added_all[0][0] if added_all else 1
+                  errors.append((first_line,
+                      "CHANGELOG.md has no '## Unreleased' section. Add '## Unreleased' at "
+                      "the top of the file and place new entries under it."))
+          else:
+              lo, hi = unrel_range
+              if not unrel_is_first:
+                  errors.append((lo, "'## Unreleased' should be the first section in CHANGELOG.md."))
+              for h in pure_hunks:
+                  for n, t in h["added"]:
+                      if lo <= n <= hi:
+                          continue
+                      if UNREL.match(t) or not t.strip():
+                          continue  # creating the header / whitespace-only additions
+                      errors.append((n,
+                          f"New changelog line is outside the '## Unreleased' section "
+                          f"(lines {lo}-{hi}). Move new entries under '## Unreleased'."))
+
+          if errors:
+              for n, msg in errors:
+                  print(f"::error file={PATH},line={n}::{msg}")
+              sys.exit(1)
+
+          print("CHANGELOG.md changes are correctly placed under '## Unreleased'.")
+          PY
