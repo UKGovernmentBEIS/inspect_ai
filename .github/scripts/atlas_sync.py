@@ -7,15 +7,15 @@ hourly Atlas sync"):
 1. Discovery: open upstream PRs review-requested-to / assigned-to REVIEWER,
    authored by external community contributors (not org members, not bots),
    not already tracked -> create a proxy issue in the fork (External label,
-   Stage=Human Review, Upstream PR field).
+   Stage=Review, Upstream PR field).
 2. State sync: every OPEN fork issue on Atlas with a non-empty "Upstream PR"
    field -> read the upstream PR and advance the stage:
      - External proxies: merged/closed -> close proxy (Done); while in
-       Awaiting Contributor, contributor activity newer than the reviewer's
-       last activity (or a re-review request) -> Human Review.
-     - Promotions: APPROVED -> Awaiting Merge; CHANGES_REQUESTED -> Human
-       Review; approval dismissed -> Awaiting Merge->Sign-off only; merged ->
-       close (Done); closed unmerged -> Human Review + comment.
+       Contributor, contributor activity newer than the reviewer's
+       last activity (or a re-review request) -> Review.
+     - Promotions: APPROVED -> Merge; CHANGES_REQUESTED -> Review;
+       approval dismissed -> Merge->Sign-off only; merged ->
+       close (Done); closed unmerged -> Review + comment.
 
 Deterministic; runs as the machine account (GH_TOKEN=MARVIN_TOKEN). Per-item
 failures warn and continue. Every write is idempotent.
@@ -36,18 +36,18 @@ PROJECT_ID = "PVT_kwDOC7YMCM4BU68p"
 PROJECT_NUMBER = 1
 STAGE_FIELD = "PVTSSF_lADOC7YMCM4BU68pzhYZEwY"
 STAGE_OPTIONS = {
-    "Agent Working": "18c9cd89",
-    "Human Review": "d261eb6b",
+    "Agent": "18c9cd89",
+    "Review": "d261eb6b",
     "Sign-off": "da6137e6",
-    "Awaiting Merge": "add17478",
-    "Awaiting Contributor": "39c05a50",
+    "Merge": "add17478",
+    "Contributor": "39c05a50",
 }
 STATUS_FIELD = "PVTSSF_lADOC7YMCM4BU68pzhKizZM"
 STATUS_OPTIONS = {"Todo": "f75ad846", "In progress": "47fc9ee4", "Done": "98236657"}
 UPSTREAM_PR_FIELD = "PVTF_lADOC7YMCM4BU68pzhYZp9Q"
 
 # Stages where the ball is upstream — the promotion mapping's whole domain.
-TAIL_STAGES = ("Sign-off", "Awaiting Merge")
+TAIL_STAGES = ("Sign-off", "Merge")
 
 actions: list = []  # human-readable log for the job summary
 pending_chips: list = []
@@ -167,7 +167,7 @@ def ensure_on_board(node_id: str, url: str):
         set_text(item, UPSTREAM_PR_FIELD, url)
         healed = True
     if not (cur.get("stage") or {}).get("name"):
-        set_stage(item, "Human Review", None)
+        set_stage(item, "Review", None)
         healed = True
     return healed
 
@@ -206,8 +206,8 @@ def discover() -> None:
                 f"Tracking review of external contributor PR by {author} in upstream inspect_ai.\n\n"
                 f"Upstream PR: {url}\n\n"
                 "Labeled `External`; created by the hourly Atlas sync. Stage starts at "
-                "**Human Review** (the review request is with the reviewer); move it to "
-                "**Awaiting Contributor** after reviewing."
+                "**Review** (the review request is with the reviewer); move it to "
+                "**Contributor** after reviewing."
             )
             issue = gh_json(
                 "api", f"repos/{FORK}/issues",
@@ -360,11 +360,11 @@ def sync_item(row) -> None:
             clear_field(item, STAGE_FIELD)
             set_single_select(item, STATUS_FIELD, STATUS_OPTIONS["Done"])
             actions.append(f"#{issue}: upstream closed -> proxy closed")
-        elif stage in TAIL_STAGES and set_stage(item, "Human Review", stage):
+        elif stage in TAIL_STAGES and set_stage(item, "Review", stage):
             # Gated to the tail so a stage the driver parked elsewhere is left
             # alone — and the comment can't be re-posted on an hourly bounce.
             comment(issue, f"Upstream PR {row['url']} was closed unmerged — needs a human decision. (Atlas sync)")
-            actions.append(f"#{issue}: upstream closed unmerged -> Human Review")
+            actions.append(f"#{issue}: upstream closed unmerged -> Review")
         return
 
     # True re-request: pending request(s) AND the latest request event is newer
@@ -379,7 +379,7 @@ def sync_item(row) -> None:
         pending_request and pr["_req_ts"] > pr["_changes_ts"] and pr["_changes_ts"] != ""
     )
     if row["external"]:
-        if stage == "Awaiting Contributor":
+        if stage == "Contributor":
             author_ts, reviewer_ts = latest_activity(owner, repo, num)
             # Same staleness rule, against MY last activity: only a request to
             # me newer than my last review/comment pulls the proxy back — my
@@ -389,25 +389,25 @@ def sync_item(row) -> None:
                 for n in pr["reviewRequests"]["nodes"]
             ) and pr["_req_ts"] > reviewer_ts
             if (author_ts and author_ts > reviewer_ts) or rerequested_to_me:
-                if set_stage(item, "Human Review", stage):
-                    actions.append(f"#{issue}: contributor responded -> Human Review")
+                if set_stage(item, "Review", stage):
+                    actions.append(f"#{issue}: contributor responded -> Review")
         return
 
     decision = pr.get("reviewDecision")
 
-    # The one transition allowed OUT of Human Review: the driver re-requested
+    # The one transition allowed OUT of Review: the driver re-requested
     # review upstream after a changes-requested round — the fork's analog of
-    # "you send it to a second reviewer", i.e. Human Review -> Sign-off. The
+    # "you send it to a second reviewer", i.e. Review -> Sign-off. The
     # signal is precise (sticky CHANGES_REQUESTED + a pending re-request), so
-    # a fresh promotion parked in Human Review (decision REVIEW_REQUIRED)
+    # a fresh promotion parked in Review (decision REVIEW_REQUIRED)
     # stays parked.
-    if stage == "Human Review" and decision == "CHANGES_REQUESTED" and rerequested:
+    if stage == "Review" and decision == "CHANGES_REQUESTED" and rerequested:
         if set_stage(item, "Sign-off", stage):
             actions.append(f"#{issue}: review re-requested upstream -> Sign-off")
         return
 
     # Promotion tail — only while the ball is genuinely upstream. Stages a
-    # human parked elsewhere (Agent Working, Human Review, ...) are out of this
+    # human parked elsewhere (Agent, Review, ...) are out of this
     # mapping's domain: reviewDecision is sticky (CHANGES_REQUESTED persists
     # until a re-review), so acting from any stage would drag parked items back
     # here every hour.
@@ -418,13 +418,13 @@ def sync_item(row) -> None:
         # decision persists until the reviewer acts. Treat as review-pending.
         decision = None
     if decision == "APPROVED":
-        if set_stage(item, "Awaiting Merge", stage):
-            actions.append(f"#{issue}: upstream approved -> Awaiting Merge")
+        if set_stage(item, "Merge", stage):
+            actions.append(f"#{issue}: upstream approved -> Merge")
     elif decision == "CHANGES_REQUESTED":
-        if set_stage(item, "Human Review", stage):
-            actions.append(f"#{issue}: upstream changes requested -> Human Review")
-    else:  # REVIEW_REQUIRED / None: only undo a stale Awaiting Merge
-        if stage == "Awaiting Merge" and set_stage(item, "Sign-off", stage):
+        if set_stage(item, "Review", stage):
+            actions.append(f"#{issue}: upstream changes requested -> Review")
+    else:  # REVIEW_REQUIRED / None: only undo a stale Merge
+        if stage == "Merge" and set_stage(item, "Sign-off", stage):
             actions.append(f"#{issue}: approval dismissed -> Sign-off")
 
 
