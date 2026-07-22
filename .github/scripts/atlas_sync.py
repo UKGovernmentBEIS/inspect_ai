@@ -222,10 +222,17 @@ def discover() -> None:
             # @review comment fires the reviewer's external mode (word-boundary
             # trigger; External label + upstream URL already in the body), so
             # findings are waiting on the proxy by the time a human looks.
-            gh("api", f"repos/{FORK}/issues/{issue['number']}/comments",
-               "-f", "body=@review")
+            # Isolated try: this is the one write the heal path cannot recover
+            # (dedup skips fully-boarded proxies), and a transient failure here
+            # must not mislabel the successful creation as a failed item.
+            try:
+                comment(issue["number"], "@review")
+                review_note = "review requested"
+            except Exception as e:  # noqa: BLE001
+                review_note = "review request FAILED — trigger @review manually"
+                print(f"::warning::auto-@review failed on proxy #{issue['number']}: {e}")
             actions.append(
-                f"created proxy #{issue['number']} for upstream #{num} ({author}); review requested")
+                f"created proxy #{issue['number']} for upstream #{num} ({author}); {review_note}")
             pending_chips.append(f"#{issue['number']} -> {url}")
         except Exception as e:  # noqa: BLE001 — per-item isolation
             print(f"::warning::discovery failed for upstream #{num}: {e}")
