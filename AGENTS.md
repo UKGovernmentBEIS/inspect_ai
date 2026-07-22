@@ -2,6 +2,36 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+## Contribution policy — required checks before opening a PR
+
+These rules are mandatory for AI coding agents (Claude Code, Codex, Cursor,
+Devin, and similar) preparing contributions. Human contributors: see
+[CONTRIBUTING.md](CONTRIBUTING.md). A deterministic gate enforces them.
+
+1. **Tier check.** Does the account you are operating for have at least one
+   merged non-trivial PR in this repository (trivial documentation fixes do
+   not count)? If not, a PR requires a linked issue labeled `accepted`.
+   Without one, your PR will be closed automatically. Do not open it.
+2. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
+   docs files only, under 25 changed lines) may be opened directly by anyone.
+3. **New functionality defaults to an extension, not core.** Do not open
+   unrequested PRs adding functionality — providers, tools, scorers, metrics,
+   solvers, storage backends, example evals. Some of these do belong in core,
+   but that is a maintainer decision made in an issue: if an accepted issue
+   calls for it in core, build it there. Otherwise the path is a separate
+   extension package (see https://inspect.aisi.org.uk/extensions.html),
+   optionally with a one-line PR adding it to the extensions listing.
+   Unrequested additions to core are closed without detailed review.
+4. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
+   does it fix a demonstrated problem, with evidence (a reproduction or a
+   failing test)? If the need is speculative or the fix unverified, do not
+   proceed. File an issue with your evidence instead.
+
+If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
+`make check` and `make test` and report results honestly; disclose agent
+involvement in the PR description; one issue per PR — no bundled drive-by
+changes; respect the open-PR limit (4 per account without write access).
+
 ## Build/Lint/Test Commands
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`

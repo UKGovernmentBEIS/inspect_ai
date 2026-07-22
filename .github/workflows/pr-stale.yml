@@ -1,0 +1,38 @@
+# Stale policy for external PRs (CONTRIBUTING.md "Established contributors"):
+# warn after 60 days of inactivity, close 7 days later with a reopen invite.
+# Issues are exempt entirely (days-before-issue-stale: -1) — issue backlog
+# policy is the weekly triage session's job, not a bot's.
+# Trusted-tier PRs are shielded via the `qualified` label (the gate applies it
+# on open); maintainers apply it by hand to shield/endorse any other PR.
+name: Stale PRs
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-issue-stale: -1
+          days-before-pr-stale: 60
+          days-before-pr-close: 7
+          stale-pr-label: stale
+          exempt-pr-labels: qualified
+          exempt-draft-pr: true
+          stale-pr-message: >-
+            This PR has been inactive for 60 days. It will be closed in 7 days
+            unless there's new activity — a comment or a push resets the clock.
+            If you're waiting on a review from us, say so and we'll take a look.
+          close-pr-message: >-
+            Closing for inactivity per our contribution policy — this isn't a
+            judgment of the work. If you pick it back up, comment here or open
+            a fresh PR referencing this one and we're happy to reopen.
+          operations-per-run: 200
