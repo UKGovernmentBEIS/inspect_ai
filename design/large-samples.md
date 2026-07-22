@@ -147,6 +147,37 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   prefetch pipelines per message range instead of serializing behind full
   conversation assembly. Affected: Proposed slicing (new C3), Appendix A
   pattern 3 landing note.
+- **2026-07-22 — Server-timeline rendering gap characterized (petri3
+  empirics; deferred issue 12 sharpened, new skeleton candidate e).**
+  Old/new comparison on the petri3 rollback log shows a wholesale
+  presentation divergence, and the diagnosis re-scopes issue 12. The legacy
+  viewer **default-selects the log-supplied timeline** when one exists
+  (`sample.timelines` → "target" selector, "branch 1" root), so the header
+  selector, swimlane rows, time axis, outline, and body are all projections
+  of that view; the chunked panel builds only the synthetic main-view
+  timeline, and its body is the raw tree (issue 11) — on this log the two
+  modes share almost nothing visually. Facts established:
+  1. **`timelines` already survive conversion into the chunked shell** — no
+     format change is needed to *carry* server timelines; the gap is
+     plumbing them into the chunked panel.
+  2. **Resolution is the real dependency**: `convertServerTimeline`
+     resolves the timeline tree's event references by REAL event uuid
+     against the loaded events array. The synthetic stream carries
+     synthetic uuids, and the `anchor` events this log's timeline leans on
+     (22 of them) are not represented in the skeleton at all.
+  3. **petri3 contains zero `branch` events** — its branching is expressed
+     entirely via server timelines + anchors. The issue-13 widening that
+     unblocks fork/timeline rendering on such logs is therefore
+     **timeline-referenced event addressability** (new candidate e), not
+     the `branch` notable (which still matters for client-side branch
+     detection on logs that do emit branch events).
+  Also observed on this log: dead utility classification (candidate d)
+  surfaces 13 `realism` judge spans as ordinary outline rows. Minor
+  mechanism-8 correction from the PR #451 review round folded in: stray
+  types that DO yield outline rows (e.g. `subtask`) collapse to one row per
+  span, and notable types past the persistence cap emit no stray at all.
+  Affected: [Deferred open issues](#deferred-open-issues) (12, 13),
+  [Structural skeleton](#structural-skeleton-5) (mechanism 8).
 - **2026-07-21 — C3 split into C3a/C3b (staging decision).** The windowed
   Messages tab lands in two stages: **C3a** converts the legacy Messages tab
   to infinite-query pagination over a page-source contract (in-memory
@@ -469,11 +500,15 @@ Ratified mechanisms:
    and notable ordering exact), real span timestamps with loose points
    interpolated inside their gap's real bounds, one representative stray per
    direct-child event type (survival of `filterEmpty`/type-filter behavior;
-   no stray type yields per-event outline rows on the default filter) — and
+   strays carry the minimum payload the outline dereferences; types that DO
+   yield outline rows — e.g. `subtask` — collapse to one row per span, and
+   notable types past the persistence cap emit no stray, the persisted ones
+   covering survival) — and
    runs the real, exported legacy pipeline over it. Acceptance: a twin test
    pins synthetic-fed against real-events-fed output *through the identical
    production code* per sample across the fixture corpus. Fidelity limits
-   and skeleton amendment candidates: change-log entry of 2026-07-21.
+   and skeleton amendment candidates: change-log entries of 2026-07-21 and
+   2026-07-22.
 
 Parked (measurement-triggered): columnar skeleton encoding.
 
@@ -1194,16 +1229,28 @@ Recorded here so they aren't lost; each is out of this effort's scope:
     extracted, scoring appended); the chunked body renders the raw tree via
     the row-window model. Reconciling needs a view-row mapping over the
     main-view ordering — design work, not a patch.
-12. **Branch-tree and server-timeline rendering for chunked samples** —
-    rollback/fork logs (petri) get fork navigation and log-supplied
-    timeline selectors in the legacy viewer; the chunked path renders the
-    flat main view. Depends on the notable-types expansion (`branch` +
-    `from_anchor`) and on plumbing server timelines through the shell.
+12. **Branch-tree and server-timeline rendering for chunked samples**
+    (**⚑ amended**, [Change log](#change-log), 2026-07-22) — rollback/fork
+    logs (petri) get log-supplied timeline selectors and fork navigation in
+    the legacy viewer, and the legacy default selection IS the server
+    timeline when one exists — so on such logs the chunked path's flat main
+    view (plus its raw-tree body, issue 11) diverges wholesale, not
+    cosmetically. `timelines` already ride in the chunked shell; the work
+    is (a) plumbing them into the chunked panel and (b) resolving their
+    real-event-uuid references (incl. `anchor` events), which the synthetic
+    stream cannot satisfy — needs skeleton candidate (e) or an alternate
+    resolution path. petri3 empirics: zero `branch` events; branching there
+    is server-timeline + anchor only, so the `branch` notable widening is
+    neither sufficient nor necessary for this log class.
 13. **Skeleton v1 amendment candidates** ([Change log](#change-log),
-    2026-07-21) — widen `NOTABLE_TYPES` (`error`/`compaction`/
-    `sample_limit`/`branch`), notable timestamps, root-level `children`
-    counts, writer-time utility classification. Decide before the phase-2
-    writer freezes the format.
+    2026-07-21 + 2026-07-22) — (a) widen `NOTABLE_TYPES` (`error`/
+    `compaction`/`sample_limit`/`branch`), (b) notable timestamps, (c)
+    root-level `children` counts, (d) writer-time utility classification,
+    (e) timeline-referenced event addressability: real uuids (or a
+    uuid→ordinal map) for events referenced by server timelines, plus
+    `anchor` representation, so `convertServerTimeline` can resolve against
+    a skeleton-derived stream (unblocks issue 12). Decide before the
+    phase-2 writer freezes the format.
 14. **Materialized-row eviction** (PR #451 review, 2026-07-22) —
     `RowSpace.materializedRows` never evicts: decoded view rows (with
     attachments inlined) accumulate for the panel's lifetime, at odds with
