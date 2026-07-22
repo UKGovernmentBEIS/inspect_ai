@@ -1,7 +1,6 @@
 import math
 import os
 import tempfile
-import zipfile
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.log import (
@@ -125,37 +124,6 @@ def test_read_eval_log_exclude_fields_big_int_fallback():
     assert not sample.store
     # the big int in a kept field is preserved with no precision loss
     assert sample.scores["match"].metadata["parcelId"] == 2**64 + 1
-
-
-def test_read_eval_log_exclude_fields_float_overflow_fallback():
-    """Same fallback for floats beyond double range ("numeric overflow" in ijson).
-
-    Python can't represent such a literal (float caps at DBL_MAX; inf writes as
-    Infinity), so splice the raw bytes into the sample member after writing.
-    """
-    log = _make_log_with_big_int()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "hugefloat.eval")
-        write_eval_log(log, path)
-
-        with zipfile.ZipFile(path) as zf:
-            entries = {name: zf.read(name) for name in zf.namelist()}
-        sample_member = next(n for n in entries if n.startswith("samples/"))
-        assert str(2**64 + 1).encode() in entries[sample_member]
-        entries[sample_member] = entries[sample_member].replace(
-            str(2**64 + 1).encode(), b"1e309"
-        )
-        with zipfile.ZipFile(path, "w") as zf:
-            for name, data in entries.items():
-                zf.writestr(name, data)
-
-        read_log = read_eval_log(path, exclude_fields={"messages", "store"})
-
-    assert read_log.samples
-    sample = read_log.samples[0]
-    assert not sample.messages
-    assert not sample.store
-    assert sample.scores["match"].metadata["parcelId"] == float("inf")
 
 
 def test_read_eval_log_exclude_fields_nan_inf_fallback():

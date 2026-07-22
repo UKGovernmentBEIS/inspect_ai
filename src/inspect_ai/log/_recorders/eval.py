@@ -41,8 +41,8 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
 from inspect_ai._util.json import (
+    is_ijson_int_overflow_error,
     is_ijson_nan_inf_error,
-    is_ijson_overflow_error,
     jsonable_dict,
     to_json_safe,
 )
@@ -606,7 +606,7 @@ async def _read_member_json_excluding(
         IncompleteJSONError,
         UnexpectedSymbol,
     ) as ex:
-        if is_ijson_nan_inf_error(ex) or is_ijson_overflow_error(ex):
+        if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
             data = json.loads(await reader.read_member_fully(member))
             for field in exclude_fields:
                 data.pop(field, None)

@@ -15,7 +15,7 @@
 - Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
 - Registry: Add a `validation_predicate` type for Scout extensions.
 - Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)
-- Logging: Reading `.eval` logs with `exclude_fields` no longer fails with a parse error when a sample contains a JSON integer larger than 2⁶³−1 or a number beyond 64-bit float range.
+- Logging: Reading `.eval` logs with `exclude_fields` no longer fails with "integer overflow" when a sample contains a JSON integer larger than 2⁶³−1.
 - Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
 - Approval: Load policy configuration files from `file://` URIs as well as plain local paths.
