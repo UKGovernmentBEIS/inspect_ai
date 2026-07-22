@@ -27,6 +27,7 @@ from inspect_ai.model._openai import (
     messages_to_openai,
     openai_chat_tools,
 )
+from inspect_ai.model._openai_convert import model_output_from_openai
 from inspect_ai.model._openai_responses import _tool_param_for_tool_info
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer import includes
@@ -85,6 +86,25 @@ def completions_agent(tools: bool) -> Agent:
                 state.messages.append(message)
                 state.output = ModelOutput.from_message(message)
                 return state
+
+    return execute
+
+
+@agent
+def raw_response_completions_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        from openai._legacy_response import LegacyAPIResponse
+
+        async with agent_bridge(state) as bridge:
+            async with AsyncOpenAI() as client:
+                raw = await client.chat.completions.with_raw_response.create(
+                    model="inspect",
+                    messages=await messages_to_openai(state.messages),
+                )
+                assert isinstance(raw, LegacyAPIResponse)
+                completion = raw.parse()
+                bridge.state.output = await model_output_from_openai(completion)
+        return bridge.state
 
     return execute
 
@@ -804,6 +824,11 @@ def test_bridge_filter_config():
 def test_bridged_agent_completions():
     log_json = eval_bridged_task("openai/gpt-4o", agent=completions_agent(False))
     check_openai_log_json(log_json, tools=False)
+
+
+def test_bridged_completions_with_raw_response():
+    log = eval(bridged_task(raw_response_completions_agent()), model="mockllm/model")[0]
+    assert log.status == "success"
 
 
 @skip_if_no_openai
