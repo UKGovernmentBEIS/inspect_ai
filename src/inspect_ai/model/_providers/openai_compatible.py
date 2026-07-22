@@ -7,6 +7,7 @@ from openai import (
     APIStatusError,
     AsyncOpenAI,
     BadRequestError,
+    LengthFinishReasonError,
     PermissionDeniedError,
     UnprocessableEntityError,
 )
@@ -285,6 +286,17 @@ class OpenAICompatibleAPI(ModelAPI):
                     as_error_response(ex.body), self._http_hooks.end_request(request_id)
                 )
                 return self.handle_bad_request(ex), model_call
+            except APIStatusError as ex:
+                # 413 (payload too large) has no dedicated SDK exception type but
+                # is a bad-request-class error (e.g. CloudFlare signals context
+                # window overflow this way)
+                if ex.status_code == 413:
+                    model_call.set_error(
+                        as_error_response(ex.body),
+                        self._http_hooks.end_request(request_id),
+                    )
+                    return self.handle_bad_request(ex), model_call
+                raise
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
@@ -304,7 +316,10 @@ class OpenAICompatibleAPI(ModelAPI):
                     "probabilities.",
                 )
             async with self.client.chat.completions.stream(**request) as stream:
-                return await stream.get_final_completion()
+                try:
+                    return await stream.get_final_completion()
+                except LengthFinishReasonError as ex:
+                    return ex.completion
         else:
             return cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)
