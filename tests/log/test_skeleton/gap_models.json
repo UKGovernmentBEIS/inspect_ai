@@ -1,0 +1,69 @@
+{
+  "description": "gap_models layout: items are direct-child structural spans + notables merged in sequence order; gap_models[k] counts model events strictly between item k-1 and item k (len == items + 1).",
+  "events": [
+    {"event": "span_begin", "id": "S1", "name": "agent1", "type": "agent", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
+    {"event": "span_begin", "id": "A", "parent_id": "S1", "span_id": "S1", "name": "helper", "type": "agent", "timestamp": "2026-01-01T00:00:02+00:00", "working_start": 2.0},
+    {"event": "model", "span_id": "A", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:03+00:00", "working_start": 3.0},
+    {"event": "span_end", "id": "A", "span_id": "S1", "timestamp": "2026-01-01T00:00:04+00:00", "working_start": 4.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:05+00:00", "working_start": 5.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:06+00:00", "working_start": 6.0},
+    {"event": "score", "span_id": "S1", "score": {"value": 1}, "timestamp": "2026-01-01T00:00:07+00:00", "working_start": 7.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:08+00:00", "working_start": 8.0},
+    {"event": "span_begin", "id": "B", "parent_id": "S1", "span_id": "S1", "name": "bash", "type": "tool", "timestamp": "2026-01-01T00:00:09+00:00", "working_start": 9.0},
+    {"event": "model", "span_id": "B", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:10+00:00", "working_start": 10.0},
+    {"event": "span_end", "id": "B", "span_id": "S1", "timestamp": "2026-01-01T00:00:11+00:00", "working_start": 11.0},
+    {"event": "span_end", "id": "S1", "timestamp": "2026-01-01T00:00:12+00:00", "working_start": 12.0}
+  ],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 13, "models": 6},
+    "spans": [
+      {
+        "id": "S1",
+        "name": "agent1",
+        "type": "agent",
+        "begin": 0,
+        "extent": [0, 12],
+        "t": ["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:12+00:00"],
+        "working": [0.0, 12.0],
+        "events": 13,
+        "models": 6,
+        "gap_models": [1, 2, 1, 0],
+        "children": {"model": 4, "score": 1}
+      },
+      {
+        "id": "A",
+        "parent": 0,
+        "name": "helper",
+        "type": "agent",
+        "begin": 2,
+        "extent": [2, 4],
+        "t": ["2026-01-01T00:00:02+00:00", "2026-01-01T00:00:04+00:00"],
+        "working": [2.0, 4.0],
+        "events": 3,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"model": 1}
+      },
+      {
+        "id": "B",
+        "parent": 0,
+        "name": "bash",
+        "type": "tool",
+        "begin": 9,
+        "extent": [9, 11],
+        "t": ["2026-01-01T00:00:09+00:00", "2026-01-01T00:00:11+00:00"],
+        "working": [9.0, 11.0],
+        "events": 3,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"model": 1}
+      }
+    ],
+    "notables": [
+      {"i": 7, "span": 0, "type": "score"}
+    ],
+    "overflow": {}
+  }
+}

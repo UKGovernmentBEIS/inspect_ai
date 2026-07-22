@@ -584,6 +584,54 @@ async def test_zip_log_file_flush_cycles() -> None:
         assert read_ids == all_sample_ids
 
 
+@skip_if_trio
+async def test_zip_log_streaming_normalizes_unserializable_store() -> None:
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.buffer.history import SampleHistory
+    from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="streaming_store_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=1),
+            config=EvalConfig(),
+        )
+        log_start = LogStart(
+            version=LOG_SCHEMA_VERSION,
+            eval=eval_spec,
+            plan=EvalPlan(),
+        )
+        sample = EvalSample(
+            id=1,
+            epoch=1,
+            input="input",
+            target="target",
+            messages=[],
+            store={"opaque": object()},
+        )
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+        await zip_log.buffer_sample_streaming(sample, SampleHistory([], {}, {}, {}))
+        await zip_log.flush()
+        await zip_log.close(header_only=False)
+
+        log = read_eval_log(eval_path)
+        assert log.samples is not None
+        assert log.samples[0].store["opaque"] is None
+
+
 # =============================================================================
 # Tests for LazyList / lazy sample loading
 # =============================================================================
