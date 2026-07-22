@@ -76,7 +76,9 @@ def _make_log_with_big_int() -> EvalLog:
     The big int appears both in a kept field (scores metadata) and in an
     excluded field (store) so the fallback path is exercised for both.
     """
-    big = 18446744073709551657
+    # +1 so the value isn't float-representable: a lossy round-trip
+    # (which would round to exactly 2**64) fails the equality assert
+    big = 2**64 + 1
     sample = EvalSample(
         id="s1",
         epoch=1,
@@ -125,7 +127,7 @@ def test_read_eval_log_exclude_fields_big_int_fallback():
     assert not sample.messages
     assert not sample.store
     # the big int in a kept field is preserved with no precision loss
-    assert sample.scores["match"].metadata["parcelId"] == 18446744073709551657
+    assert sample.scores["match"].metadata["parcelId"] == 2**64 + 1
 
 
 def test_read_eval_log_exclude_fields_nan_inf_fallback():
