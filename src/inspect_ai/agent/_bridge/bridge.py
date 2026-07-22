@@ -343,6 +343,7 @@ def init_anthropic_request_patch() -> None:
     validate_anthropic_client("agent bridge")
 
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
+    from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
     from anthropic._types import Omit, ResponseT
 
@@ -356,6 +357,46 @@ def init_anthropic_request_patch() -> None:
             return headers
 
         return None
+
+    async def finalize_bridge_response(
+        client: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        stream: bool,
+        stream_cls: type[_AsyncStreamT] | None,
+        result: BaseModel,
+    ) -> Any:
+        """Return the bridge result in the shape the Anthropic SDK caller expects.
+
+        Structural twin of `finalize_bridge_response()` in
+        `init_openai_request_patch()` above — see its docstring for the full
+        rationale. The Anthropic SDK uses the same generated client core, so the
+        failure mode is identical: callers using `.with_raw_response` /
+        `.with_streaming_response` expect `request()` to return a response
+        *wrapper* whose `.parse()` yields the `Message`, and crash with
+        `'Message' object has no attribute 'parse'` when handed the parsed
+        model directly.
+
+        Note this pins the bridge to the SDK's private `_process_response()`
+        keyword signature.
+        """
+        raw_response = (request_headers(options) or {}).get(RAW_RESPONSE_HEADER)
+        if not raw_response:
+            return result
+
+        response = httpx.Response(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            content=result.model_dump_json().encode(),
+            request=client._build_request(options),
+        )
+        return await client._process_response(
+            cast_to=cast_to,
+            options=options,
+            response=response,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -387,13 +428,16 @@ def init_anthropic_request_patch() -> None:
                     raise_stream_error()
 
                 is_beta = "beta" in options.url
-                return await inspect_anthropic_api_request(
+                result = await inspect_anthropic_api_request(
                     json_data,
                     filter_bridge_headers(request_headers(options)),
                     config.web_search,
                     config.code_execution,
                     config.bridge,
                     beta=is_beta,
+                )
+                return await finalize_bridge_response(
+                    self, cast_to, options, stream, stream_cls, result
                 )
 
         # otherwise just delegate

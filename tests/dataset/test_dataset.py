@@ -2,6 +2,7 @@ import json as json_module
 import os
 from pathlib import Path
 from typing import Type, TypeVar
+from unittest.mock import Mock
 
 import pytest
 from pydantic import BaseModel
@@ -46,6 +47,29 @@ limit_dataset_params = [
         ),
     ),
 ]
+
+
+@pytest.mark.parametrize(
+    ("suffix", "reader", "file_argument"),
+    [
+        (".csv", "csv_dataset", "csv_file"),
+        (".json", "json_dataset", "json_file"),
+        (".jsonl", "json_dataset", "json_file"),
+    ],
+)
+def test_file_dataset_url_query_uses_path_extension(
+    suffix: str,
+    reader: str,
+    file_argument: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = f"https://example.test/dataset{suffix}?signature=abc123"
+    expected = object()
+    mock_reader = Mock(return_value=expected)
+    monkeypatch.setattr(f"inspect_ai.dataset._sources.file.{reader}", mock_reader)
+
+    assert file_dataset(url) is expected
+    assert mock_reader.call_args.kwargs[file_argument] == url
 
 
 # test reading a dataset using default configuration

@@ -1,0 +1,210 @@
+{
+  "description": "Parent and single-turn child whose system prompts are identical except for the varying x-anthropic-billing-header first line (Claude Code-style logs). Both implementations must normalize the header away before comparing, so the child is NOT classified as utility.",
+  "events": [
+    {
+      "event": "span_begin",
+      "uuid": "sb-solvers",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:01Z"
+    },
+    {
+      "event": "span_begin",
+      "uuid": "sb-bridge",
+      "id": "bridge",
+      "name": "bridge",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:02Z"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:03Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "x-anthropic-billing-header: cch=aaa111\nYou are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "function": "search",
+                  "arguments": {
+                    "query": "1 + 1"
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:04Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "id": "call_1",
+      "function": "search",
+      "arguments": {
+        "query": "1 + 1"
+      },
+      "result": "found it",
+      "events": []
+    },
+    {
+      "event": "span_begin",
+      "uuid": "sb-helper",
+      "id": "helper",
+      "name": "helper",
+      "type": "agent",
+      "parent_id": "bridge",
+      "timestamp": "2026-01-01T00:00:05Z"
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "helper",
+      "timestamp": "2026-01-01T00:00:06Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "x-anthropic-billing-header: cch=bbb222\nYou are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "uuid": "se-helper",
+      "id": "helper",
+      "timestamp": "2026-01-01T00:00:07Z"
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:08Z",
+      "completed": "2026-01-01T00:00:08Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "x-anthropic-billing-header: cch=ccc333\nYou are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "uuid": "se-bridge",
+      "id": "bridge",
+      "timestamp": "2026-01-01T00:00:09Z"
+    },
+    {
+      "event": "span_end",
+      "uuid": "se-solvers",
+      "id": "solvers",
+      "timestamp": "2026-01-01T00:00:10Z"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "bridge",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m3"
+      ],
+      "children": [
+        {
+          "id": "helper",
+          "name": "helper",
+          "utility": false,
+          "event_uuids": [
+            "m2"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}
