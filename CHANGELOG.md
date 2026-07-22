@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
 - Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
@@ -15,6 +16,7 @@
 - Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)
 - Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
+- Approval: Load policy configuration files from `file://` URIs as well as plain local paths.
 - Bugfix: Transcript timelines no longer hide workflow `generate()` calls with differing system prompts as utility agents; utility classification now requires a tool-calling agent loop.
 - Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed `limit=0` instead of returning all samples.
 - Bugfix: Parameterized score reducers (e.g. `at_least(2)`, `pass_at(2)`, `pass_k(2)`) now round-trip through the registry instead of raising `LookupError` when restored from a log.
