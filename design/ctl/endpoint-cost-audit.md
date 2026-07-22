@@ -135,8 +135,10 @@ finished and torn down, reused log, superseded retry attempt),
 `_completed_sample_summaries` falls back to
 `read_eval_log_sample_summaries_async(log_location)` — a per-request re-read
 of the log's summaries (for `.eval`: zip open, central directory,
-`summaries.json` + journal parse, `EvalSampleSummary` validation for every
-sample), possibly from S3. The data is immutable at that point (the log is
+`summaries.json` parse — or, for a log missing it, the per-sample journal
+members; the two are exclusive alternatives, and on a finalized log the only
+journal cost is a central-directory filename scan — plus `EvalSampleSummary`
+validation for every sample), possibly from S3. The data is immutable at that point (the log is
 finalized), so every re-read after the first is pure waste. This is exactly
 the incident's shape — a keep-alive-parked process being polled every 30s.
 For `.eval` logs it is minus the worst constant (summaries are pre-thinned,
