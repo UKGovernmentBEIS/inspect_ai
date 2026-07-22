@@ -306,7 +306,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             try:
                 resp.raise_for_status()
                 max_model_len = _server_context_length(
-                    resp.json(), self.service_model_name()
+                    resp.json(), self.service_model_name(), self.base_model
                 )
                 if max_model_len:
                     name = self.input_tokens_name()
@@ -596,29 +596,54 @@ class VLLMAPI(OpenAICompatibleAPI):
 # ---------------------------------------------------------------------------
 
 
-def _server_context_length(data: dict[str, Any], model_id: str) -> int | None:
+def _server_context_length(
+    data: dict[str, Any], model_id: str, base_model_id: str | None = None
+) -> int | None:
     """Extract ``max_model_len`` from a vLLM ``/v1/models`` response.
 
-    Prefers the entry whose ``id`` matches ``model_id``. With no match,
-    falls back to the sole entry only when the endpoint lists exactly one model;
-    when several models are listed the window is ambiguous, so returns ``None``
-    rather than risk registering an unrelated model's window. Also returns
-    ``None`` when no positive ``max_model_len`` is present.
+    Prefers the entry whose ``id`` matches ``model_id``. vLLM sets
+    ``max_model_len`` on base model cards only; a LoRA adapter's card carries
+    ``parent`` (the base model it was loaded against) instead, so a matched
+    adapter resolves through ``parent`` and then through ``base_model_id``.
+    The window is a property of the base model either way: an adapter runs
+    within the server's ``max_model_len``.
+
+    With no match at all, falls back to the sole entry only when the endpoint
+    lists exactly one model; when several models are listed the window is
+    ambiguous, so returns ``None`` rather than risk registering an unrelated
+    model's window. Also returns ``None`` when no positive ``max_model_len``
+    is present.
     """
     entries = data.get("data") or []
-    entry = next((e for e in entries if e.get("id") == model_id), None)
-    if entry is None:
-        if len(entries) == 1:
-            entry = entries[0]
-        else:
-            if entries:
-                logger.debug(
-                    f"vLLM /v1/models lists {len(entries)} models, none matching "
-                    f"{model_id}; falling back to the static catalog window."
-                )
-            return None
-    max_model_len = entry.get("max_model_len")
-    return int(max_model_len) if max_model_len else None
+
+    def window(entry: dict[str, Any] | None) -> int | None:
+        max_model_len = entry.get("max_model_len") if entry else None
+        return int(max_model_len) if max_model_len else None
+
+    def find(id: Any) -> dict[str, Any] | None:
+        return next((e for e in entries if e.get("id") == id), None) if id else None
+
+    entry = find(model_id)
+    if entry is not None:
+        return (
+            window(entry)
+            or window(find(entry.get("parent")))
+            or window(find(base_model_id))
+        )
+
+    entry = find(base_model_id)
+    if entry is not None:
+        return window(entry)
+
+    if len(entries) == 1:
+        return window(entries[0])
+
+    if entries:
+        logger.debug(
+            f"vLLM /v1/models lists {len(entries)} models, none matching "
+            f"{model_id}; falling back to the static catalog window."
+        )
+    return None
 
 
 def _is_fatal_vllm_error(ex: BaseException) -> bool:

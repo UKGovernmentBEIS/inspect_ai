@@ -72,6 +72,68 @@ def test_server_context_length_missing_or_empty() -> None:
     assert _server_context_length({}, "x") is None
 
 
+# vLLM sets max_model_len on base model cards only; a LoRA adapter's card
+# carries `parent` instead. That has held since max_model_len was added to
+# ModelCard in v0.5.0 (PR #4643, which touched the base card only) through
+# current main, where OpenAIServingModels.show_available_models() appends
+# lora_cards built without it. Base cards always come first, and the base
+# model is always listed (base_model_paths is never empty).
+def _lora_models_response() -> dict:
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "meta-llama/Llama-3-8B",
+                "object": "model",
+                "owned_by": "vllm",
+                "root": "meta-llama/Llama-3-8B",
+                "parent": None,
+                "max_model_len": 8192,
+            },
+            {
+                "id": "my-adapter",
+                "object": "model",
+                "owned_by": "vllm",
+                "root": "/adapters/my-adapter",
+                "parent": "meta-llama/Llama-3-8B",
+                "max_model_len": None,
+            },
+        ],
+    }
+
+
+def test_server_context_length_lora_adapter_uses_parent() -> None:
+    """An adapter card has no window of its own; its parent's applies."""
+    assert (
+        _server_context_length(
+            _lora_models_response(), "my-adapter", "meta-llama/Llama-3-8B"
+        )
+        == 8192
+    )
+
+
+def test_server_context_length_lora_adapter_without_parent() -> None:
+    """Adapter cards omitted `parent` in vLLM before v0.6.3."""
+    data = _lora_models_response()
+    del data["data"][1]["parent"]
+    assert _server_context_length(data, "my-adapter", "meta-llama/Llama-3-8B") == 8192
+
+
+def test_server_context_length_lora_adapter_with_served_model_name() -> None:
+    """`--served-model-name` renames the base card; `parent` still points at it."""
+    data = _lora_models_response()
+    data["data"][0]["id"] = "llama3"
+    data["data"][1]["parent"] = "llama3"
+    assert _server_context_length(data, "my-adapter", "meta-llama/Llama-3-8B") == 8192
+
+
+def test_server_context_length_unrelated_parent_not_borrowed() -> None:
+    """A dangling parent doesn't reach across to an unrelated model's window."""
+    data = _lora_models_response()
+    data["data"][1]["parent"] = "someone/else"
+    assert _server_context_length(data, "my-adapter", "other/base") is None
+
+
 class _FakeResponse:
     def __init__(self, payload: dict, status: int = 200) -> None:
         self._payload = payload
