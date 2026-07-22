@@ -623,7 +623,7 @@ async def test_zip_log_streaming_normalizes_unserializable_store() -> None:
         zip_log = ZipLogFile(eval_path)
         await zip_log.init(log_start=None, summary_counter=0, summaries=[])
         await zip_log.start(log_start)
-        await zip_log.buffer_sample_streaming(sample, SampleHistory([], [], [], {}))
+        await zip_log.buffer_sample_streaming(sample, SampleHistory([], {}, {}, {}))
         await zip_log.flush()
         await zip_log.close(header_only=False)
 
