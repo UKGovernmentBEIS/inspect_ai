@@ -60,6 +60,21 @@ async def test_score_multiple_letters_with_separators(target: str):
     assert result.answer == "A, B"
 
 
+@pytest.mark.anyio
+async def test_score_multi_digit_choice_label():
+    scorer = choice()
+    state = simple_task_state(
+        model_output="ANSWER: 10",
+        choices=[f"choice {index}" for index in range(36)],
+    )
+    for index in range(36):
+        state.choices.mark_choice(index, index == 35)
+
+    result = await scorer(state, Target("10"))
+
+    assert result.text == CORRECT
+
+
 def test_answer_index_rejects_separators():
     # answer_index() should never silently return garbage indices for
     # separator characters -- it should raise so callers know to filter.
