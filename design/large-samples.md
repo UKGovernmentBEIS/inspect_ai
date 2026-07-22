@@ -489,7 +489,7 @@ Ratified mechanisms:
    against that pipeline (deferred issue 10); its parity claims are valid
    for the raw tree only. The shipped acceptance mechanism is now the
    mechanism-8 twin test, which runs the *actual* pipeline code on both
-   sides and therefore cannot mis-freeze.
+   sides and therefore cannot freeze the wrong branch.
 8. **Synthetic event stream — the skeleton's viewer consumption path**
    (**⚑ amended**, ratified 2026-07-21, [Change log](#change-log)). The
    legacy presentation layer (timeline swimlanes → selected-view collection
