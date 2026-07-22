@@ -13,6 +13,7 @@
 - Sandbox: `Sandbox.exec` failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.
 - Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
 - Registry: Add a `validation_predicate` type for Scout extensions.
+- Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)
 - Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
 - Approval: Load policy configuration files from `file://` URIs as well as plain local paths.
