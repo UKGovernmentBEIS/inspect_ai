@@ -40,7 +40,11 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
-from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
+from inspect_ai._util.json import (
+    is_ijson_int_overflow_error,
+    is_ijson_nan_inf_error,
+    to_json_safe,
+)
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
@@ -563,10 +567,10 @@ async def _read_member_json_excluding(
         IncompleteJSONError,
         UnexpectedSymbol,
     ) as ex:
-        # ijson doesn't support NaN/Inf which are valid in
-        # Python's JSON. Fall back to standard json.load
-        # and manually remove excluded fields.
-        if is_ijson_nan_inf_error(ex):
+        # ijson doesn't support NaN/Inf, and its C backend overflows on
+        # integers > 2**63 - 1 — both valid in Python's JSON. Fall back to
+        # standard json.load and manually remove excluded fields.
+        if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
             data = json.loads(await reader.read_member_fully(member))
             for field in exclude_fields:
                 data.pop(field, None)

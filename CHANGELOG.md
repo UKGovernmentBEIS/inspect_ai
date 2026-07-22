@@ -3,6 +3,7 @@
 - Control Channel: `inspect ctl sample list` no longer recomputes sample summaries on every request, so polling an eval buffering many large samples (e.g. a retry's carried transcripts) can no longer stall the eval process.
 - Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
+- Logging: Reading `.eval` logs with `exclude_fields` no longer fails with "integer overflow" when a sample contains a JSON integer larger than 2⁶³−1.
 
 ## 0.3.248 (17 July 2026)
 
