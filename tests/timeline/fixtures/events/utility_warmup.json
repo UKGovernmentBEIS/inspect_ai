@@ -1,0 +1,102 @@
+{
+  "description": "Cache-priming warmup call (max_tokens=1, single-word user message) alongside a normal call, with no tool-calling loop. Warmup detection is prompt-independent, so the warmup is wrapped as a utility span even without a primary trajectory — and wrapping must not recurse into its own synthetic wrapper.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:01Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "monitor",
+      "name": "monitor",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:02Z",
+      "uuid": "sb-monitor"
+    },
+    {
+      "event": "model",
+      "uuid": "w1",
+      "span_id": "monitor",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "model": "mockllm/model",
+      "input": [
+        { "role": "system", "content": "You are the main assistant." },
+        { "role": "user", "content": "warmup" }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": { "max_tokens": 1 },
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": { "role": "assistant", "content": "w" },
+            "stop_reason": "max_tokens"
+          }
+        ],
+        "usage": { "input_tokens": 5, "output_tokens": 1, "total_tokens": 6 }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "monitor",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "model": "mockllm/model",
+      "input": [
+        { "role": "system", "content": "You are the main assistant." },
+        { "role": "user", "content": "What is 1 + 1?" }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": { "role": "assistant", "content": "2" },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": { "input_tokens": 5, "output_tokens": 1, "total_tokens": 6 }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "monitor",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "uuid": "se-monitor"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T00:00:08Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "monitor",
+      "name": "main",
+      "event_uuids": ["m1"],
+      "children": [
+        {
+          "id": "utility-w1",
+          "name": "utility",
+          "utility": true,
+          "event_uuids": ["w1"]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

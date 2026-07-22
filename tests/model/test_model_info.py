@@ -63,6 +63,30 @@ class TestGetModelInfo:
         assert info.context_length is not None
         assert info.organization == "OpenAI"
 
+    def test_known_kimi_model(self):
+        """Test lookup of a known Moonshot AI Kimi model."""
+        info = get_model_info("moonshotai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+        assert info.output_tokens == 1048576
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "max"
+
+    def test_kimi_via_moonshot_provider(self):
+        """Test lookup via the moonshot provider prefix."""
+        info = get_model_info("moonshot/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
+    def test_kimi_org_detection_on_hosting_provider(self):
+        """Test kimi-* org detection for hosting providers (e.g. azureai)."""
+        info = get_model_info("azureai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
     def test_unknown_model_returns_none(self):
         """Test that unknown models return None."""
         info = get_model_info("unknown-provider/unknown-model-xyz")
@@ -130,6 +154,14 @@ class TestGetModelInfo:
         info = get_model_info("anthropic/claude-opus-4-6")
         assert info is not None
         assert info.context_length == 1_000_000
+
+    def test_kimi_k3_context_length(self):
+        """Test that Kimi K3 resolves via a gateway provider with 1MM context window."""
+        info = get_model_info("cloudflare/moonshotai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+        assert info.reasoning is True
 
     def test_claude_sonnet_4_6_context_length(self):
         """Test that Claude Sonnet 4.6 has 1MM context window."""
@@ -236,6 +268,85 @@ class TestModelInfoFields:
             if info is not None:  # Model may not exist in database
                 assert info.context_length is not None, f"{model} has no context_length"
                 assert info.context_length > 0, f"{model} has invalid context_length"
+
+
+class TestModelDataConsistency:
+    """Consistency checks across the model data YAML files."""
+
+    def test_colliding_lookup_keys_agree_across_files(self) -> None:
+        """Entries in different files that collide on a lookup key must agree.
+
+        Cross-file duplicates exist (e.g. moonshotai.yml's `moonshotai/kimi-k2.5`
+        vs together.yml's `moonshotai/Kimi-K2.5`): exact lookups are
+        unaffected, but for any other casing the winner in
+        `_build_lookup_index()` depends on filesystem glob order. That is
+        harmless while the entries agree on functional metadata; this test
+        fails if they ever drift (e.g. a regenerated together.yml bumps a
+        context length that moonshotai.yml pins). Display-only fields
+        (display_name, organization) may differ. Same-file collisions are
+        excluded: they resolve deterministically by insertion order, and the
+        recurring `latest` version key shadows earlier models by design.
+        """
+        from pathlib import Path
+
+        from inspect_ai.model._model_data import model_data
+        from inspect_ai.model._model_data.model_data import (
+            create_model_info,
+            load_organizations_from_yaml,
+            model_key,
+        )
+        from inspect_ai.model._model_info import _normalize_for_lookup
+
+        functional_fields = (
+            "context_length",
+            "output_tokens",
+            "reasoning",
+            "reasoning_effort_default",
+            "knowledge_cutoff_date",
+            "release_date",
+            "family",
+        )
+
+        data_dir = Path(model_data.__file__).parent
+        entries: dict[str, list[tuple[str, str, ModelInfo]]] = {}
+        for info_file in sorted(data_dir.glob("*.yml")):
+            for org, org_data in load_organizations_from_yaml(info_file).items():
+                for model_name, model_def in org_data.models.items():
+                    names = [model_name, *(model_def.aliases or [])]
+                    infos = [create_model_info(org_data.display_name, model_def)] * len(
+                        names
+                    )
+                    for version_name, version_data in (
+                        model_def.versions or {}
+                    ).items():
+                        version_info = create_model_info(
+                            org_data.display_name, model_def, version_data
+                        )
+                        for name in [version_name, *(version_data.aliases or [])]:
+                            names.append(name)
+                            infos.append(version_info)
+                    for name, info in zip(names, infos):
+                        key = model_key(org, name)
+                        entries.setdefault(_normalize_for_lookup(key), []).append(
+                            (info_file.name, key, info)
+                        )
+
+        for normalized, group in entries.items():
+            for i, (first_file, first_key, first_info) in enumerate(group):
+                for other_file, other_key, other_info in group[i + 1 :]:
+                    if other_file == first_file:
+                        continue
+                    for field in functional_fields:
+                        first_value = getattr(first_info, field)
+                        other_value = getattr(other_info, field)
+                        if first_value is None or other_value is None:
+                            continue
+                        assert first_value == other_value, (
+                            f"Model data entries colliding on lookup key "
+                            f"'{normalized}' disagree on {field}: "
+                            f"{first_file}:{first_key} has {first_value!r} but "
+                            f"{other_file}:{other_key} has {other_value!r}"
+                        )
 
 
 class TestGetModelInputTokens:
