@@ -118,6 +118,46 @@ async def test_threshold_absolute_float_above_one() -> None:
     assert len(result) == 2
 
 
+async def test_threshold_context_window_registered_after_creation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fractional threshold picks up a context window registered after creation.
+
+    Providers that read the window from the server (vllm reads max_model_len
+    from /v1/models) only register it during their first generate(), while
+    agents create the compaction handler before their loop starts. Resolving
+    the threshold eagerly would pin it to the catalog value for the whole run.
+    """
+    import inspect_ai.model._model_info as _model_info
+    from inspect_ai.model import ModelInfo
+
+    strategy = CompactionSummary()  # fractional threshold (0.9)
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [system_msg("S", "sys1")]
+
+    messages: list[ChatMessage] = [
+        system_msg("S", "sys1"),
+        user_msg("A" * 800, "msg1", source="input"),
+        assistant_msg("B" * 800, "msg2"),
+        user_msg("C" * 800, "msg3"),
+    ]
+
+    # control: against the default window these messages are nowhere near 90%
+    control = compaction(strategy, prefix=prefix, tools=None, model=model)
+    _, summary = await control.compact_input(list(messages))
+    assert summary is None
+
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # registered only once the handler already exists
+    monkeypatch.setitem(
+        _model_info._custom_models, str(model), ModelInfo(context_length=500)
+    )
+
+    _, summary = await compact.compact_input(list(messages))
+    assert summary is not None
+
+
 # ==============================================================================
 # Memory Warning Logic Tests
 # ==============================================================================

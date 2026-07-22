@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
+- vLLM: Read the served `max_model_len` from the server endpoint and register it as the model's context window (falling back to the static model catalog).
+- Compaction: Resolve fractional thresholds on first use rather than at handler creation, so a context window registered by a provider during its first `generate()` is honoured.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
 - Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.

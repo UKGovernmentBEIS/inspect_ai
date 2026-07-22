@@ -33,6 +33,8 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import RetryDecision
 from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_data.model_data import ModelInfo
+from inspect_ai.model._model_info import _get_model_info_direct, set_model_info
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -48,6 +50,12 @@ from .openai_compatible import OpenAICompatibleAPI
 
 VLLM_DEFAULT_SERVER_ARGS = "VLLM_DEFAULT_SERVER_ARGS"
 VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
+
+CONTEXT_WINDOW_TIMEOUT = 30.0
+"""Timeout for the /v1/models fetch that resolves the served context window."""
+
+CONTEXT_WINDOW_MAX_ATTEMPTS = 3
+"""Attempts to reach /v1/models before settling for the static catalog."""
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +173,9 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._init_config = config
         self._init_base_url = f"http://localhost:{port}/v1" if port else base_url
         self._resolved_epoch = -1
+        self._context_window_registered = False
+        self._context_window_attempts = 0
+        self._context_window_lock = anyio.Lock()
 
         self.is_mistral = is_mistral
         self.retry_delay = retry_delay or DEFAULT_RETRY_DELAY
@@ -239,10 +250,99 @@ class VLLMAPI(OpenAICompatibleAPI):
 
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
-        if self._resolved_epoch == self._server._epoch:
+        if self._resolved_epoch != self._server._epoch:
+            async with self._server._init_lock:
+                await anyio.to_thread.run_sync(self._resolve_server)
+        await self._register_context_window()
+
+    def _server_root(self) -> str:
+        """Base URL with any trailing ``/v1`` removed.
+
+        ``base_url`` may or may not include ``/v1``; callers append the path
+        they need (``/tokenize`` at the root, ``/v1/models`` under ``/v1``).
+        """
+        return str(self.base_url).rstrip("/").removesuffix("/v1")
+
+    async def _register_context_window(self) -> None:
+        """Register the server's ``max_model_len`` (from ``/v1/models``) as the context window.
+
+        The static catalog does not know the served window. Best-effort: any
+        failure falls back to the catalog.
+        """
+        if self._context_window_registered:
             return
-        async with self._server._init_lock:
-            await anyio.to_thread.run_sync(self._resolve_server)
+        # Double-checked under a dedicated lock so concurrent generate() calls
+        # don't each fetch /v1/models or race on set_model_info. Not the
+        # server's _init_lock: the fetch would then block server startup for
+        # every other model sharing the server.
+        async with self._context_window_lock:
+            if self._context_window_registered:
+                return
+            self._context_window_attempts += 1
+
+            headers: dict[str, str] = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            try:
+                resp = await self.http_client.get(
+                    f"{self._server_root()}/v1/models",
+                    headers=headers,
+                    timeout=CONTEXT_WINDOW_TIMEOUT,
+                )
+            except Exception as ex:
+                # No response at all: the server may be briefly unreachable,
+                # which generate() itself retries through. Latching here would
+                # revert to the catalog for the rest of the run, so leave the
+                # flag unset and let a later generate() retry, bounded since
+                # a permanently unreachable endpoint shouldn't be re-probed on
+                # every call.
+                if self._context_window_attempts >= CONTEXT_WINDOW_MAX_ATTEMPTS:
+                    self._context_window_registered = True
+                logger.debug(f"Could not reach vLLM /v1/models: {ex}")
+                return
+
+            # A response settles the question for this server, whatever it says.
+            self._context_window_registered = True
+            try:
+                resp.raise_for_status()
+                max_model_len = _server_context_length(
+                    resp.json(), self.service_model_name(), self.base_model
+                )
+                if max_model_len:
+                    name = self.input_tokens_name()
+                    # direct (non provider-resolving) lookup: resolving would
+                    # instantiate whichever provider shares the model's org
+                    # prefix (e.g. "openai/gpt-oss-120b") just for metadata.
+                    existing = _get_model_info_direct(name)
+                    previous = existing.context_length if existing is not None else None
+                    if existing is not None:
+                        # rebuild from public fields rather than model_copy():
+                        # a copy carries over the private _input_tokens override
+                        # that ModelInfo.input_tokens prefers over context_length,
+                        # so the served window would be registered but not used.
+                        # Dropping it also caps input capacity at max_model_len,
+                        # which bounds input and output together.
+                        fields = existing.model_dump()
+                        fields["context_length"] = max_model_len
+                        info = ModelInfo(**fields)
+                    else:
+                        info = ModelInfo(context_length=max_model_len)
+                    set_model_info(name, info)
+                    if previous is not None and previous != max_model_len:
+                        logger.info(
+                            f"vLLM server reports max_model_len={max_model_len} for "
+                            f"{name}; using it as the context window "
+                            f"(catalog had {previous})."
+                        )
+                    else:
+                        logger.debug(
+                            f"Registered context window {max_model_len} for {name} "
+                            f"from vLLM /v1/models."
+                        )
+            except Exception as ex:
+                logger.debug(
+                    f"Could not read context window from vLLM /v1/models: {ex}"
+                )
 
     def _start_server(
         self,
@@ -380,12 +480,11 @@ class VLLMAPI(OpenAICompatibleAPI):
             List of token IDs.
         """
         await self._ensure_server_started()
-        base = str(self.base_url).rstrip("/").removesuffix("/v1")
         headers: dict[str, str] = {}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         resp = await self.http_client.post(
-            f"{base}/tokenize",
+            f"{self._server_root()}/tokenize",
             json={
                 "model": self.service_model_name(),
                 "prompt": text,
@@ -495,6 +594,56 @@ class VLLMAPI(OpenAICompatibleAPI):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _server_context_length(
+    data: dict[str, Any], model_id: str, base_model_id: str | None = None
+) -> int | None:
+    """Extract ``max_model_len`` from a vLLM ``/v1/models`` response.
+
+    Prefers the entry whose ``id`` matches ``model_id``. vLLM sets
+    ``max_model_len`` on base model cards only; a LoRA adapter's card carries
+    ``parent`` (the base model it was loaded against) instead, so a matched
+    adapter resolves through ``parent`` and then through ``base_model_id``.
+    The window is a property of the base model either way: an adapter runs
+    within the server's ``max_model_len``.
+
+    With no match at all, falls back to the sole entry only when the endpoint
+    lists exactly one model; when several models are listed the window is
+    ambiguous, so returns ``None`` rather than risk registering an unrelated
+    model's window. Also returns ``None`` when no positive ``max_model_len``
+    is present.
+    """
+    entries = data.get("data") or []
+
+    def window(entry: dict[str, Any] | None) -> int | None:
+        max_model_len = entry.get("max_model_len") if entry else None
+        return int(max_model_len) if max_model_len else None
+
+    def find(id: Any) -> dict[str, Any] | None:
+        return next((e for e in entries if e.get("id") == id), None) if id else None
+
+    entry = find(model_id)
+    if entry is not None:
+        return (
+            window(entry)
+            or window(find(entry.get("parent")))
+            or window(find(base_model_id))
+        )
+
+    entry = find(base_model_id)
+    if entry is not None:
+        return window(entry)
+
+    if len(entries) == 1:
+        return window(entries[0])
+
+    if entries:
+        logger.debug(
+            f"vLLM /v1/models lists {len(entries)} models, none matching "
+            f"{model_id}; falling back to the static catalog window."
+        )
+    return None
 
 
 def _is_fatal_vllm_error(ex: BaseException) -> bool:
