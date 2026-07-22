@@ -48,24 +48,26 @@ def is_ijson_nan_inf_error(
     )
 
 
-def is_ijson_int_overflow_error(
+def is_ijson_overflow_error(
     ex: "ValueError | IncompleteJSONError | UnexpectedSymbol",
 ) -> bool:
-    """Check if an ijson exception is due to an integer larger than 2**63 - 1.
+    """Check if an ijson exception is due to a number that overflows a C type.
 
-    The ijson C backend (yajl2_c) with use_float=True parses integers into a
-    C long long and raises "integer overflow" for anything bigger, even though
-    such integers are valid JSON and parse fine with the stdlib json module.
-    This helper identifies these errors so callers can fall back to json.load.
+    ijson's yajl-based backends with use_float=True parse integers into a C
+    long long and floats into a C double, raising "integer overflow" for
+    integers > 2**63 - 1 and "numeric (floating point) overflow" for floats
+    beyond double range — all valid JSON that the stdlib json module parses
+    fine (huge floats become inf). This helper identifies these errors so
+    callers can fall back to json.load.
 
     Args:
         ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
             or UnexpectedSymbol).
 
     Returns:
-        True if the exception is due to integer overflow.
+        True if the exception is due to numeric overflow.
     """
-    return "integer overflow" in str(ex).lower()
+    return "overflow" in str(ex).lower()
 
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
