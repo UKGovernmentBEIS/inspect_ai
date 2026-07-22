@@ -1,0 +1,47 @@
+{
+  "description": "Parallel/overlapping sibling spans: interleaved events yield overlapping extents (tolerated). Also pins an untyped span (type omitted) and a root-level notable (span omitted).",
+  "events": [
+    {"event": "span_begin", "id": "A", "name": "left", "type": "agent", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
+    {"event": "span_begin", "id": "B", "name": "right", "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
+    {"event": "model", "span_id": "A", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:02+00:00", "working_start": 2.0},
+    {"event": "model", "span_id": "B", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:03+00:00", "working_start": 3.0},
+    {"event": "span_end", "id": "A", "timestamp": "2026-01-01T00:00:04+00:00", "working_start": 4.0},
+    {"event": "span_end", "id": "B", "timestamp": "2026-01-01T00:00:05+00:00", "working_start": 5.0},
+    {"event": "score", "score": {"value": 1}, "timestamp": "2026-01-01T00:00:06+00:00", "working_start": 6.0}
+  ],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 7, "models": 2},
+    "spans": [
+      {
+        "id": "A",
+        "name": "left",
+        "type": "agent",
+        "begin": 0,
+        "extent": [0, 4],
+        "t": ["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:04+00:00"],
+        "working": [0.0, 4.0],
+        "events": 3,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"model": 1}
+      },
+      {
+        "id": "B",
+        "name": "right",
+        "begin": 1,
+        "extent": [1, 5],
+        "t": ["2026-01-01T00:00:01+00:00", "2026-01-01T00:00:05+00:00"],
+        "working": [1.0, 5.0],
+        "events": 3,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"model": 1}
+      }
+    ],
+    "notables": [
+      {"i": 6, "type": "score"}
+    ],
+    "overflow": {}
+  }
+}

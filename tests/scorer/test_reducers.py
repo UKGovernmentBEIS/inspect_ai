@@ -28,7 +28,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.scorer._reducer.reducer import pass_at, pass_k
-from inspect_ai.scorer._reducer.registry import REDUCER_NAME, reducer_log_name
+from inspect_ai.scorer._reducer.registry import reducer_log_name
 
 avg_reducer = mean_score()
 median_reducer = median_score()
@@ -525,23 +525,18 @@ def test_create_reducers_exact_name_with_trailing_digits() -> None:
     assert create_reducers("pass_k_3")
 
 
-def test_at_least_reducer_name_includes_k() -> None:
-    # Regression: the REDUCER_NAME override inside at_least()/pass_at() was
-    # being written to the global factory wrapper rather than the returned
-    # reducer closure, so the registry name never picked up the `k` suffix
-    # and each call leaked global state onto the factory.
+def test_parameterized_reducer_log_name_includes_k() -> None:
+    # Registry metadata keeps the stable factory lookup name while log names
+    # are derived from the registered parameters.
     r3 = at_least(3)
-    assert registry_info(r3).name.endswith("at_least_3")
+    assert registry_info(r3).name.endswith("at_least")
     # creating another instance must not retroactively affect r3
     _ = at_least(7)
-    assert registry_info(r3).name.endswith("at_least_3")
-    # the factory itself should not accumulate per-call state
-    assert not hasattr(at_least, REDUCER_NAME)
-    # log name must not double-append the suffix
+    assert registry_info(r3).name.endswith("at_least")
+    # log names remain parameterized without replacing the registry key
     assert reducer_log_name(r3) == "at_least_3"
     assert reducer_log_name(pass_at(4)) == "pass_at_4"
     assert reducer_log_name(pass_k(4)) == "pass_k_4"
-    assert not hasattr(pass_k, REDUCER_NAME)
 
 
 def test_max_reducer_dict_per_key_nan_order_independent() -> None:

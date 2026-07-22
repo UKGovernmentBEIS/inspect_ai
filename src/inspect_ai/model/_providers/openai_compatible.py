@@ -7,6 +7,7 @@ from openai import (
     APIStatusError,
     AsyncOpenAI,
     BadRequestError,
+    LengthFinishReasonError,
     PermissionDeniedError,
     UnprocessableEntityError,
 )
@@ -315,7 +316,10 @@ class OpenAICompatibleAPI(ModelAPI):
                     "probabilities.",
                 )
             async with self.client.chat.completions.stream(**request) as stream:
-                return await stream.get_final_completion()
+                try:
+                    return await stream.get_final_completion()
+                except LengthFinishReasonError as ex:
+                    return ex.completion
         else:
             return cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)

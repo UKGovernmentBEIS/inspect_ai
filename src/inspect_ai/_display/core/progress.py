@@ -52,7 +52,9 @@ class RichProgress(Progress):
 
     @override
     def update(self, n: int = 1) -> None:
-        advance = (float(n) / float(self.total)) * 100
+        # a SampleSource-driven task can start with zero planned steps
+        # (empty seed) and still make progress as samples are injected
+        advance = (float(n) / float(self.total)) * 100 if self.total > 0 else 0.0
         self.progress.update(
             task_id=self.task_id, advance=advance, refresh=True, status=self.status()
         )

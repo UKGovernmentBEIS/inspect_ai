@@ -32,6 +32,13 @@ description: List, read, write, and analyse logs.
 ### TagsEdit
 ### ProvenanceData
 
+## Config Updates
+
+### effective_eval_config
+### effective_generate_config
+### ConfigUpdate
+### ConfigValueChange
+
 ## Crash Recovery
 
 ### recover_eval_log
