@@ -71,11 +71,7 @@ def _make_log_with_nan_score() -> EvalLog:
 
 
 def _make_log_with_big_int() -> EvalLog:
-    """Build a minimal log whose sample JSON contains an integer > 2**63 - 1.
-
-    The big int appears both in a kept field (scores metadata) and in an
-    excluded field (store) so the fallback path is exercised for both.
-    """
+    """Build a minimal log whose sample JSON contains an integer > 2**63 - 1."""
     # +1 so the value isn't float-representable: a lossy round-trip
     # (which would round to exactly 2**64) fails the equality assert
     big = 2**64 + 1

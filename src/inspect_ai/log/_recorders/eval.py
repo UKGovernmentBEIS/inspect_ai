@@ -606,9 +606,6 @@ async def _read_member_json_excluding(
         IncompleteJSONError,
         UnexpectedSymbol,
     ) as ex:
-        # ijson doesn't support NaN/Inf, and its C backend overflows on
-        # integers > 2**63 - 1 — both valid in Python's JSON. Fall back to
-        # standard json.load and manually remove excluded fields.
         if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
             data = json.loads(await reader.read_member_fully(member))
             for field in exclude_fields:
