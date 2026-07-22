@@ -137,6 +137,15 @@ _KNOB_SINCE: dict[str, int] = {
     "max_retries": 4,
 }
 
+# Minimum control-API version for the config provenance params (`author` /
+# `reason`, recorded into `EvalLog.config_updates`). Not a knob — the params
+# change nothing — but the CLI sends a *defaulted* author the user never
+# typed, and a strict older server would 400 the whole mutation for it, so
+# the default is included only against servers advertising >= this version
+# (an explicit --author/--reason against an older server hard-errors before
+# sending, like the legacy knob gates). See `_gate_provenance_support`.
+_PROVENANCE_SINCE = 5
+
 
 class _IntOrClearType(click.ParamType):
     """Non-negative integer, or the keyword ``clear`` (restore launch config).
@@ -1009,6 +1018,22 @@ def sample_cancel_command(
     ),
 )
 @click.option(
+    "--reason",
+    default=None,
+    help=(
+        "Why this change is being made (with a set option) — recorded with "
+        "the change in each affected eval log."
+    ),
+)
+@click.option(
+    "--author",
+    default=None,
+    help=(
+        "Author recorded with the change in each affected eval log (with a "
+        "set option). Defaults to your git identity, then your OS username."
+    ),
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -1028,6 +1053,8 @@ def config_command(
     timeout: int | Literal["clear"] | None,
     attempt_timeout: int | Literal["clear"] | None,
     max_retries: int | Literal["clear"] | None,
+    reason: str | None,
+    author: str | None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -1050,7 +1077,9 @@ def config_command(
     what's already buffered now. `--timeout` / `--attempt-timeout` /
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
-    requests still drain first); pass `clear` to remove an override. TASK
+    requests still drain first); pass `clear` to remove an override. Applied
+    changes are recorded in each affected eval log (who / when / old → new);
+    `--reason` annotates the record with why. TASK
     is required only for setting a task-scoped knob when several tasks run.
     """
     _run_config(
@@ -1066,6 +1095,8 @@ def config_command(
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_retries=max_retries,
+        reason=reason,
+        author=author,
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -3092,6 +3123,8 @@ def _run_config(
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
+    reason: str | None = None,
+    author: str | None = None,
     dry_run: bool,
     as_json: bool,
 ) -> None:
@@ -3150,6 +3183,29 @@ def _run_config(
     requested_knobs = [knob for knob, value in knob_values.items() if value is not None]
     _gate_knob_support(servers, scope.socket_path, requested_knobs)
 
+    # provenance rides recorded mutations only — a read records nothing. The
+    # author default is resolved client-side — the server has no view of who
+    # invoked the CLI — and gated on the server supporting the params. On a
+    # pure read an explicit --author/--reason has nothing to annotate:
+    # hard-error (like --log-buffer with no buffer) rather than silently
+    # dropping the values.
+    if requested_knobs:
+        author, reason = _gate_provenance_support(
+            servers, scope.socket_path, author=author, reason=reason
+        )
+    elif author is not None or reason is not None:
+        flags = " / ".join(
+            flag
+            for flag, value in (("--author", author), ("--reason", reason))
+            if value is not None
+        )
+        _fail(
+            "invalid_request",
+            f"{flags} annotates a config change, but no set option was given "
+            "— there is no record to attach it to. Add a set option "
+            "(e.g. --max-samples) or drop the flag.",
+        )
+
     limits_view, mutated = _exec_limits(
         scope.socket_path,
         scope.task_id,
@@ -3164,6 +3220,8 @@ def _run_config(
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_retries=max_retries,
+        author=author,
+        reason=reason,
         dry_run=dry_run,
     )
 
@@ -3311,6 +3369,20 @@ def _compose_config(
             "value": buffer_view.get("log_shared"),
         }
 
+    # applied but unrecorded knobs surface as a warning (the change itself
+    # landed; only its eval-log record didn't — e.g. no live log to record
+    # in, or a fan-out that failed for some of the affected logs)
+    persisted = limits_view.get("persisted")
+    unrecorded_warnings = (
+        [
+            f"{', '.join(knob for knob, ok in persisted.items() if not ok)} "
+            "applied but not recorded in one or more affected eval logs "
+            "(a log without the record will not reflect this change)."
+        ]
+        if isinstance(persisted, dict) and not all(persisted.values())
+        else []
+    )
+
     return {
         "target": {
             "scope": "task" if scope.task_id else "process",
@@ -3318,10 +3390,18 @@ def _compose_config(
             "task": scope.task,
         },
         "knobs": knobs,
-        "warnings": [*(limits_view.get("warnings") or []), *(extra_warnings or [])],
+        "warnings": [
+            *(limits_view.get("warnings") or []),
+            *(extra_warnings or []),
+            *unrecorded_warnings,
+        ],
         "notes": notes,
         "applied": bool(set_values and not dry_run),
         "dry_run": dry_run,
+        # per applied knob, whether the change was recorded in the affected
+        # eval log(s); None when nothing was applied — no set option, or a
+        # server that predates config-change persistence
+        "persisted": persisted,
         "requested": limits_view.get("requested") or None,
     }
 
@@ -4311,6 +4391,80 @@ def _gate_knob_support(
     raise click.exceptions.Exit(code=1)
 
 
+def _default_provenance_author() -> str:
+    """Default provenance author: the git identity, else the OS username.
+
+    Follows the convention inspect_flow's tag/metadata steps use for
+    `log_updates` provenance — `git config user.name` + `user.email`
+    rendered `Name <email>` (the bare name when there is no email).
+    Resolved client-side: the server process has no view of who invoked
+    the CLI.
+    """
+    import getpass
+    import subprocess
+
+    def git_config(key: str) -> str:
+        try:
+            result = subprocess.run(
+                ["git", "config", key],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            return result.stdout.strip() if result.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    name = git_config("user.name")
+    email = git_config("user.email")
+    if name and email:
+        return f"{name} <{email}>"
+    if name:
+        return name
+    try:
+        return getpass.getuser()
+    except Exception:
+        return "unknown"
+
+
+def _gate_provenance_support(
+    servers: list[DiscoveredControlServer],
+    socket_path: str,
+    *,
+    author: str | None,
+    reason: str | None,
+) -> tuple[str | None, str | None]:
+    """Resolve the provenance params (`author` / `reason`) for a config mutation.
+
+    Against a server that records config changes (api version >=
+    :data:`_PROVENANCE_SINCE`) the author defaults to the client-side git
+    identity / OS user, so every recorded retune says who made it. An older
+    strict server 400s the whole mutation on the unknown params, so there a
+    *defaulted* author is silently dropped (a param the user never typed
+    must not fail their retune) while an explicit ``--author`` / ``--reason``
+    hard-errors before sending, matching the legacy knob gates.
+    """
+    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
+    api_version = server.api_version if server is not None else 0
+    if api_version >= _PROVENANCE_SINCE:
+        return (author or _default_provenance_author(), reason)
+    if author is not None or reason is not None:
+        flags = ", ".join(
+            flag
+            for flag, value in (("--author", author), ("--reason", reason))
+            if value is not None
+        )
+        target = f"pid {server.pid}" if server is not None else "the target process"
+        click.echo(
+            f"{flags} not supported — {target} is running an older inspect; "
+            "restart the eval to pick up the current version. No changes "
+            "were applied.",
+            err=True,
+        )
+        raise click.exceptions.Exit(code=1)
+    return (None, None)
+
+
 def _exec_limits(
     socket_path: str,
     task_id: str | None,
@@ -4326,6 +4480,8 @@ def _exec_limits(
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
+    author: str | None = None,
+    reason: str | None = None,
     dry_run: bool,
 ) -> "_ConfigResult":
     """Read (no set knobs) or retune (any set knob) a scope's config.
@@ -4376,6 +4532,13 @@ def _exec_limits(
         params["key_limit"] = key[1]
     if model is not None:
         params["model"] = model
+    # provenance rides mutations only (recorded with the change in each
+    # affected eval log); the caller has already version-gated the params
+    if set_values:
+        if author is not None:
+            params["author"] = author
+        if reason is not None:
+            params["reason"] = reason
     if dry_run:
         params["dry_run"] = True
     # the 404 messages distinguish "task unknown to the server" from version

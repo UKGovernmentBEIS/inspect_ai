@@ -21780,6 +21780,141 @@ a._citationLink_1ggvf_9:hover {
   margin-top: 0.65rem;
   overflow: visible;
 }
+._root_1t7mh_1 {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Timeline + content column. The rail/panel sit to its right as siblings, so
+   they run full height from below the toolbar rather than below the swimlanes. */
+._main_1t7mh_12 {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+._container_1t7mh_19 {
+  display: grid;
+  width: 100%;
+  grid-template-columns: var(--outline-width, 180px) 1px 1fr;
+  min-height: 100vh;
+}
+
+/* Embedded in another scroll container (e.g. a retry card): size to content
+   instead of reserving a full viewport. */
+._container_1t7mh_19._embedded_1t7mh_28 {
+  min-height: 0;
+}
+
+._container_1t7mh_19 > * {
+  min-width: 0;
+  padding-bottom: 1rem;
+}
+
+._container_1t7mh_19._outlineCollapsed_1t7mh_37 {
+  grid-template-columns: 22px 1px 1fr;
+}
+
+._container_1t7mh_19._noOutline_1t7mh_41 {
+  grid-template-columns: 1fr;
+}
+
+._outline_1t7mh_37 {
+  padding-left: 0.6rem;
+  /* Prevent stretching to the full grid-row height so that
+     position:sticky has room to travel within the cell. */
+  align-self: start;
+}
+
+/* Cap height to the visible area below the sticky offset and
+   scroll internally when the outline is taller.
+   Only when expanded — overflow clips the toggle button when collapsed. */
+._container_1t7mh_19:not(._outlineCollapsed_1t7mh_37) > ._outline_1t7mh_37 {
+  max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+._outlineToggle_1t7mh_61 {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.8em;
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+}
+
+._outlineToggle_1t7mh_61[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.4;
+}
+
+._separator_1t7mh_75 {
+  background-color: var(--bs-border-color);
+}
+
+._eventsList_1t7mh_79 {
+  padding-bottom: 1rem;
+}
+
+._sidebarHeader_1t7mh_83 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4em;
+  margin-bottom: 0.3rem;
+}
+
+._sidebarHeaderIcon_1t7mh_91 {
+  font-size: 0.9em;
+  flex-shrink: 0;
+}
+
+._sidebarHeaderTitle_1t7mh_96 {
+  flex: 1;
+  min-width: 0;
+  font-weight: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  position: relative;
+  top: 1px;
+}
+
+/* 0-height sticky anchor that keeps the close button glued to the top of
+   the visible scroll area. The button itself is absolutely positioned
+   inside the anchor so it doesn't push surrounding content. z-index sits
+   above sibling sticky headers (e.g. SampleScansSidebar's scanner picker
+   at z-index: 2) so the close button paints on top. */
+._sidebarHeaderCloseAnchor_1t7mh_112 {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 3;
+}
+
+/* Center the close icon vertically with the rootHeader title that follows
+   in the scroll content. The title (text-size-smaller) sits at the top of
+   that content; this offset aligns the icon's visual center with the title's. */
+._sidebarHeaderClose_1t7mh_112 {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.9em;
+  padding: 0.2rem 0.4rem;
+  position: absolute;
+  top: -0.25em;
+  right: 0;
+  background-color: var(--bs-body-bg);
+}
+
+._sidebarHeaderClose_1t7mh_112:hover {
+  opacity: 0.7;
+}
 ._card_fxgye_1 {
   position: relative;
   background-color: var(--bs-secondary-bg);
@@ -22135,7 +22270,7 @@ a._citationLink_1ggvf_9:hover {
 ._dropdownItemActive_djjmp_74 {
   font-weight: 600;
 }
-._swimlane_1itnu_1 {
+._swimlane_1rsxs_1 {
   --swimlane-row-height: 18px;
   --swimlane-minimap-height: 24px;
   --swimlane-grid-columns: auto 1fr auto;
@@ -22151,7 +22286,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Pinned section: minimap + parent row — always visible */
-._pinnedSection_1itnu_17 {
+._pinnedSection_1rsxs_17 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -22159,7 +22294,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Scrollable section: child rows */
-._scrollSection_1itnu_25 {
+._scrollSection_1rsxs_25 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -22168,13 +22303,13 @@ a._citationLink_1ggvf_9:hover {
   overflow-y: auto;
 }
 
-._swimlane_1itnu_1:focus-visible {
+._swimlane_1rsxs_1:focus-visible {
   box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 }
 
 /* Collapsible rows — fade + slide animation */
 
-._collapsibleSection_1itnu_40 {
+._collapsibleSection_1rsxs_40 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -22187,7 +22322,7 @@ a._citationLink_1ggvf_9:hover {
   opacity: 1;
 }
 
-._collapsibleCollapsed_1itnu_53 {
+._collapsibleCollapsed_1rsxs_53 {
   grid-template-rows: 0fr;
   padding-bottom: 0;
   opacity: 0;
@@ -22197,11 +22332,11 @@ a._citationLink_1ggvf_9:hover {
    Note: avoid margin-top:-1px here — it causes the content to overflow
    the StickyScroll wrapper, inflating stickySwimLaneHeight by 1px and
    leaving a gap between the swimlane and the event card headers. */
-._swimlaneSticky_1itnu_63 {
+._swimlaneSticky_1rsxs_63 {
   background-color: var(--bs-body-bg);
 }
 
-._collapsibleInner_1itnu_67 {
+._collapsibleInner_1rsxs_67 {
   grid-column: 1 / -1;
   overflow: hidden;
   display: grid;
@@ -22211,7 +22346,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Collapse toggle — hangs below the bottom border, centered */
 
-._collapseToggle_1itnu_77 {
+._collapseToggle_1rsxs_77 {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -22232,20 +22367,20 @@ a._citationLink_1ggvf_9:hover {
   line-height: 1;
 }
 
-._collapseToggle_1itnu_77:hover {
+._collapseToggle_1rsxs_77:hover {
   color: var(--vscode-foreground);
   background-color: var(--bs-secondary-bg);
 }
 
 /* Row — display:contents so all rows share the parent grid columns */
 
-._row_1itnu_105 {
+._row_1rsxs_105 {
   display: contents;
 }
 
 /* Label cell */
 
-._label_1itnu_111 {
+._label_1rsxs_111 {
   padding: 0 0.5rem 0 1.45rem;
   white-space: nowrap;
   font-size: var(--inspect-font-size-smallest);
@@ -22259,23 +22394,23 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._label_1itnu_111:hover {
+._label_1rsxs_111:hover {
   color: var(--vscode-textLink-foreground);
 }
 
-._labelSelected_1itnu_129 {
+._labelSelected_1rsxs_129 {
   color: var(--vscode-textLink-foreground);
 }
 
 /* Ancestor rows of the selected branch — subtler than selected */
-._labelHighlighted_1itnu_134 {
+._labelHighlighted_1rsxs_134 {
   color: var(--vscode-textLink-foreground);
   opacity: 0.6;
 }
 
 /* Expand/collapse chevron in label */
 
-._chevron_1itnu_141 {
+._chevron_1rsxs_141 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -22286,17 +22421,17 @@ a._citationLink_1ggvf_9:hover {
   font-size: 8px;
 }
 
-._chevron_1itnu_141:hover {
+._chevron_1rsxs_141:hover {
   color: var(--vscode-foreground);
 }
 
-._chevronSpacer_1itnu_156 {
+._chevronSpacer_1rsxs_156 {
   display: inline-block;
   width: 12px;
   flex-shrink: 0;
 }
 
-._punchDownBtn_1itnu_162 {
+._punchDownBtn_1rsxs_162 {
   margin-left: auto;
   padding: 0 4px;
   display: inline-flex;
@@ -22309,16 +22444,16 @@ a._citationLink_1ggvf_9:hover {
   opacity: 0;
 }
 
-._label_1itnu_111:hover ._punchDownBtn_1itnu_162,
-._labelSelected_1itnu_129 ._punchDownBtn_1itnu_162 {
+._label_1rsxs_111:hover ._punchDownBtn_1rsxs_162,
+._labelSelected_1rsxs_129 ._punchDownBtn_1rsxs_162 {
   opacity: 1;
 }
 
-._punchDownBtn_1itnu_162:hover {
+._punchDownBtn_1rsxs_162:hover {
   color: var(--vscode-foreground);
 }
 
-._viewStackBack_1itnu_184 {
+._viewStackBack_1rsxs_184 {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -22331,25 +22466,25 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._viewStackBack_1itnu_184:hover {
+._viewStackBack_1rsxs_184:hover {
   background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.05));
 }
 
 /* Bar area */
 
-._barArea_1itnu_203 {
+._barArea_1rsxs_203 {
   height: var(--swimlane-row-height);
   border-left: 1px solid var(--bs-border-color);
   border-right: 1px solid var(--bs-border-color);
 }
 
-._barInner_1itnu_209 {
+._barInner_1rsxs_209 {
   position: relative;
   height: 100%;
   margin: 0 4px;
 }
 
-._fill_1itnu_215 {
+._fill_1rsxs_215 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -22363,15 +22498,15 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._fill_1itnu_215:hover {
+._fill_1rsxs_215:hover {
   opacity: 0.5;
 }
 
-._fillParent_1itnu_233 {
+._fillParent_1rsxs_233 {
   opacity: 0.2;
 }
 
-._fillSelected_1itnu_237 {
+._fillSelected_1rsxs_237 {
   opacity: 0.7;
   box-shadow: inset 0 0 0 1px var(--bs-primary);
 }
@@ -22379,7 +22514,7 @@ a._citationLink_1ggvf_9:hover {
 /* Partial highlight overlay — sibling of .fill in barInner.
    Shows the "active" portion of a bar (e.g. parent bar up to fork point
    when a branch is selected). Independent opacity, not stacked with .fill. */
-._fillHighlight_1itnu_245 {
+._fillHighlight_1rsxs_245 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -22390,14 +22525,14 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Row is selected but a different span within the row is focused */
-._fillDimmed_1itnu_256 {
+._fillDimmed_1rsxs_256 {
   opacity: 0.15;
 }
 
 /* Region segment — same as .fill but without :hover (hover is managed via JS).
    Does NOT set opacity here — opacity comes from .fill-style state classes
    (.fillParent, .fillSelected, .fillDimmed) or from .regionHover/.regionDefault. */
-._regionSegment_1itnu_263 {
+._regionSegment_1rsxs_263 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -22407,36 +22542,36 @@ a._citationLink_1ggvf_9:hover {
 
 /* Default opacity for region segments — slightly dimmed vs hover
    to give a subtle highlight without making unhovered segments look faded. */
-._regionDefault_1itnu_262 {
+._regionDefault_1rsxs_262 {
   opacity: 0.25;
 }
 
 /* Applied via React state when the segment (or whole bar) should show hover */
-._regionHover_1itnu_262 {
+._regionHover_1rsxs_262 {
   opacity: 0.45;
 }
 
 /* Region segments — partial border-radius for segmented bars */
-._regionFirst_1itnu_283 {
+._regionFirst_1rsxs_283 {
   border-radius: 2px 0 0 2px;
 }
 
-._regionLast_1itnu_287 {
+._regionLast_1rsxs_287 {
   border-radius: 0 2px 2px 0;
 }
 
-._regionMiddle_1itnu_291 {
+._regionMiddle_1rsxs_291 {
   border-radius: 0;
 }
 
-._parallelBadge_1itnu_295 {
+._parallelBadge_1rsxs_295 {
   font-size: var(--inspect-font-size-smallest);
   color: var(--vscode-descriptionForeground, #717171);
 }
 
 /* Markers */
 
-._marker_1itnu_302 {
+._marker_1rsxs_302 {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -22450,7 +22585,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* White disc behind branch icon so transparent cutouts don't bleed bar color */
-._markerBranch_1itnu_316::before {
+._markerBranch_1rsxs_316::before {
   content: "";
   position: absolute;
   width: 6px;
@@ -22460,11 +22595,11 @@ a._citationLink_1ggvf_9:hover {
   z-index: -1;
 }
 
-._marker_1itnu_302 > * {
+._marker_1rsxs_302 > * {
   pointer-events: none;
 }
 
-._markerError_1itnu_330 {
+._markerError_1rsxs_330 {
   top: 1px;
   bottom: 1px;
   height: auto;
@@ -22475,7 +22610,7 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerError_1itnu_330::after {
+._markerError_1rsxs_330::after {
   content: "";
   position: absolute;
   top: 0;
@@ -22485,7 +22620,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--vscode-errorForeground, #f44747);
 }
 
-._markerCompaction_1itnu_351 {
+._markerCompaction_1rsxs_351 {
   color: var(--bs-body-bg);
   rotate: none;
   font-size: 16px;
@@ -22499,13 +22634,13 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerBranch_1itnu_316 {
+._markerBranch_1rsxs_316 {
   color: var(--vscode-foreground);
   cursor: pointer;
 }
 
 /* Branch connector line from parent marker to branch bar */
-._branchConnector_1itnu_371 {
+._branchConnector_1rsxs_371 {
   position: absolute;
   top: 0;
   left: 0;
@@ -22516,7 +22651,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Right-pointing arrowhead for branch connectors (CSS border triangle) */
-._connectorArrow_1itnu_382 {
+._connectorArrow_1rsxs_382 {
   position: absolute;
   top: 50%;
   transform: translate(-1px, -50%);
@@ -22529,7 +22664,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Horizontal line extending back from arrowhead to the SVG horizontal endpoint */
-._connectorArrow_1itnu_382::before {
+._connectorArrow_1rsxs_382::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -22544,7 +22679,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Breadcrumb row */
 
-._breadcrumbRow_1itnu_410 {
+._breadcrumbRow_1rsxs_410 {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
@@ -22553,7 +22688,7 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._optionsButton_1itnu_419 {
+._optionsButton_1rsxs_419 {
   background: none;
   border: 1px solid var(--vscode-widget-border, var(--bs-border-color));
   border-radius: 50%;
@@ -22571,13 +22706,32 @@ a._citationLink_1ggvf_9:hover {
   opacity: 0.6;
 }
 
-._optionsButton_1itnu_419:hover {
+._optionsButton_1rsxs_419:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground);
   opacity: 1;
 }
 
-._breadcrumbTrail_1itnu_443 {
+._hiddenUtility_1rsxs_443 {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground, #717171);
+  font-size: 9px;
+  padding: 0;
+  margin-left: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+._hiddenUtility_1rsxs_443:hover {
+  color: var(--vscode-foreground);
+  opacity: 1;
+  text-decoration: underline;
+}
+
+._breadcrumbTrail_1rsxs_462 {
   display: flex;
   align-items: center;
   gap: 0;
@@ -22585,13 +22739,13 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._breadcrumbSegment_1itnu_451 {
+._breadcrumbSegment_1rsxs_470 {
   display: flex;
   align-items: center;
   white-space: nowrap;
 }
 
-._breadcrumbDivider_1itnu_457 {
+._breadcrumbDivider_1rsxs_476 {
   color: var(--vscode-descriptionForeground, #717171);
   font-size: var(--inspect-font-size-smallest);
   padding: 0 2px;
@@ -22599,7 +22753,7 @@ a._citationLink_1ggvf_9:hover {
   user-select: none;
 }
 
-._breadcrumbLink_1itnu_465 {
+._breadcrumbLink_1rsxs_484 {
   background: none;
   border: none;
   cursor: pointer;
@@ -22608,12 +22762,12 @@ a._citationLink_1ggvf_9:hover {
   padding: 0 2px;
 }
 
-._breadcrumbLink_1itnu_465:hover {
+._breadcrumbLink_1rsxs_484:hover {
   color: var(--vscode-foreground);
   text-decoration: underline;
 }
 
-._breadcrumbCurrent_1itnu_479 {
+._breadcrumbCurrent_1rsxs_498 {
   background: none;
   border: none;
   color: var(--vscode-foreground);
@@ -22624,7 +22778,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Token cell */
 
-._tokens_1itnu_490 {
+._tokens_1rsxs_509 {
   padding: 0 0.75rem 0 0.5rem;
   font-size: var(--inspect-font-size-smallest);
   line-height: var(--swimlane-row-height);
@@ -22633,141 +22787,6 @@ a._citationLink_1ggvf_9:hover {
   text-align: right;
   -webkit-user-select: none;
   user-select: none;
-}
-._root_1t7mh_1 {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-}
-
-/* Timeline + content column. The rail/panel sit to its right as siblings, so
-   they run full height from below the toolbar rather than below the swimlanes. */
-._main_1t7mh_12 {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
-._container_1t7mh_19 {
-  display: grid;
-  width: 100%;
-  grid-template-columns: var(--outline-width, 180px) 1px 1fr;
-  min-height: 100vh;
-}
-
-/* Embedded in another scroll container (e.g. a retry card): size to content
-   instead of reserving a full viewport. */
-._container_1t7mh_19._embedded_1t7mh_28 {
-  min-height: 0;
-}
-
-._container_1t7mh_19 > * {
-  min-width: 0;
-  padding-bottom: 1rem;
-}
-
-._container_1t7mh_19._outlineCollapsed_1t7mh_37 {
-  grid-template-columns: 22px 1px 1fr;
-}
-
-._container_1t7mh_19._noOutline_1t7mh_41 {
-  grid-template-columns: 1fr;
-}
-
-._outline_1t7mh_37 {
-  padding-left: 0.6rem;
-  /* Prevent stretching to the full grid-row height so that
-     position:sticky has room to travel within the cell. */
-  align-self: start;
-}
-
-/* Cap height to the visible area below the sticky offset and
-   scroll internally when the outline is taller.
-   Only when expanded — overflow clips the toggle button when collapsed. */
-._container_1t7mh_19:not(._outlineCollapsed_1t7mh_37) > ._outline_1t7mh_37 {
-  max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-._outlineToggle_1t7mh_61 {
-  all: unset;
-  cursor: pointer;
-  font-size: 0.8em;
-  position: absolute;
-  top: 0.2rem;
-  right: 0.2rem;
-}
-
-._outlineToggle_1t7mh_61[aria-disabled="true"] {
-  cursor: default;
-  opacity: 0.4;
-}
-
-._separator_1t7mh_75 {
-  background-color: var(--bs-border-color);
-}
-
-._eventsList_1t7mh_79 {
-  padding-bottom: 1rem;
-}
-
-._sidebarHeader_1t7mh_83 {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.4em;
-  margin-bottom: 0.3rem;
-}
-
-._sidebarHeaderIcon_1t7mh_91 {
-  font-size: 0.9em;
-  flex-shrink: 0;
-}
-
-._sidebarHeaderTitle_1t7mh_96 {
-  flex: 1;
-  min-width: 0;
-  font-weight: normal;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  position: relative;
-  top: 1px;
-}
-
-/* 0-height sticky anchor that keeps the close button glued to the top of
-   the visible scroll area. The button itself is absolutely positioned
-   inside the anchor so it doesn't push surrounding content. z-index sits
-   above sibling sticky headers (e.g. SampleScansSidebar's scanner picker
-   at z-index: 2) so the close button paints on top. */
-._sidebarHeaderCloseAnchor_1t7mh_112 {
-  position: sticky;
-  top: 0;
-  height: 0;
-  z-index: 3;
-}
-
-/* Center the close icon vertically with the rootHeader title that follows
-   in the scroll content. The title (text-size-smaller) sits at the top of
-   that content; this offset aligns the icon's visual center with the title's. */
-._sidebarHeaderClose_1t7mh_112 {
-  all: unset;
-  cursor: pointer;
-  font-size: 0.9em;
-  padding: 0.2rem 0.4rem;
-  position: absolute;
-  top: -0.25em;
-  right: 0;
-  background-color: var(--bs-body-bg);
-}
-
-._sidebarHeaderClose_1t7mh_112:hover {
-  opacity: 0.7;
 }
 ._headline_1l22a_1 {
   display: block;
@@ -22947,18 +22966,139 @@ a._citationLink_1ggvf_9:hover {
 ._jsonPanel_1eq5o_8 {
   padding: 0 !important;
 }
-._wrapper_1cp7t_1 {
+._lane_ax2f5_1 {
+  width: 100%;
+}
+
+._statsLine_ax2f5_5 {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  flex-wrap: wrap;
+}
+
+._stripLabel_ax2f5_12 {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary);
+  margin-right: 3px;
+}
+
+._stat_ax2f5_5 {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+._statLabel_ax2f5_28 {
+  font-size: 0.7rem;
+  color: var(--bs-secondary);
+}
+
+._statValue_ax2f5_33 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+  font-variant-numeric: tabular-nums;
+}
+
+._rateLimits_ax2f5_40 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #b04a3c;
+  white-space: nowrap;
+}
+
+._logButton_ax2f5_47 {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.75rem;
+  color: var(--bs-secondary);
+  cursor: pointer;
+}
+
+._logButton_ax2f5_47:hover {
+  color: var(--bs-body-color);
+}
+
+/* The svg is absolutely positioned so its fixed pixel width (set from the
+   measured container) never feeds back into table layout — otherwise the
+   table cell's min-content width is pinned to the last rendered width and
+   the table can never shrink below it when the viewport narrows. */
+._chart_ax2f5_68 {
+  margin-top: 6px;
+  width: 100%;
+  position: relative;
+}
+
+._svg_ax2f5_74 {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+._series_ax2f5_81 {
+  fill: none;
+  stroke: #3a7bd5;
+  stroke-width: 1.5;
+}
+
+._rateLimitDot_ax2f5_87 {
+  fill: #b04a3c;
+}
+
+._maxGuide_ax2f5_91 {
+  stroke: var(--bs-light-border-subtle);
+  stroke-dasharray: 3 3;
+}
+
+._baseline_ax2f5_96 {
+  stroke: var(--bs-border-color);
+}
+
+._tickMark_ax2f5_100 {
+  stroke: var(--bs-border-color);
+}
+
+._tickLabel_ax2f5_104 {
+  font-size: 9px;
+  fill: var(--bs-secondary);
+}
+
+/* Dark mode — the light-theme series blue and rate-limit red are tuned for a
+   white surface and lose contrast on a dark one. */
+[data-bs-theme="dark"] ._rateLimits_ax2f5_40 {
+  color: #d98d7d;
+}
+
+[data-bs-theme="dark"] ._series_ax2f5_81 {
+  stroke: #6ba0e0;
+}
+
+[data-bs-theme="dark"] ._rateLimitDot_ax2f5_87 {
+  fill: #d98d7d;
+}
+._wrapper_ylc06_1 {
   font-variant-numeric: tabular-nums;
   font-size: 0.8125rem;
   color: var(--bs-body-color);
 }
 
-._table_1cp7t_7 {
+._table_ylc06_7 {
   width: 100%;
   border-collapse: collapse;
 }
 
-._table_1cp7t_7 thead th {
+._table_ylc06_7 thead th {
   text-align: left;
   font-weight: 600;
   color: var(--bs-secondary);
@@ -22970,43 +23110,43 @@ a._citationLink_1ggvf_9:hover {
   white-space: nowrap;
 }
 
-._table_1cp7t_7 thead th._num_1cp7t_24 {
+._table_ylc06_7 thead th._num_ylc06_24 {
   text-align: right;
 }
 
-._table_1cp7t_7 tbody tr._modelRow_1cp7t_28 td {
+._table_ylc06_7 tbody tr._modelRow_ylc06_28 td {
   padding-top: 22px;
   padding-bottom: 18px;
   border-top: 1px solid var(--bs-light-border-subtle);
   vertical-align: top;
 }
 
-._table_1cp7t_7 tbody tr._modelRow_1cp7t_28:first-child td {
+._table_ylc06_7 tbody tr._modelRow_ylc06_28:first-child td {
   border-top: 0;
   padding-top: 6px;
 }
 
-._table_1cp7t_7 tbody td {
+._table_ylc06_7 tbody td {
   padding: 0.25rem 0.75rem 0.25rem 0;
   vertical-align: top;
 }
 
-._table_1cp7t_7 tbody td._num_1cp7t_24 {
+._table_ylc06_7 tbody td._num_ylc06_24 {
   text-align: right;
 }
 
-._modelCell_1cp7t_49 {
+._modelCell_ylc06_49 {
   font-weight: 500;
   padding-right: 1.5rem;
   min-width: 14rem;
 }
 
-._modelName_1cp7t_55 {
+._modelName_ylc06_55 {
   display: block;
   word-break: break-word;
 }
 
-._modelAlias_1cp7t_60 {
+._modelAlias_ylc06_60 {
   display: block;
   font-size: 0.7rem;
   font-weight: 400;
@@ -23015,7 +23155,7 @@ a._citationLink_1ggvf_9:hover {
   word-break: break-word;
 }
 
-._modelTotal_1cp7t_69 {
+._modelTotal_ylc06_69 {
   display: block;
   font-size: 1rem;
   font-weight: 600;
@@ -23023,14 +23163,14 @@ a._citationLink_1ggvf_9:hover {
   margin-top: 0.4rem;
 }
 
-._configSection_1cp7t_77 {
+._configSection_ylc06_77 {
   margin-top: 12px;
   padding-top: 10px;
   border-top: 1px dashed var(--bs-light-border-subtle);
   max-width: 240px;
 }
 
-._configSectionLabel_1cp7t_84 {
+._configSectionLabel_ylc06_84 {
   font-family: var(--bs-font-monospace);
   font-size: 10px;
   font-weight: 400;
@@ -23040,11 +23180,11 @@ a._citationLink_1ggvf_9:hover {
   margin-top: 10px;
 }
 
-._configSectionLabel_1cp7t_84:first-child {
+._configSectionLabel_ylc06_84:first-child {
   margin-top: 0;
 }
 
-._configTable_1cp7t_98 {
+._configTable_ylc06_98 {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: 2px 14px;
@@ -23056,19 +23196,19 @@ a._citationLink_1ggvf_9:hover {
   color: var(--bs-body-color);
 }
 
-._configKey_1cp7t_110 {
+._configKey_ylc06_110 {
   color: var(--bs-secondary);
   font-weight: 400;
   white-space: nowrap;
 }
 
-._configVal_1cp7t_116 {
+._configVal_ylc06_116 {
   margin: 0;
   color: var(--bs-body-color);
   font-weight: 400;
 }
 
-._modelTotal_1cp7t_69 small {
+._modelTotal_ylc06_69 small {
   font-size: 0.7rem;
   font-weight: 400;
   color: var(--bs-secondary);
@@ -23077,15 +23217,15 @@ a._citationLink_1ggvf_9:hover {
   letter-spacing: 0;
 }
 
-._composeCell_1cp7t_131 {
+._composeCell_ylc06_131 {
   min-width: 200px;
 }
 
-._table_1cp7t_7 tbody td._composeCell_1cp7t_131 {
+._table_ylc06_7 tbody td._composeCell_ylc06_131 {
   padding-right: 3rem;
 }
 
-._stack_1cp7t_139 {
+._stack_ylc06_139 {
   display: flex;
   height: 8px;
   width: 100%;
@@ -23095,12 +23235,12 @@ a._citationLink_1ggvf_9:hover {
   margin-top: 7px;
 }
 
-._stack_1cp7t_139 > span {
+._stack_ylc06_139 > span {
   display: block;
   height: 100%;
 }
 
-._pcts_1cp7t_154 {
+._pcts_ylc06_154 {
   display: flex;
   justify-content: space-between;
   margin-top: 0.4rem;
@@ -23108,7 +23248,7 @@ a._citationLink_1ggvf_9:hover {
   color: var(--bs-secondary);
 }
 
-._breakdown_1cp7t_162 {
+._breakdown_ylc06_162 {
   display: grid;
   grid-template-columns: max-content 1fr max-content;
   gap: 0.25rem 0.75rem;
@@ -23116,7 +23256,7 @@ a._citationLink_1ggvf_9:hover {
   margin: 0;
 }
 
-._breakdownLabel_1cp7t_170 {
+._breakdownLabel_ylc06_170 {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -23124,33 +23264,33 @@ a._citationLink_1ggvf_9:hover {
   color: var(--bs-secondary);
 }
 
-._breakdownLeader_1cp7t_178 {
+._breakdownLeader_ylc06_178 {
   border-bottom: 1px dotted var(--bs-tertiary-color);
   height: 0.6em;
   transform: translateY(-2px);
   margin: 0;
 }
 
-._breakdownValue_1cp7t_185 {
+._breakdownValue_ylc06_185 {
   margin: 0;
   font-size: 0.8125rem;
   color: var(--bs-body-color);
   text-align: right;
 }
 
-._totalCell_1cp7t_192 {
+._totalCell_ylc06_192 {
   vertical-align: top;
   font-size: 1rem;
   font-weight: 600;
   color: var(--bs-body-color);
 }
 
-._perSampleCell_1cp7t_199 {
+._perSampleCell_ylc06_199 {
   vertical-align: top;
   color: var(--bs-secondary);
 }
 
-._perSampleSub_1cp7t_204 {
+._perSampleSub_ylc06_204 {
   display: block;
   font-size: 0.65rem;
   color: var(--bs-secondary);
@@ -23159,7 +23299,23 @@ a._citationLink_1ggvf_9:hover {
   margin-top: 0.15rem;
 }
 
-._swatch_1cp7t_213 {
+._connectionsCell_ylc06_213 {
+  width: 330px;
+  min-width: 240px;
+  vertical-align: top;
+}
+
+._table_ylc06_7 thead th._connectionsHead_ylc06_219,
+._table_ylc06_7 tbody td._connectionsCell_ylc06_213 {
+  padding-left: 2rem;
+}
+
+._table_ylc06_7 tbody tr._connectionsStripRow_ylc06_224 td {
+  padding: 6px 0 18px;
+  border-top: 0;
+}
+
+._swatch_ylc06_229 {
   display: inline-block;
   width: 9px;
   height: 9px;
@@ -23167,29 +23323,29 @@ a._citationLink_1ggvf_9:hover {
   flex-shrink: 0;
 }
 
-._swatchSmall_1cp7t_221 {
+._swatchSmall_ylc06_237 {
   width: 7px;
   height: 7px;
   border-radius: 2px;
 }
 
-._catInput_1cp7t_227 {
+._catInput_ylc06_243 {
   background: #cfdcef;
 }
 
-._catCacheRead_1cp7t_231 {
+._catCacheRead_ylc06_247 {
   background: #a8c4ec;
 }
 
-._catCacheWrite_1cp7t_235 {
+._catCacheWrite_ylc06_251 {
   background: #6ea0dc;
 }
 
-._catOutput_1cp7t_239 {
+._catOutput_ylc06_255 {
   background: #3a7bd5;
 }
 
-._catReasoning_1cp7t_243 {
+._catReasoning_ylc06_259 {
   background: #1f4e8c;
 }
 ._strip_c99qp_1 {
@@ -23348,6 +23504,127 @@ a._citationLink_1ggvf_9:hover {
 }
 ._catReasoning_c99qp_155 {
   background: #1f4e8c;
+}
+._table_16yk8_1 {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--bs-body-color);
+}
+
+._table_16yk8_1 thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bs-body-bg);
+  text-align: left;
+  font-weight: 600;
+  color: var(--bs-secondary);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+}
+
+._table_16yk8_1 tbody td {
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+  vertical-align: baseline;
+}
+
+._table_16yk8_1 tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+._time_16yk8_33 {
+  color: var(--bs-secondary);
+  white-space: nowrap;
+}
+
+._limitHead_16yk8_38 {
+  text-align: right;
+}
+
+._limit_16yk8_38 {
+  text-align: right;
+  white-space: nowrap;
+}
+
+._oldLimit_16yk8_47 {
+  color: var(--bs-secondary);
+}
+
+._arrowUp_16yk8_51,
+._arrowDown_16yk8_52 {
+  margin: 0 5px;
+}
+
+._arrowUp_16yk8_51 {
+  color: var(--bs-secondary);
+}
+
+._arrowDown_16yk8_52 {
+  color: #b04a3c;
+}
+
+._newLimit_16yk8_64 {
+  font-weight: 600;
+}
+
+._badge_16yk8_68 {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+._badgeSlowStart_16yk8_77 {
+  background: #e7eef8;
+  color: #3a6ea8;
+}
+
+._badgeSteadyUp_16yk8_82 {
+  background: #e9f1eb;
+  color: #4a7a55;
+}
+
+._badgeRateLimit_16yk8_87 {
+  background: #f8e9e7;
+  color: #b04a3c;
+}
+
+._badgeManual_16yk8_92 {
+  background: #eceef0;
+  color: #5f6771;
+}
+
+/* Dark mode — dark tinted fills with light text (the light fills above are
+   near-white and glare on a dark surface). */
+[data-bs-theme="dark"] ._arrowDown_16yk8_52 {
+  color: #d98d7d;
+}
+
+[data-bs-theme="dark"] ._badgeSlowStart_16yk8_77 {
+  background: #253850;
+  color: #9dc0ea;
+}
+
+[data-bs-theme="dark"] ._badgeSteadyUp_16yk8_82 {
+  background: #253b2c;
+  color: #9ccaa8;
+}
+
+[data-bs-theme="dark"] ._badgeRateLimit_16yk8_87 {
+  background: #472a24;
+  color: #e39a8a;
+}
+
+[data-bs-theme="dark"] ._badgeManual_16yk8_92 {
+  background: #31353b;
+  color: #aeb6bf;
 }
 ._panel_ald9k_1 {
   display: block;
