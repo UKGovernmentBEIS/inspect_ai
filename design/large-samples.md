@@ -48,6 +48,17 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   [Named size constants](#named-size-constants), [Converter](#converter),
   [old-format degradation](#degradation-policy-for-old-format-huge-samples-13),
   the effort A/B/F slicing, [Deferred open issues](#deferred-open-issues).
+- **2026-07-21 — Default attachments chunk byte-target 2 MiB → 10 MiB.**
+  Writer policy only, no format consequence (readers infer extents from
+  entry names; mixed-policy logs read identically). Rationale: compression
+  is insensitive to the target (the 2/8/32 MiB null result), while
+  attachment-heavy reads are round-trip-bound — the mirror-code monster's
+  final-conversation hydration touched 46 attachment chunks at 2 MiB vs a
+  handful at 10 MiB. 10 MiB sits above the 1–8 MiB working band but under
+  the ~16 MiB ceiling; per-chunk parse cost rises accordingly (envelope
+  numbers unchanged as research record). The converter gained an
+  `attachments_chunk_bytes` knob for further measurement. Affected:
+  [Chunk-size envelope](#chunked-on-disk-layout-4-6).
 - **2026-07-21 — Phase-1 efforts resequenced: viewer milestone next.** Effort
   A is complete (epatey#20–#24). The next accomplishment is **the real viewer
   working against the chunked format**, so effort C is split and pulled ahead
@@ -224,8 +235,9 @@ members per archive. In-member random access was ruled out (deflate needs an
 external index; zstd-seekable has no browser support), so **chunk boundary =
 member boundary**. One-member-per-event ruled out (~28 MB central directory at
 350k members; TTFB-bound per-event GETs). Defaults today: count-based 1000
-items for item sequences, ~2 MiB byte-target for attachments (an oversized
-item gets a chunk to itself). Default policy tuning (count vs byte-target) is
+items for item sequences, ~10 MiB byte-target for attachments (an oversized
+item gets a chunk to itself; **⚑ amended** from 2 MiB,
+[Change log](#change-log)). Default policy tuning (count vs byte-target) is
 an open tunable, settled by measurement — not a format property.
 
 ### Pools and attachments ([#6](https://github.com/epatey/inspect_ai/issues/6))
