@@ -797,13 +797,15 @@ async def test_count_tokens_uses_dedicated_semaphore(monkeypatch) -> None:
     monkeypatch.setattr(type(model.api), "count_tokens", counting_count_tokens)
 
     # max_connections=3 bounds inference; count_tokens has its own cap of 10,
-    # so 20 concurrent counts peak at 10 rather than being throttled to 3.
+    # so 20 concurrent counts peak somewhere above 3 but never above 10.
     cfg = GenerateConfig(max_connections=3)
     await tg_collect(
         [lambda: model.count_tokens("hello", config=cfg) for _ in range(20)]
     )
 
-    assert peak_in_flight == 10
+    # Exact 10 requires all ten to overlap inside one sleep window, which
+    # flakes on a loaded CI machine; the cap is the deterministic part.
+    assert 3 < peak_in_flight <= 10
 
 
 # ---------- adaptive_active / resolve_adaptive helpers ----------

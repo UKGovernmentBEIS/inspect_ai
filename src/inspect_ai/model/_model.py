@@ -947,7 +947,7 @@ class Model:
             return await self.api.count_tokens(input, config)
 
         model_name = ModelName(self)
-        key = f"ModelCountTokens({self.api.connection_key()})"
+        key = f"ModelCountTokens({_connection_pool_key(self.api)})"
         async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
             return await _count_tokens(input, config)
 
