@@ -1,0 +1,62 @@
+# Trusted external contributors — see CONTRIBUTING.md ("Becoming a trusted
+# contributor"). PRs from these users (and public members of these orgs) skip
+# the new-contributor gate and are labeled `qualified` for review priority.
+#
+# STRICT FORMAT (parsed by .github/scripts/pr_gate.py, not a YAML library):
+#   - exactly two top-level keys: `users:` and `orgs:`
+#   - entries are `  - <login>  # id=<numeric account id>` — one per line
+#   - the id annotation is MANDATORY and is verified by the gate. Logins and
+#     org slugs are recyclable after rename/deletion; numeric IDs never are,
+#     so pinning them defeats username-squatting. Look ids up with
+#     `gh api users/<login> --jq .id` / `gh api orgs/<slug> --jq .id`.
+#   - logins/slugs match case-insensitively; ids must match exactly
+#
+# Changes to this file are ordinary PRs — trust changes get reviewed.
+# Bar for individuals: sustained ~75%+ merge rate + responsive engagement.
+
+users:
+  - rasmusfaber             # id=2798829
+  - lorenzoAtBEIS           # id=68518050
+  - sjawhar                 # id=5074378
+  - art-dsit                # id=153507562
+  - anthonyduong9           # id=42191920
+  - revmischa               # id=245131
+  - tadamcz                 # id=43300673
+  - ericwinsor-aisi         # id=180970537
+  - rusheb                  # id=26048292
+  - alexandraabbas          # id=32793463
+  - MattFisher              # id=70594
+  - max-kaufmann            # id=75174544
+  - andrew-aisi             # id=189664705
+  - tbroadley               # id=8731922
+  - sdtblckgov              # id=168540866
+  - MSchmatzAISI            # id=175031747
+  - Aprillion               # id=1087670
+  - tw-aisi                 # id=174828312
+  - alexlloyd-apollo        # id=214490753
+  - andrei-apollo           # id=190497918
+  - herbert-apollo          # id=271519066
+  - seddy-aisi              # id=169658119
+  - jacob-securebio         # id=260504398
+  - jasongwartz             # id=10981911
+  - sasha-apollo            # id=229770182
+  - vhong-aisi              # id=191899826
+  - freddyt-aisi            # id=199082344
+  - glen-apollo             # id=233741954
+  - jacobmdsit              # id=205914700
+  - Jay-Bailey-DSIT         # id=158083456
+  - dpolatajko-aisi         # id=283953929
+  - alexb-palisaderesearch  # id=189858354
+  - jon-aisi                # id=229933727
+  - alan-cooney-dsit        # id=176403005
+  - alex-remedios-aisi      # id=184943742
+  - alexandrasouly-aisi     # id=156699737
+  - bowman-apollo           # id=275718223
+  - jasongwartz-aisi        # id=189873134
+  - jordan-taylor-aisi      # id=203104845
+  - kwamina-aisi            # id=171437031
+  - mikita-apollo           # id=150435724
+  - nix-aisi                # id=275676982
+  - ezra-apollo             # id=275704596
+
+orgs: []
