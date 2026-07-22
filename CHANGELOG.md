@@ -15,6 +15,7 @@
 - Registry: Add a `validation_predicate` type for Scout extensions.
 - Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
+- Approval: Load policy configuration files from `file://` URIs as well as plain local paths.
 - Bugfix: Transcript timelines no longer hide workflow `generate()` calls with differing system prompts as utility agents; utility classification now requires a tool-calling agent loop.
 - Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed `limit=0` instead of returning all samples.
 - Bugfix: Parameterized score reducers (e.g. `at_least(2)`, `pass_at(2)`, `pass_k(2)`) now round-trip through the registry instead of raising `LookupError` when restored from a log.
