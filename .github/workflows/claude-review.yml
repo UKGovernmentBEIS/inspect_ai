@@ -26,6 +26,9 @@ jobs:
     if: >
       github.event_name == 'pull_request' ||
       (github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '@review')) ||
+      (github.event.issue.pull_request == null &&
+       contains(github.event.issue.labels.*.name, 'External') &&
        contains(github.event.comment.body, '@review'))
     uses: meridianlabs-ai/agents/.github/workflows/claude-review.yml@main
     # Machine-account PAT for the deterministic ack/stage steps only (eyes
