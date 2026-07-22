@@ -183,6 +183,48 @@ async def test_recover_eval_log_end_to_end() -> None:
             assert len(read_log.samples) == 4
 
 
+async def test_recover_eval_log_preserves_completed_sample_metadata() -> None:
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            _write_crashed_eval(eval_path)
+
+            initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+            final = {
+                "world": {
+                    **initial["world"],
+                    "solver-added": {"active": False},
+                }
+            }
+            summary = EvalSampleSummary(
+                id=1,
+                epoch=1,
+                input="input 1",
+                target="target 1",
+                metadata=initial,
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            )
+            assert summary.metadata["world"] == "Key removed from summary (> 1k)"
+
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            buffer.start_sample(summary)
+            buffer.log_events(
+                [SampleEvent(id=1, epoch=1, event=_make_model_event("output 1"))]
+            )
+            buffer.complete_sample(summary, final)
+            simulate_crashed_buffer_db(buffer)
+
+            await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            recovered = read_eval_log(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].metadata == final
+
+
 async def test_recover_eval_log_no_buffer_db() -> None:
     """Recovery with no buffer DB raises RecoveryNotAvailable."""
     async with AsyncFilesystem():

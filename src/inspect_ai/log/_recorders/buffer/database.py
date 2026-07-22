@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlite3 import Connection, OperationalError
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Iterable,
     Iterator,
@@ -107,6 +108,7 @@ class SampleBufferDatabase(SampleBuffer):
         id TEXT,
         epoch INTEGER,
         data TEXT, -- JSON containing all other sample fields
+        sample_metadata TEXT, -- full sample metadata (summaries are intentionally thinned)
         PRIMARY KEY (id, epoch)
     );
 
@@ -334,14 +336,29 @@ class SampleBufferDatabase(SampleBuffer):
             # Insert all rows
             conn.execute(sql, values)
 
-    def complete_sample(self, summary: EvalSampleSummary) -> None:
+    def complete_sample(
+        self,
+        summary: EvalSampleSummary,
+        sample_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        metadata_json = (
+            to_json_str_safe(sample_metadata) if sample_metadata is not None else None
+        )
         with self._get_connection(write=True) as conn:
             summary = self._condense_sample(conn, summary)
             conn.execute(
                 """
-                UPDATE samples SET data = ? WHERE id = ? and epoch = ?
+                UPDATE samples
+                SET data = ?,
+                    sample_metadata = COALESCE(?, sample_metadata)
+                WHERE id = ? and epoch = ?
             """,
-                (to_json_str_safe(summary), str(summary.id), summary.epoch),
+                (
+                    to_json_str_safe(summary),
+                    metadata_json,
+                    str(summary.id),
+                    summary.epoch,
+                ),
             )
 
             key = (str(summary.id), summary.epoch)
@@ -565,6 +582,57 @@ class SampleBufferDatabase(SampleBuffer):
                         self._get_call_pool(conn, id, epoch, after_call_pool_id)
                     ),
                 )
+        except FileNotFoundError:
+            return None
+
+    @override
+    def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        record = self._get_sample_metadata_record(id, epoch)
+        if record is None:
+            return None
+        try:
+            value = json.loads(record[0])
+            if not isinstance(value, dict):
+                raise ValueError("sample metadata must be a JSON object")
+            return value
+        except ValueError as ex:
+            logger.warning(
+                "Unable to read sample metadata for id=%s epoch=%s: %s",
+                id,
+                epoch,
+                ex,
+            )
+            return None
+
+    def _get_sample_metadata_record(
+        self, id: str | int, epoch: int
+    ) -> tuple[str, str] | None:
+        if not self.db_path.exists():
+            return None
+
+        try:
+            with self._get_connection() as conn:
+                try:
+                    row = conn.execute(
+                        """
+                        SELECT sample_metadata
+                        FROM samples WHERE id = ? AND epoch = ?
+                        """,
+                        (str(id), epoch),
+                    ).fetchone()
+                except OperationalError as ex:
+                    # Buffers created before full metadata persistence do not
+                    # have this column. Recovery can fall back to sample_init.
+                    if "no such column" in str(ex).lower():
+                        return None
+                    raise
+                if row is None or row["sample_metadata"] is None:
+                    return None
+                metadata_json = str(row["sample_metadata"])
+                metadata_hash = hashlib.sha256(
+                    metadata_json.encode("utf-8")
+                ).hexdigest()
+                return metadata_json, metadata_hash
         except FileNotFoundError:
             return None
 
@@ -1671,18 +1739,22 @@ def sync_to_filestore(
     for sample in samples.samples:
         # lookup sample segments in the existing manifest
         # Copy before appending the next segment below.
-        segments = list(
-            next(
-                (
-                    s.segments
-                    for s in manifest.samples
-                    if s.summary.id == sample.id and s.summary.epoch == sample.epoch
-                ),
-                [],
-            )
+        existing = next(
+            (
+                s
+                for s in manifest.samples
+                if s.summary.id == sample.id and s.summary.epoch == sample.epoch
+            ),
+            None,
         )
         # add to manifests
-        sample_manifests.append(SampleManifest(summary=sample, segments=segments))
+        sample_manifests.append(
+            SampleManifest(
+                summary=sample,
+                segments=list(existing.segments) if existing is not None else [],
+                metadata_hash=existing.metadata_hash if existing is not None else None,
+            )
+        )
 
     # draft of new manifest has the new sample list and the existing segments
     manifest.metrics = samples.metrics
@@ -1707,6 +1779,20 @@ def sync_to_filestore(
     segment_files: list[SegmentFile] = []
     segment_by_id = {seg.id: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
+        metadata_record = db._get_sample_metadata_record(
+            manifest_sample.summary.id, manifest_sample.summary.epoch
+        )
+        if metadata_record is not None:
+            metadata_json, metadata_hash = metadata_record
+            if metadata_hash != manifest_sample.metadata_hash:
+                filestore.write_sample_metadata(
+                    manifest_sample.summary.id,
+                    manifest_sample.summary.epoch,
+                    metadata_hash,
+                    metadata_json.encode("utf-8"),
+                )
+                manifest_sample.metadata_hash = metadata_hash
+
         # take the max of last_*_id across all of this sample's segments, not
         # just the latest: each segment's last_*_id is 0 if no items of that
         # type were added there, so the latest alone can regress the cursor.

@@ -136,6 +136,91 @@ def test_complete_sample(db: SampleBufferDatabase, sample: EvalSampleSummary) ->
     assert samples.samples[0] == summary
 
 
+def test_complete_sample_preserves_full_metadata_separately(
+    db: SampleBufferDatabase,
+) -> None:
+    initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+    final = {"world": {**initial["world"], "solver-added": {"active": False}}}
+    summary = EvalSampleSummary(
+        id="sample1",
+        epoch=1,
+        input="test input",
+        target="test target",
+        metadata=initial,
+    )
+
+    assert summary.metadata["world"] == "Key removed from summary (> 1k)"
+    db.start_sample(summary)
+    db.complete_sample(summary, final)
+
+    [stored_summary] = get_samples(db).samples
+    assert stored_summary.metadata["world"] == "Key removed from summary (> 1k)"
+    assert db.get_sample_metadata("sample1", 1) == final
+
+
+def test_get_sample_metadata_tolerates_legacy_schema(
+    db: SampleBufferDatabase,
+) -> None:
+    summary = EvalSampleSummary(
+        id="sample1",
+        epoch=1,
+        input="test input",
+        target="test target",
+        metadata={"source": "legacy"},
+    )
+    db.start_sample(summary)
+
+    with db._get_connection(write=True) as conn:
+        conn.executescript(
+            """
+            CREATE TABLE legacy_samples (
+                id TEXT,
+                epoch INTEGER,
+                data TEXT,
+                PRIMARY KEY (id, epoch)
+            );
+            INSERT INTO legacy_samples (id, epoch, data)
+                SELECT id, epoch, data FROM samples;
+            DROP TABLE samples;
+            ALTER TABLE legacy_samples RENAME TO samples;
+            """
+        )
+
+    assert db.get_sample_metadata("sample1", 1) is None
+
+
+def test_get_sample_metadata_falls_back_on_malformed_json(
+    db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings: list[str] = []
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(database_module.logger, "warning", capture_warning)
+    summary = EvalSampleSummary(
+        id="sample1",
+        epoch=1,
+        input="test input",
+        target="test target",
+    )
+    db.start_sample(summary)
+    db.complete_sample(summary, {"source": "complete"})
+
+    with db._get_connection(write=True) as conn:
+        conn.execute(
+            "UPDATE samples SET sample_metadata = ? WHERE id = ? AND epoch = ?",
+            ("{", "sample1", 1),
+        )
+
+    assert db.get_sample_metadata("sample1", 1) is None
+    assert any(
+        "Unable to read sample metadata for id=sample1 epoch=1" in warning
+        for warning in warnings
+    )
+
+
 def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
     """Test getting events with various filters."""
     # Create two samples with events

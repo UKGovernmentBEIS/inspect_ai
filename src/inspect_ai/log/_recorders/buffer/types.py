@@ -1,7 +1,7 @@
 import abc
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
@@ -147,6 +147,11 @@ class SampleBuffer(abc.ABC):
           - `SampleData` with event, attachment, and pool data.
           - None if the database no longer exists
         """
+        ...
+
+    @abc.abstractmethod
+    def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        """Get the full metadata persisted for a sample, if available."""
         ...
 
     @abc.abstractmethod

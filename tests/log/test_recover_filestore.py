@@ -5,6 +5,7 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from zipfile import ZipFile
 
 import pytest
@@ -28,6 +29,7 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
 )
+from inspect_ai.log._recorders.buffer import filestore as filestore_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
     sync_to_filestore,
@@ -60,6 +62,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.scorer._metric import Score
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -786,6 +789,160 @@ async def test_streaming_recovery_preserves_synced_message_pool() -> None:
             ]
             assert read_model_event.input[0].content == "pooled user message"
             assert read_sample.messages[0].content == "pooled user message"
+
+
+async def test_streaming_recovery_preserves_full_sample_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Shared filestore recovery uses full metadata, not its summary copy."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+            initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+            final = {
+                "world": {
+                    **initial["world"],
+                    "solver-added": {"active": False},
+                }
+            }
+            started = EvalSampleSummary(
+                id="sample1",
+                epoch=1,
+                input="input sample1",
+                target="target sample1",
+                metadata=initial,
+                scores={"accuracy": Score(value=1)},
+            )
+            completed = started.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            )
+
+            db.start_sample(started)
+            db.complete_sample(completed, final)
+            sync_to_filestore(db, filestore)
+
+            manifest = filestore.read_manifest()
+            assert manifest is not None
+            assert manifest.samples[0].summary.metadata["world"] == (
+                "Key removed from summary (> 1k)"
+            )
+            assert filestore.read_sample_metadata("sample1", 1, manifest) == final
+
+            from inspect_ai._eval.task import results as results_module
+
+            metric_sample_metadata: list[dict[str, Any] | None] = []
+            original_eval_results = results_module.eval_results
+
+            def capture_eval_results(*args: Any, **kwargs: Any):
+                scores = kwargs["scores"]
+                if scores:
+                    metric_sample_metadata.append(scores[0]["accuracy"].sample_metadata)
+                return original_eval_results(*args, **kwargs)
+
+            monkeypatch.setattr(results_module, "eval_results", capture_eval_results)
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            recovered = read_eval_log(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].metadata == final
+            assert metric_sample_metadata == [final]
+
+
+@pytest.mark.parametrize("sidecar_failure", ["missing", "hash_mismatch"])
+async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    sidecar_failure: str,
+) -> None:
+    warnings: list[str] = []
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(filestore_module.logger, "warning", capture_warning)
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+            initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+            final = {
+                "world": {
+                    **initial["world"],
+                    "solver-added": {"active": False},
+                }
+            }
+            sample = Sample(
+                id="sample1",
+                input="input sample1",
+                target="target sample1",
+                metadata=initial,
+            )
+            started = EvalSampleSummary(
+                id="sample1",
+                epoch=1,
+                input=sample.input,
+                target=sample.target,
+                metadata=initial,
+            )
+            completed = started.model_copy(
+                update={"completed_at": datetime.now(timezone.utc).isoformat()}
+            )
+
+            db.start_sample(started)
+            db.log_events(
+                [
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    )
+                ]
+            )
+            db.complete_sample(completed, final)
+            sync_to_filestore(db, filestore)
+
+            manifest = filestore.read_manifest()
+            assert manifest is not None
+            metadata_hash = manifest.samples[0].metadata_hash
+            assert metadata_hash is not None
+            metadata_path = Path(
+                filestore._sample_metadata_file("sample1", 1, metadata_hash)
+            )
+            if sidecar_failure == "missing":
+                metadata_path.unlink()
+            else:
+                metadata_path.write_bytes(b"{}")
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            recovered = read_eval_log(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].metadata == initial
+            assert any(
+                "Unable to read sample metadata for id=sample1 epoch=1" in warning
+                for warning in warnings
+            )
 
 
 async def test_streaming_recovery_sample_with_no_events() -> None:
