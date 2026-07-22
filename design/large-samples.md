@@ -1204,6 +1204,14 @@ Recorded here so they aren't lost; each is out of this effort's scope:
     `sample_limit`/`branch`), notable timestamps, root-level `children`
     counts, writer-time utility classification. Decide before the phase-2
     writer freezes the format.
+14. **Materialized-row eviction** (PR #451 review, 2026-07-22) —
+    `RowSpace.materializedRows` never evicts: decoded view rows (with
+    attachments inlined) accumulate for the panel's lifetime, at odds with
+    the byte store's budget and the parsed-chunk LRU. Fix shape: a cap that
+    drops far-away chunks' `rows` while keeping the corrected
+    `chunkRows`/`exact` entries, so accounting stays exact and only decode
+    work is repaid on revisit. Interacts with ordinal re-anchoring — design
+    it with issue 11 rather than patching ad hoc.
 
 ---
 
