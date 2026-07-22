@@ -132,6 +132,21 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   [Structural skeleton](#structural-skeleton-5) (mechanisms 7–8),
   [Proposed slicing](#proposed-slicing-into-implementation-efforts) (C2),
   [Deferred open issues](#deferred-open-issues) (new items 10–12).
+- **2026-07-21 — Windowed Messages tab promoted to an owned effort (C3).**
+  Access pattern 3 ("page messages by index window") was inventoried in
+  Appendix A but assigned to no effort — C2's deliverable list never named
+  the Messages tab, and the implementation shipped an unowned full-hydration
+  bridge (fetch + resolve the entire final conversation at tab open —
+  134,989 messages / ~125MB on the monster). Ratified: **materializing an
+  unbounded number of messages is a no-go**; a windowed Messages tab is a
+  phase-1 requirement, sliced as effort C3 (see
+  [Proposed slicing](#proposed-slicing-into-implementation-efforts) for the
+  design hazards: tool folding and block numbering are functions of all
+  prior message content; format candidate — write-time per-chunk cumulative
+  block counts). Interim mitigation applied to the bridge: attachment-chunk
+  prefetch pipelines per message range instead of serializing behind full
+  conversation assembly. Affected: Proposed slicing (new C3), Appendix A
+  pattern 3 landing note.
 
 ---
 
@@ -1065,6 +1080,23 @@ behind the milestone. Within-phase order: A → C1 → C2 → D → B → E.
   deferred issue 12. Acceptance lesson recorded in the change log: never
   ratify a projection against a ported oracle without a browser-real
   comparison log in the corpus.
+- **C3. Windowed Messages tab.** **⚑ amended** ([Change log](#change-log),
+  2026-07-21 — requirement was inventoried but unowned). Access pattern 3
+  made real: the Messages tab pages the final conversation by index window —
+  exact row count and row→sequence mapping from `message_refs` prefix sums,
+  windowed `getRange` + per-batch attachment resolution, virtualized rows
+  with page materialization. **Materializing an unbounded number of
+  messages is a no-go** — the current full-hydration bridge (tab-open
+  hydration, attachment prefetch pipelined per message chunk) matches the
+  old path's profile and dies exactly where the old path dies. Design
+  hazards to resolve here, not patch around: legacy tool-message folding
+  and cumulative block numbering are functions of all prior message
+  *content* (unknowable windowed) — either render unfolded with
+  message-ordinal numbering (UX deviation needing sign-off) or persist
+  block/folding counts at write time (format candidate: per-chunk
+  cumulative block counts alongside `sequences`). `?message=` deep links
+  resolve by scan (same posture as `?event=`). Depends on C1; independent
+  of D.
 - **D. Search worker.** Scan worker, renderer-aligned extraction
   (worker-importable check), match table, find-band integration. Depends on
   C2; outside the viewer-works milestone.
@@ -1156,7 +1188,7 @@ doc, updated to the ratified decisions):
 |---|---|---|---|
 | 1 | Header / summaries / listing | log list + sample list UI | unchanged (separate small entries) |
 | 2 | Sample shell (metadata, scores, usage, error) | sample detail open; Python `exclude_fields` | `sample.json` — cheap by construction |
-| 3 | Page messages by index window | Messages tab virtual list | index→chunk via start-named entries |
+| 3 | Page messages by index window | Messages tab virtual list | index→chunk via start-named entries; **⚑ amended** — owned by effort C3 ([Change log](#change-log), 2026-07-21); interim = full-hydration bridge |
 | 4 | Page events by index window | Transcript scroll | same |
 | 5 | Tail / jump-to-last / follow | auto-follow, open-at-end | last chunk from `shell.sequences` |
 | 6 | Structure without content (tree, outline, timeline) | first render of Transcript tab | `skeleton.json` |
