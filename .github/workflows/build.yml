@@ -265,6 +265,9 @@ jobs:
               - "tests/tools/**"
       # Separate step because the negation requires `every` semantics (a file
       # must match ALL patterns), which would break the OR-style filters above.
+      # Keep the exclusions in sync with _check_main_divergence in
+      # src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py — the runtime uses
+      # the same definition of "injectable source" to decide dev vs published.
       - uses: dorny/paths-filter@v4
         id: injectable
         with:
@@ -273,6 +276,8 @@ jobs:
             injectable_src:
               - "src/inspect_sandbox_tools/**"
               - "!src/inspect_sandbox_tools/tests/**"
+              - "!src/inspect_sandbox_tools/**/*.md"
+              - "!src/inspect_sandbox_tools/design/**"
       # Generic, growable table of areas whose slow tests run with nothing but
       # `uv pip install .[dev]` + Docker-on-the-runner. `changes` is a JSON list
       # of the keys that matched; the slow-tests matrix fans out over it.
