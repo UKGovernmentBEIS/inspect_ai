@@ -95,7 +95,7 @@ def csv_dataset(
         shuffle_choices_if_requested(dataset, shuffle_choices)
 
         # limit if requested
-        if limit:
+        if limit is not None:
             return dataset[0:limit]
 
         return dataset

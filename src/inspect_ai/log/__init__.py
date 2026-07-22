@@ -8,6 +8,12 @@ from ._condense import (
     expand_events,
     resolve_sample_attachments,
 )
+from ._config_update import (
+    ConfigUpdate,
+    ConfigValueChange,
+    effective_eval_config,
+    effective_generate_config,
+)
 from ._convert import convert_eval_logs
 from ._edit import (
     LogEdit,
@@ -73,6 +79,10 @@ from ._transcript import (
 
 __all__ = [
     "WriteConflictError",
+    "ConfigUpdate",
+    "ConfigValueChange",
+    "effective_eval_config",
+    "effective_generate_config",
     "EvalConfig",
     "EvalError",
     "EvalDataset",

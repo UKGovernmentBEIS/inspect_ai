@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from inspect_ai._display.core.display import TaskCancel
+    from inspect_ai.log._config_update import ConfigUpdate
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -97,6 +98,14 @@ if TYPE_CHECKING:
             self, log_buffer: int | None = None, log_shared: int | None = None
         ) -> "BufferConfig":
             """Read (both args ``None``) or update the sample-buffer parameters."""
+            ...
+
+        def log_config_update(self, update: ConfigUpdate) -> Awaitable[bool]:
+            """Record a mid-run config change into the log.
+
+            ``False`` means the logger *declined* because its log has already
+            finished (its record is complete — not a failure; failures raise).
+            """
             ...
 
     # Async accessor for a reused eval's summaries-derived stats, resolved
@@ -729,9 +738,17 @@ def reset_run_registries() -> None:
     one boundary and leak stale state through the other — add new resets
     here, not at the call sites.
     """
+    from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.pause import (
+        reset_process_pause,
+        reset_task_pause_gates,
+    )
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_process_config_updates()
+    reset_task_pause_gates()
+    reset_process_pause()
