@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, cast
 
 import pytest
@@ -19,6 +20,7 @@ from inspect_ai.scorer import (
     metric,
     scorer,
     std,
+    value_to_float,
     var,
 )
 from inspect_ai.scorer._metric import (
@@ -26,9 +28,8 @@ from inspect_ai.scorer._metric import (
     MetricProtocol,
     SampleScore,
     metric_create,
-    value_to_float,
 )
-from inspect_ai.scorer._metrics import grouped
+from inspect_ai.scorer._metrics import aggregate, grouped
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
@@ -712,6 +713,204 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+def test_aggregate_mean():
+    metric = aggregate("element_acc", agg=mean())
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 1, "action_f1": 0.5})),
+            SampleScore(score=Score(value={"element_acc": 1, "action_f1": 0.6})),
+            SampleScore(score=Score(value={"element_acc": 4, "action_f1": 0.7})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_selects_key():
+    # Different keys over the same scores should give different aggregates.
+    scores = [
+        SampleScore(score=Score(value={"a": 1, "b": 10})),
+        SampleScore(score=Score(value={"a": 3, "b": 30})),
+    ]
+    assert aggregate("a", agg=mean())(scores) == 2.0
+    assert aggregate("b", agg=mean())(scores) == 20.0
+
+
+def test_aggregate_stderr_composes():
+    # stderr() should work as the inner aggregator.
+    se = aggregate("x", agg=stderr())(
+        [SampleScore(score=Score(value={"x": i, "y": -i})) for i in range(20)]
+    )
+    expected = stderr()([SampleScore(score=Score(value=i)) for i in range(20)])
+    assert se == expected
+
+
+def test_aggregate_missing_key_error_by_default():
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="is missing"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value={"action_f1": 0.5})),
+            ]
+        )
+
+
+def test_aggregate_missing_key_skip():
+    metric = aggregate("element_acc", agg=mean(), on_missing="skip")
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 1})),
+            SampleScore(score=Score(value={"action_f1": 0.5})),  # skipped
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_missing_key_zero():
+    metric = aggregate("element_acc", agg=mean(), on_missing="zero")
+    result = metric(
+        [
+            SampleScore(score=Score(value={"element_acc": 3})),
+            SampleScore(score=Score(value={"action_f1": 0.5})),  # treated as 0.0
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_non_dict_value_raises():
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="non-dict"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value=1.0)),  # scalar, not a dict
+            ]
+        )
+
+
+def test_aggregate_explicit_to_float_applied():
+    # An explicit to_float lets string grades flow into mean() (which expects
+    # numerics). value_to_float maps "C"->1.0 and "I"->0.0.
+    result = aggregate("verdict", agg=mean(), to_float=value_to_float())(
+        [
+            SampleScore(score=Score(value={"verdict": "C"})),
+            SampleScore(score=Score(value={"verdict": "I"})),
+            SampleScore(score=Score(value={"verdict": "C"})),
+            SampleScore(score=Score(value={"verdict": "C"})),
+        ]
+    )
+    assert result == 0.75
+
+
+def test_aggregate_passthrough_respects_inner_to_float():
+    # With the default to_float=None, the raw value passes straight through to
+    # the inner metric, so the inner metric's OWN converter applies. Here a
+    # custom value_to_float on accuracy() maps "pass"->1.0 / "fail"->0.0;
+    # aggregate must not pre-convert and bypass it.
+    inner = accuracy(to_float=value_to_float(correct="pass", incorrect="fail"))
+    result = aggregate("verdict", agg=inner)(
+        [
+            SampleScore(score=Score(value={"verdict": "pass"})),
+            SampleScore(score=Score(value={"verdict": "fail"})),
+            SampleScore(score=Score(value={"verdict": "pass"})),
+            SampleScore(score=Score(value={"verdict": "pass"})),
+        ]
+    )
+    assert result == 0.75
+
+
+def test_aggregate_none_value_treated_as_missing_error():
+    # A present-but-None value is treated the same as a missing key
+    # (matches inspect_evals.utils.metrics.mean_of).
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="is None"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value={"element_acc": None})),
+            ]
+        )
+
+
+def test_aggregate_none_value_treated_as_missing_skip():
+    result = aggregate("element_acc", agg=mean(), on_missing="skip")(
+        [
+            SampleScore(score=Score(value={"element_acc": 1})),
+            SampleScore(score=Score(value={"element_acc": None})),  # skipped
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_none_value_treated_as_missing_zero():
+    result = aggregate("element_acc", agg=mean(), on_missing="zero")(
+        [
+            SampleScore(score=Score(value={"element_acc": 3})),
+            SampleScore(score=Score(value={"element_acc": None})),  # treated as 0.0
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_skipped_returns_nan():
+    # When skip filters every sample, return NaN rather than calling agg([])
+    # (which most built-in metrics raise on).
+    result = aggregate("element_acc", agg=mean(), on_missing="skip")(
+        [
+            SampleScore(score=Score(value={"action_f1": 0.5})),
+            SampleScore(score=Score(value={"action_f1": 0.6})),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
+
+
+def test_aggregate_skips_nan_values():
+    # A per-key NaN is unscored: skipped regardless of on_missing (which is
+    # at its "error" default here), so the aggregate is the mean of the
+    # non-NaN values rather than NaN. Matches dict-metric expansion.
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": 1})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+            SampleScore(score=Score(value={"x": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_nan_returns_nan():
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": float("nan")})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
+
+
+def test_aggregate_nan_skipped_under_zero():
+    # NaN is distinct from a missing key: even with on_missing="zero" a NaN
+    # value is skipped (not coerced to 0.0), so it doesn't drag the mean down.
+    result = aggregate("x", agg=mean(), on_missing="zero")(
+        [
+            SampleScore(score=Score(value={"x": 2})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_invalid_on_missing_raises():
+    # Invalid on_missing must fail at construction, not silently behave like
+    # "zero" only when a key happens to be missing.
+    with pytest.raises(ValueError, match="invalid on_missing"):
+        aggregate("x", agg=mean(), on_missing="skpi")
 
 
 def test_metrics_return_zero_for_empty_scores() -> None:
