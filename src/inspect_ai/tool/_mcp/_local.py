@@ -274,6 +274,14 @@ class MCPServerLocalSession(MCPServer):
                                         error_mapper=_McpErrorMapper,
                                     ) from e
                         return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
+                    except TimeoutError:
+                        # A per-RPC read-timeout (translated above from the 408
+                        # McpError) is not a dropped connection - reconnecting and
+                        # retrying would silently hide the timeout from the model.
+                        # TimeoutError is-a OSError, so it must be excluded from the
+                        # connection-loss handling below and left for the outer
+                        # handler to convert into a ToolError.
+                        raise
                     except (BrokenPipeError, ConnectionError, OSError) as exc:
                         logger.warning(
                             f"MCP connection lost during {mcp_tool.name} "
