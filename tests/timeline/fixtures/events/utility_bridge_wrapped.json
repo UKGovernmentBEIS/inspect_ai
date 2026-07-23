@@ -1,0 +1,195 @@
+{
+  "description": "Bridge-style agent: a tool-calling main loop plus one extraction call with a different system prompt and no tool calls. The extraction call is wrapped as a synthetic utility span; main-loop calls stay direct content.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:01Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "bridge",
+      "name": "bridge",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:02Z",
+      "uuid": "sb-bridge"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "What is 1 + 1?"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_1",
+                  "function": "search",
+                  "arguments": {
+                    "query": "1 + 1"
+                  }
+                }
+              ]
+            },
+            "stop_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "tool",
+      "uuid": "t1",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "id": "call_1",
+      "function": "search",
+      "arguments": {
+        "query": "1 + 1"
+      },
+      "result": "found it",
+      "events": []
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "completed": "2026-01-01T00:00:08Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "Extract a short title."
+        },
+        {
+          "role": "user",
+          "content": "Extract."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "two"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "bridge",
+      "timestamp": "2026-01-01T00:00:09Z",
+      "completed": "2026-01-01T00:00:10Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "Answer."
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "2"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "bridge",
+      "timestamp": "2026-01-01T00:00:11Z",
+      "uuid": "se-bridge"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T00:00:12Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "bridge",
+      "name": "main",
+      "event_uuids": [
+        "m1",
+        "t1",
+        "m3"
+      ],
+      "children": [
+        {
+          "id": "utility-m2",
+          "name": "utility",
+          "utility": true,
+          "event_uuids": [
+            "m2"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

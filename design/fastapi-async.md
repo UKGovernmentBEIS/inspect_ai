@@ -11,7 +11,7 @@
 
 Rules 2 and 3 both run the endpoint body in a threadpool. **Do not use either for `fsspec` work on a remote filesystem** (s3/gcs/azure — i.e. `filesystem(path).is_async()`). Those backends' sync API runs coroutines on fsspec's **own** background event-loop thread and blocks the caller; nesting a threadpool over that internal threading can **deadlock**. This includes the sample buffer when it is filestore-backed.
 
-For blocking remote I/O, use the async filesystem (`inspect_ai._util.asyncfiles.AsyncFilesystem`) from an `async def` endpoint — not `def` and not `to_thread`. `to_thread`/`def` remain fine for **known-local** fsspec (`LocalFileSystem` is plain sync, no background loop) and for genuinely fsspec-free blocking work (local `sqlite`, `subprocess`). See the warning in the repo `CLAUDE.md`.
+For blocking remote I/O, use the async filesystem (`inspect_ai._util.asyncfiles.AsyncFilesystem`) from an `async def` endpoint — not `def` and not `to_thread`. `to_thread`/`def` remain fine for **known-local** fsspec (`LocalFileSystem` is plain sync, no background loop) and for genuinely fsspec-free blocking work (local `sqlite`, `subprocess`). See the warning in the repo `AGENTS.md`.
 
 ## Why this matters
 

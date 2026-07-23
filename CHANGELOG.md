@@ -1,9 +1,54 @@
 ## Unreleased
 
+- Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
+- Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
+- Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
+- Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
+- Control Channel: `inspect ctl config` changes are now recorded in each affected eval log (`EvalLog.config_updates`, with author, timestamp, optional `--reason`, and old → new values); `effective_eval_config()`/`effective_generate_config()` fold them over the launch config.
+- Control Channel: New `inspect ctl task pause|resume` and `inspect ctl process pause|resume` commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with `paused`/`quiesced` reported by `inspect ctl task list`.
+- Control Channel: New `inspect ctl process anomalies [PID]` shows a running process's in-flight and anomalous trace actions by reading its trace file directly, so it works against busy, hung, or even exited processes.
+- Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
+- OpenAI Compatible: A length-truncated streaming response (e.g. `-M stream=true` hitting `max_tokens`) now degrades gracefully to a `max_tokens` stop reason instead of raising `LengthFinishReasonError` and aborting the eval. (#4552)
+- OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
+- Google: Added model info for Gemini 3.6 Flash and Gemini 3.5 Flash-Lite (released 2026-07-21).
+- Agent Bridge: Support Anthropic clients that consume responses via `with_raw_response`, which previously failed with `'Message' object has no attribute 'parse'`.
+- Sandbox: `Sandbox.exec` failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.
+- Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
+- Registry: Add a `validation_predicate` type for Scout extensions.
+- Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)
+- Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
+- Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
+- Approval: Load policy configuration files from `file://` URIs as well as plain local paths.
+- Bugfix: Transcript timelines no longer hide workflow `generate()` calls with differing system prompts as utility agents; utility classification now requires a tool-calling agent loop.
+- Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed `limit=0` instead of returning all samples.
+- Bugfix: Parameterized score reducers (e.g. `at_least(2)`, `pass_at(2)`, `pass_k(2)`) now round-trip through the registry instead of raising `LookupError` when restored from a log.
+- Bugfix: Fixed a memory leak where the result of any synchronous API call made from a context with no running event loop (e.g. each sample yielded by `read_eval_log_samples()`) was retained in memory forever after the caller released it.
+- Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
+- Inspect View: Fixed timeline discarding a solver span containing a single agent span child when it also contains other displayed events. (#443)
+- Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)
+- Inspect View: Added connection limit history display to the Stats tab. (#447)
+- Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)
+
+## 0.3.249 (20 July 2026)
+
+- Model API: New `moonshot` provider for Moonshot AI Kimi models (e.g. `moonshot/kimi-k3`), with built-in model info for Kimi K3 and detection of `kimi-*` model names on hosting providers.
+- CloudFlare/Moonshot: Automatically populate empty assistant messages with "(no content)" (these APIs reject replay of assistant messages with empty content).
+- CloudFlare/Moonshot: Retry requests that fail with HTTP status 503 (service overloaded) as rate limits, scaling down adaptive concurrency.
+- Control Channel: `inspect ctl sample list` no longer recomputes sample summaries on every request, so polling an eval buffering many large samples (e.g. a retry's carried transcripts) can no longer stall the eval process.
+- Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
+- Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
+- Agent Bridge: Support OpenAI clients that consume responses via `with_raw_response` (e.g. langchain-openai), which previously failed with `'ChatCompletion' object has no attribute 'parse'`. (#4341)
+
+## 0.3.248 (17 July 2026)
+
 - Logging: Local eval (`.eval`) and JSON (`.json`) log files are now written atomically (temp file + `fsync` + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)
 - Checkpointing: In-sandbox restic artifacts moved from the world-listable `/opt/inspect-restic` to root-only `/root/.cache/inspect`, and egress scratch files no longer land in `/tmp`, so agents no longer see evidence of checkpointing.
 - Eval: `EvalSample` and `EvalSampleSummary` now record `turn_count` and the sample's token limit (`token_limit`, `token_limit_type`, and metered `token_limit_usage`).
 - Analysis: `samples_df` gains default `turn_count` and `token_limit_usage` columns, and `evals_df` configuration columns gain `token_limit_type`.
+- CloudFlare (breaking): Provider is now `cloudflare` (was `cf`) and model names are passed verbatim from CloudFlare's catalog (e.g. `cloudflare/@cf/meta/llama-3.1-8b-instruct` or `cloudflare/moonshotai/kimi-k3`).
+- CloudFlare: Context window overflow (now signalled via HTTP 413) is again reported as a `model_length` stop reason rather than raising an error.
+- Model Info: Update to latest models in TogetherAI model database.
+- Model Info: Added Moonshot AI Kimi K3 to the model database (1M token context window).
 - Control Channel: `inspect ctl sample list` now shows per-sample turn count and, when a token limit is configured, its computed usage and configured ceiling.
 - Control Channel: `inspect ctl task cancel` and `inspect ctl sample cancel` gain an `--action` option (`score`/`error`/`cancel`) selecting how samples are resolved, so a cancelled eval can still complete (replaces `inspect ctl sample cancel --error`).
 - Control Channel: `inspect ctl sample errors` now filters errored/retried samples server-side, so triage polls of large evals no longer build and ship the full sample listing.
@@ -15,6 +60,9 @@
 - Control Channel: `inspect ctl sample events` now accepts `--type all` (shell-safe spelling of `--type '*'`) and `--from-start` to read the full backlog from the first event.
 - Control Channel: `inspect ctl sample events` gains `--limit N` to cap the events returned per page (combinable with `--from-start`, `--tail`, or a cursor).
 - Control Channel: New `--json` flag for `inspect eval`, `inspect eval-set`, and `inspect eval-retry` emits machine-readable launch-handoff and `done` JSON lines on stdout, so agents can use `inspect ctl` immediately after launch instead of sleep-and-retrying.
+- Control Channel: New `--detach` flag for `inspect eval`, `inspect eval-set`, and `inspect eval-retry` runs the eval in the background — the command prints the launch record and returns once the control endpoint is bound, leaving the eval running detached from the terminal (monitor with `inspect ctl task list`).
+- CLI: `inspect trace anomalies` and `inspect trace http` gain a `--json` flag emitting machine-readable output for agents and shell pipelines; the JSON always includes error/timeout buckets (no `--all` needed).
+- CLI: `inspect trace anomalies` no longer errors when `--filter` matches an action's completion record but not its start record.
 - CLI: `--debug` attach diagnostics ("Waiting for debugger attach") now print to stderr, keeping stdout clean for machine-readable output such as `--json`.
 - Control Channel: `inspect ctl sample show` now reads the sample's summary and error detail in one atomic request, so its output can no longer mix data from different attempts.
 - Control Channel: `inspect ctl sample show` now reports a cancelled sample as `cancelled`/`pending` (matching `sample list`) instead of `error` with the cancellation as its error.
@@ -31,6 +79,7 @@
 - Bugfix: Native compaction now truncates an oversized tool output before summarizing instead of crashing or silently summarizing an error when it would exceed the model's context window. (#3600)
 - Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
 - Bugfix: Nested `score_reducer` and `task_source` values in serialized task args now restore as instances rather than their registered factories. (#4374)
+- Bugfix: Properly resolve relative sample file paths and file URIs on windows (#4502)
 - Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
 - Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g. `/log-headers` ~3s -> ~0.3s, `/logs` ~1.5s -> ~0.06s).
 - Model Roles: `resolve_model_roles` now copies a `Model` passed by object (e.g. via `eval(model_roles=...)`) before stamping its role, so roles supplied through the Python API — not just `--model-role` — get a distinct instance and are not misattributed. (#4464)
