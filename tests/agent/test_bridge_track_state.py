@@ -233,6 +233,53 @@ async def test_sub_agent_loop_recovers_to_main_thread() -> None:
     assert len(bridge.state.messages) == len(turn4) + 1
 
 
+async def test_stray_descending_one_shot_does_not_displace_established_thread() -> None:
+    """A short stray descending one-shot can't displace an established thread.
+
+    The displacement gate's length arm compares against the tracked thread,
+    not the previous call: a short intervening side call must not re-open the
+    displacement window for a stray descending one-shot (e.g. a topic-detection
+    call that re-sends the original user message under its own system prompt).
+    """
+    bridge = task_bridge()
+
+    # main loop, then scaffold compaction: the compacted loop is promoted, so
+    # the tracked thread is non-descending with multiple calls
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "working")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "more work")
+
+    compact1: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content="Summary of the conversation so far: ..."),
+    ]
+    cout1 = await track(bridge, compact1, "compacted work")
+    compact2 = compact1 + [cout1.message, ChatMessageTool(content="tool result 2")]
+    await track(bridge, compact2, "Castle")
+
+    # short side call is parked (and lowers the previous-call message count)
+    await track(
+        bridge,
+        [ChatMessageUser(content="Detect the paths in this bash command: ls /tmp")],
+        "/tmp",
+    )
+
+    # stray descending one-shot: longer than the side call but shorter than
+    # the tracked thread, so it must not displace the real conversation
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "Doctor Who",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+    assert len(bridge.state.messages) == len(compact2) + 1
+
+
 async def test_single_final_call_reclaims_main_thread_after_sub_agent_loop() -> None:
     """One final main-loop call reclaims tracking from a promoted sub-agent loop.
 

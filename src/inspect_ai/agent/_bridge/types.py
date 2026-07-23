@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Sequence, Set
+from typing import NamedTuple, Sequence, Set
 
 from shortuuid import uuid
 
@@ -228,8 +228,9 @@ class AgentBridge:
           start with the initial input's non-system messages. A descending
           thread displaces a tracked non-descending thread when that thread is
           a one-shot call (the opencode title case) or when the descending
-          call is longer (the main loop reclaiming tracking from a promoted
-          sub-agent loop, below). A non-descending call never directly
+          call is longer than the tracked thread (the main loop reclaiming
+          tracking from a promoted sub-agent loop, below). A non-descending
+          call never directly
           displaces a tracked descending thread (side calls, sub-agent
           loops).
         - When descent can't discriminate (equal verdicts, or no initial input
@@ -265,21 +266,21 @@ class AgentBridge:
             if (
                 descends is True
                 and self._tracked_descends is False
-                and (
-                    self._tracked_calls == 1 or len(messages) > self._last_message_count
-                )
+                and (self._tracked_calls == 1 or len(messages) > len(self._tracked_fps))
             ):
                 # the real conversation displacing a non-descending thread:
                 # a one-shot side call that landed first (the opencode title
-                # case) or, when longer, a promoted multi-call sub-agent loop
-                # (a main loop resuming with a single final call would
-                # otherwise be parked as a candidate that nothing extends).
-                # a short stray descending one-shot still can't displace an
-                # established non-descending thread (flapping guard).
+                # case) or, when longer than the tracked thread, a promoted
+                # multi-call sub-agent loop (a main loop resuming with a
+                # single final call would otherwise be parked as a candidate
+                # that nothing extends). a short stray descending one-shot
+                # still can't displace an established non-descending thread
+                # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
-            elif descends != self._tracked_descends:
-                self._candidate_fps = fps
-            elif len(messages) > self._last_message_count:
+            elif (
+                descends == self._tracked_descends
+                and len(messages) > self._last_message_count
+            ):
                 # legacy length heuristic
                 self._adopt_thread(messages, output, fps, calls=1)
             else:
@@ -319,7 +320,7 @@ class AgentBridge:
         """
         if not self._initial_fps:
             return None
-        non_system = [fp for fp in fps if fp[0] != "system"]
+        non_system = [fp for fp in fps if fp.role != "system"]
         return non_system[: len(self._initial_fps)] == self._initial_fps
 
 
@@ -328,17 +329,20 @@ def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
 
 
-_MessageFingerprint = tuple[str, str]
-"""(role, hash-of-text) identity used for thread prefix comparisons.
+class _MessageFingerprint(NamedTuple):
+    """(role, hash-of-text) identity used for thread prefix comparisons.
 
-Deliberately excludes message ids and metadata: messages round-trip through
-the scaffold's own conversation store between calls, so only role and text
-content are stable across the main loop's successive requests.
-"""
+    Deliberately excludes message ids and metadata: messages round-trip through
+    the scaffold's own conversation store between calls, so only role and text
+    content are stable across the main loop's successive requests.
+    """
+
+    role: str
+    text_hash: str
 
 
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
-    return (message.role, mm3_hash(message.text))
+    return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
 
 
 def _extends(prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]) -> bool:
