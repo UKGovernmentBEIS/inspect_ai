@@ -294,7 +294,20 @@ persisted records enforce this:
   retry can actually resume from: resume only happens when a committed
   `ckpt-*.json` exists (`has_sample_checkpoint` gates it), so a
   zero-commit attempt's dir is never read — its retry re-runs fresh
-  and writes its own pin. Absent file ⇒ `"restic-incremental"` for
+  and writes its own pin. For remote destinations this claim needs one
+  stated ordering requirement: **the pin ships no later than the first
+  `ckpt-*.json`** — i.e. before the checkpoint-file tier in the safe
+  order. A fresh sample with a remote destination ships nothing at
+  hydration end (`hydrate` runs `host_egress` only on resume), so the
+  pin first travels with fire 1's egress; if it shipped after the
+  checkpoint file, a crash in that window would leave a resumable dir
+  (has `ckpt-00001.json`) with no pin, and the absent-file default
+  would produce exactly the spurious mismatch error the pin exists to
+  rule out. Today's `_safe_order` happens to give the right order (the
+  pin matches no named tier and the catch-all bucket ships before the
+  `ckpt-*.json` tier), but since §4.7's guarantees rest on this
+  crash-window ordering, it is a requirement here — not something
+  inherited by accident. Absent file ⇒ `"restic-incremental"` for
   every sandbox (pre-pin dirs).
 
 On resume/retry the core compares the pin against the currently
@@ -306,7 +319,13 @@ name unknown to the current build errors the same way, as does a
 configured sandbox with no pin entry — the sandbox set changed between
 attempts, which today surfaces only as a downstream copy failure
 (`_fs_copy_repo` raising on an empty source); the pin check turns it
-into the same clear, named error. Strategy
+into the same clear, named error. The mirror case — a pin entry whose
+sandbox is absent from this attempt's configuration (removed, or
+opted out via an empty `sandbox_paths` entry) — hard-errors too:
+today that state is silently lossy (the sandbox is simply not
+hydrated and its captured state dropped), and §4.7's goal is that a
+changed sandbox set surfaces as a clear error in either direction,
+with the same remedy stated. Strategy
 *migration* on resume is explicitly a non-goal. The result: the
 strategy that starts a sample's checkpoint lineage is the strategy for
 its lifetime, and a config change between attempts is a clear,
@@ -404,12 +423,17 @@ never fully buffered on the host, with only transient staging inside
 the sandbox (chunks during capture, §8; the staged archive during
 restore).
 
-- `setup`: verify `tar` exists (it's in effectively every image);
-  record compression availability. Nothing injected.
+- `setup`: verify `tar` and the hash tool `restore`'s verify step
+  needs (`sha256sum`) exist — both are in effectively every image, and
+  probing both here means a missing tool fails at provisioning rather
+  than at first restore; record compression availability. Nothing
+  injected.
 - `snapshot`: in-sandbox root `tar -c` of the include paths (with
   excludes), streamed out (§8), hashed in flight (`content_sha256`
-  recorded in details), shipped via
-  `AsyncFilesystem.write_file_streaming`. `size_bytes` = archive size.
+  recorded in details), shipped via the §8 sink-style streaming write
+  (the existing `AsyncFilesystem.write_file_streaming` takes a
+  complete source, which a chunk-at-a-time producer cannot supply).
+  `size_bytes` = archive size.
 - `restore`: fetch the archive for `ref` chunk-by-chunk via the
   copy-in counterpart of the §8 primitive — `exec` takes fully
   materialized `input` bytes, so a single stdin-stream of the whole
@@ -463,7 +487,23 @@ builds the shared primitive both need:
   already present — the producer is backpressure-gated on the host
   deleting chunks. The host loop waits for the next chunk,
   `read_file`s it with hash accumulation, feeds it to the destination
-  write, and deletes it. This bounds sandbox disk to about two chunks
+  write, and deletes it. The handoff protocol must be explicit on
+  three points, because `content_sha256` is minted host-side over the
+  bytes actually read — a torn read of a partially written chunk would
+  produce a corrupt archive whose recorded hash *matches*, passing
+  restore's verification and failing only at `tar -x` (or not at all):
+  **(a) chunk completeness** — the producer writes each chunk to a
+  temp name and `mv`s it to its final name (rename is atomic within
+  the staging dir), and the host keys only off final names, so a chunk
+  that exists is complete; **(b) end of stream** — after the pipe
+  drains the producer writes a done-marker file carrying the total
+  chunk count, so the host can distinguish "finished" from "slow";
+  **(c) producer failure** — the done-marker also carries the `tar`
+  pipeline's exit status, and the host treats a nonzero status — or a
+  producer that stops making progress without ever writing the marker
+  (a liveness timeout) — as a failed `snapshot()`, raising rather than
+  waiting forever on a detached producer that died mid-stream. This
+  bounds sandbox disk to about two chunks
   (one being produced, one being shipped) beyond the live data —
   meeting the "no staging repository inside the sandbox" goal within a
   couple of chunks' tolerance. The gating is essential: an ungated
