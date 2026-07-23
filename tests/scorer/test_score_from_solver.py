@@ -31,6 +31,30 @@ def test_solver_dict_score():
 
 
 @solver
+def no_scorer_solver_dict_with_str() -> Solver:
+    async def run(state: TaskState, generate: Generate) -> TaskState:
+        state.scores = {} if state.scores is None else state.scores
+        state.scores["review"] = Score(value={"base_val": 1, "note": "some text"})
+        return state
+
+    return run
+
+
+def test_solver_dict_score_default_metrics():
+    """Without task metrics, dict scores aggregate per numeric subscore."""
+    task = Task(
+        dataset=MemoryDataset([Sample(input="")]),
+        solver=no_scorer_solver_dict_with_str(),
+    )
+    eval_log = eval(tasks=task, model="mockllm/model")[0]
+    assert len(eval_log.results.scores) == 1
+    assert eval_log.results.scores[0].name == "base_val"
+    assert eval_log.results.scores[0].scorer == "review"
+    assert eval_log.results.scores[0].metrics["accuracy"].value == 1
+    assert "stderr" in eval_log.results.scores[0].metrics
+
+
+@solver
 def no_scorer_solver_simple() -> Solver:
     async def run(state: TaskState, generate: Generate) -> TaskState:
         state.scores = {} if state.scores is None else state.scores

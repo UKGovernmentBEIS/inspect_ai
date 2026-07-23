@@ -66,7 +66,7 @@ class ScorerInfo:
         return ScorerInfo(name=name, metrics=metrics, params=params, metadata=metadata)
 
     @staticmethod
-    def from_name(name: str) -> "ScorerInfo":
+    def from_name(name: str, values: Sequence[Value] | None = None) -> "ScorerInfo":
         from inspect_ai._eval.loader import scorer_from_spec
 
         # load the scorer to gather that scorer's metrics
@@ -76,13 +76,35 @@ class ScorerInfo:
             scorer = None
 
         # use the metrics if we were able to load the scorer
-        # otherwise, use the default metrics
+        # otherwise, use default metrics based on the score values
         if scorer is not None:
             metrics = scorer_metrics(scorer)
         else:
-            metrics = [accuracy(), stderr()]
+            metrics = _default_metrics_for_values(values or [])
 
         return ScorerInfo(name=name, metrics=metrics)
+
+
+def _default_metrics_for_values(values: Sequence[Value]) -> Metrics:
+    """Default metrics for scores that have no scorer or task metrics.
+
+    Dict-valued scores aggregate per numeric subscore: applying accuracy to
+    the dict itself only logs conversion warnings and yields 0. Only sub-keys
+    that are present and numeric on every sample are included, since metric
+    computation raises on missing keys.
+    """
+    if values and all(isinstance(value, Mapping) for value in values):
+        mappings = cast(Sequence[Mapping[str, Any]], values)
+        shared_keys = set(mappings[0].keys())
+        for mapping in mappings[1:]:
+            shared_keys &= set(mapping.keys())
+        return {
+            str(key): [accuracy(), stderr()]
+            for key in sorted(shared_keys)
+            if all(isinstance(mapping[key], (int, float)) for mapping in mappings)
+        }
+
+    return [accuracy(), stderr()]
 
 
 def eval_results(
@@ -122,8 +144,14 @@ def eval_results(
     for sample_scores in scores:
         for name, sample_score in sample_scores.items():
             if sample_score.scorer is None and name not in resolved_scorer_names:
-                # the scorer info for this score
-                scorer_info = ScorerInfo.from_name(name)
+                # the scorer info for this score (all of the score's values
+                # inform the default metrics when no scorer can be loaded)
+                values = [
+                    other_scores[name].score.value
+                    for other_scores in scores
+                    if name in other_scores
+                ]
+                scorer_info = ScorerInfo.from_name(name, values)
 
                 # resolve the task scores
                 if metrics is not None:

@@ -527,6 +527,88 @@ async def test_add_new_score_with_recompute_metrics():
     assert log.results.scores[0].metrics["mean"].value == original_mean
 
 
+@pytest.mark.anyio
+async def test_add_new_score_aggregates_with_default_metrics():
+    """Test that a created scalar score aggregates via the default metrics."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "new_custom_score",
+        ScoreEdit(value=0.5),
+        recompute_metrics=False,
+    )
+    edit_score(
+        log,
+        log.samples[1].id,
+        "new_custom_score",
+        ScoreEdit(value=1.0),
+        recompute_metrics=False,
+    )
+    recompute_metrics(log)
+
+    new_result = next(s for s in log.results.scores if s.name == "new_custom_score")
+    assert new_result.metrics["accuracy"].value == 0.75
+    assert "stderr" in new_result.metrics
+
+
+@pytest.mark.anyio
+async def test_add_new_dict_score_aggregates_numeric_subscores():
+    """Test that a created dict score aggregates its numeric subscores."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "review",
+        ScoreEdit(value={"quality": 4, "note": "needs work"}),
+        recompute_metrics=False,
+    )
+    edit_score(
+        log,
+        log.samples[1].id,
+        "review",
+        ScoreEdit(value={"quality": 2, "note": "fine"}),
+        recompute_metrics=False,
+    )
+    recompute_metrics(log)
+
+    quality_result = next(s for s in log.results.scores if s.name == "quality")
+    assert quality_result.scorer == "review"
+    assert quality_result.metrics["accuracy"].value == 3.0
+    assert all(s.name != "note" for s in log.results.scores)
+
+
+@pytest.mark.anyio
+async def test_add_new_dict_score_mixed_shapes_aggregates_shared_keys():
+    """Test that dict scores with differing keys aggregate only shared keys."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "review",
+        ScoreEdit(value={"quality": 4, "extra": 1}),
+        recompute_metrics=False,
+    )
+    edit_score(
+        log,
+        log.samples[1].id,
+        "review",
+        ScoreEdit(value={"quality": 2}),
+        recompute_metrics=False,
+    )
+    recompute_metrics(log)
+
+    quality_result = next(s for s in log.results.scores if s.name == "quality")
+    assert quality_result.metrics["accuracy"].value == 3.0
+    assert all(s.name != "extra" for s in log.results.scores)
+
+
 @solver
 def solver_writes_score() -> Solver:
     async def run(state: TaskState, generate: Generate) -> TaskState:
