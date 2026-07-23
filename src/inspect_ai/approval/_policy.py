@@ -1,12 +1,12 @@
 import fnmatch
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Generator
 
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
+from inspect_ai._util.file import exists
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.registry import registry_create, registry_lookup
 from inspect_ai.model._chat_message import ChatMessage
@@ -138,7 +138,7 @@ def read_approval_policies(file: str) -> list[ApprovalPolicy]:
     Args:
         file: JSON or YAML config file with approval policies.
     """
-    if not Path(file).exists():
+    if not exists(file):
         raise FileNotFoundError(f"Approval policy file not found: {file}")
     return approval_policies_from_config(file)
 
@@ -159,7 +159,7 @@ def approval_policies_from_config(
 
     # resolve config if its a string
     if isinstance(policy_config, str):
-        if Path(policy_config).exists():
+        if exists(policy_config):
             policy_config = read_policy_config(policy_config)
         elif registry_lookup("approver", policy_config):
             policy_config = ApprovalPolicyConfig(

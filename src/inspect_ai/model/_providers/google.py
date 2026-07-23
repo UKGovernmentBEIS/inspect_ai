@@ -765,7 +765,7 @@ class GoogleGenAIAPI(ModelAPI):
         # context window / compaction match. Bump when a newer frontier ships.
         # Mirrors OpenAI's and Anthropic's input_tokens_name() aliasing.
         if self.is_gemini() and _get_model_info_direct(self.canonical_name()) is None:
-            return "google/gemini-3.5-flash"
+            return "google/gemini-3.6-flash"
         return super().input_tokens_name()
 
     def is_latest(self) -> bool:

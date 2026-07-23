@@ -28,6 +28,8 @@ KNOWN_MODELS = [
     "gemini-2.5-pro",
     "gemini-3-pro",
     "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
 ]
 
 NON_GENERATIVE_MODELS = [
@@ -83,7 +85,7 @@ def test_flash_codename_supports_minimal_thinking() -> None:
 def test_codename_aliases_to_frontier_context_window(model_name: str) -> None:
     # input_tokens_name() aliases to the current frontier so the context window
     # resolves correctly instead of falling back to the 128K default.
-    assert _api(model_name).input_tokens_name() == "google/gemini-3.5-flash"
+    assert _api(model_name).input_tokens_name() == "google/gemini-3.6-flash"
 
 
 @pytest.mark.parametrize("model_name", KNOWN_MODELS)
@@ -98,7 +100,7 @@ def test_future_gemini_version_aliases_to_frontier() -> None:
     api = _api("gemini-4-pro")
     assert api.is_latest() is False
     assert api.is_gemini_3_plus() is True
-    assert api.input_tokens_name() == "google/gemini-3.5-flash"
+    assert api.input_tokens_name() == "google/gemini-3.6-flash"
 
 
 def test_latest_scoped_to_dev_endpoint() -> None:
