@@ -82,7 +82,11 @@ class ModelEvent(BaseEvent):
     """Output from model."""
 
     retries: int | None = Field(default=None)
-    """Retries for the model API request."""
+    """Legacy retry count.
+
+    On terminal post-fix events, mirrors ``http_retries`` if non-zero, else
+    ``call_retries``. Prefer ``call_retries`` and ``http_retries`` for new code.
+    """
 
     error: str | None = Field(default=None)
     """Error which occurred during model call."""
@@ -100,13 +104,49 @@ class ModelEvent(BaseEvent):
     """Raw call made to model API."""
 
     completed: UtcDatetime | None = Field(default=None)
-    """Time that model call completed (see `timestamp` for started)"""
+    """Time this attempt completed."""
 
     working_time: float | None = Field(default=None)
-    """working time for model call that succeeded (i.e. was not retried)."""
+    """Working-clock duration of this attempt."""
+
+    call_id: str | None = Field(default=None)
+    """Stable id shared by all ModelEvents from one logical generate call."""
+
+    attempt: int | None = Field(default=None)
+    """1-based outer-attempt number within ``call_id``. None on legacy logs."""
+
+    call_started_at: UtcDatetime | None = Field(default=None)
+    """Wall-clock time the logical generate call began. Terminal event only."""
+
+    call_completed_at: UtcDatetime | None = Field(default=None)
+    """Wall-clock time the logical generate call completed. Terminal event only."""
+
+    call_working_start: float | None = Field(default=None)
+    """Sample working-clock value when the logical generate call began."""
+
+    call_working_time: float | None = Field(default=None)
+    """Logical generate working-clock duration. Terminal event only."""
+
+    call_retries: int | None = Field(default=None)
+    """Number of outer Tenacity retries actually scheduled. Terminal event only."""
+
+    http_retries: int | None = Field(default=None)
+    """Total retry signals reported via ``report_http_retry``. Terminal event only."""
 
     @field_serializer("completed")
     def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        return datetime_to_iso_format_safe(dt)
+
+    @field_serializer("call_started_at")
+    def serialize_call_started_at(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        return datetime_to_iso_format_safe(dt)
+
+    @field_serializer("call_completed_at")
+    def serialize_call_completed_at(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
         return datetime_to_iso_format_safe(dt)

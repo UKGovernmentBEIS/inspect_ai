@@ -16,10 +16,9 @@ from inspect_ai._util.registry import (
     registry_find,
     registry_name,
 )
-from inspect_ai.event import Event
+from inspect_ai.event._event import Event
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
-from inspect_ai.log._samples import sample_active
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelUsage
@@ -245,6 +244,12 @@ class ModelUsageData:
     """The name of the task that generated this usage (if any)."""
     retries: int = 0
     """The number of HTTP retries made before the successful call."""
+    call_retries: int | None = None
+    """The number of outer model-generate retries scheduled before success."""
+    http_retries: int | None = None
+    """The number of HTTP/provider retry signals before success."""
+    call_working_time: float | None = None
+    """Logical model-generate working time, excluding retry sleeps."""
 
 
 @dataclass(frozen=True)
@@ -590,13 +595,12 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
 
     def wrapper(hook_type: Type[T] | Callable[..., Type[T]]) -> Type[T]:
         # Resolve the hook type if it's a function.
-        if not isinstance(hook_type, type):
-            hook_type = hook_type()
-        if not issubclass(hook_type, Hooks):
-            raise TypeError(f"Hook must be a subclass of Hooks, got {hook_type}")
+        hook_class = hook_type if isinstance(hook_type, type) else hook_type()
+        if not issubclass(hook_class, Hooks):
+            raise TypeError(f"Hook must be a subclass of Hooks, got {hook_class}")
 
         # Instantiate an instance of the Hooks class.
-        hook_instance = hook_type()
+        hook_instance = hook_class()
         hook_name = registry_name(hook_instance, name)
         registry_add(
             hook_instance,
@@ -604,7 +608,7 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
                 type="hooks", name=hook_name, metadata={"description": description}
             ),
         )
-        return hook_type
+        return cast(Type[T], hook_class)
 
     return wrapper
 
@@ -703,6 +707,8 @@ def emit_sample_event(
     sample_id: str,
     event: Event,
 ) -> None:
+    from inspect_ai.log._samples import sample_active
+
     active = sample_active()
     if active is None or active.event_send is None:
         return
@@ -726,6 +732,8 @@ def start_sample_event_emitter() -> None:
 
     Must be called after active.start(tg) so that the task group is available.
     """
+    from inspect_ai.log._samples import sample_active
+
     active = sample_active()
     if active is None or active.tg is None:
         return
@@ -763,6 +771,8 @@ async def drain_sample_events() -> None:
     Must be called before emit_sample_end() to ensure all queued events are
     delivered before the sample end hook fires.
     """
+    from inspect_ai.log._samples import sample_active
+
     active = sample_active()
     if active is None:
         return
@@ -889,7 +899,12 @@ async def emit_sample_attempt_end(
 
 
 async def emit_model_usage(
-    model_name: str, usage: ModelUsage, call_duration: float
+    model_name: str,
+    usage: ModelUsage,
+    call_duration: float,
+    call_retries: int | None = None,
+    http_retries: int | None = None,
+    call_working_time: float | None = None,
 ) -> None:
     from inspect_ai.log._samples import sample_active
 
@@ -922,6 +937,9 @@ async def emit_model_usage(
         eval_id=eval_id,
         task_name=task_name,
         retries=retries,
+        call_retries=call_retries,
+        http_retries=http_retries,
+        call_working_time=call_working_time,
     )
     await _emit_to_all(lambda hook: hook.on_model_usage(data))
 
@@ -932,6 +950,8 @@ async def emit_model_cache_usage(model_name: str, usage: ModelUsage) -> None:
 
 
 async def emit_model_retry(model_name: str, attempt: int, wait_time: float) -> None:
+    from inspect_ai.log._samples import sample_active
+
     # Read eval context from the active sample contextvar (if available).
     active = sample_active()
     eval_set_id: str | None = None

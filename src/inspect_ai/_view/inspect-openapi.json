@@ -7193,6 +7193,17 @@
       "ModelEvent": {
         "description": "Call to a language model.",
         "properties": {
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
+          },
           "cache": {
             "anyOf": [
               {
@@ -7217,6 +7228,72 @@
                 "type": "null"
               }
             ]
+          },
+          "call_completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Completed At"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "call_retries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Retries"
+          },
+          "call_started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Started At"
+          },
+          "call_working_start": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Working Start"
+          },
+          "call_working_time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Working Time"
           },
           "completed": {
             "anyOf": [
@@ -7248,6 +7325,17 @@
             "default": "model",
             "title": "Event",
             "type": "string"
+          },
+          "http_retries": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Http Retries"
           },
           "input": {
             "items": {
