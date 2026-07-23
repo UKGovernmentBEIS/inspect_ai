@@ -84,6 +84,18 @@ class AgentBridge:
         self._compaction = compaction
         self._compact: Compact | None = None
         self._last_message_count = 0
+        # thread-tracking state for _track_state (see its docstring). the
+        # descent anchor is the initial input (via _compaction_prefix, which
+        # restores to the original input on checkpoint resume).
+        self._initial_fps = [
+            _message_fingerprint(m)
+            for m in self._compaction_prefix
+            if m.role != "system"
+        ]
+        self._tracked_fps: list[_MessageFingerprint] | None = None
+        self._tracked_calls = 0
+        self._tracked_descends: bool | None = None
+        self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
 
@@ -199,25 +211,122 @@ class AgentBridge:
     _message_ids: dict[str, list[str]]
 
     async def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
-        # automatically track agent state based on observing generations made through
-        # the bridge. we need to distinguish between the "main" thread of generation
-        # and various types of side / sub-agent calls to the model (e.g. claude code
-        # does bash path detection using a side call). our heuristic is to keep the
-        # number of messages that were in the _last_ generation, and to update the
-        # state whenever the total messages exceeds it. this should pick up normal
-        # agent loops that keep appending, while at the same time discarding side model
-        # calls that tend to be shorter. finally, this should handle recovering from
-        # history compaction, which will shorten the message history considerably
+        """Track agent state by observing generations made through the bridge.
+
+        We need to distinguish the "main" thread of generation from side /
+        sub-agent model calls (e.g. claude code does bash path detection with a
+        side call; opencode names the session with a title-generation call).
+        Message counts alone can't do this: a side call that is longer than the
+        main conversation (opencode's title call fires before the main loop's
+        first call and carries an extra preamble message) would permanently
+        displace the real conversation. Instead we track thread identity:
+
+        - A call whose messages extend the tracked thread (the tracked messages
+          are a prefix of it, compared by role + text) always updates the state.
+        - Otherwise the call starts a new thread and we consult *descent*: a
+          thread descends from the initial input if its non-system messages
+          start with the initial input's non-system messages. A descending
+          thread displaces a tracked one-shot non-descending call (the opencode
+          title case), while a non-descending call never displaces a tracked
+          descending thread (side calls, sub-agent loops).
+        - When descent can't discriminate (equal verdicts, or no initial input
+          to anchor on — e.g. a scaffold that rewrites the input prompt), fall
+          back to the legacy length heuristic: adopt the new thread when it has
+          more messages than the previous generation.
+        - A new thread that isn't adopted is remembered as a candidate; if the
+          next call extends it, it's a live agent loop and is promoted. This is
+          what recovers tracking after history compaction (scaffold-side
+          compaction replaces the conversation with a summary, so the
+          post-compaction loop neither extends the tracked thread nor descends
+          from the initial input).
+        """
         messages = input + [output.message]
-        if len(messages) > self._last_message_count:
-            self.state.messages = messages
-            self.state.output = output
+        fps = [_message_fingerprint(m) for m in messages]
+
+        if self._tracked_fps is None:
+            # first observed call: best information available so far (if it is
+            # a side call the rules below displace it later)
+            self._adopt_thread(messages, output, fps, calls=1)
+        elif _extends(self._tracked_fps, fps):
+            self._adopt_thread(messages, output, fps, calls=self._tracked_calls + 1)
+        elif self._candidate_fps is not None and _extends(self._candidate_fps, fps):
+            # the candidate got continued so it is a live agent loop (e.g. the
+            # post-compaction conversation): promote it over the tracked thread
+            self._adopt_thread(messages, output, fps, calls=2)
+        else:
+            descends = self._descends_from_initial(fps)
+            if (
+                descends is True
+                and self._tracked_descends is False
+                and self._tracked_calls == 1
+            ):
+                # the real conversation displacing a one-shot side call that
+                # landed first (an established multi-call thread is instead
+                # reclaimed via candidate promotion to avoid flapping)
+                self._adopt_thread(messages, output, fps, calls=1)
+            elif descends != self._tracked_descends:
+                self._candidate_fps = fps
+            elif len(messages) > self._last_message_count:
+                # legacy length heuristic
+                self._adopt_thread(messages, output, fps, calls=1)
+            else:
+                self._candidate_fps = fps
+
         self._last_message_count = len(messages)
 
         # tick the checkpointer
         await self._cp.tick()
 
+    def _adopt_thread(
+        self,
+        messages: list[ChatMessage],
+        output: ModelOutput,
+        fps: list["_MessageFingerprint"],
+        calls: int,
+    ) -> None:
+        """Make `messages` the tracked main thread (see `_track_state`).
+
+        `calls` is the number of bridge calls attributed to the thread; it
+        gates displacement of one-shot calls by descending threads.
+        """
+        self.state.messages = messages
+        self.state.output = output
+        self._tracked_fps = fps
+        self._tracked_calls = calls
+        self._tracked_descends = self._descends_from_initial(fps)
+        self._candidate_fps = None
+
+    def _descends_from_initial(self, fps: list["_MessageFingerprint"]) -> bool | None:
+        """Whether a thread's non-system messages start with the initial input.
+
+        Returns `None` when there is no initial input to anchor on (descent
+        can't discriminate threads, so `_track_state` falls back to the legacy
+        length heuristic).
+        """
+        if not self._initial_fps:
+            return None
+        non_system = [fp for fp in fps if fp[0] != "system"]
+        return non_system[: len(self._initial_fps)] == self._initial_fps
+
 
 @lru_cache(maxsize=100)
 def message_json_hash(message_json: str) -> str:
     return mm3_hash(message_json)
+
+
+_MessageFingerprint = tuple[str, str]
+"""(role, hash-of-text) identity used for thread prefix comparisons.
+
+Deliberately excludes message ids and metadata: messages round-trip through
+the scaffold's own conversation store between calls, so only role and text
+content are stable across the main loop's successive requests.
+"""
+
+
+def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
+    return (message.role, mm3_hash(message.text))
+
+
+def _extends(prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]) -> bool:
+    """Whether `fps` is a proper extension (continuation) of `prefix`."""
+    return len(fps) > len(prefix) and fps[: len(prefix)] == prefix

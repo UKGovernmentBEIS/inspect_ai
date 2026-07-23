@@ -12,6 +12,7 @@
 - OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
 - Google: Added model info for Gemini 3.6 Flash and Gemini 3.5 Flash-Lite (released 2026-07-21).
 - Agent Bridge: Support Anthropic clients that consume responses via `with_raw_response`, which previously failed with `'Message' object has no attribute 'parse'`.
+- Agent Bridge: Side model calls (e.g. opencode's session title generation) can no longer replace the agent's real conversation in the tracked agent state. (meridianlabs-ai/inspect_ai#140)
 - Sandbox: `Sandbox.exec` failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.
 - Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
 - Registry: Add a `validation_predicate` type for Scout extensions.
