@@ -280,6 +280,44 @@ async def test_stray_descending_one_shot_does_not_displace_established_thread() 
     assert len(bridge.state.messages) == len(compact2) + 1
 
 
+async def test_stray_descending_one_shot_does_not_displace_descending_thread() -> None:
+    """Same lowered-bar guard for a *descending* tracked thread.
+
+    With an intact (descending) main loop, a stray descending one-shot lands
+    in the equal-verdict legacy arm; that arm must compare against the tracked
+    thread, not the previous call, so a short intervening side call can't
+    re-open the displacement window.
+    """
+    bridge = task_bridge()
+
+    # intact main loop runs to its final answer (tracked thread descending)
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "working")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle")
+
+    # short side call is parked (and lowers the previous-call message count)
+    await track(
+        bridge,
+        [ChatMessageUser(content="Detect the paths in this bash command: ls /tmp")],
+        "/tmp",
+    )
+
+    # stray descending one-shot: longer than the side call but shorter than
+    # the tracked thread, so it must not displace the real conversation
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "Doctor Who",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+    assert len(bridge.state.messages) == len(turn2) + 1
+
+
 async def test_single_final_call_reclaims_main_thread_after_sub_agent_loop() -> None:
     """One final main-loop call reclaims tracking from a promoted sub-agent loop.
 

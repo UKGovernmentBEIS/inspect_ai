@@ -235,8 +235,10 @@ class AgentBridge:
           loops).
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
-          back to the legacy length heuristic: adopt the new thread when it has
-          more messages than the previous generation.
+          back to the legacy length heuristic: adopt the new thread when it
+          has more messages than the previous generation (or, when both
+          threads descend, than the tracked thread — so a parked side call
+          can't lower the bar for a stray descending one-shot).
         - A new thread that isn't adopted is remembered as a candidate; if the
           next call extends it, it's a live agent loop and is promoted. This is
           what recovers tracking after history compaction (scaffold-side
@@ -277,11 +279,16 @@ class AgentBridge:
                 # still can't displace an established non-descending thread
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
-            elif (
-                descends == self._tracked_descends
-                and len(messages) > self._last_message_count
+            elif descends == self._tracked_descends and len(messages) > (
+                len(self._tracked_fps) if descends is True else self._last_message_count
             ):
-                # legacy length heuristic
+                # legacy length heuristic. when both threads descend, compare
+                # against the tracked thread so a parked side call can't lower
+                # the bar for a stray descending one-shot; for False/None
+                # verdicts keep the previous-call comparison — a scaffold that
+                # rewrites message text every call (breaking fingerprint
+                # continuity and descent) recovers from compaction only
+                # through it.
                 self._adopt_thread(messages, output, fps, calls=1)
             else:
                 self._candidate_fps = fps
