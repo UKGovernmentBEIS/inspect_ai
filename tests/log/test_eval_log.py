@@ -495,6 +495,31 @@ def test_read_eval_log_full_trio():
     anyio.run(main, backend="trio")
 
 
+def test_read_eval_log_exclude_fields_trio():
+    """Reading a .eval log with exclude_fields works under the Trio backend.
+
+    exclude_fields routes through ijson's streaming parse_async, whose default
+    yajl2_c backend is asyncio-only and raises "trio.run received unrecognized
+    yield message None" under trio. This pins the pure-Python fallback.
+    """
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_async
+
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            log = await read_eval_log_async(eval_log_file, exclude_fields={"messages"})
+
+        assert log.eval is not None
+        assert log.samples is not None
+        assert len(log.samples) > 0
+
+    anyio.run(main, backend="trio")
+
+
 def test_read_eval_log_sample_trio():
     """Test reading a sample from .eval log works under the Trio backend."""
     import anyio
