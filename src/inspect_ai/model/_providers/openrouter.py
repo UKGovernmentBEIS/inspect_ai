@@ -80,6 +80,11 @@ class OpenRouterAPI(OpenAICompatibleAPI):
     OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Set
     `cache_prompt=False` in `GenerateConfig` to disable. Cache writes returned
     by the upstream provider are surfaced as `ModelUsage.input_tokens_cache_write`.
+
+    OpenRouter reports the actual billed `cost` (plus `upstream_inference_cost`
+    for BYOK requests) on every response; this provider surfaces their sum as
+    `ModelUsage.total_cost`, taking precedence over inspect's local per-token
+    pricing estimate (which is often unavailable for OpenRouter-routed models).
     """
 
     def __init__(
@@ -142,6 +147,13 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # Completions API itself is permissive. Coalesce adjacent system
         # messages so the canonical request has a single leading system
         # message regardless of which provider OpenRouter selects.
+        return True
+
+    @override
+    def reports_usage_cost(self) -> bool:
+        # OpenRouter returns the actual billed cost on every response (surfaced
+        # on ModelUsage.total_cost by _apply_reported_cost), so a cost_limit can
+        # be enforced at runtime even for models with no static pricing entry.
         return True
 
     @override
@@ -300,13 +312,17 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # Delegate to the OpenAI-compatible base and post-process usage to
-        # surface Anthropic-style cache_creation_input_tokens (which OpenRouter
-        # passes through for Anthropic-routed models but the base does not parse).
+        # surface (1) Anthropic-style cache_creation_input_tokens (which
+        # OpenRouter passes through for Anthropic-routed models but the base
+        # does not parse) and (2) OpenRouter's reported per-request cost (which
+        # the OpenAI usage parser drops, leaving inspect to fall back to its
+        # local pricing DB — unavailable for many OpenRouter-routed models).
         result = await super().generate(input, tools, tool_choice, config)
         if isinstance(result, tuple):
             output, call = result
             if isinstance(output, ModelOutput):
                 _apply_cache_creation_usage(output, call)
+                _apply_reported_cost(output, call)
         return result
 
     @override
@@ -505,3 +521,38 @@ def _apply_cache_creation_usage(output: ModelOutput, call: ModelCall | None) -> 
         return
     output.usage.input_tokens_cache_write = cw
     output.usage.input_tokens = max(0, output.usage.input_tokens - cw)
+
+
+def _apply_reported_cost(output: ModelOutput, call: ModelCall | None) -> None:
+    """Surface OpenRouter's reported cost on ``ModelUsage.total_cost``.
+
+    OpenRouter always includes a ``cost`` field (the total amount charged to
+    your account) on the response usage object, and — for BYOK (Bring Your Own
+    Key) requests only — ``cost_details.upstream_inference_cost`` (the cost
+    billed directly by the upstream provider via your own key). The true spend
+    is the sum: for non-BYOK requests ``upstream_inference_cost`` is 0/null, so
+    it reduces to ``cost``; for BYOK requests ``cost`` is only OpenRouter's fee
+    and the inference itself is captured by ``upstream_inference_cost``.
+
+    This value takes precedence over inspect's per-token estimate:
+    ``record_and_check_model_usage`` skips the pricing-database computation when
+    ``total_cost`` is already populated.
+    """
+    if call is None or output.usage is None:
+        return
+    raw = call.response if isinstance(call.response, dict) else None
+    usage = raw.get("usage") if raw else None
+    if not isinstance(usage, dict):
+        return
+    cost = usage.get("cost")
+    # bool is a subclass of int; reject it explicitly so a stray True/False
+    # in the response can't be read as a 1.0/0.0 cost.
+    if not isinstance(cost, (int, float)) or isinstance(cost, bool):
+        return
+    total = float(cost)
+    details = usage.get("cost_details")
+    if isinstance(details, dict):
+        upstream = details.get("upstream_inference_cost")
+        if isinstance(upstream, (int, float)) and not isinstance(upstream, bool):
+            total += float(upstream)
+    output.usage.total_cost = total

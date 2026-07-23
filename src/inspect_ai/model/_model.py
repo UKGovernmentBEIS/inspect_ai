@@ -506,6 +506,17 @@ class ModelAPI(abc.ABC):
         """Tool results can be replayed to the model with documents."""
         return False
 
+    def reports_usage_cost(self) -> bool:
+        """Whether this provider reports the actual cost of each request.
+
+        Providers that return a per-request cost on the response (e.g.
+        OpenRouter via ``usage.cost``) surface it on ``ModelUsage.total_cost``.
+        When True, a ``cost_limit`` can be enforced at runtime even if the model
+        has no entry in Inspect's static pricing database. Defaults to False
+        (cost is derived from static per-token pricing when available).
+        """
+        return False
+
     def disable_computer_screenshot_truncation(self) -> bool:
         """Some models do not support truncation of computer screenshots."""
         return False
@@ -2487,9 +2498,13 @@ def record_and_check_model_usage(
     # provider-resolving) lookup: the model is already instantiated, so falling
     # back to get_model() here would re-instantiate it (reloading local weights).
     info = _get_model_info_direct(model)
-    total_cost: float | None = None
+    # A provider may have already populated total_cost from the actual billed
+    # cost on the API response (e.g. OpenRouter returns `usage.cost`). Prefer
+    # that authoritative value over the local per-token estimate; only fall
+    # back to the pricing database when no reported cost is available.
+    total_cost: float | None = usage.total_cost
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
-    if info is not None and info.cost is not None:
+    if total_cost is None and info is not None and info.cost is not None:
         total_cost = compute_model_cost(info.cost, usage)
         usage.total_cost = total_cost
 

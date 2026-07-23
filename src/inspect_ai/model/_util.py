@@ -48,6 +48,11 @@ def resolve_model_costs(
         missing: list[str] = []
         for model in models:
             model_name = f"{model}"
+            # A provider that reports the actual cost of each request (e.g.
+            # OpenRouter) lets the cost_limit be enforced at runtime, so it
+            # doesn't need a static pricing entry here.
+            if model.api.reports_usage_cost():
+                continue
             # direct (non provider-resolving) lookup: these models are already
             # instantiated, so resolving a provider here would re-instantiate
             # them (reloading local weights)

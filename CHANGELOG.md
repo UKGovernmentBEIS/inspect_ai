@@ -126,7 +126,7 @@
 - Hugging Face: Add an `auto_model_class` model arg to select the `transformers` auto-class used to load the model, so architectures not registered with `AutoModelForCausalLM` (e.g. the Mistral 3 series and other image-text-to-text models) can be loaded with e.g. `AutoModelForImageTextToText`. (#4438)
 - Inspect View: Validate Host and browser origins, prevent framing, and require authorization or explicit acknowledgement for non-loopback binds.
 - Limits: Token limits can now meter only output tokens via `token_limit(n, type="output")`, `Task`/`eval()` `token_limit=TokenLimit(...)` values, or string forms like `--token-limit output:1m` (with `k`/`m`/`b` magnitude suffixes).
-- Performance: make `stable_message_ids()` linear per turn.
+- OpenRouter: Surface the provider-reported per-request cost (summing `cost` and, for BYOK routes, `cost_details.upstream_inference_cost`) as `ModelUsage.total_cost`, taking precedence over Inspect's local per-token estimate; a `cost_limit` may now be used with OpenRouter models even when they have no static pricing entry (enforced at runtime from the reported cost).
 - Performance: Reading `.eval` logs now looks up zip members via a cached O(1) name index instead of an O(members) scan per member, removing quadratic (O(members²)) overhead when loading logs with many samples (e.g. `read_eval_log`, `eval-retry`, `samples_df(full=True)`).
 - Sandbox: Validate sandbox-service names and request IDs, bind response paths to request filenames, and prevent queue filenames from being interpreted as shell commands.
 - Scoring: Fix edge case where `pattern` `match_all=True` could incorrectly return the target value when no matches were present.
