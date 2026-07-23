@@ -213,7 +213,7 @@ async def subprocess(
 
     # run command. `resizable=True` backs the limit with a ResizableLimiter so
     # the control channel's modify-limits directive can retune max_subprocesses
-    # mid-eval (see design/control-channel.md phase 3); registered before
+    # mid-eval (see design/ctl/control-channel.md phase 3); registered before
     # acquiring so a retune lands even while every slot is held.
     concurrency_ctx: contextlib.AbstractAsyncContextManager[object]
     if concurrency:

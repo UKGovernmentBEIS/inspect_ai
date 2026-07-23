@@ -35,7 +35,8 @@ var t = o$1(((exports) => {
 		XMLNS: `http://www.w3.org/2000/xmlns/`
 	});
 	exports.assign = r, exports.find = t, exports.freeze = n, exports.MIME_TYPE = i, exports.NAMESPACE = a;
-})), n = o$1(((exports) => {
+}));
+var n = o$1(((exports) => {
 	var n = t(), r = n.find, i = n.NAMESPACE;
 	function a(e) {
 		return e !== ``;
@@ -788,7 +789,8 @@ var t = o$1(((exports) => {
 		}
 	} catch {}
 	exports.DocumentType = Z, exports.DOMException = A, exports.DOMImplementation = R, exports.Element = J, exports.Node = z, exports.NodeList = j, exports.XMLSerializer = ye;
-})), r = o$1(((exports) => {
+}));
+var r = o$1(((exports) => {
 	var n = t().freeze;
 	exports.XML_ENTITIES = n({
 		amp: `&`,
@@ -2924,7 +2926,8 @@ var t = o$1(((exports) => {
 		zwj: `‍`,
 		zwnj: `‌`
 	}), exports.entityMap = exports.HTML_ENTITIES;
-})), i = o$1(((exports) => {
+}));
+var i = o$1(((exports) => {
 	var n = t().NAMESPACE, r = /[A-Z_a-z\xC0-\xD6\xD8-\xF6\u00F8-\u02FF\u0370-\u037D\u037F-\u1FFF\u200C-\u200D\u2070-\u218F\u2C00-\u2FEF\u3001-\uD7FF\uF900-\uFDCF\uFDF0-\uFFFD]/, i = RegExp(`[\\-\\.0-9` + r.source.slice(1, -1) + `\\u00B7\\u0300-\\u036F\\u203F-\\u2040]`), a = RegExp(`^` + r.source + i.source + `*(?::` + r.source + i.source + `*)?$`), o = 0, s = 1, c = 2, l = 3, u = 4, d = 5, f = 6, p = 7;
 	function m(e, t) {
 		this.message = e, this.locator = t, Error.captureStackTrace && Error.captureStackTrace(this, m);
@@ -3186,7 +3189,8 @@ var t = o$1(((exports) => {
 		for (i.lastIndex = t, i.exec(e); n = i.exec(e);) if (r.push(n), n[1]) return r;
 	}
 	exports.XMLReader = h, exports.ParseError = m;
-})), a = o$1(((exports) => {
+}));
+var a = o$1(((exports) => {
 	var a = t(), o = n(), s = r(), c = i(), l = o.DOMImplementation, u = a.NAMESPACE, d = c.ParseError, f = c.XMLReader;
 	function p(e) {
 		return e.replace(/\r[\n\u0085]/g, `

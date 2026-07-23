@@ -5451,7 +5451,13 @@ var _tmpl$$8 = /*#__PURE__*/ template(`<svg xmlns="http://www.w3.org/2000/svg" v
 var SpeakerOffIcon = (props) => {
 	return _tmpl$$8.cloneNode(true);
 };
-var _tmpl$$7 = /*#__PURE__*/ template(`<button class="ap-button ap-playback-button" type="button"></button>`, 2), _tmpl$2$2 = /*#__PURE__*/ template(`<span class="ap-bar"><span class="ap-gutter ap-gutter-empty"></span><span class="ap-gutter ap-gutter-full"></span></span>`, 6), _tmpl$3$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Unmute (m)</span>`, 2), _tmpl$4$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Mute (m)</span>`, 2), _tmpl$5$1 = /*#__PURE__*/ template(`<button class="ap-button ap-speaker-button ap-tooltip-container" type="button" aria-label="Mute / unmute"></button>`, 2), _tmpl$6$1 = /*#__PURE__*/ template(`<div class="ap-control-bar"><span class="ap-timer"><span class="ap-time-elapsed"></span><span class="ap-time-remaining"></span></span><span class="ap-progressbar"></span><button class="ap-button ap-kbd-button ap-tooltip-container" type="button" aria-label="Show keyboard shortcuts"><span class="ap-tooltip">Keyboard shortcuts (?)</span></button><button class="ap-button ap-fullscreen-button ap-tooltip-container" type="button" aria-label="Toggle fullscreen mode"><span class="ap-tooltip">Fullscreen (f)</span></button></div>`, 18), _tmpl$7$1 = /*#__PURE__*/ template(`<span class="ap-marker-container ap-tooltip-container"><span class="ap-marker"></span><span class="ap-tooltip"></span></span>`, 6);
+var _tmpl$$7 = /*#__PURE__*/ template(`<button class="ap-button ap-playback-button" type="button"></button>`, 2);
+var _tmpl$2$2 = /*#__PURE__*/ template(`<span class="ap-bar"><span class="ap-gutter ap-gutter-empty"></span><span class="ap-gutter ap-gutter-full"></span></span>`, 6);
+var _tmpl$3$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Unmute (m)</span>`, 2);
+var _tmpl$4$1 = /*#__PURE__*/ template(`<span class="ap-tooltip">Mute (m)</span>`, 2);
+var _tmpl$5$1 = /*#__PURE__*/ template(`<button class="ap-button ap-speaker-button ap-tooltip-container" type="button" aria-label="Mute / unmute"></button>`, 2);
+var _tmpl$6$1 = /*#__PURE__*/ template(`<div class="ap-control-bar"><span class="ap-timer"><span class="ap-time-elapsed"></span><span class="ap-time-remaining"></span></span><span class="ap-progressbar"></span><button class="ap-button ap-kbd-button ap-tooltip-container" type="button" aria-label="Show keyboard shortcuts"><span class="ap-tooltip">Keyboard shortcuts (?)</span></button><button class="ap-button ap-fullscreen-button ap-tooltip-container" type="button" aria-label="Toggle fullscreen mode"><span class="ap-tooltip">Fullscreen (f)</span></button></div>`, 18);
+var _tmpl$7$1 = /*#__PURE__*/ template(`<span class="ap-marker-container ap-tooltip-container"><span class="ap-marker"></span><span class="ap-tooltip"></span></span>`, 6);
 function formatTime(seconds) {
 	let s = Math.floor(seconds);
 	const d = Math.floor(s / 86400);
@@ -5656,7 +5662,14 @@ var StartOverlay = (props) => {
 	})();
 };
 delegateEvents(["click"]);
-var _tmpl$$2 = /*#__PURE__*/ template(`<li><kbd>space</kbd> - pause / resume</li>`, 4), _tmpl$2$1 = /*#__PURE__*/ template(`<li><kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 5 seconds</li>`, 6), _tmpl$3 = /*#__PURE__*/ template(`<li><kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 10%</li>`, 8), _tmpl$4 = /*#__PURE__*/ template(`<li><kbd>[</kbd> / <kbd>]</kbd> - jump to the previous / next marker</li>`, 6), _tmpl$5 = /*#__PURE__*/ template(`<li><kbd>0</kbd>, <kbd>1</kbd>, <kbd>2</kbd> ... <kbd>9</kbd> - jump to 0%, 10%, 20% ... 90%</li>`, 10), _tmpl$6 = /*#__PURE__*/ template(`<li><kbd>,</kbd> / <kbd>.</kbd> - step back / forward, a frame at a time (when paused)</li>`, 6), _tmpl$7 = /*#__PURE__*/ template(`<li><kbd>m</kbd> - mute / unmute audio</li>`, 4), _tmpl$8 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-help"><div><div><p>Keyboard shortcuts</p><ul><li><kbd>f</kbd> - toggle fullscreen mode</li><li><kbd>k</kbd> - toggle keystroke overlay</li><li><kbd>?</kbd> - show this help popup</li></ul></div></div></div>`, 22);
+var _tmpl$$2 = /*#__PURE__*/ template(`<li><kbd>space</kbd> - pause / resume</li>`, 4);
+var _tmpl$2$1 = /*#__PURE__*/ template(`<li><kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 5 seconds</li>`, 6);
+var _tmpl$3 = /*#__PURE__*/ template(`<li><kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>→</kbd> - rewind / fast-forward by 10%</li>`, 8);
+var _tmpl$4 = /*#__PURE__*/ template(`<li><kbd>[</kbd> / <kbd>]</kbd> - jump to the previous / next marker</li>`, 6);
+var _tmpl$5 = /*#__PURE__*/ template(`<li><kbd>0</kbd>, <kbd>1</kbd>, <kbd>2</kbd> ... <kbd>9</kbd> - jump to 0%, 10%, 20% ... 90%</li>`, 10);
+var _tmpl$6 = /*#__PURE__*/ template(`<li><kbd>,</kbd> / <kbd>.</kbd> - step back / forward, a frame at a time (when paused)</li>`, 6);
+var _tmpl$7 = /*#__PURE__*/ template(`<li><kbd>m</kbd> - mute / unmute audio</li>`, 4);
+var _tmpl$8 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-help"><div><div><p>Keyboard shortcuts</p><ul><li><kbd>f</kbd> - toggle fullscreen mode</li><li><kbd>k</kbd> - toggle keystroke overlay</li><li><kbd>?</kbd> - show this help popup</li></ul></div></div></div>`, 22);
 var HelpOverlay = (props) => {
 	const e = (f) => {
 		return (e) => {
@@ -5704,7 +5717,8 @@ var HelpOverlay = (props) => {
 	})();
 };
 delegateEvents(["click"]);
-var _tmpl$$1 = /*#__PURE__*/ template(`<div><kbd></kbd></div>`, 4), _tmpl$2 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-keystrokes"></div>`, 2);
+var _tmpl$$1 = /*#__PURE__*/ template(`<div><kbd></kbd></div>`, 4);
+var _tmpl$2 = /*#__PURE__*/ template(`<div class="ap-overlay ap-overlay-keystrokes"></div>`, 2);
 var VISIBLE_MS = 2e3;
 function KeystrokePill(props) {
 	const [isFading, setIsFading] = createSignal(false);
