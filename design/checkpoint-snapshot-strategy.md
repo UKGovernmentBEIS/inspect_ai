@@ -283,17 +283,30 @@ persisted records enforce this:
   checkpoint dirs).
 - **Per sample — the pin:** at fresh-sample hydration the core writes
   `snapshot-strategies.json` (sandbox name → strategy name) into the
-  sample checkpoints dir, shipped with the other core-owned files. The
-  pin exists from before the first fire, so it protects even attempts
-  that die before any checkpoint commits. Absent file ⇒
-  `"restic-incremental"` for every sandbox (pre-pin dirs).
+  sample checkpoints dir, shipped with the other core-owned files. On
+  resume the pin rides across attempts with the cross-cutting copy
+  (alongside `restic-config.json` and the `ckpt-*.json` files in
+  `_fs_copy_cross_cutting`), so every attempt's dir carries it no
+  matter how many retries preceded — without that carry-over, the
+  second retry of a non-default-strategy sample would find no pin and
+  the absent-file default would turn into a spurious mismatch error.
+  Writing at fresh hydration means the pin is present in every dir a
+  retry can actually resume from: resume only happens when a committed
+  `ckpt-*.json` exists (`has_sample_checkpoint` gates it), so a
+  zero-commit attempt's dir is never read — its retry re-runs fresh
+  and writes its own pin. Absent file ⇒ `"restic-incremental"` for
+  every sandbox (pre-pin dirs).
 
 On resume/retry the core compares the pin against the currently
 configured strategies *before* instantiating anything. Any mismatch is
 a **hard error** naming the sandbox, the pinned strategy, and the
 configured one, with the remedy stated (restore the original
 configuration and resume, or start a fresh eval). A pinned strategy
-name unknown to the current build errors the same way. Strategy
+name unknown to the current build errors the same way, as does a
+configured sandbox with no pin entry — the sandbox set changed between
+attempts, which today surfaces only as a downstream copy failure
+(`_fs_copy_repo` raising on an empty source); the pin check turns it
+into the same clear, named error. Strategy
 *migration* on resume is explicitly a non-goal. The result: the
 strategy that starts a sample's checkpoint lineage is the strategy for
 its lifetime, and a config change between attempts is a clear,
@@ -359,11 +372,18 @@ Decisions embedded there:
   indefinitely.
 - Checkpoint schema for multi-group: `Checkpoint.sandboxes[name]`
   stays a single `SnapshotDetails` while there is one group (Phase 1–2
-  writes are schema-identical to today); Phase 3 introduces
+  writes add only the optional `strategy` field to today's schema);
+  Phase 3 introduces
   `Checkpoint.sandboxes[name].groups: list[SnapshotDetails]` behind
   the existing `extra="allow"` escape hatch, with single-group files
-  still readable. This is the only schema change in the plan and it is
-  deferred until a real multi-group user exists.
+  still readable. In multi-group files the wrapper's required fields
+  hold aggregates: `size_bytes` sums the groups, `duration_ms` is the
+  wall-clock of the parallel fan-out, and `snapshot_id` is a
+  core-minted sentinel — restore never reads the wrapper's id, routing
+  is per group. The §4.7 pin gains a per-group form at the same time
+  (sandbox name → per-group strategy names), since one sandbox then
+  spans multiple strategies. This is the only checkpoint-schema change
+  in the plan and it is deferred until a real multi-group user exists.
 
 ## 7. The three concrete strategies
 
@@ -380,7 +400,9 @@ of `restic/sandboxes/<name>/**` (safe order preserved: `config`/`keys`
 One complete tar (zstd if available in the sandbox, else uncompressed)
 per checkpoint, streamed from the sandbox to
 `sandboxes/<name>/archive/ckpt-NNNNN.tar[.zst]` at the destination —
-never stored inside the sandbox and never fully buffered on the host.
+never fully buffered on the host, with only transient staging inside
+the sandbox (chunks during capture, §8; the staged archive during
+restore).
 
 - `setup`: verify `tar` exists (it's in effectively every image);
   record compression availability. Nothing injected.
@@ -388,10 +410,19 @@ never stored inside the sandbox and never fully buffered on the host.
   excludes), streamed out (§8), hashed in flight (`content_sha256`
   recorded in details), shipped via
   `AsyncFilesystem.write_file_streaming`. `size_bytes` = archive size.
-- `restore`: fetch the archive for `ref`, verify the recorded hash,
-  stream into the sandbox via root `sh` stdin, `tar -x -C /`.
-  Extraction happens *inside* the sandbox, so untrusted-bytes handling
-  on the host reduces to hash verification.
+- `restore`: fetch the archive for `ref` chunk-by-chunk via the
+  copy-in counterpart of the §8 primitive — `exec` takes fully
+  materialized `input` bytes, so a single stdin-stream of the whole
+  archive would buffer it entirely in host RAM (and can exceed
+  per-call provider limits), the copy-out problem in reverse, made the
+  common case by exactly this strategy. Each chunk is appended (root
+  `sh` stdin, per-exec) to a staging file inside the root-only area;
+  once complete, verify the recorded hash against the staged file
+  in-sandbox, then `tar -x -C /` and delete the staging file.
+  Verify-then-extract costs transient sandbox disk equal to the
+  archive size, but a corrupt archive is rejected before any byte
+  reaches a final path. Extraction happens *inside* the sandbox, so
+  untrusted-bytes handling on the host reduces to hash verification.
 - `adopt`: copy the retained archives (bounded by `keep_last`) from
   the prior attempt's dir — the simple choice compliant with §4.5.
 - `discard_orphans` / `apply_retention`: delete one file per
@@ -415,7 +446,7 @@ weights, datasets): store only a manifest.
   digests.
 - `apply_retention`/`cleanup`: near no-ops.
 
-## 8. Enabling infrastructure: streaming copy-out
+## 8. Enabling infrastructure: streaming copy-out and copy-in
 
 `egress_sandbox` already carries a TODO: `read_file` on a single big
 tar peaks host RAM at tarball size and can hit per-call timeouts on
@@ -423,19 +454,29 @@ slow providers. The archive strategy makes this unavoidable, so Phase 2
 builds the shared primitive both need:
 
 - Portable baseline: a *detached* in-sandbox producer (root `sh`
-  starting `tar ... | split -b <chunk> --filter=...` in the
-  background) writes chunks into the root-only staging area, with the
-  filter blocking while an unshipped chunk is already present — the
-  producer is backpressure-gated on the host deleting chunks. The host
-  loop waits for the next chunk, `read_file`s it with hash
-  accumulation, feeds it to the destination write, and deletes it.
-  This bounds sandbox disk to about two chunks (one being produced,
-  one being shipped) beyond the live data — meeting the "no staging
-  repository inside the sandbox" goal within a couple of chunks'
-  tolerance. The gating is essential: a plain foreground
-  `tar | split` exec completes before the host's first `read_file`
-  can run, so every chunk would exist at once and peak sandbox disk
-  would equal the full archive size.
+  started in the background) reads the `tar` pipe in fixed-size chunks
+  via a small `sh` loop (`dd`/`head -c` per chunk, accumulating short
+  pipe reads up to the chunk size — **not** `split --filter`, a GNU
+  coreutils extension absent from busybox and POSIX `split`, so
+  unavailable on Alpine-style minimal images), writes each chunk into
+  the root-only staging area, and blocks while an unshipped chunk is
+  already present — the producer is backpressure-gated on the host
+  deleting chunks. The host loop waits for the next chunk,
+  `read_file`s it with hash accumulation, feeds it to the destination
+  write, and deletes it. This bounds sandbox disk to about two chunks
+  (one being produced, one being shipped) beyond the live data —
+  meeting the "no staging repository inside the sandbox" goal within a
+  couple of chunks' tolerance. The gating is essential: an ungated
+  producer finishes chunking before the host's first `read_file` can
+  run, so every chunk would exist at once and peak sandbox disk would
+  equal the full archive size.
+- Copy-in gets the mirror-image primitive: fetch the destination
+  object chunk-by-chunk, append each chunk to a root-only in-sandbox
+  file via per-exec root `sh` stdin. `exec`'s fully materialized
+  `input` otherwise forces the whole payload into host RAM — the same
+  problem in reverse. First consumer: the archive strategy's `restore`
+  (§7.2); `ingress_sandbox` (which today streams the entire repo tar
+  through one exec) migrates onto it too.
 - Destination side: object stores have no append, so "streaming to
   the destination" means one long-lived streaming write (a single S3
   multipart upload) fed chunk-by-chunk.
@@ -469,7 +510,7 @@ TODO.
   configured strategy fails with the §4.7 pin error; agent-invisibility
   (non-root `ls` of tooling/staging paths fails).
 - Per-strategy unit tests for the mechanisms (manifest diffing, chunked
-  copy-out, hash verification).
+  copy-out and copy-in, hash verification).
 
 ## 10. Phasing plan
 
@@ -480,8 +521,10 @@ Define the Protocol, `SnapshotContext`, and supporting types; move
 `hydrate._hydrate_sandbox` through the Protocol; move the
 sandbox-repo tiers of `host_egress` and the `list_changed_files` step
 into the strategy; record `strategy` in `SnapshotDetails`; parametrize
-the e2e tests and land the contract suite. On-disk layout and
-checkpoint schema byte-identical; resume from pre-change checkpoint
+the e2e tests and land the contract suite. On-disk layout
+byte-identical; checkpoint schema backward-compatible, not identical —
+new files add only the optional `strategy` field, and pre-change files
+parse unchanged (absent ⇒ restic); resume from pre-change checkpoint
 dirs covered by a compat test. The one ordering change: sandbox data
 reaches a remote destination *before* the local checkpoint-file write
 instead of after — strictly safer, same safe order overall.
@@ -494,8 +537,8 @@ the interface, directly serving the large-rewritten-data scenario.
 Adds `SnapshotRetention`, per-sandbox strategy selection in config,
 the §4.7 strategy pin (`snapshot-strategies.json` written at fresh
 hydration, checked on resume/retry), the chunked/streaming copy-out
-primitive (restic egress migrates onto it), and e2e parametrization
-over both strategies.
+and copy-in primitives (restic egress and ingress migrate onto them),
+and e2e parametrization over both strategies.
 *Exit criteria: contract suite passes for archive; a retry with a
 changed strategy config fails with the §4.7 pin error; a
 large-high-entropy-file scenario test demonstrates bounded destination
@@ -503,7 +546,8 @@ storage under `keep_last=N` and bounded sandbox disk during capture.*
 
 **Phase 3 — Per-path-group routing.** `sandbox_snapshots` config with
 disjointness validation, core-owned fan-out of one strategy instance
-per (sandbox, group), multi-group checkpoint schema (§6). Gate on a
+per (sandbox, group), multi-group checkpoint schema and the per-group
+pin form (§6). Gate on a
 concrete user; the seam is designed now so nothing in Phases 1–2
 blocks it.
 
@@ -536,8 +580,10 @@ uses opaque snapshot ids — but is not designed around them.
   generation rotation (Phase 5) needs no interface change, the
   boundary is right. Phase 2 is deliberately scheduled early as the
   falsifier.
-- **Streaming copy-out portability.** The `split`-based baseline works
-  on any POSIX sandbox but costs a couple of chunks of sandbox disk
+- **Streaming copy-out portability.** The chunked baseline needs only
+  `sh`, `tar`, and byte-counted reads (`dd`/`head -c`) — all present
+  in busybox and every mainstream image (`split --filter` was rejected
+  as GNU-only) — but costs a couple of chunks of sandbox disk
   and per-chunk exec round-trips; very slow providers may need tuning.
   Mitigation: chunk size configurable; primitive isolated so
   provider-native streaming can replace it transparently.
