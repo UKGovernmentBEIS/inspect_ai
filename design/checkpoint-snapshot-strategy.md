@@ -12,7 +12,8 @@ full dataset again and space can never be reclaimed mid-run.
 
 **In scope** — everything sandbox-side:
 
-- Fresh-sample provisioning of capture tooling inside the sandbox.
+- Provisioning of capture tooling inside the sandbox (fresh and
+  resumed samples alike).
 - Per-fire capture of sandbox paths and shipping to the destination.
 - Resume: materializing a committed snapshot into a fresh sandbox.
 - Retry handoff: carrying strategy state from a prior attempt's sample
@@ -42,7 +43,7 @@ The interface already exists in the code, inlined at two call sites:
 | Fire | `checkpointer_impl._backup_and_egress_sandbox`: `run_sandbox_backup(env, ...)` → `egress_sandbox(env, dest_repo=sandbox_repo_dir(sample_root, name), ...)`; then `_fire_once` runs `list_changed_files` host-side and records a `SnapshotDetails` per sandbox |
 | Remote shipping | `_host_egress.host_egress`: manifest-diff the staging dir, ship in restic-aware safe order (`config`/`keys` → `data` → `index` → `snapshots` → `restic-config.json` → `ckpt-*.json` last) |
 | Resume | `hydrate._hydrate_sandbox` (resume set): `_fs_copy_repo` (old sample dir → new sample root) → `_drop_orphan_snapshots` → `ingress_sandbox` (tar repo into container, `restic restore latest --target /`) |
-| Retention | `retention: "delete" \| "retain"` — all-or-nothing at eval end |
+| Retention | `retention: "delete" \| "retain"` — all-or-nothing at eval end *(defined and documented in config, but enforcement is not yet implemented — no eval-end delete exists in the code today)* |
 
 Two pieces of restic knowledge currently leak outside this boundary and
 must move inside it:
@@ -74,7 +75,7 @@ class SandboxSnapshotStrategy(Protocol):
     """
 
     async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
-        """Fresh sample: inject tooling, initialize strategy state."""
+        """Every attempt: inject tooling; init fresh state unless resuming."""
 
     async def snapshot(
         self,
@@ -117,7 +118,9 @@ Supporting types:
   under the sample root and the corresponding destination URI prefix,
   owned entirely by the strategy — the core never reads inside it);
   the per-sample secret (today's restic password, reusable as a
-  generic capture secret); the resolved `AsyncFilesystem`; trace/log
+  generic capture secret); the resolved `AsyncFilesystem`; whether
+  this attempt is resuming (`resuming: bool`, so `setup` knows to
+  initialize fresh state or leave it for `adopt`); trace/log
   helpers. Frozen per (sandbox, attempt); constructed by the core.
 - **`PriorAttempt`** — the prior attempt's sample checkpoints dir
   (possibly remote) plus its storage-area prefix for this strategy.
@@ -139,15 +142,19 @@ Call-site mapping (extraction, not redesign):
 
 | Protocol method | Extracted from |
 | --- | --- |
-| `setup` | `inject_restic` + `init_sandbox_repo` |
+| `setup` | `inject_restic` (every attempt) + `init_sandbox_repo` (fresh only) |
 | `snapshot` | `run_sandbox_backup` + `egress_sandbox` + the sandbox-repo tiers of `host_egress` + `list_changed_files` |
 | `restore` | `ingress_sandbox` |
 | `adopt` | `_fs_copy_repo` |
 | `discard_orphans` | `_drop_orphan_snapshots` |
 | `apply_retention` | *(new — restic no-op until generation rotation)* |
-| `cleanup` | eval-end retention delete, scoped to the storage area |
+| `cleanup` | *(net-new — the eval-end `retention: "delete"` option is documented today but unenforced; `cleanup` becomes its implementation point, scoped to the storage area)* |
 
-Core call order on resume: `adopt` → `discard_orphans` → `restore`.
+Core call order: fresh sample, `setup` alone; resume, `setup` →
+`adopt` → `discard_orphans` → `restore`. `setup` runs on *both* paths
+because in-sandbox tooling must exist before `restore` executes it —
+matching today's code, where `inject_restic` runs before the
+fresh/resume branch in `_hydrate_sandbox`.
 Per fire: `snapshot` (parallel across sandboxes, alongside the host
 backup, via `tg_collect` exactly as today) → core writes the
 checkpoint file → core ships core-owned files → `apply_retention`.
@@ -166,9 +173,12 @@ restic-specific upload ordering in `host_egress` moves into the restic
 strategy. The core's commit point is unchanged: `ckpt-NNNNN.json` is
 written (and, for remote destinations, shipped last) only after every
 strategy's `snapshot()` has returned. Consequence: at any crash point,
-the destination either lacks the checkpoint file (fire never happened,
-as far as resume is concerned) or has it along with all data it
-references.
+the **latest committed checkpoint** at the destination is fully
+restorable — its checkpoint file is either absent (the fire never
+happened, as far as resume is concerned) or present along with all
+data it references. The guarantee is deliberately scoped to the
+latest: §4.4 retention may later reclaim data referenced by *older*
+checkpoint files, which remain at the destination as history.
 
 ### 4.2 Interruption tolerance
 
@@ -185,7 +195,7 @@ continues — strategies raise with context, never swallow.
 `restore()` receives a *fresh* sandbox (same image/config, none of the
 agent's runtime state) and must leave the captured paths byte-identical
 to capture time, with original absolute paths, ownership, and modes.
-It may assume `adopt` and `discard_orphans` ran first.
+It may assume `setup`, `adopt`, and `discard_orphans` ran first.
 
 ### 4.4 Retention is a policy, not delete commands
 
@@ -203,25 +213,41 @@ class SnapshotRetention:
     keep_last: int | None = None   # None = keep everything
 ```
 
+Thinning under `keep_last` deletes snapshot data for older *committed*
+checkpoints while their `ckpt-*.json` files remain at the destination
+(still useful as history and metadata). This is deliberate, and is why
+§4.1's restorability guarantee is scoped to the latest committed
+checkpoint: resume only ever targets the latest, and any future
+resume-from-an-older-checkpoint feature (or tooling that reads older
+checkpoint files) must treat their snapshot data as potentially
+reclaimed.
+
 Room to grow (keep-every-Nth, size budget) without touching the
 Protocol, since the policy object is the extension point. The existing
 eval-end `retention: "delete" | "retain"` is unchanged and maps to
 `cleanup()`.
 
-### 4.5 Adopt may be zero-copy
+### 4.5 Adopt may be zero-copy locally — never at the destination
 
 `adopt` hands strategy state across retry attempts. The restic
 strategy copies the prior repo (snapshot ids and password must
-survive). The archive strategy may instead record prior-attempt URIs
-and lazily fetch only what `restore` needs — the contract requires
-only that after `adopt`, `restore`/`discard_orphans`/`snapshot` work
-and guarantee 4.1 for *new* snapshots. One subtlety the contract must
-state: after adopt, retained snapshots must be durable at **this
-attempt's** destination no later than the next commit, because a later
-retry reads only this attempt's sample dir (this is why hydrate runs
-`host_egress` before any agent work today; strategies inherit the same
-obligation for their own data — copying bounded `keep_last` archives
-at adopt time is the simple compliant choice).
+survive). Other strategies may skip local materialization — fetching
+bytes only when `restore` needs them — but one obligation cannot be
+deferred: by the time `adopt()` returns, every snapshot the strategy
+retains (at minimum, whatever is required to restore the latest
+committed checkpoint) must be durable at **this attempt's**
+destination. The deadline is adopt-return, not the next commit: the
+core ships the adopted `ckpt-*.json` files to this attempt's
+destination when hydration completes (today's `host_egress` before any
+agent work), and from that moment §4.1 must hold — deferring
+durability would leave a crash window where committed checkpoint files
+sit at the destination while the data they reference exists only in
+the prior attempt's dir, which the *next* retry never reads. Copying
+the bounded `keep_last` archives at adopt time is the simple compliant
+choice; a destination-to-destination server-side copy satisfies it
+without pulling bytes through the host. After `adopt`,
+`restore`/`discard_orphans`/`snapshot` must work and guarantee §4.1
+for *new* snapshots.
 
 ### 4.6 Security requirements (Protocol docstring, normative)
 
@@ -243,13 +269,34 @@ Copied from the restic implementation's hard-won properties:
   `MAX_EXEC_OUTPUT_SIZE` (suppress progress streams — see
   `run_sandbox_backup`'s `--quiet` note).
 
-### 4.7 Strategy identity is recorded
+### 4.7 Strategy identity is recorded and pinned
 
-Each `SnapshotDetails` written into a checkpoint file records its
-`strategy` name, so resume instantiates the strategy that wrote the
-data rather than the one currently configured — a config change
-between attempts must not brick resume (mismatch ⇒ clear error, not
-silent misparse). Absent field ⇒ `"restic-incremental"`.
+Resume must never run one strategy over another strategy's data, and a
+strategy change between attempts must surface as an error, never be
+applied silently. Two persisted records enforce this:
+
+- **Per snapshot:** each `SnapshotDetails` written into a checkpoint
+  file records its `strategy` name, so every checkpoint file is
+  self-describing. Absent field ⇒ `"restic-incremental"` (pre-change
+  checkpoint dirs).
+- **Per sample — the pin:** at fresh-sample hydration the core writes
+  `snapshot-strategies.json` (sandbox name → strategy name) into the
+  sample checkpoints dir, shipped with the other core-owned files. The
+  pin exists from before the first fire, so it protects even attempts
+  that die before any checkpoint commits. Absent file ⇒
+  `"restic-incremental"` for every sandbox (pre-pin dirs).
+
+On resume/retry the core compares the pin against the currently
+configured strategies *before* instantiating anything. Any mismatch is
+a **hard error** naming the sandbox, the pinned strategy, and the
+configured one, with the remedy stated (restore the original
+configuration and resume, or start a fresh eval). A pinned strategy
+name the current version doesn't know errors the same way. Strategy
+*migration* on resume is explicitly a non-goal. The result: the
+strategy that starts a sample's checkpoint lineage is the strategy for
+its lifetime, and a config change between attempts is a clear,
+recoverable error — never a silent misparse of one strategy's bytes by
+another, and never a lineage left half-and-half.
 
 ## 5. Storage layout
 
@@ -267,6 +314,8 @@ Today: `restic/host/`, `restic/sandboxes/<name>/`,
   context capture); the per-sample secret in `restic-config.json`
   doubles as the generic capture secret handed to strategies via
   `SnapshotContext`.
+- `snapshot-strategies.json` (the §4.7 pin, from Phase 2) is
+  core-owned and sits beside `restic-config.json`.
 
 ## 6. Configuration
 
@@ -356,11 +405,12 @@ weights, datasets): store only a manifest.
   a re-derivation command).
 - `snapshot`: hash the matched files in-sandbox (root `sha256sum`),
   write a small manifest JSON to the storage area. `size_bytes` ≈ 0.
+  A digest mismatch versus the configured source is detected here and
+  is a hard error by default (the file was mutated and is *not*
+  reproducible — silently "restoring" the original on resume would
+  corrupt the run) with an opt-out to record-and-warn.
 - `restore`: re-fetch inside the sandbox per the source spec, verify
-  digests; a digest mismatch at snapshot time versus the configured
-  source is a hard error by default (the file was mutated and is *not*
-  reproducible — silently "restoring" the original would corrupt the
-  resumed run) with an opt-out to record-and-warn.
+  digests against the manifest.
 - `apply_retention`/`cleanup`: near no-ops.
 
 ## 8. Enabling infrastructure: streaming copy-out
@@ -370,12 +420,22 @@ tar peaks host RAM at tarball size and can hit per-call timeouts on
 slow providers. The archive strategy makes this unavoidable, so Phase 2
 builds the shared primitive both need:
 
-- Portable baseline: in-sandbox `tar ... | split -b <chunk>` into the
-  root-only staging area, sequential `read_file` per chunk with
-  hash accumulation, host-side streaming append to the destination,
-  chunk deletion as it ships (bounds sandbox disk to one chunk beyond
-  the live data — meeting the "no staging repository inside the
-  sandbox" goal within one chunk's tolerance).
+- Portable baseline: an in-sandbox producer runs `tar ... | split -b
+  <chunk>` into the root-only staging area **with backpressure** — the
+  producer pauses while the staging area holds a full window of chunks
+  and resumes as the host deletes shipped ones (portably, a `split
+  --filter` wrapper that blocks until its chunk file is removed). The
+  host loops: `read_file` the next chunk, accumulate the hash, feed
+  the bytes to the destination write, delete the chunk. Backpressure
+  is what delivers the disk bound — sandbox disk peaks at the window
+  (a couple of chunks) beyond the live data. Without it, `tar | split`
+  as a single exec completes before the host's first `read_file` can
+  run, staging the entire archive and reproducing today's
+  full-tarball peak.
+- The destination side is one long-lived streaming upload fed
+  chunk-by-chunk — S3 has no append — so the primitive needs an
+  async-iterator-fed variant of `AsyncFilesystem.write_file_streaming`
+  (today it takes a complete readable source).
 - Providers whose `exec` can stream stdout may later plug in true
   streaming; the primitive's interface (async byte iterator out of a
   sandbox command) leaves room without contract changes.
@@ -398,8 +458,9 @@ TODO.
   `snapshot()` then resume lands on the last committed checkpoint;
   `discard_orphans` removes exactly the uncommitted tail;
   `apply_retention` honors the floor (latest committed always
-  restorable) under `keep_last=1`; agent-invisibility (non-root `ls`
-  of tooling/staging paths fails).
+  restorable) under `keep_last=1`; retry under a different configured
+  strategy fails with the §4.7 pin error; agent-invisibility (non-root
+  `ls` of tooling/staging paths fails).
 - Per-strategy unit tests for the mechanisms (manifest diffing, chunked
   copy-out, hash verification).
 
@@ -424,9 +485,12 @@ kill/resume harnesses) with no test assertions weakened.*
 copy-out.** The maximally different implementation that pressure-tests
 the interface, directly serving the large-rewritten-data scenario.
 Adds `SnapshotRetention`, per-sandbox strategy selection in config,
-the chunked/streaming copy-out primitive (restic egress migrates onto
-it), and e2e parametrization over both strategies.
-*Exit criteria: contract suite passes for archive; a
+the §4.7 strategy pin (`snapshot-strategies.json` written at fresh
+hydration, checked on resume/retry), the chunked/streaming copy-out
+primitive (restic egress migrates onto it), and e2e parametrization
+over both strategies.
+*Exit criteria: contract suite passes for archive; a retry with a
+changed strategy config fails with the §4.7 pin error; a
 large-high-entropy-file scenario test demonstrates bounded destination
 storage under `keep_last=N` and bounded sandbox disk during capture.*
 
@@ -466,14 +530,16 @@ uses opaque snapshot ids — but is not designed around them.
   boundary is right. Phase 2 is deliberately scheduled early as the
   falsifier.
 - **Streaming copy-out portability.** The `split`-based baseline works
-  on any POSIX sandbox but costs one chunk of sandbox disk and
-  per-chunk exec round-trips; very slow providers may need tuning.
+  on any POSIX sandbox but costs a bounded window of chunks of sandbox
+  disk and per-chunk exec round-trips; very slow providers may need
+  tuning.
   Mitigation: chunk size configurable; primitive isolated so
   provider-native streaming can replace it transparently.
 - **Schema drift.** Only Phase 3 touches the checkpoint file schema;
   `extra="allow"` plus the `strategy`-absent-⇒-restic rule keeps old
   dirs resumable throughout. The compat test in Phase 1 pins this.
-- **Retry-across-config-changes.** §4.7's recorded strategy identity
-  turns a mid-eval-set config change from silent corruption into a
-  clear error; strategy *migration* on resume is explicitly a
-  non-goal.
+- **Retry-across-config-changes.** §4.7's pin (`snapshot-strategies.json`
+  plus per-snapshot identity) turns a mid-eval-set strategy change
+  from silent corruption into a clear, recoverable error — restore the
+  original configuration and resume; strategy *migration* on resume is
+  explicitly a non-goal.
