@@ -78,8 +78,10 @@ class SandboxSnapshotStrategy(Protocol):
         """Provision a new sandbox instance (fresh sample *and* resume).
 
         Called before any other method that touches the sandbox: inject
-        tooling; when `ctx.resuming` is false, also initialize fresh
-        strategy state.
+        tooling (for restic, this is where the restic binary is
+        installed into the sandbox — today's `inject_restic`); when
+        `ctx.resuming` is false, also initialize fresh strategy state
+        (restic: `init_sandbox_repo`).
         """
 
     async def snapshot(
@@ -215,8 +217,8 @@ required to restore a snapshot in `committed`** (the policy always
 retains at least the latest committed checkpoint). Weakened upper
 bound, explicitly allowed: **retaining more than the policy asks is
 always legal** (restic keeps everything until generation rotation
-exists; `reference` has nothing to delete). The initial policy is
-minimal:
+exists; the deferred `reference` sketch (§7.3) would have nothing to
+delete). The initial policy is minimal:
 
 ```python
 @dataclass(frozen=True)
@@ -357,7 +359,8 @@ Today: `restic/host/`, `restic/sandboxes/<name>/`,
   its storage area, so existing checkpoint dirs resume unchanged and
   Phase 1 is byte-identical on disk.
 - New strategies get `sandboxes/<name>/<strategy>/` (e.g.
-  `sandboxes/default/archive/ckpt-00007.tar.zst`). The core maps
+  `sandboxes/default/archive/ckpt-00007.tar.zst`; `.tar.gz` under the
+  gzip fallback). The core maps
   strategy → storage area in one place (`_layout`); strategies never
   compute sample-dir paths themselves.
 - `restic/host/` and `restic-config.json` remain core-owned (host
@@ -388,8 +391,6 @@ CheckpointConfig(
             PathGroup(paths=["/home/user"]),                 # default strategy (restic)
             PathGroup(paths=["/data"],
                       strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2))),
-            PathGroup(paths=["/models"],
-                      strategy=ReferenceSnapshots(sources=...)),
         ]
     }
 )
@@ -425,7 +426,7 @@ Decisions embedded there:
   spans multiple strategies. This is the only checkpoint-schema change
   in the plan and it is deferred until a real multi-group user exists.
 
-## 7. The three concrete strategies
+## 7. Concrete strategies
 
 ### 7.1 `restic-incremental` (Phase 1)
 
@@ -433,13 +434,15 @@ Today's code nearly verbatim, plus absorbing the destination shipping
 of `restic/sandboxes/<name>/**` (safe order preserved: `config`/`keys`
 → `data` → `index` → `snapshots`) and the `list_changed_files` step.
 `apply_retention` is a documented no-op until generation rotation
-(Phase 5). Best choice when most files are stable across checkpoints.
+(Phase 4). Best choice when most files are stable across checkpoints.
 
 ### 7.2 `archive` (Phase 2)
 
-One complete tar (zstd if available in the sandbox, else uncompressed)
-per checkpoint, streamed from the sandbox to
-`sandboxes/<name>/archive/ckpt-NNNNN.tar[.zst]` at the destination —
+One complete tar per checkpoint — compressed with zstd when available
+in the sandbox, falling back to gzip (present in effectively every
+image, busybox included), so the archive is always compressed —
+streamed from the sandbox to
+`sandboxes/<name>/archive/ckpt-NNNNN.tar.{zst,gz}` at the destination —
 never fully buffered on the host, with only transient staging inside
 the sandbox (chunks during capture, §8; the staged archive during
 restore).
@@ -447,8 +450,8 @@ restore).
 - `setup`: verify `tar` and the hash tool `restore`'s verify step
   needs (`sha256sum`) exist — both are in effectively every image, and
   probing both here means a missing tool fails at provisioning rather
-  than at first restore; record compression availability. Nothing
-  injected.
+  than at first restore; probe for zstd and record which compressor
+  (zstd or the gzip fallback) this sandbox will use. Nothing injected.
 - `snapshot`: in-sandbox root `tar -c` of the include paths (with
   excludes), streamed out (§8), hashed in flight (`content_sha256`
   recorded in details), shipped via the §8 sink-style streaming write
@@ -474,10 +477,16 @@ restore).
   checkpoint. This is the strategy where mid-run reclamation is
   trivial, which is the point.
 
-### 7.3 `reference` (Phase 4)
+### 7.3 Deferred: `reference` (sketch only, not scheduled)
 
 For large files that are re-downloadable or reproducible (model
-weights, datasets): store only a manifest.
+weights, datasets): store only a manifest. **Deferred until someone
+asks for it** — it earns nothing until a real user has re-fetchable
+data, and the interface work it would validate (near-zero-cost
+snapshots, restore that does network work inside the sandbox) can be
+paper-checked against the Protocol without building it. The sketch is
+kept here as a future strategy so the config surface (§6) and the
+"storage cost near zero" corner stay in view:
 
 - Config maps path patterns to source specs (URI + expected digest, or
   a re-derivation command).
@@ -638,12 +647,7 @@ pin form (§6). Gate on a
 concrete user; the seam is designed now so nothing in Phases 1–2
 blocks it.
 
-**Phase 4 — `reference` strategy.** Manifest + re-fetch + verify, per
-§7.3. Exercises the "storage cost near zero" corner of the interface
-(snapshot writes almost nothing; restore does network work inside the
-sandbox).
-
-**Phase 5 — Restic generation rotation.** The restic strategy's answer
+**Phase 4 — Restic generation rotation.** The restic strategy's answer
 to `apply_retention`: periodically start a fresh repo generation
 (`.../gen-K/`), take one full backup into it, and delete the previous
 generation wholesale once a checkpoint committed against the new one —
@@ -652,10 +656,12 @@ rewrites the ship-once egress protocol cannot tolerate). Pure
 implementation work inside one strategy; no interface change, which is
 itself a test that the Phase 1 boundary was drawn correctly.
 
-Deliberately unscheduled: provider-native snapshots (ZFS, `docker
-commit`, volume snapshots). The Protocol leaves room — it receives the
-`SandboxEnvironment`, assumes nothing about file-level capture, and
-uses opaque snapshot ids — but is not designed around them.
+Deliberately unscheduled: the `reference` strategy (sketched in §7.3,
+deferred until someone asks for it) and provider-native snapshots
+(ZFS, `docker commit`, volume snapshots). The Protocol leaves room —
+it receives the `SandboxEnvironment`, assumes nothing about file-level
+capture, and uses opaque snapshot ids — but is not designed around
+them.
 
 ## 11. Risks
 
@@ -663,10 +669,11 @@ uses opaque snapshot ids — but is not designed around them.
   contract speaks only in observable guarantees (durable on return,
   restore into a fresh sandbox, retention floor, agent invisibility)
   and no restic vocabulary. The concrete check: if `archive` (Phase 2)
-  and `reference` (Phase 4) implement without contortions and
-  generation rotation (Phase 5) needs no interface change, the
-  boundary is right. Phase 2 is deliberately scheduled early as the
-  falsifier.
+  implements without contortions and generation rotation (Phase 4)
+  needs no interface change, the boundary is right. Phase 2 is
+  deliberately scheduled early as the falsifier; the deferred
+  `reference` sketch (§7.3) serves as a paper check for the
+  near-zero-storage corner.
 - **Streaming copy-out portability.** The chunked baseline needs only
   `sh`, `tar`, and byte-counted reads (`dd`/`head -c`) — all present
   in busybox and every mainstream image (`split --filter` was rejected
