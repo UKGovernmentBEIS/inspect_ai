@@ -329,6 +329,7 @@ def test_request_and_response_filter_compose(tmp_path: Path) -> None:
 
 
 @skip_if_no_docker
+@pytest.mark.slow
 def test_sandbox_response_filter_replaces_output(tmp_path: Path) -> None:
     """The response_filter hook fires through the sandbox bridge."""
     import json
