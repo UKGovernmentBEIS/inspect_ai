@@ -2571,7 +2571,11 @@ async def assistant_message_block_params(
         # resumes the pending work and requires its use block (plus the
         # `container` request param) to do so. only spans that never produced
         # content qualify -- a span whose content items were removed by a
-        # scaffold edit was deleted deliberately and stays dropped.
+        # scaffold edit was deleted deliberately and stays dropped. with no
+        # anchor, the span lands after the content-derived blocks rather than
+        # at its original wire position (which is not recorded); the API does
+        # not require intra-message position fidelity (client tool_use blocks
+        # are likewise always re-appended last, below).
         for span in record or []:
             if not span.content_ids and id(span) not in emitted:
                 emitted.add(id(span))
@@ -2654,7 +2658,8 @@ class _ServerToolSpan:
     Used while recording to detect span completion; non-empty on a taken
     span means the turn ended with the work still pending, which is what
     obligates the follow-up request to name the container (see
-    `_pending_container_for_input`)."""
+    `_pending_container_for_input`). Ids stay set even after a later turn's
+    result arrives (see `add_prior_turn_result`)."""
 
 
 class _ServerToolSpanRecorder:
@@ -2708,6 +2713,15 @@ class _ServerToolSpanRecorder:
         client tool call cut it short); the result then arrives in a later
         response. The use block replays with its own (prior) message, so
         only the result is recorded here.
+
+        The prior message's span deliberately stays open (its use id remains
+        in `open_use_ids`): whether the work is pending depends on the input
+        being replayed, not on this sample-global record. If a scaffold later
+        truncates history back to the prior message, the work is pending
+        again from the API's perspective and the container must be re-sent;
+        when this result's message follows the prior one in the input, the
+        prior message is no longer the last assistant message, so
+        `_pending_container_for_input` sends no container.
         """
         span = self._open_span()
         span.blocks.append(result)
@@ -2750,7 +2764,14 @@ class _AssistantInternal:
     """Code execution container ids keyed by assistant message id.
 
     Replayed as the `container` request param when a turn left code
-    execution pending (see `_pending_container_for_input`)."""
+    execution pending (see `_pending_container_for_input`).
+
+    Unlike `server_tool_span_index`, there is no fallback for message ids
+    rewritten by the agent bridge: a pending span has produced no content,
+    so no bridge-surviving key exists to index by. Pending-work resumption
+    therefore does not survive a bridge id rewrite (the bridge does not
+    carry server tool state in general -- its anthropic impl handles
+    neither `server_tool_use` blocks nor the `container` param)."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -3450,8 +3471,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     )
                 pending_tool_use = prior_turn_use
 
-            # record span block params for verbatim replay (a prior turn's use
-            # block replays with its own message, so only the result records)
+            # record span block params for verbatim replay
             fetch_result_param = cast(
                 BetaWebFetchToolResultBlockParam,
                 content_block.model_dump(exclude_none=True),
@@ -3497,8 +3517,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     )
                 pending_tool_use = prior_turn_use
 
-            # record span block params for verbatim replay (a prior turn's use
-            # block replays with its own message, so only the result records)
+            # record span block params for verbatim replay
             code_result_param = cast(
                 BetaBashCodeExecutionToolResultBlockParam
                 | BetaTextEditorCodeExecutionToolResultBlockParam
@@ -3597,8 +3616,7 @@ def content_and_tool_calls_from_assistant_content_blocks(
                     )
                 pending_tool_use = prior_turn_use
 
-            # record span block params for verbatim replay (a prior turn's use
-            # block replays with its own message, so only the result records)
+            # record span block params for verbatim replay
             search_result_param = cast(
                 WebSearchToolResultBlockParam,
                 content_block.model_dump(exclude_none=True),

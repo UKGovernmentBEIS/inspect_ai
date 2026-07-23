@@ -1467,8 +1467,10 @@ async def test_anthropic_container_replayed_after_client_tool_call() -> None:
         container=False,
     )
 
+    final = message([{"type": "text", "text": "np"}], "end_turn", container=False)
+
     api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
-    create_mock = AsyncMock(side_effect=[head, tail])
+    create_mock = AsyncMock(side_effect=[head, tail, final])
     api.client.messages.create = create_mock  # type: ignore[method-assign]
 
     tools = [
@@ -1517,6 +1519,28 @@ async def test_anthropic_container_replayed_after_client_tool_call() -> None:
 
     # and the container id must accompany the request
     assert follow_up_request.get("container") == container_id
+
+    # a later turn (the pending work now resolved) replays a stable shape:
+    # the use block still with its own message, the result with its, and no
+    # container param (the work is no longer pending -- see
+    # _pending_container_for_input)
+    output3, _ = await api.generate(
+        [user, assistant, tool_result, output2.message, ChatMessageUser(content="ty")],
+        tools,
+        "auto",
+        config,
+    )
+    assert isinstance(output3, ModelOutput)
+    third_request = create_mock.call_args_list[2].kwargs
+    assert "container" not in third_request
+    third_blocks = [
+        (b["type"], b.get("id"))
+        for m in third_request["messages"]
+        if m["role"] == "assistant"
+        for b in m["content"]
+    ]
+    assert ("server_tool_use", "srvtoolu_ce1") in third_blocks
+    assert "code_execution_tool_result" in [t for t, _ in third_blocks]
 
 
 async def test_anthropic_stream_capture_restores_container() -> None:
@@ -1705,11 +1729,19 @@ async def test_anthropic_container_continuation_live() -> None:
         if not mixed_turns:
             return None
         # true resumption surfaced the EXACT planted seed in a later message
-        return any(
+        resumed = any(
             marker in exec_results(later)
             for i in mixed_turns
             for later in messages[i + 1 :]
         )
+        if resumed:
+            # the resolved history must also replay cleanly on a later turn
+            # (use block with its prior message, result with its own, no
+            # container param) -- a 400 here would mean the replay still
+            # presents the resolved work as pending
+            messages.append(ChatMessageUser(content="Reply with just 'ok'."))
+            await model.generate(input=messages, tools=tools)
+        return resumed
 
     for _ in range(3):
         resumed = await attempt()
