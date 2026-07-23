@@ -1588,12 +1588,16 @@ async def test_anthropic_container_continuation_live() -> None:
     before the fix the pending block was dropped from replay and the
     orphaned result in the next response crashed parsing.
 
-    The mixed-pending condition depends on model behavior (the prompt urges
-    parallel tool calls but can't force them), so the test skips when the
-    condition didn't occur rather than pass vacuously.
+    The test observes only the public surface: the mixed turn is an
+    assistant message making a client tool call whose content lacks the
+    sleep's output, and successful resumption is that output surfacing in a
+    later assistant message. The condition depends on model behavior (the
+    prompt urges parallel tool calls but can't force them), so the test
+    skips when it didn't occur rather than pass vacuously.
     """
-    from inspect_ai.model._providers.anthropic import _pending_container_for_input
     from inspect_ai.tool import ToolDef, ToolResult
+
+    marker = "done-c11d"
 
     async def code_execution_execute(code: str) -> ToolResult:
         """Execute code.
@@ -1634,32 +1638,49 @@ async def test_anthropic_container_continuation_live() -> None:
         "wait for its result. Step 2: after you see that result, issue these "
         "two tool calls TOGETHER IN PARALLEL in your next step, before seeing "
         "any results from either: (a) code execution running "
-        "`sleep 5 && echo done`; (b) lookup_constant with name='alpha'. "
+        f"`sleep 5 && echo {marker}`; (b) lookup_constant with name='alpha'. "
         "They are independent -- do not wait for one before calling the other."
     )
+
+    def sleep_output_present(message: ChatMessage) -> bool:
+        return (
+            isinstance(message, ChatMessageAssistant)
+            and isinstance(message.content, list)
+            and any(
+                isinstance(c, ContentToolUse)
+                and c.tool_type == "code_execution"
+                and marker in c.result
+                for c in message.content
+            )
+        )
 
     # drive the tool loop; the generate that follows a mixed pending turn is
     # the request that 400'd before the fix. whether the model leaves server
     # work pending when it makes the client tool call is up to the model, so
     # try a few fresh conversations before giving up.
     async def attempt() -> bool:
-        mixed_pending = False
         messages: list[ChatMessage] = [ChatMessageUser(content=prompt)]
         for _ in range(4):
             output = await model.generate(input=messages, tools=tools)
             messages.append(output.message)
             if not output.message.tool_calls:
                 break
-            mixed_pending = (
-                mixed_pending or _pending_container_for_input(messages) is not None
-            )
             for call in output.message.tool_calls:
                 messages.append(
                     ChatMessageTool(
                         content="42", tool_call_id=call.id, function=call.function
                     )
                 )
-        return mixed_pending
+        # the mixed turn made a client tool call while the sleep was still
+        # running (its output absent from that message); resumption surfaced
+        # the output in a later assistant message
+        return any(
+            isinstance(mixed, ChatMessageAssistant)
+            and mixed.tool_calls
+            and not sleep_output_present(mixed)
+            and any(sleep_output_present(later) for later in messages[i + 1 :])
+            for i, mixed in enumerate(messages)
+        )
 
     for _ in range(3):
         if await attempt():
