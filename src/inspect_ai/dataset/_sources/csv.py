@@ -1,11 +1,10 @@
 import csv
-import os
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
 from inspect_ai._util.asyncfiles import is_s3_filename
-from inspect_ai._util.file import file
+from inspect_ai._util.file import absolute_file_path, file
 from inspect_ai.dataset._sources.util import resolve_sample_files
 
 from .._dataset import (
@@ -83,7 +82,7 @@ def csv_dataset(
         dataset = MemoryDataset(
             samples=data_to_samples(valid_data, data_to_sample, auto_id),
             name=name,
-            location=os.path.abspath(csv_file),
+            location=absolute_file_path(csv_file),
         )
 
         # resolve relative file paths
@@ -96,7 +95,7 @@ def csv_dataset(
         shuffle_choices_if_requested(dataset, shuffle_choices)
 
         # limit if requested
-        if limit:
+        if limit is not None:
             return dataset[0:limit]
 
         return dataset

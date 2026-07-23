@@ -72,6 +72,7 @@ _STALE_FLUSH_INTERVAL: float = 60
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import BufferConfig
+    from inspect_ai.log._config_update import ConfigUpdate
     from inspect_ai.log._recorders.buffer.history import SampleHistory
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -171,6 +172,7 @@ class TaskLogger:
         viewer: ViewerConfig | None,
         recorder: Recorder,
         header_only: bool,
+        dynamic_dataset: bool = False,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -195,7 +197,10 @@ class TaskLogger:
             [
                 sample.id
                 for sample in slice_dataset(
-                    dataset, eval_config.limit, eval_config.sample_id
+                    dataset,
+                    eval_config.limit,
+                    eval_config.sample_id,
+                    dynamic=dynamic_dataset,
                 )
             ],
         )
@@ -291,6 +296,10 @@ class TaskLogger:
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
 
+        # how many of the run's process-scoped ctl config updates this log
+        # has recorded (see record_inherited_config_updates)
+        self._process_updates_recorded = 0
+
     def _init_stale_flush_state(self) -> None:
         # `_flush_lock` serializes every path that writes the log via the
         # recorder — the buffer-full flush and the stale-flush timer (both
@@ -311,6 +320,12 @@ class TaskLogger:
     async def init(self) -> None:
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
+
+        # process-scoped ctl retunes applied earlier in this run (before a
+        # retry attempt or a later eval-set child started) still govern this
+        # fresh log's eval — snapshot them so the log records the overrides
+        # it runs under (marked inherited via provenance.metadata)
+        await self.record_inherited_config_updates()
 
         if self.eval.config.log_realtime is False:
             return
@@ -334,6 +349,9 @@ class TaskLogger:
         self._samples_completed = 0
         self.flush_pending = []
         self._finished = False
+        # the retry attempt gets a fresh log, which must re-record the run's
+        # full accumulated process-scoped updates in init() below
+        self._process_updates_recorded = 0
         # normally log_finish() has already cleaned up the buffer db, but if
         # the attempt failed before finishing its log (e.g. the log_start()
         # write failed) it is still live — clean it up so the new attempt
@@ -594,6 +612,74 @@ class TaskLogger:
             if self._buffer_db is not None
             else None,
         )
+
+    async def record_inherited_config_updates(self) -> None:
+        """Record process-scoped ctl retunes this log hasn't yet captured.
+
+        A watermark (``_process_updates_recorded``) tracks how far into the
+        run's accumulated process-scoped updates this log has recorded.
+        Called at the two points that bracket the gap between "logger
+        exists" and "logger is a live fan-out target": from :meth:`init`, to
+        snapshot retunes that predate the log (a retry attempt or a later
+        eval-set child); and from ``task_run`` immediately before
+        ``register_eval``, because all of a run's initial loggers are
+        init()ed up front in ``prepare_options`` while retunes fan out only
+        to *registered* evals — without the catch-up, a task queued behind
+        ``--max-tasks`` would never record a retune applied while it waited,
+        even though the process-global override still governs it. The
+        catch-up must precede ``register_eval``: both run on the eval's
+        single event loop and ``register_eval`` is sync, so no retune can
+        land between the final watermark check here and registration (after
+        which fan-out reaches this logger directly).
+
+        Recorded copies keep their original provenance/timestamps and are
+        marked ``inherited`` via ``provenance.metadata``. Recording is
+        bookkeeping, never control: a failure degrades to a warning (and
+        advances the watermark — no retry) rather than blocking the task.
+        """
+        from inspect_ai._control.config_record import (
+            inherited_config_updates,
+            process_config_update_count,
+        )
+
+        # re-check the count after each batch: recording awaits the recorder,
+        # and a retune can land during those awaits
+        while self._process_updates_recorded < process_config_update_count():
+            updates = inherited_config_updates(self._process_updates_recorded)
+            self._process_updates_recorded += len(updates)
+            for update in updates:
+                try:
+                    await self.log_config_update(update)
+                except Exception as ex:
+                    logger.warning(
+                        "Could not record inherited config update in eval log %s: %s",
+                        self._location,
+                        ex,
+                    )
+
+    async def log_config_update(self, update: "ConfigUpdate") -> bool:
+        """Record a mid-run config change into this eval's log.
+
+        Handed to the control channel via ``register_eval`` so applied
+        ``inspect ctl config`` retunes are persisted (see
+        ``EvalLog.config_updates``). Missing ``previous`` values are filled
+        from this log's launch config before recording, so each affected log
+        reports its own honest "before". Returns ``False`` (recording
+        nothing) once ``log_finish`` has torn the recorder down — a finished
+        log's record is complete, and under ``--ctl-server=keep`` the logger
+        stays attached to the eval's state after finishing.
+
+        Serialized under ``_flush_lock`` with the other recorder-touching
+        paths so it can't interleave with a flush or the finish teardown.
+        """
+        from inspect_ai.log._config_update import fill_previous_from_launch
+
+        async with self._flush_lock:
+            if self._finished:
+                return False
+            update = fill_previous_from_launch(update, self.eval)
+            await self.recorder.log_config_update(self.eval, update)
+            return True
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         if self._buffer_db is not None:

@@ -5,7 +5,7 @@ controller that discovers a provider's sustainable request concurrency at
 runtime, the identity scheme that keeps controllers apart, the sample-concurrency
 limiter that follows them, and the control-channel hooks that observe and retune
 them mid-flight. User-facing docs live in `docs/parallelism.qmd`; the control
-channel itself is `design/control-channel.md`. All code paths below are in
+channel itself is `design/ctl/control-channel.md`. All code paths below are in
 `src/inspect_ai/util/_concurrency.py` unless noted.
 
 ## Why
@@ -183,7 +183,7 @@ the single authority for the bounds at runtime.
 
 ## Control-channel interactions
 
-See `design/control-channel.md` ("Adaptive connections" sections) for the
+See `design/ctl/control-channel.md` ("Adaptive connections" sections) for the
 endpoint/CLI surface. The couplings that live on this side:
 
 - **View**: the `/limits` view reports each controller's live `concurrency`,
