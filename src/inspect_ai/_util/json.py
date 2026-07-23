@@ -9,16 +9,16 @@ from typing import (
 )
 
 import jsonpatch
-
-if TYPE_CHECKING:
-    from ijson import IncompleteJSONError  # type: ignore[import-untyped]
-    from ijson.backends.python import UnexpectedSymbol  # type: ignore[import-untyped]
 from jsonpointer import (  # type: ignore  # jsonpointer is already a dependency of jsonpatch
     JsonPointerException,
     resolve_pointer,
 )
 from pydantic import BaseModel, Field, JsonValue
 from pydantic_core import PydanticSerializationError, to_json, to_jsonable_python
+
+if TYPE_CHECKING:
+    from ijson import IncompleteJSONError  # type: ignore[import-untyped]
+    from ijson.backends.python import UnexpectedSymbol  # type: ignore[import-untyped]
 
 # Pre-compile regex to quickly find paths ending in an index for json_changes (e.g., /items/0)
 _ARRAY_INDEX_RE = re.compile(r"^(.*)/(\d+)$")
