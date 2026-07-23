@@ -226,9 +226,12 @@ class AgentBridge:
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
           start with the initial input's non-system messages. A descending
-          thread displaces a tracked one-shot non-descending call (the opencode
-          title case), while a non-descending call never displaces a tracked
-          descending thread (side calls, sub-agent loops).
+          thread displaces a tracked non-descending thread when that thread is
+          a one-shot call (the opencode title case) or when the descending
+          call is longer (the main loop reclaiming tracking from a promoted
+          sub-agent loop, below). A non-descending call never directly
+          displaces a tracked descending thread (side calls, sub-agent
+          loops).
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
           back to the legacy length heuristic: adopt the new thread when it has
@@ -238,7 +241,11 @@ class AgentBridge:
           what recovers tracking after history compaction (scaffold-side
           compaction replaces the conversation with a summary, so the
           post-compaction loop neither extends the tracked thread nor descends
-          from the initial input).
+          from the initial input). Promotion is unconditional, so a multi-call
+          sub-agent loop transiently takes over tracking this way — the main
+          loop reclaims it on resumption, by extension when it makes several
+          further calls (candidate promotion) or by the longer-descending-call
+          displacement above when it makes only one.
         """
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
@@ -258,11 +265,17 @@ class AgentBridge:
             if (
                 descends is True
                 and self._tracked_descends is False
-                and self._tracked_calls == 1
+                and (
+                    self._tracked_calls == 1 or len(messages) > self._last_message_count
+                )
             ):
-                # the real conversation displacing a one-shot side call that
-                # landed first (an established multi-call thread is instead
-                # reclaimed via candidate promotion to avoid flapping)
+                # the real conversation displacing a non-descending thread:
+                # a one-shot side call that landed first (the opencode title
+                # case) or, when longer, a promoted multi-call sub-agent loop
+                # (a main loop resuming with a single final call would
+                # otherwise be parked as a candidate that nothing extends).
+                # a short stray descending one-shot still can't displace an
+                # established non-descending thread (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
             elif descends != self._tracked_descends:
                 self._candidate_fps = fps
@@ -286,8 +299,9 @@ class AgentBridge:
     ) -> None:
         """Make `messages` the tracked main thread (see `_track_state`).
 
-        `calls` is the number of bridge calls attributed to the thread; it
-        gates displacement of one-shot calls by descending threads.
+        `calls` is the number of bridge calls attributed to the thread; a
+        descending thread may displace a non-descending one-shot (`calls == 1`)
+        thread regardless of length.
         """
         self.state.messages = messages
         self.state.output = output

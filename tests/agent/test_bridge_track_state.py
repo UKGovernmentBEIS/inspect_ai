@@ -231,3 +231,38 @@ async def test_sub_agent_loop_recovers_to_main_thread() -> None:
 
     assert bridge.state.output.completion == "Castle"
     assert len(bridge.state.messages) == len(turn4) + 1
+
+
+async def test_single_final_call_reclaims_main_thread_after_sub_agent_loop() -> None:
+    """One final main-loop call reclaims tracking from a promoted sub-agent loop.
+
+    A multi-call sub-agent loop takes over tracking via candidate promotion;
+    when the main loop then resumes with exactly *one* further (longer) call,
+    nothing will ever extend it, so it must displace the sub-agent thread
+    directly rather than being parked as a candidate.
+    """
+    bridge = task_bridge()
+
+    # establish main loop
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "delegating")
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    out2 = await track(bridge, turn2, "spawning subtask")
+    turn3 = turn2 + [out2.message, ChatMessageTool(content="tool result 2")]
+    out3 = await track(bridge, turn3, "waiting on subtask")
+
+    # sub-agent loop (its own conversation, multiple calls -> promoted)
+    sub1: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a subtask agent ..."),
+        ChatMessageUser(content="Research Doctor Who series 9 filming locations."),
+    ]
+    sout1 = await track(bridge, sub1, "researching")
+    sub2 = sub1 + [sout1.message, ChatMessageTool(content="search results")]
+    await track(bridge, sub2, "Cardiff Castle")
+
+    # main loop resumes with exactly one final call and stops
+    turn4 = turn3 + [out3.message, ChatMessageTool(content="subtask: Cardiff Castle")]
+    await track(bridge, turn4, "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert len(bridge.state.messages) == len(turn4) + 1
