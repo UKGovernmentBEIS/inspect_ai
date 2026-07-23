@@ -26,7 +26,7 @@ and hash only genuinely new content.
 import dataclasses
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Final, TypeVar, cast
+from typing import Final, Literal, NamedTuple, TypeVar, cast
 
 from pydantic import BaseModel, JsonValue
 from pydantic_core import to_jsonable_python
@@ -41,8 +41,8 @@ from ._model import ModelEvent
 
 def materialize_pooled_events(
     events: Iterable[object],
-    message_pool: list[ChatMessage],
-    call_pool: list[JsonValue],
+    message_pool: Sequence[ChatMessage] | Mapping[int, ChatMessage],
+    call_pool: Sequence[JsonValue] | Mapping[int, JsonValue],
 ) -> list[Event]:
     materialized = validate_events(list(events))
     materialized = resolve_model_event_inputs(materialized, message_pool)
@@ -244,16 +244,151 @@ _T = TypeVar("_T")
 
 def _expand_refs(
     refs: list[tuple[int, int]],
-    pool: list[_T],
+    pool: Sequence[_T] | Mapping[int, _T],
 ) -> list[_T]:
     """Expand range-encoded refs against a pool.
 
     Each element is ``(start, end_exclusive)``: yields ``pool[start:end_exclusive]``.
+    Position-keyed mappings (page-scoped buffer reads carry only the positions
+    their events reference) are indexed per position, skipping absent positions
+    to mirror slice truncation of out-of-range refs.
     """
     result: list[_T] = []
-    for start, end_exclusive in refs:
-        result.extend(pool[start:end_exclusive])
+    if isinstance(pool, Mapping):
+        for start, end_exclusive in refs:
+            result.extend(pool[i] for i in range(start, end_exclusive) if i in pool)
+    else:
+        for start, end_exclusive in refs:
+            result.extend(pool[start:end_exclusive])
     return result
+
+
+class PoolRefField(NamedTuple):
+    """Location of a range-encoded pool-ref field on a condensed event."""
+
+    pool: Literal["message", "call"]
+    """Which pool the refs index into."""
+
+    path: tuple[str, ...]
+    """Key path from the event root to the refs list, in raw JSON form."""
+
+
+POOL_REF_FIELDS: Final[tuple[PoolRefField, ...]] = (
+    PoolRefField(pool="message", path=("input_refs",)),
+    PoolRefField(pool="call", path=("call", "call_refs")),
+)
+"""Registry of every event field that carries range-encoded pool refs.
+
+Everything that reads or rewrites pool refs must agree on which event
+fields hold them, and this registry is their single source of truth:
+
+- the condense/resolve functions in this module, which write and read the
+  typed fields;
+- :func:`collect_pool_ref_positions`, which the buffer's page-scoped reads
+  use to load only the pool entries a page's events reference;
+- :func:`remap_pool_refs`, which export paths use to translate refs after
+  pool entries are assigned new positions in a destination store;
+- ``test_pool_ref_registry_covers_all_ref_fields`` (in
+  ``tests/log/test_sample_history.py``), which introspects the event models
+  for ``*_refs`` fields and fails when one is missing here.
+
+A pool-ref field that isn't registered here would make page-scoped reads
+silently drop the entries it references (:func:`_expand_refs` skips absent
+positions), so any new ``*_refs`` field MUST be added here alongside its
+condense/resolve support — the test enforces registration.
+"""
+
+
+class PoolRefPositions(NamedTuple):
+    message_positions: set[int]
+    call_positions: set[int]
+
+
+def collect_pool_ref_positions(
+    events: Iterable[Mapping[str, JsonValue]],
+) -> PoolRefPositions:
+    """Pool positions referenced by condensed events in raw JSON form.
+
+    Walks :data:`POOL_REF_FIELDS` so callers that load partial pools (the
+    buffer's page-scoped reads) stay in sync with the condense/resolve
+    functions in this module.
+    """
+    positions = PoolRefPositions(message_positions=set(), call_positions=set())
+    pool_positions: dict[str, set[int]] = {
+        "message": positions.message_positions,
+        "call": positions.call_positions,
+    }
+    for event in events:
+        for field in POOL_REF_FIELDS:
+            value: object = event
+            for key in field.path:
+                value = value.get(key) if isinstance(value, Mapping) else None
+            _accumulate_ref_positions(value, pool_positions[field.pool])
+    return positions
+
+
+def _accumulate_ref_positions(refs: object, positions: set[int]) -> None:
+    """Accumulate positions covered by range-encoded ``(start, end)`` refs."""
+    if not isinstance(refs, list):
+        return
+    for ref in refs:
+        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
+            continue
+        start, end = ref
+        if isinstance(start, int) and isinstance(end, int):
+            positions.update(range(start, end))
+
+
+def remap_pool_refs(
+    event: Mapping[str, JsonValue],
+    message_pos_map: Mapping[int, int],
+    call_pos_map: Mapping[int, int],
+) -> dict[str, JsonValue]:
+    """Rewrite a condensed event's pool refs through position maps.
+
+    Used when a sample's pool entries are exported into another store and
+    assigned new positions there. Walks :data:`POOL_REF_FIELDS` so exporters
+    stay in sync with the condense/resolve functions in this module.
+    """
+    pos_maps: dict[str, Mapping[int, int]] = {
+        "message": message_pos_map,
+        "call": call_pos_map,
+    }
+    remapped: dict[str, JsonValue] = dict(event)
+    for field in POOL_REF_FIELDS:
+        remapped = _remap_refs_at_path(remapped, field.path, pos_maps[field.pool])
+    return remapped
+
+
+def _remap_refs_at_path(
+    node: dict[str, JsonValue], path: tuple[str, ...], pos_map: Mapping[int, int]
+) -> dict[str, JsonValue]:
+    """Return ``node`` with the refs at ``path`` remapped, copying dicts on the path."""
+    key, rest = path[0], path[1:]
+    child = node.get(key)
+    if rest:
+        if not isinstance(child, dict):
+            return node
+        new_child = _remap_refs_at_path(child, rest, pos_map)
+        return node if new_child is child else {**node, key: new_child}
+    if not isinstance(child, list):
+        return node
+    return {**node, key: cast(JsonValue, _remap_refs(child, pos_map))}
+
+
+def _remap_refs(
+    refs: Sequence[object], pos_map: Mapping[int, int]
+) -> list[tuple[int, int]]:
+    """Translate range-encoded refs through a position map and re-compress."""
+    indices: list[int] = []
+    for ref in refs:
+        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
+            continue
+        start, end = ref
+        if not isinstance(start, int) or not isinstance(end, int):
+            continue
+        indices.extend(pos_map[index] for index in range(start, end))
+    return _compress_refs(indices)
 
 
 def condense_model_event_calls(
@@ -338,7 +473,7 @@ def condense_model_event_calls(
 
 def resolve_model_event_calls(
     events: list[Event],
-    call_pool: list[JsonValue],
+    call_pool: Sequence[JsonValue] | Mapping[int, JsonValue],
 ) -> list[Event]:
     """Restore call.request messages from call_pool references."""
     if not call_pool:
@@ -364,7 +499,7 @@ def resolve_model_event_calls(
 
 def resolve_model_event_inputs(
     events: list[Event],
-    message_pool: list[ChatMessage],
+    message_pool: Sequence[ChatMessage] | Mapping[int, ChatMessage],
 ) -> list[Event]:
     """Resolve ModelEvent input_refs back to full input lists."""
     if not message_pool:

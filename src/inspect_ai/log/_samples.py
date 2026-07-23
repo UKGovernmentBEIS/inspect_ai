@@ -1,3 +1,29 @@
+"""Process-wide registry of running samples (and in-flight model events).
+
+Despite living in the ``log`` package, this module is not about log
+persistence — it's the runtime observability hub for samples currently
+executing in this process. Each running sample has an :class:`ActiveSample`
+in the module-global registry (:func:`active_samples`): the executing side
+(task runner, model layer, limits, solvers) *pushes* live state onto it via
+the ``set_active_sample_*`` functions, and cross-task observers (the TUI,
+the control channel, ACP) read it. The pushes exist because most sample
+state is context-bound (ContextVars, limit trees) and therefore unreachable
+from an observer's task — the registry mirrors it outward. Most such
+mirrors are copied scalars (token/turn totals, limits);
+:attr:`ActiveSample.live_state` is the exception, a *handle* to the
+sample's live ``TaskState`` (copying a conversation per append would be
+prohibitive), and the one upward-pointing object edge here.
+
+That role makes this module a cross-layer hub: it's imported from every
+layer of the stack, and its own references to higher-layer types
+(``TaskState``, ACP transport, hooks) are ``TYPE_CHECKING``-only or
+function-local to keep the module import graph acyclic.
+
+The ``_active_model_event`` half of the file is a sibling concern — tracking
+the in-flight ``ModelEvent`` so providers can attach call payloads and retry
+counts — cohabiting here rather than part of the sample registry.
+"""
+
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -20,6 +46,7 @@ if TYPE_CHECKING:
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.log._log import EvalRetryError
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
+    from inspect_ai.solver._task_state import TaskState
 
 import anyio
 from anyio.abc import TaskGroup
@@ -37,6 +64,10 @@ from ..event._model import ModelEvent
 from ._transcript import Transcript
 
 logger = getLogger(__name__)
+
+
+SampleCancelAction = Literal["score", "error", "cancel"]
+"""How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
 
 
 class ActiveSample:
@@ -92,6 +123,14 @@ class ActiveSample:
         self.total_messages = 0
         self.total_tokens = 0
         self.total_turns = 0
+        # The sample's live `TaskState` — the handle observers read the
+        # current conversation from (see the module docstring). Refreshed via
+        # `set_sample_state` (sample start, `Chain`/`Plan` step boundaries,
+        # pre-scoring) so it survives a solver replacing the state object;
+        # step-boundary refreshes are compare-and-swap guarded against
+        # capture by `fork()` branches (see `set_active_sample_state`).
+        # `None` only in the brief window before the first state is set.
+        self.live_state: "TaskState | None" = None
         self.token_limit_usage: int | None = None
         self.total_cost: float | None = None
         self.fallback_models: list[str] = []
@@ -107,7 +146,7 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
-        self._interrupt_action: Literal["score", "error"] | None = None
+        self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
@@ -201,7 +240,14 @@ class ActiveSample:
         else:
             return 0
 
-    def interrupt(self, action: Literal["score", "error"]) -> None:
+    def interrupt(self, action: SampleCancelAction) -> None:
+        """Terminate this running sample.
+
+        ``action`` selects the outcome: ``"score"`` completes the sample and
+        runs the scorer on the work done so far; ``"error"`` marks it errored;
+        ``"cancel"`` records it as cancelled (transcript preserved, no
+        scoring, not counted as an error).
+        """
         self._interrupt_action = action
         if self.tg is None:
             raise RuntimeError(
@@ -244,7 +290,7 @@ class ActiveSample:
             )
 
     @property
-    def interrupt_action(self) -> Literal["score", "error"] | None:
+    def interrupt_action(self) -> SampleCancelAction | None:
         return self._interrupt_action
 
     @property
@@ -316,6 +362,13 @@ async def active_sample(
 
     _active_samples.append(active)
     _sample_active.set(active)
+    # Capture the state the runner set before entering this context (via
+    # `set_sample_state`, which precedes `active_sample`); subsequent solver
+    # reassignments refresh it through the `set_sample_state` calls at
+    # `Chain` / `Plan` step boundaries.
+    from inspect_ai.solver._task_state import sample_state
+
+    active.live_state = sample_state()
     # Open the ACP session for this sample's lifetime. The session is the
     # ACP-specific transport layer (pub/sub, approver registry, transcript
     # snapshot, etc.); it produces into whatever agent_channel() is bound to
@@ -430,6 +483,31 @@ def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:
         active.total_messages = total_messages
+
+
+def set_active_sample_state(
+    state: "TaskState", *, replacing: "TaskState | None" = None
+) -> None:
+    """Refresh the active sample's live `TaskState` handle.
+
+    Called from `set_sample_state` so the control channel's view of the
+    conversation survives a solver replacing the `TaskState` object outright
+    (`Chain` / `Plan` call `set_sample_state` after each solver step for
+    exactly this reason). In-place mutation between replacements needs no
+    hook — the handle already points at the object whose `messages` list is
+    being appended to.
+
+    When ``replacing`` is given, the refresh is a compare-and-swap: it lands
+    only if the handle currently points at ``replacing``. The handle lives on
+    the shared `ActiveSample`, which a `fork()` subtask's copied context still
+    reaches through `sample_active()` (the ContextVar isolation protecting
+    `sample_state()` doesn't extend to it) — the guard keeps a branch
+    `Chain` / `Plan`, threading a deepcopy lineage the handle never pointed
+    at, from serving its branch conversation as the sample's main thread.
+    """
+    active = sample_active()
+    if active and (replacing is None or active.live_state is replacing):
+        active.live_state = state
 
 
 def set_active_sample_fallback_models(fallback_models: list[str]) -> None:

@@ -102,7 +102,11 @@ async def _exec(request: str | None) -> None:
         if tool_name in in_process_tools
         else _dispatch_remote_method
     )(request_json_str)
-    print(chunk_json_rpc_response_if_needed(request_data, response))
+    print(
+        chunk_json_rpc_response_if_needed(
+            request_data, response, chunk_dir_prepared=True
+        )
+    )
 
 
 async def _dispatch_local_method(request_json_str: str) -> JSONRPCResponseJSON:

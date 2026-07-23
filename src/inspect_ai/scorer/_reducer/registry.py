@@ -4,8 +4,8 @@ from typing import Any, Callable, TypeVar, cast, overload
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     registry_add,
-    registry_create,
     registry_info,
     registry_log_name,
     registry_lookup,
@@ -16,9 +16,6 @@ from inspect_ai._util.registry import (
 )
 
 from .types import ScoreReducer, ScoreReducers
-
-REDUCER_NAME = "__REDUCER_NAME__"
-
 
 ScoreReducerType = TypeVar("ScoreReducerType", bound=Callable[..., ScoreReducer])
 
@@ -61,15 +58,13 @@ def score_reducer(
         def wrapper(*w_args: Any, **w_kwargs: Any) -> ScoreReducer:
             # create the task
             score_reducer = reducer_type(*w_args, **w_kwargs)
-            # If a name has been explicitly set, use that
-            reducer_nm = getattr(score_reducer, REDUCER_NAME, reducer_name)
             # tag it
             registry_tag(
                 reducer_type,
                 score_reducer,
                 RegistryInfo(
                     type="score_reducer",
-                    name=reducer_nm,
+                    name=reducer_name,
                 ),
                 *w_args,
                 **w_kwargs,
@@ -152,8 +147,9 @@ def create_reducers(reducers: ScoreReducers | None) -> list[ScoreReducer] | None
                 params["k"] = int(match.group(2))
 
         return cast(
-            Callable[..., ScoreReducer], registry_create("score_reducer", name)
-        )(**params)
+            ScoreReducer,
+            create_registry_object("score_reducer", name, params),
+        )
 
     if isinstance(reducers, ScoreReducer):
         return [reducers]

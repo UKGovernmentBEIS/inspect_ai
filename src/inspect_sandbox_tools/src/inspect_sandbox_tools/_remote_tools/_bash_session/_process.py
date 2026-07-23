@@ -10,7 +10,6 @@ from .tool_types import InteractResult
 
 # Keep accumulated PTY output bounded even if the command writes indefinitely.
 _DEFAULT_MAX_BASH_SESSION_RESPONSE_BYTES = 10 * 1024**2
-_TRUNCATION_NOTICE_BUDGET = 512
 
 
 class Process:
@@ -133,7 +132,7 @@ class Process:
         self._output_data.extend(new_data.encode("utf-8", errors="replace"))
         self._trim_output_data()
 
-        if len(self._output_data) >= 4096:
+        if self._dropped_output_bytes or len(self._output_data) >= 4096:
             self._send_data_event.set()
         else:
             self._send_data_event.start_timer(self._idle_timeout)
@@ -142,22 +141,35 @@ class Process:
         if len(self._output_data) <= self._output_limit:
             return
 
-        tail_limit = max(0, self._output_limit - _TRUNCATION_NOTICE_BUDGET)
-        dropped_bytes = len(self._output_data) - tail_limit
+        dropped_bytes = len(self._output_data) - self._output_limit
         del self._output_data[:dropped_bytes]
         self._dropped_output_bytes += dropped_bytes
 
     def _format_output(self) -> str:
-        output = self._output_data.decode("utf-8", errors="replace")
         if not self._dropped_output_bytes:
-            return output
+            return self._output_data.decode("utf-8", errors="replace")
 
-        notice = (
-            "\n[inspect_sandbox_tools: bash_session output exceeded "
-            f"{_human_readable_size(self._output_limit)}; showing the tail; "
-            f"{self._dropped_output_bytes} bytes omitted]\n"
-        )
-        return f"{notice}{output}"
+        output_bytes = bytes(self._output_data)
+        omitted_bytes = self._dropped_output_bytes
+        for _ in range(10):
+            notice = _truncation_notice(self._output_limit, omitted_bytes)
+            notice_bytes = notice.encode("utf-8")
+            if len(notice_bytes) >= self._output_limit:
+                return _short_truncation_notice(
+                    self._output_limit, omitted_bytes
+                ).decode("ascii")
+
+            tail_budget = self._output_limit - len(notice_bytes)
+            tail = output_bytes[-tail_budget:].decode("utf-8", errors="ignore")
+            retained_bytes = len(tail.encode("utf-8"))
+            updated_omitted_bytes = (
+                self._dropped_output_bytes + len(output_bytes) - retained_bytes
+            )
+            if updated_omitted_bytes == omitted_bytes:
+                return f"{notice}{tail}"
+            omitted_bytes = updated_omitted_bytes
+
+        raise RuntimeError("Unable to format bounded bash_session output")
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"
@@ -205,3 +217,22 @@ def _human_readable_size(size_bytes: int) -> str:
     if size_bytes >= 1024 and size_bytes % 1024 == 0:
         return f"{size_bytes // 1024} KiB"
     return f"{size_bytes} bytes"
+
+
+def _truncation_notice(output_limit: int, omitted_bytes: int) -> str:
+    return (
+        "\n[inspect_sandbox_tools: bash_session output exceeded "
+        f"{_human_readable_size(output_limit)}; showing the tail; "
+        f"{omitted_bytes} bytes omitted]\n"
+    )
+
+
+def _short_truncation_notice(output_limit: int, omitted_bytes: int) -> bytes:
+    notices = (
+        f"[{omitted_bytes} bytes omitted]\n".encode("ascii"),
+        b"[output truncated]\n",
+    )
+    for notice in notices:
+        if len(notice) <= output_limit:
+            return notice
+    return b"!" * output_limit
