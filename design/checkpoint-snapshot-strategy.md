@@ -371,7 +371,11 @@ Today: `restic/host/`, `restic/sandboxes/<name>/`,
   `restic/snapshot-strategies.json`, beside `restic-config.json`. A
   strategy-agnostic file under `restic/` is deliberate: it rides the
   same cross-cutting retry copy (`_fs_copy_cross_cutting`) that
-  already carries `restic-config.json` out of that directory, and
+  already carries `restic-config.json` out of that directory (the
+  copy is name-scoped, not directory-scoped — it copies exactly
+  `restic/restic-config.json` and top-level `ckpt-*.json`, so Phase 2
+  must extend it with the pin as one more named entry; placement
+  under `restic/` does not make the carry-over free), and
   `restic/` is already the home of core-owned per-sample files (the
   host repo, the config) rather than restic-strategy state.
 
@@ -603,7 +607,13 @@ TODO.
   retention under `keep_last=1` honors the floor (latest committed
   always restorable) and removes thinned checkpoints' files from the
   destination before their data (§4.4); retry under a different
-  configured strategy fails with the §4.7 pin error; agent-invisibility
+  configured strategy fails with the §4.7 pin error; pin carry-over —
+  fresh sample under a non-default strategy, retry 1, then retry 2
+  under the same config resumes cleanly with no spurious mismatch
+  (this is the only scenario that catches a missing pin entry in
+  `_fs_copy_cross_cutting`: every single-resume scenario resumes from
+  the fresh attempt's dir, which has the pin from fresh hydration);
+  agent-invisibility
   (non-root `ls` of tooling/staging paths fails).
 - Per-strategy unit tests for the mechanisms (manifest diffing, chunked
   copy-out and copy-in, hash verification).
