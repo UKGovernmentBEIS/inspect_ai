@@ -41,7 +41,7 @@ The interface already exists in the code, inlined at two call sites:
 | --- | --- |
 | Fresh sample | `hydrate._hydrate_sandbox` (resume=None): `inject_restic(env)` → `init_sandbox_repo(env, password)` |
 | Fire | `checkpointer_impl._backup_and_egress_sandbox`: `run_sandbox_backup(env, ...)` → `egress_sandbox(env, dest_repo=sandbox_repo_dir(sample_root, name), ...)`; then `_fire_once` runs `list_changed_files` host-side and records a `SnapshotDetails` per sandbox |
-| Remote shipping | `_host_egress.host_egress`: manifest-diff the staging dir, ship in restic-aware safe order (`config`/`keys` → `data` → `index` → `snapshots` → `restic-config.json` → `ckpt-*.json` last) |
+| Remote shipping | `_host_egress.host_egress`: manifest-diff the staging dir, ship in restic-aware safe order (`config`/`keys` → `data` → `index` → `snapshots` → catch-all (everything unmatched) → `restic-config.json` → `ckpt-*.json` last) |
 | Resume | `hydrate._hydrate_sandbox` (resume set): `_fs_copy_repo` (old sample dir → new sample root) → `_drop_orphan_snapshots` → `ingress_sandbox` (tar repo into container, `restic restore latest --target /`) |
 | Retention | `retention: "delete" \| "retain"` — all-or-nothing at eval end *(defined and merged in `config.py`, but not yet enforced — no eval-end delete is implemented)* |
 
@@ -274,9 +274,9 @@ Copied from the restic implementation's hard-won properties:
 
 Resume must never run one strategy over another strategy's data, and a
 strategy change between attempts must surface as an error, never be
-applied silently (allowing new snapshots to switch strategies mid-
-lineage would leave a sample's checkpoint history half-and-half, with
-retention and adopt semantics straddling two implementations). Two
+applied silently (allowing new snapshots to switch strategies
+mid-lineage would leave a sample's checkpoint history half-and-half,
+with retention and adopt semantics straddling two implementations). Two
 persisted records enforce this:
 
 - **Per snapshot:** each `SnapshotDetails` written into a checkpoint
@@ -284,9 +284,11 @@ persisted records enforce this:
   self-describing. Absent field ⇒ `"restic-incremental"` (pre-change
   checkpoint dirs).
 - **Per sample — the pin:** at fresh-sample hydration the core writes
-  `snapshot-strategies.json` (sandbox name → strategy name) into the
-  sample checkpoints dir, shipped with the other core-owned files. On
-  resume the pin rides across attempts with the cross-cutting copy
+  the pin file (sandbox name → strategy name) at
+  `restic/snapshot-strategies.json` in the sample checkpoints dir
+  (placement rationale in §5), shipped with the other core-owned
+  files. On resume the pin rides across attempts with the
+  cross-cutting copy
   (alongside `restic-config.json` and the `ckpt-*.json` files in
   `_fs_copy_cross_cutting`), so every attempt's dir carries it no
   matter how many retries preceded — without that carry-over, the
@@ -327,7 +329,19 @@ opted out via an empty `sandbox_paths` entry) — hard-errors too:
 today that state is silently lossy (the sandbox is simply not
 hydrated and its captured state dropped), and §4.7's goal is that a
 changed sandbox set surfaces as a clear error in either direction,
-with the same remedy stated. Strategy
+with the same remedy stated. One path into the mirror case involves
+no config change at all: `resolve_sandbox_backup_paths` skips an
+auto-home sandbox with a warning when its home dir cannot be
+resolved, so a sandbox pinned by attempt 1 can drop out of the
+effective backup map on retry simply because resolution flaked. That
+skip-with-warning is fine for a sandbox that was never captured, but
+for a *pinned* sandbox it hard-errors like the other mirror cases —
+the alternative is exactly the silent data loss this section exists
+to prevent — with its own message naming home-dir resolution as the
+cause (the config-change remedy would misdiagnose it) and its own
+remedy: resume again (resolution failures are typically transient),
+or configure the sandbox's paths explicitly in `sandbox_paths` so
+resolution is no longer in the loop. Strategy
 *migration* on resume is explicitly a non-goal. The result: the
 strategy that starts a sample's checkpoint lineage is the strategy for
 its lifetime, and a config change between attempts is a clear,
@@ -350,8 +364,13 @@ Today: `restic/host/`, `restic/sandboxes/<name>/`,
   context capture); the per-sample secret in `restic-config.json`
   doubles as the generic capture secret handed to strategies via
   `SnapshotContext`.
-- `snapshot-strategies.json` (the §4.7 pin, from Phase 2) is
-  core-owned and sits beside `restic-config.json`.
+- The §4.7 pin (from Phase 2) is core-owned and lives at
+  `restic/snapshot-strategies.json`, beside `restic-config.json`. A
+  strategy-agnostic file under `restic/` is deliberate: it rides the
+  same cross-cutting retry copy (`_fs_copy_cross_cutting`) that
+  already carries `restic-config.json` out of that directory, and
+  `restic/` is already the home of core-owned per-sample files (the
+  host repo, the config) rather than restic-strategy state.
 
 ## 6. Configuration
 
@@ -519,6 +538,15 @@ builds the shared primitive both need:
   prior producer still running and deleting stale staging subdirs —
   this is how the archive strategy meets §4.2's requirement that an
   interrupted fire not break the next one on the same live sample.
+  Note the subdir keying alone does not isolate exactly this case: an
+  interrupted fire never commits its checkpoint file, and the core
+  *reuses* the id (`_scan_next_checkpoint_id`), so the retried fire
+  stages in the *same* subdirectory that holds the residue — the
+  kill-then-delete preamble is the load-bearing mechanism there, not
+  belt-and-braces. Its order matters too: kill the producer *before*
+  deleting its subdir, since deleting first releases the backpressure
+  gate and lets the still-live producer write into the recreated
+  directory.
   The backpressure gating bounds sandbox disk to about two chunks
   (one being produced, one being shipped) beyond the live data —
   meeting the "no staging repository inside the sandbox" goal within a
