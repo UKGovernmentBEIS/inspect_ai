@@ -1578,26 +1578,40 @@ async def test_anthropic_stream_capture_restores_container() -> None:
 @skip_if_no_anthropic
 @pytest.mark.slow
 async def test_anthropic_container_continuation_live() -> None:
-    """Live check that a mixed server/client tool turn can be continued.
+    """Live check that a mixed server/client tool turn resumes its container.
 
     Exercises the shape behind the "container_id is required" 400 (see
     test_anthropic_container_replayed_after_client_tool_call): a client
     tool call ends the turn while native code execution is still running
     (a `sleep` makes that reliable), so the turn's response carries a
-    pending server tool use. The tool-result follow-up must succeed --
-    before the fix the pending block was dropped from replay and the
-    orphaned result in the next response crashed parsing.
+    pending server tool use. The tool-result follow-up must resume that
+    work in the SAME container.
 
-    The test observes only the public surface: the mixed turn is an
-    assistant message making a client tool call whose content lacks the
-    sleep's output, and successful resumption is that output surfacing in a
-    later assistant message. The condition depends on model behavior (the
-    prompt urges parallel tool calls but can't force them), so the test
-    skips when it didn't occur rather than pass vacuously.
+    The test observes only the public surface, using container state to
+    tell true resumption apart from silent loss: the warmup step plants a
+    random seed file and prints the seed, and the pending command echoes
+    the seed back. If the pending call is dropped from the replay (the
+    pre-fix behavior), the model -- whose replayed history then shows the
+    call as never made -- re-runs it, in a fresh container where the seed
+    file doesn't exist (or, if it re-runs the warmup too, holds a different
+    seed), so the expected `marker-<seed>` never appears and the test
+    FAILS. It skips only when the model didn't produce the mixed-turn shape
+    at all (the prompt urges parallel tool calls but can't force them).
     """
+    import re
+
     from inspect_ai.tool import ToolDef, ToolResult
 
-    marker = "done-c11d"
+    # the warmup plants a random seed AND prints it, so the test learns the
+    # expected value. only the same container can echo `marker-<that seed>`
+    # back: after a silent loss, a re-run prints a bare "marker-" (fresh
+    # container, no seed file), and even re-running the warmup first yields a
+    # DIFFERENT seed -- both loss modes are detected.
+    warmup_cmd = (
+        'head -c 9 /dev/urandom | base64 > /tmp/seed && echo "seed-$(cat /tmp/seed)"'
+    )
+    pending_cmd = 'sleep 5 && echo "marker-$(cat /tmp/seed)"'
+    seed_re = re.compile(r"seed-([A-Za-z0-9+/]{10,})")
 
     async def code_execution_execute(code: str) -> ToolResult:
         """Execute code.
@@ -1630,35 +1644,36 @@ async def test_anthropic_container_continuation_live() -> None:
     model = get_model(
         "anthropic/claude-opus-4-8", config=GenerateConfig(max_tokens=4096)
     )
-    # the warmup step matters: it creates the container, so the parallel step
-    # leaves PENDING work in an EXISTING container -- the shape that requires
-    # the follow-up request to name the container
+    # the warmup step matters twice over: it creates the container (so the
+    # parallel step leaves pending work in an EXISTING container, the shape
+    # that requires the follow-up request to name it), and it plants the seed
+    # that only true resumption can read back
     prompt = (
-        "Step 1: use code execution to run the bash command `echo warmup` and "
-        "wait for its result. Step 2: after you see that result, issue these "
-        "two tool calls TOGETHER IN PARALLEL in your next step, before seeing "
-        "any results from either: (a) code execution running "
-        f"`sleep 5 && echo {marker}`; (b) lookup_constant with name='alpha'. "
-        "They are independent -- do not wait for one before calling the other."
+        f"Step 1: use code execution to run the bash command `{warmup_cmd}` "
+        "and wait for its result. Step 2: after you see that result, issue "
+        "these two tool calls TOGETHER IN PARALLEL in your next step, before "
+        f"seeing any results from either: (a) code execution running "
+        f"`{pending_cmd}`; (b) lookup_constant with name='alpha'. They are "
+        "independent -- do not wait for one before calling the other."
     )
 
-    def sleep_output_present(message: ChatMessage) -> bool:
-        return (
-            isinstance(message, ChatMessageAssistant)
-            and isinstance(message.content, list)
-            and any(
-                isinstance(c, ContentToolUse)
-                and c.tool_type == "code_execution"
-                and marker in c.result
-                for c in message.content
-            )
+    def exec_results(message: ChatMessage) -> str:
+        if not isinstance(message, ChatMessageAssistant) or not isinstance(
+            message.content, list
+        ):
+            return ""
+        return " ".join(
+            c.result
+            for c in message.content
+            if isinstance(c, ContentToolUse) and c.tool_type == "code_execution"
         )
 
     # drive the tool loop; the generate that follows a mixed pending turn is
     # the request that 400'd before the fix. whether the model leaves server
     # work pending when it makes the client tool call is up to the model, so
     # try a few fresh conversations before giving up.
-    async def attempt() -> bool:
+    async def attempt() -> bool | None:
+        """True: resumed; False: mixed turn but work lost; None: no mixed turn."""
         messages: list[ChatMessage] = [ChatMessageUser(content=prompt)]
         for _ in range(4):
             output = await model.generate(input=messages, tools=tools)
@@ -1671,21 +1686,40 @@ async def test_anthropic_container_continuation_live() -> None:
                         content="42", tool_call_id=call.id, function=call.function
                     )
                 )
-        # the mixed turn made a client tool call while the sleep was still
-        # running (its output absent from that message); resumption surfaced
-        # the output in a later assistant message
+        # learn the planted seed from the warmup output
+        seed_match = next(
+            (m for msg in messages if (m := seed_re.search(exec_results(msg)))), None
+        )
+        if seed_match is None:
+            return None
+        marker = f"marker-{seed_match.group(1)}"
+        # the mixed turn made a client tool call while the seeded command was
+        # still running (its output absent from that message)
+        mixed_turns = [
+            i
+            for i, m in enumerate(messages)
+            if isinstance(m, ChatMessageAssistant)
+            and m.tool_calls
+            and marker not in exec_results(m)
+        ]
+        if not mixed_turns:
+            return None
+        # true resumption surfaced the EXACT planted seed in a later message
         return any(
-            isinstance(mixed, ChatMessageAssistant)
-            and mixed.tool_calls
-            and not sleep_output_present(mixed)
-            and any(sleep_output_present(later) for later in messages[i + 1 :])
-            for i, mixed in enumerate(messages)
+            marker in exec_results(later)
+            for i in mixed_turns
+            for later in messages[i + 1 :]
         )
 
     for _ in range(3):
-        if await attempt():
-            break
-    else:
-        pytest.skip(
-            "model did not leave container work pending alongside a client tool call"
+        resumed = await attempt()
+        if resumed is None:
+            continue
+        assert resumed, (
+            "the mixed turn's pending code execution was not resumed: the "
+            "seeded marker never surfaced, meaning the pending call was "
+            "dropped from the replay and/or the container id was not sent"
         )
+        break
+    else:
+        pytest.skip("model did not produce the mixed server/client tool turn")
