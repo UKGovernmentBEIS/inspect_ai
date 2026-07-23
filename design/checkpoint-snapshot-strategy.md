@@ -12,7 +12,8 @@ full dataset again and space can never be reclaimed mid-run.
 
 **In scope** — everything sandbox-side:
 
-- Fresh-sample provisioning of capture tooling inside the sandbox.
+- Provisioning of capture tooling inside the sandbox (fresh and
+  resumed samples alike).
 - Per-fire capture of sandbox paths and shipping to the destination.
 - Resume: materializing a committed snapshot into a fresh sandbox.
 - Retry handoff: carrying strategy state from a prior attempt's sample
@@ -267,17 +268,37 @@ Copied from the restic implementation's hard-won properties:
   `MAX_EXEC_OUTPUT_SIZE` (suppress progress streams — see
   `run_sandbox_backup`'s `--quiet` note).
 
-### 4.7 Strategy identity is recorded
+### 4.7 Strategy identity is recorded and pinned
 
-Each `SnapshotDetails` written into a checkpoint file records its
-`strategy` name. The semantics of a config change between attempts:
-the resume-side operations (`adopt`, `discard_orphans`, `restore`)
-instantiate and run the *recorded* strategy — resume proceeds, never
-bricked by the change — while new snapshots from this attempt onward
-use the *configured* strategy. The only error case is a recorded
-strategy name that is unknown/unavailable in this build, which fails
-with a clear error rather than misparsing the prior data with the
-configured strategy. Absent field ⇒ `"restic-incremental"`.
+Resume must never run one strategy over another strategy's data, and a
+strategy change between attempts must surface as an error, never be
+applied silently (allowing new snapshots to switch strategies mid-
+lineage would leave a sample's checkpoint history half-and-half, with
+retention and adopt semantics straddling two implementations). Two
+persisted records enforce this:
+
+- **Per snapshot:** each `SnapshotDetails` written into a checkpoint
+  file records its `strategy` name, so every checkpoint file is
+  self-describing. Absent field ⇒ `"restic-incremental"` (pre-change
+  checkpoint dirs).
+- **Per sample — the pin:** at fresh-sample hydration the core writes
+  `snapshot-strategies.json` (sandbox name → strategy name) into the
+  sample checkpoints dir, shipped with the other core-owned files. The
+  pin exists from before the first fire, so it protects even attempts
+  that die before any checkpoint commits. Absent file ⇒
+  `"restic-incremental"` for every sandbox (pre-pin dirs).
+
+On resume/retry the core compares the pin against the currently
+configured strategies *before* instantiating anything. Any mismatch is
+a **hard error** naming the sandbox, the pinned strategy, and the
+configured one, with the remedy stated (restore the original
+configuration and resume, or start a fresh eval). A pinned strategy
+name unknown to the current build errors the same way. Strategy
+*migration* on resume is explicitly a non-goal. The result: the
+strategy that starts a sample's checkpoint lineage is the strategy for
+its lifetime, and a config change between attempts is a clear,
+recoverable error — never a silent misparse of one strategy's bytes by
+another.
 
 ## 5. Storage layout
 
@@ -295,6 +316,8 @@ Today: `restic/host/`, `restic/sandboxes/<name>/`,
   context capture); the per-sample secret in `restic-config.json`
   doubles as the generic capture secret handed to strategies via
   `SnapshotContext`.
+- `snapshot-strategies.json` (the §4.7 pin, from Phase 2) is
+  core-owned and sits beside `restic-config.json`.
 
 ## 6. Configuration
 
@@ -442,8 +465,9 @@ TODO.
   `discard_orphans` removes exactly the uncommitted tail;
   retention under `keep_last=1` honors the floor (latest committed
   always restorable) and removes thinned checkpoints' files from the
-  destination before their data (§4.4); agent-invisibility (non-root
-  `ls` of tooling/staging paths fails).
+  destination before their data (§4.4); retry under a different
+  configured strategy fails with the §4.7 pin error; agent-invisibility
+  (non-root `ls` of tooling/staging paths fails).
 - Per-strategy unit tests for the mechanisms (manifest diffing, chunked
   copy-out, hash verification).
 
@@ -468,9 +492,12 @@ kill/resume harnesses) with no test assertions weakened.*
 copy-out.** The maximally different implementation that pressure-tests
 the interface, directly serving the large-rewritten-data scenario.
 Adds `SnapshotRetention`, per-sandbox strategy selection in config,
-the chunked/streaming copy-out primitive (restic egress migrates onto
-it), and e2e parametrization over both strategies.
-*Exit criteria: contract suite passes for archive; a
+the §4.7 strategy pin (`snapshot-strategies.json` written at fresh
+hydration, checked on resume/retry), the chunked/streaming copy-out
+primitive (restic egress migrates onto it), and e2e parametrization
+over both strategies.
+*Exit criteria: contract suite passes for archive; a retry with a
+changed strategy config fails with the §4.7 pin error; a
 large-high-entropy-file scenario test demonstrates bounded destination
 storage under `keep_last=N` and bounded sandbox disk during capture.*
 
@@ -517,9 +544,8 @@ uses opaque snapshot ids — but is not designed around them.
 - **Schema drift.** Only Phase 3 touches the checkpoint file schema;
   `extra="allow"` plus the `strategy`-absent-⇒-restic rule keeps old
   dirs resumable throughout. The compat test in Phase 1 pins this.
-- **Retry-across-config-changes.** §4.7's recorded strategy identity
-  makes a mid-eval-set config change well-defined instead of silently
-  corrupting: resume runs under the recorded strategy (erroring only
-  when that strategy is unknown in this build), new snapshots use the
-  configured one; strategy *migration* on resume is explicitly a
-  non-goal.
+- **Retry-across-config-changes.** §4.7's pin (`snapshot-strategies.json`
+  plus per-snapshot identity) turns a mid-eval-set strategy change
+  from silent corruption into a clear, recoverable error — restore the
+  original configuration and resume; strategy *migration* on resume is
+  explicitly a non-goal.
