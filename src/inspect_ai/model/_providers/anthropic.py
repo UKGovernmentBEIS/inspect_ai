@@ -3861,8 +3861,14 @@ async def _capture_compaction_from_stream(
     container: Container | None = None
 
     # Iterate through all streaming events to capture compaction_delta content
-    # (and the container, which arrives on the final message_delta)
     async for event in stream:
+        # WORKAROUND for an Anthropic python SDK bug: the non-beta stream
+        # accumulator drops `message_delta.container`, so the final snapshot
+        # always reports container=None even though the wire delivered the id
+        # (breaking code execution container continuations). Capture it from
+        # the raw event and patch the snapshot below. Remove this (and the
+        # patch below) once the upstream fix lands:
+        # https://github.com/anthropics/anthropic-sdk-python/pull/1776
         if event.type == "message_delta":
             container = getattr(event.delta, "container", None) or container
         if (
@@ -3873,6 +3879,7 @@ async def _capture_compaction_from_stream(
 
     # Get the final message snapshot
     message = stream.current_message_snapshot
+    # WORKAROUND (see above): patch the container the SDK snapshot dropped
     if message.container is None and container is not None:
         message.container = container
 
