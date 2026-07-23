@@ -3844,10 +3844,7 @@ async def _capture_compaction_from_stream(
     final message with the compaction content properly set.
 
     It also captures the code execution `container` from the message_delta
-    event: the SDK's non-beta stream accumulator drops it, so the snapshot
-    always reports `container=None` and container continuations (which must
-    echo the id back as the `container` request param) would fail. Remove
-    once https://github.com/anthropics/anthropic-sdk-python/pull/1776 lands.
+    event, which the SDK likewise drops (see the WORKAROUND comment below).
 
     Args:
         stream: The Anthropic AsyncMessageStream from messages.stream().
