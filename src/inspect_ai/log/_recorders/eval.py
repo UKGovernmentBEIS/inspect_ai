@@ -532,7 +532,7 @@ async def _read_member_json_excluding(
     from inspect_ai._util.json import _get_ijson_backend
 
     ijson = _get_ijson_backend()
-    from ijson import IncompleteJSONError, ObjectBuilder
+    from ijson import IncompleteJSONError, ObjectBuilder  # type: ignore[import-untyped]
     from ijson.backends.python import (  # type: ignore[import-untyped]
         UnexpectedSymbol,
     )
