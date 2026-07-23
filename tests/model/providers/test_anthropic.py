@@ -1486,3 +1486,59 @@ async def test_anthropic_container_replayed_after_client_tool_call() -> None:
 
     # and the container id must accompany the request
     assert follow_up_request.get("container") == container_id
+
+
+async def test_anthropic_stream_capture_restores_container() -> None:
+    """The container must survive streaming despite the SDK dropping it.
+
+    The SDK's non-beta stream accumulator drops `message_delta.container`, so
+    the final snapshot reports `container=None` even though the wire carried
+    the id (anthropics/anthropic-sdk-python#1776). Inspect's stream capture
+    must restore it from the raw message_delta event.
+    """
+    from datetime import datetime, timezone
+
+    from anthropic._models import construct_type
+    from anthropic.types import Container, Message
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+
+    # snapshot as the SDK produces it today: container missing
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-8",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": "tool_use",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+    container = Container(
+        id="container_from_delta",
+        expires_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                yield types.SimpleNamespace(
+                    type="message_delta",
+                    delta=types.SimpleNamespace(type=None, container=container),
+                )
+
+            return events()
+
+    message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.container is not None
+    assert message.container.id == "container_from_delta"
