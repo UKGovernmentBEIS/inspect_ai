@@ -73,6 +73,7 @@
 - Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
 - Bugfix: With checkpoints stored on S3, a resumed sample can now itself be resumed — previously a crash after resume lost the checkpoint chain and the next retry restarted the sample from scratch.
 - Bugfix: Crash recovery now reconstructs `sample.messages` from the first model role's conversation when a solver runs multiple agents concurrently, instead of returning whichever agent's model call happened to fire last. (#4414)
+- Web Browser: headful macOS scale-factor detection falls back to 1 instead of crashing when `pyobjc-framework-AppKit` is missing or no display is attached.
 - Bugfix: Errored samples that were scored (e.g. via `score_on_error`) now contribute their scores to metrics and `scored_samples`, matching what the sample log shows. (#4412)
 - Bugfix: Several raised errors (unexpected Anthropic input block, unsupported image data type, missing sample-buffer database) now interpolate the offending value into the message instead of showing the literal placeholder text.
 - Bugfix: Native compaction now truncates an oversized tool output before summarizing instead of crashing or silently summarizing an error when it would exceed the model's context window. (#3600)
