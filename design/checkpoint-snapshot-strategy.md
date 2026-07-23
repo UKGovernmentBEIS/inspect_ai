@@ -186,8 +186,10 @@ file before its data.
 A fire can be cancelled or killed at any `await`. A strategy must
 tolerate this: partial state from an interrupted `snapshot()` must not
 break the *next* `snapshot()` on the same live sample (restic achieves
-this with the two-phase egress manifest), and must be invisible after
-resume once `discard_orphans` runs. Strategy exceptions propagate to
+this with the two-phase egress manifest; the archive strategy with
+per-snapshot staging subdirs and stale-producer cleanup, §8 point d),
+and must be invisible after resume once `discard_orphans` runs.
+Strategy exceptions propagate to
 `_fire`, where `max_consecutive_failures` decides whether the sample
 continues — strategies raise with context, never swallow.
 
@@ -488,7 +490,7 @@ builds the shared primitive both need:
   deleting chunks. The host loop waits for the next chunk,
   `read_file`s it with hash accumulation, feeds it to the destination
   write, and deletes it. The handoff protocol must be explicit on
-  three points, because `content_sha256` is minted host-side over the
+  four points, because `content_sha256` is minted host-side over the
   bytes actually read — a torn read of a partially written chunk would
   produce a corrupt archive whose recorded hash *matches*, passing
   restore's verification and failing only at `tar -x` (or not at all):
@@ -502,8 +504,22 @@ builds the shared primitive both need:
   pipeline's exit status, and the host treats a nonzero status — or a
   producer that stops making progress without ever writing the marker
   (a liveness timeout) — as a failed `snapshot()`, raising rather than
-  waiting forever on a detached producer that died mid-stream. This
-  bounds sandbox disk to about two chunks
+  waiting forever on a detached producer that died mid-stream;
+  **(d) cross-fire isolation** — an *interrupted* `snapshot()` leaves
+  residue that a shared staging area would let corrupt the next fire's
+  stream: unshipped final-named chunks, possibly a stale done-marker,
+  and a detached producer still alive, blocked on the backpressure
+  gate — the moment the next fire's host loop deletes the chunk name
+  the old producer was gated on, it unblocks and emits stale chunks
+  under final names the new stream hasn't reached yet, and since the
+  hash is minted host-side over whatever bytes get read, the
+  interleaved archive *passes* restore verification. So each snapshot
+  stages in its own subdirectory (keyed by `checkpoint_id`, which also
+  namespaces the done-marker), and `snapshot()` begins by killing any
+  prior producer still running and deleting stale staging subdirs —
+  this is how the archive strategy meets §4.2's requirement that an
+  interrupted fire not break the next one on the same live sample.
+  The backpressure gating bounds sandbox disk to about two chunks
   (one being produced, one being shipped) beyond the live data —
   meeting the "no staging repository inside the sandbox" goal within a
   couple of chunks' tolerance. The gating is essential: an ungated
@@ -543,6 +559,9 @@ TODO.
   modes); durable-before-commit (destination inspected between
   `snapshot()` return and checkpoint-file write); kill during
   `snapshot()` then resume lands on the last committed checkpoint;
+  kill mid-`snapshot()` then fire again on the same live sample — the
+  second fire succeeds and both checkpoints restore byte-identical
+  (§4.2 residue isolation, §8 point d);
   `discard_orphans` removes exactly the uncommitted tail;
   retention under `keep_last=1` honors the floor (latest committed
   always restorable) and removes thinned checkpoints' files from the
