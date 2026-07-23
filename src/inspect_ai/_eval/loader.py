@@ -642,7 +642,13 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
             elif registry_lookup("solver", solver_name) is not None:
-                return registry_create("solver", solver_name, **spec.args_passed)
+                # create via create_registry_object (args as a dict) so a solver
+                # factory with its own `name` parameter doesn't collide with
+                # registry_create's positional `name` argument on replay.
+                return cast(
+                    Solver,
+                    create_registry_object("solver", solver_name, spec.args_passed),
+                )
             elif registry_lookup("agent", solver_name) is not None:
                 # create via create_registry_object (args as a dict) so an agent
                 # factory with its own `name` parameter doesn't collide with
@@ -709,7 +715,13 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
             # create decorator based solvers using the registry
             if any(solver[0] == solver_name for solver in solver_decorators):
-                return registry_create("solver", solver_name, **spec.args_passed)
+                # create via create_registry_object (args as a dict) so a solver
+                # factory with its own `name` parameter doesn't collide with
+                # registry_create's positional `name` argument on replay.
+                return cast(
+                    Solver,
+                    create_registry_object("solver", solver_name, spec.args_passed),
+                )
 
             # create decorator based agents using the registry
             elif any(agent[0] == solver_name for agent in agent_decorators):

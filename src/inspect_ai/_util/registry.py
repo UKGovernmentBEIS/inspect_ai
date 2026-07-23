@@ -138,14 +138,33 @@ def extract_named_params(
     # bind arguments to params
     named_params: dict[str, Any] = {}
 
+    sig = inspect.signature(type)
     if apply_defaults:
-        bound_params = inspect.signature(type).bind_partial(*args, **kwargs)
+        bound_params = sig.bind_partial(*args, **kwargs)
         bound_params.apply_defaults()
     else:
-        bound_params = inspect.signature(type).bind(*args, **kwargs)
+        bound_params = sig.bind(*args, **kwargs)
+
+    # arguments passed through a **kwargs (VAR_KEYWORD) parameter are collected
+    # by inspect under the variadic parameter's own name (e.g. {"kwargs": {...}}).
+    # Record them under their original keyword names instead, so that capturing
+    # and then replaying a spec is idempotent rather than nesting the kwargs one
+    # level deeper on every round-trip (#4374).
+    var_keyword = next(
+        (
+            name
+            for name, param in sig.parameters.items()
+            if param.kind == inspect.Parameter.VAR_KEYWORD
+        ),
+        None,
+    )
 
     for param, value in bound_params.arguments.items():
-        named_params[param] = registry_value(value)
+        if param == var_keyword and isinstance(value, dict):
+            for kwarg_name, kwarg_value in value.items():
+                named_params[kwarg_name] = registry_value(kwarg_value)
+        else:
+            named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
