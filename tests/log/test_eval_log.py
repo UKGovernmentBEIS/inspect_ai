@@ -511,9 +511,7 @@ def test_read_eval_log_exclude_fields_trio():
 
     async def main() -> None:
         async with AsyncFilesystem():
-            log = await read_eval_log_async(
-                eval_log_file, exclude_fields={"messages"}
-            )
+            log = await read_eval_log_async(eval_log_file, exclude_fields={"messages"})
 
         assert log.eval is not None
         assert log.samples is not None
