@@ -2699,6 +2699,23 @@ class _ServerToolSpanRecorder:
             self._spans.append(span)
             self._open = None
 
+    def add_prior_turn_result(
+        self, result: _ServerToolSpanBlockParam, content_id: str
+    ) -> None:
+        """Record a result whose use block was recorded in a prior turn.
+
+        A turn can end while a server tool call is still running (e.g. a
+        client tool call cut it short); the result then arrives in a later
+        response. The use block replays with its own (prior) message, so
+        only the result is recorded here.
+        """
+        span = self._open_span()
+        span.blocks.append(result)
+        span.content_ids.append(content_id)
+        if not span.open_use_ids:
+            self._spans.append(span)
+            self._open = None
+
     def take_spans(self, include_open: bool) -> list[_ServerToolSpan]:
         """Take all completed spans (and optionally any still-open span)."""
         spans = self._spans
@@ -2910,6 +2927,31 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         # the tail response's own container (the same container, re-reported)
         # wins if present
         internal.containers.setdefault(tail_id, head_container)
+
+
+def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
+    """Server tool use block recorded in a prior turn's span (if any).
+
+    A turn can end while a server tool call is still running (e.g. a client
+    tool call cut it short); the result then arrives in a later response
+    with no use block of its own. The use block lives in the prior
+    assistant message's recorded span.
+    """
+    internal = assistant_internal()
+    for spans in internal.server_tool_spans.values():
+        for span in spans:
+            if tool_use_id not in span.open_use_ids:
+                continue
+            for block in span.blocks:
+                block_dict = cast("dict[str, Any]", block)
+                if (
+                    block_dict.get("type") == "server_tool_use"
+                    and block_dict.get("id") == tool_use_id
+                ):
+                    return BetaServerToolUseBlock.model_validate(
+                        {"caller": {"type": "direct"}, **block_dict}
+                    )
+    return None
 
 
 def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
@@ -3396,20 +3438,32 @@ def content_and_tool_calls_from_assistant_content_blocks(
         elif content_block.type == "web_fetch_tool_result":
             # confirm that there is a pending tool use
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
-            if pending_tool_use is None:
-                raise RuntimeError(
-                    "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
-                )
-
-            # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    BetaWebFetchToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
             )
+            if pending_tool_use is None:
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
+
+            # record span block params for verbatim replay (a prior turn's use
+            # block replays with its own message, so only the result records)
+            fetch_result_param = cast(
+                BetaWebFetchToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
+            )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    fetch_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, fetch_result_param, pending_tool_use.id
+                )
 
             # append content
             content.append(
@@ -3427,24 +3481,38 @@ def content_and_tool_calls_from_assistant_content_blocks(
             or content_block.type == "text_editor_code_execution_tool_result"
             or content_block.type == "code_execution_tool_result"
         ):
-            # confirm that there is a pending tool use
+            # confirm that there is a pending tool use (falling back to a use
+            # block recorded in a prior turn -- the turn can end with the call
+            # still running, its result arriving in a later response)
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
-            if pending_tool_use is None:
-                raise RuntimeError(
-                    "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
-                )
-
-            # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    BetaBashCodeExecutionToolResultBlockParam
-                    | BetaTextEditorCodeExecutionToolResultBlockParam
-                    | CodeExecutionToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
             )
+            if pending_tool_use is None:
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
+
+            # record span block params for verbatim replay (a prior turn's use
+            # block replays with its own message, so only the result records)
+            code_result_param = cast(
+                BetaBashCodeExecutionToolResultBlockParam
+                | BetaTextEditorCodeExecutionToolResultBlockParam
+                | CodeExecutionToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
+            )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    code_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, code_result_param, pending_tool_use.id
+                )
 
             # append to content
             content.append(
@@ -3517,20 +3585,32 @@ def content_and_tool_calls_from_assistant_content_blocks(
             content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
         ):
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
-            if pending_tool_use is None:
-                raise RuntimeError(
-                    "WebSearchToolResultBlock without previous ServerToolUseBlock"
-                )
-
-            # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    WebSearchToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
             )
+            if pending_tool_use is None:
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "WebSearchToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
+
+            # record span block params for verbatim replay (a prior turn's use
+            # block replays with its own message, so only the result records)
+            search_result_param = cast(
+                WebSearchToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
+            )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    search_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, search_result_param, pending_tool_use.id
+                )
 
             content.append(
                 ContentToolUse(

@@ -1,6 +1,5 @@
 ## Unreleased
 
-- Anthropic: Fixed 400 `container_id is required` when a turn mixes code-execution-backed server tools (e.g. web search with dynamic filtering) with client tool calls.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
@@ -29,6 +28,7 @@
 - Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)
 - Inspect View: Added connection limit history display to the Stats tab. (#447)
 - Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)
+- Bugfix: Anthropic requests no longer fail with 400 `container_id is required` when a turn mixes code-execution-backed server tools (e.g. web search with dynamic filtering) with client tool calls.
 
 ## 0.3.249 (20 July 2026)
 

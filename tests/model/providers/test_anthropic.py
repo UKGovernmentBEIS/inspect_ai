@@ -1395,8 +1395,10 @@ async def test_anthropic_container_replayed_after_client_tool_call() -> None:
     from anthropic._models import construct_type
     from anthropic.types import Message
 
+    from inspect_ai._util.content import ContentToolUse
     from inspect_ai.model import ModelOutput
     from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
         init_sample_anthropic_assistant_internal,
     )
     from inspect_ai.tool._tool_params import ToolParam, ToolParams
@@ -1444,7 +1446,26 @@ async def test_anthropic_container_replayed_after_client_tool_call() -> None:
         stop_reason="tool_use",
         container=True,
     )
-    tail = message([{"type": "text", "text": "done"}], "end_turn", container=False)
+    # the follow-up response opens with the RESULT of the prior turn's pending
+    # code execution (its use block lives in the prior assistant message)
+    tail = message(
+        [
+            {
+                "type": "code_execution_tool_result",
+                "tool_use_id": "srvtoolu_ce1",
+                "content": {
+                    "type": "code_execution_result",
+                    "stdout": "hi\n",
+                    "stderr": "",
+                    "return_code": 0,
+                    "content": [],
+                },
+            },
+            {"type": "text", "text": "done"},
+        ],
+        "end_turn",
+        container=False,
+    )
 
     api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
     create_mock = AsyncMock(side_effect=[head, tail])
@@ -1476,6 +1497,16 @@ async def test_anthropic_container_replayed_after_client_tool_call() -> None:
         [user, assistant, tool_result], tools, "auto", config
     )
     assert isinstance(output2, ModelOutput)
+
+    # the orphaned result parsed (use block resolved from the prior turn)...
+    assert isinstance(output2.message.content, list)
+    assert any(
+        isinstance(c, ContentToolUse) and c.tool_type == "code_execution"
+        for c in output2.message.content
+    )
+    # ...and replays without duplicating the prior turn's use block
+    replayed_tail = await assistant_message_block_params(output2.message)
+    assert [b["type"] for b in replayed_tail] == ["code_execution_tool_result", "text"]
 
     follow_up_request = create_mock.call_args_list[1].kwargs
 
@@ -1542,3 +1573,98 @@ async def test_anthropic_stream_capture_restores_container() -> None:
     message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
     assert message.container is not None
     assert message.container.id == "container_from_delta"
+
+
+@skip_if_no_anthropic
+@pytest.mark.slow
+async def test_anthropic_container_continuation_live() -> None:
+    """Live check that a mixed server/client tool turn can be continued.
+
+    Exercises the shape behind the "container_id is required" 400 (see
+    test_anthropic_container_replayed_after_client_tool_call): a client
+    tool call ends the turn while native code execution is still running
+    (a `sleep` makes that reliable), so the turn's response carries a
+    pending server tool use. The tool-result follow-up must succeed --
+    before the fix the pending block was dropped from replay and the
+    orphaned result in the next response crashed parsing.
+
+    The mixed-pending condition depends on model behavior (the prompt urges
+    parallel tool calls but can't force them), so the test skips when the
+    condition didn't occur rather than pass vacuously.
+    """
+    from inspect_ai.model._providers.anthropic import _pending_container_for_input
+    from inspect_ai.tool import ToolDef, ToolResult
+
+    async def code_execution_execute(code: str) -> ToolResult:
+        """Execute code.
+
+        Args:
+            code: The code to execute.
+        """
+        # never called -- the anthropic option enables native code execution
+        return f"executed {code}"
+
+    async def lookup_constant(name: str) -> ToolResult:
+        """Look up a named constant stored on the client machine.
+
+        Args:
+            name: Name of the constant.
+        """
+        return "42"
+
+    tools = [
+        ToolDef(
+            code_execution_execute,
+            name="code_execution",
+            options={"providers": {"anthropic": {}}},
+        ).as_tool(),
+        ToolDef(lookup_constant, name="lookup_constant").as_tool(),
+    ]
+
+    # opus produces the parallel server+client tool call this test needs far
+    # more reliably than sonnet
+    model = get_model(
+        "anthropic/claude-opus-4-8", config=GenerateConfig(max_tokens=4096)
+    )
+    # the warmup step matters: it creates the container, so the parallel step
+    # leaves PENDING work in an EXISTING container -- the shape that requires
+    # the follow-up request to name the container
+    prompt = (
+        "Step 1: use code execution to run the bash command `echo warmup` and "
+        "wait for its result. Step 2: after you see that result, issue these "
+        "two tool calls TOGETHER IN PARALLEL in your next step, before seeing "
+        "any results from either: (a) code execution running "
+        "`sleep 5 && echo done`; (b) lookup_constant with name='alpha'. "
+        "They are independent -- do not wait for one before calling the other."
+    )
+
+    # drive the tool loop; the generate that follows a mixed pending turn is
+    # the request that 400'd before the fix. whether the model leaves server
+    # work pending when it makes the client tool call is up to the model, so
+    # try a few fresh conversations before giving up.
+    async def attempt() -> bool:
+        mixed_pending = False
+        messages: list[ChatMessage] = [ChatMessageUser(content=prompt)]
+        for _ in range(4):
+            output = await model.generate(input=messages, tools=tools)
+            messages.append(output.message)
+            if not output.message.tool_calls:
+                break
+            mixed_pending = (
+                mixed_pending or _pending_container_for_input(messages) is not None
+            )
+            for call in output.message.tool_calls:
+                messages.append(
+                    ChatMessageTool(
+                        content="42", tool_call_id=call.id, function=call.function
+                    )
+                )
+        return mixed_pending
+
+    for _ in range(3):
+        if await attempt():
+            break
+    else:
+        pytest.skip(
+            "model did not leave container work pending alongside a client tool call"
+        )
