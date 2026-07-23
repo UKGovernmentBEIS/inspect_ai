@@ -67,7 +67,15 @@ class SandboxJSONRPCTransport(JSONRPCTransport):
         )
 
         if not exec_result.success:
+            # Prefer stderr, but fall back to stdout — some failures
+            # (e.g. MCP server crash, entrypoint error) only surface in
+            # stdout because the sandbox CLI wrote its diagnostic there.
+            error_detail = (
+                exec_result.stderr
+                or exec_result.stdout
+                or "(no output captured — check container startup.log)"
+            )
             raise RuntimeError(
-                f"Sandbox.exec failure executing {rpc_call_description(method, params)}: {exec_result.stderr}"
+                f"Sandbox.exec failure executing {rpc_call_description(method, params)}: {error_detail}"
             )
         return exec_result.stdout

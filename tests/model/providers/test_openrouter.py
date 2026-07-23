@@ -379,6 +379,140 @@ def test_reports_usage_cost_is_true() -> None:
 
 
 @pytest.mark.anyio
+async def test_messages_to_openai_gemini_think_tag_clean_for_text_and_encrypted() -> (
+    None
+):
+    """Gemini text+encrypted reasoning must produce a clean <think> tag (issue #4320).
+
+    The bug: reasoning_to_think_tag() dumps the full HTML-escaped JSON
+    signature blob as an attribute and the encrypted payload as the body.
+    The fix: emit only the readable summary text, no signature/blob.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    readable_text = (
+        "I've determined the most direct path forward involves the run_bash tool."
+    )
+    encrypted_blob = "CjcBjz1rXxKfW2fJuqbBlfGrk8wxR..."
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
+        '[{"type": "reasoning.text", "text": "...", "format": "google-gemini-v1", "index": 0},'
+        '{"type": "reasoning.encrypted", "data": "CjcBjz1rXxKfW2fJ...", "format": "google-gemini-v1", "id": "tool_X", "index": 1}]'
+    )
+    msg = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning=encrypted_blob,
+                summary=readable_text,
+                redacted=True,
+                signature=signature,
+            )
+        ],
+    )
+
+    api = _make_api("google/gemini-2.5-flash")
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    content = payload.get("content")
+    if isinstance(content, list):
+        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
+    else:
+        text = content if isinstance(content, str) else ""
+
+    # Readable text must appear
+    assert readable_text in text
+    # Encrypted blob must NOT appear
+    assert encrypted_blob not in text
+    # No HTML-escaped JSON blob
+    assert "&quot;" not in text
+    # No signature attribute in the think tag
+    assert 'signature="' not in text
+    # Clean think tag
+    assert "<think>\n" in text
+    assert "</think>" in text
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_gemini_think_tag_text_only() -> None:
+    """Gemini text-only reasoning (not encrypted) uses reasoning field directly."""
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
+        '[{"type": "reasoning.text", "text": "Step by step reasoning here.", "id": "r1"}]'
+    )
+    msg = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="Step by step reasoning here.",
+                redacted=False,
+                signature=signature,
+            )
+        ],
+    )
+
+    api = _make_api("google/gemini-2.5-pro")
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    content = payload.get("content")
+    if isinstance(content, list):
+        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
+    else:
+        text = content if isinstance(content, str) else ""
+
+    assert "Step by step reasoning here." in text
+    assert "&quot;" not in text
+    assert 'signature="' not in text
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_gemini_think_tag_skipped_without_readable_text() -> (
+    None
+):
+    """Reasoning without readable text must not produce a <think> tag.
+
+    Redacted reasoning with no summary (e.g. an Anthropic redacted block
+    replayed to a Gemini model) has no readable text — skip the tag entirely
+    rather than emit an empty <think></think>.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+
+    encrypted_blob = "ENCRYPTED_BLOB_xyz"
+    msg = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning=encrypted_blob,
+                redacted=True,
+                signature="rs_abc123",
+            )
+        ],
+    )
+
+    api = _make_api("google/gemini-2.5-flash")
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    content = payload.get("content")
+    if isinstance(content, list):
+        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
+    else:
+        text = content if isinstance(content, str) else ""
+
+    assert "<think>" not in text
+    assert encrypted_blob not in text
+    assert "reasoning_details" not in payload
+
+
+@pytest.mark.anyio
 async def test_messages_to_openai_strips_reasoning_details_for_gemini() -> None:
     """Gemini-family models must not get reasoning_details replayed.
 

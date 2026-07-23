@@ -49,7 +49,7 @@ from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -126,6 +126,17 @@ def is_o_series_model(model_name: str) -> bool:
     if bool(re.match(r"^o\d+", name)):
         return True
     return "gpt" not in name and bool(re.search(r"o\d+", name))
+
+
+_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
+
+
+def supports_native_max_reasoning_effort(model_name: str) -> bool:
+    """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
+    match = _GPT_VERSION_RE.match(model_name.lower())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
 
 
 def needs_max_completion_tokens(model_name: str) -> bool:
@@ -303,6 +314,20 @@ async def messages_to_openai(
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
     """
     return [await openai_chat_message(message, system_role) for message in messages]
+
+
+def fill_empty_assistant_content(
+    messages: list[ChatCompletionMessageParam],
+) -> list[ChatCompletionMessageParam]:
+    """Replace empty assistant message content with NO_CONTENT.
+
+    Some services (e.g. Moonshot, and CloudFlare gateway-hosted models)
+    reject requests that replay an assistant message with empty content.
+    """
+    for message in messages:
+        if message["role"] == "assistant" and not message.get("content"):
+            message["content"] = NO_CONTENT
+    return messages
 
 
 def openai_completion_params(

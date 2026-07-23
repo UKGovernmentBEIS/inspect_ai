@@ -1,0 +1,147 @@
+{
+  "description": "Single-turn sub-agent with a different system prompt under a parent that has NO tool-calling loop. Without an agentic loop there is no main trajectory, so the sub-agent must not be classified as utility.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:01Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "monitor",
+      "name": "monitor",
+      "type": "agent",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:02Z",
+      "uuid": "sb-monitor"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "monitor",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the main assistant."
+        },
+        {
+          "role": "user",
+          "content": "go"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_begin",
+      "id": "helper",
+      "name": "helper",
+      "type": "agent",
+      "parent_id": "monitor",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "uuid": "sb-helper"
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "helper",
+      "timestamp": "2026-01-01T00:00:06Z",
+      "completed": "2026-01-01T00:00:07Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are a helper."
+        },
+        {
+          "role": "user",
+          "content": "help"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "helper",
+      "timestamp": "2026-01-01T00:00:08Z",
+      "uuid": "se-helper"
+    },
+    {
+      "event": "span_end",
+      "id": "monitor",
+      "timestamp": "2026-01-01T00:00:09Z",
+      "uuid": "se-monitor"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T00:00:10Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "monitor",
+      "name": "main",
+      "event_uuids": [
+        "m1"
+      ],
+      "children": [
+        {
+          "id": "helper",
+          "name": "helper",
+          "utility": false,
+          "event_uuids": [
+            "m2"
+          ]
+        }
+      ]
+    },
+    "scoring": null
+  }
+}

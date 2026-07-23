@@ -25,6 +25,7 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
+from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
@@ -42,7 +43,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 from inspect_ai.viewer import ViewerConfig
 
-from ..event._event import Event
+from ..event._event import DiscriminatedEvent
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
@@ -150,8 +151,12 @@ class EvalConfig(BaseModel):
     token_limit: int | None = Field(default=None)
     """Maximum tokens usage per sample."""
 
-    token_limit_type: Literal["all", "output"] | None = Field(default=None)
-    """Which tokens `token_limit` meters (None indicates "all")."""
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters (None indicates "all").
+
+    Either a keyword ("all" or "output") or an arithmetic formula over `input`
+    and `output` (see `TokenLimit`).
+    """
 
     turn_limit: int | None = Field(default=None)
     """Maximum turns (model generations) per sample."""
@@ -325,6 +330,18 @@ class EvalSampleSummary(BaseModel):
     message_count: int | None = Field(default=None)
     """Number of messages in the sample conversation."""
 
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
+
     @model_validator(mode="after")
     def thin_data(self) -> "EvalSampleSummary":
         # thin input
@@ -371,7 +388,7 @@ class EvalRetryError(BaseModel):
     traceback_ansi: str
     """Error traceback with ANSI color codes."""
 
-    events: list[Event] | None = Field(default=None)
+    events: list[DiscriminatedEvent] | None = Field(default=None)
     """Events prior to error (goes back to last ModelEvent)."""
 
 
@@ -454,7 +471,7 @@ class EvalSample(BaseModel):
         # create the model
         return model_cls.model_validate(data)
 
-    events: list[Event] = Field(default_factory=list)
+    events: list[DiscriminatedEvent] = Field(default_factory=list)
     """Events that occurred during sample execution."""
 
     timelines: list[Timeline] | None = Field(default=None)
@@ -510,6 +527,18 @@ class EvalSample(BaseModel):
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
 
+    turn_count: int | None = Field(default=None)
+    """Number of turns (top-level model generations) in the sample."""
+
+    token_limit: int | None = Field(default=None)
+    """Configured token limit ceiling for the sample (None when no limit)."""
+
+    token_limit_type: str | None = Field(default=None)
+    """Which tokens `token_limit` meters ("all", "output", or a formula); None when no limit."""
+
+    token_limit_usage: int | None = Field(default=None)
+    """Metered usage for the sample's token limit (respects the limit's type)."""
+
     def summary(self) -> EvalSampleSummary:
         """Summary of sample.
 
@@ -543,6 +572,10 @@ class EvalSample(BaseModel):
             retries=len(self.error_retries) if self.error_retries is not None else None,
             completed=True,
             message_count=len(self.messages),
+            turn_count=self.turn_count,
+            token_limit=self.token_limit,
+            token_limit_type=self.token_limit_type,
+            token_limit_usage=self.token_limit_usage,
         )
 
     # deprecated properties
@@ -624,7 +657,7 @@ class EvalSample(BaseModel):
 
 
 class EvalEvents(BaseModel):
-    events: list[Event] = Field(default_factory=list)
+    events: list[DiscriminatedEvent] = Field(default_factory=list)
     """List of events."""
 
     content: dict[str, str] = Field(default_factory=dict)
@@ -1120,6 +1153,9 @@ class EvalLog(BaseModel):
 
     log_updates: list[LogUpdate] | None = Field(default=None)
     """Post-eval edits to tags and metadata."""
+
+    config_updates: list[ConfigUpdate] | None = Field(default=None)
+    """Mid-run configuration changes applied via the control channel (`inspect ctl config`)."""
 
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""

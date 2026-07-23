@@ -61,6 +61,20 @@ def test_all_prefix_collapses_to_int() -> None:
     assert _parsed(["--token-limit", "all:500k"]) == 500_000
 
 
+def test_formula() -> None:
+    assert _parsed(["--token-limit", "(input*0.1)+output:1m"]) == TokenLimit(
+        tokens=1_000_000, type="(input*0.1)+output"
+    )
+
+
+def test_invalid_formula_raises_bad_parameter() -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        _build_cmd(), ["--token-limit", "input +:1m"], standalone_mode=False
+    )
+    assert isinstance(result.exception, click.BadParameter)
+
+
 def test_envvar() -> None:
     assert _parsed([], env={"INSPECT_EVAL_TOKEN_LIMIT": "output:2k"}) == TokenLimit(
         tokens=2_000, type="output"

@@ -52,7 +52,7 @@ jobs:
           fetch-tags: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -80,12 +80,12 @@ jobs:
           fetch-tags: true
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: "${{ env.UV_VERSION }}"
 
@@ -145,7 +145,7 @@ jobs:
           fetch-tags: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -181,7 +181,7 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
@@ -219,7 +219,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -248,7 +248,7 @@ jobs:
       pull-requests: read
     outputs:
       tools_changed: ${{ steps.tools.outputs.tools }}
-      injectable_src_changed: ${{ steps.tools.outputs.injectable_src }}
+      injectable_src_changed: ${{ steps.injectable.outputs.injectable_src }}
       areas: ${{ steps.areas.outputs.changes }}
     steps:
       - uses: actions/checkout@v7
@@ -263,9 +263,21 @@ jobs:
               - "src/inspect_ai/tool/**"
               - "src/inspect_sandbox_tools/**"
               - "tests/tools/**"
+      # Separate step because the negation requires `every` semantics (a file
+      # must match ALL patterns), which would break the OR-style filters above.
+      # Keep the exclusions in sync with _check_main_divergence in
+      # src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py — the runtime uses
+      # the same definition of "injectable source" to decide dev vs published.
+      - uses: dorny/paths-filter@v4
+        id: injectable
+        with:
+          predicate-quantifier: every
+          filters: |
             injectable_src:
               - "src/inspect_sandbox_tools/**"
               - "!src/inspect_sandbox_tools/tests/**"
+              - "!src/inspect_sandbox_tools/**/*.md"
+              - "!src/inspect_sandbox_tools/design/**"
       # Generic, growable table of areas whose slow tests run with nothing but
       # `uv pip install .[dev]` + Docker-on-the-runner. `changes` is a JSON list
       # of the keys that matched; the slow-tests matrix fans out over it.
@@ -353,7 +365,7 @@ jobs:
             --allow-insecure-entitlement network.host
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -411,7 +423,7 @@ jobs:
             --allow-insecure-entitlement network.host
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
@@ -475,7 +487,7 @@ jobs:
           submodules: true
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v8.3.1
+        uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: "3.11"
