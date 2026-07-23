@@ -230,9 +230,8 @@ class AgentBridge:
           a one-shot call (the opencode title case) or when the descending
           call is longer than the tracked thread (the main loop reclaiming
           tracking from a promoted sub-agent loop, below). A non-descending
-          call never directly
-          displaces a tracked descending thread (side calls, sub-agent
-          loops).
+          call never directly displaces a tracked descending thread (side
+          calls, sub-agent loops).
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
           back to the legacy length heuristic: adopt the new thread when it
