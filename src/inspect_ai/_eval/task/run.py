@@ -1116,6 +1116,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     metrics=task.metrics,
                     scorer_names=scorer_names,
                     early_stopping=stopping_summary,
+                    # completed_scores includes errored samples that still
+                    # carry a score, and whether an errored sample has one
+                    # depends on where the raising scorer sits in the scorer
+                    # list, so take the completion count from the sample log
+                    # (samples whose `error` is None) instead of the number of
+                    # scored samples.
+                    completed_samples=(
+                        logger.samples_completed if log_samples else None
+                    ),
                 )
 
             # collect eval data
