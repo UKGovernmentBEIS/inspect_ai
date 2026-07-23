@@ -5,6 +5,7 @@ in solver_args while only capturing explicitly passed arguments in solver_args_p
 """
 
 from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai._eval.loader import as_solver_spec, solver_from_spec
 from inspect_ai._util.registry import registry_params
 from inspect_ai.agent import agent
 from inspect_ai.agent._as_solver import as_solver
@@ -175,3 +176,27 @@ def test_callable_param_serialization_explicit():
     # Callable should be serialized to its name
     assert log.eval.solver_args["fn"] == "another_function"
     assert log.eval.solver_args_passed["fn"] == "another_function"
+
+
+@solver
+def solver_reserved_kwargs(base: str = "base", **kwargs):
+    """Solver whose ``**kwargs`` may collide with registry_tag's positional params."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return await generate(state)
+
+    return solve
+
+
+def test_reserved_name_var_keyword_args_do_not_collide():
+    """A ``**kwargs`` key named like registry_tag's positional params must not collide.
+
+    A key named `type`, `o`, or `info` raised `TypeError: got multiple values for
+    argument ...` at capture time before those parameters were made positional-only.
+    """
+    for key in ("type", "o", "info"):
+        slv = solver_reserved_kwargs(base="hello", **{key: "demo"})
+        assert slv is not None
+
+        # replay drives the capture path again (registry_create -> registry_tag)
+        assert solver_from_spec(as_solver_spec(slv)) is not None
