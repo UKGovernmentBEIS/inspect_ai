@@ -34,6 +34,7 @@ from anthropic.types import (
     CacheControlEphemeralParam,
     CodeExecutionToolResultBlock,
     CodeExecutionToolResultBlockParam,
+    Container,
     ContentBlock,
     ContentBlockParam,
     ContentBlockSourceParam,
@@ -550,6 +551,12 @@ class AnthropicAPI(ModelAPI):
                 if EXTRA_BODY not in request:
                     request[EXTRA_BODY] = dict()
                 request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
+
+            # resume the prior turn's code execution container if it left
+            # work pending (e.g. a client tool call cut the turn short)
+            container = _pending_container_for_input(input)
+            if container is not None:
+                request["container"] = container
 
             model_call = set_active_model_event_call(request, model_call_filter)
 
@@ -2558,6 +2565,21 @@ async def assistant_message_block_params(
                     block_params.extend(_span_block_params(span, message))
             else:
                 block_params.extend(await message_block_params(content))
+        # a span whose results never arrived (the turn ended first, e.g. a
+        # client tool call cut in) has no content item to anchor it, so the
+        # loop above never emits it. it must still be replayed: the API
+        # resumes the pending work and requires its use block (plus the
+        # `container` request param) to do so. only spans that never produced
+        # content qualify -- a span whose content items were removed by a
+        # scaffold edit was deleted deliberately and stays dropped. with no
+        # anchor, the span lands after the content-derived blocks rather than
+        # at its original wire position (which is not recorded); the API does
+        # not require intra-message position fidelity (client tool_use blocks
+        # are likewise always re-appended last, below).
+        for span in record or []:
+            if not span.content_ids and id(span) not in emitted:
+                emitted.add(id(span))
+                block_params.extend(_span_block_params(span, message))
 
     # move the first instance of thinking to the front (we only need to do this
     # for claude 3 models as we enable interleaved thinking for claude 4)
@@ -2631,7 +2653,13 @@ class _ServerToolSpan:
     """Ids of the ContentToolUse items produced by this span (content order)."""
 
     open_use_ids: set[str] = field(default_factory=set)
-    """Tool use ids awaiting results (recording-time bookkeeping only)."""
+    """Tool use ids awaiting results.
+
+    Used while recording to detect span completion; non-empty on a taken
+    span means the turn ended with the work still pending, which is what
+    obligates the follow-up request to name the container (see
+    `_pending_container_for_input`). Ids stay set even after a later turn's
+    result arrives (see `add_prior_turn_result`)."""
 
 
 class _ServerToolSpanRecorder:
@@ -2676,6 +2704,32 @@ class _ServerToolSpanRecorder:
             self._spans.append(span)
             self._open = None
 
+    def add_prior_turn_result(
+        self, result: _ServerToolSpanBlockParam, content_id: str
+    ) -> None:
+        """Record a result whose use block was recorded in a prior turn.
+
+        A turn can end while a server tool call is still running (e.g. a
+        client tool call cut it short); the result then arrives in a later
+        response. The use block replays with its own (prior) message, so
+        only the result is recorded here.
+
+        The prior message's span deliberately stays open (its use id remains
+        in `open_use_ids`): whether the work is pending depends on the input
+        being replayed, not on this sample-global record. If a scaffold later
+        truncates history back to the prior message, the work is pending
+        again from the API's perspective and the container must be re-sent;
+        when this result's message follows the prior one in the input, the
+        prior message is no longer the last assistant message, so
+        `_pending_container_for_input` sends no container.
+        """
+        span = self._open_span()
+        span.blocks.append(result)
+        span.content_ids.append(content_id)
+        if not span.open_use_ids:
+            self._spans.append(span)
+            self._open = None
+
     def take_spans(self, include_open: bool) -> list[_ServerToolSpan]:
         """Take all completed spans (and optionally any still-open span)."""
         spans = self._spans
@@ -2706,6 +2760,18 @@ class _AssistantInternal:
     """Server tool spans keyed by member tool use id (for replay of messages
     whose id was rewritten, e.g. by the agent bridge -- server tool use ids
     survive the bridge whereas message ids do not)."""
+    containers: dict[str, str] = field(default_factory=dict)
+    """Code execution container ids keyed by assistant message id.
+
+    Replayed as the `container` request param when a turn left code
+    execution pending (see `_pending_container_for_input`).
+
+    Unlike `server_tool_span_index`, there is no fallback for message ids
+    rewritten by the agent bridge: a pending span has produced no content,
+    so no bridge-surviving key exists to index by. Pending-work resumption
+    therefore does not survive a bridge id rewrite (the bridge does not
+    carry server tool state in general -- its anthropic impl handles
+    neither `server_tool_use` blocks nor the `container` param)."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -2766,6 +2832,7 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
             ).items()
         }
     )
+    internal.containers.update(cast("dict[str, str]", value.get("containers", {})))
 
 
 def dump_anthropic_assistant_internal() -> JsonValue | None:
@@ -2795,6 +2862,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         or internal.tool_call_internal_names
         or internal.server_mcp_tool_uses
         or span_table
+        or internal.containers
     ):
         return None
     return cast(
@@ -2822,6 +2890,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
                 content_id: span_indexes[id(span)]
                 for content_id, span in internal.server_tool_span_index.items()
             },
+            "containers": dict(internal.containers),
         },
     )
 
@@ -2860,10 +2929,11 @@ def index_server_tool_spans(spans: list[_ServerToolSpan]) -> None:
 
 
 def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
-    """Re-key the head message's spans under the tail message id.
+    """Re-key the head message's spans and container under the tail message id.
 
     Continuations merge head message content into the tail message, so spans
-    recorded under the head message id belong to the tail message.
+    (and the container id) recorded under the head message id belong to the
+    tail message.
     """
     if head_id is None or tail_id is None or head_id == tail_id:
         return
@@ -2873,6 +2943,66 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         internal.server_tool_spans[tail_id] = (
             head_spans + internal.server_tool_spans.get(tail_id, [])
         )
+    head_container = internal.containers.pop(head_id, None)
+    if head_container is not None:
+        # the tail response's own container (the same container, re-reported)
+        # wins if present
+        internal.containers.setdefault(tail_id, head_container)
+
+
+def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
+    """Server tool use block recorded in a prior turn's span (if any).
+
+    A turn can end while a server tool call is still running (e.g. a client
+    tool call cut it short); the result then arrives in a later response
+    with no use block of its own. The use block lives in the prior
+    assistant message's recorded span.
+    """
+    internal = assistant_internal()
+    for spans in internal.server_tool_spans.values():
+        for span in spans:
+            if tool_use_id not in span.open_use_ids:
+                continue
+            for block in span.blocks:
+                block_dict = cast("dict[str, Any]", block)
+                if (
+                    block_dict.get("type") == "server_tool_use"
+                    and block_dict.get("id") == tool_use_id
+                ):
+                    return BetaServerToolUseBlock.model_validate(
+                        {"caller": {"type": "direct"}, **block_dict}
+                    )
+    return None
+
+
+def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
+    """Container id to resume when the last assistant turn left work pending.
+
+    A turn that mixes code-execution-backed server tool use (including web
+    search with dynamic filtering) with a client tool call ends with
+    stop_reason "tool_use" while the container work is still running. The
+    follow-up request must name the container or the API rejects it with
+    "container_id is required when there are pending tool uses generated by
+    code execution with tools."
+
+    Only pending work triggers this -- a container from fully-completed work
+    is not replayed, since unconditionally reusing containers across turns
+    would change behavior (state carry-over) and risk naming an expired
+    container.
+    """
+    last_assistant = next(
+        (m for m in reversed(input) if isinstance(m, ChatMessageAssistant)), None
+    )
+    if last_assistant is None or last_assistant.id is None:
+        return None
+    internal = assistant_internal()
+    container = internal.containers.get(last_assistant.id)
+    if container is None:
+        return None
+    spans = internal.server_tool_spans.get(last_assistant.id, [])
+    if any(span.open_use_ids for span in spans):
+        return container
+    return None
 
 
 def _server_tool_span_for_content(
@@ -3076,6 +3206,11 @@ async def model_output_from_message(
     spans = span_recorder.take_spans(include_open=not pause_turn)
     if spans and choice.message.id is not None:
         record_server_tool_spans(choice.message.id, spans)
+
+    # record the code execution container id so a follow-up request can name
+    # it when this turn left container work pending
+    if message.container is not None and choice.message.id is not None:
+        assistant_internal().containers[choice.message.id] = message.container.id
 
     # return ModelOutput
     usage = message.usage.model_dump()
@@ -3324,20 +3459,31 @@ def content_and_tool_calls_from_assistant_content_blocks(
         elif content_block.type == "web_fetch_tool_result":
             # confirm that there is a pending tool use
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
+            )
             if pending_tool_use is None:
-                raise RuntimeError(
-                    "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
-                )
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
 
             # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    BetaWebFetchToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            fetch_result_param = cast(
+                BetaWebFetchToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
             )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    fetch_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, fetch_result_param, pending_tool_use.id
+                )
 
             # append content
             content.append(
@@ -3355,24 +3501,37 @@ def content_and_tool_calls_from_assistant_content_blocks(
             or content_block.type == "text_editor_code_execution_tool_result"
             or content_block.type == "code_execution_tool_result"
         ):
-            # confirm that there is a pending tool use
+            # confirm that there is a pending tool use (falling back to a use
+            # block recorded in a prior turn -- the turn can end with the call
+            # still running, its result arriving in a later response)
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
+            )
             if pending_tool_use is None:
-                raise RuntimeError(
-                    "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
-                )
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
 
             # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    BetaBashCodeExecutionToolResultBlockParam
-                    | BetaTextEditorCodeExecutionToolResultBlockParam
-                    | CodeExecutionToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            code_result_param = cast(
+                BetaBashCodeExecutionToolResultBlockParam
+                | BetaTextEditorCodeExecutionToolResultBlockParam
+                | CodeExecutionToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
             )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    code_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, code_result_param, pending_tool_use.id
+                )
 
             # append to content
             content.append(
@@ -3445,20 +3604,31 @@ def content_and_tool_calls_from_assistant_content_blocks(
             content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
         ):
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
+            )
             if pending_tool_use is None:
-                raise RuntimeError(
-                    "WebSearchToolResultBlock without previous ServerToolUseBlock"
-                )
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "WebSearchToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
 
             # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    WebSearchToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            search_result_param = cast(
+                WebSearchToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
             )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    search_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, search_result_param, pending_tool_use.id
+                )
 
             content.append(
                 ContentToolUse(
@@ -3764,12 +3934,15 @@ def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
 async def _capture_compaction_from_stream(
     stream: AsyncMessageStream,
 ) -> tuple[Message, str | None]:
-    """Consume a streaming response and capture any compaction content.
+    """Consume a streaming response and capture content the SDK drops.
 
     The Anthropic SDK's streaming doesn't properly accumulate compaction_delta
     events into the final message snapshot. This function iterates through all
     streaming events, captures any compaction_delta content, and returns the
     final message with the compaction content properly set.
+
+    It also captures the code execution `container` from the message_delta
+    event, which the SDK likewise drops (see the WORKAROUND comment below).
 
     Args:
         stream: The Anthropic AsyncMessageStream from messages.stream().
@@ -3780,9 +3953,19 @@ async def _capture_compaction_from_stream(
         is the raw content captured from compaction_delta events (or None).
     """
     compaction_content: str | None = None
+    container: Container | None = None
 
     # Iterate through all streaming events to capture compaction_delta content
     async for event in stream:
+        # WORKAROUND for an Anthropic python SDK bug: the non-beta stream
+        # accumulator drops `message_delta.container`, so the final snapshot
+        # always reports container=None even though the wire delivered the id
+        # (breaking code execution container continuations). Capture it from
+        # the raw event and patch the snapshot below. Remove this (and the
+        # patch below) once the upstream fix lands:
+        # https://github.com/anthropics/anthropic-sdk-python/pull/1776
+        if event.type == "message_delta":
+            container = getattr(event.delta, "container", None) or container
         if (
             hasattr(event, "delta")
             and getattr(event.delta, "type", None) == "compaction_delta"
@@ -3791,6 +3974,9 @@ async def _capture_compaction_from_stream(
 
     # Get the final message snapshot
     message = stream.current_message_snapshot
+    # WORKAROUND (see above): patch the container the SDK snapshot dropped
+    if message.container is None and container is not None:
+        message.container = container
 
     # Fix up compaction blocks with captured content
     if compaction_content is not None:

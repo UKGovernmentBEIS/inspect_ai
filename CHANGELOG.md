@@ -28,6 +28,7 @@
 - Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)
 - Inspect View: Added connection limit history display to the Stats tab. (#447)
 - Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)
+- Bugfix: Anthropic requests no longer fail with 400 `container_id is required` when a turn mixes code-execution-backed server tools (e.g. web search with dynamic filtering) with client tool calls.
 
 ## 0.3.249 (20 July 2026)
 
