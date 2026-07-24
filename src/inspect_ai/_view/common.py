@@ -10,8 +10,10 @@ from io import BytesIO
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
 
+import anyio.to_thread
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
+from anyio import EndOfStream
 from botocore.exceptions import ClientError
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
@@ -21,7 +23,7 @@ from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._eval.evalset import EvalSet
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.asyncfiles import _READ_FULLY_CHUNK_SIZE, AsyncFilesystem
 from inspect_ai._util.azure import is_azure_auth_error
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
@@ -428,6 +430,14 @@ async def get_log_bytes(
         res: bytes = await async_connection(log_file)._cat_file(
             log_file, start=start, end=adjusted_end
         )
+    elif fs.is_local():
+        # Read off the event loop via asyncfiles' anyio-backed reader so the
+        # read doesn't pin the loop. An open-ended read runs to EOF rather
+        # than to a stat'ed size, which would truncate files that grow
+        # between stat and read (in-progress evals are rewritten in place).
+        res = await AsyncFilesystem().read_file_bytes_fully(
+            log_file, start or 0, adjusted_end
+        )
     else:
         res = fs.read_bytes(log_file, start, adjusted_end)
 
@@ -455,6 +465,45 @@ async def stream_log_bytes(
 
     # fetch bytes
     fs = filesystem(log_file)
+
+    if fs.is_local():
+        if start is not None and end is not None:
+            request_size = end - start + 1
+        elif log_file_size is not None:
+            request_size = log_file_size
+        else:
+            request_size = await get_log_size(log_file)
+
+        # request_size routes buffered-vs-streaming only — it may be a stale
+        # stat, so the reads below must run to EOF when open-ended rather
+        # than treating it as a byte bound (files grow between stat and
+        # read while an eval is in progress).
+        if request_size <= stream_threshold_bytes:
+            return BytesIO(await get_log_bytes(log_file, start, end))
+
+        # Stream large local files chunked off the event loop rather than
+        # buffering them. (Previously this fell through to the S3 path and
+        # raised "Expected S3FileSystem" for local files over the threshold.)
+        read_start = start or 0
+        read_end = end + 1 if end is not None else None
+
+        async def _stream_local() -> AsyncIterable[bytes]:
+            byte_stream = await AsyncFilesystem().read_file_bytes(
+                log_file, read_start, read_end
+            )
+            try:
+                # pull 1MB per receive: iterating the stream directly uses
+                # anyio's 64KB default, i.e. one thread hop per 64KB
+                while True:
+                    try:
+                        yield await byte_stream.receive(_READ_FULLY_CHUNK_SIZE)
+                    except EndOfStream:
+                        break
+            finally:
+                await byte_stream.aclose()
+
+        return _stream_local()
+
     if not fs.is_async() or not fs.is_s3():
         if start is not None and end is not None:
             request_size = end - start + 1
@@ -689,12 +738,14 @@ async def list_eval_logs_async(
             else:
                 return []
     else:
-        # sync filesystem (e.g. local) — list sync but resolve headers via
-        # the async fan-out so non-conforming filenames don't block the loop
-        # and so trio callers don't hit the sync-only read_eval_log path.
-        if not fs.exists(log_dir):
+        # sync filesystem (e.g. local) — run the existence check and the
+        # (potentially large recursive) listing in a worker thread so they
+        # don't block the event loop
+        if not await anyio.to_thread.run_sync(fs.exists, log_dir):
             return []
-        logs = fs.ls(log_dir, recursive=recursive)
+        logs = await anyio.to_thread.run_sync(
+            partial(fs.ls, log_dir, recursive=recursive)
+        )
         return await log_files_from_ls_async(logs, formats, descending)
 
 

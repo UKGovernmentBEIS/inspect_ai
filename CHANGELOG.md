@@ -28,6 +28,7 @@
 - Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)
 - Inspect View: Added connection limit history display to the Stats tab. (#447)
 - Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)
+- Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
 
 ## 0.3.249 (20 July 2026)
 
