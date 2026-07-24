@@ -191,6 +191,74 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   performance benefit by itself (old data stays fully in memory; rendering
   was already virtualized); its value is the seam. Affected:
   [Proposed slicing](#proposed-slicing-into-implementation-efforts) (C3).
+- **2026-07-22 — `sequences` dropped from the shell (reviewer feedback):
+  the central directory is the whole chunk layout.** The shell's cumulative
+  boundaries duplicated what start-named entry names already carry — a
+  two-sources-of-truth hazard (the field had to mirror the written entries).
+  `sample.json` no longer persists `sequences`; readers recover per-sequence
+  chunk starts from central-directory entry names (which every reader
+  fetches anyway — the CD was already the offset index). The one datum
+  boundaries carried beyond entry names, the total sequence count, is
+  deliberately not persisted: the events count is exact from the stats
+  sidecar (per-chunk type-count sums), the other sequences are only ever
+  accessed by known index/range (`message_refs`, `input_refs`/`call_refs`,
+  `attachment://<index>`), and a last chunk's end is learned when it is
+  parsed. Affected: [Chunked on-disk layout](#chunked-on-disk-layout-4-6)
+  (shell block + conventions), [Client data contract](#client-data-contract)
+  (item 1), Appendix A pattern 5, C3b format-candidate wording.
+- **2026-07-22 — Fidelity plan for timeline'd logs; JJ's "global timeline"
+  proposal evaluated; new `events/uuids.json` member.** Follow-on from the
+  petri3 diagnosis (entry above), grounded in measurements on the MirrorCode
+  monster sample (337,351 events): full event sequence 852 MB uncompressed; a
+  payload-stripped copy of every event (uuid, type, span_id, timestamps,
+  token usage, and a few small per-type fields — enough for the client to run
+  the real timeline pipeline) measures 89 MB (265 B/event). Ratified:
+  1. **JJ's outset proposal — persist a global timeline instead of a bespoke
+     skeleton — is answered.** A timeline is, by definition, an opinionated
+     selection, ordering, and grouping of event references: the client-built
+     timeline encodes pipeline opinions (unwrapping, utility extraction, turn
+     grouping, scoring placement); a server timeline encodes the producer's
+     authored opinion. A "global" timeline that supersets every view a client
+     might show is therefore a contradiction in terms — the superset of all
+     selections and orderings of the events is the event sequence itself.
+     Persisting any *derived* timeline freezes its opinions at write time
+     (server timelines are fine to persist: they are authored data, not a
+     derivation). The un-opinionated artifacts trade size for derivable
+     fidelity: full events (852 MB) → payload-stripped events (89 MB) →
+     skeleton (KB).
+  2. **Invariant made explicit**: viewer memory must never scale with event
+     count; bytes *read* may — but only in explicit streaming operations
+     (search, one-time scans), never to hold a sample in memory.
+  3. **Fidelity plan**: a chunked sample that carries `timelines` (or whose
+     stats sidecar shows `branch`/`anchor` events) and is under
+     `TIMELINE_HYDRATION_BYTES` renders by downloading its full event
+     sequence and handing it to the legacy transcript panel unchanged — exact
+     selector/swimlane/fork/body fidelity through the already-shipping code
+     path, no format change, no write-time opinion. petri3-class samples are
+     ~1 MB each. Above the limit, the sample keeps today's skeleton-based
+     approximate view (this resolves issue 12; issue 11 now applies only to
+     above-limit samples).
+  4. **Payload-stripped events are NOT built.** They would only help a sample
+     that is both too large to download fully and carries timelines; no such
+     log exists in the corpus (the monster has zero timelines and zero
+     branches; timeline'd logs are tiny — petri3: 287 events, 2 timelines,
+     57/173 samples with real branch trees). Recorded in
+     [Levers](#measurement-triggered-levers) with the measurements.
+  5. **New format member `events/uuids.json`**: one JSON array of event uuids
+     in ordinal order (position = ordinal), fetched lazily. Gives O(1)
+     uuid→ordinal resolution for `?event=` deep links and server-timeline
+     references at every sample size — without it, resolving any uuid on a
+     monster means streaming all event chunks (852 MB). Costs ~1% of event
+     bytes (MirrorCode: 8.4 MB raw / 5.8 MB compressed; typical samples KBs);
+     identity facts only; appendable during a live run. Resolves skeleton
+     candidate 13(e); core principle 3 amended (identity sidecars may be
+     event-proportional).
+  Affected: [Core principles](#core-principles) (3),
+  [Chunked on-disk layout](#chunked-on-disk-layout-4-6),
+  [Named size constants](#named-size-constants),
+  [Client data contract](#client-data-contract),
+  [Data-loading architecture](#data-loading-architecture-9), Appendix A
+  pattern 7, deferred issues 12/13, levers table.
 
 ---
 
@@ -225,10 +293,16 @@ Two classes of content, marked throughout:
    would touch the public API or observable behavior (e.g. the lazy
    `EvalSample` properties), stop and strategize before proceeding — don't
    absorb the risk by default.
-3. **Persisted-structure invariant**: anything persisted for structure scales
-   with *structural spans*, never events (chunk-count-proportional is also
-   acceptable). Beware the tool-span trap — one `tool` span per call is
-   event-proportional in long agentic transcripts.
+3. **Persisted-structure invariant** (**⚑ amended**,
+   [Change log](#change-log), 2026-07-22): anything persisted for *structure*
+   scales with *structural spans*, never events (chunk-count-proportional is
+   also acceptable). Beware the tool-span trap — one `tool` span per call is
+   event-proportional in long agentic transcripts. Amendment: pure *identity*
+   sidecars (`events/uuids.json`) may be event-proportional — they carry no
+   structure or opinion, cost ~1% of event bytes, and are fetched lazily. The
+   runtime counterpart: viewer memory must never scale with event count;
+   bytes *read* may, but only in explicit streaming operations (search,
+   one-time scans), never to hold a sample in memory.
 4. **Sealed logs = range reads only.** Consumption of a sealed log is purely
    byte-range reads + client-side zip central-directory parsing, on every
    backend. No server endpoint may ever be required for sealed-log features —
@@ -304,10 +378,9 @@ samples/
     │                        #   error, limit, timing, uuid…
     │                        #   + message_refs: [[0, 25], [26, 27]]  (final conversation,
     │                        #       half-open ranges into the message sequence)
-    │                        #   + sequences: cumulative end-exclusive chunk boundaries
-    │                        #       {messages: [1000, 2000, 2210], events: […],
-    │                        #        calls: […], attachments: […]}  (last = sequence count)
     │                        #   NO messages / events / attachments / events_data / metadata
+    │                        #   NO chunk layout (⚑ amended — `sequences` dropped;
+    │                        #       entry names are the layout)
     ├── metadata.json        # sample.metadata (only when non-empty; user-controlled,
     │                        #   arbitrarily large — kept out of the shell)
     ├── skeleton.json        # span-proportional structural skeleton (below)
@@ -318,7 +391,10 @@ samples/
     ├── events/
     │   ├── 0.json           # ModelEvents carry range-encoded input_refs/call_refs
     │   ├── …                #   instead of inline copies
-    │   └── stats.json       # per-chunk event stats sidecar (below)
+    │   ├── stats.json       # per-chunk event stats sidecar (below)
+    │   └── uuids.json       # event uuids in ordinal order (⚑ added 2026-07-22);
+    │                        #   lazy-fetched O(1) uuid→ordinal for deep links
+    │                        #   and server-timeline references
     ├── calls/
     │   └── 0.json           # raw ModelCall payloads, one per model event
     └── attachments/
@@ -335,8 +411,13 @@ Conventions:
 - **Chunk names carry the start index only** (`{start}.json`, no zero
   padding). Filenames have no range semantics; every range in *data* is
   half-open `[start, end_exclusive)`. The chunk holding index `i` is the one
-  with the greatest start ≤ `i`; a chunk's extent is the next chunk's start;
-  the last chunk's end is the sequence count from `shell.sequences`.
+  with the greatest start ≤ `i`; a chunk's extent is the next chunk's start.
+  The central directory's entry names are the *only* persisted record of the
+  chunk layout (**⚑ amended** — `sequences` dropped from the shell,
+  [Change log](#change-log), 2026-07-22): the last chunk's end — the
+  sequence count — is learned by parsing it; the events count is also exact
+  without any chunk read, as the sum of the stats sidecar's per-chunk type
+  counts.
 - **Encoding**: JSON-array chunks. Protobuf deferred behind a measurement
   trigger ([Levers](#measurement-triggered-levers)).
 - Per-sample enumeration is a central-directory prefix scan; everything for a
@@ -571,6 +652,7 @@ Python mirrors them so both surfaces degrade at the same sizes.
 | `FULL_FIDELITY_BYTES` | 350 MiB | old format: events-array bytes post-fetch · new format: bytes being hydrated | old-format events-cleared tier trigger; Python hydration warning (monolith-vs-chunk threshold use **⚑ dropped** — indefinite deferral, [Change log](#change-log)) |
 | `SAMPLE_CLEAR_BYTES` | 512 MiB | old format: member bytes post-fetch · Python: member `uncompressedSize` pre-parse | old-format events-cleared tier (total); Python pre-parse warning |
 | `SAMPLE_REFUSE_BYTES` | 2 GiB | member `uncompressedSize`, pre-fetch (central directory) | viewer refuse tier (old format only) |
+| `TIMELINE_HYDRATION_BYTES` | 50 MiB (⚑ added 2026-07-22) | sum of `uncompressedSize` over the sample's `events/` + `attachments/` entries, pre-fetch (central directory) | full-download gate for timeline'd chunked samples ([Change log](#change-log)) |
 
 ## Compression measurements & levers
 
@@ -599,6 +681,7 @@ problem:
 | Durable client chunk cache (IndexedDB) | re-fetch cost observed | additive below the byte store; contract unchanged |
 | Worker-side viewer data layer | observed main-thread jank | decoded window lives in a worker; render-ready rows shipped out |
 | Precomputed search-index sidecar | scan latency at extreme scale | additive sidecar; drifts from renderer text — same posture as protobuf |
+| Payload-stripped events sidecar (every event, minus payload fields) | a sample appears that is both over `TIMELINE_HYDRATION_BYTES` and carries timelines/branches | client runs the real timeline pipeline without payloads; measured 89 MB vs 852 MB full on the 337k-event monster ([Change log](#change-log), 2026-07-22) — note the parsed-heap cost scales with events too |
 
 ---
 
@@ -702,12 +785,17 @@ free.
 The complete surface the transcript + outline consume — no server, no other
 index:
 
-1. `shell.sequences` (chunk boundaries per sequence) + `message_refs`
+1. central-directory entry names (per-sequence chunk starts — **⚑ amended**,
+   `sequences` dropped, [Change log](#change-log), 2026-07-22) +
+   `shell.message_refs`
 2. `skeleton.json`
 3. `events/stats.json`
-4. `getRange(sequence, [lo, hi))` — chunk-cached random access, all four
+4. `events/uuids.json` — lazy uuid→ordinal identity for deep links and
+   server-timeline references (**⚑ added**, [Change log](#change-log),
+   2026-07-22)
+5. `getRange(sequence, [lo, hi))` — chunk-cached random access, all four
    sequences
-5. `readEvents(from, {types, max})` / `FilteredCursor` — the one nontrivial
+6. `readEvents(from, {types, max})` / `FilteredCursor` — the one nontrivial
    primitive
 
 ## Data-loading architecture ([#9](https://github.com/epatey/inspect_ai/issues/9))
@@ -764,6 +852,15 @@ index:
    events (runs, collapse elision), so exact extents are unobtainable from
    stats regardless, and an approximate pixel is invisible where an
    approximate digit reads as a bug.
+9. **Timeline'd samples under the size limit bypass the windowed path**
+   (**⚑ added**, [Change log](#change-log), 2026-07-22). A chunked sample
+   that carries `timelines` (or whose stats sidecar shows `branch`/`anchor`
+   events) and is under `TIMELINE_HYDRATION_BYTES` (computed free from
+   central-directory uncompressed sizes) is rendered by downloading its full
+   event sequence (attachments resolved) and handing it to the legacy
+   transcript panel unchanged — exact timeline/fork fidelity through the
+   already-shipping code path. Above the limit, the windowed skeleton view
+   renders as today.
 
 ## View-row pagination ([#8](https://github.com/epatey/inspect_ai/issues/8))
 
@@ -1157,8 +1254,8 @@ behind the milestone. Within-phase order: A → C1 → C2 → D → B → E.
     The folding/numbering decision lives entirely in this source, behind
     the C3a contract: either unfolded rows with message-ordinal numbering
     (UX deviation needing sign-off) or write-time persisted block/folding
-    counts (format candidate: per-chunk cumulative block counts alongside
-    `sequences`). `?message=` deep links resolve by scan (same posture as
+    counts (format candidate: per-chunk cumulative block counts, e.g. a
+    messages stats sidecar). `?message=` deep links resolve by scan (same posture as
     `?event=`). Depends on C1 + C3a; independent of D.
 - **D. Search worker.** Scan worker, renderer-aligned extraction
   (worker-importable check), match table, find-band integration. Depends on
@@ -1230,27 +1327,26 @@ Recorded here so they aren't lost; each is out of this effort's scope:
     the row-window model. Reconciling needs a view-row mapping over the
     main-view ordering — design work, not a patch.
 12. **Branch-tree and server-timeline rendering for chunked samples**
-    (**⚑ amended**, [Change log](#change-log), 2026-07-22) — rollback/fork
-    logs (petri) get log-supplied timeline selectors and fork navigation in
-    the legacy viewer, and the legacy default selection IS the server
-    timeline when one exists — so on such logs the chunked path's flat main
-    view (plus its raw-tree body, issue 11) diverges wholesale, not
-    cosmetically. `timelines` already ride in the chunked shell; the work
-    is (a) plumbing them into the chunked panel and (b) resolving their
-    real-event-uuid references (incl. `anchor` events), which the synthetic
-    stream cannot satisfy — needs skeleton candidate (e) or an alternate
-    resolution path. petri3 empirics: zero `branch` events; branching there
-    is server-timeline + anchor only, so the `branch` notable widening is
-    neither sufficient nor necessary for this log class.
+    (**⚑ amended**, [Change log](#change-log), 2026-07-22 — plan ratified,
+    implementation pending) — rollback/fork logs (petri) get log-supplied
+    timeline selectors and fork navigation in the legacy viewer, and the
+    legacy default selection IS the server timeline when one exists — so on
+    such logs the chunked path's flat main view (plus its raw-tree body,
+    issue 11) diverged wholesale, not cosmetically. Ratified resolution:
+    samples with `timelines` (or `branch`/`anchor` events in stats) under
+    `TIMELINE_HYDRATION_BYTES` download all events and render the legacy
+    panel unchanged; above the limit, the skeleton view stands and the body
+    gap is issue 11. `events/uuids.json` supplies uuid→ordinal resolution
+    at any size. petri3 empirics: zero `branch` events (branching is
+    server-timeline + anchor only); 57/173 samples carry real branch trees.
 13. **Skeleton v1 amendment candidates** ([Change log](#change-log),
     2026-07-21 + 2026-07-22) — (a) widen `NOTABLE_TYPES` (`error`/
     `compaction`/`sample_limit`/`branch`), (b) notable timestamps, (c)
     root-level `children` counts, (d) writer-time utility classification,
-    (e) timeline-referenced event addressability: real uuids (or a
-    uuid→ordinal map) for events referenced by server timelines, plus
-    `anchor` representation, so `convertServerTimeline` can resolve against
-    a skeleton-derived stream (unblocks issue 12). Decide before the
-    phase-2 writer freezes the format.
+    (e) timeline-referenced event addressability — **resolved 2026-07-22**
+    by `events/uuids.json` (uuid array in ordinal order,
+    [Change log](#change-log)); no skeleton change needed. Remaining
+    candidates a–d: decide before the phase-2 writer freezes the format.
 14. **Materialized-row eviction** (PR #451 review, 2026-07-22) —
     `RowSpace.materializedRows` never evicts: decoded view rows (with
     attachments inlined) accumulate for the panel's lifetime, at odds with
@@ -1273,9 +1369,9 @@ doc, updated to the ratified decisions):
 | 2 | Sample shell (metadata, scores, usage, error) | sample detail open; Python `exclude_fields` | `sample.json` — cheap by construction |
 | 3 | Page messages by index window | Messages tab virtual list | index→chunk via start-named entries; **⚑ amended** — owned by effort C3 ([Change log](#change-log), 2026-07-21); interim = full-hydration bridge |
 | 4 | Page events by index window | Transcript scroll | same |
-| 5 | Tail / jump-to-last / follow | auto-follow, open-at-end | last chunk from `shell.sequences` |
+| 5 | Tail / jump-to-last / follow | auto-follow, open-at-end | last chunk = greatest start-named entry; its end learned on parse |
 | 6 | Structure without content (tree, outline, timeline) | first render of Transcript tab | `skeleton.json` |
-| 7 | Deep links (event uuid, message→event) | URL deep links / citations | identity = sequence index; legacy uuid via one-time chunk scan |
+| 7 | Deep links (event uuid, message→event) | URL deep links / citations | identity = sequence index; event uuid = O(1) lookup in `events/uuids.json` (**⚑ amended** 2026-07-22 — was one-time chunk scan) |
 | 8 | Event-type filtering | Transcript filter menu | stats-sidecar pushdown; exact digits / approximate pixels |
 | 9 | In-sample search | find band | progressive scan worker |
 | 10 | Full hydration / export / Python full read | JSON tab, downloads, `read_eval_log` | read all chunks + reassemble (explicit bulk op, warned) |
