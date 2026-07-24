@@ -426,8 +426,9 @@ its exact semantics (auto-home default, empty list opts out) and maps
 to a single path group under the default strategy.
 
 Phase 2 extends the *values* of `sandbox_paths`: each entry is either
-a bare path list (default strategy, unchanged) or a
-`SandboxSnapshotConfig` selecting the strategy for that sandbox.
+a bare path list (no strategy opinion — the default applies unless a
+task/eval layer selects one) or a `SandboxSnapshotConfig` selecting
+the strategy for that sandbox.
 Phase 3 adds per-path-group routing by admitting a list of groups as
 the value:
 
@@ -457,9 +458,19 @@ Decisions embedded there:
   order significant).
 - **One option, richer values.** There is a single `sandbox_paths`
   option; a bare path list is shorthand for
-  `SandboxSnapshotConfig(paths=...)` under the default strategy. (An
+  `SandboxSnapshotConfig(paths=...)` with no strategy opinion. (An
   earlier draft had a separate, mutually-exclusive `sandbox_snapshots`
   option; maintainer review folded it into `sandbox_paths`.)
+- **Strategy selection merges independently of the paths dict.**
+  `sandbox_paths` itself merges as a whole-dict value across layers
+  (eval > sample > task), but the `strategy` values resolve
+  per-sandbox from the task/eval layers only, regardless of which
+  layer won the paths dict. Otherwise a sample- or eval-level
+  paths-only override would silently reset a task-selected strategy
+  to the default — precisely the storage blowup the archive strategy
+  exists to prevent, and a contradiction of "storage policy is not a
+  per-sample concern." Resetting a strategy therefore requires a
+  higher task/eval layer to select one explicitly.
 - Checkpoint schema for multi-group: `Checkpoint.sandboxes[name]`
   stays a single `SnapshotDetails` while there is one group (Phase 1–2
   writes add only the optional `strategy` field to today's schema);

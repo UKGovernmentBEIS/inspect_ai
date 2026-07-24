@@ -11,7 +11,10 @@ Accepted forms (in order of detection):
 - The literal ``"manual"`` → ``trigger=Manual()``.
 - Otherwise → treat as a file path; load YAML/JSON via
   :func:`inspect_ai._util.config.resolve_args` and validate against
-  :class:`_CheckpointConfigModel`.
+  :class:`_CheckpointConfigModel`. Every field — including
+  ``trigger`` — may be omitted to inherit from lower-priority layers,
+  so a file can configure a single concern (e.g. snapshot-strategy
+  selection) without stomping the rest of a task's config.
 
 The CLI's bare ``--checkpoint`` flag is mapped to ``"default"`` by
 Click's ``flag_value``; the merge resolver supplies the concrete
@@ -174,7 +177,10 @@ class _SandboxSnapshotModel(BaseModel):
     """Absolute paths to capture. Omitted = the sandbox default user's
     home directory; an empty list opts the sandbox out."""
 
-    strategy: Literal["restic-incremental", "archive"] = "restic-incremental"
+    strategy: Literal["restic-incremental", "archive"] | None = None
+    """Omitted = no opinion — the strategy inherits from a
+    lower-priority layer's selection for this sandbox (matching a bare
+    path-list value), falling back to the default (restic)."""
 
     retention: _SnapshotRetentionModel | None = None
     """Mid-run retention (``keep_last: N``); ``archive`` only."""
@@ -189,15 +195,17 @@ class _SandboxSnapshotModel(BaseModel):
         return self
 
     def to_dataclass(self) -> SandboxSnapshotConfig:
-        strategy: SnapshotStrategyConfig
+        strategy: SnapshotStrategyConfig | None
         if self.strategy == "archive":
             strategy = ArchiveSnapshots(
                 retention=SnapshotRetention(keep_last=self.retention.keep_last)
                 if self.retention is not None
                 else None
             )
-        else:
+        elif self.strategy == "restic-incremental":
             strategy = ResticSnapshots()
+        else:
+            strategy = None
         return SandboxSnapshotConfig(paths=self.paths, strategy=strategy)
 
 
@@ -214,7 +222,11 @@ class _CheckpointConfigModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    trigger: _TriggerModel | Literal["manual"]
+    trigger: _TriggerModel | Literal["manual"] | None = None
+    """``None`` (omitted) = inherit — a config file used purely for
+    other concerns (e.g. strategy selection) need not pin a trigger
+    that would stomp a lower-priority layer's (see ``sandbox_paths``)."""
+
     checkpoints_location: str | None = None
     sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] | None = None
     """``None`` (omitted) = inherit from lower-priority layers — a non-None
@@ -228,7 +240,9 @@ class _CheckpointConfigModel(BaseModel):
 
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(
-            trigger=_trigger_model_to_strategy(self.trigger),
+            trigger=_trigger_model_to_strategy(self.trigger)
+            if self.trigger is not None
+            else None,
             checkpoints_location=self.checkpoints_location,
             sandbox_paths={
                 name: value.to_dataclass()

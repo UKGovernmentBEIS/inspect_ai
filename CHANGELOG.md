@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Checkpointing: `sandbox_paths` entries now select a per-sandbox snapshot strategy — incremental restic (default) or complete per-checkpoint archives with `keep_last` mid-run storage reclamation — with the chosen strategy pinned per sample across retries. (#4601)
+- Checkpointing: a sample- or eval-level `sandbox_paths` override no longer silently resets a task-selected snapshot strategy, and `--checkpoint` YAML files can omit `trigger` (and per-sandbox `strategy`) to inherit them. (#4601)
 - AsyncFilesystem: New `delete_file()` method deletes a file on local or remote (e.g. S3) filesystems, treating a missing file as a no-op.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).

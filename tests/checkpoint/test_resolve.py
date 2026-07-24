@@ -420,6 +420,83 @@ def test_sandbox_paths_higher_layer_replaces_whole_dict() -> None:
     assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
 
 
+# --- strategy selection merges independently of the paths dict --------
+
+
+def test_sample_paths_override_preserves_task_strategy() -> None:
+    """A sample-level bare path list must not reset the task's strategy.
+
+    Samples narrow *what* is captured; storage policy is settable only
+    at the task/eval layers, so the sample layer must not be able to
+    unset it either.
+    """
+    task = CheckpointConfig(
+        trigger=Manual(),
+        sandbox_paths={
+            "default": SandboxSnapshotConfig(
+                strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2))
+            )
+        },
+    )
+    sample = CheckpointSampleConfig(sandbox_paths={"default": ["/data"]})
+    out = merge_checkpoint_configs(task, sample)
+    assert out is not None
+    assert out.sandbox_paths == {"default": ["/data"]}  # sample chose *what*
+    assert out.sandbox_strategy_config("default") == ArchiveSnapshots(
+        retention=SnapshotRetention(keep_last=2)
+    )  # task chose *how*
+    assert out.sandbox_retention_policy("default") == SnapshotRetention(keep_last=2)
+
+
+def test_eval_bare_paths_preserve_task_strategy() -> None:
+    """Bare path lists express no strategy opinion at any layer."""
+    task = CheckpointConfig(
+        trigger=Manual(),
+        sandbox_paths={"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())},
+    )
+    eval_ = _cfg("sandbox_paths", {"default": ["/data"]})
+    out = merge_checkpoint_configs(task, None, eval_)
+    assert out is not None
+    assert out.sandbox_paths == {"default": ["/data"]}
+    assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
+
+
+def test_eval_explicit_strategy_overrides_task_strategy() -> None:
+    """A higher task/eval layer resets a strategy by setting one explicitly."""
+    task = CheckpointConfig(
+        trigger=Manual(),
+        sandbox_paths={"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())},
+    )
+    eval_ = _cfg(
+        "sandbox_paths",
+        {"default": SandboxSnapshotConfig(paths=["/data"], strategy=ResticSnapshots())},
+    )
+    out = merge_checkpoint_configs(task, None, eval_)
+    assert out is not None
+    assert out.sandbox_paths == {"default": ["/data"]}
+    assert out.sandbox_strategy_config("default") == ResticSnapshots()
+
+
+def test_strategy_applies_to_sandbox_absent_from_winning_paths() -> None:
+    """A strategy selection survives a winning paths dict that omits it.
+
+    The sandbox is captured with default paths (home dir) under the
+    configured strategy.
+    """
+    task = CheckpointConfig(
+        trigger=Manual(),
+        sandbox_paths={"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())},
+    )
+    sample = CheckpointSampleConfig(sandbox_paths={"other": ["/x"]})
+    out = merge_checkpoint_configs(task, sample)
+    assert out is not None
+    # Paths view: only the sample's explicit entry ("default" reverts to
+    # auto-home, so it has no paths entry).
+    assert out.sandbox_paths == {"other": ["/x"]}
+    assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
+    assert out.sandbox_strategy_config("other") == ResticSnapshots()
+
+
 def test_snapshot_retention_keep_last_floor_enforced() -> None:
     with pytest.raises(ValueError, match="keep_last"):
         SnapshotRetention(keep_last=0)

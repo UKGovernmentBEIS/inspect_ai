@@ -15,7 +15,7 @@ filled in with their canonical defaults.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -290,10 +290,23 @@ def merge_checkpoint_configs(
 
     For every field, the highest-priority layer with a non-None value
     wins; lower layers supply defaults that higher layers can override.
-    ``sandbox_paths`` merges as a single whole-dict value (not key-wise):
-    the highest-priority layer that set it wins, with each value
-    normalized to a :class:`SandboxSnapshotConfig` (a bare path list =
-    the default snapshot strategy).
+    ``sandbox_paths`` carries two concerns that merge differently:
+
+    - **Capture paths** (*what* to snapshot) merge as a single
+      whole-dict value (not key-wise): the highest-priority layer that
+      set ``sandbox_paths`` wins.
+    - **Snapshot-strategy selection** (*how* to snapshot — the
+      ``strategy`` values on :class:`SandboxSnapshotConfig` entries) is
+      storage policy and resolves per-sandbox from the task and eval
+      layers only (eval > task), independently of which layer won the
+      paths dict. A bare path list (and ``strategy=None``) expresses no
+      opinion on strategy, so a sample- or eval-level paths override
+      narrows *what* is captured without silently resetting a
+      task-selected strategy back to the default; a higher layer resets
+      a strategy by setting one explicitly (e.g.
+      ``strategy=ResticSnapshots()``). A sandbox named only by a
+      strategy selection (absent from the winning paths dict) is
+      captured with the default paths under the configured strategy.
 
     The sample layer is **customize-only** — it never enables
     checkpointing. Only the task or eval layer turns it on. When
@@ -314,7 +327,9 @@ def merge_checkpoint_configs(
         return None
 
     trigger: CheckpointTrigger | None = None
-    sandbox_snapshots: dict[str, SandboxSnapshotConfig] | None = None
+    # Mapping (not dict) so the sample layer's narrower value type is
+    # assignable (dict is invariant in its value type).
+    winning_paths: Mapping[str, list[str] | SandboxSnapshotConfig] | None = None
     max_consecutive_failures: int | None = None
     for layer in (task, sample, eval_):
         if layer is None:
@@ -322,12 +337,7 @@ def merge_checkpoint_configs(
         if layer.trigger is not None:
             trigger = layer.trigger
         if layer.sandbox_paths is not None:
-            sandbox_snapshots = {
-                name: value
-                if isinstance(value, SandboxSnapshotConfig)
-                else SandboxSnapshotConfig(paths=value)
-                for name, value in layer.sandbox_paths.items()
-            }
+            winning_paths = layer.sandbox_paths
         if layer.max_consecutive_failures is not None:
             max_consecutive_failures = layer.max_consecutive_failures
 
@@ -344,7 +354,27 @@ def merge_checkpoint_configs(
     if trigger is None:
         trigger = DEFAULT_CHECKPOINT_TRIGGER
 
-    resolved_snapshots = sandbox_snapshots if sandbox_snapshots is not None else {}
+    # Strategy selection resolves per-sandbox from the task/eval layers
+    # only, independently of the whole-dict paths merge above — see the
+    # docstring. Without this, a sample-level bare-path-list entry would
+    # silently revert a task-selected strategy to the default.
+    sandbox_strategies: dict[str, SnapshotStrategyConfig] = {}
+    for layer in (task, eval_):
+        if layer is None or layer.sandbox_paths is None:
+            continue
+        for name, value in layer.sandbox_paths.items():
+            if isinstance(value, SandboxSnapshotConfig) and value.strategy is not None:
+                sandbox_strategies[name] = value.strategy
+
+    resolved_snapshots: dict[str, SandboxSnapshotConfig] = {}
+    for name, value in (winning_paths or {}).items():
+        paths = value.paths if isinstance(value, SandboxSnapshotConfig) else value
+        resolved_snapshots[name] = SandboxSnapshotConfig(
+            paths=paths, strategy=sandbox_strategies.get(name)
+        )
+    for name, strategy in sandbox_strategies.items():
+        if name not in resolved_snapshots:
+            resolved_snapshots[name] = SandboxSnapshotConfig(strategy=strategy)
     # `sandbox_paths` stays available on the resolved config as the derived
     # paths-only view: entries with explicit paths appear verbatim (empty
     # list = opt-out), entries with `paths=None` are omitted so the

@@ -136,6 +136,21 @@ def test_yaml_file_omitted_fields_inherit(tmp_path: Path) -> None:
     assert cfg.checkpoints_location is None
 
 
+def test_yaml_file_omitted_trigger_inherits(tmp_path: Path) -> None:
+    """A config file need not pin a trigger.
+
+    E.g. a file used purely for strategy selection inherits the trigger
+    from a lower-priority layer.
+    """
+    path = tmp_path / "ckpt.yaml"
+    path.write_text("sandbox_paths:\n  default:\n    strategy: archive\n")
+    cfg = _parse(str(path))
+    assert cfg.trigger is None
+    assert cfg.sandbox_paths == {
+        "default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())
+    }
+
+
 def test_yaml_file_manual_trigger(tmp_path: Path) -> None:
     path = tmp_path / "ckpt.yaml"
     path.write_text("trigger: manual\n")
@@ -206,16 +221,21 @@ def test_yaml_file_sandbox_paths_with_strategies(tmp_path: Path) -> None:
     }
 
 
-def test_yaml_file_sandbox_paths_default_strategy_is_restic(
+def test_yaml_file_sandbox_paths_omitted_strategy_inherits(
     tmp_path: Path,
 ) -> None:
+    """A mapping-form entry without ``strategy:`` expresses no strategy opinion.
+
+    Matching a bare path-list value, so it doesn't stomp a
+    lower-priority layer's selection for that sandbox.
+    """
     path = tmp_path / "ckpt.yaml"
     path.write_text(
         "trigger: manual\nsandbox_paths:\n  default:\n    paths: ['/data']\n"
     )
     cfg = _parse(str(path))
     assert cfg.sandbox_paths == {
-        "default": SandboxSnapshotConfig(paths=["/data"], strategy=ResticSnapshots())
+        "default": SandboxSnapshotConfig(paths=["/data"], strategy=None)
     }
 
 
