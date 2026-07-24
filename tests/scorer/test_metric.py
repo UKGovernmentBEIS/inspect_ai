@@ -766,3 +766,33 @@ def test_unscored_with_reason() -> None:
 
 def test_score_reason_exported() -> None:
     from inspect_ai.scorer import ScoreReason  # noqa: F401
+
+
+def test_unscored_reason_metadata_lifted_to_reason() -> None:
+    # logs written by 0.3.245+ (#4048) carry metadata["unscored_reason"]
+    data = {
+        "value": float("nan"),
+        "metadata": {"unscored_reason": "grade_parse_failure", "grading": []},
+    }
+    score = Score.model_validate(data)
+    assert score.reason == "grade_parse_failure"
+    # the metadata key stays in place so round-tripped logs don't differ
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+
+
+def test_explicit_reason_not_overridden_by_metadata() -> None:
+    data = {
+        "value": float("nan"),
+        "reason": "grader_refusal",
+        "metadata": {"unscored_reason": "grade_parse_failure"},
+    }
+    score = Score.model_validate(data)
+    assert score.reason == "grader_refusal"
+
+
+def test_author_reason_metadata_not_lifted() -> None:
+    # metadata["reason"] is author namespace with author-defined semantics
+    data = {"value": 0, "metadata": {"reason": "timeout"}}
+    score = Score.model_validate(data)
+    assert score.reason is None

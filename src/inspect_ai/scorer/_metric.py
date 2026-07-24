@@ -14,7 +14,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
@@ -117,6 +117,25 @@ class Score(BaseModel):
 
     history: list[ScoreEdit] = Field(default_factory=list)
     """Edit history - users can access intermediate states."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_unscored_reason(cls, data: Any) -> Any:
+        """Lift legacy ``metadata["unscored_reason"]`` into ``reason``.
+
+        Logs written before ``reason`` existed (#4048, 0.3.245+) record the
+        grade-parse failure mode in metadata. Read it into the field so new
+        readers see one channel; the metadata key is left in place so that
+        round-tripped logs don't differ.
+        """
+        if (
+            isinstance(data, dict)
+            and data.get("reason") is None
+            and isinstance(data.get("metadata"), dict)
+            and data["metadata"].get("unscored_reason") is not None
+        ):
+            data = {**data, "reason": data["metadata"]["unscored_reason"]}
+        return data
 
     @classmethod
     def unscored(
