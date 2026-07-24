@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Analysis: `frontier()` no longer errors when a model release date group has only missing (NA) headline scores; those rows are now skipped instead of crashing `idxmax()`.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
