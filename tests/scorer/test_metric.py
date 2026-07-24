@@ -736,3 +736,33 @@ def test_metrics_return_zero_for_empty_scores() -> None:
         bootstrap_stderr(),
     ):
         assert metric_fn([]) == 0.0
+
+
+def test_score_reason_field() -> None:
+    # reason is optional, open (custom strings allowed), and round-trips
+    score_default = Score(value=1)
+    assert score_default.reason is None
+
+    score_vocab = Score(value="I", reason="invalid_response_format")
+    assert score_vocab.reason == "invalid_response_format"
+
+    score_custom = Score(value=1, reason="sandbox_flake")
+    reloaded = Score.model_validate(score_custom.model_dump())
+    assert reloaded.reason == "sandbox_flake"
+
+
+def test_unscored_with_reason() -> None:
+    import math as _math
+
+    score = Score.unscored(
+        reason="grader_parse_failure",
+        answer="the answer",
+        explanation="Grader did not return a parseable verdict.",
+    )
+    assert isinstance(score.value, float) and _math.isnan(score.value)
+    assert score.reason == "grader_parse_failure"
+    assert score.answer == "the answer"
+
+
+def test_score_reason_exported() -> None:
+    from inspect_ai.scorer import ScoreReason  # noqa: F401

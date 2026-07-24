@@ -45,6 +45,23 @@ PARTIAL = "P"
 NOANSWER = "N"
 """Value to assign for no answer or refusal to answer."""
 
+ScoreReason = Literal[
+    # model under test
+    "invalid_response_format",  # output unparseable / violates requested format
+    "refusal",  # detected refusal to answer
+    "no_response",  # empty completion
+    # measurement instrument (grader model, harness)
+    "grader_parse_failure",  # grader verdict unparseable after bounded retry
+    "grader_refusal",  # grader refused to grade
+    "grader_no_tool_call",  # grader made no tool call (schema-based scorers)
+    "grader_schema_mismatch",  # grader payload failed schema validation
+]
+"""Standard machine-readable reasons for abnormal scores.
+
+The `grader_` prefix marks failures of the measurement instrument rather
+than the model under test, so a single query can separate the two.
+"""
+
 
 Value = Union[
     str | int | float | bool,
@@ -92,6 +109,9 @@ class Score(BaseModel):
     explanation: str | None = Field(default=None)
     """Explanation of score (optional)."""
 
+    reason: ScoreReason | str | None = Field(default=None)
+    """Machine-readable reason for an abnormal score (optional)."""
+
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata related to the score"""
 
@@ -102,6 +122,7 @@ class Score(BaseModel):
     def unscored(
         cls,
         *,
+        reason: ScoreReason | str | None = None,
         answer: str | None = None,
         explanation: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -109,12 +130,13 @@ class Score(BaseModel):
         """Construct a Score that is preserved but excluded from metrics and reducers.
 
         Use this when a scorer cannot produce a value for a sample but you
-        still want to record context (answer, explanation, metadata). Sets
-        `value` to NaN, which is the canonical sentinel that aggregate
+        still want to record context (reason, answer, explanation, metadata).
+        Sets `value` to NaN, which is the canonical sentinel that aggregate
         metrics and reducers skip.
         """
         return cls(
             value=float("nan"),
+            reason=reason,
             answer=answer,
             explanation=explanation,
             metadata=metadata,
