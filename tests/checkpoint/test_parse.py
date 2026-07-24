@@ -120,6 +120,22 @@ def test_yaml_file(tmp_path: Path) -> None:
     assert cfg.retention == "retain"
 
 
+def test_yaml_file_omitted_fields_inherit(tmp_path: Path) -> None:
+    """Fields omitted from a config file stay None so lower-priority layers survive.
+
+    A non-None default (e.g. an empty ``sandbox_paths`` dict) would count
+    as "explicitly set" in ``merge_checkpoint_configs`` and silently stomp
+    a task-level value — including its snapshot-strategy selection.
+    """
+    path = tmp_path / "ckpt.yaml"
+    path.write_text("trigger: manual\n")
+    cfg = _parse(str(path))
+    assert cfg.sandbox_paths is None
+    assert cfg.retention is None
+    assert cfg.max_consecutive_failures is None
+    assert cfg.checkpoints_location is None
+
+
 def test_yaml_file_manual_trigger(tmp_path: Path) -> None:
     path = tmp_path / "ckpt.yaml"
     path.write_text("trigger: manual\n")

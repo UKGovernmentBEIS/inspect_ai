@@ -466,9 +466,24 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
         return
 
     async def _clean_staging(self, env: SandboxEnvironment) -> None:
-        result = await env.exec(
-            ["sh", "-c", f"rm -rf {self._staging_root}"], user="root"
-        )
+        """Best-effort removal of the in-sandbox staging root.
+
+        Never raises: this runs in the ``finally`` of ``snapshot()``, where
+        an escaping exception would mask the root-cause capture error (or
+        fail a capture whose archive already landed digest-verified in the
+        storage area). Residue is harmless — the next ``snapshot()`` deletes
+        the staging root before capturing, and staging lives inside the
+        always-excluded ``sandbox_dir`` so it is never captured.
+        """
+        try:
+            result = await env.exec(
+                ["sh", "-c", f"rm -rf {self._staging_root}"], user="root"
+            )
+        except Exception as exc:
+            logger.warning(
+                "archive snapshot: failed to clean in-sandbox staging: %s", exc
+            )
+            return
         if not result.success:
             logger.warning(
                 "archive snapshot: failed to clean in-sandbox staging: %s",

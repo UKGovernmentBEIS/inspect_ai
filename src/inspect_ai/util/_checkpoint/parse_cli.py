@@ -216,11 +216,15 @@ class _CheckpointConfigModel(BaseModel):
 
     trigger: _TriggerModel | Literal["manual"]
     checkpoints_location: str | None = None
-    sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] = Field(
-        default_factory=dict
-    )
+    sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] | None = None
+    """``None`` (omitted) = inherit from lower-priority layers — a non-None
+    default would count as "explicitly set" in ``merge_checkpoint_configs``
+    and silently stomp a task-level value (including its strategy
+    selection)."""
+
     max_consecutive_failures: int | None = None
-    retention: Literal["delete", "retain"] = "delete"
+    retention: Literal["delete", "retain"] | None = None
+    """``None`` (omitted) = inherit (see ``sandbox_paths``)."""
 
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(
@@ -231,7 +235,9 @@ class _CheckpointConfigModel(BaseModel):
                 if isinstance(value, _SandboxSnapshotModel)
                 else value
                 for name, value in self.sandbox_paths.items()
-            },
+            }
+            if self.sandbox_paths is not None
+            else None,
             max_consecutive_failures=self.max_consecutive_failures,
             retention=self.retention,
         )

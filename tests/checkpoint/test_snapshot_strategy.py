@@ -244,6 +244,59 @@ async def test_archive_snapshot_tolerates_tar_exit_1(tmp_path: Path) -> None:
         assert (data_dir / rel).read_bytes() == content
 
 
+async def test_archive_snapshot_tolerates_staging_cleanup_exception(
+    tmp_path: Path,
+) -> None:
+    """An `exec` exception during staging cleanup must not fail the fire.
+
+    `_clean_staging` runs in the `finally` of `snapshot()`; by then the
+    archive is already landed and digest-verified, and cleanup is
+    best-effort (the next fire deletes the staging root before
+    capturing), so a transport hiccup there must be swallowed — not
+    fail the capture or mask a propagating error.
+    """
+
+    class _CleanupRaisingSandbox(_LocalShellSandbox):
+        cleanup_script: str | None = None
+        cleanup_attempted = False
+
+        async def exec(
+            self,
+            cmd: list[str],
+            input: str | bytes | None = None,
+            cwd: str | None = None,
+            env: dict[str, str] | None = None,
+            user: str | None = None,
+            timeout: int | None = None,
+            timeout_retry: bool = True,
+            concurrency: bool = True,
+        ) -> ExecResult[str]:
+            if cmd == ["sh", "-c", self.cleanup_script]:
+                self.cleanup_attempted = True
+                raise TimeoutError("transport lost during cleanup")
+            return await super().exec(
+                cmd, input, cwd, env, user, timeout, timeout_retry, concurrency
+            )
+
+    env = _CleanupRaisingSandbox()
+    strategy = await _strategy(env, tmp_path)
+    env.cleanup_script = f"rm -rf {strategy._staging_root}"
+    ctx = _context(tmp_path / "sample")
+    data_dir = tmp_path / "capture" / "data"
+    files = _write_data(data_dir)
+    paths = SandboxBackupPaths(include=[str(data_dir)])
+
+    details = await strategy.snapshot(env, paths, 1, ctx)
+
+    assert env.cleanup_attempted
+    assert details.snapshot_id == "ckpt-00001"
+    for rel in files:
+        (data_dir / rel).unlink()
+    await strategy.restore(_LocalShellSandbox(), details, ctx)
+    for rel, content in files.items():
+        assert (data_dir / rel).read_bytes() == content
+
+
 async def test_archive_restore_rejects_corrupt_archive(tmp_path: Path) -> None:
     env = _LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
