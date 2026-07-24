@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from ..._agent import AgentState
 from .clock import StartCommand, StopCommand
 from .command import HumanAgentCommand
@@ -14,6 +16,8 @@ def human_agent_commands(
     intermediate_scoring: bool,
     record_session: bool,
     instructions: str | None,
+    customize: Callable[[list[HumanAgentCommand]], list[HumanAgentCommand]]
+    | None = None,
 ) -> list[HumanAgentCommand]:
     # base submit, validate, and quit
     commands = [
@@ -35,6 +39,10 @@ def human_agent_commands(
             StopCommand(),
         ]
     )
+
+    # let the caller swap/append commands before instructions is built
+    if customize is not None:
+        commands = customize(commands)
 
     # with instructions (letting it see the other commands)
     return commands + [InstructionsCommand(commands, instructions)]
