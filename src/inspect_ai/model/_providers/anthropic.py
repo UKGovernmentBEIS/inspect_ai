@@ -635,10 +635,24 @@ class AnthropicAPI(ModelAPI):
         # thinking to plain text before counting (see the helper's docstring).
         messages = neutralize_thinking_for_token_counting(messages)
 
+        # Honor per-request extra headers (config.extra_headers), mirroring
+        # generate — pull any anthropic-beta values out of the headers so they
+        # merge with the betas collected below (accept the underscore
+        # convention and the literal 'anthropic-beta' spelling; header names
+        # are case-insensitive, so match case-insensitively).
+        headers: dict[str, str] = (
+            (config.extra_headers or {}).copy() if config is not None else {}
+        )
+        betas: list[str] = []
+        for key in list(headers.keys()):
+            if key.lower() in ("anthropic_beta", "anthropic-beta"):
+                anthropic_beta_header = headers.pop(key)
+                if anthropic_beta_header:
+                    betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
+
         # Beta opt-ins required for special content in the history. The API
         # validates content block types for token counting too, so replayed
         # compaction and fallback blocks need the same betas as generate.
-        betas: list[str] = []
         request_extra: dict[str, Any] = {}
         if has_compaction:
             betas.append("compact-2026-01-12")
@@ -648,7 +662,16 @@ class AnthropicAPI(ModelAPI):
         if has_fallback:
             betas.append(FALLBACK_BETA)
         if betas:
-            request_extra["extra_headers"] = {"anthropic-beta": ",".join(betas)}
+            # a per-request anthropic-beta header overrides the client default
+            # header rather than merging with it, so preserve any client
+            # default betas (e.g. oauth-2025-04-20 set via
+            # ANTHROPIC_AUTH_TOKEN) — same merge generate does
+            for b in self._client_default_betas():
+                if b not in betas:
+                    betas.insert(0, b)
+            headers["anthropic-beta"] = ",".join(dict.fromkeys(betas))
+        if headers:
+            request_extra["extra_headers"] = headers
 
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
