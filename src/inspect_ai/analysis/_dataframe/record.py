@@ -289,6 +289,13 @@ def _try_constructor(tp: Type[ColumnType], obj: Any) -> ColumnType:
     if obj is None:
         return obj
 
+    # bool("false") -- like any non-empty string -- is True, which would make
+    # every string value coerce to True. Skip the bare constructor for str->bool
+    # and let _coerce_from_str handle it via YAML, so "false"/"0"/"no"/"off"
+    # parse to False and "true"/"1"/"yes"/"on" to True.
+    if tp is bool and isinstance(obj, str):
+        return None
+
     try:
         coerced = tp(obj)  # type: ignore[call-arg, misc]
     except Exception:
