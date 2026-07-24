@@ -1,5 +1,38 @@
 # Checkpointing: pluggable sandbox snapshot strategies
 
+> **Implementation status.** Phase 1 (the Protocol boundary,
+> `ResticIncrementalStrategy`) and the core of Phase 2 (the `archive`
+> strategy, `SnapshotRetention`/`keep_last`, per-sandbox strategy
+> selection via `sandbox_snapshots` in the Python API and the
+> `--checkpoint` YAML, and the §4.7 strategy pin) are implemented in
+> `src/inspect_ai/util/_checkpoint/_snapshot/`. Three deliberate
+> deviations from the target state below, all forward-compatible:
+>
+> 1. **Shipping stays in core host egress for now.** Strategies write
+>    into their storage area under the sample root inside
+>    `snapshot()`; for remote destinations `host_egress` still ships
+>    the storage area (catch-all tier, before `ckpt-*.json`) — the
+>    same durability ordering as the pre-extraction restic behavior.
+>    Moving shipping inside `snapshot()` lands with the §8 sink-style
+>    streaming write.
+> 2. **The archive copy-out stages the complete archive in-sandbox**
+>    (root-only area), then chunk-copies it out via per-chunk `dd` +
+>    `read_file` — host RAM is bounded by one chunk, but transient
+>    sandbox disk equals the archive size plus one chunk. The §8
+>    detached-producer pipeline (two-chunk sandbox disk bound) is the
+>    compatible follow-up; §8 point (d)'s cross-fire isolation reduces
+>    to deleting the staging root at `snapshot()` start, since no
+>    detached producer exists yet.
+> 3. **`SnapshotDetails.strategy` rides as an `extra="allow"` field**
+>    rather than a declared schema field (same absent ⇒
+>    `restic-incremental` rule): declaring it would change the
+>    generated public event schema / viewer types, which requires a
+>    coordinated `ts-mono` regeneration.
+>
+> Also still open from Phase 1–2: parametrizing the Docker e2e suite
+> over strategies (the archive mechanics are covered by a local-shell
+> harness in `tests/checkpoint/test_snapshot_strategy.py`).
+
 Design and phasing plan for meridianlabs-ai/inspect_ai#143 (upstream
 UKGovernmentBEIS/inspect_ai#4601): make sandbox state capture pluggable
 via a `SandboxSnapshotStrategy` interface, so evals whose sandbox data

@@ -1,0 +1,455 @@
+"""``archive``: one complete compressed tar per checkpoint.
+
+Best for sandbox data dominated by large, high-entropy,
+frequently-rewritten files, where restic's incremental model stores
+roughly the full dataset again at every checkpoint and can never
+reclaim space mid-run. Each checkpoint's archive is self-contained, so
+``discard_orphans`` and ``apply_retention`` are one file-delete per
+checkpoint — mid-run reclamation is trivial, which is the point.
+
+Capture mechanics (design §7.2/§8, first implementation):
+
+- The archive is produced complete inside the sandbox's root-only
+  staging area, then copied out in fixed-size chunks (``dd`` per chunk
+  + ``read_file``), so host RAM is bounded by one chunk regardless of
+  archive size. Transient sandbox disk equals the archive size plus
+  one chunk; the §8 detached-producer pipeline that bounds sandbox
+  disk to ~two chunks is a compatible follow-up (same storage layout
+  and recorded details).
+- Each snapshot stages in its own ``ckpt-NNNNN`` subdirectory and
+  ``snapshot()`` begins by deleting the staging root, so residue from
+  an interrupted fire can never corrupt the next one (§4.2). There is
+  no detached producer in this implementation, so cleanup is a plain
+  delete.
+- The archive's sha256 is minted in-sandbox at capture time and
+  cross-checked against the digest of the bytes the host actually
+  read, so transport corruption cannot produce a "verified" archive
+  whose recorded hash matches corrupt bytes. ``restore`` re-verifies
+  the recorded digest in-sandbox after staging, before any byte is
+  extracted to a final path (verify-then-extract costs transient
+  sandbox disk equal to the archive size).
+- Compression is zstd when available in the sandbox, else gzip
+  (present in effectively every image, busybox included) — the
+  archive is always compressed. ``setup`` probes and records the
+  compressor; ``restore`` infers the decompressor from the file
+  extension so mixed lineages never arise.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import time
+from logging import getLogger
+from pathlib import Path
+
+from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai._util.trace import trace_action
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.limits import override_max_read_file_size
+
+from .._layout.schemas import SnapshotDetails
+from .._repo_ops import checkpoint_tag
+from ..config import SnapshotRetention
+from ..sandbox_paths import SandboxBackupPaths
+from .types import CommittedSnapshot, PriorAttempt, SnapshotContext
+
+logger = getLogger(__name__)
+
+_DEFAULT_SANDBOX_DIR = "/root/.cache/inspect"
+"""Root-only (0700) in-sandbox area shared with the restic tooling: the
+parent is unlistable by the agent and ``.cache`` falls inside the
+always-on capture exclude, so staging never captures itself."""
+
+_DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
+
+
+class ArchiveStrategy:
+    """Complete compressed tar archive per checkpoint."""
+
+    name = "archive"
+
+    def __init__(
+        self,
+        *,
+        chunk_size: int = _DEFAULT_CHUNK_SIZE,
+        sandbox_dir: str = _DEFAULT_SANDBOX_DIR,
+    ) -> None:
+        self._chunk_size = chunk_size
+        self._sandbox_dir = sandbox_dir
+        self._staging_root = f"{sandbox_dir}/snapshot-staging"
+        self._compressor: str | None = None
+
+    async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
+        """Probe required tools and pick the compressor.
+
+        Verifies ``tar``, ``sha256sum``, and ``dd`` up front (so a
+        missing tool fails at provisioning rather than at first fire or
+        restore), and records zstd vs. the gzip fallback for this
+        sandbox. Nothing is injected.
+        """
+        script = (
+            "set -e; "
+            f"install -d -m 0700 {self._sandbox_dir}; "
+            "for tool in tar sha256sum dd; do "
+            'command -v "$tool" >/dev/null 2>&1 || '
+            '{ echo "missing required tool: $tool" >&2; exit 1; }; done; '
+            "if command -v zstd >/dev/null 2>&1; then echo zstd; "
+            "elif command -v gzip >/dev/null 2>&1; then echo gzip; "
+            'else echo "missing required tool: zstd or gzip" >&2; exit 1; fi'
+        )
+        result = await env.exec(["sh", "-c", script], user="root")
+        if not result.success:
+            raise RuntimeError(
+                f"archive snapshot setup failed for sandbox "
+                f"{ctx.sandbox_name!r}: {result.stderr}"
+            )
+        self._compressor = result.stdout.strip().splitlines()[-1]
+
+    async def snapshot(
+        self,
+        env: SandboxEnvironment,
+        paths: SandboxBackupPaths,
+        checkpoint_id: int,
+        ctx: SnapshotContext,
+    ) -> SnapshotDetails:
+        if self._compressor is None:
+            raise RuntimeError("archive snapshot: setup() did not run")
+        start = time.monotonic()
+        tag = checkpoint_tag(checkpoint_id)
+        staging = f"{self._staging_root}/{tag}"
+        ext = "tar.zst" if self._compressor == "zstd" else "tar.gz"
+        archive_name = f"{tag}.{ext}"
+        archive = f"{staging}/{archive_name}"
+        compress = "zstd -q" if self._compressor == "zstd" else "gzip"
+
+        size, sandbox_digest = await self._create_archive(
+            env, ctx, paths, staging=staging, archive=archive, compress=compress
+        )
+        local_path = Path(ctx.storage_dir) / archive_name
+        host_digest = await self._copy_out(
+            env, ctx, staging=staging, archive=archive, size=size, dest=local_path
+        )
+        await self._clean_staging(env)
+
+        if host_digest != sandbox_digest:
+            local_path.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"archive snapshot for sandbox {ctx.sandbox_name!r} corrupted "
+                f"in transit: in-sandbox sha256 {sandbox_digest} != host-read "
+                f"sha256 {host_digest}"
+            )
+
+        # `strategy` and the archive metadata ride as extra fields (see
+        # `snapshot_strategy_name`).
+        return SnapshotDetails.model_validate(
+            dict(
+                snapshot_id=tag,
+                size_bytes=size,
+                duration_ms=int((time.monotonic() - start) * 1000),
+                strategy=self.name,
+                archive=archive_name,
+                content_sha256=sandbox_digest,
+            )
+        )
+
+    async def _create_archive(
+        self,
+        env: SandboxEnvironment,
+        ctx: SnapshotContext,
+        paths: SandboxBackupPaths,
+        *,
+        staging: str,
+        archive: str,
+        compress: str,
+    ) -> tuple[int, str]:
+        """Produce the complete archive in staging; return (size, sha256).
+
+        Deleting the staging root first is the cross-fire isolation
+        step (§4.2): an interrupted fire's residue — including a retry
+        of the same reused checkpoint id — can never leak into this
+        stream. tar's own exit status is captured through the pipe via
+        fd 3 (a plain ``tar | compress`` pipeline in POSIX sh reports
+        only the compressor's status); exit 1 (file changed while
+        reading — expected on a live sandbox) is tolerated, anything
+        higher is fatal.
+        """
+        excludes = " ".join(
+            f"--exclude={_tar_pattern(p)}" for p in [*paths.exclude, self._sandbox_dir]
+        )
+        includes = " ".join(paths.include)
+        script = (
+            "set -e\n"
+            f"rm -rf {self._staging_root}\n"
+            f"mkdir -p {staging}\n"
+            f"rc=$( {{ {{ tar -cf - {excludes} {includes}; echo $? >&3; }} "
+            f"| {compress} > {archive}; }} 3>&1 )\n"
+            f'[ -n "$rc" ] && [ "$rc" -le 1 ] || '
+            f'{{ echo "tar failed with exit status $rc" >&2; exit 1; }}\n'
+            f"wc -c < {archive}\n"
+            f"sha256sum {archive}\n"
+        )
+        result = await env.exec(["sh", "-c", script], user="root")
+        if not result.success:
+            raise RuntimeError(
+                f"archive snapshot failed for sandbox {ctx.sandbox_name!r}: "
+                f"{result.stderr}"
+            )
+        lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        try:
+            size = int(lines[-2])
+            digest = lines[-1].split()[0]
+        except (IndexError, ValueError) as exc:
+            raise RuntimeError(
+                f"archive snapshot for sandbox {ctx.sandbox_name!r}: could not "
+                f"parse size/digest from output: {result.stdout!r}"
+            ) from exc
+        return size, digest
+
+    async def _copy_out(
+        self,
+        env: SandboxEnvironment,
+        ctx: SnapshotContext,
+        *,
+        staging: str,
+        archive: str,
+        size: int,
+        dest: Path,
+    ) -> str:
+        """Chunked sandbox → host copy; returns the host-side sha256.
+
+        Written to a dot-prefixed partial file and renamed into place
+        only after the digest cross-check, so an interrupted copy never
+        leaves a plausible-looking archive in the storage area.
+        """
+        chunk_path = f"{staging}/chunk"
+        digest = hashlib.sha256()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        partial = dest.with_name(f".{dest.name}.partial")
+        try:
+            with open(partial, "wb") as out:
+                index = 0
+                copied = 0
+                while copied < size:
+                    script = (
+                        f"rm -f {chunk_path} && dd if={archive} of={chunk_path} "
+                        f"bs={self._chunk_size} skip={index} count=1 2>/dev/null"
+                    )
+                    result = await env.exec(["sh", "-c", script], user="root")
+                    if not result.success:
+                        raise RuntimeError(
+                            f"archive snapshot copy-out failed for sandbox "
+                            f"{ctx.sandbox_name!r}: {result.stderr}"
+                        )
+                    with override_max_read_file_size(self._chunk_size * 2):
+                        data = await env.read_file(chunk_path, text=False)
+                    if not data:
+                        raise RuntimeError(
+                            f"archive snapshot copy-out for sandbox "
+                            f"{ctx.sandbox_name!r}: unexpected EOF at chunk "
+                            f"{index} ({copied}/{size} bytes)"
+                        )
+                    out.write(data)
+                    digest.update(data)
+                    copied += len(data)
+                    index += 1
+        except BaseException:
+            partial.unlink(missing_ok=True)
+            raise
+        os.replace(partial, dest)
+        return digest.hexdigest()
+
+    async def restore(
+        self,
+        env: SandboxEnvironment,
+        ref: SnapshotDetails | None,
+        ctx: SnapshotContext,
+    ) -> None:
+        if ref is None:
+            raise RuntimeError(
+                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                f"the latest committed checkpoint records no snapshot for "
+                f"this sandbox"
+            )
+        extra = ref.model_extra or {}
+        archive_name = extra.get("archive")
+        expected_digest = extra.get("content_sha256")
+        if not isinstance(archive_name, str) or not isinstance(expected_digest, str):
+            raise RuntimeError(
+                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                f"checkpoint record for {ref.snapshot_id} lacks archive "
+                f"metadata (archive/content_sha256)"
+            )
+        local_path = Path(ctx.storage_dir) / archive_name
+        if not local_path.is_file():
+            raise RuntimeError(
+                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                f"expected archive at {local_path}, but it doesn't exist"
+            )
+
+        staging = f"{self._staging_root}/restore"
+        staged = f"{staging}/{archive_name}"
+        init = await env.exec(
+            [
+                "sh",
+                "-c",
+                f"set -e; install -d -m 0700 {self._sandbox_dir}; "
+                f"rm -rf {self._staging_root}; mkdir -p {staging}",
+            ],
+            user="root",
+        )
+        if not init.success:
+            raise RuntimeError(
+                f"archive snapshot restore staging failed for sandbox "
+                f"{ctx.sandbox_name!r}: {init.stderr}"
+            )
+
+        # Chunked host → sandbox copy: `exec` takes fully materialized
+        # input bytes, so streaming the whole archive through one exec
+        # would buffer it entirely in host RAM (and can exceed per-call
+        # provider limits) — the copy-out problem in reverse.
+        with open(local_path, "rb") as f:
+            first = True
+            while True:
+                data = f.read(self._chunk_size)
+                if not data:
+                    break
+                redirect = ">" if first else ">>"
+                result = await env.exec(
+                    ["sh", "-c", f"cat {redirect} {staged}"], input=data, user="root"
+                )
+                if not result.success:
+                    raise RuntimeError(
+                        f"archive snapshot restore copy-in failed for sandbox "
+                        f"{ctx.sandbox_name!r}: {result.stderr}"
+                    )
+                first = False
+
+        # Verify-then-extract: a corrupt archive is rejected before any
+        # byte reaches a final path.
+        extract = (
+            f"zstd -dc {staged} | tar -xf - -C /"
+            if archive_name.endswith(".tar.zst")
+            else f"tar -xzf {staged} -C /"
+        )
+        script = (
+            "set -e\n"
+            f'digest=$(sha256sum {staged} | cut -d" " -f1)\n'
+            f'[ "$digest" = "{expected_digest}" ] || '
+            f'{{ echo "archive digest mismatch: $digest != {expected_digest}" >&2; '
+            f"exit 1; }}\n"
+            f"{extract}\n"
+            f"rm -rf {self._staging_root}\n"
+        )
+        result = await env.exec(["sh", "-c", script], user="root")
+        if not result.success:
+            raise RuntimeError(
+                f"archive snapshot restore failed for sandbox "
+                f"{ctx.sandbox_name!r}: {result.stderr}"
+            )
+
+    async def adopt(self, prior: PriorAttempt, ctx: SnapshotContext) -> None:
+        """Copy the prior attempt's retained archives into this attempt.
+
+        The prior dir holds only the archives that survived retention,
+        so this is bounded by ``keep_last`` — the simple choice
+        compliant with §4.5 (retained snapshots durable at this
+        attempt's destination before agent work runs, via the same
+        end-of-hydration host egress that ships the restic repos).
+        """
+        async_fs = get_async_filesystem()
+        storage = Path(ctx.storage_dir)
+        storage.mkdir(parents=True, exist_ok=True)
+        copied: list[str] = []
+        with trace_action(
+            logger, "Checkpoint Hydrate", f"fs-copy archive {ctx.sandbox_name!r}"
+        ):
+            async for uri in async_fs.iter_files(prior.storage_prefix, recursive=True):
+                name = uri.rsplit("/", 1)[-1]
+                await async_fs.get_file(uri, str(storage / name))
+                copied.append(name)
+            if not copied:
+                raise RuntimeError(
+                    f"resume: expected archive snapshots for sandbox "
+                    f"{ctx.sandbox_name!r} at {prior.storage_prefix}, but no "
+                    f"files were found"
+                )
+
+    async def discard_orphans(
+        self, latest_committed_id: int, ctx: SnapshotContext
+    ) -> None:
+        storage = Path(ctx.storage_dir)
+        if not storage.is_dir():
+            return
+        for entry in storage.iterdir():
+            checkpoint_id = _archive_checkpoint_id(entry.name)
+            if checkpoint_id is None or checkpoint_id > latest_committed_id:
+                entry.unlink(missing_ok=True)
+
+    async def apply_retention(
+        self,
+        policy: SnapshotRetention,
+        committed: list[CommittedSnapshot],
+        ctx: SnapshotContext,
+    ) -> None:
+        """Delete archives for checkpoints outside ``committed``.
+
+        The core has already removed the thinned checkpoints'
+        ``ckpt-*.json`` files (destination first, then local), so no
+        checkpoint file references the archives deleted here.
+        Destination copies are deleted before local ones for the same
+        reason the core orders its deletes that way: a crash mid-way
+        must not leave the destination referencing data that only
+        exists locally.
+        """
+        keep = {snapshot.checkpoint_id for snapshot in committed}
+        storage = Path(ctx.storage_dir)
+        if not storage.is_dir():
+            return
+        async_fs = get_async_filesystem()
+        for entry in sorted(storage.iterdir()):
+            checkpoint_id = _archive_checkpoint_id(entry.name)
+            if checkpoint_id is None or checkpoint_id in keep:
+                continue
+            destination = ctx.destination_uri(entry.name)
+            if destination is not None:
+                await async_fs.delete_file(destination)
+            entry.unlink(missing_ok=True)
+
+    async def cleanup(self, ctx: SnapshotContext) -> None:
+        # Eval-end deletion removes the whole checkpoints dir, which
+        # contains the storage area; nothing strategy-specific to do.
+        return
+
+    async def _clean_staging(self, env: SandboxEnvironment) -> None:
+        result = await env.exec(
+            ["sh", "-c", f"rm -rf {self._staging_root}"], user="root"
+        )
+        if not result.success:
+            logger.warning(
+                "archive snapshot: failed to clean in-sandbox staging: %s",
+                result.stderr,
+            )
+
+
+def _archive_checkpoint_id(filename: str) -> int | None:
+    """Checkpoint id from an archive filename (``ckpt-NNNNN.tar.*``)."""
+    stem = filename.split(".", 1)[0]
+    if not stem.startswith("ckpt-"):
+        return None
+    try:
+        return int(stem.removeprefix("ckpt-"))
+    except ValueError:
+        return None
+
+
+def _tar_pattern(pattern: str) -> str:
+    """Convert a restic exclude pattern to a tar ``--exclude`` pattern.
+
+    tar strips the leading ``/`` from member names, so absolute paths
+    lose their slash; restic's ``**/`` prefix (match at any depth) maps
+    to tar's default unanchored matching by dropping the prefix.
+    """
+    if pattern.startswith("**/"):
+        return pattern[3:]
+    return pattern.lstrip("/")

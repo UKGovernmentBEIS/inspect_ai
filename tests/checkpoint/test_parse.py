@@ -9,8 +9,12 @@ from pathlib import Path
 import pytest
 
 from inspect_ai.util._checkpoint import (
+    ArchiveSnapshots,
     CheckpointConfig,
     Manual,
+    ResticSnapshots,
+    SandboxSnapshotConfig,
+    SnapshotRetention,
     TimeInterval,
     TokenInterval,
     TurnInterval,
@@ -158,3 +162,73 @@ def test_json_file(tmp_path: Path) -> None:
     path.write_text(json.dumps({"trigger": {"type": "turn", "every": 3}}))
     cfg = _parse(str(path))
     assert isinstance(cfg.trigger, TurnInterval) and cfg.trigger.every == 3
+
+
+def test_yaml_file_sandbox_snapshots(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text(
+        "trigger:\n  type: turn\n  every: 2\n"
+        "sandbox_snapshots:\n"
+        "  default:\n"
+        "    paths: ['/data']\n"
+        "    strategy: archive\n"
+        "    retention:\n"
+        "      keep_last: 2\n"
+        "  web:\n"
+        "    strategy: restic-incremental\n"
+    )
+    cfg = _parse(str(path))
+    assert cfg.sandbox_paths is None
+    assert cfg.sandbox_snapshots == {
+        "default": SandboxSnapshotConfig(
+            paths=["/data"],
+            strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2)),
+        ),
+        "web": SandboxSnapshotConfig(paths=None, strategy=ResticSnapshots()),
+    }
+
+
+def test_yaml_file_sandbox_snapshots_default_strategy_is_restic(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text(
+        "trigger: manual\nsandbox_snapshots:\n  default:\n    paths: ['/data']\n"
+    )
+    cfg = _parse(str(path))
+    assert cfg.sandbox_snapshots == {
+        "default": SandboxSnapshotConfig(paths=["/data"], strategy=ResticSnapshots())
+    }
+
+
+def test_yaml_file_retention_requires_archive(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text(
+        "trigger: manual\n"
+        "sandbox_snapshots:\n"
+        "  default:\n"
+        "    retention:\n"
+        "      keep_last: 2\n"
+    )
+    with pytest.raises(ValueError, match="archive"):
+        parse_checkpoint(str(path))
+
+
+def test_yaml_file_sandbox_paths_and_snapshots_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text(
+        "trigger: manual\n"
+        "sandbox_paths:\n  default: ['/workspace']\n"
+        "sandbox_snapshots:\n  default:\n    strategy: archive\n"
+    )
+    with pytest.raises(ValueError, match="not both"):
+        parse_checkpoint(str(path))
+
+
+def test_yaml_file_unknown_strategy_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "ckpt.yaml"
+    path.write_text(
+        "trigger: manual\nsandbox_snapshots:\n  default:\n    strategy: zfs\n"
+    )
+    with pytest.raises(ValueError):
+        parse_checkpoint(str(path))

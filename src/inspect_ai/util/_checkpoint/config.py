@@ -39,6 +39,78 @@ MAX_LISTED_FILES = 100
 this is recorded in ``additional_files``."""
 
 
+@dataclass(frozen=True)
+class SnapshotRetention:
+    """Mid-run retention policy for a sandbox snapshot strategy.
+
+    Applied after each committed checkpoint, best-effort. The policy
+    always retains at least the latest committed checkpoint (the hard
+    floor); a strategy may retain more than the policy asks (restic
+    keeps everything).
+    """
+
+    keep_last: int | None = None
+    """Keep the last N committed checkpoints' sandbox snapshot data,
+    reclaiming storage for older ones. ``None`` = keep everything."""
+
+    def __post_init__(self) -> None:
+        if self.keep_last is not None and self.keep_last < 1:
+            raise ValueError(
+                f"SnapshotRetention.keep_last must be >= 1 (the latest "
+                f"committed checkpoint is always retained), got {self.keep_last}"
+            )
+
+
+@dataclass(frozen=True)
+class ResticSnapshots:
+    """Incremental restic-based sandbox snapshots (the default).
+
+    Each checkpoint stores only data changed since the previous one.
+    Best choice when most files are stable across checkpoints. Storage
+    is never reclaimed mid-run (restic retains all snapshots).
+    """
+
+
+@dataclass(frozen=True)
+class ArchiveSnapshots:
+    """One complete compressed tar archive per checkpoint.
+
+    Best choice when the captured data is dominated by large,
+    high-entropy, frequently-rewritten files (training state, database
+    files, encrypted containers), where incremental backup stores
+    roughly the full dataset again at every checkpoint. Combined with
+    ``retention=SnapshotRetention(keep_last=N)``, storage is reclaimed
+    mid-run as older checkpoints are thinned.
+    """
+
+    retention: SnapshotRetention | None = None
+    """Mid-run retention policy. ``None`` = keep every checkpoint's
+    archive for the life of the sample."""
+
+
+SnapshotStrategyConfig = ResticSnapshots | ArchiveSnapshots
+"""Configuration for a sandbox snapshot strategy."""
+
+
+@dataclass(frozen=True)
+class SandboxSnapshotConfig:
+    """Per-sandbox snapshot configuration: what to capture and how.
+
+    Used as the values of ``CheckpointConfig.sandbox_snapshots``. The
+    ``paths`` field carries the same semantics as ``sandbox_paths``
+    (``None`` = the sandbox default user's home directory; an empty
+    list opts the sandbox out entirely).
+    """
+
+    paths: list[str] | None = None
+    """Absolute paths to capture inside the sandbox. ``None`` = the
+    default user's home directory; ``[]`` opts the sandbox out."""
+
+    strategy: SnapshotStrategyConfig | None = None
+    """Snapshot strategy for this sandbox. ``None`` = the default
+    (:class:`ResticSnapshots`)."""
+
+
 @dataclass
 class CheckpointSampleConfig:
     """Checkpoint configuration fields that may be set at the sample layer.
@@ -63,7 +135,15 @@ class CheckpointSampleConfig:
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
     sandbox. ``None`` = inherit; ``{}`` (after merge) = host-only
-    checkpointing (no sandbox repos)."""
+    checkpointing (no sandbox repos). The simple spelling of
+    ``sandbox_snapshots`` — mutually exclusive with it at any one
+    layer."""
+
+    sandbox_snapshots: dict[str, SandboxSnapshotConfig] | None = None
+    """Per-sandbox-name snapshot configuration (capture paths plus the
+    snapshot strategy). ``None`` = inherit. Mutually exclusive with
+    ``sandbox_paths`` at any one layer; sandboxes without an entry are
+    captured with the defaults (home directory, restic)."""
 
     max_consecutive_failures: int | None = None
     """If set, the sample fails after N consecutive failed checkpoint
@@ -140,11 +220,24 @@ class ResolvedCheckpointConfig:
 
     trigger: CheckpointTrigger
     sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
+    sandbox_snapshots: dict[str, SandboxSnapshotConfig] = field(default_factory=dict)
     retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
     on_checkpoint: OnCheckpointCallback | None = None
     on_resume: OnResumeCallback | None = None
+
+    def sandbox_strategy_config(self, sandbox_name: str) -> SnapshotStrategyConfig:
+        """Effective snapshot strategy config for one sandbox."""
+        entry = self.sandbox_snapshots.get(sandbox_name)
+        if entry is not None and entry.strategy is not None:
+            return entry.strategy
+        return ResticSnapshots()
+
+    def sandbox_retention_policy(self, sandbox_name: str) -> SnapshotRetention | None:
+        """Mid-run retention policy for one sandbox, if its strategy has one."""
+        strategy = self.sandbox_strategy_config(sandbox_name)
+        return getattr(strategy, "retention", None)
 
 
 def merge_checkpoint_configs(
@@ -168,8 +261,10 @@ def merge_checkpoint_configs(
 
     For every field, the highest-priority layer with a non-None value
     wins; lower layers supply defaults that higher layers can override.
-    ``sandbox_paths`` is treated as a single value (whole-dict
-    replacement), not key-wise merged.
+    ``sandbox_paths`` and ``sandbox_snapshots`` are two spellings of a
+    single value (whole-dict replacement, not key-wise merged): the
+    highest-priority layer that set either wins, and a single layer may
+    set at most one of the two.
 
     The sample layer is **customize-only** — it never enables
     checkpointing. Only the task or eval layer turns it on. When
@@ -190,15 +285,30 @@ def merge_checkpoint_configs(
         return None
 
     trigger: CheckpointTrigger | None = None
-    sandbox_paths: dict[str, list[str]] | None = None
+    sandbox_snapshots: dict[str, SandboxSnapshotConfig] | None = None
     max_consecutive_failures: int | None = None
     for layer in (task, sample, eval_):
         if layer is None:
             continue
         if layer.trigger is not None:
             trigger = layer.trigger
-        if layer.sandbox_paths is not None:
-            sandbox_paths = layer.sandbox_paths
+        # `sandbox_paths` and `sandbox_snapshots` are two spellings of one
+        # concern (which sandboxes to capture, and how), so they merge as a
+        # single value: the highest-priority layer that set either wins,
+        # normalized to the `sandbox_snapshots` form.
+        if layer.sandbox_paths is not None and layer.sandbox_snapshots is not None:
+            raise ValueError(
+                "checkpoint config: specify either sandbox_paths or "
+                "sandbox_snapshots, not both (sandbox_snapshots subsumes "
+                "sandbox_paths)"
+            )
+        if layer.sandbox_snapshots is not None:
+            sandbox_snapshots = layer.sandbox_snapshots
+        elif layer.sandbox_paths is not None:
+            sandbox_snapshots = {
+                name: SandboxSnapshotConfig(paths=paths)
+                for name, paths in layer.sandbox_paths.items()
+            }
         if layer.max_consecutive_failures is not None:
             max_consecutive_failures = layer.max_consecutive_failures
 
@@ -215,9 +325,21 @@ def merge_checkpoint_configs(
     if trigger is None:
         trigger = DEFAULT_CHECKPOINT_TRIGGER
 
+    resolved_snapshots = sandbox_snapshots if sandbox_snapshots is not None else {}
+    # `sandbox_paths` stays available on the resolved config as the derived
+    # paths-only view: entries with explicit paths appear verbatim (empty
+    # list = opt-out), entries with `paths=None` are omitted so the
+    # auto-home default applies downstream.
+    resolved_paths = {
+        name: cfg.paths
+        for name, cfg in resolved_snapshots.items()
+        if cfg.paths is not None
+    }
+
     return ResolvedCheckpointConfig(
         trigger=trigger,
-        sandbox_paths=sandbox_paths if sandbox_paths is not None else {},
+        sandbox_paths=resolved_paths,
+        sandbox_snapshots=resolved_snapshots,
         retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,

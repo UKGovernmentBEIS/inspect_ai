@@ -25,7 +25,7 @@ import re
 from datetime import timedelta
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from inspect_ai._util.config import resolve_args
 
@@ -36,7 +36,14 @@ from ._triggers import (
     TokenInterval,
     TurnInterval,
 )
-from .config import CheckpointConfig
+from .config import (
+    ArchiveSnapshots,
+    CheckpointConfig,
+    ResticSnapshots,
+    SandboxSnapshotConfig,
+    SnapshotRetention,
+    SnapshotStrategyConfig,
+)
 
 _DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd])\s*$", re.IGNORECASE)
 _DURATION_UNITS_S: dict[str, float] = {
@@ -149,12 +156,55 @@ _TriggerModel = Annotated[
 ]
 
 
+class _SnapshotRetentionModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    keep_last: int | None = Field(default=None, ge=1)
+
+
+class _SandboxSnapshotModel(BaseModel):
+    """One sandbox's snapshot config: capture paths + strategy."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    paths: list[str] | None = None
+    """Absolute paths to capture. Omitted = the sandbox default user's
+    home directory; an empty list opts the sandbox out."""
+
+    strategy: Literal["restic-incremental", "archive"] = "restic-incremental"
+
+    retention: _SnapshotRetentionModel | None = None
+    """Mid-run retention (``keep_last: N``); ``archive`` only."""
+
+    @model_validator(mode="after")
+    def _retention_requires_archive(self) -> "_SandboxSnapshotModel":
+        if self.retention is not None and self.strategy != "archive":
+            raise ValueError(
+                "retention is only supported with `strategy: archive` "
+                "(restic-incremental retains all checkpoints)"
+            )
+        return self
+
+    def to_dataclass(self) -> SandboxSnapshotConfig:
+        strategy: SnapshotStrategyConfig
+        if self.strategy == "archive":
+            strategy = ArchiveSnapshots(
+                retention=SnapshotRetention(keep_last=self.retention.keep_last)
+                if self.retention is not None
+                else None
+            )
+        else:
+            strategy = ResticSnapshots()
+        return SandboxSnapshotConfig(paths=self.paths, strategy=strategy)
+
+
 class _CheckpointConfigModel(BaseModel):
     """Pydantic mirror of :class:`CheckpointConfig` for YAML/JSON loading.
 
-    Two fields differ from the real dataclass:
+    Fields that differ from the real dataclass:
     - ``trigger`` accepts a discriminated dict (``{"type": "turn", "every": 5}``)
       or the literal ``"manual"``, and translates to a strategy instance.
+    - ``sandbox_snapshots`` values accept a strategy *name* plus optional
+      retention, and translate to the strategy config dataclasses.
     - All other fields validate directly against their dataclass counterparts.
     """
 
@@ -163,14 +213,35 @@ class _CheckpointConfigModel(BaseModel):
     trigger: _TriggerModel | Literal["manual"]
     checkpoints_location: str | None = None
     sandbox_paths: dict[str, list[str]] = Field(default_factory=dict)
+    sandbox_snapshots: dict[str, _SandboxSnapshotModel] | None = None
     max_consecutive_failures: int | None = None
     retention: Literal["delete", "retain"] = "delete"
 
+    @model_validator(mode="after")
+    def _paths_xor_snapshots(self) -> "_CheckpointConfigModel":
+        if "sandbox_paths" in self.model_fields_set and (
+            self.sandbox_snapshots is not None
+        ):
+            raise ValueError(
+                "specify either sandbox_paths or sandbox_snapshots, not both "
+                "(sandbox_snapshots subsumes sandbox_paths)"
+            )
+        return self
+
     def to_dataclass(self) -> CheckpointConfig:
+        sandbox_snapshots = (
+            {
+                name: model.to_dataclass()
+                for name, model in self.sandbox_snapshots.items()
+            }
+            if self.sandbox_snapshots is not None
+            else None
+        )
         return CheckpointConfig(
             trigger=_trigger_model_to_strategy(self.trigger),
             checkpoints_location=self.checkpoints_location,
-            sandbox_paths=self.sandbox_paths,
+            sandbox_paths=None if sandbox_snapshots is not None else self.sandbox_paths,
+            sandbox_snapshots=sandbox_snapshots,
             max_consecutive_failures=self.max_consecutive_failures,
             retention=self.retention,
         )
