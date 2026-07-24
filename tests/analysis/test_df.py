@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+from pydantic import JsonValue
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
@@ -480,7 +481,7 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
 
 
 def test_score_details_includes_reason() -> None:
-    scores = {
+    scores: JsonValue = {
         "match": {
             "value": "I",
             "answer": "foo",

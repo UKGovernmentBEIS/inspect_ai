@@ -251,10 +251,12 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
     state = simple_task_state(model_output="")
     state.output.choices = []
     result = await scorer(state, Target(["x"]))
+    assert result is not None
     assert result.reason == "no_response"
 
     state = _state_with_prompt_logprobs(None)
     result = await scorer(state, Target(["x"]))
+    assert result is not None
     assert result.reason == "no_logprobs"
 
     # fewer logprobs than num_target_tokens
@@ -263,6 +265,7 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
         metadata={"num_target_tokens": 5},
     )
     result = await scorer(state, Target(["x"]))
+    assert result is not None
     assert result.reason == "invalid_target_tokens"
 
     # non-positive num_target_tokens
@@ -271,4 +274,5 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
         metadata={"num_target_tokens": 0},
     )
     result = await scorer(state, Target(["x"]))
+    assert result is not None
     assert result.reason == "invalid_target_tokens"
