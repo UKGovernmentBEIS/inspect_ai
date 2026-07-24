@@ -76,6 +76,7 @@ def edit_score(
             value=edit.value,
             answer=edit.answer if edit.answer != "UNCHANGED" else None,
             explanation=edit.explanation if edit.explanation != "UNCHANGED" else None,
+            reason=edit.reason if edit.reason != "UNCHANGED" else None,
             metadata=edit.metadata if edit.metadata != "UNCHANGED" else None,
             history=[edit],
         )
@@ -88,6 +89,7 @@ def edit_score(
                 value=score.value,
                 answer=score.answer,
                 explanation=score.explanation,
+                reason=score.reason,
                 metadata=score.metadata or {},
             )
             score.history.append(original)
@@ -98,6 +100,8 @@ def edit_score(
             score.answer = edit.answer
         if edit.explanation != "UNCHANGED":
             score.explanation = edit.explanation
+        if edit.reason != "UNCHANGED":
+            score.reason = edit.reason
         if edit.metadata != "UNCHANGED":
             score.metadata = edit.metadata
 

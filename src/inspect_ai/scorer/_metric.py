@@ -90,6 +90,9 @@ class ScoreEdit(BaseModel):
     explanation: str | None | Literal["UNCHANGED"] = "UNCHANGED"
     """New explanation for the score, or UNCHANGED to keep current explanation."""
 
+    reason: ScoreReason | str | None | Literal["UNCHANGED"] = "UNCHANGED"
+    """New reason for the score, or UNCHANGED to keep current reason."""
+
     metadata: dict[str, Any] | Literal["UNCHANGED"] = "UNCHANGED"
     """New metadata for the score, or UNCHANGED to keep current metadata."""
 
