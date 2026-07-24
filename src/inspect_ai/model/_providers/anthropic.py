@@ -662,6 +662,13 @@ class AnthropicAPI(ModelAPI):
         if has_fallback:
             betas.append(FALLBACK_BETA)
         if betas:
+            # a per-request anthropic-beta header overrides the client default
+            # header rather than merging with it, so preserve any client
+            # default betas (e.g. oauth-2025-04-20 set via
+            # ANTHROPIC_AUTH_TOKEN) — same merge generate does
+            for b in self._client_default_betas():
+                if b not in betas:
+                    betas.insert(0, b)
             headers["anthropic-beta"] = ",".join(dict.fromkeys(betas))
         if headers:
             request_extra["extra_headers"] = headers

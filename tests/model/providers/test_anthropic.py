@@ -154,6 +154,16 @@ async def test_anthropic_count_tokens_passes_extra_headers() -> None:
     await api.count_tokens([ChatMessageUser(content="hello")])
     assert "extra_headers" not in mock_count.call_args.kwargs
 
+    # client default betas (e.g. oauth-2025-04-20 via ANTHROPIC_AUTH_TOKEN)
+    # must be folded into a per-request anthropic-beta header, since a
+    # per-request header overrides the client default rather than merging
+    mock_count.reset_mock()
+    api.client._custom_headers = {"anthropic-beta": "oauth-2025-04-20"}
+    await api.count_tokens([ChatMessageUser(content="hello")], config)
+    assert mock_count.call_args.kwargs["extra_headers"]["anthropic-beta"] == (
+        "oauth-2025-04-20,context-1m-2025-08-07"
+    )
+
 
 _FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
 
