@@ -229,3 +229,23 @@ def test_remove_invalid_characters():
 
     # Multiple spacing commands
     assert remove_invalid_characters(r"a\:b\!c") == "abc"
+
+
+async def test_extraction_failure_scores_incorrect_with_reason():
+    scorer = math()
+    state = simple_task_state(model_output="I cannot determine the answer.")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.value == INCORRECT
+    assert result.reason == "invalid_response_format"
+    assert result.answer is None  # no "None" string artefact (#4091)
+
+
+async def test_wrong_answer_has_no_reason():
+    scorer = math()
+    state = simple_task_state(model_output="The answer is \\boxed{7}")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.value == INCORRECT
+    assert result.reason is None
+    assert result.answer == "7"
