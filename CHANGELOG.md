@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Scoring: New machine-readable `Score.reason` field records why a score has an abnormal value (e.g. `invalid_response_format`, `grader_parse_failure`), is preserved across score edits, and appears as `score_<name>_reason` dataframe columns. (#4567)
+- Scoring: `pattern()` and `answer()` now score unmatched output as `INCORRECT` with `reason="invalid_response_format"` instead of `NOANSWER`, keeping format violations in the metric denominator. (#4567)
+- Scoring: `perplexity()` and `target_perplexity()` now return `Score.unscored()` with a `reason` instead of a raw NaN value when logprobs are unavailable. (#4567)
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
