@@ -20,6 +20,7 @@ from inspect_ai._util.file import absolute_file_path, file, filesystem, local_pa
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
+from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
     EvalLog,
@@ -142,6 +143,16 @@ class JSONRecorder(FileRecorder):
         return None
 
     @override
+    async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
+        # accumulate on the in-memory log; it hits disk at the next flush /
+        # log_finish like everything else in this format (weaker crash
+        # durability than .eval, consistent with the format's general story)
+        log = self.data[self._log_file_key(eval)]
+        if log.data.config_updates is None:
+            log.data.config_updates = []
+        log.data.config_updates.append(update)
+
+    @override
     async def log_finish(
         self,
         eval: EvalSpec,
@@ -153,6 +164,7 @@ class JSONRecorder(FileRecorder):
         header_only: bool = False,
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
+        config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
@@ -160,6 +172,9 @@ class JSONRecorder(FileRecorder):
         log.data.results = results
         log.data.invalidated = invalidated
         log.data.log_updates = log_updates
+        # None means "not supplied" — keep the updates accumulated mid-run
+        if config_updates is not None:
+            log.data.config_updates = config_updates
         log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
@@ -455,6 +470,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         stats: EvalStats | None = None
         error: EvalError | None = None
         log_updates: list[LogUpdate] | None = None
+        config_updates: list[ConfigUpdate] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(EvalStatus)
@@ -473,6 +489,8 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 error = EvalError.model_validate(v)
             elif k == "log_updates":
                 log_updates = [LogUpdate.model_validate(u) for u in v]
+            elif k == "config_updates":
+                config_updates = [ConfigUpdate.model_validate(u) for u in v]
             if k == last_header_field:
                 break
 
@@ -489,6 +507,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         status=status,
         invalidated=invalidated,
         log_updates=log_updates,
+        config_updates=config_updates,
         version=version,
         error=error,
         location=log_file,
