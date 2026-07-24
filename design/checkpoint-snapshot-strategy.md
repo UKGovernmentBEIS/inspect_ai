@@ -28,7 +28,13 @@
 >    rather than a declared schema field (same absent ⇒
 >    `restic-incremental` rule): declaring it would change the
 >    generated public event schema / viewer types, which requires a
->    coordinated `ts-mono` regeneration.
+>    coordinated `ts-mono` regeneration. For the same reason — plus the
+>    principle that storage policy (like `checkpoints_location` and
+>    `retention`) is not a per-sample concern — strategy selection is
+>    accepted only at the task/eval layers: `CheckpointConfig` takes
+>    `SandboxSnapshotConfig` values in `sandbox_paths`, while the
+>    sample-layer `CheckpointSampleConfig` (recorded in the log schema
+>    via `Sample.checkpoint`) keeps bare path lists.
 >
 > Also still open from Phase 1–2: parametrizing the Docker e2e suite
 > over strategies (the archive mechanics are covered by a local-shell

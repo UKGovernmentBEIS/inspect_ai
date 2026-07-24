@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shlex
 import time
 from logging import getLogger
@@ -298,6 +299,23 @@ class ArchiveStrategy(SandboxSnapshotStrategy):
                 f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
                 f"checkpoint record for {ref.snapshot_id} lacks archive "
                 f"metadata (archive/content_sha256)"
+            )
+        # `archive_name` is joined into a host path and interpolated into
+        # root shell scripts below. Checkpoint records are host-written and
+        # trusted, but `snapshot()` only ever generates this exact form, so
+        # a corrupted record fails here instead of becoming a path-traversal
+        # or shell-injection surface (or a confusing shell error).
+        if not re.fullmatch(r"ckpt-\d{5,}\.tar\.(zst|gz)", archive_name):
+            raise RuntimeError(
+                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                f"checkpoint record for {ref.snapshot_id} has malformed "
+                f"archive name {archive_name!r}"
+            )
+        if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+            raise RuntimeError(
+                f"archive snapshot restore for sandbox {ctx.sandbox_name!r}: "
+                f"checkpoint record for {ref.snapshot_id} has malformed "
+                f"content_sha256 {expected_digest!r}"
             )
         local_path = Path(ctx.storage_dir) / archive_name
         if not local_path.is_file():

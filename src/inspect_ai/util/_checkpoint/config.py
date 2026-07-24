@@ -120,10 +120,56 @@ class CheckpointSampleConfig:
     also accepted at the task and eval layers (where they participate in
     the per-field merge — precedence: eval > sample > task).
 
-    The fields excluded from this base class — ``checkpoints_location``
-    and ``retention`` — are eval-wide concerns that the sample layer must
-    not influence. They live only on the derived :class:`CheckpointConfig`,
-    which is the type used at the task and eval layers.
+    Excluded from the sample layer: ``checkpoints_location``,
+    ``retention``, and snapshot-strategy selection
+    (:class:`SandboxSnapshotConfig` values in ``sandbox_paths``). These
+    are storage-policy concerns that the sample layer must not
+    influence; they live only on :class:`CheckpointConfig`, the type
+    used at the task and eval layers. Keeping strategy selection out of
+    this class also keeps it out of the log schema — ``Sample`` (and
+    with it this class) is recorded in eval logs, so its shape is a
+    public schema commitment in a way the task/eval config surface is
+    not.
+    """
+
+    trigger: CheckpointTrigger | None = None
+    """Checkpoint trigger strategy — any implementer of
+    :class:`CheckpointTrigger` (see :mod:`.triggers`). ``None`` means
+    "inherit from a lower-priority layer"; when no layer sets a
+    trigger, resolution falls back to
+    :data:`DEFAULT_CHECKPOINT_TRIGGER`."""
+
+    sandbox_paths: dict[str, list[str]] | None = None
+    """Per-sandbox-name list of absolute paths to capture inside the
+    sandbox (snapshotted with each sandbox's configured strategy).
+    ``None`` = inherit; sandboxes without an entry are captured with
+    the defaults (home directory); an empty path list opts that
+    sandbox out."""
+
+    max_consecutive_failures: int | None = None
+    """If set, the sample fails after N consecutive failed checkpoint
+    attempts. ``None`` = inherit / unlimited tolerance. ``0`` = any
+    failure is fatal."""
+
+
+@dataclass
+class CheckpointConfig:
+    """User-facing checkpoint configuration for the task and eval layers.
+
+    Specify on ``Task(checkpoint=...)`` or ``eval(checkpoint=...)``. All
+    fields default to ``None`` so that each level can supply a partial
+    config; the layers are combined per-field at sample-run time
+    (precedence: eval > sample > task).
+
+    Shares the sample-permitted fields with
+    :class:`CheckpointSampleConfig` and adds the storage-policy surface:
+    the eval-wide fields (``checkpoints_location``, ``retention``) and
+    snapshot-strategy selection (:class:`SandboxSnapshotConfig` values
+    in ``sandbox_paths``). Deliberately not a subclass: widening
+    ``sandbox_paths`` in a subclass is an unsound (and mypy-rejected)
+    override, and the independent sample class keeps the log schema —
+    which records ``Sample.checkpoint`` — unaffected by the task/eval
+    config surface.
     """
 
     trigger: CheckpointTrigger | None = None
@@ -136,31 +182,16 @@ class CheckpointSampleConfig:
     sandbox_paths: dict[str, list[str] | SandboxSnapshotConfig] | None = None
     """Per-sandbox-name capture configuration. Each value is either a
     list of absolute paths to capture inside the sandbox (snapshotted
-    with the default strategy) or a :class:`SandboxSnapshotConfig`
-    that also selects the snapshot strategy. ``None`` = inherit;
-    sandboxes without an entry are captured with the defaults (home
-    directory, restic); an empty path list opts that sandbox out."""
+    with the default restic strategy) or a
+    :class:`SandboxSnapshotConfig` that also selects the snapshot
+    strategy. ``None`` = inherit; sandboxes without an entry are
+    captured with the defaults (home directory, restic); an empty path
+    list opts that sandbox out."""
 
     max_consecutive_failures: int | None = None
     """If set, the sample fails after N consecutive failed checkpoint
     attempts. ``None`` = inherit / unlimited tolerance. ``0`` = any
     failure is fatal."""
-
-
-@dataclass
-class CheckpointConfig(CheckpointSampleConfig):
-    """User-facing checkpoint configuration for the task and eval layers.
-
-    Specify on ``Task(checkpoint=...)`` or ``eval(checkpoint=...)``. All
-    fields default to ``None`` so that each level can supply a partial
-    config; the layers are combined per-field at sample-run time
-    (precedence: eval > sample > task).
-
-    Adds the eval-wide fields (``checkpoints_location``, ``retention``)
-    to the sample-permitted base class. Sample-layer configs use the base
-    :class:`CheckpointSampleConfig` directly — these fields cannot be
-    set per-sample.
-    """
 
     checkpoints_location: str | None = None
     """Override the parent directory under which the eval checkpoints
@@ -250,10 +281,12 @@ def merge_checkpoint_configs(
     wins on per-field conflicts.
 
     The sample layer is typed :class:`CheckpointSampleConfig`, so it can
-    only contribute to fields shared with that base class
-    (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``). The
-    eval-wide fields (``checkpoints_location``, ``retention``) come only
-    from the task or eval layers.
+    only contribute to the fields it shares with the task/eval config
+    (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``), and
+    its ``sandbox_paths`` values are bare path lists (no strategy
+    selection). The storage-policy surface — ``checkpoints_location``,
+    ``retention``, and strategy selection — comes only from the task or
+    eval layers.
 
     For every field, the highest-priority layer with a non-None value
     wins; lower layers supply defaults that higher layers can override.

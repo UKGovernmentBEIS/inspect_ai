@@ -277,6 +277,33 @@ async def test_archive_restore_requires_ref(tmp_path: Path) -> None:
         await strategy.restore(env, None, _context(tmp_path / "sample"))
 
 
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("archive", "../../../etc/passwd", "malformed archive name"),
+        ("archive", "ckpt-00001.tar.zst; rm -rf /", "malformed archive name"),
+        ("content_sha256", "$(reboot)", "malformed content_sha256"),
+    ],
+)
+async def test_archive_restore_rejects_malformed_record(
+    tmp_path: Path, field: str, value: str, match: str
+) -> None:
+    """Corrupted records fail validation before path joins / root scripts."""
+    env = _LocalShellSandbox()
+    strategy = await _strategy(env, tmp_path)
+    record = {
+        "snapshot_id": "ckpt-00001",
+        "size_bytes": 0,
+        "duration_ms": 0,
+        "archive": "ckpt-00001.tar.gz",
+        "content_sha256": "0" * 64,
+        field: value,
+    }
+    details = SnapshotDetails.model_validate(record)
+    with pytest.raises(RuntimeError, match=match):
+        await strategy.restore(env, details, _context(tmp_path / "sample"))
+
+
 async def test_archive_discard_orphans(tmp_path: Path) -> None:
     strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
     ctx = _context(tmp_path / "sample")

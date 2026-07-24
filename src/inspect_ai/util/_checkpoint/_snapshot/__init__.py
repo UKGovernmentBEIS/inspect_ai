@@ -31,6 +31,7 @@ from .types import (
     SandboxSnapshotSession,
     SandboxSnapshotStrategy,
     SnapshotContext,
+    committed_snapshots_for,
     snapshot_strategy_name,
 )
 
@@ -44,6 +45,7 @@ __all__ = [
     "SandboxSnapshotSession",
     "SandboxSnapshotStrategy",
     "SnapshotContext",
+    "committed_snapshots_for",
     "create_strategy",
     "snapshot_strategy_name",
     "strategy_config_name",

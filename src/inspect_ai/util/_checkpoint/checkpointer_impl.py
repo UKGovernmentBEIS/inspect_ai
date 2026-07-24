@@ -68,7 +68,7 @@ from ._layout.sample_checkpoints_dir import (
 )
 from ._layout.schemas import Checkpoint, SnapshotDetails
 from ._repo_ops import checkpoint_tag
-from ._snapshot import CommittedSnapshot, SandboxSnapshotSession
+from ._snapshot import SandboxSnapshotSession, committed_snapshots_for
 from ._triggers import CheckpointTriggerKind, create_trigger
 from .checkpointer import (
     Checkpointer,
@@ -734,13 +734,8 @@ class _EnteredCheckpointer:
             )
             for name, policy in policies.items():
                 session = self._sandbox_sessions[name]
-                committed = [
-                    CommittedSnapshot(cp.checkpoint_id, details)
-                    for cp in surviving
-                    if (details := cp.sandboxes.get(name)) is not None
-                ]
                 await session.strategy.apply_retention(
-                    policy, committed, session.context
+                    policy, committed_snapshots_for(surviving, name), session.context
                 )
         except Exception as err:
             logger.warning(
