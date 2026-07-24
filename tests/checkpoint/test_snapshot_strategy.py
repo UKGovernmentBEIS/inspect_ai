@@ -12,6 +12,8 @@ strategy's in-sandbox root-only area is pointed at a temp dir via its
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Literal, Union, overload
@@ -50,7 +52,14 @@ from inspect_ai.util._subprocess import ExecResult
 
 
 class _LocalShellSandbox(SandboxEnvironment):
-    """Sandbox fake that executes ``exec`` on the host shell."""
+    """Sandbox fake that executes ``exec`` on the host shell.
+
+    ``extra_env`` overlays the inherited environment (e.g. a ``PATH``
+    with a shim dir prepended) for every ``exec``.
+    """
+
+    def __init__(self, extra_env: dict[str, str] | None = None) -> None:
+        self._extra_env = extra_env
 
     async def exec(
         self,
@@ -64,7 +73,10 @@ class _LocalShellSandbox(SandboxEnvironment):
         concurrency: bool = True,
     ) -> ExecResult[str]:
         input_bytes = input.encode() if isinstance(input, str) else input
-        proc = subprocess.run(cmd, input=input_bytes, capture_output=True, timeout=120)
+        run_env = {**os.environ, **self._extra_env} if self._extra_env else None
+        proc = subprocess.run(
+            cmd, input=input_bytes, capture_output=True, timeout=120, env=run_env
+        )
         return ExecResult(
             success=proc.returncode == 0,
             returncode=proc.returncode,
@@ -177,6 +189,61 @@ async def test_archive_snapshot_restore_roundtrip(tmp_path: Path) -> None:
     assert not (Path(strategy._staging_root)).exists()
 
 
+async def test_archive_snapshot_handles_paths_with_spaces(tmp_path: Path) -> None:
+    """Include/exclude tokens are shell-quoted into the capture script."""
+    env = _LocalShellSandbox()
+    strategy = await _strategy(env, tmp_path)
+    ctx = _context(tmp_path / "sample")
+    data_dir = tmp_path / "capture" / "my data"
+    files = _write_data(data_dir)
+    paths = SandboxBackupPaths(include=[str(data_dir)], exclude=["**/.cache"])
+
+    details = await strategy.snapshot(env, paths, 1, ctx)
+    assert details.snapshot_id == "ckpt-00001"
+
+    for rel in files:
+        (data_dir / rel).unlink()
+    await strategy.restore(env, details, ctx)
+    for rel, content in files.items():
+        assert (data_dir / rel).read_bytes() == content
+
+
+async def test_archive_snapshot_tolerates_tar_exit_1(tmp_path: Path) -> None:
+    """Tar exit 1 (file changed while reading) must not fail the fire.
+
+    Regression test for the fd-3 exit-status capture: with ``set -e``
+    active, dash/ash abort the capture subshell on tar's non-zero exit
+    before ``echo $? >&3`` runs, so the tolerated exit 1 used to fail
+    the snapshot with a blank status. A shim ``tar`` that produces a
+    valid archive but exits 1 makes the case deterministic.
+    """
+    real_tar = shutil.which("tar")
+    assert real_tar is not None
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    shim = shim_dir / "tar"
+    shim.write_text(f'#!/bin/sh\n"{real_tar}" "$@"\nexit 1\n')
+    shim.chmod(0o755)
+    env = _LocalShellSandbox(
+        extra_env={"PATH": f"{shim_dir}{os.pathsep}{os.environ['PATH']}"}
+    )
+    strategy = await _strategy(env, tmp_path)
+    ctx = _context(tmp_path / "sample")
+    data_dir = tmp_path / "capture" / "data"
+    files = _write_data(data_dir)
+    paths = SandboxBackupPaths(include=[str(data_dir)])
+
+    details = await strategy.snapshot(env, paths, 1, ctx)
+
+    # Restore with an un-shimmed tar: the shim only simulates the
+    # capture-time "file changed as we read it" warning.
+    for rel in files:
+        (data_dir / rel).unlink()
+    await strategy.restore(_LocalShellSandbox(), details, ctx)
+    for rel, content in files.items():
+        assert (data_dir / rel).read_bytes() == content
+
+
 async def test_archive_restore_rejects_corrupt_archive(tmp_path: Path) -> None:
     env = _LocalShellSandbox()
     strategy = await _strategy(env, tmp_path)
@@ -249,6 +316,27 @@ async def test_archive_apply_retention_keeps_committed_only(tmp_path: Path) -> N
         "ckpt-00002.tar.gz",
         "ckpt-00003.tar.gz",
     ]
+
+
+async def test_archive_apply_retention_reclaims_non_parsing_residue(
+    tmp_path: Path,
+) -> None:
+    """A ``.partial`` left by a hard crash is reclaimed at the next commit."""
+    strategy = ArchiveStrategy(sandbox_dir=str(tmp_path / "sandbox-tools"))
+    ctx = _context(tmp_path / "sample")
+    storage = Path(ctx.storage_dir)
+    storage.mkdir(parents=True)
+    (storage / "ckpt-00002.tar.gz").write_bytes(b"x")
+    (storage / ".ckpt-00002.tar.gz.partial").write_bytes(b"torn")
+
+    committed = [
+        CommittedSnapshot(
+            2, SnapshotDetails(snapshot_id="ckpt-00002", size_bytes=1, duration_ms=1)
+        )
+    ]
+    await strategy.apply_retention(SnapshotRetention(keep_last=1), committed, ctx)
+
+    assert sorted(p.name for p in storage.iterdir()) == ["ckpt-00002.tar.gz"]
 
 
 async def test_archive_adopt_copies_prior_attempt(tmp_path: Path) -> None:
@@ -405,7 +493,7 @@ def test_pin_mirror_case_resolution_failure_has_own_error() -> None:
     # Live, not opted out, yet absent from the effective set: home-dir
     # resolution flaked — distinct message and remedy (no config change
     # happened).
-    with pytest.raises(RuntimeError, match="home\ndirectory could not|home directory"):
+    with pytest.raises(RuntimeError, match="home directory"):
         _check(
             {"default": STRATEGY_RESTIC, "web": STRATEGY_ARCHIVE},
             {"default": STRATEGY_RESTIC},

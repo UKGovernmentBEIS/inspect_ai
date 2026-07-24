@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import shlex
 import time
 from logging import getLogger
 from pathlib import Path
@@ -52,7 +53,12 @@ from .._layout.schemas import SnapshotDetails
 from .._repo_ops import checkpoint_tag
 from ..config import SnapshotRetention
 from ..sandbox_paths import SandboxBackupPaths
-from .types import CommittedSnapshot, PriorAttempt, SnapshotContext
+from .types import (
+    CommittedSnapshot,
+    PriorAttempt,
+    SandboxSnapshotStrategy,
+    SnapshotContext,
+)
 
 logger = getLogger(__name__)
 
@@ -64,7 +70,7 @@ always-on capture exclude, so staging never captures itself."""
 _DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
 
 
-class ArchiveStrategy:
+class ArchiveStrategy(SandboxSnapshotStrategy):
     """Complete compressed tar archive per checkpoint."""
 
     name = "archive"
@@ -127,18 +133,18 @@ class ArchiveStrategy:
             env, ctx, paths, staging=staging, archive=archive, compress=compress
         )
         local_path = Path(ctx.storage_dir) / archive_name
-        host_digest = await self._copy_out(
-            env, ctx, staging=staging, archive=archive, size=size, dest=local_path
-        )
-        await self._clean_staging(env)
-
-        if host_digest != sandbox_digest:
-            local_path.unlink(missing_ok=True)
-            raise RuntimeError(
-                f"archive snapshot for sandbox {ctx.sandbox_name!r} corrupted "
-                f"in transit: in-sandbox sha256 {sandbox_digest} != host-read "
-                f"sha256 {host_digest}"
+        try:
+            await self._copy_out(
+                env,
+                ctx,
+                staging=staging,
+                archive=archive,
+                size=size,
+                dest=local_path,
+                expected_sha256=sandbox_digest,
             )
+        finally:
+            await self._clean_staging(env)
 
         # `strategy` and the archive metadata ride as extra fields (see
         # `snapshot_strategy_name`).
@@ -175,14 +181,20 @@ class ArchiveStrategy:
         higher is fatal.
         """
         excludes = " ".join(
-            f"--exclude={_tar_pattern(p)}" for p in [*paths.exclude, self._sandbox_dir]
+            shlex.quote(f"--exclude={_tar_pattern(p)}")
+            for p in [*paths.exclude, self._sandbox_dir]
         )
-        includes = " ".join(paths.include)
+        includes = " ".join(shlex.quote(p) for p in paths.include)
+        # `set +e` is scoped to the left pipeline subshell: without it,
+        # dash/ash abort that subshell on tar's non-zero exit before the
+        # fd-3 echo runs, losing the status (bash-as-sh happens to keep
+        # going). A compressor failure still aborts via the pipeline's
+        # exit status and the outer `set -e`.
         script = (
             "set -e\n"
             f"rm -rf {self._staging_root}\n"
             f"mkdir -p {staging}\n"
-            f"rc=$( {{ {{ tar -cf - {excludes} {includes}; echo $? >&3; }} "
+            f"rc=$( {{ {{ set +e; tar -cf - {excludes} {includes}; echo $? >&3; }} "
             f"| {compress} > {archive}; }} 3>&1 )\n"
             f'[ -n "$rc" ] && [ "$rc" -le 1 ] || '
             f'{{ echo "tar failed with exit status $rc" >&2; exit 1; }}\n'
@@ -215,11 +227,13 @@ class ArchiveStrategy:
         archive: str,
         size: int,
         dest: Path,
-    ) -> str:
-        """Chunked sandbox → host copy; returns the host-side sha256.
+        expected_sha256: str,
+    ) -> None:
+        """Chunked sandbox → host copy, digest-verified before it lands.
 
         Written to a dot-prefixed partial file and renamed into place
-        only after the digest cross-check, so an interrupted copy never
+        only after the digest of the bytes actually read matches the
+        in-sandbox one, so an interrupted or corrupted copy never
         leaves a plausible-looking archive in the storage area.
         """
         chunk_path = f"{staging}/chunk"
@@ -253,11 +267,16 @@ class ArchiveStrategy:
                     digest.update(data)
                     copied += len(data)
                     index += 1
+            if digest.hexdigest() != expected_sha256:
+                raise RuntimeError(
+                    f"archive snapshot for sandbox {ctx.sandbox_name!r} "
+                    f"corrupted in transit: in-sandbox sha256 "
+                    f"{expected_sha256} != host-read sha256 {digest.hexdigest()}"
+                )
         except BaseException:
             partial.unlink(missing_ok=True)
             raise
         os.replace(partial, dest)
-        return digest.hexdigest()
 
     async def restore(
         self,
@@ -401,6 +420,13 @@ class ArchiveStrategy:
         reason the core orders its deletes that way: a crash mid-way
         must not leave the destination referencing data that only
         exists locally.
+
+        Entries whose names don't parse as archives — e.g. a
+        ``.partial`` left by a hard host crash — are deleted too, so
+        residue is reclaimed (and stops being shipped to remote
+        destinations) at the next commit rather than the next resume.
+        Safe because fires are serialized per sample, so no copy-out
+        can be in flight while retention runs.
         """
         keep = {snapshot.checkpoint_id for snapshot in committed}
         storage = Path(ctx.storage_dir)
@@ -409,7 +435,7 @@ class ArchiveStrategy:
         async_fs = get_async_filesystem()
         for entry in sorted(storage.iterdir()):
             checkpoint_id = _archive_checkpoint_id(entry.name)
-            if checkpoint_id is None or checkpoint_id in keep:
+            if checkpoint_id in keep:
                 continue
             destination = ctx.destination_uri(entry.name)
             if destination is not None:

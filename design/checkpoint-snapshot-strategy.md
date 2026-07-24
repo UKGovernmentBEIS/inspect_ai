@@ -3,7 +3,8 @@
 > **Implementation status.** Phase 1 (the Protocol boundary,
 > `ResticIncrementalStrategy`) and the core of Phase 2 (the `archive`
 > strategy, `SnapshotRetention`/`keep_last`, per-sandbox strategy
-> selection via `sandbox_snapshots` in the Python API and the
+> selection via `SandboxSnapshotConfig` values of `sandbox_paths` in
+> the Python API and the
 > `--checkpoint` YAML, and the §4.7 strategy pin) are implemented in
 > `src/inspect_ai/util/_checkpoint/_snapshot/`. Three deliberate
 > deviations from the target state below, all forward-compatible:
@@ -418,12 +419,15 @@ Phase 1 changes nothing: `sandbox_paths: dict[str, list[str]]` keeps
 its exact semantics (auto-home default, empty list opts out) and maps
 to a single path group under the default strategy.
 
-Phase 2 adds strategy selection per sandbox; Phase 3 adds per-path-group
-routing:
+Phase 2 extends the *values* of `sandbox_paths`: each entry is either
+a bare path list (default strategy, unchanged) or a
+`SandboxSnapshotConfig` selecting the strategy for that sandbox.
+Phase 3 adds per-path-group routing by admitting a list of groups as
+the value:
 
 ```python
 CheckpointConfig(
-    sandbox_snapshots={
+    sandbox_paths={
         "default": [
             PathGroup(paths=["/home/user"]),                 # default strategy (restic)
             PathGroup(paths=["/data"],
@@ -445,9 +449,11 @@ Decisions embedded there:
   design. Groups within a sandbox must be disjoint (validated at
   config resolution — overlap would double-capture and make restore
   order significant).
-- `sandbox_paths` and `sandbox_snapshots` are mutually exclusive per
-  merge layer; `sandbox_paths` remains the simple spelling
-  indefinitely.
+- **One option, richer values.** There is a single `sandbox_paths`
+  option; a bare path list is shorthand for
+  `SandboxSnapshotConfig(paths=...)` under the default strategy. (An
+  earlier draft had a separate, mutually-exclusive `sandbox_snapshots`
+  option; maintainer review folded it into `sandbox_paths`.)
 - Checkpoint schema for multi-group: `Checkpoint.sandboxes[name]`
   stays a single `SnapshotDetails` while there is one group (Phase 1–2
   writes add only the optional `strategy` field to today's schema);
@@ -683,7 +689,8 @@ changed strategy config fails with the §4.7 pin error; a
 large-high-entropy-file scenario test demonstrates bounded destination
 storage under `keep_last=N` and bounded sandbox disk during capture.*
 
-**Phase 3 — Per-path-group routing.** `sandbox_snapshots` config with
+**Phase 3 — Per-path-group routing.** List-of-group `sandbox_paths`
+values with
 disjointness validation, core-owned fan-out of one strategy instance
 per (sandbox, group), multi-group checkpoint schema and the per-group
 pin form (§6). Gate on a

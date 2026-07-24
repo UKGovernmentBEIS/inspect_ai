@@ -120,16 +120,18 @@ class SandboxSnapshotStrategy(Protocol):
     One instance per (sandbox, attempt), constructed by the core at
     hydration. See the module docstring for the contract each method
     must honor and the design doc for the full guarantees.
+
+    Implementations should derive from this Protocol explicitly (it is
+    subclassable) so the type checker verifies their signatures against
+    the contract.
     """
 
-    @property
-    def name(self) -> str:
-        """Stable strategy identity.
+    name: str
+    """Stable strategy identity.
 
-        Recorded in checkpoint files and the per-sample strategy pin
-        (§4.7).
-        """
-        ...
+    Recorded in checkpoint files and the per-sample strategy pin
+    (§4.7).
+    """
 
     async def setup(self, env: SandboxEnvironment, ctx: SnapshotContext) -> None:
         """Provision a new sandbox instance (fresh sample *and* resume).

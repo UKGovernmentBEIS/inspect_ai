@@ -164,11 +164,12 @@ def test_json_file(tmp_path: Path) -> None:
     assert isinstance(cfg.trigger, TurnInterval) and cfg.trigger.every == 3
 
 
-def test_yaml_file_sandbox_snapshots(tmp_path: Path) -> None:
+def test_yaml_file_sandbox_paths_with_strategies(tmp_path: Path) -> None:
+    """`sandbox_paths` values mix bare path lists and strategy mappings."""
     path = tmp_path / "ckpt.yaml"
     path.write_text(
         "trigger:\n  type: turn\n  every: 2\n"
-        "sandbox_snapshots:\n"
+        "sandbox_paths:\n"
         "  default:\n"
         "    paths: ['/data']\n"
         "    strategy: archive\n"
@@ -176,27 +177,28 @@ def test_yaml_file_sandbox_snapshots(tmp_path: Path) -> None:
         "      keep_last: 2\n"
         "  web:\n"
         "    strategy: restic-incremental\n"
+        "  scratch: ['/scratch']\n"
     )
     cfg = _parse(str(path))
-    assert cfg.sandbox_paths is None
-    assert cfg.sandbox_snapshots == {
+    assert cfg.sandbox_paths == {
         "default": SandboxSnapshotConfig(
             paths=["/data"],
             strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2)),
         ),
         "web": SandboxSnapshotConfig(paths=None, strategy=ResticSnapshots()),
+        "scratch": ["/scratch"],
     }
 
 
-def test_yaml_file_sandbox_snapshots_default_strategy_is_restic(
+def test_yaml_file_sandbox_paths_default_strategy_is_restic(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "ckpt.yaml"
     path.write_text(
-        "trigger: manual\nsandbox_snapshots:\n  default:\n    paths: ['/data']\n"
+        "trigger: manual\nsandbox_paths:\n  default:\n    paths: ['/data']\n"
     )
     cfg = _parse(str(path))
-    assert cfg.sandbox_snapshots == {
+    assert cfg.sandbox_paths == {
         "default": SandboxSnapshotConfig(paths=["/data"], strategy=ResticSnapshots())
     }
 
@@ -205,7 +207,7 @@ def test_yaml_file_retention_requires_archive(tmp_path: Path) -> None:
     path = tmp_path / "ckpt.yaml"
     path.write_text(
         "trigger: manual\n"
-        "sandbox_snapshots:\n"
+        "sandbox_paths:\n"
         "  default:\n"
         "    retention:\n"
         "      keep_last: 2\n"
@@ -214,21 +216,8 @@ def test_yaml_file_retention_requires_archive(tmp_path: Path) -> None:
         parse_checkpoint(str(path))
 
 
-def test_yaml_file_sandbox_paths_and_snapshots_rejected(tmp_path: Path) -> None:
-    path = tmp_path / "ckpt.yaml"
-    path.write_text(
-        "trigger: manual\n"
-        "sandbox_paths:\n  default: ['/workspace']\n"
-        "sandbox_snapshots:\n  default:\n    strategy: archive\n"
-    )
-    with pytest.raises(ValueError, match="not both"):
-        parse_checkpoint(str(path))
-
-
 def test_yaml_file_unknown_strategy_rejected(tmp_path: Path) -> None:
     path = tmp_path / "ckpt.yaml"
-    path.write_text(
-        "trigger: manual\nsandbox_snapshots:\n  default:\n    strategy: zfs\n"
-    )
+    path.write_text("trigger: manual\nsandbox_paths:\n  default:\n    strategy: zfs\n")
     with pytest.raises(ValueError):
         parse_checkpoint(str(path))

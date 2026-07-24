@@ -357,38 +357,45 @@ def test_task_callbacks_reach_resolved_config() -> None:
     assert resolved.on_resume is on_resume
 
 
-# --- sandbox_snapshots (snapshot strategy selection) -----------------
+# --- sandbox_paths (capture paths + snapshot strategy selection) -----
 
 
-def test_sandbox_snapshots_resolves_with_derived_sandbox_paths() -> None:
+def test_sandbox_paths_mixed_values_resolve() -> None:
+    """A `sandbox_paths` dict mixes bare path lists and snapshot configs."""
     out = merge_checkpoint_configs(
         CheckpointConfig(
             trigger=Manual(),
-            sandbox_snapshots={
+            sandbox_paths={
                 "default": SandboxSnapshotConfig(
                     paths=["/data"],
                     strategy=ArchiveSnapshots(retention=SnapshotRetention(keep_last=2)),
                 ),
                 "web": SandboxSnapshotConfig(),
-                "tools": SandboxSnapshotConfig(paths=[]),
+                "tools": [],
+                "scratch": ["/scratch"],
             },
         )
     )
     assert out is not None
     # Derived paths view: explicit paths verbatim, empty list = opt-out,
     # paths=None omitted (auto-home applies downstream).
-    assert out.sandbox_paths == {"default": ["/data"], "tools": []}
+    assert out.sandbox_paths == {
+        "default": ["/data"],
+        "tools": [],
+        "scratch": ["/scratch"],
+    }
     assert out.sandbox_strategy_config("default") == ArchiveSnapshots(
         retention=SnapshotRetention(keep_last=2)
     )
     assert out.sandbox_strategy_config("web") == ResticSnapshots()
+    assert out.sandbox_strategy_config("scratch") == ResticSnapshots()
     # No entry at all → default strategy.
     assert out.sandbox_strategy_config("other") == ResticSnapshots()
     assert out.sandbox_retention_policy("default") == SnapshotRetention(keep_last=2)
     assert out.sandbox_retention_policy("web") is None
 
 
-def test_sandbox_paths_normalizes_into_sandbox_snapshots() -> None:
+def test_sandbox_paths_bare_list_normalizes_into_snapshot_config() -> None:
     out = merge_checkpoint_configs(
         CheckpointConfig(trigger=Manual(), sandbox_paths={"default": ["/workspace"]})
     )
@@ -400,27 +407,17 @@ def test_sandbox_paths_normalizes_into_sandbox_snapshots() -> None:
     assert out.sandbox_strategy_config("default") == ResticSnapshots()
 
 
-def test_sandbox_snapshots_higher_layer_replaces_sandbox_paths() -> None:
+def test_sandbox_paths_higher_layer_replaces_whole_dict() -> None:
     task = CheckpointConfig(trigger=Manual(), sandbox_paths={"default": ["/workspace"]})
     eval_ = _cfg(
-        "sandbox_snapshots",
+        "sandbox_paths",
         {"default": SandboxSnapshotConfig(strategy=ArchiveSnapshots())},
     )
     out = merge_checkpoint_configs(task, None, eval_)
     assert out is not None
-    # Whole-value replacement: the eval layer's snapshots config wins.
+    # Whole-value replacement: the eval layer's config wins.
     assert out.sandbox_paths == {}
     assert out.sandbox_strategy_config("default") == ArchiveSnapshots()
-
-
-def test_sandbox_paths_and_snapshots_same_layer_rejected() -> None:
-    cfg = CheckpointConfig(
-        trigger=Manual(),
-        sandbox_paths={"default": ["/workspace"]},
-        sandbox_snapshots={"default": SandboxSnapshotConfig()},
-    )
-    with pytest.raises(ValueError, match="not both"):
-        merge_checkpoint_configs(cfg)
 
 
 def test_snapshot_retention_keep_last_floor_enforced() -> None:

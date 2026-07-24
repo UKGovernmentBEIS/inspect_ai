@@ -126,8 +126,7 @@ Note that time and token intervals effectively checkpoint at `≥ N` because fir
 | Field | Description |
 |------------------------------------|------------------------------------|
 | `trigger` | The trigger that decides when to fire (defaults to 500K tokens). |
-| `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Defaults to sandbox user's home directory. |
-| `sandbox_snapshots` | Per-sandbox-name snapshot configuration: capture paths plus the [snapshot strategy](#snapshot-strategies). Mutually exclusive with `sandbox_paths` (which it subsumes). |
+| `sandbox_paths` | Per-sandbox-name capture configuration: a list of absolute paths inside the sandbox to capture, or a `SandboxSnapshotConfig` that also selects the [snapshot strategy](#snapshot-strategies). Defaults to the sandbox user's home directory. |
 | `checkpoints_location` | Override the parent directory under which the per-eval checkpoint directory lands (defaults to a sibling of the eval log file). |
 | `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. Defaults to `None` (unlimited tolerance). Specify `0` to make any single failure fatal. |
 | `retention` | `"delete"` or `"retain"`. `"delete"` (default) removes the checkpoint directory on successful eval completion; `"retain"` keeps it. |
@@ -219,7 +218,7 @@ Cache directories are never backed up: any `.cache` directory at any depth (`**/
 
 By default, sandbox filesystem state is captured with an incremental [restic](https://restic.net) backup: each checkpoint stores only the data that changed since the previous one. That is the right default when most files are stable across checkpoints — but for sandbox data dominated by large, high-entropy, frequently-rewritten files (training state, database files, encrypted containers), every checkpoint effectively stores the full dataset again, and storage is never reclaimed during the run.
 
-The `sandbox_snapshots` option selects a snapshot strategy per sandbox (and optionally its capture paths, subsuming `sandbox_paths`):
+To select a snapshot strategy for a sandbox, use a `SandboxSnapshotConfig` as its `sandbox_paths` value in place of a bare path list:
 
 | Strategy | Description |
 |------------------------------|------------------------------------------|
@@ -240,7 +239,7 @@ from inspect_ai.util import (
 eval(
     "training.py", model="openai/gpt-5",
     checkpoint=CheckpointConfig(
-        sandbox_snapshots={
+        sandbox_paths={
             "default": SandboxSnapshotConfig(
                 paths=["/home/user", "/data"],
                 strategy=ArchiveSnapshots(
@@ -258,7 +257,7 @@ The equivalent YAML for use with `--checkpoint=checkpoint.yaml` on the CLI:
 trigger:
   type: token
   every: 500k
-sandbox_snapshots:
+sandbox_paths:
   default:
     paths: ["/home/user", "/data"]
     strategy: archive
@@ -268,7 +267,7 @@ sandbox_snapshots:
 
 Notes on semantics:
 
--   `paths` carries the same meaning as `sandbox_paths` (omitted = the sandbox user's home directory; an empty list opts the sandbox out), and sandboxes without a `sandbox_snapshots` entry get the defaults (home directory, restic). A single configuration layer may set `sandbox_paths` or `sandbox_snapshots`, not both.
+-   `paths` carries the same meaning as a bare path-list value (omitted = the sandbox user's home directory; an empty list opts the sandbox out), and the two value forms can be mixed in one `sandbox_paths` map. Sandboxes without an entry get the defaults (home directory, restic).
 
 -   `retention=SnapshotRetention(keep_last=N)` deletes the data of older checkpoints after each new commit — the latest committed checkpoint (and its checkpoint record) is always retained, and thinned checkpoints are removed record-first so every remaining checkpoint stays restorable. Retention applies only to `ArchiveSnapshots` (restic retains everything).
 

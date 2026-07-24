@@ -96,8 +96,9 @@ SnapshotStrategyConfig = ResticSnapshots | ArchiveSnapshots
 class SandboxSnapshotConfig:
     """Per-sandbox snapshot configuration: what to capture and how.
 
-    Used as the values of ``CheckpointConfig.sandbox_snapshots``. The
-    ``paths`` field carries the same semantics as ``sandbox_paths``
+    Used as a ``sandbox_paths`` value in place of a bare path list when
+    a sandbox needs a non-default snapshot strategy. The ``paths``
+    field carries the same semantics as a bare path-list value
     (``None`` = the sandbox default user's home directory; an empty
     list opts the sandbox out entirely).
     """
@@ -132,18 +133,13 @@ class CheckpointSampleConfig:
     trigger, resolution falls back to
     :data:`DEFAULT_CHECKPOINT_TRIGGER`."""
 
-    sandbox_paths: dict[str, list[str]] | None = None
-    """Per-sandbox-name list of absolute paths to capture inside the
-    sandbox. ``None`` = inherit; ``{}`` (after merge) = host-only
-    checkpointing (no sandbox repos). The simple spelling of
-    ``sandbox_snapshots`` — mutually exclusive with it at any one
-    layer."""
-
-    sandbox_snapshots: dict[str, SandboxSnapshotConfig] | None = None
-    """Per-sandbox-name snapshot configuration (capture paths plus the
-    snapshot strategy). ``None`` = inherit. Mutually exclusive with
-    ``sandbox_paths`` at any one layer; sandboxes without an entry are
-    captured with the defaults (home directory, restic)."""
+    sandbox_paths: dict[str, list[str] | SandboxSnapshotConfig] | None = None
+    """Per-sandbox-name capture configuration. Each value is either a
+    list of absolute paths to capture inside the sandbox (snapshotted
+    with the default strategy) or a :class:`SandboxSnapshotConfig`
+    that also selects the snapshot strategy. ``None`` = inherit;
+    sandboxes without an entry are captured with the defaults (home
+    directory, restic); an empty path list opts that sandbox out."""
 
     max_consecutive_failures: int | None = None
     """If set, the sample fails after N consecutive failed checkpoint
@@ -261,10 +257,10 @@ def merge_checkpoint_configs(
 
     For every field, the highest-priority layer with a non-None value
     wins; lower layers supply defaults that higher layers can override.
-    ``sandbox_paths`` and ``sandbox_snapshots`` are two spellings of a
-    single value (whole-dict replacement, not key-wise merged): the
-    highest-priority layer that set either wins, and a single layer may
-    set at most one of the two.
+    ``sandbox_paths`` merges as a single whole-dict value (not key-wise):
+    the highest-priority layer that set it wins, with each value
+    normalized to a :class:`SandboxSnapshotConfig` (a bare path list =
+    the default snapshot strategy).
 
     The sample layer is **customize-only** — it never enables
     checkpointing. Only the task or eval layer turns it on. When
@@ -292,22 +288,12 @@ def merge_checkpoint_configs(
             continue
         if layer.trigger is not None:
             trigger = layer.trigger
-        # `sandbox_paths` and `sandbox_snapshots` are two spellings of one
-        # concern (which sandboxes to capture, and how), so they merge as a
-        # single value: the highest-priority layer that set either wins,
-        # normalized to the `sandbox_snapshots` form.
-        if layer.sandbox_paths is not None and layer.sandbox_snapshots is not None:
-            raise ValueError(
-                "checkpoint config: specify either sandbox_paths or "
-                "sandbox_snapshots, not both (sandbox_snapshots subsumes "
-                "sandbox_paths)"
-            )
-        if layer.sandbox_snapshots is not None:
-            sandbox_snapshots = layer.sandbox_snapshots
-        elif layer.sandbox_paths is not None:
+        if layer.sandbox_paths is not None:
             sandbox_snapshots = {
-                name: SandboxSnapshotConfig(paths=paths)
-                for name, paths in layer.sandbox_paths.items()
+                name: value
+                if isinstance(value, SandboxSnapshotConfig)
+                else SandboxSnapshotConfig(paths=value)
+                for name, value in layer.sandbox_paths.items()
             }
         if layer.max_consecutive_failures is not None:
             max_consecutive_failures = layer.max_consecutive_failures

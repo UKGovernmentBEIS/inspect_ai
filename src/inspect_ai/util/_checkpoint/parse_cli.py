@@ -162,7 +162,11 @@ class _SnapshotRetentionModel(BaseModel):
 
 
 class _SandboxSnapshotModel(BaseModel):
-    """One sandbox's snapshot config: capture paths + strategy."""
+    """One sandbox's snapshot config: capture paths + strategy.
+
+    The mapping form of a ``sandbox_paths`` value (the alternative to a
+    bare path list, which gets the default strategy).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -203,8 +207,8 @@ class _CheckpointConfigModel(BaseModel):
     Fields that differ from the real dataclass:
     - ``trigger`` accepts a discriminated dict (``{"type": "turn", "every": 5}``)
       or the literal ``"manual"``, and translates to a strategy instance.
-    - ``sandbox_snapshots`` values accept a strategy *name* plus optional
-      retention, and translate to the strategy config dataclasses.
+    - ``sandbox_paths`` mapping values accept a strategy *name* plus
+      optional retention, and translate to the strategy config dataclasses.
     - All other fields validate directly against their dataclass counterparts.
     """
 
@@ -212,36 +216,22 @@ class _CheckpointConfigModel(BaseModel):
 
     trigger: _TriggerModel | Literal["manual"]
     checkpoints_location: str | None = None
-    sandbox_paths: dict[str, list[str]] = Field(default_factory=dict)
-    sandbox_snapshots: dict[str, _SandboxSnapshotModel] | None = None
+    sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] = Field(
+        default_factory=dict
+    )
     max_consecutive_failures: int | None = None
     retention: Literal["delete", "retain"] = "delete"
 
-    @model_validator(mode="after")
-    def _paths_xor_snapshots(self) -> "_CheckpointConfigModel":
-        if "sandbox_paths" in self.model_fields_set and (
-            self.sandbox_snapshots is not None
-        ):
-            raise ValueError(
-                "specify either sandbox_paths or sandbox_snapshots, not both "
-                "(sandbox_snapshots subsumes sandbox_paths)"
-            )
-        return self
-
     def to_dataclass(self) -> CheckpointConfig:
-        sandbox_snapshots = (
-            {
-                name: model.to_dataclass()
-                for name, model in self.sandbox_snapshots.items()
-            }
-            if self.sandbox_snapshots is not None
-            else None
-        )
         return CheckpointConfig(
             trigger=_trigger_model_to_strategy(self.trigger),
             checkpoints_location=self.checkpoints_location,
-            sandbox_paths=None if sandbox_snapshots is not None else self.sandbox_paths,
-            sandbox_snapshots=sandbox_snapshots,
+            sandbox_paths={
+                name: value.to_dataclass()
+                if isinstance(value, _SandboxSnapshotModel)
+                else value
+                for name, value in self.sandbox_paths.items()
+            },
             max_consecutive_failures=self.max_consecutive_failures,
             retention=self.retention,
         )

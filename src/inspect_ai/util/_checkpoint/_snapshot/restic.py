@@ -36,10 +36,15 @@ from .._sandbox_restic import (
 )
 from ..config import MAX_LISTED_FILES, SnapshotRetention
 from ..sandbox_paths import SandboxBackupPaths
-from .types import CommittedSnapshot, PriorAttempt, SnapshotContext
+from .types import (
+    CommittedSnapshot,
+    PriorAttempt,
+    SandboxSnapshotStrategy,
+    SnapshotContext,
+)
 
 
-class ResticIncrementalStrategy:
+class ResticIncrementalStrategy(SandboxSnapshotStrategy):
     """Incremental restic snapshots into a per-sandbox host-side repo."""
 
     name = "restic-incremental"
