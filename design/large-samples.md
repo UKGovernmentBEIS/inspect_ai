@@ -652,7 +652,7 @@ Python mirrors them so both surfaces degrade at the same sizes.
 | `FULL_FIDELITY_BYTES` | 350 MiB | old format: events-array bytes post-fetch · new format: bytes being hydrated | old-format events-cleared tier trigger; Python hydration warning (monolith-vs-chunk threshold use **⚑ dropped** — indefinite deferral, [Change log](#change-log)) |
 | `SAMPLE_CLEAR_BYTES` | 512 MiB | old format: member bytes post-fetch · Python: member `uncompressedSize` pre-parse | old-format events-cleared tier (total); Python pre-parse warning |
 | `SAMPLE_REFUSE_BYTES` | 2 GiB | member `uncompressedSize`, pre-fetch (central directory) | viewer refuse tier (old format only) |
-| `TIMELINE_HYDRATION_BYTES` | TBD at implementation (⚑ added 2026-07-22) | sum of `uncompressedSize` over the sample's `events/` + `attachments/` entries, pre-fetch (central directory) | full-download gate for timeline'd chunked samples ([Change log](#change-log)) |
+| `TIMELINE_HYDRATION_BYTES` | 50 MiB (⚑ added 2026-07-22) | sum of `uncompressedSize` over the sample's `events/` + `attachments/` entries, pre-fetch (central directory) | full-download gate for timeline'd chunked samples ([Change log](#change-log)) |
 
 ## Compression measurements & levers
 
