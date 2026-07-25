@@ -1089,17 +1089,20 @@ class AnthropicAPI(ModelAPI):
 
         Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
         default and accept `disabled` to turn it off (on Opus 5 only at effort
-        `high` or below — see completion_config). Fable/Mythos 5 also always
-        think but reject `disabled` (400), so they're excluded — as are unknown
-        codename Claude 5 models, which are assumed to follow Fable rather than
-        the tier-named (opus/sonnet) models. Pre-4.7 models default to no
-        thinking, so `"none"` is honored by simply omitting the `thinking`
-        field.
+        `high` or below — see completion_config).
         """
-        return self.is_claude_4_7_or_later() and not (
-            self.is_claude_5()
-            and not (self.is_claude_sonnet_5() or self.is_claude_opus_5())
-        )
+        if not self.is_claude_4_7_or_later():
+            # pre-4.7 models default to no thinking, so `"none"` is honored by
+            # simply omitting the `thinking` field
+            return False
+        if not self.is_claude_5():
+            # Opus 4.7 / 4.8 (and future 4.x minors)
+            return True
+        # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
+        # always think but reject `disabled` (400) — as do unknown codename
+        # Claude 5 models, which are assumed to follow Fable rather than the
+        # tier-named (opus/sonnet) models.
+        return self.is_claude_sonnet_5() or self.is_claude_opus_5()
 
     def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
         """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
