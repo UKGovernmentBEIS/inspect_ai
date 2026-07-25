@@ -99,3 +99,24 @@ def test_max_score_empty_target_no_index_error():
     assert max_f1_score("hello", [""]) == 0.0
     assert max_exact_score("hello", [""]) == 0.0
     assert max_f1_score("hello", ["", "hello"]) == 1.0
+
+
+@pytest.mark.anyio
+async def test_f1_decimal_number_with_punctuation():
+    scorer = f1()
+    state1 = simple_task_state(model_output="(3.14)")
+    result1 = await scorer(state1, Target(["3.14"]))
+    assert result1.text == "1.0"
+
+    state2 = simple_task_state(model_output="The answer is (3.14)")
+    result2 = await scorer(state2, Target(["3.14"]))
+    assert result2.text == "0.5"
+
+
+@pytest.mark.anyio
+async def test_exact_decimal_number_with_punctuation():
+    scorer = exact()
+    state = simple_task_state(model_output="(3.14)")
+    result = await scorer(state, Target(["3.14"]))
+
+    assert result.text == CORRECT
