@@ -2103,7 +2103,6 @@ MEDIA_PLACEHOLDERS: dict[type, str] = {
     ContentDocument: "Document content is included below.",
 }
 
-MediaAccumulator: TypeAlias = tuple[list[ChatMessage], list[Content], list[str]]
 MediaContentAccumulator: TypeAlias = tuple[list[Content], list[Content]]
 
 
@@ -2116,13 +2115,44 @@ def tool_result_media_as_user_message(
     Tool responses will have matching media replaced with placeholder text,
     and the extracted content will appear in a new user message.
     """
-    message_reducer = _make_message_reducer(extract_types)
-    chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        message_reducer,
-        messages,
-        (list[ChatMessage](), list[Content](), list[str]()),
-    )
-    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
+    content_reducer = _make_content_reducer(extract_types)
+    chat_messages: list[ChatMessage] = []
+    pending_content: list[Content] = []
+    tool_call_ids: list[str] = []
+    for message in messages:
+        if (
+            isinstance(message, ChatMessageTool)
+            and isinstance(message.content, list)
+            and any(isinstance(c, extract_types) for c in message.content)
+        ):
+            new_user_message_content, edited_tool_message_content = functools.reduce(
+                content_reducer,
+                message.content,
+                (list[Content](), list[Content]()),
+            )
+            chat_messages.append(
+                ChatMessageTool(
+                    content=edited_tool_message_content,
+                    tool_call_id=message.tool_call_id,
+                    function=message.function,
+                )
+            )
+            pending_content.extend(new_user_message_content)
+            if message.tool_call_id:
+                tool_call_ids.append(message.tool_call_id)
+        else:
+            if pending_content:
+                chat_messages.append(
+                    ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+                )
+                pending_content = []
+                tool_call_ids = []
+            chat_messages.append(message)
+    if pending_content:
+        chat_messages.append(
+            ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+        )
+    return chat_messages
 
 
 def _make_content_reducer(
@@ -2142,61 +2172,6 @@ def _make_content_reducer(
         return new_user_message_content, edited_tool_message_content + [content]
 
     return reducer
-
-
-def _make_message_reducer(
-    extract_types: tuple[type, ...],
-) -> Callable[[MediaAccumulator, ChatMessage], MediaAccumulator]:
-    """Return a message-level reducer that extracts the given media types."""
-    content_reducer = _make_content_reducer(extract_types)
-
-    def reducer(accum: MediaAccumulator, message: ChatMessage) -> MediaAccumulator:
-        messages, pending_content, tool_call_ids = accum
-        if (
-            isinstance(message, ChatMessageTool)
-            and isinstance(message.content, list)
-            and any(isinstance(c, extract_types) for c in message.content)
-        ):
-            new_user_message_content, edited_tool_message_content = functools.reduce(
-                content_reducer,
-                message.content,
-                (list[Content](), list[Content]()),
-            )
-
-            return (
-                messages
-                + [
-                    ChatMessageTool(
-                        content=edited_tool_message_content,
-                        tool_call_id=message.tool_call_id,
-                        function=message.function,
-                    )
-                ],
-                pending_content + new_user_message_content,
-                tool_call_ids
-                + ([message.tool_call_id] if message.tool_call_id else []),
-            )
-
-        else:
-            return (
-                maybe_adding_user_message(messages, pending_content, tool_call_ids)
-                + [message],
-                [],
-                [],
-            )
-
-    return reducer
-
-
-def maybe_adding_user_message(
-    messages: list[ChatMessage], content: list[Content], tool_call_ids: list[str]
-) -> list[ChatMessage]:
-    """If content is empty, return messages, otherwise, create a new ChatMessageUser with it and return a new messages list with that message added."""
-    return (
-        messages + [ChatMessageUser(content=content, tool_call_id=tool_call_ids)]
-        if content
-        else messages
-    )
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
