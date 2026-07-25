@@ -1547,13 +1547,20 @@ class AnthropicAPI(ModelAPI):
 
         normalize_document_citations(message_params)
 
+        # "prefix" keeps the explicit breakpoints placed above but drops the
+        # top-level auto-cache marker, which the API resolves onto the last
+        # block. When that block varies per call (the LLM-judge shape: a fixed
+        # rubric followed by the item under evaluation) that marker only ever
+        # cache-writes at the 1.25x premium and never reads back.
+        auto_cache = cache_prompt and config.cache_prompt != "prefix"
+
         # return chat input
         return (
             system_param,
             tools_params,
             mcp_server_params,
             message_params,
-            cache_prompt,
+            auto_cache,
         )
 
     def partition_tools(
