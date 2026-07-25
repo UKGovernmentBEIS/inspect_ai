@@ -5185,7 +5185,10 @@
           "cache_prompt": {
             "anyOf": [
               {
-                "const": "auto",
+                "enum": [
+                  "auto",
+                  "prefix"
+                ],
                 "type": "string"
               },
               {
