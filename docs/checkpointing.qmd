@@ -204,7 +204,7 @@ Sample(
 eval("ctf.py", model="openai/gpt-5", checkpoint=True)
 ```
 
-Sample-level `sandbox_paths` values are bare path lists: samples choose *what* to capture, while storage policy — the [snapshot strategy](#snapshot-strategies), `checkpoints_location`, and `retention` — is set at the task or eval layer.
+Sample-level `sandbox_paths` values are bare path lists: samples choose *what* to capture, while storage policy — the per-sandbox [snapshot strategy](#snapshot-strategies), `checkpoints_location`, and `retention` — can only be set by the task or eval layer.
 
 ### Configuration Layers {#configuration-layers}
 
