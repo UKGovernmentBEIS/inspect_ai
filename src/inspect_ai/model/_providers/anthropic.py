@@ -1554,6 +1554,24 @@ class AnthropicAPI(ModelAPI):
         # cache-writes at the 1.25x premium and never reads back.
         auto_cache = cache_prompt and config.cache_prompt != "prefix"
 
+        # the lookback marker needs a second-to-last cacheable block, so a single
+        # block or bare-string content leaves nothing marked. Combined with the
+        # suppressed auto-cache that means no caching at all, which is worth
+        # saying out loud rather than degrading silently across a run.
+        if (
+            cache_prompt
+            and config.cache_prompt == "prefix"
+            and not has_cache_control(system_param, tools_params, message_params)
+        ):
+            warn_once(
+                logger,
+                'cache_prompt="prefix" produced a request with no cache breakpoint, '
+                "so this call is not cached at all. The mode suppresses the automatic "
+                "end-of-prompt marker and there was no earlier block to mark. Split "
+                "the prompt into a stable block followed by the varying one, or leave "
+                "cache_prompt at its default for single-block prompts.",
+            )
+
         # return chat input
         return (
             system_param,
@@ -2037,6 +2055,30 @@ def is_code_execution_tool(
 
 
 _NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking"})
+
+
+def has_cache_control(
+    system_param: list[TextBlockParam] | None,
+    tools_params: list["ToolParamDef"],
+    message_params: list[MessageParam],
+) -> bool:
+    """Whether any explicit `cache_control` marker was placed on the request.
+
+    Distinct from the top-level auto-cache field, which is set on the request
+    body rather than on a block and so is invisible to this check.
+    """
+    if any(
+        "cache_control" in cast(dict[str, Any], param)
+        for param in [*(system_param or []), *tools_params]
+    ):
+        return True
+    for msg in message_params:
+        content = msg["content"]
+        if isinstance(content, list) and any(
+            isinstance(block, dict) and "cache_control" in block for block in content
+        ):
+            return True
+    return False
 
 
 def add_lookback_cache_control(

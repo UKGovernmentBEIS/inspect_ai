@@ -1008,6 +1008,57 @@ async def test_anthropic_cache_prompt_prefix_keeps_breakpoints() -> None:
 
 
 @pytest.mark.anyio
+async def test_anthropic_cache_prompt_prefix_warns_without_breakpoint() -> None:
+    """Warn when "prefix" leaves a request with no breakpoint at all.
+
+    The lookback marker needs a second-to-last cacheable block, so single-block
+    and bare-string content have nothing to mark. With the auto-cache marker
+    suppressed that request is not cached at all, which would otherwise degrade
+    silently across a run.
+    """
+    from inspect_ai._util.logger import _warned
+
+    api = create_autospec(AnthropicAPI, instance=True)
+    api.service_model_name.return_value = "claude-sonnet-4-6"
+    api.partition_tools.return_value = ([], [])
+    # instance attribute set in __init__, not captured by create_autospec
+    api.cache_ttl = None
+    api.resolve_chat_input = types.MethodType(AnthropicAPI.resolve_chat_input, api)
+
+    async def resolve(content: Any) -> Any:
+        return await api.resolve_chat_input(
+            input=[ChatMessageUser(content=content)],
+            tools=[],
+            config=GenerateConfig(cache_prompt="prefix"),
+        )
+
+    def warned() -> bool:
+        return any("no cache breakpoint" in message for message in _warned)
+
+    # bare-string content cannot carry a marker
+    _warned.clear()
+    _, _, _, _, auto_cache = await resolve("one big prompt")
+    assert auto_cache is False
+    assert warned()
+
+    # a single block has no penultimate position to mark
+    _warned.clear()
+    _, _, _, msgs, auto_cache = await resolve([ContentText(text="only one")])
+    assert auto_cache is False
+    assert "cache_control" not in msgs[0]["content"][0]
+    assert warned()
+
+    # two blocks do get a breakpoint, so no warning
+    _warned.clear()
+    _, _, _, msgs, auto_cache = await resolve(
+        [ContentText(text="shared rubric"), ContentText(text="varying item")]
+    )
+    assert auto_cache is False
+    assert "cache_control" in msgs[0]["content"][0]
+    assert not warned()
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     "model_name,expects_top_level_cache_control",
     [
