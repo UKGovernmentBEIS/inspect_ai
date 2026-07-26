@@ -32,6 +32,7 @@ from inspect_ai.log._recover import (
     recover_eval_log_async,
     recoverable_eval_logs,
 )
+from inspect_ai.log._recover._api import _recoverable_eval_logs_async
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
@@ -326,3 +327,41 @@ def test_recoverable_eval_logs_excludes_already_recovered() -> None:
 
         result = recoverable_eval_logs(log_dir=temp_dir, _db_dir=db_dir)
         assert len(result) == 0
+
+
+async def test_recover_async_paths_under_trio_backend() -> None:
+    """Regression: async recovery + discovery must work under a trio backend.
+
+    ``recover_eval_log_async()`` and ``_recoverable_eval_logs_async()`` list
+    logs through ``list_eval_logs_async`` / the async header read. A regression
+    would let them fall through to the sync ``read_eval_log()``, which raises
+    ``RuntimeError`` inside a trio async context. The ``[trio]`` variant of this
+    test (run via ``--runtrio``) exercises both async entry points end to end;
+    the sync ``recoverable_eval_logs()`` wrapper is intentionally *not* covered
+    here, since it still raises under trio through ``run_coroutine()``.
+    """
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
+
+            # Async discovery helper must resolve the crashed log under trio.
+            recoverable = await _recoverable_eval_logs_async(
+                log_dir=temp_dir, _db_dir=db_dir
+            )
+            assert len(recoverable) == 1
+            assert "test.eval" in recoverable[0].log.name
+
+            # Async recovery must combine flushed + buffered samples under trio.
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert log.samples is not None
+            assert len(log.samples) == 4
