@@ -89,6 +89,7 @@ async def test_multi_match_failure_with_target():
     result = await scorer(state, Target(["target doesn't match"]))
 
     assert result.text == INCORRECT
+    assert result.reason is None
 
 
 @pytest.mark.anyio

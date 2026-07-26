@@ -9,7 +9,7 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 :   Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 `pattern()`
-:   Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns a `NOANSWER` score when the pattern does not match.
+:   Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns an `INCORRECT` score with `reason="invalid_response_format"` when the pattern does not match.
 
 `answer()`
 :   For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
