@@ -328,7 +328,10 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         if not name.startswith("anthropic/"):
             return False
         # Matches direct anthropic provider: only explicit False disables;
-        # None, True, and "auto" all enable.
+        # None, True, "auto", and "prefix" all enable. "prefix" only suppresses
+        # the direct provider's top-level auto-cache marker; this provider has
+        # no equivalent of that marker (system, tools, and penultimate-block
+        # only), so its placement is already prefix-shaped.
         if config.cache_prompt is False:
             return False
         # Mirror the legacy-Claude gate from the direct anthropic provider.
