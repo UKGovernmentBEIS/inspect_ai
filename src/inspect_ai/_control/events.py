@@ -31,6 +31,8 @@ from collections.abc import Callable, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+from inspect_ai._control.terminal_cache import TerminalSourceCache
+
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
     from inspect_ai.log._transcript import TranscriptHistoryProvider
@@ -93,6 +95,15 @@ DEFAULT_PAGE_LIMIT = 500
 # Compact-projection truncation width for free-text / serialized fields.
 _TRUNCATE = 256
 
+# Short-TTL cache of resolved terminal sources. A flushed sample's transcript
+# is immutable, but resolving it re-reads and re-validates the entire sample
+# per page request (see _resolve_logged_source) — O(N²/limit) aggregate work
+# for a client paginating an N-event transcript, and a full parse per poll
+# even when no new events can ever arrive. See terminal_cache for the
+# staleness bounds (insertion-time TTL, running-attempt invalidation,
+# cleared with the eval-state registry).
+_terminal_sources: TerminalSourceCache[EventsSource] = TerminalSourceCache()
+
 
 def encode_cursor(nonce: str, offset: int) -> str:
     """Opaque cursor token for ``(source nonce, absolute offset)``."""
@@ -151,7 +162,12 @@ async def sample_events(
         limit: Max events scanned per page.
     """
     source = _running_source(eval_id, sample_id, epoch)
-    if source is None:
+    if source is not None:
+        # a running attempt (a retry) supersedes any cached terminal source
+        # for this sample — drop it so the attempt's own terminal source is
+        # resolved fresh once it finishes (see terminal_cache)
+        _terminal_sources.invalidate((eval_id, sample_id, epoch))
+    else:
         source = await _logged_source(eval_id, sample_id, epoch)
     if source is None:
         return None
@@ -245,6 +261,27 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
 
 
 async def _logged_source(
+    eval_id: str, sample_id: str, epoch: int
+) -> EventsSource | None:
+    """The terminal source for a sample, resolved through the short-TTL cache.
+
+    A terminal attempt's transcript is immutable, so the resolved source is
+    reused across the paginating / polling requests that dominate this
+    endpoint's traffic instead of re-paying the full-sample parse per request
+    (see ``_terminal_sources``). A ``None`` resolution (eval/sample not
+    available here) is never cached — a just-flushed sample must become
+    visible on the next request, not a TTL later.
+    """
+    key = (eval_id, sample_id, epoch)
+    source = _terminal_sources.get(key)
+    if source is None:
+        source = await _resolve_logged_source(eval_id, sample_id, epoch)
+        if source is not None:
+            _terminal_sources.put(key, source)
+    return source
+
+
+async def _resolve_logged_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> EventsSource | None:
     """The terminal source for a sample (recorder buffer, then on-disk log).

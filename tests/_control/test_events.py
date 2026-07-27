@@ -317,6 +317,167 @@ async def test_evicted_events_without_provider_is_a_hard_error(
     assert [e["source"] for e in page["events"]] == ["e7", "e8", "e9"]
 
 
+# --- terminal-source cache ---------------------------------------------------
+
+
+def _counting_terminal_sample(
+    monkeypatch: pytest.MonkeyPatch,
+    events: list[Event],
+    *,
+    error_retries: list[Any] | None = None,
+) -> list[int]:
+    """Route `_full_sample` to a fixed terminal sample, counting resolutions.
+
+    Returns a single-element list holding the resolution count, so tests can
+    assert how many times the (expensive, per-request in the uncached design)
+    full-sample read actually ran.
+    """
+    import inspect_ai._control.state as state_mod
+    import inspect_ai.log._samples as samples_mod
+
+    reads = [0]
+    retries = error_retries or []
+
+    async def full_sample(
+        eval_id: str, sample_id: str, epoch: int, *, exclude_fields: Any = None
+    ) -> Any:
+        reads[0] += 1
+        return SimpleNamespace(
+            events=events, id="s1", uuid="u1", epoch=1, error_retries=retries
+        )
+
+    monkeypatch.setattr(state_mod, "_full_sample", full_sample)
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+    return reads
+
+
+async def test_terminal_source_resolved_once_across_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Paginating a flushed sample parses it once, not once per page.
+
+    The uncached design re-read and re-validated the entire sample per page
+    request — O(N²/limit) aggregate work for an N-event transcript — and per
+    poll, even though a finished sample never has new events.
+    """
+    events: list[Event] = [_info_at(f"e{i}", _now()) for i in range(5)]
+    reads = _counting_terminal_sample(monkeypatch, events)
+
+    page1 = await sample_events("e1", "s1", 1, limit=2)
+    assert page1 is not None
+    assert [e["source"] for e in page1["events"]] == ["e0", "e1"]
+
+    page2 = await sample_events("e1", "s1", 1, since=page1["next"], limit=2)
+    assert page2 is not None
+    assert [e["source"] for e in page2["events"]] == ["e2", "e3"]
+
+    page3 = await sample_events("e1", "s1", 1, since=page2["next"], limit=2)
+    assert page3 is not None
+    assert [e["source"] for e in page3["events"]] == ["e4"]
+    assert page3["done"]
+
+    # one resolution served all three pages (and any subsequent poll)
+    assert reads[0] == 1
+
+
+async def test_terminal_source_cache_expires_and_hits_do_not_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An entry expires TTL after *insertion* — a hit doesn't extend its life.
+
+    This is the staleness bound: a steady poller (whose hits would otherwise
+    keep an entry alive forever) still re-resolves at least once per TTL.
+    """
+    import inspect_ai._control.events as events_mod
+    from inspect_ai._control.terminal_cache import TerminalSourceCache
+
+    now = {"t": 0.0}
+    monkeypatch.setattr(
+        events_mod,
+        "_terminal_sources",
+        TerminalSourceCache(ttl=5.0, clock=lambda: now["t"]),
+    )
+    events: list[Event] = [_info_at("e0", _now())]
+    reads = _counting_terminal_sample(monkeypatch, events)
+
+    assert await sample_events("e1", "s1", 1) is not None  # resolve + cache
+    now["t"] = 3.0
+    assert await sample_events("e1", "s1", 1) is not None  # within TTL: a hit
+    assert reads[0] == 1
+
+    # 6s after insertion (though only 3s after the last hit) — expired
+    now["t"] = 6.0
+    assert await sample_events("e1", "s1", 1) is not None
+    assert reads[0] == 2
+
+
+async def test_running_attempt_invalidates_cached_terminal_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A poll that observes a retry running drops the prior attempt's entry.
+
+    Sequence: attempt 1 terminal (cached) → retry_on_error re-runs the sample
+    (running source served) → retry terminal. The final read must serve the
+    retry's transcript even though attempt 1's entry would still be within its
+    TTL — resolving a running source invalidates the cached terminal source.
+    """
+    import inspect_ai._control.state as state_mod
+    import inspect_ai.log._samples as samples_mod
+
+    # attempt 1 flushed: resolved and cached
+    reads = _counting_terminal_sample(monkeypatch, [_info_at("attempt1", _now())])
+    page = await sample_events("e1", "1", 1)
+    assert page is not None
+    assert [e["source"] for e in page["events"]] == ["attempt1"]
+    assert reads[0] == 1
+
+    # the retry is observed running: served live, and the stale entry dropped
+    retrying = _fake_running_sample(
+        sample_uuid="u1",
+        events=[_info_at("retrying", _now())],
+        error_retries=[object()],
+    )
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [retrying])
+    page = await sample_events("e1", "1", 1)
+    assert page is not None
+    assert [e["source"] for e in page["events"]] == ["retrying"]
+
+    # the retry finishes and is flushed: its own transcript is served, not
+    # attempt 1's still-within-TTL entry
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+
+    async def retry_sample(
+        eval_id: str, sample_id: str, epoch: int, *, exclude_fields: Any = None
+    ) -> Any:
+        return SimpleNamespace(
+            events=[_info_at("attempt2", _now())],
+            id="s1",
+            uuid="u1",
+            epoch=1,
+            error_retries=[object()],
+        )
+
+    monkeypatch.setattr(state_mod, "_full_sample", retry_sample)
+    page = await sample_events("e1", "1", 1)
+    assert page is not None
+    assert [e["source"] for e in page["events"]] == ["attempt2"]
+
+
+def test_terminal_source_cache_evicts_oldest_when_full() -> None:
+    """The entry cap evicts oldest-inserted first (memory bound, not LRU)."""
+    from inspect_ai._control.terminal_cache import TerminalSourceCache
+
+    cache: TerminalSourceCache[str] = TerminalSourceCache(
+        ttl=100.0, max_entries=2, clock=lambda: 0.0
+    )
+    cache.put(("e", "a", 1), "a")
+    cache.put(("e", "b", 1), "b")
+    cache.put(("e", "c", 1), "c")
+    assert cache.get(("e", "a", 1)) is None
+    assert cache.get(("e", "b", 1)) == "b"
+    assert cache.get(("e", "c", 1)) == "c"
+
+
 # --- streaming-buffer events (event-less recorder sample) -------------------
 
 
