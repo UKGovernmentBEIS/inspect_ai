@@ -1,10 +1,15 @@
 """Tests for format_traceback caching (issue #4316)."""
+
 import sys
 import time
 
 import pytest
 
-from inspect_ai._util.rich import _traceback_cache, format_traceback
+from inspect_ai._util.rich import (
+    _TRACEBACK_CACHE_MAX_SIZE,
+    _traceback_cache,
+    format_traceback,
+)
 
 
 def _make_exc() -> tuple:
@@ -72,3 +77,27 @@ def test_format_traceback_same_result_on_cache_hit() -> None:
     result1 = format_traceback(exc_type, exc_value, exc_tb)
     result2 = format_traceback(exc_type, exc_value, exc_tb)
     assert result1 == result2
+
+
+def test_format_traceback_not_cached_with_traceback_locals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("INSPECT_TRACEBACK_LOCALS", "1")
+    exc_type, exc_value, exc_tb = _make_exc()
+    format_traceback(exc_type, exc_value, exc_tb)
+    assert len(_traceback_cache) == 0
+
+
+def test_format_traceback_cache_evicts_lru() -> None:
+    for i in range(_TRACEBACK_CACHE_MAX_SIZE + 5):
+        try:
+            raise ValueError(f"error {i}")
+        except ValueError:
+            format_traceback(*sys.exc_info())
+
+    assert len(_traceback_cache) == _TRACEBACK_CACHE_MAX_SIZE
+    # oldest entries evicted, newest retained
+    assert not any("error 0" in key for key in _traceback_cache)
+    assert any(
+        f"error {_TRACEBACK_CACHE_MAX_SIZE + 4}" in key for key in _traceback_cache
+    )
