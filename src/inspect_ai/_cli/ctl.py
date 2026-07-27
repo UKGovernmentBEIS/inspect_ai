@@ -2496,7 +2496,7 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
     # per_task_option forbids the process-scope fallbacks, so the resolved
     # scope always carries a task
     assert scope.task_id is not None
-    result = _post_flush(scope.socket_path, scope.task_id)
+    result = _post_flush(scope.socket_path, scope.task_id, pid=scope.pid)
 
     if as_json:
         envelope = {
@@ -2587,6 +2587,7 @@ def _run_task_cancel(
         not_found_missing_route=_CANCEL_ROUTE_MISSING,
         mutate="post",
         retry_mutation=True,
+        pid=scope.pid,
     )
 
     if as_json:
@@ -2678,6 +2679,7 @@ def _run_task_pause_resume(
         not_found_missing_route=_PAUSE_ROUTE_MISSING,
         mutate="post",
         retry_mutation=True,
+        pid=scope.pid,
     )
 
     if as_json:
@@ -3307,6 +3309,7 @@ def _run_config(
         max_retries=max_retries,
         author=author,
         reason=reason,
+        pid=scope.pid,
         dry_run=dry_run,
     )
 
@@ -3495,6 +3498,13 @@ class _DirectiveScope(NamedTuple):
     """A directive command's resolved target (see :func:`_resolve_scope`)."""
 
     socket_path: str
+    pid: int | None
+    """The target process's pid (``None`` for a pre-pid discovery entry).
+
+    Scopes the busy-retry exhaustion pointer to the resolved process (see
+    ``pid`` on :func:`_request_json`) — the directive narration names one
+    target, so its escalation must not suggest scanning every process.
+    """
     task_id: str | None
     """``None`` targets the process-level scope."""
     task: str | None
@@ -3544,6 +3554,7 @@ def _resolve_scope(
         if len(servers) == 1 and task is None and per_task_option is None:
             return _DirectiveScope(
                 socket_path=str(servers[0].socket_path),
+                pid=servers[0].pid,
                 task_id=None,
                 task=None,
                 header="process · starting",
@@ -3573,6 +3584,7 @@ def _resolve_scope(
             siblings += 1
         return _DirectiveScope(
             socket_path=socket_path,
+            pid=target.get("pid"),
             task_id=task_id,
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
@@ -3595,6 +3607,7 @@ def _resolve_scope(
         target = candidates[0]
         return _DirectiveScope(
             socket_path=socket_path,
+            pid=target.get("pid"),
             task_id=str(target["task_id"]),
             task=str(target.get("task") or "") or None,
             header=_task_header(target),
@@ -3629,6 +3642,7 @@ def _resolve_scope(
     )
     return _DirectiveScope(
         socket_path=socket_path,
+        pid=tasks_in_proc[0].get("pid"),
         task_id=None,  # process-global scope
         task=None,
         header=header,
@@ -4465,7 +4479,9 @@ def _handler_404(response: httpx.Response) -> bool:
     return isinstance(body, dict) and "error" in body
 
 
-def _post_flush(socket_path: str, task_id: str) -> dict[str, Any]:
+def _post_flush(
+    socket_path: str, task_id: str, *, pid: int | None = None
+) -> dict[str, Any]:
     """Ask one control server to flush a task's buffered samples to the log."""
     return _request_json(
         socket_path,
@@ -4477,6 +4493,7 @@ def _post_flush(socket_path: str, task_id: str) -> dict[str, Any]:
             "attempt that's been superseded)."
         ),
         mutate="post",
+        pid=pid,
     )
 
 
@@ -4608,6 +4625,7 @@ def _exec_limits(
     max_retries: int | Literal["clear"] | None = None,
     author: str | None = None,
     reason: str | None = None,
+    pid: int | None = None,
     dry_run: bool,
 ) -> "_ConfigResult":
     """Read (no set knobs) or retune (any set knob) a scope's config.
@@ -4626,7 +4644,8 @@ def _exec_limits(
     that is not ``None`` makes this a mutation: a single-shot PATCH given the
     full mutation budget (see :data:`_MUTATION_TIMEOUT`) — derived here, not
     caller-supplied, so a knob can never ride a GET as an ignored query
-    param. A pure read is a GET that retries a busy process on timeout.
+    param. A pure read is a GET that retries a busy process on timeout;
+    ``pid`` scopes that policy's exhaustion pointer to the target process.
     ``dry_run`` only applies to a set.
     """
     knob_values: dict[str, int | Literal["clear"] | None] = {
@@ -4689,6 +4708,7 @@ def _exec_limits(
         not_found=not_found,
         params=params,
         mutate="patch" if set_values else None,
+        pid=pid,
     )
     return _ConfigResult(view=view, mutated=set_values)
 

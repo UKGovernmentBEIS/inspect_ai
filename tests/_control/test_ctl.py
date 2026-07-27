@@ -2100,6 +2100,26 @@ def test_sample_show_busy_detail_read_points_at_pid(
     assert "inspect ctl process anomalies 7" in result.stderr
 
 
+def test_config_busy_read_points_at_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A directive's retry exhaustion scopes the escalation to the resolved pid.
+
+    The `_DirectiveScope` commands (config here) resolve one target process,
+    so the pointer names it rather than suggesting a scan of every process.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    result = cli_runner().invoke(ctl_command, ["config"])
+    assert result.exit_code == 1
+    assert "gave up" in result.stderr
+    assert "inspect ctl process anomalies 7" in result.stderr
+
+
 def test_old_flat_spellings_hidden_from_help() -> None:
     result = cli_runner().invoke(ctl_command, ["--help"])
     for old in (
@@ -3318,6 +3338,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
 
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
+        pid=7,
         task_id="t1",
         task="tn",
         header="h",
@@ -3362,6 +3383,7 @@ def test_compose_config_process_scope_dry_run() -> None:
 
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
+        pid=7,
         task_id=None,
         task=None,
         header="process · 2 tasks",
@@ -3940,6 +3962,7 @@ def test_resolve_scope_siblings_counts_active_only() -> None:
     scope = _resolve_scope([], summaries, "aaa111")
     assert scope is not None
     assert scope.siblings == 1  # the completed sibling is excluded
+    assert scope.pid == 7  # carried for the busy-escalation pointer
 
 
 def test_keep_alias_accepts_positional_pid(monkeypatch: pytest.MonkeyPatch) -> None:
