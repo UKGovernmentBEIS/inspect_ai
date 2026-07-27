@@ -249,7 +249,16 @@ class EvalState:
     S3 — per poll is pure waste). ``None`` until the first fallback read
     (and always while :attr:`live` serves summaries). Cleared by
     :func:`invalidate_log_sample_summaries` when the retry sweep deletes
-    the log, so the memo can't outlive the file it was read from."""
+    the log, so the memo can't outlive the file it was read from.
+
+    Known limitation: "immutable" holds for every in-process writer (both
+    recorders fully write and close the log before the fallback becomes
+    reachable), but not for external ones — e.g. ``inspect score
+    --overwrite`` from another process rewrites a finished log in place,
+    and a parked process keeps serving the pre-rewrite rows for the rest
+    of the park. If in-process rewriting of finished logs ever lands
+    (e.g. interim scoring), it must call
+    :func:`invalidate_log_sample_summaries` after rewriting."""
 
     sample_ids: list[str | int] = field(default_factory=list)
     """The eval's planned sample ids (after slicing). With :attr:`epochs`,

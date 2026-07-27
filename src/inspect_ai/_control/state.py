@@ -525,7 +525,7 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     # set it before any sample runs), so there's no need to also consult
     # active_samples.
     if state is not None and state.log_location:
-        return await _sample_summaries_from_log(state, will_retry)
+        return await _sample_summaries_from_log(state)
     return []
 
 
@@ -739,9 +739,7 @@ def _error_dict(error: Any) -> dict[str, Any]:
     }
 
 
-async def _sample_summaries_from_log(
-    state: "EvalState", will_retry: bool = False
-) -> list[dict[str, Any]]:
+async def _sample_summaries_from_log(state: "EvalState") -> list[dict[str, Any]]:
     """Completed-sample summaries read from the on-disk log, memoized.
 
     Only reached when the live recorder is unavailable (a reused eval, a
@@ -773,7 +771,7 @@ async def _sample_summaries_from_log(
         except FileNotFoundError:
             return []
         state.log_sample_summaries = summaries
-    return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
+    return [_summary_from_eval_sample_summary(s, state.will_retry) for s in summaries]
 
 
 def _cancellation_status(will_retry: bool) -> str:
