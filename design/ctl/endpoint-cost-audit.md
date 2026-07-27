@@ -74,7 +74,10 @@ ijson field exclusion — the mitigations the sections below describe), while
 `--log-format=json` inherits `FileRecorder`'s read methods, which have none
 of them — every `.json` terminal read is a whole-log parse and the listing
 fallback re-summarizes full samples per request. That is finding 2, and it
-overlays every ⚠️/❌ terminal cell in the table for `.json` logs.
+overlays every ⚠️/❌ terminal cell in the table for `.json` logs. Note that
+`.json` is a legacy format with poor performance characteristics throughout
+(whole-log reads are inherent to its layout), so `.json`-only defects are
+documented here but low priority to fix.
 
 | Endpoint | Live path | Fallback / terminal path | Verdict |
 |---|---|---|---|
@@ -301,7 +304,15 @@ Ranked. On the default `.eval` format none reproduces the incident's severity
 (minutes of CPU per request) — finding 1 is the same *kind* of defect at a
 smaller constant. Finding 2 *is* the incident's defect class verbatim
 (per-request re-summarization of full samples), gated only by the non-default
-`--log-format=json`.
+`--log-format=json` — and since `.json` is a legacy format with poor
+performance generally, it is low priority despite the severity of its
+constant.
+
+**What is actually worth fixing: findings 1 and 3.** Finding 2 is
+legacy-format-only (see above). Finding 4's expensive half (the second,
+full-listing read) disappears once finding 3's memo lands; its remaining
+read is inherent to serving error detail and already parse-minimized, so it
+needs no work of its own.
 
 1. **Events pages over a flushed sample re-parse the whole transcript per
    page** (`events.py` `_logged_source` → `_full_sample` with no
@@ -334,7 +345,9 @@ smaller constant. Finding 2 *is* the incident's defect class verbatim
    (`JSONLogFile.summaries` caches at log time); these terminal paths retain
    the per-request re-summarization defect. Payload-proportional per poll —
    the incident's class — but only under `--log-format=json`, hence ranked
-   below the default-format finding 1. Fix directions: cache computed
+   below the default-format finding 1; and because `.json` is a legacy
+   format whose read performance is poor by construction, this finding is
+   low priority. Fix directions, should it ever matter: cache computed
    summaries alongside the parsed log in `_log_file_maybe_cached` (fixes
    every reader, not just ctl), and/or the `EvalState` memo of finding 3,
    which shields the ctl listing path for both formats.
