@@ -59,6 +59,7 @@ from .common import (
     common_options,
     process_common_options,
 )
+from .detach import DETACH_HELP, exec_detached
 from .util import (
     SectionedCommand,
     ctl_server_flag_callback,
@@ -935,13 +936,23 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     is_flag=True,
     default=False,
     envvar="INSPECT_EVAL_JSON",
-    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each task's log location and status when the eval finishes.",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each task's log location and status when the eval finishes. To launch in the background instead, use --detach (which implies --json).",
+)
+@click.option(
+    "--detach/--no-detach",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_DETACH",
+    help=DETACH_HELP,
 )
 @eval_options
 @click.pass_context
 def eval_command(ctx: click.Context, /, **params: Any) -> None:
     """Evaluate tasks."""
-    with _json_prerequisite_errors_to_stderr(params["json_output"]):
+    with _json_prerequisite_errors_to_stderr(params["json_output"] or params["detach"]):
+        if params.pop("detach"):
+            exec_detached(ctl_server=params["ctl_server"])
         # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*)
         # defer to the run config _for fields the run config actually
         # provides_. Env values still apply to fields the run config leaves
@@ -1227,7 +1238,15 @@ def _eval_command_impl(
     is_flag=True,
     default=False,
     envvar="INSPECT_EVAL_JSON",
-    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record; with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record, and the 'done' record carries the last launch's run_id.",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, eval_set_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with overall success and each task's log location and status when the eval set finishes (the exit code still reports success as usual). When every task is already complete no eval runs, so stdout carries only the 'done' record (except under --ctl-server=keep, whose park still binds a control endpoint and emits a 'launch' record with run_id null); with --no-retry-immediate each batch retry binds afresh and emits a fresh 'launch' record, and the 'done' record carries the last launch's run_id. To launch in the background instead, use --detach (which implies --json).",
+)
+@click.option(
+    "--detach/--no-detach",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_DETACH",
+    help=DETACH_HELP,
 )
 @click.option(
     "--retry-attempts",
@@ -1415,13 +1434,17 @@ def eval_set_command(
     log_level_transcript: str,
     eval_set_id: str | None,
     json_output: bool,
+    detach: bool,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
 
     Learn more about eval sets at https://inspect.aisi.org.uk/eval-sets.html.
     """
-    with _json_prerequisite_errors_to_stderr(json_output):
+    with _json_prerequisite_errors_to_stderr(json_output or detach):
+        if detach:
+            exec_detached(ctl_server=ctl_server)
+
         # read config
         config = config_from_locals(dict(locals()))
 
@@ -2289,7 +2312,15 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     is_flag=True,
     default=False,
     envvar="INSPECT_EVAL_JSON",
-    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each retried task's log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one 'launch' record per file (sequentially — each supersedes the previous), and the 'done' record carries the last launch's run_id.",
+    help="Emit machine-readable launch output as JSON lines on stdout (implies --display none): a 'launch' record printed once the control-channel server is bound — reporting run_id, pid, log_dir, and the control socket path ('control' is null when the server is disabled or failed to bind, so its presence guarantees `inspect ctl` is usable) — and a 'done' record with each retried task's log location and status when the retry finishes. Each retried log file runs as its own eval, so a multi-file retry emits one 'launch' record per file (sequentially — each supersedes the previous), and the 'done' record carries the last launch's run_id. To launch in the background instead, use --detach (which implies --json and hands off on the first launch record).",
+)
+@click.option(
+    "--detach/--no-detach",
+    type=bool,
+    is_flag=True,
+    default=False,
+    envvar="INSPECT_EVAL_DETACH",
+    help=DETACH_HELP,
 )
 @click.option(
     "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
@@ -2510,6 +2541,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
 def eval_retry_command(
     log_files: tuple[str, ...],
     json_output: bool,
+    detach: bool,
     max_samples: int | None,
     max_tasks: int | None,
     max_subprocesses: int | None,
@@ -2555,7 +2587,10 @@ def eval_retry_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
-    with _json_prerequisite_errors_to_stderr(json_output):
+    with _json_prerequisite_errors_to_stderr(json_output or detach):
+        if detach:
+            exec_detached(ctl_server=ctl_server)
+
         # --json owns stdout (JSON lines only), so route the display to the
         # quiet "none" renderer — including when --no-ansi would otherwise
         # promote it back to "rich" or --trace (/INSPECT_EVAL_TRACE) would

@@ -5,6 +5,7 @@ from test_helpers.utils import (
     skip_if_github_action,
     skip_if_no_accelerate,
     skip_if_no_llama_cpp_python,
+    skip_if_no_moonshot,
     skip_if_no_openai,
     skip_if_no_together,
     skip_if_no_transformers,
@@ -48,6 +49,17 @@ async def test_openai_responses_logprobs() -> None:
 
 
 @pytest.mark.anyio
+@skip_if_no_moonshot
+async def test_moonshot_logprobs() -> None:
+    # kimi-k2.5 rather than k3: K3's thinking (on by default) would consume
+    # the small max_tokens budget before any completion tokens (and their
+    # logprobs) are emitted
+    response = await generate_with_logprobs("moonshot/kimi-k2.5")
+    assert response.choices[0].logprobs is not None
+    assert response.choices[0].logprobs.content[0].top_logprobs is not None
+    assert len(response.choices[0].logprobs.content[0].top_logprobs) == 2
+
+
 @skip_if_no_together
 async def test_together_logprobs() -> None:
     response = await generate_with_logprobs("together/MiniMaxAI/MiniMax-M2.7")

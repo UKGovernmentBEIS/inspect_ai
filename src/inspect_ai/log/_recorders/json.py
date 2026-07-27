@@ -5,7 +5,7 @@ from typing import IO, Any, get_args
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_core import from_json
 from typing_extensions import override
 
@@ -20,6 +20,7 @@ from inspect_ai._util.file import absolute_file_path, file, filesystem, local_pa
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
+from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
     EvalLog,
@@ -68,6 +69,12 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
+        # Per-sample summaries cached as samples are logged. Computing a
+        # summary is expensive for large samples (thin_data runs
+        # textwrap.shorten / JSON size probes over full-size fields), and
+        # `sample_summaries` is polled by the control channel — recomputing
+        # over the whole in-memory log on every request stalls the event loop.
+        summaries: list[EvalSampleSummary] = Field(default_factory=list)
 
     def __init__(
         self,
@@ -111,13 +118,14 @@ class JSONRecorder(FileRecorder):
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
+        log.summaries.append(sample.summary())
 
     @override
     async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
         log = self.data.get(self._log_file_key(eval))
         if log is None:
             return None
-        return [sample.summary() for sample in (log.data.samples or [])]
+        return list(log.summaries)
 
     @override
     async def buffered_sample(
@@ -135,6 +143,16 @@ class JSONRecorder(FileRecorder):
         return None
 
     @override
+    async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
+        # accumulate on the in-memory log; it hits disk at the next flush /
+        # log_finish like everything else in this format (weaker crash
+        # durability than .eval, consistent with the format's general story)
+        log = self.data[self._log_file_key(eval)]
+        if log.data.config_updates is None:
+            log.data.config_updates = []
+        log.data.config_updates.append(update)
+
+    @override
     async def log_finish(
         self,
         eval: EvalSpec,
@@ -146,6 +164,7 @@ class JSONRecorder(FileRecorder):
         header_only: bool = False,
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
+        config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
@@ -153,6 +172,9 @@ class JSONRecorder(FileRecorder):
         log.data.results = results
         log.data.invalidated = invalidated
         log.data.log_updates = log_updates
+        # None means "not supplied" — keep the updates accumulated mid-run
+        if config_updates is not None:
+            log.data.config_updates = config_updates
         log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
@@ -448,6 +470,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         stats: EvalStats | None = None
         error: EvalError | None = None
         log_updates: list[LogUpdate] | None = None
+        config_updates: list[ConfigUpdate] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(EvalStatus)
@@ -466,6 +489,8 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 error = EvalError.model_validate(v)
             elif k == "log_updates":
                 log_updates = [LogUpdate.model_validate(u) for u in v]
+            elif k == "config_updates":
+                config_updates = [ConfigUpdate.model_validate(u) for u in v]
             if k == last_header_field:
                 break
 
@@ -482,6 +507,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         status=status,
         invalidated=invalidated,
         log_updates=log_updates,
+        config_updates=config_updates,
         version=version,
         error=error,
         location=log_file,
