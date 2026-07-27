@@ -41,8 +41,12 @@
   "quarto.render.renderOnSave": true,
   "cSpell.words": [
     "backpressure",
+    "gitlink",
+    "rollup",
     "scandef",
     "scanjob",
-    "scanspec"
+    "scanspec",
+    "unpushed",
+    "venv"
   ]
 }
