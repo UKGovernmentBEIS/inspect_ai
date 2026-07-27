@@ -460,8 +460,9 @@ def sync_item(row) -> None:
         and pr["_req_ts"] > pr["_changes_ts"]
         and pr["_changes_ts"] != ""
     )
+    decision = pr.get("reviewDecision")
+
     if row["external"]:
-        decision = pr.get("reviewDecision")
         if decision == "APPROVED":
             # Maintainer approval hands the external PR to the merge queue
             # (the merge-approved-prs skill drives Merge-stage items home).
@@ -494,8 +495,6 @@ def sync_item(row) -> None:
                 if set_stage(item, "Review", stage):
                     actions.append(f"#{issue}: contributor responded -> Review")
         return
-
-    decision = pr.get("reviewDecision")
 
     # The one transition allowed OUT of Review: the driver re-requested
     # review upstream after a changes-requested round — the fork's analog of
