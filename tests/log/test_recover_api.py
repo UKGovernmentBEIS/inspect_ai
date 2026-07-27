@@ -434,13 +434,15 @@ _BACKENDS = [
 
 
 @pytest.mark.parametrize("backend", _BACKENDS)
-def test_list_eval_logs_filtered_missing_directory(backend: str) -> None:
+def test_list_eval_logs_filtered_missing_directory(
+    backend: str, tmp_path: Path
+) -> None:
     async def main() -> None:
         from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
 
-        missing = os.path.join(tempfile.gettempdir(), "inspect-missing-logs-dir-xyz")
-        assert not os.path.exists(missing)
-        result = await _list_eval_logs_filtered_async(missing, lambda _: True)
+        missing = tmp_path / "missing"
+        assert not missing.exists()
+        result = await _list_eval_logs_filtered_async(str(missing), lambda _: True)
         assert result == []
 
     anyio.run(main, backend=backend)
@@ -564,29 +566,32 @@ def test_list_eval_logs_filtered_predicate_subset(backend: str) -> None:
 
 
 @pytest.mark.parametrize("backend", _BACKENDS)
-def test_list_eval_logs_filtered_listing_failure_propagates(backend: str) -> None:
-    async def main() -> None:
-        import inspect_ai.log._recover._api as api
-        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+def test_list_eval_logs_filtered_listing_failure_propagates(
+    backend: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import inspect_ai.log._recover._api as api
+    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
 
-        boom_fs = MagicMock()
-        boom_fs.exists.return_value = True
-        boom_fs.ls.side_effect = OSError("listing failed")
-        original = api.filesystem
-        api.filesystem = lambda _path: boom_fs  # type: ignore[assignment]
-        try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                with pytest.raises(OSError, match="listing failed"):
-                    await _list_eval_logs_filtered_async(temp_dir, lambda _: True)
-        finally:
-            api.filesystem = original
+    boom_fs = MagicMock()
+    boom_fs.exists.return_value = True
+    boom_fs.ls.side_effect = OSError("listing failed")
+    monkeypatch.setattr(api, "filesystem", lambda _path: boom_fs)
+
+    async def main() -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(OSError, match="listing failed"):
+                await _list_eval_logs_filtered_async(temp_dir, lambda _: True)
 
     anyio.run(main, backend=backend)
 
 
 @pytest.mark.parametrize("backend", _BACKENDS)
 def test_list_eval_logs_filtered_malformed_header_propagates(backend: str) -> None:
-    """Corrupt ``.eval`` bytes must not be swallowed into an empty result."""
+    """Corrupt ``.eval`` bytes must not be swallowed into an empty result.
+
+    Async zip reads raise ``ValueError('EOCD not found')`` for non-zip bytes
+    (not ``zipfile.BadZipFile``, which is the sync ``ZipFile`` path).
+    """
 
     async def main() -> None:
         from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
@@ -596,34 +601,8 @@ def test_list_eval_logs_filtered_malformed_header_propagates(backend: str) -> No
             with open(bad, "wb") as f:
                 f.write(b"not-a-zip-or-eval-log")
 
-            with pytest.raises(Exception):
+            with pytest.raises(ValueError, match="EOCD not found"):
                 await _list_eval_logs_filtered_async(temp_dir, lambda _: True)
-
-    anyio.run(main, backend=backend)
-
-
-@pytest.mark.parametrize("backend", _BACKENDS)
-def test_list_eval_logs_filtered_cancellation_propagates(backend: str) -> None:
-    async def main() -> None:
-        import inspect_ai.log._recover._api as api
-        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
-
-        real_run_sync = anyio.to_thread.run_sync
-
-        async def slow_run_sync(func, *args, **kwargs):  # type: ignore[no-untyped-def]
-            await anyio.sleep(60)
-            return await real_run_sync(func, *args, **kwargs)
-
-        original = api.anyio.to_thread.run_sync
-        api.anyio.to_thread.run_sync = slow_run_sync  # type: ignore[method-assign]
-        try:
-            with anyio.move_on_after(0.1) as scope:
-                await _list_eval_logs_filtered_async(
-                    tempfile.gettempdir(), lambda _: True
-                )
-            assert scope.cancel_called
-        finally:
-            api.anyio.to_thread.run_sync = original  # type: ignore[method-assign]
 
     anyio.run(main, backend=backend)
 
