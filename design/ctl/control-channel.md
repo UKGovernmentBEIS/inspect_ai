@@ -79,6 +79,9 @@ inspect ctl sample errors [TASK]            # triage: samples that errored or we
 inspect ctl sample events TASK SID [EPOCH]  # one sample's transcript events (cursored pull)
                                             #   --cursor CURSOR / --tail N / --from-start / --limit N / --type / --full / --since-time / --until
                                             #   (-f / --follow push is phase 4)
+
+inspect ctl sample messages TASK SID [EPOCH]  # one sample's current conversation, snapshot
+                                              #   --tail N / --all / --full (see "Sample messages read")
 inspect ctl process list                    # running Inspect processes (pid / keep-alive / tasks)
 inspect ctl process keep [PID]              # keep a running process alive after its eval finishes
 inspect ctl process release [PID]           # release a lingering keep-alive process
@@ -90,11 +93,15 @@ inspect ctl config [TASK] [--max-samples N] [--max-connections N] [--max-sandbox
 inspect ctl task log-flush [TASK]           # write a running eval's buffered samples to the log now (shipped)
 inspect ctl task cancel TASK [--action cancel|score|error] [--dry-run]  # cancel an eval — abort, or resolve in-flight samples and complete (shipped)
 inspect ctl sample cancel TASK SID [EPOCH] [--action score|error|cancel] [--dry-run]  # cancel one sample (shipped)
+inspect ctl task pause TASK [--dry-run]     # stop starting new samples/retries; in-flight finish; reversible (shipped)
+inspect ctl task resume TASK [--dry-run]    # resume a paused task (shipped)
+inspect ctl process pause [PID] [--dry-run] # pause the whole run incl. eval-set task dispatch (shipped)
+inspect ctl process resume [PID] [--dry-run]# resume a paused run (shipped)
 inspect ctl task add SPEC [--model M] [-T k=v] [--dry-run]  # add a task to a running --ctl-server=keep eval
 inspect ctl task drain TASK                 # stop accepting new samples; let in-flight finish
 inspect ctl sample requeue TASK SID EPOCH   # re-add a failed sample to the queue
 inspect ctl config TASK --time-limit N     # modify per-sample time/token/message limits (planned)
-inspect ctl process anomalies [PID] [--filter TEXT] [--all]  # in-flight / anomalous actions from the pid's trace file
+inspect ctl process anomalies [PID] [--filter TEXT] [--all]  # in-flight / anomalous actions from the pid's trace file (shipped)
                                             #   (client-side read — works against a busy or hung process)
 ```
 
@@ -131,21 +138,24 @@ inspect ctl
 │   ├── list                        # was: tasks (implied: bare `ctl task` ≡ `ctl task list`)
 │   ├── log-flush [TASK]            # was: flush (renamed: the object is the task's *log*)
 │   ├── cancel TASK                 # shipped (abort, or --action score/error sample resolution; a graceful-drain variant is future work)
+│   ├── pause [TASK] / resume [TASK]  # shipped (quiesce semantics — see design/ctl/pause-resume.md)
 │   ├── add SPEC [...]              # planned: add
-│   └── drain TASK                  # planned: drain
+│   └── drain TASK                  # planned: drain (a thin composition over the pause gate)
 ├── sample                      # one sample (TASK SAMPLE_ID [EPOCH]) or a task's samples
 │   ├── list [TASK]                 # was: samples (implied by bare `ctl sample`; no TASK = all tasks)
 │   ├── show TASK SID [EPOCH]       # was: sample
 │   ├── errors [TASK]               # was: errors (no TASK = across all tasks)
 │   ├── events TASK SID [EPOCH]     # was: events (phase-4 --follow lands here unchanged)
+│   ├── messages TASK SID [EPOCH]   # shipped: current-conversation snapshot (see "Sample messages read")
 │   ├── cancel TASK SID [EPOCH]     # shipped (EPOCH required when the task runs >1 epoch)
 │   └── requeue TASK SID [EPOCH]    # planned: requeue
 ├── config [TASK] [...]         # was: limits + buffer; view/retune launch config, scope per knob
 ├── process                     # the running Inspect process itself (PID selector)
 │   ├── list                        # new: pids / keep-alive / hosted tasks (implied by bare `ctl process`)
-│   ├── anomalies [PID]             # planned: in-flight / anomalous actions from the trace file (client-side read)
+│   ├── anomalies [PID]             # shipped: in-flight / anomalous actions from the trace file (client-side read)
 │   ├── keep [PID]                  # was: keep [--pid]
-│   └── release [PID]               # was: release [--pid]
+│   ├── release [PID]               # was: release [--pid]
+│   └── pause [PID] / resume [PID]  # shipped (the eval-set pause spelling — one process-scoped latch)
 └── eval-set                    # later, with the eval-set surface
     └── list / show / cancel
 ```
@@ -212,6 +222,7 @@ Known accepted edge in the busy handling: the sole-server rule counts *discovere
 | `ctl cancel-sample <id> <sid>` | **shipped** (as noun form only) | `ctl sample cancel TASK SID [EPOCH]` | compound verb dissolves; `EPOCH` required when the task runs >1 epoch |
 | `ctl requeue <id> <sid>` | planned | `ctl sample requeue TASK SID [EPOCH]` | `EPOCH` required when the task runs >1 epoch |
 | `ctl set-limit <id> --time N` | planned | fold into `ctl config TASK --time-limit/--token-limit/--message-limit` | all retunable launch flags in one surface, same spellings as `inspect eval`; task-scoped knobs, so `TASK` follows the mutation selector rule |
+| — | **shipped** | `ctl sample messages TASK SID [EPOCH]` | new read: the sample's current conversation, summary-projected — see "Sample messages read" |
 | — | new | `ctl process list` | pids, keep-alive status, hosted task_ids; shipped with the reorg — the group's other verbs take a `PID` selector, so pids must be enumerable in-group |
 | — | later | `ctl eval-set list / show / cancel` | group slot ready-made |
 
@@ -278,6 +289,7 @@ The conceptual surface, independent of wire protocol. Each operation becomes eit
 - List running evals (id, task, status, started_at, sample counts).
 - Eval status detail (config, current limits, sample queue depth, in-flight samples, completed counts, model usage so far).
 - List samples within an eval (status, started_at, current model/tool, token usage).
+- Read one sample's current conversation — the live `TaskState.messages`, summary-projected (see "Sample messages read").
 
 **Read (eval-set-level)**
 - List eval-sets.
@@ -356,12 +368,15 @@ The URL scheme has one rule — **three scopes, three roots**: process-scoped op
 | Errored/retried samples only (skips pending-row synthesis) | `GET /evals/<id>/samples?filter=errors` (`filter` is an extensible enum; unrecognized values are rejected with 422) | 2 ✅ |
 | Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | the pull URL with `Accept: text/event-stream` (SSE) | 4 |
+| Sample conversation messages (snapshot) | `GET /evals/<id>/sample/messages?sample_id=<sid>&epoch=<n>` | 2 ✅ |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
 | Flush buffered samples to the log | `POST /tasks/<task-id>/log-flush` | 3 ✅ |
 | Read / modify retunable config (concurrency limits, buffer params) | `GET`+`PATCH /config` (process) and `/tasks/<task-id>/config` (task) | 3 ✅ (max-samples / max-sandboxes / max-subprocesses / max-connections / named `concurrency()` keys via `--key` / log-buffer / log-shared) |
 | Add a task to a running eval | `POST /tasks` (task spec → new sibling eval under this run) | 3 |
 | Cancel task | `POST /tasks/<task-id>/cancel?action=cancel\|score\|error` | 3 ✅ |
 | Cancel sample | `POST /evals/<id>/sample/cancel?sample_id=<sid>&epoch=<n>&action=score\|error\|cancel` | 3 ✅ |
+| Pause / resume task | `POST /tasks/<task-id>/pause` / `…/resume` | 3 ✅ (see `design/ctl/pause-resume.md`) |
+| Pause / resume process (run) | `POST /pause` / `POST /resume` | 3 ✅ |
 | Drain | `POST /tasks/<task-id>/drain` | 3 |
 | Requeue sample | `POST /evals/<id>/sample/requeue?sample_id=<sid>&epoch=<n>` | 3 |
 | Modify per-sample limits (time / token / message) | `PATCH /tasks/<task-id>/config` (as further config knobs) | 3 |
@@ -493,9 +508,9 @@ Open question: which knobs are realistically directable mid-flight without rearc
 
 Each is a small surgical addition to the eval runner; the control channel is the wire that triggers them.
 
-### Trace-log anomalies for stall diagnosis (planned)
+### Trace-log anomalies for stall diagnosis (in progress)
 
-Field feedback from agent-driven eval babysitting (JJ, via issue #81): telling the LLM agent about `inspect trace anomalies` — what, if anything, is still running or hung in the process — was handy enough that it deserves first-class affordances rather than prompt lore. This section designs those affordances; the first slice — `--json` on `inspect trace anomalies` and `http` — has shipped, the rest is not implemented yet. Slotted into **phase 3** (the current phase) rather than after phase 4 — it needs no server changes, so it doesn't have to wait on the push work; the `ctl` verb and the stall-site pointers follow.
+Field feedback from agent-driven eval babysitting (JJ, via issue #81): telling the LLM agent about `inspect trace anomalies` — what, if anything, is still running or hung in the process — was handy enough that it deserves first-class affordances rather than prompt lore. This section designs those affordances; `--json` on `inspect trace anomalies` / `http` and the `inspect ctl process anomalies` verb (with its dead-pid fallback) have shipped, the stall-site pointers are not implemented yet. Slotted into **phase 3** (the current phase) rather than after phase 4 — it needs no server changes, so it doesn't have to wait on the push work; the `ctl` verb and the stall-site pointers follow.
 
 **The gap.** The control channel's read surface answers *what* is stalled but not *why*. `sample list` carries `last_activity_at` / idle time; `sample events` shows the transcript tail — but both share a documented blind spot (see the `GET /evals/<id>/samples` note in Phase 1): a single in-flight operation emits no transcript event until it returns, so a sample idle for twenty minutes reads identically whether it's a long-but-healthy model call, a hung sandbox exec, or a wedged process. The trace log is exactly the layer below the transcript: every `trace_action` in the process (model generates, subprocess execs, sandbox operations, log writes, ...) logs `enter` / `exit` / `cancel` / `error` / `timeout` records to a per-process file, and the `inspect trace anomalies` reconstruction derives from them **what is still running right now** (entered, never exited — with live durations) plus what was cancelled, errored, or timed out. "Sample 5 idle 21m" plus "one `Model` action running 21m" is a diagnosis; either alone is a symptom.
 
@@ -513,8 +528,8 @@ Field feedback from agent-driven eval babysitting (JJ, via issue #81): telling t
 The affordances:
 
 - **`--json` on `inspect trace anomalies`** (the prerequisite for everything else; `http` gained it in the same pass). **Shipped.** An envelope, not bare buckets, per the agent output contract: `{"trace_file": ..., "as_of": <ts>, "running": [...], "cancelled": [...], "errors": [...], "timeouts": [...]}`, with per-action rows `{action, detail, start_time, duration, error?}`. `running` rows compute `duration` as now − `start_time` at read time (matching the human table). All four bucket keys always present **and always populated** — `--all` gates only the human rendering, so in the envelope an empty list always means "none occurred", never "not collected" (an agent diagnosing a stall must not read "not asked" as "no errors"). Empty lists, never presence-conditional (same rule as unconditional `task_id` on sample rows).
-- **`inspect ctl process anomalies [PID] [--filter TEXT] [--all] [--json]`.** Noun placement per the CLI hierarchy: the object is the **process** — trace files are per-pid, and `trace_action` records carry no task or sample identity (a process hosts an eval-set's many tasks plus shared machinery: log writes, sandbox pulls, the control service itself), so attributing actions to a task would be guesswork the surface shouldn't fake. Selector conventions apply as a *read*: no `PID` widens over every discovered live process, one section (one JSON object) per pid, each carrying `pid` unconditionally (outputs feed inputs). Because the verb is client-side composition over discovery + the trace file, it — unlike every other `ctl` read — **works against a busy or hung process**: it is the natural escalation path for the "pid N busy — try again shortly" outcome documented under "Busy is not absent". The verb mirrors **every** `inspect trace anomalies` flag — `--filter` (substring match on the message field), `--all` (human table shows running + cancelled by default, errors and timeouts opt-in; the JSON envelope always carries all four buckets), and the new `--json` — and the mirroring is structural, not conventional: the options are defined once as a shared click decorator applied to both commands (the same "one reconstruction" move as decision 2, at the flag layer), so the two entry points can't drift as flags are added.
-- **Dead-pid post-mortem fallback.** `ctl process anomalies <pid>` on a pid with *no* discovery file (process exited, discovery swept) falls back to the trace file directly when it can find one — matching both `trace-<pid>.log` (still-live or hard-killed process) and `trace-<pid>.log.gz` (clean exit gzips via the `atexit` hook; the shared reader handles `.gz` transparently). The pid → file mapping is trivial and the post-mortem is a real agent scenario: eval died overnight — what was in flight when it died? Only when neither file exists (swept by rotation) does the verb error, naming the path it looked for so the user can hunt for a copy and hand it to `inspect trace anomalies <file>` directly.
+- **`inspect ctl process anomalies [PID] [--filter TEXT] [--all] [--json]`.** **Shipped.** Noun placement per the CLI hierarchy: the object is the **process** — trace files are per-pid, and `trace_action` records carry no task or sample identity (a process hosts an eval-set's many tasks plus shared machinery: log writes, sandbox pulls, the control service itself), so attributing actions to a task would be guesswork the surface shouldn't fake. Selector conventions apply as a *read*: no `PID` widens over every discovered live process, one section (one JSON object) per pid, each carrying `pid` unconditionally (outputs feed inputs). Because the verb is client-side composition over discovery + the trace file, it — unlike every other `ctl` read — **works against a busy or hung process**: it is the natural escalation path for the "pid N busy — try again shortly" outcome documented under "Busy is not absent". The verb mirrors **every** `inspect trace anomalies` flag — `--filter` (substring match on the message field), `--all` (human table shows running + cancelled by default, errors and timeouts opt-in; the JSON envelope always carries all four buckets), and the new `--json` — and the mirroring is structural, not conventional: the options are defined once as a shared click decorator applied to both commands (the same "one reconstruction" move as decision 2, at the flag layer), so the two entry points can't drift as flags are added.
+- **Dead-pid post-mortem fallback.** **Shipped** (part of the verb). `ctl process anomalies <pid>` on a pid with *no* discovery file (process exited, discovery swept) falls back to the trace file directly when it can find one — matching both `trace-<pid>.log` (still-live or hard-killed process) and `trace-<pid>.log.gz` (clean exit gzips via the `atexit` hook; the shared reader handles `.gz` transparently). The pid → file mapping is trivial and the post-mortem is a real agent scenario: eval died overnight — what was in flight when it died? Only when neither file exists (swept by rotation) does the verb error, naming the path it looked for so the user can hunt for a copy and hand it to `inspect trace anomalies <file>` directly. Post-mortem **durations date to the trace file's last write** (`st_mtime`, a proxy for the time of death), not the read time: a model call three minutes in flight when the eval died overnight must read as "running 3m", not "running 8h" — the inflated number would read as the diagnosis rather than an artifact of when the file was read. Each JSON section therefore carries its own `as_of` (the timestamp its `running` durations are computed against — the envelope's read-time `as_of` for live pids, the file mtime for dead ones), and the dead-pid read notes the clamp on stderr. The reader tolerates a truncated final line (`read_trace_file` skips invalid lines): a hard kill / OOM / full disk mid-`emit` — or a live read catching the writer between `write()` syscalls — truncates the last record, and the intact prefix is exactly the post-mortem answer, so the read must not fail on the partial record (in the widened no-PID fan-out, an unreadable file likewise warns-and-skips that pid's section rather than aborting the others; an explicit PID fails loudly). Liveness comes from `pid_alive` (the same check discovery sweeps use); a recycled pid can defeat it, in which case durations fall back to the read-time behavior — conservative, never under-reporting.
 - **Teach through the surface at the stall site.** Where the human rendering already shows a stall — a `sample list` idle column in the tens of minutes, the busy-skip stderr note — print the pointer: "idle 27m — `inspect ctl process anomalies <pid>` shows the process's in-flight actions". Same move as the group-level unknown-command handler: the surface teaches the escalation at the moment it's needed, instead of relying on the user (or the agent's system prompt) knowing the trace subsystem exists. On `--json` the hint is omitted (no prose inside envelopes); JSON consumers learn the verb from `--help`.
 
 **What this is not.** Not a new event stream — the trace file is already an append-only log with its own tooling (`trace dump --filter` remains the drill-down). Not a per-sample view — the records carry no sample identity, and if per-sample attribution ever matters the fix is upstream (stamp identity onto `trace_action` records), not heuristics in the reader. Not part of the HTTP API — deliberately, per decision 1. The `ctl` verb adds selector resolution and placement in the surface agents already discover; the analysis itself is unchanged.
@@ -776,11 +791,39 @@ A wall-clock window is a snapshot query (no exactly-once requirement), which is 
 
 Unlocks watchdog agents (cursored polling). Live-render TUIs follow once phase-4 push lands.
 
+### Sample messages read (shipped)
+
+> **Status: shipped** (extends the phase-2 read surface). Motivated by issue #70: agents live-watching a sample want the *conversation* (`.messages`), not just the transcript firehose — in particular for samples that exist only in the process buffer, not yet written to the `.eval` log.
+
+**The gap.** A human watching a live sample opens `inspect view` and reads the conversation. An agent has no equivalent: the closest surface is `sample events`, and reconstructing "what does the conversation look like right now" from the transcript is genuinely hard — the messages ride inside `ModelEvent.input` / `output` (the default projection omits the `input` messages entirely — only a truncated completion survives — and `--full` is enormous), solver / agent code can assign `state.messages` without emitting any model event, and compaction rewrites the conversation while the event stream records only a `compaction` marker. Meanwhile the thing the agent wants already exists, materialized, in the running sample's `TaskState.messages` — serve it directly. The buffered case is what makes this control-channel work rather than `inspect log` work: for a running sample — or a completed one still sitting in the log buffer awaiting a flush — the conversation exists only inside the eval process, and the control channel is the only surface that can see it.
+
+**Surface.**
+
+- **HTTP:** `GET /evals/<id>/sample/messages?sample_id=<sid>&epoch=<n>` — attempt-scoped beside `sample` and `sample/events`, with `sample_id` a query param per the reserved-characters rule.
+- **CLI:** `inspect ctl sample messages TASK SID [EPOCH]` — a new verb in the `sample` noun group. Standard selector conventions apply: `TASK` is required (a `SAMPLE_ID` follows it), and `EPOCH` defaults to 1 on reads with the resolved `{sample_id, epoch}` echoed in the envelope.
+
+**Snapshot, not stream — deliberately no cursor.** Transcript events earned a cursor because they're append-only; messages are not. Compaction replaces a prefix of the list with a summary, and solver / agent code can reorder, edit, or wholesale reassign `state.messages` between reads. An index cursor over a rewritable sequence would promise the exactly-once resume it can't deliver (the phase-2 cursor design's whole job is "monotonic, gap-free" — this sequence is neither). So `messages` is a **snapshot read**: each call returns the current conversation (or a tail of it), enveloped with `as_of`, the resolved `{sample_id, epoch}`, the sample's `status`, and the total message `count`. The watch loop composes with the existing reads: poll `sample list --active-since` for "what changed", then drill into `messages` on the sample of interest; the `count` moving (or not) between polls is the cheap staleness signal. Incremental *event*-grain watching stays `sample events`' job. If a delta shape is ever wanted here, the right token is a state version invalidated by any rewrite — never an index — but that's deferred until a consumer actually needs it; for the same reason there is no phase-4 SSE `--follow` on messages (follow the events stream, or poll).
+
+**Summary-shaped by default.** A conversation is typically the largest object in a sample — a full multi-turn agentic `ChatMessage` list with tool outputs can exceed a watching agent's entire context. Mirroring the events projection:
+
+- **Default: compact projection per message** — index, message id, role, truncated text (non-text content items summarized as `[image]` / `[audio]` / ...), tool-call function names + truncated arguments on assistant messages, truncated output on tool messages.
+- **`--tail N`** — the last N messages; the unseeded default is a recent tail (e.g. the last 20), per the "never an empty or overwhelming first page" rule from the events read. `--all` for the whole list. (This is not the selector-widening `--all` rejected in "Selector conventions" — the sample is already pinned by its positional selectors, so the flag can only widen over *messages*; there is no scope ambiguity to smuggle into a flag.)
+- **`--full`** — raw `ChatMessage` JSON instead of the projection (combines with `--tail` to keep it bounded).
+- **`--json`** throughout, per the agent output contract.
+
+**Data source: the same running-vs-terminal split as the sibling reads — with one new plumbing piece on the running side.** Running samples serve the live `TaskState.messages` — in-memory, no log involved, which is exactly why buffered-only samples work. But unlike the sibling reads, whose running-side data sources already hang off `ActiveSample` (`transcript` for `events`, the counter fields for `show` / `list`), nothing the control server can reach holds the live `TaskState` today: it lives in the `_sample_state` ContextVar (`solver/_task_state.py`), set inside the sample's own async context — invisible from the server's request-handler task. The slice therefore adds a live-state handle on `ActiveSample`. Capturing it once at sample start isn't enough: a solver can *replace* the `TaskState` object outright by returning a new one (e.g. a `fork()` result or a deepcopy), so the handle must be refreshed wherever state is threaded step-to-step — the `Chain` / `Plan` step loops call `set_sample_state` after each solver step, and `set_sample_state` refreshes the `ActiveSample` field, the same running-sample update flow `set_active_sample_total_messages` already rides. The step-boundary refresh is a compare-and-swap (the step passes the state it superseded; the handle only moves if it currently points at that state): the handle is a plain attribute on the shared `ActiveSample`, which a `fork()` subtask's copied context still reaches through `sample_active()` — so without the guard a `Chain` / `Plan` running *inside* a fork branch (an advertised pattern; `solver_subtask` special-cases `Chain`) would overwrite the handle with its branch's conversation, non-deterministically (last-finishing branch wins), until the enclosing solver step returned. The guard makes ownership lineage-based: a fork branch threads a deepcopy the handle never pointed at, so its refreshes can't land, while the main thread's always do. (Neither of the mechanisms one might expect to carry this refresh actually fires per step: the `@solver` decorator's solver-boundary `set_sample_state` is dead code — it patches `__call__` as an *instance* attribute, which Python's type-level dunder lookup bypasses — and the `sample_state() or state` re-reads in `_eval/task/run.py` are error/interrupt-recovery paths, not per-step.) Two consistency notes fall out: between those replacement points the conversation is mutated *in place* (the turn loop appends to the same list; even `state.messages = ...` assignment lands on the same `TaskState` object), so the handle reads live at message grain, not solver grain; and since the control server shares the eval's event loop, a snapshot copied in the request handler can never observe a half-applied append or rewrite. Terminal samples need nothing new: the completed sample's messages come from the recorder's buffer via `EvalState.live` (`read_sample`), falling back to the on-disk log — the `samples` / `sample` / `events` pattern, unchanged. In the drill-down family each verb then answers one question: `sample show` — "how is it doing", `sample events` — "what happened, in order", `sample messages` — "what does the model see".
+
+**Scope: the sample's main conversation.** `TaskState.messages` is the sample's top-level thread. Nested agents whose conversations don't share that thread (e.g. an agent invoked as a tool, whose inner exchange never lands in `state.messages`) remain visible through `sample events` (span-tagged); a span / agent selector on `messages` is a plausible follow-on if live subagent-watching becomes a real ask — not part of the first slice.
+
+**Why not fold into `sample show`?** `show` is the summary; the conversation is the detail. Folding it in would break the summary-then-detail shape constraint the whole read surface is built on (and make `show` unusable as the cheap poll target). Separate verb, same relationship as `show` vs `events`.
+
+**Sequencing.** Read-only — no new directive machinery, no security-hardening dependency — so it extends the phase-2 read surface and can land independently of the remaining phase-3 directives. One shared-infrastructure note: the compact message projection should share its truncation helpers with the events projection (which already truncates model / tool event content — completions, tool arguments / results) so the two renderings of the same objects don't drift.
+
 ### Phase 3 — modification (direct) methods
 
 The first endpoints that **mutate the run**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one. Shipped so far: the log-flush and buffer-params directives, the concurrency-config directive (`max_samples` / `max_sandboxes` / `max_subprocesses` / `max_connections`) — surfaced through `ctl task log-flush` and `ctl config` — and the cancel directives (`ctl task cancel` / `ctl sample cancel`); adding a task to a running eval, then drain / requeue and the per-sample time/token/message limits follow. The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
 
-This phase also carries the **trace-log anomalies affordances** (see "Trace-log anomalies for stall diagnosis") — not a directive, but scheduled here because the diagnosis need is current and the work touches no server code: `--json` on `inspect trace anomalies` (and `http`) first (shipped), then `inspect ctl process anomalies` (client-side trace-file read; deliberately no HTTP endpoint) and the stall-site pointers.
+This phase also carries the **trace-log anomalies affordances** (see "Trace-log anomalies for stall diagnosis") — not a directive, but scheduled here because the diagnosis need is current and the work touches no server code: `--json` on `inspect trace anomalies` (and `http`) first (shipped), then `inspect ctl process anomalies` (client-side trace-file read; deliberately no HTTP endpoint — shipped, with the dead-pid post-mortem fallback) and the stall-site pointers (remaining).
 
 #### Flush buffered samples + tune buffer params (shipped)
 
@@ -874,7 +917,7 @@ The `concurrency()` registry is a public API, and per-knob CLI flags will never 
 
 The queue-closed check *is* the running→parked test, so the two paths can't both fire. An add that lands during the handoff (queue closing, display tearing down, park not yet entered) is **buffered**; the park drains buffered specs on entry — so an add is never lost regardless of timing.
 
-**Always the scheduler path (`run_single` deprecated).** Today `eval_run` uses `run_single` for `parallel==1` (all samples in one task group, no queue) and `run_multiple` (a worker pool over a `memory_object_stream`) for `parallel>1` — only the latter is injectable. Rather than maintain two shapes, **`run_single` is deprecated**: every run goes through the `run_multiple` scheduler (`parallel==1` ⇒ one worker), so a live queue always exists while the display is up and the inject path is uniform. The visible change is that a single-task run renders via the multi-task screen; behaviour is otherwise unchanged.
+**Always the scheduler path.** Every run already goes through the single `run_task_retry_attempts` dispatcher in `run.py` (`parallel==1` ⇒ one in-flight task), so a live work-queue always exists while the display is up and the inject path is uniform. (An earlier `run_single`/`run_multiple` split has since been removed.)
 
 **Workers.** An addable session **pre-starts `parallel` workers** — idle workers are suspended coroutines (no CPU, not shown in the display), so an injected task runs immediately instead of waiting for a busy worker to free, and there's no need to grow the pool mid-run. (Lazy spawn-on-inject is possible but needs a supervisor task *inside* the scheduler's group to own `start_soon` — a route can't spawn into a nursery it isn't inside — so pre-start is both simpler and effectively free.)
 
@@ -970,5 +1013,6 @@ The control channel is one slice of a broader effort to make Inspect a first-cla
 - **Cost / budget visibility.** Agents making scope decisions need to see pre-run estimates and live spend. The control channel exposes live spend (via `EvalState` model usage); pre-run estimates and budget enforcement live in `inspect eval`'s launch surface.
 - **Self-targeting guard hardening.** Open question #8 in this doc — an LLM agent running *inside* an eval shouldn't be able to control its own parent eval. The guard logically belongs in the control channel's bind / authorisation layer, but the broader story (sandbox network egress, capability gating, eval-time vs scaffold-time boundaries) is part of the larger agent-enablement effort.
 - **"Using Inspect from an LLM agent" documentation.** A guide that walks through the full workflow (launch, monitor, manage, inspect, compare, iterate) and points at every relevant CLI command. Lives in `docs/`, not `design/`.
+- **Persisting `ctl config` changes in the eval log.** Retunes were previously in-memory only, leaving the log misdescribing a retuned run. [config-log-persistence.md](config-log-persistence.md) specifies the recording mechanism (`EvalLog.config_updates`; phases 1–2 shipped), and is a prerequisite for the planned per-sample limit knobs so they never ship with an unrecorded window.
 
 Where this doc's design touches one of those surfaces (eg. the `EvalState` model that powers `inspect ctl task list`), we describe what the control channel does and reference the broader work for the surrounding context.

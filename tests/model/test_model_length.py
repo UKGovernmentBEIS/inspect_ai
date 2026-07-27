@@ -9,6 +9,7 @@ from test_helpers.utils import (
     skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
     skip_if_no_openai_azure,
     skip_if_no_together,
@@ -32,6 +33,7 @@ GROQ_LLAMA_3_3_70B_VERSATILE = "groq/llama-3.3-70b-versatile"
 CLOUDFLARE_LLAMA_3_3_70B = "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 TOGETHER_MINI_MAX_27 = "together/MiniMaxAI/MiniMax-M2.7"
 BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
+MOONSHOT_KIMI_K3 = "moonshot/kimi-k3"
 
 MODELS = {
     GPT_4O: 128000,
@@ -46,6 +48,7 @@ MODELS = {
     CLOUDFLARE_LLAMA_3_3_70B: 24000,
     TOGETHER_MINI_MAX_27: 196000,
     BEDROCK_NOVA_LITE_1_0: 128000,
+    MOONSHOT_KIMI_K3: 1048576,
 }
 
 
@@ -133,3 +136,8 @@ async def test_model_length_together():
 @skip_if_no_bedrock
 async def test_model_length_bedrock():
     await check_model_length(BEDROCK_NOVA_LITE_1_0)
+
+
+@skip_if_no_moonshot
+async def test_model_length_moonshot():
+    await check_model_length(MOONSHOT_KIMI_K3)

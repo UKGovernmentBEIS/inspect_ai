@@ -262,6 +262,26 @@ def _install_fake_datasets_full(monkeypatch, tmp_path, load_dataset, load_from_d
     )
 
 
+@pytest.mark.parametrize("limit,expected", [(None, 2), (0, 0), (1, 1)])
+def test_hf_dataset_limit(limit, expected, tmp_path, monkeypatch) -> None:
+    records = [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    dataset = hf_dataset(
+        path="org/ds", split="test", limit=limit, cached=False, retry=False
+    )
+
+    assert len(dataset) == expected
+
+
 def test_hf_dataset_shuffle_sets_shuffled_flag(tmp_path, monkeypatch):
     # Regression: hf_dataset(..., shuffle=True) must report dataset.shuffled
     # as True so the eval log header records the shuffle correctly.
