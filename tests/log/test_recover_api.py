@@ -426,123 +426,184 @@ def test_sync_recoverable_eval_logs_raises_under_trio() -> None:
     anyio.run(main, backend="trio")
 
 
-async def test_list_eval_logs_filtered_missing_directory() -> None:
-    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
-
-    missing = os.path.join(tempfile.gettempdir(), "inspect-missing-logs-dir-xyz")
-    assert not os.path.exists(missing)
-    result = await _list_eval_logs_filtered_async(missing, lambda _: True)
-    assert result == []
+# ids must not contain "[trio" — conftest skips those unless --runtrio.
+_BACKENDS = [
+    pytest.param("asyncio", id="asyncio"),
+    pytest.param("trio", id="explicit_trio"),
+]
 
 
-async def test_list_eval_logs_filtered_canonical_filename() -> None:
-    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_missing_directory(backend: str) -> None:
+    async def main() -> None:
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        name = "2024-01-15T10-30-00_mytask_abcd1234.eval"
-        path = os.path.join(temp_dir, name)
-        _write_crashed_eval(path)
+        missing = os.path.join(tempfile.gettempdir(), "inspect-missing-logs-dir-xyz")
+        assert not os.path.exists(missing)
+        result = await _list_eval_logs_filtered_async(missing, lambda _: True)
+        assert result == []
 
-        logs = await _list_eval_logs_filtered_async(
-            temp_dir, lambda log: log.status == "started"
-        )
-        assert len(logs) == 1
-        assert name in logs[0].name
-        assert logs[0].task == "mytask"
-        assert logs[0].task_id == "abcd1234"
+    anyio.run(main, backend=backend)
 
 
-async def test_list_eval_logs_filtered_noncanonical_header_fallback() -> None:
-    """Non-canonical ``test.eval`` forces async header metadata fallback."""
-    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_canonical_filename(backend: str) -> None:
+    async def main() -> None:
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        path = os.path.join(temp_dir, "test.eval")
-        _write_crashed_eval(path, task="fallback_task")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            name = "2024-01-15T10-30-00_mytask_abcd1234.eval"
+            path = os.path.join(temp_dir, name)
+            _write_crashed_eval(path)
 
-        logs = await _list_eval_logs_filtered_async(
-            temp_dir, lambda log: log.status == "started"
-        )
-        assert len(logs) == 1
-        assert "test.eval" in logs[0].name
-        assert logs[0].task == "fallback_task"
+            logs = await _list_eval_logs_filtered_async(
+                temp_dir, lambda log: log.status == "started"
+            )
+            assert len(logs) == 1
+            assert name in logs[0].name
+            assert logs[0].task == "mytask"
+            assert logs[0].task_id == "abcd1234"
 
-
-async def test_list_eval_logs_filtered_recursive_false() -> None:
-    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        nested = os.path.join(temp_dir, "nested")
-        os.makedirs(nested)
-        _write_crashed_eval(os.path.join(temp_dir, "top.eval"))
-        _write_crashed_eval(os.path.join(nested, "nested.eval"))
-
-        logs = await _list_eval_logs_filtered_async(
-            temp_dir, lambda log: log.status == "started", recursive=False
-        )
-        assert len(logs) == 1
-        assert "top.eval" in logs[0].name
-        assert "nested.eval" not in logs[0].name
+    anyio.run(main, backend=backend)
 
 
-async def test_list_eval_logs_filtered_preserves_order() -> None:
-    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_noncanonical_header_fallback(backend: str) -> None:
+    """Non-canonical ``test.eval`` forces async header metadata fallback.
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        older = os.path.join(temp_dir, "older.eval")
-        newer = os.path.join(temp_dir, "newer.eval")
-        _write_header_eval(older, task="older_task", status="started")
-        _write_header_eval(newer, task="newer_task", status="started")
-        os.utime(older, (1_700_000_000, 1_700_000_000))
-        os.utime(newer, (1_800_000_000, 1_800_000_000))
+    Ordinary CI executes this under Trio via ``anyio.run`` (no ``--runtrio``).
+    Do not rename to a timestamped Inspect filename — that would skip the
+    header fallback this regression protects.
+    """
 
-        logs = await _list_eval_logs_filtered_async(
-            temp_dir, lambda log: log.status == "started"
-        )
-        assert [log.task for log in logs] == ["newer_task", "older_task"]
+    async def main() -> None:
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
 
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = os.path.join(temp_dir, "test.eval")
+            _write_crashed_eval(path, task="fallback_task")
 
-async def test_list_eval_logs_filtered_predicate_subset() -> None:
-    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+            logs = await _list_eval_logs_filtered_async(
+                temp_dir, lambda log: log.status == "started"
+            )
+            assert len(logs) == 1
+            assert "test.eval" in logs[0].name
+            assert logs[0].task == "fallback_task"
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        _write_header_eval(
-            os.path.join(temp_dir, "ok.eval"), task="ok", status="success"
-        )
-        _write_header_eval(
-            os.path.join(temp_dir, "bad.eval"), task="bad", status="error"
-        )
-        _write_crashed_eval(os.path.join(temp_dir, "live.eval"), task="live")
-
-        success = await _list_eval_logs_filtered_async(
-            temp_dir, lambda log: log.status == "success"
-        )
-        assert len(success) == 1
-        assert "ok.eval" in success[0].name
-
-        none = await _list_eval_logs_filtered_async(
-            temp_dir, lambda log: log.status == "cancelled"
-        )
-        assert none == []
+    anyio.run(main, backend=backend)
 
 
-async def test_list_eval_logs_filtered_listing_failure_propagates(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import inspect_ai.log._recover._api as api
-    from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_recursive_false(backend: str) -> None:
+    async def main() -> None:
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
 
-    boom_fs = MagicMock()
-    boom_fs.exists.return_value = True
-    boom_fs.ls.side_effect = OSError("listing failed")
-    monkeypatch.setattr(api, "filesystem", lambda _path: boom_fs)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            nested = os.path.join(temp_dir, "nested")
+            os.makedirs(nested)
+            _write_crashed_eval(os.path.join(temp_dir, "top.eval"))
+            _write_crashed_eval(os.path.join(nested, "nested.eval"))
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        with pytest.raises(OSError, match="listing failed"):
-            await _list_eval_logs_filtered_async(temp_dir, lambda _: True)
+            logs = await _list_eval_logs_filtered_async(
+                temp_dir, lambda log: log.status == "started", recursive=False
+            )
+            assert len(logs) == 1
+            assert "top.eval" in logs[0].name
+            assert "nested.eval" not in logs[0].name
+
+    anyio.run(main, backend=backend)
 
 
-def test_list_eval_logs_filtered_cancellation_propagates() -> None:
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_preserves_order(backend: str) -> None:
+    async def main() -> None:
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            older = os.path.join(temp_dir, "older.eval")
+            newer = os.path.join(temp_dir, "newer.eval")
+            _write_header_eval(older, task="older_task", status="started")
+            _write_header_eval(newer, task="newer_task", status="started")
+            os.utime(older, (1_700_000_000, 1_700_000_000))
+            os.utime(newer, (1_800_000_000, 1_800_000_000))
+
+            logs = await _list_eval_logs_filtered_async(
+                temp_dir, lambda log: log.status == "started"
+            )
+            assert [log.task for log in logs] == ["newer_task", "older_task"]
+
+    anyio.run(main, backend=backend)
+
+
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_predicate_subset(backend: str) -> None:
+    async def main() -> None:
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            _write_header_eval(
+                os.path.join(temp_dir, "ok.eval"), task="ok", status="success"
+            )
+            _write_header_eval(
+                os.path.join(temp_dir, "bad.eval"), task="bad", status="error"
+            )
+            _write_crashed_eval(os.path.join(temp_dir, "live.eval"), task="live")
+
+            success = await _list_eval_logs_filtered_async(
+                temp_dir, lambda log: log.status == "success"
+            )
+            assert len(success) == 1
+            assert "ok.eval" in success[0].name
+
+            none = await _list_eval_logs_filtered_async(
+                temp_dir, lambda log: log.status == "cancelled"
+            )
+            assert none == []
+
+    anyio.run(main, backend=backend)
+
+
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_listing_failure_propagates(backend: str) -> None:
+    async def main() -> None:
+        import inspect_ai.log._recover._api as api
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+
+        boom_fs = MagicMock()
+        boom_fs.exists.return_value = True
+        boom_fs.ls.side_effect = OSError("listing failed")
+        original = api.filesystem
+        api.filesystem = lambda _path: boom_fs  # type: ignore[assignment]
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                with pytest.raises(OSError, match="listing failed"):
+                    await _list_eval_logs_filtered_async(temp_dir, lambda _: True)
+        finally:
+            api.filesystem = original
+
+    anyio.run(main, backend=backend)
+
+
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_malformed_header_propagates(backend: str) -> None:
+    """Corrupt ``.eval`` bytes must not be swallowed into an empty result."""
+
+    async def main() -> None:
+        from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bad = os.path.join(temp_dir, "corrupt.eval")
+            with open(bad, "wb") as f:
+                f.write(b"not-a-zip-or-eval-log")
+
+            with pytest.raises(Exception):
+                await _list_eval_logs_filtered_async(temp_dir, lambda _: True)
+
+    anyio.run(main, backend=backend)
+
+
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_list_eval_logs_filtered_cancellation_propagates(backend: str) -> None:
     async def main() -> None:
         import inspect_ai.log._recover._api as api
         from inspect_ai.log._recover._api import _list_eval_logs_filtered_async
@@ -564,23 +625,28 @@ def test_list_eval_logs_filtered_cancellation_propagates() -> None:
         finally:
             api.anyio.to_thread.run_sync = original  # type: ignore[method-assign]
 
-    anyio.run(main)
+    anyio.run(main, backend=backend)
 
 
-async def test_recover_eval_log_async_without_caller_async_filesystem() -> None:
+@pytest.mark.parametrize("backend", _BACKENDS)
+def test_recover_eval_log_async_without_caller_async_filesystem(backend: str) -> None:
     """Public recover path must enter AsyncFilesystem itself when listing."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        eval_path = os.path.join(temp_dir, "test.eval")
-        db_dir = os.path.join(temp_dir, "bufferdb")
-        output_path = os.path.join(temp_dir, "test-recovered.eval")
 
-        _write_crashed_eval(eval_path, samples=[_make_sample(1)])
-        _create_buffer_db(
-            eval_path, completed_ids=[2], in_progress_ids=[], db_dir=db_dir
-        )
+    async def main() -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
 
-        log = await recover_eval_log_async(
-            eval_path, output=output_path, cleanup=False, _db_dir=db_dir
-        )
-        assert log.status == "error"
-        assert os.path.exists(output_path)
+            _write_crashed_eval(eval_path, samples=[_make_sample(1)])
+            _create_buffer_db(
+                eval_path, completed_ids=[2], in_progress_ids=[], db_dir=db_dir
+            )
+
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert log.status == "error"
+            assert os.path.exists(output_path)
+
+    anyio.run(main, backend=backend)
