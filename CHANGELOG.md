@@ -13,6 +13,7 @@
 - OpenAI Compatible: A length-truncated streaming response (e.g. `-M stream=true` hitting `max_tokens`) now degrades gracefully to a `max_tokens` stop reason instead of raising `LengthFinishReasonError` and aborting the eval. (#4552)
 - OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
 - Google: Added model info for Gemini 3.6 Flash and Gemini 3.5 Flash-Lite (released 2026-07-21).
+- Anthropic: Support for Claude Opus 5 (released 2026-07-24), including model info, computer use, code execution, and disabling thinking via `reasoning_effort="none"`.
 - Agent Bridge: Support Anthropic clients that consume responses via `with_raw_response`, which previously failed with `'Message' object has no attribute 'parse'`.
 - Agent Bridge: Gemini tool results delivered as `functionResponse` parts in model-role turns are now converted to tool messages instead of dropped (fixes 400 "Requests ending with a model turn are not supported").
 - Agent Bridge: Google streaming requests targeting an inspect model now raise the intended streaming-unsupported error instead of being sent to the real Google API.
