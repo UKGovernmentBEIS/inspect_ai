@@ -7,11 +7,13 @@ cursor validation), and rendering helpers.
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 import click
 import pytest
+from test_helpers.trace import action_record, write_trace_log
 
 from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import (
@@ -540,6 +542,54 @@ def test_keep_alive_footer_mixed_reports_counts(
     out = capsys.readouterr().out
     assert "keep-alive: mixed" in out
     assert "1/3 on" in out
+
+
+def test_footer_reports_paused_tasks(capsys: pytest.CaptureFixture[str]) -> None:
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": True, "paused": "task", "quiesced": True},
+        {"keep_alive": True, "paused": None},
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 1/2 tasks (1 quiesced)" in out
+    assert "inspect ctl process resume" in out
+    # keep-alive on → the run parks rather than exiting, no contradiction
+    assert "never finishes" not in out
+
+
+def test_footer_flags_process_paused_with_exit_when_done(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A process-paused run with keep-alive off never reaches its exit."""
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": False, "paused": "process", "quiesced": False}
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 1/1 task" in out
+    assert "never finishes" in out
+
+
+def test_footer_flags_task_paused_with_exit_when_done(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A task-level pause with keep-alive off also never reaches its exit."""
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": False, "paused": "task", "quiesced": False}
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 1/1 task" in out
+    assert "never finishes" in out
+
+
+def test_footer_silent_when_nothing_paused(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # older servers omit the field entirely — treated as not paused
+    _print_keep_alive_footer([{"keep_alive": True}])
+    out = capsys.readouterr().out
+    assert "paused" not in out
 
 
 class _FakeServer:
@@ -2170,6 +2220,221 @@ def test_knob_since_table_is_consistent() -> None:
 
     assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
     assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
+    # the provenance params' gate must not outrun the constant either
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+
+    assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
+
+
+def test_config_provenance_sent_with_mutations_on_current_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A config mutation carries a defaulted author (and any --reason).
+
+    The author is resolved client-side (git identity / OS user); a pure read
+    sends no provenance (there is nothing to record).
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.clear()
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "requested": {"max_samples": 3},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--reason", "ramp up"]
+    )
+    assert result.exit_code == 0, result.output
+    assert isinstance(sent["author"], str) and sent["author"]
+    assert sent["reason"] == "ramp up"
+
+    # an explicit --author wins over the default
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--author", "alice"]
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["author"] == "alice"
+    assert sent["reason"] is None
+
+    # a pure read resolves no provenance
+    result = cli_runner().invoke(ctl_command, ["config"])
+    assert result.exit_code == 0, result.output
+    assert sent["author"] is None
+    assert sent["reason"] is None
+
+
+def test_config_provenance_gated_on_older_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provenance params gate on the server version (see _PROVENANCE_SINCE).
+
+    An older strict server 400s the whole mutation on the unknown params, so
+    an explicit --author/--reason hard-errors before sending, while the
+    *defaulted* author (which the user never typed) is silently dropped and
+    the mutation proceeds without it.
+    """
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_PROVENANCE_SINCE - 1)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.clear()
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "requested": {"max_samples": 3},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--reason", "why"]
+    )
+    assert result.exit_code == 1
+    assert "--reason not supported" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+    assert not sent  # the mutation was never sent
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--author", "alice"]
+    )
+    assert result.exit_code == 1
+    assert "--author not supported" in result.stderr
+
+    # the defaulted author is dropped rather than failing the retune
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 0, result.output
+    assert sent["author"] is None
+    assert sent["reason"] is None
+
+
+def test_config_provenance_requires_set_option(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An explicit --author/--reason on a pure read hard-errors pre-send.
+
+    A read records nothing, so the provenance would be silently dropped —
+    e.g. a user who types `--reason` but forgets the knob. Erroring (like
+    --log-buffer with nothing to apply to) makes the mistake visible.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.clear()
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "requested": {},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=False,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--reason", "provider incident"]
+    )
+    assert result.exit_code == 1
+    assert "--reason" in result.stderr
+    assert "no set option" in result.stderr
+    assert not sent  # the read was never sent
+
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--author", "alice", "--reason", "why"]
+    )
+    assert result.exit_code == 1
+    assert "--author / --reason" in result.stderr
+    assert not sent
+
+
+def test_config_provenance_rides_key_only_retune(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A key-only retune is a recorded mutation and carries provenance.
+
+    `--key` changes are recorded in the eval log like any other knob
+    (as `config="concurrency"` changes), so an explicit --reason goes
+    through and a defaulted author is resolved client-side.
+    """
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+    sent: dict[str, Any] = {}
+
+    def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+        sent.update(kwargs)
+        return _ConfigResult(
+            view={
+                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                "max_sandboxes": [],
+                "adaptive": [],
+                "concurrency": [
+                    {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
+                ],
+                "requested": {"concurrency:my_api": 2},
+                "warnings": [],
+                "dry_run": False,
+            },
+            mutated=True,
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
+
+    result = cli_runner().invoke(
+        ctl_command,
+        ["config", "--key", "my_api", "2", "--reason", "provider incident"],
+    )
+    assert result.exit_code == 0, result.output
+    assert sent["key"] == ("my_api", 2)
+    assert sent["reason"] == "provider incident"
+    assert isinstance(sent["author"], str) and sent["author"]
 
 
 def test_config_gates_newer_knob_on_older_server(
@@ -3164,6 +3429,205 @@ def test_task_cancel_rejects_unknown_action() -> None:
     assert "explode" in result.stderr
 
 
+def test_task_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "task_id": "aaa111",
+            "paused": "task",
+            "changed": True,
+            "dispatched": 2,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/pause"]
+    assert spy.params == [{}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["applied"] is True and payload["dry_run"] is False
+    assert payload["detail"]["dispatched"] == 2
+
+
+def test_task_pause_resolves_sole_running_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pause is reversible, so it gets the sole-task default (unlike cancel)."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "dispatched": 0})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "pause", "--json"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/pause"]
+
+
+def test_task_pause_multiple_tasks_requires_selector(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(
+        monkeypatch, [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")]
+    )
+    result = cli_runner().invoke(ctl_command, ["task", "pause"])
+    assert result.exit_code == 1
+    assert "task pause targets a single task" in result.stderr
+
+
+def test_task_pause_dry_run_not_applied(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True, "dispatched": 1})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "pause", "aaa111", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_task_pause_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "paused": "task", "changed": True, "dispatched": 3})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert "Pause requested" in result.output
+    assert "3 dispatched samples" in result.output
+
+
+def test_task_resume_human_output_notes_process_latch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task resume that leaves the task held by the process latch says so."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "paused": "process", "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/tasks/aaa111/resume"]
+    assert "Resume requested" in result.output
+    assert "process is paused" in result.output
+
+
+def test_task_resume_noop_notes_process_latch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resuming a task held only by the process latch points at the real hold.
+
+    The no-op reason ("task is not paused") is technically right — the task
+    gate is open — but an operator who saw the task listed as paused needs to
+    know a `process resume` is what un-holds it.
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "paused": "process",
+            "changed": False,
+            "reason": "task is not paused",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do: task is not paused." in result.output
+    assert "process is paused" in result.output
+
+
+def test_task_pause_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": False, "reason": "task already paused"})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False
+    assert payload["detail"]["reason"] == "task already paused"
+
+
+def test_task_pause_missing_route_names_version_skew(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [(404, {"detail": "Not Found"})])
+    result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111"])
+    assert result.exit_code == 1
+    assert "older inspect without the pause/resume endpoints" in result.stderr
+
+
+def test_process_pause_json_mutation_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    spy = _RequestSpy({"ok": True, "paused": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["process", "pause", "--json"])
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/pause"]
+    assert spy.params == [{}]
+    payload = json.loads(result.stdout)
+    assert payload["target"] == {"pid": 7}
+    assert payload["applied"] is True and payload["dry_run"] is False
+
+
+def test_process_resume_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> None:
+    posted: list[str] = []
+
+    def record(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        posted.append(str(socket_path))
+        return {"ok": True, "paused": False, "changed": True}
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_DiscServer(7), _DiscServer(8)],
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
+    result = cli_runner().invoke(ctl_command, ["process", "resume", "8"])
+    assert result.exit_code == 0, result.output
+    assert posted == ["/tmp/8.sock"]
+
+
+def test_process_pause_dry_run_rides_query_param(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    # `paused` is the actual latch state, still False under a dry-run pause
+    spy = _RequestSpy({"ok": True, "paused": False, "changed": True, "dry_run": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["process", "pause", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_process_pause_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "paused": True,
+            "changed": False,
+            "reason": "process already paused",
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "pause"])
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do" in result.output
+    assert "already paused" in result.output
+
+
 def test_sample_cancel_defaults_epoch_for_single_epoch_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3763,3 +4227,289 @@ def test_resolve_scope_completed_target_counts_toward_siblings() -> None:
     scope = _resolve_scope([], summaries, "aaa111")
     assert scope is not None
     assert scope.siblings == 2  # running sibling + the named completed target
+
+
+# --- process anomalies (client-side trace-file read) ------------------------
+
+
+def _anomalous_records() -> list[dict[str, Any]]:
+    """One running Model action, one cancelled Subprocess, one errored Sandbox."""
+    start = 1000.0
+    return [
+        action_record("run1", "Model", "enter", detail="generate", start_time=start),
+        action_record("can1", "Subprocess", "enter", detail="bash", start_time=start),
+        action_record("can1", "Subprocess", "cancel", detail="bash", duration=5.0),
+        action_record("err1", "Sandbox", "enter", detail="exec", start_time=start),
+        action_record("err1", "Sandbox", "error", detail="exec", duration=7.0),
+    ]
+
+
+@pytest.fixture
+def trace_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Point the ctl trace-file resolution at a per-test directory."""
+    monkeypatch.setattr("inspect_ai._cli.ctl.inspect_trace_dir", lambda: tmp_path)
+    return tmp_path
+
+
+def test_process_anomalies_explicit_pid_json(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    assert isinstance(envelope["as_of"], float)
+    (section,) = envelope["processes"]
+    assert section["pid"] == 123
+    assert section["trace_file"] == (trace_dir / "trace-123.log").as_posix()
+    # all four buckets always present and populated (--all gates only the
+    # human rendering), so empty always means "none occurred"
+    assert [row["action"] for row in section["running"]] == ["Model"]
+    assert [row["action"] for row in section["cancelled"]] == ["Subprocess"]
+    assert [row["action"] for row in section["errors"]] == ["Sandbox"]
+    assert section["timeouts"] == []
+
+
+def test_process_anomalies_dead_pid_reads_gz(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pid with no live process still resolves via the gzipped post-mortem file."""
+    import gzip
+
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    with gzip.open(trace_dir / "trace-124.log.gz", "wt") as f:
+        for record in _anomalous_records():
+            f.write(json.dumps(record) + "\n")
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124", "--json"])
+    assert result.exit_code == 0
+    (section,) = json.loads(result.stdout)["processes"]
+    assert section["trace_file"].endswith("trace-124.log.gz")
+    assert [row["action"] for row in section["running"]] == ["Model"]
+
+
+def test_process_anomalies_dead_pid_durations_date_to_last_write(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Post-mortem running durations use the trace file's last write, not now.
+
+    An action in flight when the process died must not accrue wall-clock
+    time since (an overnight death would otherwise show it "running" for
+    hours); the file's mtime approximates the time of death.
+    """
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    trace_file = trace_dir / "trace-125.log"
+    write_trace_log(trace_file, _anomalous_records())  # running since t=1000.0
+    os.utime(trace_file, (1180.0, 1180.0))
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "125", "--json"])
+    assert result.exit_code == 0
+    assert "last write" in result.stderr
+    (section,) = json.loads(result.stdout)["processes"]
+    assert section["as_of"] == pytest.approx(1180.0)
+    assert section["running"][0]["duration"] == pytest.approx(180.0)
+
+    # the human table dates durations the same way
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "125"])
+    assert result.exit_code == 0
+    assert "180.00s" in result.stdout
+
+
+def test_process_anomalies_live_pid_durations_date_to_read(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A live pid's running durations date to when its file was read.
+
+    The section as_of is stamped after the read (so an ``enter`` record that
+    lands mid-read can't yield a negative duration); the envelope as_of is
+    stamped before the reads (cursor semantics), so section >= envelope.
+    """
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: True)
+    write_trace_log(trace_dir / "trace-126.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "126", "--json"])
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    (section,) = envelope["processes"]
+    assert section["as_of"] >= envelope["as_of"]
+    assert section["running"][0]["duration"] == pytest.approx(section["as_of"] - 1000.0)
+
+
+def test_process_anomalies_missing_trace_file_errors(trace_dir: Path) -> None:
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "999"])
+    assert result.exit_code != 0
+    # names the path it looked for and teaches the direct-file fallback
+    assert "trace-999.log" in result.stderr
+    assert "inspect trace anomalies" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "999", "--json"])
+    assert result.exit_code != 0
+    assert json.loads(result.stdout)["error"]["kind"] == "not_found"
+
+
+def test_process_anomalies_widens_over_running_processes(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_trace_log(trace_dir / "trace-7.log", _anomalous_records())
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    assert [p["pid"] for p in envelope["processes"]] == [7, 8]
+
+    # human output renders one labeled section per pid
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies"])
+    assert result.exit_code == 0
+    assert "pid 7" in result.stdout and "pid 8" in result.stdout
+
+
+def test_process_anomalies_widen_skips_missing_trace_file(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "no trace file found for pid 7" in result.stderr
+
+
+def test_process_anomalies_tolerates_truncated_final_line(trace_dir: Path) -> None:
+    """A truncated final line (hard kill, or caught mid-write) is skipped.
+
+    The intact prefix holds the answer the read exists for — the verb must
+    report it rather than fail on the partial record.
+    """
+    trace_file = trace_dir / "trace-123.log"
+    write_trace_log(trace_file, _anomalous_records())
+    with open(trace_file, "a") as f:
+        f.write('{"timestamp": "2026-07-16T12:0')
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    assert result.exit_code == 0
+    (section,) = json.loads(result.stdout)["processes"]
+    assert [row["action"] for row in section["running"]] == ["Model"]
+
+
+def test_process_anomalies_widen_skips_unreadable_trace_file(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One pid's unreadable trace file doesn't abort the other sections."""
+    (trace_dir / "trace-7.log.gz").write_bytes(b"not gzip")
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "could not read" in result.stderr
+
+
+def test_process_anomalies_explicit_pid_read_failure_errors(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicit pid whose file is unreadable fails loudly, not silently empty.
+
+    Both output modes follow the terminal-error contract: ``--json`` emits
+    the ``internal`` envelope; human mode echoes self-contained stderr prose
+    and exits 1 rather than surfacing a raw traceback.
+    """
+    monkeypatch.setattr("inspect_ai._cli.ctl.pid_alive", lambda _pid: False)
+    (trace_dir / "trace-124.log.gz").write_bytes(b"not gzip")
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124", "--json"])
+    assert result.exit_code == 1
+    error = json.loads(result.stdout)["error"]
+    assert error["kind"] == "internal"
+    assert "trace-124.log.gz" in error["message"]
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "124"])
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert "Could not read trace file" in result.stderr
+    assert isinstance(result.exception, SystemExit)
+
+
+def test_process_anomalies_widen_skips_corrupt_gz_stream(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mid-stream gz corruption is skipped like any other unreadable file.
+
+    A corrupted deflate stream raises ``zlib.error`` — neither ``OSError``
+    (the ``b"not gzip"`` header case) nor ``ValueError`` — so this pins the
+    warn-and-skip contract to "unreadable file", not a closed exception list.
+    """
+    import gzip
+    import zlib
+
+    from inspect_ai._util.trace import read_trace_file
+
+    data = "".join(json.dumps(r) + "\n" for r in _anomalous_records() * 200).encode()
+    corrupted = bytearray(gzip.compress(data, mtime=0))
+    corrupted[11] ^= 0xFF  # flip a bit just past the 10-byte gzip header
+    corrupt_file = trace_dir / "trace-7.log.gz"
+    corrupt_file.write_bytes(bytes(corrupted))
+    # guard: the corruption must surface as zlib.error, otherwise this test
+    # degenerates into the BadGzipFile case covered above
+    with pytest.raises(zlib.error):
+        read_trace_file(corrupt_file)
+
+    write_trace_log(trace_dir / "trace-8.log", _anomalous_records())
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_FakeServer(7), _FakeServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert [p["pid"] for p in json.loads(result.stdout)["processes"]] == [8]
+    assert "could not read" in result.stderr
+
+
+def test_process_anomalies_human_gates_errors_behind_all(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "pid 123" in result.stdout
+    assert "Running Actions" in result.stdout
+    assert "Cancelled Actions" in result.stdout
+    assert "Error Actions" not in result.stdout
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--all"])
+    assert "Error Actions" in result.stdout
+
+
+def test_process_anomalies_no_running_processes(
+    trace_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("inspect_ai._cli.ctl.list_discovered_servers", lambda: [])
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies"])
+    assert result.exit_code == 0
+    assert "No running inspect processes found" in result.stdout
+    assert "Pass a PID" in result.stdout
+
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["processes"] == []
+
+
+def test_process_anomalies_filter(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(
+        ctl_command, ["process", "anomalies", "123", "--filter", "bash", "--json"]
+    )
+    assert result.exit_code == 0
+    (section,) = json.loads(result.stdout)["processes"]
+    assert section["running"] == []
+    assert [row["action"] for row in section["cancelled"]] == ["Subprocess"]
+
+
+def test_process_anomalies_accepts_group_level_json(trace_dir: Path) -> None:
+    """The group-mirrored `--json` forwards to the anomalies verb."""
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "--json", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert json.loads(result.stdout)["processes"][0]["pid"] == 123

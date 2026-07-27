@@ -86,7 +86,18 @@ var require_scheduler_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 			return localDate.now() - initialTime;
 		};
 	}
-	var taskQueue = [], timerQueue = [], taskIdCounter = 1, currentTask = null, currentPriorityLevel = 3, isPerformingWork = !1, isHostCallbackScheduled = !1, isHostTimeoutScheduled = !1, needsPaint = !1, localSetTimeout = "function" === typeof setTimeout ? setTimeout : null, localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null, localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
+	var taskQueue = [];
+	var timerQueue = [];
+	var taskIdCounter = 1;
+	var currentTask = null;
+	var currentPriorityLevel = 3;
+	var isPerformingWork = !1;
+	var isHostCallbackScheduled = !1;
+	var isHostTimeoutScheduled = !1;
+	var needsPaint = !1;
+	var localSetTimeout = "function" === typeof setTimeout ? setTimeout : null;
+	var localClearTimeout = "function" === typeof clearTimeout ? clearTimeout : null;
+	var localSetImmediate = "undefined" !== typeof setImmediate ? setImmediate : null;
 	function advanceTimers(currentTime) {
 		for (var timer = peek(timerQueue); null !== timer;) {
 			if (null === timer.callback) pop(timerQueue);
@@ -104,7 +115,10 @@ var require_scheduler_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 			null !== firstTimer && requestHostTimeout(handleTimeout, firstTimer.startTime - currentTime);
 		}
 	}
-	var isMessageLoopRunning = !1, taskTimeoutID = -1, frameInterval = 5, startTime = -1;
+	var isMessageLoopRunning = !1;
+	var taskTimeoutID = -1;
+	var frameInterval = 5;
+	var startTime = -1;
 	function shouldYieldToHost() {
 		return needsPaint ? !0 : exports.unstable_now() - startTime < frameInterval ? !1 : !0;
 	}
@@ -316,7 +330,8 @@ var require_react_dom_production = /* @__PURE__ */ __commonJSMin(((exports) => {
 		},
 		p: 0,
 		findDOMNode: null
-	}, REACT_PORTAL_TYPE = Symbol.for("react.portal");
+	};
+	var REACT_PORTAL_TYPE = Symbol.for("react.portal");
 	function createPortal$1(children, containerInfo, implementation) {
 		var key = 3 < arguments.length && void 0 !== arguments[3] ? arguments[3] : null;
 		return {
@@ -445,7 +460,9 @@ var require_react_dom = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 * LICENSE file in the root directory of this source tree.
 */
 var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((exports) => {
-	var Scheduler = require_scheduler(), React = require_react(), ReactDOM = require_react_dom();
+	var Scheduler = require_scheduler();
+	var React = require_react();
+	var ReactDOM = require_react_dom();
 	function formatProdErrorMessage(code) {
 		var url = "https://react.dev/errors/" + code;
 		if (1 < arguments.length) {
@@ -565,7 +582,20 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return null;
 	}
-	var assign = Object.assign, REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element"), REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element"), REACT_PORTAL_TYPE = Symbol.for("react.portal"), REACT_FRAGMENT_TYPE = Symbol.for("react.fragment"), REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode"), REACT_PROFILER_TYPE = Symbol.for("react.profiler"), REACT_CONSUMER_TYPE = Symbol.for("react.consumer"), REACT_CONTEXT_TYPE = Symbol.for("react.context"), REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref"), REACT_SUSPENSE_TYPE = Symbol.for("react.suspense"), REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list"), REACT_MEMO_TYPE = Symbol.for("react.memo"), REACT_LAZY_TYPE = Symbol.for("react.lazy");
+	var assign = Object.assign;
+	var REACT_LEGACY_ELEMENT_TYPE = Symbol.for("react.element");
+	var REACT_ELEMENT_TYPE = Symbol.for("react.transitional.element");
+	var REACT_PORTAL_TYPE = Symbol.for("react.portal");
+	var REACT_FRAGMENT_TYPE = Symbol.for("react.fragment");
+	var REACT_STRICT_MODE_TYPE = Symbol.for("react.strict_mode");
+	var REACT_PROFILER_TYPE = Symbol.for("react.profiler");
+	var REACT_CONSUMER_TYPE = Symbol.for("react.consumer");
+	var REACT_CONTEXT_TYPE = Symbol.for("react.context");
+	var REACT_FORWARD_REF_TYPE = Symbol.for("react.forward_ref");
+	var REACT_SUSPENSE_TYPE = Symbol.for("react.suspense");
+	var REACT_SUSPENSE_LIST_TYPE = Symbol.for("react.suspense_list");
+	var REACT_MEMO_TYPE = Symbol.for("react.memo");
+	var REACT_LAZY_TYPE = Symbol.for("react.lazy");
 	var REACT_ACTIVITY_TYPE = Symbol.for("react.activity");
 	var REACT_MEMO_CACHE_SENTINEL = Symbol.for("react.memo_cache_sentinel");
 	var MAYBE_ITERATOR_SYMBOL = Symbol.iterator;
@@ -606,12 +636,17 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return null;
 	}
-	var isArrayImpl = Array.isArray, ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE, sharedNotPendingObject = {
+	var isArrayImpl = Array.isArray;
+	var ReactSharedInternals = React.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+	var ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+	var sharedNotPendingObject = {
 		pending: !1,
 		data: null,
 		method: null,
 		action: null
-	}, valueStack = [], index = -1;
+	};
+	var valueStack = [];
+	var index = -1;
 	function createCursor(defaultValue) {
 		return { current: defaultValue };
 	}
@@ -623,7 +658,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		valueStack[index] = cursor.current;
 		cursor.current = value;
 	}
-	var contextStackCursor = createCursor(null), contextFiberStackCursor = createCursor(null), rootInstanceStackCursor = createCursor(null), hostTransitionProviderCursor = createCursor(null);
+	var contextStackCursor = createCursor(null);
+	var contextFiberStackCursor = createCursor(null);
+	var rootInstanceStackCursor = createCursor(null);
+	var hostTransitionProviderCursor = createCursor(null);
 	function pushHostContainer(fiber, nextRootInstance) {
 		push(rootInstanceStackCursor, nextRootInstance);
 		push(contextFiberStackCursor, fiber);
@@ -662,7 +700,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		contextFiberStackCursor.current === fiber && (pop(contextStackCursor), pop(contextFiberStackCursor));
 		hostTransitionProviderCursor.current === fiber && (pop(hostTransitionProviderCursor), HostTransitionContext._currentValue = sharedNotPendingObject);
 	}
-	var prefix, suffix;
+	var prefix;
+	var suffix;
 	function describeBuiltInComponentFrame(name) {
 		if (void 0 === prefix) try {
 			throw Error();
@@ -769,19 +808,38 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			return "\nError generating stack: " + x.message + "\n" + x.stack;
 		}
 	}
-	var hasOwnProperty = Object.prototype.hasOwnProperty, scheduleCallback$3 = Scheduler.unstable_scheduleCallback, cancelCallback$1 = Scheduler.unstable_cancelCallback, shouldYield = Scheduler.unstable_shouldYield, requestPaint = Scheduler.unstable_requestPaint, now = Scheduler.unstable_now, getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel, ImmediatePriority = Scheduler.unstable_ImmediatePriority, UserBlockingPriority = Scheduler.unstable_UserBlockingPriority, NormalPriority$1 = Scheduler.unstable_NormalPriority, LowPriority = Scheduler.unstable_LowPriority, IdlePriority = Scheduler.unstable_IdlePriority, log$1 = Scheduler.log, unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue, rendererID = null, injectedHook = null;
+	var hasOwnProperty = Object.prototype.hasOwnProperty;
+	var scheduleCallback$3 = Scheduler.unstable_scheduleCallback;
+	var cancelCallback$1 = Scheduler.unstable_cancelCallback;
+	var shouldYield = Scheduler.unstable_shouldYield;
+	var requestPaint = Scheduler.unstable_requestPaint;
+	var now = Scheduler.unstable_now;
+	var getCurrentPriorityLevel = Scheduler.unstable_getCurrentPriorityLevel;
+	var ImmediatePriority = Scheduler.unstable_ImmediatePriority;
+	var UserBlockingPriority = Scheduler.unstable_UserBlockingPriority;
+	var NormalPriority$1 = Scheduler.unstable_NormalPriority;
+	var LowPriority = Scheduler.unstable_LowPriority;
+	var IdlePriority = Scheduler.unstable_IdlePriority;
+	var log$1 = Scheduler.log;
+	var unstable_setDisableYieldValue = Scheduler.unstable_setDisableYieldValue;
+	var rendererID = null;
+	var injectedHook = null;
 	function setIsStrictModeForDevtools(newIsStrictMode) {
 		"function" === typeof log$1 && unstable_setDisableYieldValue(newIsStrictMode);
 		if (injectedHook && "function" === typeof injectedHook.setStrictMode) try {
 			injectedHook.setStrictMode(rendererID, newIsStrictMode);
 		} catch (err) {}
 	}
-	var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback, log = Math.log, LN2 = Math.LN2;
+	var clz32 = Math.clz32 ? Math.clz32 : clz32Fallback;
+	var log = Math.log;
+	var LN2 = Math.LN2;
 	function clz32Fallback(x) {
 		x >>>= 0;
 		return 0 === x ? 32 : 31 - (log(x) / LN2 | 0) | 0;
 	}
-	var nextTransitionUpdateLane = 256, nextTransitionDeferredLane = 262144, nextRetryLane = 4194304;
+	var nextTransitionUpdateLane = 256;
+	var nextTransitionDeferredLane = 262144;
+	var nextRetryLane = 4194304;
 	function getHighestPriorityLanes(lanes) {
 		var pendingSyncLanes = lanes & 42;
 		if (0 !== pendingSyncLanes) return pendingSyncLanes;
@@ -983,7 +1041,15 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			ReactDOMSharedInternals.p = previousPriority;
 		}
 	}
-	var randomKey = Math.random().toString(36).slice(2), internalInstanceKey = "__reactFiber$" + randomKey, internalPropsKey = "__reactProps$" + randomKey, internalContainerInstanceKey = "__reactContainer$" + randomKey, internalEventHandlersKey = "__reactEvents$" + randomKey, internalEventHandlerListenersKey = "__reactListeners$" + randomKey, internalEventHandlesSetKey = "__reactHandles$" + randomKey, internalRootNodeResourcesKey = "__reactResources$" + randomKey, internalHoistableMarker = "__reactMarker$" + randomKey;
+	var randomKey = Math.random().toString(36).slice(2);
+	var internalInstanceKey = "__reactFiber$" + randomKey;
+	var internalPropsKey = "__reactProps$" + randomKey;
+	var internalContainerInstanceKey = "__reactContainer$" + randomKey;
+	var internalEventHandlersKey = "__reactEvents$" + randomKey;
+	var internalEventHandlerListenersKey = "__reactListeners$" + randomKey;
+	var internalEventHandlesSetKey = "__reactHandles$" + randomKey;
+	var internalRootNodeResourcesKey = "__reactResources$" + randomKey;
+	var internalHoistableMarker = "__reactMarker$" + randomKey;
 	function detachDeletedInstance(node) {
 		delete node[internalInstanceKey];
 		delete node[internalPropsKey];
@@ -1031,7 +1097,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function markNodeAsHoistable(node) {
 		node[internalHoistableMarker] = !0;
 	}
-	var allNativeEvents = /* @__PURE__ */ new Set(), registrationNameDependencies = {};
+	var allNativeEvents = /* @__PURE__ */ new Set();
+	var registrationNameDependencies = {};
 	function registerTwoPhaseEvent(registrationName, dependencies) {
 		registerDirectEvent(registrationName, dependencies);
 		registerDirectEvent(registrationName + "Capture", dependencies);
@@ -1040,7 +1107,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		registrationNameDependencies[registrationName] = dependencies;
 		for (registrationName = 0; registrationName < dependencies.length; registrationName++) allNativeEvents.add(dependencies[registrationName]);
 	}
-	var VALID_ATTRIBUTE_NAME_REGEX = RegExp("^[:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$"), illegalAttributeNameCache = {}, validatedAttributeNameCache = {};
+	var VALID_ATTRIBUTE_NAME_REGEX = RegExp("^[:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD][:A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C-\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD\\-.0-9\\u00B7\\u0300-\\u036F\\u203F-\\u2040]*$");
+	var illegalAttributeNameCache = {};
+	var validatedAttributeNameCache = {};
 	function isAttributeNameSafe(attributeName) {
 		if (hasOwnProperty.call(validatedAttributeNameCache, attributeName)) return !0;
 		if (hasOwnProperty.call(illegalAttributeNameCache, attributeName)) return !1;
@@ -1366,7 +1435,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		["writingMode", "writing-mode"],
 		["xmlnsXlink", "xmlns:xlink"],
 		["xHeight", "x-height"]
-	]), isJavaScriptProtocol = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
+	]);
+	var isJavaScriptProtocol = /^[\u0000-\u001F ]*j[\r\n\t]*a[\r\n\t]*v[\r\n\t]*a[\r\n\t]*s[\r\n\t]*c[\r\n\t]*r[\r\n\t]*i[\r\n\t]*p[\r\n\t]*t[\r\n\t]*:/i;
 	function sanitizeURL(url) {
 		return isJavaScriptProtocol.test("" + url) ? "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')" : url;
 	}
@@ -1377,7 +1447,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		nativeEvent.correspondingUseElement && (nativeEvent = nativeEvent.correspondingUseElement);
 		return 3 === nativeEvent.nodeType ? nativeEvent.parentNode : nativeEvent;
 	}
-	var restoreTarget = null, restoreQueue = null;
+	var restoreTarget = null;
+	var restoreQueue = null;
 	function restoreStateOfTarget(target) {
 		var internalInstance = getInstanceFromNode(target);
 		if (internalInstance && (target = internalInstance.stateNode)) {
@@ -1446,7 +1517,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		if (stateNode && "function" !== typeof stateNode) throw Error(formatProdErrorMessage(231, registrationName, typeof stateNode));
 		return stateNode;
 	}
-	var canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement), passiveBrowserEventsSupported = !1;
+	var canUseDOM = !("undefined" === typeof window || "undefined" === typeof window.document || "undefined" === typeof window.document.createElement);
+	var passiveBrowserEventsSupported = !1;
 	if (canUseDOM) try {
 		var options = {};
 		Object.defineProperty(options, "passive", { get: function() {
@@ -1457,7 +1529,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	} catch (e) {
 		passiveBrowserEventsSupported = !1;
 	}
-	var root = null, startText = null, fallbackText = null;
+	var root = null;
+	var startText = null;
+	var fallbackText = null;
 	function getData() {
 		if (fallbackText) return fallbackText;
 		var start, startValue = startText, startLength = startValue.length, end, endValue = "value" in root ? root.value : root.textContent, endLength = endValue.length;
@@ -1515,10 +1589,17 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		},
 		defaultPrevented: 0,
 		isTrusted: 0
-	}, SyntheticEvent = createSyntheticEvent(EventInterface), UIEventInterface = assign({}, EventInterface, {
+	};
+	var SyntheticEvent = createSyntheticEvent(EventInterface);
+	var UIEventInterface = assign({}, EventInterface, {
 		view: 0,
 		detail: 0
-	}), SyntheticUIEvent = createSyntheticEvent(UIEventInterface), lastMovementX, lastMovementY, lastMouseEvent, MouseEventInterface = assign({}, UIEventInterface, {
+	});
+	var SyntheticUIEvent = createSyntheticEvent(UIEventInterface);
+	var lastMovementX;
+	var lastMovementY;
+	var lastMouseEvent;
+	var MouseEventInterface = assign({}, UIEventInterface, {
 		screenX: 0,
 		screenY: 0,
 		clientX: 0,
@@ -1543,13 +1624,20 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		movementY: function(event) {
 			return "movementY" in event ? event.movementY : lastMovementY;
 		}
-	}), SyntheticMouseEvent = createSyntheticEvent(MouseEventInterface), SyntheticDragEvent = createSyntheticEvent(assign({}, MouseEventInterface, { dataTransfer: 0 })), SyntheticFocusEvent = createSyntheticEvent(assign({}, UIEventInterface, { relatedTarget: 0 })), SyntheticAnimationEvent = createSyntheticEvent(assign({}, EventInterface, {
+	});
+	var SyntheticMouseEvent = createSyntheticEvent(MouseEventInterface);
+	var SyntheticDragEvent = createSyntheticEvent(assign({}, MouseEventInterface, { dataTransfer: 0 }));
+	var SyntheticFocusEvent = createSyntheticEvent(assign({}, UIEventInterface, { relatedTarget: 0 }));
+	var SyntheticAnimationEvent = createSyntheticEvent(assign({}, EventInterface, {
 		animationName: 0,
 		elapsedTime: 0,
 		pseudoElement: 0
-	})), SyntheticClipboardEvent = createSyntheticEvent(assign({}, EventInterface, { clipboardData: function(event) {
+	}));
+	var SyntheticClipboardEvent = createSyntheticEvent(assign({}, EventInterface, { clipboardData: function(event) {
 		return "clipboardData" in event ? event.clipboardData : window.clipboardData;
-	} })), SyntheticCompositionEvent = createSyntheticEvent(assign({}, EventInterface, { data: 0 })), normalizeKey = {
+	} }));
+	var SyntheticCompositionEvent = createSyntheticEvent(assign({}, EventInterface, { data: 0 }));
+	var normalizeKey = {
 		Esc: "Escape",
 		Spacebar: " ",
 		Left: "ArrowLeft",
@@ -1562,7 +1650,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		Apps: "ContextMenu",
 		Scroll: "ScrollLock",
 		MozPrintableKey: "Unidentified"
-	}, translateToKey = {
+	};
+	var translateToKey = {
 		8: "Backspace",
 		9: "Tab",
 		12: "Clear",
@@ -1599,7 +1688,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		144: "NumLock",
 		145: "ScrollLock",
 		224: "Meta"
-	}, modifierKeyToProp = {
+	};
+	var modifierKeyToProp = {
 		Alt: "altKey",
 		Control: "ctrlKey",
 		Meta: "metaKey",
@@ -1638,7 +1728,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		which: function(event) {
 			return "keypress" === event.type ? getEventCharCode(event) : "keydown" === event.type || "keyup" === event.type ? event.keyCode : 0;
 		}
-	})), SyntheticPointerEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
+	}));
+	var SyntheticPointerEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
 		pointerId: 0,
 		width: 0,
 		height: 0,
@@ -1649,7 +1740,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		twist: 0,
 		pointerType: 0,
 		isPrimary: 0
-	})), SyntheticTouchEvent = createSyntheticEvent(assign({}, UIEventInterface, {
+	}));
+	var SyntheticTouchEvent = createSyntheticEvent(assign({}, UIEventInterface, {
 		touches: 0,
 		targetTouches: 0,
 		changedTouches: 0,
@@ -1658,11 +1750,13 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		ctrlKey: 0,
 		shiftKey: 0,
 		getModifierState: getEventModifierState
-	})), SyntheticTransitionEvent = createSyntheticEvent(assign({}, EventInterface, {
+	}));
+	var SyntheticTransitionEvent = createSyntheticEvent(assign({}, EventInterface, {
 		propertyName: 0,
 		elapsedTime: 0,
 		pseudoElement: 0
-	})), SyntheticWheelEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
+	}));
+	var SyntheticWheelEvent = createSyntheticEvent(assign({}, MouseEventInterface, {
 		deltaX: function(event) {
 			return "deltaX" in event ? event.deltaX : "wheelDeltaX" in event ? -event.wheelDeltaX : 0;
 		},
@@ -1671,17 +1765,24 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		},
 		deltaZ: 0,
 		deltaMode: 0
-	})), SyntheticToggleEvent = createSyntheticEvent(assign({}, EventInterface, {
+	}));
+	var SyntheticToggleEvent = createSyntheticEvent(assign({}, EventInterface, {
 		newState: 0,
 		oldState: 0
-	})), END_KEYCODES = [
+	}));
+	var END_KEYCODES = [
 		9,
 		13,
 		27,
 		32
-	], canUseCompositionEvent = canUseDOM && "CompositionEvent" in window, documentMode = null;
+	];
+	var canUseCompositionEvent = canUseDOM && "CompositionEvent" in window;
+	var documentMode = null;
 	canUseDOM && "documentMode" in document && (documentMode = document.documentMode);
-	var canUseTextInputEvent = canUseDOM && "TextEvent" in window && !documentMode, useFallbackCompositionData = canUseDOM && (!canUseCompositionEvent || documentMode && 8 < documentMode && 11 >= documentMode), SPACEBAR_CHAR = String.fromCharCode(32), hasSpaceKeypress = !1;
+	var canUseTextInputEvent = canUseDOM && "TextEvent" in window && !documentMode;
+	var useFallbackCompositionData = canUseDOM && (!canUseCompositionEvent || documentMode && 8 < documentMode && 11 >= documentMode);
+	var SPACEBAR_CHAR = String.fromCharCode(32);
+	var hasSpaceKeypress = !1;
 	function isFallbackCompositionEnd(domEventName, nativeEvent) {
 		switch (domEventName) {
 			case "keyup": return -1 !== END_KEYCODES.indexOf(nativeEvent.keyCode);
@@ -1751,7 +1852,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			listeners: inst
 		}));
 	}
-	var activeElement$1 = null, activeElementInst$1 = null;
+	var activeElement$1 = null;
+	var activeElementInst$1 = null;
 	function runEventInBatch(dispatchQueue) {
 		processDispatchQueue(dispatchQueue, 0);
 	}
@@ -1862,7 +1964,11 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		var nodeName = elem && elem.nodeName && elem.nodeName.toLowerCase();
 		return nodeName && ("input" === nodeName && ("text" === elem.type || "search" === elem.type || "tel" === elem.type || "url" === elem.type || "password" === elem.type) || "textarea" === nodeName || "true" === elem.contentEditable);
 	}
-	var skipSelectionChangeEvent = canUseDOM && "documentMode" in document && 11 >= document.documentMode, activeElement = null, activeElementInst = null, lastSelection = null, mouseDown = !1;
+	var skipSelectionChangeEvent = canUseDOM && "documentMode" in document && 11 >= document.documentMode;
+	var activeElement = null;
+	var activeElementInst = null;
+	var lastSelection = null;
+	var mouseDown = !1;
 	function constructSelectEvent(dispatchQueue, nativeEvent, nativeEventTarget) {
 		var doc = nativeEventTarget.window === nativeEventTarget ? nativeEventTarget.document : 9 === nativeEventTarget.nodeType ? nativeEventTarget : nativeEventTarget.ownerDocument;
 		mouseDown || null == activeElement || activeElement !== getActiveElement(doc) || (doc = activeElement, "selectionStart" in doc && hasSelectionCapabilities(doc) ? doc = {
@@ -1893,7 +1999,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		transitionstart: makePrefixMap("Transition", "TransitionStart"),
 		transitioncancel: makePrefixMap("Transition", "TransitionCancel"),
 		transitionend: makePrefixMap("Transition", "TransitionEnd")
-	}, prefixedEventNames = {}, style = {};
+	};
+	var prefixedEventNames = {};
+	var style = {};
 	canUseDOM && (style = document.createElement("div").style, "AnimationEvent" in window || (delete vendorPrefixes.animationend.animation, delete vendorPrefixes.animationiteration.animation, delete vendorPrefixes.animationstart.animation), "TransitionEvent" in window || delete vendorPrefixes.transitionend.transition);
 	function getVendorPrefixedEventName(eventName) {
 		if (prefixedEventNames[eventName]) return prefixedEventNames[eventName];
@@ -1902,7 +2010,15 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		for (styleProp in prefixMap) if (prefixMap.hasOwnProperty(styleProp) && styleProp in style) return prefixedEventNames[eventName] = prefixMap[styleProp];
 		return eventName;
 	}
-	var ANIMATION_END = getVendorPrefixedEventName("animationend"), ANIMATION_ITERATION = getVendorPrefixedEventName("animationiteration"), ANIMATION_START = getVendorPrefixedEventName("animationstart"), TRANSITION_RUN = getVendorPrefixedEventName("transitionrun"), TRANSITION_START = getVendorPrefixedEventName("transitionstart"), TRANSITION_CANCEL = getVendorPrefixedEventName("transitioncancel"), TRANSITION_END = getVendorPrefixedEventName("transitionend"), topLevelEventsToReactNames = /* @__PURE__ */ new Map(), simpleEventPluginEvents = "abort auxClick beforeToggle cancel canPlay canPlayThrough click close contextMenu copy cut drag dragEnd dragEnter dragExit dragLeave dragOver dragStart drop durationChange emptied encrypted ended error gotPointerCapture input invalid keyDown keyPress keyUp load loadedData loadedMetadata loadStart lostPointerCapture mouseDown mouseMove mouseOut mouseOver mouseUp paste pause play playing pointerCancel pointerDown pointerMove pointerOut pointerOver pointerUp progress rateChange reset resize seeked seeking stalled submit suspend timeUpdate touchCancel touchEnd touchStart volumeChange scroll toggle touchMove waiting wheel".split(" ");
+	var ANIMATION_END = getVendorPrefixedEventName("animationend");
+	var ANIMATION_ITERATION = getVendorPrefixedEventName("animationiteration");
+	var ANIMATION_START = getVendorPrefixedEventName("animationstart");
+	var TRANSITION_RUN = getVendorPrefixedEventName("transitionrun");
+	var TRANSITION_START = getVendorPrefixedEventName("transitionstart");
+	var TRANSITION_CANCEL = getVendorPrefixedEventName("transitioncancel");
+	var TRANSITION_END = getVendorPrefixedEventName("transitionend");
+	var topLevelEventsToReactNames = /* @__PURE__ */ new Map();
+	var simpleEventPluginEvents = "abort auxClick beforeToggle cancel canPlay canPlayThrough click close contextMenu copy cut drag dragEnd dragEnter dragExit dragLeave dragOver dragStart drop durationChange emptied encrypted ended error gotPointerCapture input invalid keyDown keyPress keyUp load loadedData loadedMetadata loadStart lostPointerCapture mouseDown mouseMove mouseOut mouseOver mouseUp paste pause play playing pointerCancel pointerDown pointerMove pointerOut pointerOver pointerUp progress rateChange reset resize seeked seeking stalled submit suspend timeUpdate touchCancel touchEnd touchStart volumeChange scroll toggle touchMove waiting wheel".split(" ");
 	simpleEventPluginEvents.push("scrollEnd");
 	function registerSimpleEvent(domEventName, reactName) {
 		topLevelEventsToReactNames.set(domEventName, reactName);
@@ -1922,7 +2038,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			return;
 		}
 		console.error(error);
-	}, concurrentQueues = [], concurrentQueuesIndex = 0, concurrentlyUpdatedLanes = 0;
+	};
+	var concurrentQueues = [];
+	var concurrentQueuesIndex = 0;
+	var concurrentlyUpdatedLanes = 0;
 	function finishQueueingConcurrentUpdates() {
 		for (var endIndex = concurrentQueuesIndex, i = concurrentlyUpdatedLanes = concurrentQueuesIndex = 0; i < endIndex;) {
 			var fiber = concurrentQueues[i];
@@ -2111,7 +2230,15 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			stack: getStackByFiberInDevAndProd(source)
 		};
 	}
-	var forkStack = [], forkStackIndex = 0, treeForkProvider = null, treeForkCount = 0, idStack = [], idStackIndex = 0, treeContextProvider = null, treeContextId = 1, treeContextOverflow = "";
+	var forkStack = [];
+	var forkStackIndex = 0;
+	var treeForkProvider = null;
+	var treeForkCount = 0;
+	var idStack = [];
+	var idStackIndex = 0;
+	var treeContextProvider = null;
+	var treeContextId = 1;
+	var treeContextOverflow = "";
 	function pushTreeFork(workInProgress, totalChildren) {
 		forkStack[forkStackIndex++] = treeForkCount;
 		forkStack[forkStackIndex++] = treeForkProvider;
@@ -2153,7 +2280,12 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		treeContextOverflow = suspendedContext.overflow;
 		treeContextProvider = workInProgress;
 	}
-	var hydrationParentFiber = null, nextHydratableInstance = null, isHydrating = !1, hydrationErrors = null, rootOrSingletonContext = !1, HydrationMismatchException = Error(formatProdErrorMessage(519));
+	var hydrationParentFiber = null;
+	var nextHydratableInstance = null;
+	var isHydrating = !1;
+	var hydrationErrors = null;
+	var rootOrSingletonContext = !1;
+	var HydrationMismatchException = Error(formatProdErrorMessage(519));
 	function throwOnHydrationMismatch(fiber) {
 		queueHydrationError(createCapturedValueAtFiber(Error(formatProdErrorMessage(418, 1 < arguments.length && void 0 !== arguments[1] && arguments[1] ? "text" : "HTML", "")), fiber));
 		throw HydrationMismatchException;
@@ -2250,7 +2382,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function queueHydrationError(error) {
 		null === hydrationErrors ? hydrationErrors = [error] : hydrationErrors.push(error);
 	}
-	var valueCursor = createCursor(null), currentlyRenderingFiber$1 = null, lastContextDependency = null;
+	var valueCursor = createCursor(null);
+	var currentlyRenderingFiber$1 = null;
+	var lastContextDependency = null;
 	function pushProvider(providerFiber, context, nextValue) {
 		push(valueCursor, context._currentValue);
 		context._currentValue = nextValue;
@@ -2390,7 +2524,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 				return listener();
 			});
 		};
-	}, scheduleCallback$2 = Scheduler.unstable_scheduleCallback, NormalPriority = Scheduler.unstable_NormalPriority, CacheContext = {
+	};
+	var scheduleCallback$2 = Scheduler.unstable_scheduleCallback;
+	var NormalPriority = Scheduler.unstable_NormalPriority;
+	var CacheContext = {
 		$$typeof: REACT_CONTEXT_TYPE,
 		Consumer: null,
 		Provider: null,
@@ -2411,7 +2548,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			cache.controller.abort();
 		});
 	}
-	var currentEntangledListeners = null, currentEntangledPendingCount = 0, currentEntangledLane = 0, currentEntangledActionThenable = null;
+	var currentEntangledListeners = null;
+	var currentEntangledPendingCount = 0;
+	var currentEntangledLane = 0;
+	var currentEntangledActionThenable = null;
 	function entangleAsyncAction(transition, thenable) {
 		if (null === currentEntangledListeners) {
 			var entangledListeners = currentEntangledListeners = [];
@@ -2480,7 +2620,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			pool: cacheFromPool
 		};
 	}
-	var SuspenseException = Error(formatProdErrorMessage(460)), SuspenseyCommitException = Error(formatProdErrorMessage(474)), SuspenseActionException = Error(formatProdErrorMessage(542)), noopSuspenseyCommitThenable = { then: function() {} };
+	var SuspenseException = Error(formatProdErrorMessage(460));
+	var SuspenseyCommitException = Error(formatProdErrorMessage(474));
+	var SuspenseActionException = Error(formatProdErrorMessage(542));
+	var noopSuspenseyCommitThenable = { then: function() {} };
 	function isThenableResolved(thenable) {
 		thenable = thenable.status;
 		return "fulfilled" === thenable || "rejected" === thenable;
@@ -2539,7 +2682,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function checkIfUseWrappedInAsyncCatch(rejectedReason) {
 		if (rejectedReason === SuspenseException || rejectedReason === SuspenseActionException) throw Error(formatProdErrorMessage(483));
 	}
-	var thenableState$1 = null, thenableIndexCounter$1 = 0;
+	var thenableState$1 = null;
+	var thenableIndexCounter$1 = 0;
 	function unwrapThenable(thenable) {
 		var index = thenableIndexCounter$1;
 		thenableIndexCounter$1 += 1;
@@ -2801,7 +2945,9 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			}
 		};
 	}
-	var reconcileChildFibers = createChildReconciler(!0), mountChildFibers = createChildReconciler(!1), hasForceUpdate = !1;
+	var reconcileChildFibers = createChildReconciler(!0);
+	var mountChildFibers = createChildReconciler(!1);
+	var hasForceUpdate = !1;
 	function initializeUpdateQueue(fiber) {
 		fiber.updateQueue = {
 			baseState: fiber.memoizedState,
@@ -2983,7 +3129,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		var callbacks = updateQueue.callbacks;
 		if (null !== callbacks) for (updateQueue.callbacks = null, updateQueue = 0; updateQueue < callbacks.length; updateQueue++) callCallback(callbacks[updateQueue], context);
 	}
-	var currentTreeHiddenStackCursor = createCursor(null), prevEntangledRenderLanesCursor = createCursor(0);
+	var currentTreeHiddenStackCursor = createCursor(null);
+	var prevEntangledRenderLanesCursor = createCursor(0);
 	function pushHiddenContext(fiber, context) {
 		fiber = entangledRenderLanes;
 		push(prevEntangledRenderLanesCursor, fiber);
@@ -2999,7 +3146,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		pop(currentTreeHiddenStackCursor);
 		pop(prevEntangledRenderLanesCursor);
 	}
-	var suspenseHandlerStackCursor = createCursor(null), shellBoundary = null;
+	var suspenseHandlerStackCursor = createCursor(null);
+	var shellBoundary = null;
 	function pushPrimaryTreeSuspenseHandler(handler) {
 		var current = handler.alternate;
 		push(suspenseStackCursor, suspenseStackCursor.current & 1);
@@ -3046,7 +3194,17 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return null;
 	}
-	var renderLanes = 0, currentlyRenderingFiber = null, currentHook = null, workInProgressHook = null, didScheduleRenderPhaseUpdate = !1, didScheduleRenderPhaseUpdateDuringThisPass = !1, shouldDoubleInvokeUserFnsInHooksDEV = !1, localIdCounter = 0, thenableIndexCounter = 0, thenableState = null, globalClientIdCounter = 0;
+	var renderLanes = 0;
+	var currentlyRenderingFiber = null;
+	var currentHook = null;
+	var workInProgressHook = null;
+	var didScheduleRenderPhaseUpdate = !1;
+	var didScheduleRenderPhaseUpdateDuringThisPass = !1;
+	var shouldDoubleInvokeUserFnsInHooksDEV = !1;
+	var localIdCounter = 0;
+	var thenableIndexCounter = 0;
+	var thenableState = null;
+	var globalClientIdCounter = 0;
 	function throwInvalidHookError() {
 		throw Error(formatProdErrorMessage(321));
 	}
@@ -4028,7 +4186,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 				return ref.impl.apply(void 0, arguments);
 			};
 		}
-	}, HooksDispatcherOnUpdate = {
+	};
+	var HooksDispatcherOnUpdate = {
 		readContext,
 		use,
 		useCallback: updateCallback,
@@ -4262,7 +4421,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		} while (null !== sourceFiber);
 		return !1;
 	}
-	var SelectiveHydrationException = Error(formatProdErrorMessage(461)), didReceiveUpdate = !1;
+	var SelectiveHydrationException = Error(formatProdErrorMessage(461));
+	var didReceiveUpdate = !1;
 	function reconcileChildren(current, workInProgress, nextChildren, renderLanes) {
 		workInProgress.child = null === current ? mountChildFibers(workInProgress, null, nextChildren, renderLanes) : reconcileChildFibers(workInProgress, current.child, nextChildren, renderLanes);
 	}
@@ -5455,7 +5615,11 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			captureCommitPhaseError(finishedWork, finishedWork.return, error);
 		}
 	}
-	var offscreenSubtreeIsHidden = !1, offscreenSubtreeWasHidden = !1, needsFormReset = !1, PossiblyWeakSet = "function" === typeof WeakSet ? WeakSet : Set, nextEffect = null;
+	var offscreenSubtreeIsHidden = !1;
+	var offscreenSubtreeWasHidden = !1;
+	var needsFormReset = !1;
+	var PossiblyWeakSet = "function" === typeof WeakSet ? WeakSet : Set;
+	var nextEffect = null;
 	function commitBeforeMutationEffects(root, firstChild) {
 		root = root.containerInfo;
 		eventsEnabled = _enabled;
@@ -5668,7 +5832,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		fiber.stateNode = null;
 		fiber.updateQueue = null;
 	}
-	var hostParent = null, hostParentIsContainer = !1;
+	var hostParent = null;
+	var hostParentIsContainer = !1;
 	function recursivelyTraverseDeletionEffects(finishedRoot, nearestMountedAncestor, parent) {
 		for (parent = parent.child; null !== parent;) commitDeletionEffectsOnFiber(finishedRoot, nearestMountedAncestor, parent), parent = parent.sibling;
 	}
@@ -6427,7 +6592,41 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		cacheSignal: function() {
 			return readContext(CacheContext).controller.signal;
 		}
-	}, PossiblyWeakMap = "function" === typeof WeakMap ? WeakMap : Map, executionContext = 0, workInProgressRoot = null, workInProgress = null, workInProgressRootRenderLanes = 0, workInProgressSuspendedReason = 0, workInProgressThrownValue = null, workInProgressRootDidSkipSuspendedSiblings = !1, workInProgressRootIsPrerendering = !1, workInProgressRootDidAttachPingListener = !1, entangledRenderLanes = 0, workInProgressRootExitStatus = 0, workInProgressRootSkippedLanes = 0, workInProgressRootInterleavedUpdatedLanes = 0, workInProgressRootPingedLanes = 0, workInProgressDeferredLane = 0, workInProgressSuspendedRetryLanes = 0, workInProgressRootConcurrentErrors = null, workInProgressRootRecoverableErrors = null, workInProgressRootDidIncludeRecursiveRenderUpdate = !1, globalMostRecentFallbackTime = 0, globalMostRecentTransitionTime = 0, workInProgressRootRenderTargetTime = Infinity, workInProgressTransitions = null, legacyErrorBoundariesThatAlreadyFailed = null, pendingEffectsStatus = 0, pendingEffectsRoot = null, pendingFinishedWork = null, pendingEffectsLanes = 0, pendingEffectsRemainingLanes = 0, pendingPassiveTransitions = null, pendingRecoverableErrors = null, nestedUpdateCount = 0, rootWithNestedUpdates = null;
+	};
+	var PossiblyWeakMap = "function" === typeof WeakMap ? WeakMap : Map;
+	var executionContext = 0;
+	var workInProgressRoot = null;
+	var workInProgress = null;
+	var workInProgressRootRenderLanes = 0;
+	var workInProgressSuspendedReason = 0;
+	var workInProgressThrownValue = null;
+	var workInProgressRootDidSkipSuspendedSiblings = !1;
+	var workInProgressRootIsPrerendering = !1;
+	var workInProgressRootDidAttachPingListener = !1;
+	var entangledRenderLanes = 0;
+	var workInProgressRootExitStatus = 0;
+	var workInProgressRootSkippedLanes = 0;
+	var workInProgressRootInterleavedUpdatedLanes = 0;
+	var workInProgressRootPingedLanes = 0;
+	var workInProgressDeferredLane = 0;
+	var workInProgressSuspendedRetryLanes = 0;
+	var workInProgressRootConcurrentErrors = null;
+	var workInProgressRootRecoverableErrors = null;
+	var workInProgressRootDidIncludeRecursiveRenderUpdate = !1;
+	var globalMostRecentFallbackTime = 0;
+	var globalMostRecentTransitionTime = 0;
+	var workInProgressRootRenderTargetTime = Infinity;
+	var workInProgressTransitions = null;
+	var legacyErrorBoundariesThatAlreadyFailed = null;
+	var pendingEffectsStatus = 0;
+	var pendingEffectsRoot = null;
+	var pendingFinishedWork = null;
+	var pendingEffectsLanes = 0;
+	var pendingEffectsRemainingLanes = 0;
+	var pendingPassiveTransitions = null;
+	var pendingRecoverableErrors = null;
+	var nestedUpdateCount = 0;
+	var rootWithNestedUpdates = null;
 	function requestUpdateLane() {
 		return 0 !== (executionContext & 2) && 0 !== workInProgressRootRenderLanes ? workInProgressRootRenderLanes & -workInProgressRootRenderLanes : null !== ReactSharedInternals.T ? requestTransitionLane() : resolveUpdatePriority();
 	}
@@ -7158,7 +7357,12 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	function scheduleCallback$1(priorityLevel, callback) {
 		return scheduleCallback$3(priorityLevel, callback);
 	}
-	var firstScheduledRoot = null, lastScheduledRoot = null, didScheduleMicrotask = !1, mightHavePendingSyncWork = !1, isFlushingWork = !1, currentEventTransitionLane = 0;
+	var firstScheduledRoot = null;
+	var lastScheduledRoot = null;
+	var didScheduleMicrotask = !1;
+	var mightHavePendingSyncWork = !1;
+	var isFlushingWork = !1;
+	var currentEventTransitionLane = 0;
 	function ensureRootIsScheduled(root) {
 		root !== lastScheduledRoot && null === root.next && (null === lastScheduledRoot ? firstScheduledRoot = lastScheduledRoot = root : lastScheduledRoot = lastScheduledRoot.next = root);
 		mightHavePendingSyncWork = !0;
@@ -7346,7 +7550,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 	registerTwoPhaseEvent("onCompositionEnd", "compositionend focusout keydown keypress keyup mousedown".split(" "));
 	registerTwoPhaseEvent("onCompositionStart", "compositionstart focusout keydown keypress keyup mousedown".split(" "));
 	registerTwoPhaseEvent("onCompositionUpdate", "compositionupdate focusout keydown keypress keyup mousedown".split(" "));
-	var mediaEventTypes = "abort canplay canplaythrough durationchange emptied encrypted ended error loadeddata loadedmetadata loadstart pause play playing progress ratechange resize seeked seeking stalled suspend timeupdate volumechange waiting".split(" "), nonDelegatedEvents = new Set("beforetoggle cancel close invalid load scroll scrollend toggle".split(" ").concat(mediaEventTypes));
+	var mediaEventTypes = "abort canplay canplaythrough durationchange emptied encrypted ended error loadeddata loadedmetadata loadstart pause play playing progress ratechange resize seeked seeking stalled suspend timeupdate volumechange waiting".split(" ");
+	var nonDelegatedEvents = new Set("beforetoggle cancel close invalid load scroll scrollend toggle".split(" ").concat(mediaEventTypes));
 	function processDispatchQueue(dispatchQueue, eventSystemFlags) {
 		eventSystemFlags = 0 !== (eventSystemFlags & 4);
 		for (var i = 0; i < dispatchQueue.length; i++) {
@@ -7707,7 +7912,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			listeners
 		});
 	}
-	var NORMALIZE_NEWLINES_REGEX = /\r\n?/g, NORMALIZE_NULL_AND_REPLACEMENT_REGEX = /\u0000|\uFFFD/g;
+	var NORMALIZE_NEWLINES_REGEX = /\r\n?/g;
+	var NORMALIZE_NULL_AND_REPLACEMENT_REGEX = /\u0000|\uFFFD/g;
 	function normalizeMarkupForTextOrAttribute(markup) {
 		return ("string" === typeof markup ? markup : "" + markup).replace(NORMALIZE_NEWLINES_REGEX, "\n").replace(NORMALIZE_NULL_AND_REPLACEMENT_REGEX, "");
 	}
@@ -8274,7 +8480,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		}
 		return navigator.connection && (count = navigator.connection.downlink, "number" === typeof count) ? count : 5;
 	}
-	var eventsEnabled = null, selectionInformation = null;
+	var eventsEnabled = null;
+	var selectionInformation = null;
 	function getOwnerDocumentFromRootContainer(rootContainerElement) {
 		return 9 === rootContainerElement.nodeType ? rootContainerElement : rootContainerElement.ownerDocument;
 	}
@@ -8307,7 +8514,10 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		currentPopstateTransitionEvent = null;
 		return !1;
 	}
-	var scheduleTimeout = "function" === typeof setTimeout ? setTimeout : void 0, cancelTimeout = "function" === typeof clearTimeout ? clearTimeout : void 0, localPromise = "function" === typeof Promise ? Promise : void 0, scheduleMicrotask = "function" === typeof queueMicrotask ? queueMicrotask : "undefined" !== typeof localPromise ? function(callback) {
+	var scheduleTimeout = "function" === typeof setTimeout ? setTimeout : void 0;
+	var cancelTimeout = "function" === typeof clearTimeout ? clearTimeout : void 0;
+	var localPromise = "function" === typeof Promise ? Promise : void 0;
+	var scheduleMicrotask = "function" === typeof queueMicrotask ? queueMicrotask : "undefined" !== typeof localPromise ? function(callback) {
 		return localPromise.resolve(null).then(callback).catch(handleErrorInNextTick);
 	} : scheduleTimeout;
 	function handleErrorInNextTick(error) {
@@ -8508,7 +8718,8 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 		for (var attributes = instance.attributes; attributes.length;) instance.removeAttributeNode(attributes[0]);
 		detachDeletedInstance(instance);
 	}
-	var preloadPropsMap = /* @__PURE__ */ new Map(), preconnectsSet = /* @__PURE__ */ new Set();
+	var preloadPropsMap = /* @__PURE__ */ new Map();
+	var preconnectsSet = /* @__PURE__ */ new Set();
 	function getHoistableRoot(container) {
 		return "function" === typeof container.getRootNode ? container.getRootNode() : 9 === container.nodeType ? container : container.ownerDocument;
 	}
@@ -9246,7 +9457,14 @@ var require_react_dom_client_production = /* @__PURE__ */ __commonJSMin(((export
 			default: return 32;
 		}
 	}
-	var hasScheduledReplayAttempt = !1, queuedFocus = null, queuedDrag = null, queuedMouse = null, queuedPointers = /* @__PURE__ */ new Map(), queuedPointerCaptures = /* @__PURE__ */ new Map(), queuedExplicitHydrationTargets = [], discreteReplayableEvents = "mousedown mouseup touchcancel touchend touchstart auxclick dblclick pointercancel pointerdown pointerup dragend dragstart drop compositionend compositionstart keydown keypress keyup input textInput copy cut paste click change contextmenu reset".split(" ");
+	var hasScheduledReplayAttempt = !1;
+	var queuedFocus = null;
+	var queuedDrag = null;
+	var queuedMouse = null;
+	var queuedPointers = /* @__PURE__ */ new Map();
+	var queuedPointerCaptures = /* @__PURE__ */ new Map();
+	var queuedExplicitHydrationTargets = [];
+	var discreteReplayableEvents = "mousedown mouseup touchcancel touchend touchstart auxclick dblclick pointercancel pointerdown pointerup dragend dragstart drop compositionend compositionstart keydown keypress keyup input textInput copy cut paste click change contextmenu reset".split(" ");
 	function clearIfContinuousEvent(domEventName, nativeEvent) {
 		switch (domEventName) {
 			case "focusin":
@@ -10364,7 +10582,7 @@ var math_exports = /* @__PURE__ */ __exportAll({
 	is_finite: () => is_finite,
 	is_nan: () => is_nan,
 	least: () => least,
-	log: () => log$8,
+	log: () => log$9,
 	log10: () => log10,
 	log1p: () => log1p,
 	log2: () => log2,
@@ -10504,7 +10722,7 @@ function least(...values) {
 * @param {number} value The input number value.
 * @return {number} The base-e log value.
 */
-function log$8(value) {
+function log$9(value) {
 	return Math.log(value);
 }
 /**
@@ -11841,20 +12059,20 @@ var ternary = (node, ctx, visitors) => {
 	if (node.alternate) walk(node.alternate, ctx, visitors, node);
 };
 var func = (node, ctx, visitors) => {
-	list$5(node.params, ctx, visitors, node);
+	list$6(node.params, ctx, visitors, node);
 	walk(node.body, ctx, visitors, node);
 };
 var call = (node, ctx, visitors) => {
 	walk(node.callee, ctx, visitors, node);
-	list$5(node.arguments, ctx, visitors, node);
+	list$6(node.arguments, ctx, visitors, node);
 };
-var list$5 = (nodes, ctx, visitors, node) => {
+var list$6 = (nodes, ctx, visitors, node) => {
 	nodes.forEach((item) => walk(item, ctx, visitors, node));
 };
 var walkers = {
 	TemplateLiteral: (node, ctx, visitors) => {
-		list$5(node.expressions, ctx, visitors, node);
-		list$5(node.quasis, ctx, visitors, node);
+		list$6(node.expressions, ctx, visitors, node);
+		list$6(node.quasis, ctx, visitors, node);
 	},
 	MemberExpression: (node, ctx, visitors) => {
 		walk(node.object, ctx, visitors, node);
@@ -11863,7 +12081,7 @@ var walkers = {
 	CallExpression: call,
 	NewExpression: call,
 	ArrayExpression: (node, ctx, visitors) => {
-		list$5(node.elements, ctx, visitors, node);
+		list$6(node.elements, ctx, visitors, node);
 	},
 	AssignmentExpression: binary,
 	AwaitExpression: unary,
@@ -11873,7 +12091,7 @@ var walkers = {
 	UpdateExpression: unary,
 	ConditionalExpression: ternary,
 	ObjectExpression: (node, ctx, visitors) => {
-		list$5(node.properties, ctx, visitors, node);
+		list$6(node.properties, ctx, visitors, node);
 	},
 	Property: (node, ctx, visitors) => {
 		walk(node.key, ctx, visitors, node);
@@ -11883,7 +12101,7 @@ var walkers = {
 	FunctionExpression: func,
 	FunctionDeclaration: func,
 	VariableDeclaration: (node, ctx, visitors) => {
-		list$5(node.declarations, ctx, visitors, node);
+		list$6(node.declarations, ctx, visitors, node);
 	},
 	VariableDeclarator: (node, ctx, visitors) => {
 		walk(node.id, ctx, visitors, node);
@@ -11893,7 +12111,7 @@ var walkers = {
 		walk(node.argument, ctx, visitors, node);
 	},
 	BlockStatement: (node, ctx, visitors) => {
-		list$5(node.body, ctx, visitors, node);
+		list$6(node.body, ctx, visitors, node);
 	},
 	ExpressionStatement: (node, ctx, visitors) => {
 		walk(node.expression, ctx, visitors, node);
@@ -11915,11 +12133,11 @@ var walkers = {
 	},
 	SwitchStatement: (node, ctx, visitors) => {
 		walk(node.discriminant, ctx, visitors, node);
-		list$5(node.cases, ctx, visitors, node);
+		list$6(node.cases, ctx, visitors, node);
 	},
 	SwitchCase: (node, ctx, visitors) => {
 		if (node.test) walk(node.test, ctx, visitors, node);
-		list$5(node.consequent, ctx, visitors, node);
+		list$6(node.consequent, ctx, visitors, node);
 	},
 	ReturnStatement: unary,
 	Program: (node, ctx, visitors) => {
@@ -12979,7 +13197,8 @@ function binop(name, prec) {
 		binop: prec
 	});
 }
-var beforeExpr = { beforeExpr: true }, startsExpr = { startsExpr: true };
+var beforeExpr = { beforeExpr: true };
+var startsExpr = { startsExpr: true };
 var keywords = {};
 function kw(name, options) {
 	if (options === void 0) options = {};
@@ -13231,11 +13450,26 @@ function pushComment(options, array) {
 		array.push(comment);
 	};
 }
-var SCOPE_TOP = 1, SCOPE_FUNCTION = 2, SCOPE_ASYNC = 4, SCOPE_GENERATOR = 8, SCOPE_ARROW = 16, SCOPE_SIMPLE_CATCH = 32, SCOPE_SUPER = 64, SCOPE_DIRECT_SUPER = 128, SCOPE_CLASS_STATIC_BLOCK = 256, SCOPE_CLASS_FIELD_INIT = 512, SCOPE_VAR = SCOPE_TOP | SCOPE_FUNCTION | SCOPE_CLASS_STATIC_BLOCK;
+var SCOPE_TOP = 1;
+var SCOPE_FUNCTION = 2;
+var SCOPE_ASYNC = 4;
+var SCOPE_GENERATOR = 8;
+var SCOPE_ARROW = 16;
+var SCOPE_SIMPLE_CATCH = 32;
+var SCOPE_SUPER = 64;
+var SCOPE_DIRECT_SUPER = 128;
+var SCOPE_CLASS_STATIC_BLOCK = 256;
+var SCOPE_CLASS_FIELD_INIT = 512;
+var SCOPE_VAR = SCOPE_TOP | SCOPE_FUNCTION | SCOPE_CLASS_STATIC_BLOCK;
 function functionFlags(async, generator) {
 	return SCOPE_FUNCTION | (async ? SCOPE_ASYNC : 0) | (generator ? SCOPE_GENERATOR : 0);
 }
-var BIND_NONE = 0, BIND_VAR = 1, BIND_LEXICAL = 2, BIND_FUNCTION = 3, BIND_SIMPLE_CATCH = 4, BIND_OUTSIDE = 5;
+var BIND_NONE = 0;
+var BIND_VAR = 1;
+var BIND_LEXICAL = 2;
+var BIND_FUNCTION = 3;
+var BIND_SIMPLE_CATCH = 4;
+var BIND_OUTSIDE = 5;
 var Parser$2 = function Parser(options, input, startPos) {
 	this.options = options = getOptions(options);
 	this.sourceFile = options.sourceFile;
@@ -13456,7 +13690,8 @@ pp$8.parseTopLevel = function(node) {
 	node.sourceType = this.options.sourceType;
 	return this.finishNode(node, "Program");
 };
-var loopLabel = { kind: "loop" }, switchLabel = { kind: "switch" };
+var loopLabel = { kind: "loop" };
+var switchLabel = { kind: "switch" };
 pp$8.isLet = function(context) {
 	if (this.options.ecmaVersion < 6 || !this.isContextual("let")) return false;
 	skipWhiteSpace.lastIndex = this.pos;
@@ -13869,7 +14104,9 @@ pp$8.parseVarId = function(decl, kind) {
 	decl.id = kind === "using" || kind === "await using" ? this.parseIdent() : this.parseBindingAtom();
 	this.checkLValPattern(decl.id, kind === "var" ? BIND_VAR : BIND_LEXICAL, false);
 };
-var FUNC_STATEMENT = 1, FUNC_HANGING_STATEMENT = 2, FUNC_NULLABLE_ID = 4;
+var FUNC_STATEMENT = 1;
+var FUNC_HANGING_STATEMENT = 2;
+var FUNC_NULLABLE_ID = 4;
 pp$8.parseFunction = function(node, statement, allowExpressionBody, isAsync, forInit) {
 	this.initFunction(node);
 	if (this.options.ecmaVersion >= 9 || this.options.ecmaVersion >= 6 && !isAsync) {
@@ -15490,15 +15727,15 @@ function buildUnicodeData(ecmaVersion) {
 	d.nonBinary.sc = d.nonBinary.Script;
 	d.nonBinary.scx = d.nonBinary.Script_Extensions;
 }
-for (var i$9 = 0, list$4 = [
+for (var i$9 = 0, list$5 = [
 	9,
 	10,
 	11,
 	12,
 	13,
 	14
-]; i$9 < list$4.length; i$9 += 1) {
-	var ecmaVersion = list$4[i$9];
+]; i$9 < list$5.length; i$9 += 1) {
+	var ecmaVersion = list$5[i$9];
 	buildUnicodeData(ecmaVersion);
 }
 var pp$1 = Parser$2.prototype;
@@ -19172,9 +19409,7 @@ var import_dist = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expor
 		};
 	}));
 })))(), 1);
-var JsonWorkerPool$1 = class {
-	encoder = new TextEncoder();
-	decoder = new TextDecoder();
+var JsonWorkerPool = class {
 	workers = [];
 	blobURL = null;
 	nextRequestId = 0;
@@ -19182,54 +19417,95 @@ var JsonWorkerPool$1 = class {
 	poolSize = 4;
 	ensureWorkers() {
 		if (this.workers.length === 0) {
-			const blob = new Blob([kWorkerCode$1], { type: "application/javascript" });
+			const blob = new Blob([kWorkerCode], { type: "application/javascript" });
 			this.blobURL = URL.createObjectURL(blob);
-			for (let i = 0; i < this.poolSize; i++) {
-				const worker = new Worker(this.blobURL);
-				worker.onmessage = (e) => this.handleMessage(e);
-				worker.onerror = (error) => this.handleError(error);
-				this.workers.push(worker);
-				worker.postMessage({
-					type: "init",
-					scriptContent: kJson5ScriptBase64$1
-				});
-			}
+			for (let i = 0; i < this.poolSize; i++) this.workers.push(this.createWorker(this.blobURL));
 		}
 	}
+	createWorker(blobURL) {
+		const worker = new Worker(blobURL);
+		worker.onmessage = (e) => this.handleMessage(e);
+		worker.onerror = (error) => this.failWorker(worker, /* @__PURE__ */ new Error(`Worker error: ${error.message}`));
+		worker.onmessageerror = () => this.rejectPendingFor(worker, /* @__PURE__ */ new Error("Worker response could not be deserialized"));
+		worker.postMessage({
+			type: "init",
+			scriptContent: kJson5ScriptBase64
+		});
+		return worker;
+	}
 	handleMessage(e) {
-		const { requestId, success, serialized, result, error, stack } = e.data;
+		const { requestId, success, result, reparse, sourceText, nonFinitePaths, sentinels, error, stack } = e.data;
 		const pending = this.pendingRequests.get(requestId);
 		if (!pending) return;
 		this.pendingRequests.delete(requestId);
-		if (success) if (serialized) {
-			const resultString = this.decoder.decode(result);
-			pending.resolve(JSON.parse(resultString));
-		} else pending.resolve(result);
+		if (success) if (reparse) try {
+			const parsed = JSON.parse(sourceText ?? pending.sourceText ?? "");
+			if (nonFinitePaths && sentinels) applyNonFinitePaths(parsed, nonFinitePaths, sentinels);
+			pending.resolve(parsed);
+		} catch (parseError) {
+			pending.reject(parseError);
+		}
+		else pending.resolve(result);
 		else {
 			const err = new Error(error);
 			if (stack) err.stack = stack;
 			pending.reject(err);
 		}
 	}
-	handleError(error) {
-		const err = /* @__PURE__ */ new Error(`Worker error: ${error.message}`);
-		for (const pending of this.pendingRequests.values()) pending.reject(err);
-		this.pendingRequests.clear();
+	rejectPendingFor(worker, err) {
+		for (const [requestId, pending] of this.pendingRequests) if (pending.worker === worker) {
+			this.pendingRequests.delete(requestId);
+			pending.reject(err);
+		}
+	}
+	failWorker(worker, err) {
+		this.rejectPendingFor(worker, err);
+		const index = this.workers.indexOf(worker);
+		worker.terminate();
+		if (index >= 0 && this.blobURL) this.workers[index] = this.createWorker(this.blobURL);
 	}
 	async parse(text) {
+		return this.submit({ text }, [], text);
+	}
+	async parseBytes(data) {
+		const owned = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice();
+		return this.submit({ bytes: owned }, [owned.buffer]);
+	}
+	pickWorker() {
+		const inflight = /* @__PURE__ */ new Map();
+		for (const pending of this.pendingRequests.values()) inflight.set(pending.worker, (inflight.get(pending.worker) ?? 0) + 1);
+		let best = this.workers[this.nextRequestId % this.workers.length];
+		let bestCount = inflight.get(best) ?? 0;
+		for (const worker of this.workers) {
+			const count = inflight.get(worker) ?? 0;
+			if (count < bestCount) {
+				best = worker;
+				bestCount = count;
+			}
+		}
+		return best;
+	}
+	submit(payload, transfer = [], sourceText) {
 		this.ensureWorkers();
-		const encodedText = this.encoder.encode(text);
 		const requestId = this.nextRequestId++;
+		const worker = this.pickWorker();
 		return new Promise((resolve, reject) => {
 			this.pendingRequests.set(requestId, {
 				resolve,
-				reject
+				reject,
+				worker,
+				sourceText
 			});
-			this.workers[requestId % this.workers.length]?.postMessage({
-				type: "parse",
-				requestId,
-				encodedText
-			}, [encodedText.buffer]);
+			try {
+				worker.postMessage({
+					type: "parse",
+					requestId,
+					...payload
+				}, transfer);
+			} catch (postError) {
+				this.pendingRequests.delete(requestId);
+				reject(postError instanceof Error ? postError : new Error(String(postError)));
+			}
 		});
 	}
 	terminate() {
@@ -19239,15 +19515,300 @@ var JsonWorkerPool$1 = class {
 			URL.revokeObjectURL(this.blobURL);
 			this.blobURL = null;
 		}
+		const err = /* @__PURE__ */ new Error("Worker pool terminated");
+		for (const pending of this.pendingRequests.values()) pending.reject(err);
 		this.pendingRequests.clear();
 	}
 };
-new JsonWorkerPool$1();
-var kWorkerCode$1 = `
+var kReparseThresholdChars = 1e7;
+var repairNonFiniteJson = (source, nanToken, infToken, negInfToken) => {
+	const n = source.length;
+	const parts = [];
+	let copied = 0;
+	let i = 0;
+	const isKeyPosition = (after) => {
+		let j = after;
+		while (j < n) {
+			const w = source.charCodeAt(j);
+			if (w === 32 || w === 9 || w === 10 || w === 13) j++;
+			else return w === 58;
+		}
+		return false;
+	};
+	while (i < n) {
+		const c = source.charCodeAt(i);
+		if (c === 34) {
+			i++;
+			while (i < n) {
+				const s = source.charCodeAt(i);
+				if (s === 92) i += 2;
+				else if (s === 34) break;
+				else i++;
+			}
+			i++;
+			continue;
+		}
+		if (c === 78) {
+			if (!source.startsWith("NaN", i) || isKeyPosition(i + 3)) return null;
+			parts.push(source.slice(copied, i), nanToken);
+			i += 3;
+			copied = i;
+			continue;
+		}
+		if (c === 73) {
+			if (!source.startsWith("Infinity", i) || isKeyPosition(i + 8)) return null;
+			parts.push(source.slice(copied, i), infToken);
+			i += 8;
+			copied = i;
+			continue;
+		}
+		if (c === 45) {
+			if (source.startsWith("-Infinity", i)) {
+				if (isKeyPosition(i + 9)) return null;
+				parts.push(source.slice(copied, i), negInfToken);
+				i += 9;
+				copied = i;
+			} else i++;
+			continue;
+		}
+		if (c === 116) {
+			if (!source.startsWith("true", i)) return null;
+			i += 4;
+			continue;
+		}
+		if (c === 102) {
+			if (!source.startsWith("false", i)) return null;
+			i += 5;
+			continue;
+		}
+		if (c === 110) {
+			if (!source.startsWith("null", i)) return null;
+			i += 4;
+			continue;
+		}
+		if (c === 32 || c === 9 || c === 10 || c === 13 || c === 44 || c === 58 || c === 123 || c === 125 || c === 91 || c === 93 || c >= 48 && c <= 57 || c === 46 || c === 101 || c === 69 || c === 43) {
+			i++;
+			continue;
+		}
+		return null;
+	}
+	if (parts.length === 0) return null;
+	parts.push(source.slice(copied));
+	return parts.join("");
+};
+var applyNonFinitePaths = (root, paths, sentinels) => {
+	for (const path of paths) {
+		let target = root;
+		for (let i = 0; i < path.length - 1; i++) target = target[path[i]];
+		const leaf = path[path.length - 1];
+		const value = target[leaf];
+		target[leaf] = value === sentinels.nan ? NaN : value === sentinels.inf ? Infinity : value === sentinels.ninf ? -Infinity : value;
+	}
+};
+var findSentinelPaths = (root, sentinels, maxPaths) => {
+	const paths = [];
+	const stack = [{
+		node: root,
+		key: null,
+		prev: null
+	}];
+	while (stack.length > 0) {
+		const frame = stack.pop();
+		const node = frame.node;
+		if (typeof node === "string") {
+			if (node === sentinels.nan || node === sentinels.inf || node === sentinels.ninf) {
+				if (paths.length >= maxPaths) return null;
+				const path = [];
+				for (let f = frame; f && f.key !== null; f = f.prev) path.push(f.key);
+				path.reverse();
+				paths.push(path);
+			}
+		} else if (Array.isArray(node)) for (let i = 0; i < node.length; i++) {
+			const v = node[i];
+			if (typeof v === "string" || v && typeof v === "object") stack.push({
+				node: v,
+				key: i,
+				prev: frame
+			});
+		}
+		else if (node && typeof node === "object") for (const key of Object.keys(node)) {
+			const v = node[key];
+			if (typeof v === "string" || v && typeof v === "object") stack.push({
+				node: v,
+				key,
+				prev: frame
+			});
+		}
+	}
+	return paths;
+};
+var replaceSentinelsInPlace = (root, sentinels) => {
+	const restore = (v) => v === sentinels.nan ? NaN : v === sentinels.inf ? Infinity : v === sentinels.ninf ? -Infinity : v;
+	const stack = [root];
+	while (stack.length > 0) {
+		const node = stack.pop();
+		if (Array.isArray(node)) for (let i = 0; i < node.length; i++) {
+			const v = node[i];
+			if (typeof v === "string") node[i] = restore(v);
+			else if (v && typeof v === "object") stack.push(v);
+		}
+		else if (node && typeof node === "object") {
+			const record = node;
+			for (const key of Object.keys(record)) {
+				const v = record[key];
+				if (typeof v === "string") record[key] = restore(v);
+				else if (v && typeof v === "object") stack.push(v);
+			}
+		}
+	}
+};
+var isDenseGraph = (source) => {
+	const n = Math.min(source.length, 16e6);
+	let seps = 0;
+	let i = 0;
+	while (i < n) {
+		const c = source.charCodeAt(i);
+		if (c === 34) {
+			i++;
+			while (i < n) {
+				const quote = source.indexOf("\"", i);
+				if (quote === -1 || quote >= n) {
+					i = n;
+					break;
+				}
+				let backslashes = 0;
+				for (let j = quote - 1; j >= 0 && source.charCodeAt(j) === 92; j--) backslashes++;
+				i = quote + 1;
+				if (backslashes % 2 === 0) break;
+			}
+			continue;
+		}
+		if (c === 44 || c === 58) seps++;
+		i++;
+	}
+	return seps / n > .05;
+};
+var parseFallback = (text) => {
+	const nonce = Math.random().toString(36).slice(2);
+	const sentinels = {
+		nan: `__json5_nan_${nonce}__`,
+		inf: `__json5_inf_${nonce}__`,
+		ninf: `__json5_ninf_${nonce}__`
+	};
+	const repaired = repairNonFiniteJson(text, `"${sentinels.nan}"`, `"${sentinels.inf}"`, `"${sentinels.ninf}"`);
+	if (repaired !== null) {
+		let plain;
+		let repairedOk = true;
+		try {
+			plain = JSON.parse(repaired);
+		} catch {
+			repairedOk = false;
+		}
+		if (repairedOk) {
+			if (typeof plain === "string") return plain === sentinels.nan ? NaN : plain === sentinels.inf ? Infinity : plain === sentinels.ninf ? -Infinity : plain;
+			replaceSentinelsInPlace(plain, sentinels);
+			return plain;
+		}
+	}
+	return import_dist.default.parse(text);
+};
+var workerPool = new JsonWorkerPool();
+var kWorkerMinSize = 5e4;
+var asyncJsonParse = async (text) => {
+	if (text.length < kWorkerMinSize) return jsonParse$1(text);
+	else return workerPool.parse(text);
+};
+/**
+* Parse JSON from raw UTF-8 bytes, avoiding redundant main-thread
+* string allocation for large payloads.
+*
+* For small data (<50KB) decodes and parses on the main thread.
+* For large data, transfers the bytes directly to a Web Worker,
+* skipping the main-thread TextDecoder.decode + TextEncoder.encode
+* round-trip that asyncJsonParse(string) would require.
+*
+* NOTE: for large inputs the bytes are TRANSFERRED to the worker — the
+* caller's Uint8Array (and its whole ArrayBuffer, when the view covers it)
+* is detached and unusable afterwards. Pass a copy if you still need the
+* bytes; passing an already-detached view rejects with a DataCloneError.
+*/
+var asyncJsonParseBytes = async (data) => {
+	if (data.length < kWorkerMinSize) return jsonParse$1(new TextDecoder("utf-8").decode(data));
+	else return workerPool.parseBytes(data);
+};
+var jsonParse$1 = (text) => {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return parseFallback(text);
+	}
+};
+var kWorkerCode = `
 // Store the JSON5 parser once loaded
 let JSON5 = null;
 const decoder = new TextDecoder();
-const encoder = new TextEncoder();
+
+// Injected from the module-scope implementations (kept self-contained and
+// typechecked there; any change over there lands here automatically)
+const repairNonFiniteJson = ${repairNonFiniteJson.toString()};
+const findSentinelPaths = ${findSentinelPaths.toString()};
+const replaceSentinelsInPlace = ${replaceSentinelsInPlace.toString()};
+const isDenseGraph = ${isDenseGraph.toString()};
+
+// Non-strict JSON: repair Python-style bare NaN/Infinity and parse natively;
+// full (slow) JSON5 only for real JSON5 syntax. Returns { result } to clone
+// back, or { reparse, sourceText, nonFinitePaths, sentinels } when the main
+// thread is better off parsing the repaired text itself. A reviver would be
+// ~8x slower than plain parse on either thread, so sentinels are located
+// with an off-thread walk and restored by targeted fixup instead.
+function parseFallback(source, big, jsonError) {
+  const nonce = Math.random().toString(36).slice(2);
+  const sentinels = {
+    nan: '__json5_nan_' + nonce + '__',
+    inf: '__json5_inf_' + nonce + '__',
+    ninf: '__json5_ninf_' + nonce + '__'
+  };
+  const repaired = repairNonFiniteJson(
+    source,
+    '"' + sentinels.nan + '"',
+    '"' + sentinels.inf + '"',
+    '"' + sentinels.ninf + '"');
+  if (repaired !== null) {
+    let plain;
+    let repairedOk = true;
+    try {
+      plain = JSON.parse(repaired);
+    } catch (repairError) {
+      // repaired text still invalid — let JSON5 produce the real error
+      repairedOk = false;
+    }
+    if (repairedOk) {
+      if (typeof plain === 'string') {
+        // bare non-finite at the root
+        return {
+          result: plain === sentinels.nan ? NaN
+            : plain === sentinels.inf ? Infinity
+            : plain === sentinels.ninf ? -Infinity
+            : plain
+        };
+      }
+      if (big && isDenseGraph(source)) {
+        const paths = findSentinelPaths(plain, sentinels, 100000);
+        if (paths !== null) {
+          return { reparse: true, sourceText: repaired, nonFinitePaths: paths, sentinels };
+        }
+        // Path cap exceeded: a big dense document saturated with non-finite
+        // values lands on the (slower) clone path — accepted inversion, the
+        // alternative is shipping a path list rivaling the payload itself.
+      }
+      replaceSentinelsInPlace(plain, sentinels);
+      return { result: plain };
+    }
+  }
+  // Surface the original JSON error, not a null-JSON5 one, if init failed
+  if (!JSON5) throw jsonError;
+  return { result: JSON5.parse(source) };
+}
 
 self.onmessage = function (e) {
   const { type } = e.data || {};
@@ -19271,55 +19832,50 @@ self.onmessage = function (e) {
   }
 
   if (type === 'parse') {
-    const { requestId, encodedText, scriptContent } = e.data;
+    const { requestId, text, bytes } = e.data;
 
     try {
-      
-      // Decode the text using TextDecoder
-      const text = decoder.decode(encodedText);
+      const source = text !== undefined ? text : decoder.decode(bytes);
+      const big = source.length > ${kReparseThresholdChars};
 
-      // Parse with JSON/JSON5
-      let result = undefined;
+      // Structured clone hands the object graph straight to the main thread,
+      // but its cost scales with node count: for big node-dense payloads it
+      // blocks the receiving thread longer than a plain JSON.parse of the
+      // source would (measured 4x total / 2x blocking on real 186MB
+      // transcript data — see bench/). For those, skip the clone and tell
+      // the main thread to run one JSON.parse itself — the cheapest possible
+      // materialization. String-heavy payloads keep the clone (cheaper than
+      // re-parsing).
+      let response;
       try {
         // Optimistically, try a regular JSON parse first (this is much faster)
-        result = JSON.parse(text);
-      } catch {
-        result = JSON5.parse(text);
+        const result = JSON.parse(source);
+        if (big && isDenseGraph(source)) {
+          // string requests retain their text on the main thread; byte
+          // requests need the decoded source shipped back (cheap flat clone)
+          response = text !== undefined
+            ? { reparse: true }
+            : { reparse: true, sourceText: source };
+        } else {
+          response = { result };
+        }
+      } catch (jsonError) {
+        response = parseFallback(source, big, jsonError);
       }
-
-      if (result && typeof result === 'object' &&
-          (Array.isArray(result) ? result.length > 10000 : Object.keys(result).length > 10000)) {
-
-        // Large result, use transferrable object
-        const resultString = JSON.stringify(result);
-        const serialized = encoder.encode(resultString);
-
-        postMessage({
-          requestId,
-          success: true,
-          serialized: true,
-          result: serialized
-        }, [serialized.buffer]);
-      } else {
-        // Small results, send directly
-        postMessage({
-          requestId,
-          success: true, 
-          serialized: false, 
-          result: result 
-        });
-      }
+      response.requestId = requestId;
+      response.success = true;
+      postMessage(response);
     } catch (err) {
       postMessage({
         requestId,
-        success: false, 
+        success: false,
         error: err.message,
         stack: err.stack || ''
       });
     }
   }
 };`;
-var kJson5ScriptBase64$1 = `IWZ1bmN0aW9uKHUsRCl7Im9iamVjdCI9PXR5cGVvZiBleHBvcnRzJiYidW5kZWZpbmVkIiE9dHlwZW9mIG1vZHVsZT9tb2R1bGUuZXhwb3J0cz1EKCk6ImZ1bmN0aW9uIj09dHlwZW9mIGRlZmluZSYmZGVmaW5lLmFtZD9kZWZpbmUoRCk6dS5KU09ONT1EKCl9KHRoaXMsZnVuY3Rpb24oKXsidXNlIHN0cmljdCI7ZnVuY3Rpb24gdSh1LEQpe3JldHVybiB1KEQ9e2V4cG9ydHM6e319LEQuZXhwb3J0cyksRC5leHBvcnRzfXZhciBEPXUoZnVuY3Rpb24odSl7dmFyIEQ9dS5leHBvcnRzPSJ1bmRlZmluZWQiIT10eXBlb2Ygd2luZG93JiZ3aW5kb3cuTWF0aD09TWF0aD93aW5kb3c6InVuZGVmaW5lZCIhPXR5cGVvZiBzZWxmJiZzZWxmLk1hdGg9PU1hdGg/c2VsZjpGdW5jdGlvbigicmV0dXJuIHRoaXMiKSgpOyJudW1iZXIiPT10eXBlb2YgX19nJiYoX19nPUQpfSksZT11KGZ1bmN0aW9uKHUpe3ZhciBEPXUuZXhwb3J0cz17dmVyc2lvbjoiMi42LjUifTsibnVtYmVyIj09dHlwZW9mIF9fZSYmKF9fZT1EKX0pLHI9KGUudmVyc2lvbixmdW5jdGlvbih1KXtyZXR1cm4ib2JqZWN0Ij09dHlwZW9mIHU/bnVsbCE9PXU6ImZ1bmN0aW9uIj09dHlwZW9mIHV9KSx0PWZ1bmN0aW9uKHUpe2lmKCFyKHUpKXRocm93IFR5cGVFcnJvcih1KyIgaXMgbm90IGFuIG9iamVjdCEiKTtyZXR1cm4gdX0sbj1mdW5jdGlvbih1KXt0cnl7cmV0dXJuISF1KCl9Y2F0Y2godSl7cmV0dXJuITB9fSxGPSFuKGZ1bmN0aW9uKCl7cmV0dXJuIDchPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSh7fSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmF9KSxDPUQuZG9jdW1lbnQsQT1yKEMpJiZyKEMuY3JlYXRlRWxlbWVudCksaT0hRiYmIW4oZnVuY3Rpb24oKXtyZXR1cm4gNyE9T2JqZWN0LmRlZmluZVByb3BlcnR5KCh1PSJkaXYiLEE/Qy5jcmVhdGVFbGVtZW50KHUpOnt9KSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmE7dmFyIHV9KSxFPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSxvPXtmOkY/T2JqZWN0LmRlZmluZVByb3BlcnR5OmZ1bmN0aW9uKHUsRCxlKXtpZih0KHUpLEQ9ZnVuY3Rpb24odSxEKXtpZighcih1KSlyZXR1cm4gdTt2YXIgZSx0O2lmKEQmJiJmdW5jdGlvbiI9PXR5cGVvZihlPXUudG9TdHJpbmcpJiYhcih0PWUuY2FsbCh1KSkpcmV0dXJuIHQ7aWYoImZ1bmN0aW9uIj09dHlwZW9mKGU9dS52YWx1ZU9mKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O2lmKCFEJiYiZnVuY3Rpb24iPT10eXBlb2YoZT11LnRvU3RyaW5nKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O3Rocm93IFR5cGVFcnJvcigiQ2FuJ3QgY29udmVydCBvYmplY3QgdG8gcHJpbWl0aXZlIHZhbHVlIil9KEQsITApLHQoZSksaSl0cnl7cmV0dXJuIEUodSxELGUpfWNhdGNoKHUpe31pZigiZ2V0ImluIGV8fCJzZXQiaW4gZSl0aHJvdyBUeXBlRXJyb3IoIkFjY2Vzc29ycyBub3Qgc3VwcG9ydGVkISIpO3JldHVybiJ2YWx1ZSJpbiBlJiYodVtEXT1lLnZhbHVlKSx1fX0sYT1GP2Z1bmN0aW9uKHUsRCxlKXtyZXR1cm4gby5mKHUsRCxmdW5jdGlvbih1LEQpe3JldHVybntlbnVtZXJhYmxlOiEoMSZ1KSxjb25maWd1cmFibGU6ISgyJnUpLHdyaXRhYmxlOiEoNCZ1KSx2YWx1ZTpEfX0oMSxlKSl9OmZ1bmN0aW9uKHUsRCxlKXtyZXR1cm4gdVtEXT1lLHV9LGM9e30uaGFzT3duUHJvcGVydHksQj1mdW5jdGlvbih1LEQpe3JldHVybiBjLmNhbGwodSxEKX0scz0wLGY9TWF0aC5yYW5kb20oKSxsPXUoZnVuY3Rpb24odSl7dmFyIHI9RFsiX19jb3JlLWpzX3NoYXJlZF9fIl18fChEWyJfX2NvcmUtanNfc2hhcmVkX18iXT17fSk7KHUuZXhwb3J0cz1mdW5jdGlvbih1LEQpe3JldHVybiByW3VdfHwoclt1XT12b2lkIDAhPT1EP0Q6e30pfSkoInZlcnNpb25zIixbXSkucHVzaCh7dmVyc2lvbjplLnZlcnNpb24sbW9kZToiZ2xvYmFsIixjb3B5cmlnaHQ6IsKpIDIwMTkgRGVuaXMgUHVzaGthcmV2ICh6bG9pcm9jay5ydSkifSl9KSgibmF0aXZlLWZ1bmN0aW9uLXRvLXN0cmluZyIsRnVuY3Rpb24udG9TdHJpbmcpLGQ9dShmdW5jdGlvbih1KXt2YXIgcix0PSJTeW1ib2woIi5jb25jYXQodm9pZCAwPT09KHI9InNyYyIpPyIiOnIsIilfIiwoKytzK2YpLnRvU3RyaW5nKDM2KSksbj0oIiIrbCkuc3BsaXQoInRvU3RyaW5nIik7ZS5pbnNwZWN0U291cmNlPWZ1bmN0aW9uKHUpe3JldHVybiBsLmNhbGwodSl9LCh1LmV4cG9ydHM9ZnVuY3Rpb24odSxlLHIsRil7dmFyIEM9ImZ1bmN0aW9uIj09dHlwZW9mIHI7QyYmKEIociwibmFtZSIpfHxhKHIsIm5hbWUiLGUpKSx1W2VdIT09ciYmKEMmJihCKHIsdCl8fGEocix0LHVbZV0/IiIrdVtlXTpuLmpvaW4oU3RyaW5nKGUpKSkpLHU9PT1EP3VbZV09cjpGP3VbZV0/dVtlXT1yOmEodSxlLHIpOihkZWxldGUgdVtlXSxhKHUsZSxyKSkpfSkoRnVuY3Rpb24ucHJvdG90eXBlLCJ0b1N0cmluZyIsZnVuY3Rpb24oKXtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgdGhpcyYmdGhpc1t0XXx8bC5jYWxsKHRoaXMpfSl9KSx2PWZ1bmN0aW9uKHUsRCxlKXtpZihmdW5jdGlvbih1KXtpZigiZnVuY3Rpb24iIT10eXBlb2YgdSl0aHJvdyBUeXBlRXJyb3IodSsiIGlzIG5vdCBhIGZ1bmN0aW9uISIpfSh1KSx2b2lkIDA9PT1EKXJldHVybiB1O3N3aXRjaChlKXtjYXNlIDE6cmV0dXJuIGZ1bmN0aW9uKGUpe3JldHVybiB1LmNhbGwoRCxlKX07Y2FzZSAyOnJldHVybiBmdW5jdGlvbihlLHIpe3JldHVybiB1LmNhbGwoRCxlLHIpfTtjYXNlIDM6cmV0dXJuIGZ1bmN0aW9uKGUscix0KXtyZXR1cm4gdS5jYWxsKEQsZSxyLHQpfX1yZXR1cm4gZnVuY3Rpb24oKXtyZXR1cm4gdS5hcHBseShELGFyZ3VtZW50cyl9fSxwPWZ1bmN0aW9uKHUscix0KXt2YXIgbixGLEMsQSxpPXUmcC5GLEU9dSZwLkcsbz11JnAuUyxjPXUmcC5QLEI9dSZwLkIscz1FP0Q6bz9EW3JdfHwoRFtyXT17fSk6KERbcl18fHt9KS5wcm90b3R5cGUsZj1FP2U6ZVtyXXx8KGVbcl09e30pLGw9Zi5wcm90b3R5cGV8fChmLnByb3RvdHlwZT17fSk7Zm9yKG4gaW4gRSYmKHQ9ciksdClDPSgoRj0haSYmcyYmdm9pZCAwIT09c1tuXSk/czp0KVtuXSxBPUImJkY/dihDLEQpOmMmJiJmdW5jdGlvbiI9PXR5cGVvZiBDP3YoRnVuY3Rpb24uY2FsbCxDKTpDLHMmJmQocyxuLEMsdSZwLlUpLGZbbl0hPUMmJmEoZixuLEEpLGMmJmxbbl0hPUMmJihsW25dPUMpfTtELmNvcmU9ZSxwLkY9MSxwLkc9MixwLlM9NCxwLlA9OCxwLkI9MTYscC5XPTMyLHAuVT02NCxwLlI9MTI4O3ZhciBoLG09cCxnPU1hdGguY2VpbCx5PU1hdGguZmxvb3Isdz1mdW5jdGlvbih1KXtyZXR1cm4gaXNOYU4odT0rdSk/MDoodT4wP3k6ZykodSl9LGI9KGg9ITEsZnVuY3Rpb24odSxEKXt2YXIgZSxyLHQ9U3RyaW5nKGZ1bmN0aW9uKHUpe2lmKG51bGw9PXUpdGhyb3cgVHlwZUVycm9yKCJDYW4ndCBjYWxsIG1ldGhvZCBvbiAgIit1KTtyZXR1cm4gdX0odSkpLG49dyhEKSxGPXQubGVuZ3RoO3JldHVybiBuPDB8fG4+PUY/aD8iIjp2b2lkIDA6KGU9dC5jaGFyQ29kZUF0KG4pKTw1NTI5Nnx8ZT41NjMxOXx8bisxPT09Rnx8KHI9dC5jaGFyQ29kZUF0KG4rMSkpPDU2MzIwfHxyPjU3MzQzP2g/dC5jaGFyQXQobik6ZTpoP3Quc2xpY2UobixuKzIpOnItNTYzMjArKGUtNTUyOTY8PDEwKSs2NTUzNn0pO20obS5QLCJTdHJpbmciLHtjb2RlUG9pbnRBdDpmdW5jdGlvbih1KXtyZXR1cm4gYih0aGlzLHUpfX0pO2UuU3RyaW5nLmNvZGVQb2ludEF0O3ZhciBTPU1hdGgubWF4LHg9TWF0aC5taW4sTj1TdHJpbmcuZnJvbUNoYXJDb2RlLFA9U3RyaW5nLmZyb21Db2RlUG9pbnQ7bShtLlMrbS5GKighIVAmJjEhPVAubGVuZ3RoKSwiU3RyaW5nIix7ZnJvbUNvZGVQb2ludDpmdW5jdGlvbih1KXtmb3IodmFyIEQsZSxyLHQ9YXJndW1lbnRzLG49W10sRj1hcmd1bWVudHMubGVuZ3RoLEM9MDtGPkM7KXtpZihEPSt0W0MrK10scj0xMTE0MTExLCgoZT13KGU9RCkpPDA/UyhlK3IsMCk6eChlLHIpKSE9PUQpdGhyb3cgUmFuZ2VFcnJvcihEKyIgaXMgbm90IGEgdmFsaWQgY29kZSBwb2ludCIpO24ucHVzaChEPDY1NTM2P04oRCk6Tig1NTI5NisoKEQtPTY1NTM2KT4+MTApLEQlMTAyNCs1NjMyMCkpfXJldHVybiBuLmpvaW4oIiIpfX0pO2UuU3RyaW5nLmZyb21Db2RlUG9pbnQ7dmFyIF8sTyxqLEksVixKLE0sayxMLFQseixILCQsUixHPXtTcGFjZV9TZXBhcmF0b3I6L1tcdTE2ODBcdTIwMDAtXHUyMDBBXHUyMDJGXHUyMDVGXHUzMDAwXS8sSURfU3RhcnQ6L1tceEFBXHhCNVx4QkFceEMwLVx4RDZceEQ4LVx4RjZceEY4LVx1MDJDMVx1MDJDNi1cdTAyRDFcdTAyRTAtXHUwMkU0XHUwMkVDXHUwMkVFXHUwMzcwLVx1MDM3NFx1MDM3Nlx1MDM3N1x1MDM3QS1cdTAzN0RcdTAzN0ZcdTAzODZcdTAzODgtXHUwMzhBXHUwMzhDXHUwMzhFLVx1MDNBMVx1MDNBMy1cdTAzRjVcdTAzRjctXHUwNDgxXHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNUQwLVx1MDVFQVx1MDVGMC1cdTA1RjJcdTA2MjAtXHUwNjRBXHUwNjZFXHUwNjZGXHUwNjcxLVx1MDZEM1x1MDZENVx1MDZFNVx1MDZFNlx1MDZFRVx1MDZFRlx1MDZGQS1cdTA2RkNcdTA2RkZcdTA3MTBcdTA3MTItXHUwNzJGXHUwNzRELVx1MDdBNVx1MDdCMVx1MDdDQS1cdTA3RUFcdTA3RjRcdTA3RjVcdTA3RkFcdTA4MDAtXHUwODE1XHUwODFBXHUwODI0XHUwODI4XHUwODQwLVx1MDg1OFx1MDg2MC1cdTA4NkFcdTA4QTAtXHUwOEI0XHUwOEI2LVx1MDhCRFx1MDkwNC1cdTA5MzlcdTA5M0RcdTA5NTBcdTA5NTgtXHUwOTYxXHUwOTcxLVx1MDk4MFx1MDk4NS1cdTA5OENcdTA5OEZcdTA5OTBcdTA5OTMtXHUwOUE4XHUwOUFBLVx1MDlCMFx1MDlCMlx1MDlCNi1cdTA5QjlcdTA5QkRcdTA5Q0VcdTA5RENcdTA5RERcdTA5REYtXHUwOUUxXHUwOUYwXHUwOUYxXHUwOUZDXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTU5LVx1MEE1Q1x1MEE1RVx1MEE3Mi1cdTBBNzRcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCRFx1MEFEMFx1MEFFMFx1MEFFMVx1MEFGOVx1MEIwNS1cdTBCMENcdTBCMEZcdTBCMTBcdTBCMTMtXHUwQjI4XHUwQjJBLVx1MEIzMFx1MEIzMlx1MEIzM1x1MEIzNS1cdTBCMzlcdTBCM0RcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYxXHUwQjcxXHUwQjgzXHUwQjg1LVx1MEI4QVx1MEI4RS1cdTBCOTBcdTBCOTItXHUwQjk1XHUwQjk5XHUwQjlBXHUwQjlDXHUwQjlFXHUwQjlGXHUwQkEzXHUwQkE0XHUwQkE4LVx1MEJBQVx1MEJBRS1cdTBCQjlcdTBCRDBcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNEXHUwQzU4LVx1MEM1QVx1MEM2MFx1MEM2MVx1MEM4MFx1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JEXHUwQ0RFXHUwQ0UwXHUwQ0UxXHUwQ0YxXHUwQ0YyXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDNBXHUwRDNEXHUwRDRFXHUwRDU0LVx1MEQ1Nlx1MEQ1Ri1cdTBENjFcdTBEN0EtXHUwRDdGXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MEUwMS1cdTBFMzBcdTBFMzJcdTBFMzNcdTBFNDAtXHUwRTQ2XHUwRTgxXHUwRTgyXHUwRTg0XHUwRTg3XHUwRTg4XHUwRThBXHUwRThEXHUwRTk0LVx1MEU5N1x1MEU5OS1cdTBFOUZcdTBFQTEtXHUwRUEzXHUwRUE1XHUwRUE3XHUwRUFBXHUwRUFCXHUwRUFELVx1MEVCMFx1MEVCMlx1MEVCM1x1MEVCRFx1MEVDMC1cdTBFQzRcdTBFQzZcdTBFREMtXHUwRURGXHUwRjAwXHUwRjQwLVx1MEY0N1x1MEY0OS1cdTBGNkNcdTBGODgtXHUwRjhDXHUxMDAwLVx1MTAyQVx1MTAzRlx1MTA1MC1cdTEwNTVcdTEwNUEtXHUxMDVEXHUxMDYxXHUxMDY1XHUxMDY2XHUxMDZFLVx1MTA3MFx1MTA3NS1cdTEwODFcdTEwOEVcdTEwQTAtXHUxMEM1XHUxMEM3XHUxMENEXHUxMEQwLVx1MTBGQVx1MTBGQy1cdTEyNDhcdTEyNEEtXHUxMjREXHUxMjUwLVx1MTI1Nlx1MTI1OFx1MTI1QS1cdTEyNURcdTEyNjAtXHUxMjg4XHUxMjhBLVx1MTI4RFx1MTI5MC1cdTEyQjBcdTEyQjItXHUxMkI1XHUxMkI4LVx1MTJCRVx1MTJDMFx1MTJDMi1cdTEyQzVcdTEyQzgtXHUxMkQ2XHUxMkQ4LVx1MTMxMFx1MTMxMi1cdTEzMTVcdTEzMTgtXHUxMzVBXHUxMzgwLVx1MTM4Rlx1MTNBMC1cdTEzRjVcdTEzRjgtXHUxM0ZEXHUxNDAxLVx1MTY2Q1x1MTY2Ri1cdTE2N0ZcdTE2ODEtXHUxNjlBXHUxNkEwLVx1MTZFQVx1MTZFRS1cdTE2RjhcdTE3MDAtXHUxNzBDXHUxNzBFLVx1MTcxMVx1MTcyMC1cdTE3MzFcdTE3NDAtXHUxNzUxXHUxNzYwLVx1MTc2Q1x1MTc2RS1cdTE3NzBcdTE3ODAtXHUxN0IzXHUxN0Q3XHUxN0RDXHUxODIwLVx1MTg3N1x1MTg4MC1cdTE4ODRcdTE4ODctXHUxOEE4XHUxOEFBXHUxOEIwLVx1MThGNVx1MTkwMC1cdTE5MUVcdTE5NTAtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxQTAwLVx1MUExNlx1MUEyMC1cdTFBNTRcdTFBQTdcdTFCMDUtXHUxQjMzXHUxQjQ1LVx1MUI0Qlx1MUI4My1cdTFCQTBcdTFCQUVcdTFCQUZcdTFCQkEtXHUxQkU1XHUxQzAwLVx1MUMyM1x1MUM0RC1cdTFDNEZcdTFDNUEtXHUxQzdEXHUxQzgwLVx1MUM4OFx1MUNFOS1cdTFDRUNcdTFDRUUtXHUxQ0YxXHUxQ0Y1XHUxQ0Y2XHUxRDAwLVx1MURCRlx1MUUwMC1cdTFGMTVcdTFGMTgtXHUxRjFEXHUxRjIwLVx1MUY0NVx1MUY0OC1cdTFGNERcdTFGNTAtXHUxRjU3XHUxRjU5XHUxRjVCXHUxRjVEXHUxRjVGLVx1MUY3RFx1MUY4MC1cdTFGQjRcdTFGQjYtXHUxRkJDXHUxRkJFXHUxRkMyLVx1MUZDNFx1MUZDNi1cdTFGQ0NcdTFGRDAtXHUxRkQzXHUxRkQ2LVx1MUZEQlx1MUZFMC1cdTFGRUNcdTFGRjItXHUxRkY0XHUxRkY2LVx1MUZGQ1x1MjA3MVx1MjA3Rlx1MjA5MC1cdTIwOUNcdTIxMDJcdTIxMDdcdTIxMEEtXHUyMTEzXHUyMTE1XHUyMTE5LVx1MjExRFx1MjEyNFx1MjEyNlx1MjEyOFx1MjEyQS1cdTIxMkRcdTIxMkYtXHUyMTM5XHUyMTNDLVx1MjEzRlx1MjE0NS1cdTIxNDlcdTIxNEVcdTIxNjAtXHUyMTg4XHUyQzAwLVx1MkMyRVx1MkMzMC1cdTJDNUVcdTJDNjAtXHUyQ0U0XHUyQ0VCLVx1MkNFRVx1MkNGMlx1MkNGM1x1MkQwMC1cdTJEMjVcdTJEMjdcdTJEMkRcdTJEMzAtXHUyRDY3XHUyRDZGXHUyRDgwLVx1MkQ5Nlx1MkRBMC1cdTJEQTZcdTJEQTgtXHUyREFFXHUyREIwLVx1MkRCNlx1MkRCOC1cdTJEQkVcdTJEQzAtXHUyREM2XHUyREM4LVx1MkRDRVx1MkREMC1cdTJERDZcdTJERDgtXHUyRERFXHUyRTJGXHUzMDA1LVx1MzAwN1x1MzAyMS1cdTMwMjlcdTMwMzEtXHUzMDM1XHUzMDM4LVx1MzAzQ1x1MzA0MS1cdTMwOTZcdTMwOUQtXHUzMDlGXHUzMEExLVx1MzBGQVx1MzBGQy1cdTMwRkZcdTMxMDUtXHUzMTJFXHUzMTMxLVx1MzE4RVx1MzFBMC1cdTMxQkFcdTMxRjAtXHUzMUZGXHUzNDAwLVx1NERCNVx1NEUwMC1cdTlGRUFcdUEwMDAtXHVBNDhDXHVBNEQwLVx1QTRGRFx1QTUwMC1cdUE2MENcdUE2MTAtXHVBNjFGXHVBNjJBXHVBNjJCXHVBNjQwLVx1QTY2RVx1QTY3Ri1cdUE2OURcdUE2QTAtXHVBNkVGXHVBNzE3LVx1QTcxRlx1QTcyMi1cdUE3ODhcdUE3OEItXHVBN0FFXHVBN0IwLVx1QTdCN1x1QTdGNy1cdUE4MDFcdUE4MDMtXHVBODA1XHVBODA3LVx1QTgwQVx1QTgwQy1cdUE4MjJcdUE4NDAtXHVBODczXHVBODgyLVx1QThCM1x1QThGMi1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MEEtXHVBOTI1XHVBOTMwLVx1QTk0Nlx1QTk2MC1cdUE5N0NcdUE5ODQtXHVBOUIyXHVBOUNGXHVBOUUwLVx1QTlFNFx1QTlFNi1cdUE5RUZcdUE5RkEtXHVBOUZFXHVBQTAwLVx1QUEyOFx1QUE0MC1cdUFBNDJcdUFBNDQtXHVBQTRCXHVBQTYwLVx1QUE3Nlx1QUE3QVx1QUE3RS1cdUFBQUZcdUFBQjFcdUFBQjVcdUFBQjZcdUFBQjktXHVBQUJEXHVBQUMwXHVBQUMyXHVBQURCLVx1QUFERFx1QUFFMC1cdUFBRUFcdUFBRjItXHVBQUY0XHVBQjAxLVx1QUIwNlx1QUIwOS1cdUFCMEVcdUFCMTEtXHVBQjE2XHVBQjIwLVx1QUIyNlx1QUIyOC1cdUFCMkVcdUFCMzAtXHVBQjVBXHVBQjVDLVx1QUI2NVx1QUI3MC1cdUFCRTJcdUFDMDAtXHVEN0EzXHVEN0IwLVx1RDdDNlx1RDdDQi1cdUQ3RkJcdUY5MDAtXHVGQTZEXHVGQTcwLVx1RkFEOVx1RkIwMC1cdUZCMDZcdUZCMTMtXHVGQjE3XHVGQjFEXHVGQjFGLVx1RkIyOFx1RkIyQS1cdUZCMzZcdUZCMzgtXHVGQjNDXHVGQjNFXHVGQjQwXHVGQjQxXHVGQjQzXHVGQjQ0XHVGQjQ2LVx1RkJCMVx1RkJEMy1cdUZEM0RcdUZENTAtXHVGRDhGXHVGRDkyLVx1RkRDN1x1RkRGMC1cdUZERkJcdUZFNzAtXHVGRTc0XHVGRTc2LVx1RkVGQ1x1RkYyMS1cdUZGM0FcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGNzVcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENCMC1cdURDRDNcdURDRDgtXHVEQ0ZCXHVERDAwLVx1REQyN1x1REQzMC1cdURENjNcdURFMDAtXHVERjM2XHVERjQwLVx1REY1NVx1REY2MC1cdURGNjddfFx1RDgwMltcdURDMDAtXHVEQzA1XHVEQzA4XHVEQzBBLVx1REMzNVx1REMzN1x1REMzOFx1REMzQ1x1REMzRi1cdURDNTVcdURDNjAtXHVEQzc2XHVEQzgwLVx1REM5RVx1RENFMC1cdURDRjJcdURDRjRcdURDRjVcdUREMDAtXHVERDE1XHVERDIwLVx1REQzOVx1REQ4MC1cdUREQjdcdUREQkVcdUREQkZcdURFMDBcdURFMTAtXHVERTEzXHVERTE1LVx1REUxN1x1REUxOS1cdURFMzNcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU0XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMy1cdURDMzdcdURDODMtXHVEQ0FGXHVEQ0QwLVx1RENFOFx1REQwMy1cdUREMjZcdURENTAtXHVERDcyXHVERDc2XHVERDgzLVx1RERCMlx1RERDMS1cdUREQzRcdUREREFcdURERENcdURFMDAtXHVERTExXHVERTEzLVx1REUyQlx1REU4MC1cdURFODZcdURFODhcdURFOEEtXHVERThEXHVERThGLVx1REU5RFx1REU5Ri1cdURFQThcdURFQjAtXHVERURFXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzRFx1REY1MFx1REY1RC1cdURGNjFdfFx1RDgwNVtcdURDMDAtXHVEQzM0XHVEQzQ3LVx1REM0QVx1REM4MC1cdURDQUZcdURDQzRcdURDQzVcdURDQzdcdUREODAtXHVEREFFXHVEREQ4LVx1REREQlx1REUwMC1cdURFMkZcdURFNDRcdURFODAtXHVERUFBXHVERjAwLVx1REYxOV18XHVEODA2W1x1RENBMC1cdURDREZcdURDRkZcdURFMDBcdURFMEItXHVERTMyXHVERTNBXHVERTUwXHVERTVDLVx1REU4M1x1REU4Ni1cdURFODlcdURFQzAtXHVERUY4XXxcdUQ4MDdbXHVEQzAwLVx1REMwOFx1REMwQS1cdURDMkVcdURDNDBcdURDNzItXHVEQzhGXHVERDAwLVx1REQwNlx1REQwOFx1REQwOVx1REQwQi1cdUREMzBcdURENDZdfFx1RDgwOFtcdURDMDAtXHVERjk5XXxcdUQ4MDlbXHVEQzAwLVx1REM2RVx1REM4MC1cdURENDNdfFtcdUQ4MENcdUQ4MUMtXHVEODIwXHVEODQwLVx1RDg2OFx1RDg2QS1cdUQ4NkNcdUQ4NkYtXHVEODcyXHVEODc0LVx1RDg3OV1bXHVEQzAwLVx1REZGRl18XHVEODBEW1x1REMwMC1cdURDMkVdfFx1RDgxMVtcdURDMDAtXHVERTQ2XXxcdUQ4MUFbXHVEQzAwLVx1REUzOFx1REU0MC1cdURFNUVcdURFRDAtXHVERUVEXHVERjAwLVx1REYyRlx1REY0MC1cdURGNDNcdURGNjMtXHVERjc3XHVERjdELVx1REY4Rl18XHVEODFCW1x1REYwMC1cdURGNDRcdURGNTBcdURGOTMtXHVERjlGXHVERkUwXHVERkUxXXxcdUQ4MjFbXHVEQzAwLVx1REZFQ118XHVEODIyW1x1REMwMC1cdURFRjJdfFx1RDgyQ1tcdURDMDAtXHVERDFFXHVERDcwLVx1REVGQl18XHVEODJGW1x1REMwMC1cdURDNkFcdURDNzAtXHVEQzdDXHVEQzgwLVx1REM4OFx1REM5MC1cdURDOTldfFx1RDgzNVtcdURDMDAtXHVEQzU0XHVEQzU2LVx1REM5Q1x1REM5RVx1REM5Rlx1RENBMlx1RENBNVx1RENBNlx1RENBOS1cdURDQUNcdURDQUUtXHVEQ0I5XHVEQ0JCXHVEQ0JELVx1RENDM1x1RENDNS1cdUREMDVcdUREMDctXHVERDBBXHVERDBELVx1REQxNFx1REQxNi1cdUREMUNcdUREMUUtXHVERDM5XHVERDNCLVx1REQzRVx1REQ0MC1cdURENDRcdURENDZcdURENEEtXHVERDUwXHVERDUyLVx1REVBNVx1REVBOC1cdURFQzBcdURFQzItXHVERURBXHVERURDLVx1REVGQVx1REVGQy1cdURGMTRcdURGMTYtXHVERjM0XHVERjM2LVx1REY0RVx1REY1MC1cdURGNkVcdURGNzAtXHVERjg4XHVERjhBLVx1REZBOFx1REZBQS1cdURGQzJcdURGQzQtXHVERkNCXXxcdUQ4M0FbXHVEQzAwLVx1RENDNFx1REQwMC1cdURENDNdfFx1RDgzQltcdURFMDAtXHVERTAzXHVERTA1LVx1REUxRlx1REUyMVx1REUyMlx1REUyNFx1REUyN1x1REUyOS1cdURFMzJcdURFMzQtXHVERTM3XHVERTM5XHVERTNCXHVERTQyXHVERTQ3XHVERTQ5XHVERTRCXHVERTRELVx1REU0Rlx1REU1MVx1REU1Mlx1REU1NFx1REU1N1x1REU1OVx1REU1Qlx1REU1RFx1REU1Rlx1REU2MVx1REU2Mlx1REU2NFx1REU2Ny1cdURFNkFcdURFNkMtXHVERTcyXHVERTc0LVx1REU3N1x1REU3OS1cdURFN0NcdURFN0VcdURFODAtXHVERTg5XHVERThCLVx1REU5Qlx1REVBMS1cdURFQTNcdURFQTUtXHVERUE5XHVERUFCLVx1REVCQl18XHVEODY5W1x1REMwMC1cdURFRDZcdURGMDAtXHVERkZGXXxcdUQ4NkRbXHVEQzAwLVx1REYzNFx1REY0MC1cdURGRkZdfFx1RDg2RVtcdURDMDAtXHVEQzFEXHVEQzIwLVx1REZGRl18XHVEODczW1x1REMwMC1cdURFQTFcdURFQjAtXHVERkZGXXxcdUQ4N0FbXHVEQzAwLVx1REZFMF18XHVEODdFW1x1REMwMC1cdURFMURdLyxJRF9Db250aW51ZTovW1x4QUFceEI1XHhCQVx4QzAtXHhENlx4RDgtXHhGNlx4RjgtXHUwMkMxXHUwMkM2LVx1MDJEMVx1MDJFMC1cdTAyRTRcdTAyRUNcdTAyRUVcdTAzMDAtXHUwMzc0XHUwMzc2XHUwMzc3XHUwMzdBLVx1MDM3RFx1MDM3Rlx1MDM4Nlx1MDM4OC1cdTAzOEFcdTAzOENcdTAzOEUtXHUwM0ExXHUwM0EzLVx1MDNGNVx1MDNGNy1cdTA0ODFcdTA0ODMtXHUwNDg3XHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNTkxLVx1MDVCRFx1MDVCRlx1MDVDMVx1MDVDMlx1MDVDNFx1MDVDNVx1MDVDN1x1MDVEMC1cdTA1RUFcdTA1RjAtXHUwNUYyXHUwNjEwLVx1MDYxQVx1MDYyMC1cdTA2NjlcdTA2NkUtXHUwNkQzXHUwNkQ1LVx1MDZEQ1x1MDZERi1cdTA2RThcdTA2RUEtXHUwNkZDXHUwNkZGXHUwNzEwLVx1MDc0QVx1MDc0RC1cdTA3QjFcdTA3QzAtXHUwN0Y1XHUwN0ZBXHUwODAwLVx1MDgyRFx1MDg0MC1cdTA4NUJcdTA4NjAtXHUwODZBXHUwOEEwLVx1MDhCNFx1MDhCNi1cdTA4QkRcdTA4RDQtXHUwOEUxXHUwOEUzLVx1MDk2M1x1MDk2Ni1cdTA5NkZcdTA5NzEtXHUwOTgzXHUwOTg1LVx1MDk4Q1x1MDk4Rlx1MDk5MFx1MDk5My1cdTA5QThcdTA5QUEtXHUwOUIwXHUwOUIyXHUwOUI2LVx1MDlCOVx1MDlCQy1cdTA5QzRcdTA5QzdcdTA5QzhcdTA5Q0ItXHUwOUNFXHUwOUQ3XHUwOURDXHUwOUREXHUwOURGLVx1MDlFM1x1MDlFNi1cdTA5RjFcdTA5RkNcdTBBMDEtXHUwQTAzXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTNDXHUwQTNFLVx1MEE0Mlx1MEE0N1x1MEE0OFx1MEE0Qi1cdTBBNERcdTBBNTFcdTBBNTktXHUwQTVDXHUwQTVFXHUwQTY2LVx1MEE3NVx1MEE4MS1cdTBBODNcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCQy1cdTBBQzVcdTBBQzctXHUwQUM5XHUwQUNCLVx1MEFDRFx1MEFEMFx1MEFFMC1cdTBBRTNcdTBBRTYtXHUwQUVGXHUwQUY5LVx1MEFGRlx1MEIwMS1cdTBCMDNcdTBCMDUtXHUwQjBDXHUwQjBGXHUwQjEwXHUwQjEzLVx1MEIyOFx1MEIyQS1cdTBCMzBcdTBCMzJcdTBCMzNcdTBCMzUtXHUwQjM5XHUwQjNDLVx1MEI0NFx1MEI0N1x1MEI0OFx1MEI0Qi1cdTBCNERcdTBCNTZcdTBCNTdcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYzXHUwQjY2LVx1MEI2Rlx1MEI3MVx1MEI4Mlx1MEI4M1x1MEI4NS1cdTBCOEFcdTBCOEUtXHUwQjkwXHUwQjkyLVx1MEI5NVx1MEI5OVx1MEI5QVx1MEI5Q1x1MEI5RVx1MEI5Rlx1MEJBM1x1MEJBNFx1MEJBOC1cdTBCQUFcdTBCQUUtXHUwQkI5XHUwQkJFLVx1MEJDMlx1MEJDNi1cdTBCQzhcdTBCQ0EtXHUwQkNEXHUwQkQwXHUwQkQ3XHUwQkU2LVx1MEJFRlx1MEMwMC1cdTBDMDNcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNELVx1MEM0NFx1MEM0Ni1cdTBDNDhcdTBDNEEtXHUwQzREXHUwQzU1XHUwQzU2XHUwQzU4LVx1MEM1QVx1MEM2MC1cdTBDNjNcdTBDNjYtXHUwQzZGXHUwQzgwLVx1MEM4M1x1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JDLVx1MENDNFx1MENDNi1cdTBDQzhcdTBDQ0EtXHUwQ0NEXHUwQ0Q1XHUwQ0Q2XHUwQ0RFXHUwQ0UwLVx1MENFM1x1MENFNi1cdTBDRUZcdTBDRjFcdTBDRjJcdTBEMDAtXHUwRDAzXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDQ0XHUwRDQ2LVx1MEQ0OFx1MEQ0QS1cdTBENEVcdTBENTQtXHUwRDU3XHUwRDVGLVx1MEQ2M1x1MEQ2Ni1cdTBENkZcdTBEN0EtXHUwRDdGXHUwRDgyXHUwRDgzXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MERDQVx1MERDRi1cdTBERDRcdTBERDZcdTBERDgtXHUwRERGXHUwREU2LVx1MERFRlx1MERGMlx1MERGM1x1MEUwMS1cdTBFM0FcdTBFNDAtXHUwRTRFXHUwRTUwLVx1MEU1OVx1MEU4MVx1MEU4Mlx1MEU4NFx1MEU4N1x1MEU4OFx1MEU4QVx1MEU4RFx1MEU5NC1cdTBFOTdcdTBFOTktXHUwRTlGXHUwRUExLVx1MEVBM1x1MEVBNVx1MEVBN1x1MEVBQVx1MEVBQlx1MEVBRC1cdTBFQjlcdTBFQkItXHUwRUJEXHUwRUMwLVx1MEVDNFx1MEVDNlx1MEVDOC1cdTBFQ0RcdTBFRDAtXHUwRUQ5XHUwRURDLVx1MEVERlx1MEYwMFx1MEYxOFx1MEYxOVx1MEYyMC1cdTBGMjlcdTBGMzVcdTBGMzdcdTBGMzlcdTBGM0UtXHUwRjQ3XHUwRjQ5LVx1MEY2Q1x1MEY3MS1cdTBGODRcdTBGODYtXHUwRjk3XHUwRjk5LVx1MEZCQ1x1MEZDNlx1MTAwMC1cdTEwNDlcdTEwNTAtXHUxMDlEXHUxMEEwLVx1MTBDNVx1MTBDN1x1MTBDRFx1MTBEMC1cdTEwRkFcdTEwRkMtXHUxMjQ4XHUxMjRBLVx1MTI0RFx1MTI1MC1cdTEyNTZcdTEyNThcdTEyNUEtXHUxMjVEXHUxMjYwLVx1MTI4OFx1MTI4QS1cdTEyOERcdTEyOTAtXHUxMkIwXHUxMkIyLVx1MTJCNVx1MTJCOC1cdTEyQkVcdTEyQzBcdTEyQzItXHUxMkM1XHUxMkM4LVx1MTJENlx1MTJEOC1cdTEzMTBcdTEzMTItXHUxMzE1XHUxMzE4LVx1MTM1QVx1MTM1RC1cdTEzNUZcdTEzODAtXHUxMzhGXHUxM0EwLVx1MTNGNVx1MTNGOC1cdTEzRkRcdTE0MDEtXHUxNjZDXHUxNjZGLVx1MTY3Rlx1MTY4MS1cdTE2OUFcdTE2QTAtXHUxNkVBXHUxNkVFLVx1MTZGOFx1MTcwMC1cdTE3MENcdTE3MEUtXHUxNzE0XHUxNzIwLVx1MTczNFx1MTc0MC1cdTE3NTNcdTE3NjAtXHUxNzZDXHUxNzZFLVx1MTc3MFx1MTc3Mlx1MTc3M1x1MTc4MC1cdTE3RDNcdTE3RDdcdTE3RENcdTE3RERcdTE3RTAtXHUxN0U5XHUxODBCLVx1MTgwRFx1MTgxMC1cdTE4MTlcdTE4MjAtXHUxODc3XHUxODgwLVx1MThBQVx1MThCMC1cdTE4RjVcdTE5MDAtXHUxOTFFXHUxOTIwLVx1MTkyQlx1MTkzMC1cdTE5M0JcdTE5NDYtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxOUQwLVx1MTlEOVx1MUEwMC1cdTFBMUJcdTFBMjAtXHUxQTVFXHUxQTYwLVx1MUE3Q1x1MUE3Ri1cdTFBODlcdTFBOTAtXHUxQTk5XHUxQUE3XHUxQUIwLVx1MUFCRFx1MUIwMC1cdTFCNEJcdTFCNTAtXHUxQjU5XHUxQjZCLVx1MUI3M1x1MUI4MC1cdTFCRjNcdTFDMDAtXHUxQzM3XHUxQzQwLVx1MUM0OVx1MUM0RC1cdTFDN0RcdTFDODAtXHUxQzg4XHUxQ0QwLVx1MUNEMlx1MUNENC1cdTFDRjlcdTFEMDAtXHUxREY5XHUxREZCLVx1MUYxNVx1MUYxOC1cdTFGMURcdTFGMjAtXHUxRjQ1XHUxRjQ4LVx1MUY0RFx1MUY1MC1cdTFGNTdcdTFGNTlcdTFGNUJcdTFGNURcdTFGNUYtXHUxRjdEXHUxRjgwLVx1MUZCNFx1MUZCNi1cdTFGQkNcdTFGQkVcdTFGQzItXHUxRkM0XHUxRkM2LVx1MUZDQ1x1MUZEMC1cdTFGRDNcdTFGRDYtXHUxRkRCXHUxRkUwLVx1MUZFQ1x1MUZGMi1cdTFGRjRcdTFGRjYtXHUxRkZDXHUyMDNGXHUyMDQwXHUyMDU0XHUyMDcxXHUyMDdGXHUyMDkwLVx1MjA5Q1x1MjBEMC1cdTIwRENcdTIwRTFcdTIwRTUtXHUyMEYwXHUyMTAyXHUyMTA3XHUyMTBBLVx1MjExM1x1MjExNVx1MjExOS1cdTIxMURcdTIxMjRcdTIxMjZcdTIxMjhcdTIxMkEtXHUyMTJEXHUyMTJGLVx1MjEzOVx1MjEzQy1cdTIxM0ZcdTIxNDUtXHUyMTQ5XHUyMTRFXHUyMTYwLVx1MjE4OFx1MkMwMC1cdTJDMkVcdTJDMzAtXHUyQzVFXHUyQzYwLVx1MkNFNFx1MkNFQi1cdTJDRjNcdTJEMDAtXHUyRDI1XHUyRDI3XHUyRDJEXHUyRDMwLVx1MkQ2N1x1MkQ2Rlx1MkQ3Ri1cdTJEOTZcdTJEQTAtXHUyREE2XHUyREE4LVx1MkRBRVx1MkRCMC1cdTJEQjZcdTJEQjgtXHUyREJFXHUyREMwLVx1MkRDNlx1MkRDOC1cdTJEQ0VcdTJERDAtXHUyREQ2XHUyREQ4LVx1MkRERVx1MkRFMC1cdTJERkZcdTJFMkZcdTMwMDUtXHUzMDA3XHUzMDIxLVx1MzAyRlx1MzAzMS1cdTMwMzVcdTMwMzgtXHUzMDNDXHUzMDQxLVx1MzA5Nlx1MzA5OVx1MzA5QVx1MzA5RC1cdTMwOUZcdTMwQTEtXHUzMEZBXHUzMEZDLVx1MzBGRlx1MzEwNS1cdTMxMkVcdTMxMzEtXHUzMThFXHUzMUEwLVx1MzFCQVx1MzFGMC1cdTMxRkZcdTM0MDAtXHU0REI1XHU0RTAwLVx1OUZFQVx1QTAwMC1cdUE0OENcdUE0RDAtXHVBNEZEXHVBNTAwLVx1QTYwQ1x1QTYxMC1cdUE2MkJcdUE2NDAtXHVBNjZGXHVBNjc0LVx1QTY3RFx1QTY3Ri1cdUE2RjFcdUE3MTctXHVBNzFGXHVBNzIyLVx1QTc4OFx1QTc4Qi1cdUE3QUVcdUE3QjAtXHVBN0I3XHVBN0Y3LVx1QTgyN1x1QTg0MC1cdUE4NzNcdUE4ODAtXHVBOEM1XHVBOEQwLVx1QThEOVx1QThFMC1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MDAtXHVBOTJEXHVBOTMwLVx1QTk1M1x1QTk2MC1cdUE5N0NcdUE5ODAtXHVBOUMwXHVBOUNGLVx1QTlEOVx1QTlFMC1cdUE5RkVcdUFBMDAtXHVBQTM2XHVBQTQwLVx1QUE0RFx1QUE1MC1cdUFBNTlcdUFBNjAtXHVBQTc2XHVBQTdBLVx1QUFDMlx1QUFEQi1cdUFBRERcdUFBRTAtXHVBQUVGXHVBQUYyLVx1QUFGNlx1QUIwMS1cdUFCMDZcdUFCMDktXHVBQjBFXHVBQjExLVx1QUIxNlx1QUIyMC1cdUFCMjZcdUFCMjgtXHVBQjJFXHVBQjMwLVx1QUI1QVx1QUI1Qy1cdUFCNjVcdUFCNzAtXHVBQkVBXHVBQkVDXHVBQkVEXHVBQkYwLVx1QUJGOVx1QUMwMC1cdUQ3QTNcdUQ3QjAtXHVEN0M2XHVEN0NCLVx1RDdGQlx1RjkwMC1cdUZBNkRcdUZBNzAtXHVGQUQ5XHVGQjAwLVx1RkIwNlx1RkIxMy1cdUZCMTdcdUZCMUQtXHVGQjI4XHVGQjJBLVx1RkIzNlx1RkIzOC1cdUZCM0NcdUZCM0VcdUZCNDBcdUZCNDFcdUZCNDNcdUZCNDRcdUZCNDYtXHVGQkIxXHVGQkQzLVx1RkQzRFx1RkQ1MC1cdUZEOEZcdUZEOTItXHVGREM3XHVGREYwLVx1RkRGQlx1RkUwMC1cdUZFMEZcdUZFMjAtXHVGRTJGXHVGRTMzXHVGRTM0XHVGRTRELVx1RkU0Rlx1RkU3MC1cdUZFNzRcdUZFNzYtXHVGRUZDXHVGRjEwLVx1RkYxOVx1RkYyMS1cdUZGM0FcdUZGM0ZcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVEREZEXHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURFRTBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGN0FcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENBMC1cdURDQTlcdURDQjAtXHVEQ0QzXHVEQ0Q4LVx1RENGQlx1REQwMC1cdUREMjdcdUREMzAtXHVERDYzXHVERTAwLVx1REYzNlx1REY0MC1cdURGNTVcdURGNjAtXHVERjY3XXxcdUQ4MDJbXHVEQzAwLVx1REMwNVx1REMwOFx1REMwQS1cdURDMzVcdURDMzdcdURDMzhcdURDM0NcdURDM0YtXHVEQzU1XHVEQzYwLVx1REM3Nlx1REM4MC1cdURDOUVcdURDRTAtXHVEQ0YyXHVEQ0Y0XHVEQ0Y1XHVERDAwLVx1REQxNVx1REQyMC1cdUREMzlcdUREODAtXHVEREI3XHVEREJFXHVEREJGXHVERTAwLVx1REUwM1x1REUwNVx1REUwNlx1REUwQy1cdURFMTNcdURFMTUtXHVERTE3XHVERTE5LVx1REUzM1x1REUzOC1cdURFM0FcdURFM0ZcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU2XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMC1cdURDNDZcdURDNjYtXHVEQzZGXHVEQzdGLVx1RENCQVx1RENEMC1cdURDRThcdURDRjAtXHVEQ0Y5XHVERDAwLVx1REQzNFx1REQzNi1cdUREM0ZcdURENTAtXHVERDczXHVERDc2XHVERDgwLVx1RERDNFx1RERDQS1cdUREQ0NcdURERDAtXHVERERBXHVERERDXHVERTAwLVx1REUxMVx1REUxMy1cdURFMzdcdURFM0VcdURFODAtXHVERTg2XHVERTg4XHVERThBLVx1REU4RFx1REU4Ri1cdURFOURcdURFOUYtXHVERUE4XHVERUIwLVx1REVFQVx1REVGMC1cdURFRjlcdURGMDAtXHVERjAzXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzQy1cdURGNDRcdURGNDdcdURGNDhcdURGNEItXHVERjREXHVERjUwXHVERjU3XHVERjVELVx1REY2M1x1REY2Ni1cdURGNkNcdURGNzAtXHVERjc0XXxcdUQ4MDVbXHVEQzAwLVx1REM0QVx1REM1MC1cdURDNTlcdURDODAtXHVEQ0M1XHVEQ0M3XHVEQ0QwLVx1RENEOVx1REQ4MC1cdUREQjVcdUREQjgtXHVEREMwXHVEREQ4LVx1RERERFx1REUwMC1cdURFNDBcdURFNDRcdURFNTAtXHVERTU5XHVERTgwLVx1REVCN1x1REVDMC1cdURFQzlcdURGMDAtXHVERjE5XHVERjFELVx1REYyQlx1REYzMC1cdURGMzldfFx1RDgwNltcdURDQTAtXHVEQ0U5XHVEQ0ZGXHVERTAwLVx1REUzRVx1REU0N1x1REU1MC1cdURFODNcdURFODYtXHVERTk5XHVERUMwLVx1REVGOF18XHVEODA3W1x1REMwMC1cdURDMDhcdURDMEEtXHVEQzM2XHVEQzM4LVx1REM0MFx1REM1MC1cdURDNTlcdURDNzItXHVEQzhGXHVEQzkyLVx1RENBN1x1RENBOS1cdURDQjZcdUREMDAtXHVERDA2XHVERDA4XHVERDA5XHVERDBCLVx1REQzNlx1REQzQVx1REQzQ1x1REQzRFx1REQzRi1cdURENDdcdURENTAtXHVERDU5XXxcdUQ4MDhbXHVEQzAwLVx1REY5OV18XHVEODA5W1x1REMwMC1cdURDNkVcdURDODAtXHVERDQzXXxbXHVEODBDXHVEODFDLVx1RDgyMFx1RDg0MC1cdUQ4NjhcdUQ4NkEtXHVEODZDXHVEODZGLVx1RDg3Mlx1RDg3NC1cdUQ4NzldW1x1REMwMC1cdURGRkZdfFx1RDgwRFtcdURDMDAtXHVEQzJFXXxcdUQ4MTFbXHVEQzAwLVx1REU0Nl18XHVEODFBW1x1REMwMC1cdURFMzhcdURFNDAtXHVERTVFXHVERTYwLVx1REU2OVx1REVEMC1cdURFRURcdURFRjAtXHVERUY0XHVERjAwLVx1REYzNlx1REY0MC1cdURGNDNcdURGNTAtXHVERjU5XHVERjYzLVx1REY3N1x1REY3RC1cdURGOEZdfFx1RDgxQltcdURGMDAtXHVERjQ0XHVERjUwLVx1REY3RVx1REY4Ri1cdURGOUZcdURGRTBcdURGRTFdfFx1RDgyMVtcdURDMDAtXHVERkVDXXxcdUQ4MjJbXHVEQzAwLVx1REVGMl18XHVEODJDW1x1REMwMC1cdUREMUVcdURENzAtXHVERUZCXXxcdUQ4MkZbXHVEQzAwLVx1REM2QVx1REM3MC1cdURDN0NcdURDODAtXHVEQzg4XHVEQzkwLVx1REM5OVx1REM5RFx1REM5RV18XHVEODM0W1x1REQ2NS1cdURENjlcdURENkQtXHVERDcyXHVERDdCLVx1REQ4Mlx1REQ4NS1cdUREOEJcdUREQUEtXHVEREFEXHVERTQyLVx1REU0NF18XHVEODM1W1x1REMwMC1cdURDNTRcdURDNTYtXHVEQzlDXHVEQzlFXHVEQzlGXHVEQ0EyXHVEQ0E1XHVEQ0E2XHVEQ0E5LVx1RENBQ1x1RENBRS1cdURDQjlcdURDQkJcdURDQkQtXHVEQ0MzXHVEQ0M1LVx1REQwNVx1REQwNy1cdUREMEFcdUREMEQtXHVERDE0XHVERDE2LVx1REQxQ1x1REQxRS1cdUREMzlcdUREM0ItXHVERDNFXHVERDQwLVx1REQ0NFx1REQ0Nlx1REQ0QS1cdURENTBcdURENTItXHVERUE1XHVERUE4LVx1REVDMFx1REVDMi1cdURFREFcdURFREMtXHVERUZBXHVERUZDLVx1REYxNFx1REYxNi1cdURGMzRcdURGMzYtXHVERjRFXHVERjUwLVx1REY2RVx1REY3MC1cdURGODhcdURGOEEtXHVERkE4XHVERkFBLVx1REZDMlx1REZDNC1cdURGQ0JcdURGQ0UtXHVERkZGXXxcdUQ4MzZbXHVERTAwLVx1REUzNlx1REUzQi1cdURFNkNcdURFNzVcdURFODRcdURFOUItXHVERTlGXHVERUExLVx1REVBRl18XHVEODM4W1x1REMwMC1cdURDMDZcdURDMDgtXHVEQzE4XHVEQzFCLVx1REMyMVx1REMyM1x1REMyNFx1REMyNi1cdURDMkFdfFx1RDgzQVtcdURDMDAtXHVEQ0M0XHVEQ0QwLVx1RENENlx1REQwMC1cdURENEFcdURENTAtXHVERDU5XXxcdUQ4M0JbXHVERTAwLVx1REUwM1x1REUwNS1cdURFMUZcdURFMjFcdURFMjJcdURFMjRcdURFMjdcdURFMjktXHVERTMyXHVERTM0LVx1REUzN1x1REUzOVx1REUzQlx1REU0Mlx1REU0N1x1REU0OVx1REU0Qlx1REU0RC1cdURFNEZcdURFNTFcdURFNTJcdURFNTRcdURFNTdcdURFNTlcdURFNUJcdURFNURcdURFNUZcdURFNjFcdURFNjJcdURFNjRcdURFNjctXHVERTZBXHVERTZDLVx1REU3Mlx1REU3NC1cdURFNzdcdURFNzktXHVERTdDXHVERTdFXHVERTgwLVx1REU4OVx1REU4Qi1cdURFOUJcdURFQTEtXHVERUEzXHVERUE1LVx1REVBOVx1REVBQi1cdURFQkJdfFx1RDg2OVtcdURDMDAtXHVERUQ2XHVERjAwLVx1REZGRl18XHVEODZEW1x1REMwMC1cdURGMzRcdURGNDAtXHVERkZGXXxcdUQ4NkVbXHVEQzAwLVx1REMxRFx1REMyMC1cdURGRkZdfFx1RDg3M1tcdURDMDAtXHVERUExXHVERUIwLVx1REZGRl18XHVEODdBW1x1REMwMC1cdURGRTBdfFx1RDg3RVtcdURDMDAtXHVERTFEXXxcdURCNDBbXHVERDAwLVx1RERFRl0vfSxVPXtpc1NwYWNlU2VwYXJhdG9yOmZ1bmN0aW9uKHUpe3JldHVybiJzdHJpbmciPT10eXBlb2YgdSYmRy5TcGFjZV9TZXBhcmF0b3IudGVzdCh1KX0saXNJZFN0YXJ0Q2hhcjpmdW5jdGlvbih1KXtyZXR1cm4ic3RyaW5nIj09dHlwZW9mIHUmJih1Pj0iYSImJnU8PSJ6Inx8dT49IkEiJiZ1PD0iWiJ8fCIkIj09PXV8fCJfIj09PXV8fEcuSURfU3RhcnQudGVzdCh1KSl9LGlzSWRDb250aW51ZUNoYXI6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYodT49ImEiJiZ1PD0ieiJ8fHU+PSJBIiYmdTw9IloifHx1Pj0iMCImJnU8PSI5Inx8IiQiPT09dXx8Il8iPT09dXx8IuKAjCI9PT11fHwi4oCNIj09PXV8fEcuSURfQ29udGludWUudGVzdCh1KSl9LGlzRGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOV0vLnRlc3QodSl9LGlzSGV4RGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOUEtRmEtZl0vLnRlc3QodSl9fTtmdW5jdGlvbiBaKCl7Zm9yKFQ9ImRlZmF1bHQiLHo9IiIsSD0hMSwkPTE7Oyl7Uj1xKCk7dmFyIHU9WFtUXSgpO2lmKHUpcmV0dXJuIHV9fWZ1bmN0aW9uIHEoKXtpZihfW0ldKXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChfLmNvZGVQb2ludEF0KEkpKX1mdW5jdGlvbiBXKCl7dmFyIHU9cSgpO3JldHVybiJcbiI9PT11PyhWKyssSj0wKTp1P0orPXUubGVuZ3RoOkorKyx1JiYoSSs9dS5sZW5ndGgpLHV9dmFyIFg9e2RlZmF1bHQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJcdCI6Y2FzZSJcdiI6Y2FzZSJcZiI6Y2FzZSIgIjpjYXNlIiAiOmNhc2UiXHVmZWZmIjpjYXNlIlxuIjpjYXNlIlxyIjpjYXNlIlx1MjAyOCI6Y2FzZSJcdTIwMjkiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJjb21tZW50Iik7Y2FzZSB2b2lkIDA6cmV0dXJuIFcoKSxLKCJlb2YiKX1pZighVS5pc1NwYWNlU2VwYXJhdG9yKFIpKXJldHVybiBYW09dKCk7VygpfSxjb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiKiI6cmV0dXJuIFcoKSx2b2lkKFQ9Im11bHRpTGluZUNvbW1lbnQiKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJzaW5nbGVMaW5lQ29tbWVudCIpfXRocm93IHJ1KFcoKSl9LG11bHRpTGluZUNvbW1lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIqIjpyZXR1cm4gVygpLHZvaWQoVD0ibXVsdGlMaW5lQ29tbWVudEFzdGVyaXNrIik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCl9LG11bHRpTGluZUNvbW1lbnRBc3RlcmlzazpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIioiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJkZWZhdWx0Iik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCksVD0ibXVsdGlMaW5lQ29tbWVudCJ9LHNpbmdsZUxpbmVDb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXG4iOmNhc2UiXHIiOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSx2b2lkKFQ9ImRlZmF1bHQiKTtjYXNlIHZvaWQgMDpyZXR1cm4gVygpLEsoImVvZiIpfVcoKX0sdmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJ7IjpjYXNlIlsiOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UibiI6cmV0dXJuIFcoKSxRKCJ1bGwiKSxLKCJudWxsIixudWxsKTtjYXNlInQiOnJldHVybiBXKCksUSgicnVlIiksSygiYm9vbGVhbiIsITApO2Nhc2UiZiI6cmV0dXJuIFcoKSxRKCJhbHNlIiksSygiYm9vbGVhbiIsITEpO2Nhc2UiLSI6Y2FzZSIrIjpyZXR1cm4iLSI9PT1XKCkmJigkPS0xKSx2b2lkKFQ9InNpZ24iKTtjYXNlIi4iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImRlY2ltYWxQb2ludExlYWRpbmciKTtjYXNlIjAiOnJldHVybiB6PVcoKSx2b2lkKFQ9Inplcm8iKTtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsSW50ZWdlciIpO2Nhc2UiSSI6cmV0dXJuIFcoKSxRKCJuZmluaXR5IiksSygibnVtZXJpYyIsMS8wKTtjYXNlIk4iOnJldHVybiBXKCksUSgiYU4iKSxLKCJudW1lcmljIixOYU4pO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksej0iIix2b2lkKFQ9InN0cmluZyIpfXRocm93IHJ1KFcoKSl9LGlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmJyZWFrO2RlZmF1bHQ6aWYoIVUuaXNJZFN0YXJ0Q2hhcih1KSl0aHJvdyBudSgpfXorPXUsVD0iaWRlbnRpZmllck5hbWUifSxpZGVudGlmaWVyTmFtZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiQiOmNhc2UiXyI6Y2FzZSLigIwiOmNhc2Ui4oCNIjpyZXR1cm4gdm9pZCh6Kz1XKCkpO2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZChUPSJpZGVudGlmaWVyTmFtZUVzY2FwZSIpfWlmKCFVLmlzSWRDb250aW51ZUNoYXIoUikpcmV0dXJuIEsoImlkZW50aWZpZXIiLHopO3orPVcoKX0saWRlbnRpZmllck5hbWVFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmNhc2Ui4oCMIjpjYXNlIuKAjSI6YnJlYWs7ZGVmYXVsdDppZighVS5pc0lkQ29udGludWVDaGFyKHUpKXRocm93IG51KCl9eis9dSxUPSJpZGVudGlmaWVyTmFtZSJ9LHNpZ246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnRMZWFkaW5nIik7Y2FzZSIwIjpyZXR1cm4gej1XKCksdm9pZChUPSJ6ZXJvIik7Y2FzZSIxIjpjYXNlIjIiOmNhc2UiMyI6Y2FzZSI0IjpjYXNlIjUiOmNhc2UiNiI6Y2FzZSI3IjpjYXNlIjgiOmNhc2UiOSI6cmV0dXJuIHo9VygpLHZvaWQoVD0iZGVjaW1hbEludGVnZXIiKTtjYXNlIkkiOnJldHVybiBXKCksUSgibmZpbml0eSIpLEsoIm51bWVyaWMiLCQqKDEvMCkpO2Nhc2UiTiI6cmV0dXJuIFcoKSxRKCJhTiIpLEsoIm51bWVyaWMiLE5hTil9dGhyb3cgcnUoVygpKX0semVybzpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIi4iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnQiKTtjYXNlImUiOmNhc2UiRSI6cmV0dXJuIHorPVcoKSx2b2lkKFQ9ImRlY2ltYWxFeHBvbmVudCIpO2Nhc2UieCI6Y2FzZSJYIjpyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWwiKX1yZXR1cm4gSygibnVtZXJpYyIsMCokKX0sZGVjaW1hbEludGVnZXI6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbFBvaW50Iik7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsUG9pbnRMZWFkaW5nOmZ1bmN0aW9uKCl7aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKTt0aHJvdyBydShXKCkpfSxkZWNpbWFsUG9pbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1yZXR1cm4gVS5pc0RpZ2l0KFIpPyh6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKSk6SygibnVtZXJpYyIsJCpOdW1iZXIoeikpfSxkZWNpbWFsRnJhY3Rpb246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsRXhwb25lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIrIjpjYXNlIi0iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRTaWduIil9aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0sZGVjaW1hbEV4cG9uZW50U2lnbjpmdW5jdGlvbigpe2lmKFUuaXNEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbEV4cG9uZW50SW50ZWdlciIpO3Rocm93IHJ1KFcoKSl9LGRlY2ltYWxFeHBvbmVudEludGVnZXI6ZnVuY3Rpb24oKXtpZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxoZXhhZGVjaW1hbDpmdW5jdGlvbigpe2lmKFUuaXNIZXhEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWxJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0saGV4YWRlY2ltYWxJbnRlZ2VyOmZ1bmN0aW9uKCl7aWYoIVUuaXNIZXhEaWdpdChSKSlyZXR1cm4gSygibnVtZXJpYyIsJCpOdW1iZXIoeikpO3orPVcoKX0sc3RyaW5nOmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZCh6Kz1mdW5jdGlvbigpe3N3aXRjaChxKCkpe2Nhc2UiYiI6cmV0dXJuIFcoKSwiXGIiO2Nhc2UiZiI6cmV0dXJuIFcoKSwiXGYiO2Nhc2UibiI6cmV0dXJuIFcoKSwiXG4iO2Nhc2UiciI6cmV0dXJuIFcoKSwiXHIiO2Nhc2UidCI6cmV0dXJuIFcoKSwiXHQiO2Nhc2UidiI6cmV0dXJuIFcoKSwiXHYiO2Nhc2UiMCI6aWYoVygpLFUuaXNEaWdpdChxKCkpKXRocm93IHJ1KFcoKSk7cmV0dXJuIlwwIjtjYXNlIngiOnJldHVybiBXKCksZnVuY3Rpb24oKXt2YXIgdT0iIixEPXEoKTtpZighVS5pc0hleERpZ2l0KEQpKXRocm93IHJ1KFcoKSk7aWYodSs9VygpLEQ9cSgpLCFVLmlzSGV4RGlnaXQoRCkpdGhyb3cgcnUoVygpKTtyZXR1cm4gdSs9VygpLFN0cmluZy5mcm9tQ29kZVBvaW50KHBhcnNlSW50KHUsMTYpKX0oKTtjYXNlInUiOnJldHVybiBXKCksWSgpO2Nhc2UiXG4iOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSwiIjtjYXNlIlxyIjpyZXR1cm4gVygpLCJcbiI9PT1xKCkmJlcoKSwiIjtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpjYXNlIHZvaWQgMDp0aHJvdyBydShXKCkpfXJldHVybiBXKCl9KCkpO2Nhc2UnIic6cmV0dXJuIEg/KFcoKSxLKCJzdHJpbmciLHopKTp2b2lkKHorPVcoKSk7Y2FzZSInIjpyZXR1cm4gSD92b2lkKHorPVcoKSk6KFcoKSxLKCJzdHJpbmciLHopKTtjYXNlIlxuIjpjYXNlIlxyIjp0aHJvdyBydShXKCkpO2Nhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6IWZ1bmN0aW9uKHUpe2NvbnNvbGUud2FybigiSlNPTjU6ICciK0Z1KHUpKyInIGluIHN0cmluZ3MgaXMgbm90IHZhbGlkIEVDTUFTY3JpcHQ7IGNvbnNpZGVyIGVzY2FwaW5nIil9KFIpO2JyZWFrO2Nhc2Ugdm9pZCAwOnRocm93IHJ1KFcoKSl9eis9VygpfSxzdGFydDpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlInsiOmNhc2UiWyI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9VD0idmFsdWUifSxiZWZvcmVQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIkIjpjYXNlIl8iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7Y2FzZSJcXCI6cmV0dXJuIFcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGUiKTtjYXNlIn0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksdm9pZChUPSJzdHJpbmciKX1pZihVLmlzSWRTdGFydENoYXIoUikpcmV0dXJuIHorPVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7dGhyb3cgcnUoVygpKX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiOiI9PT1SKXJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO3Rocm93IHJ1KFcoKSl9LGJlZm9yZVByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtUPSJ2YWx1ZSJ9LGFmdGVyUHJvcGVydHlWYWx1ZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiwiOmNhc2UifSI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9dGhyb3cgcnUoVygpKX0sYmVmb3JlQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJdIj09PVIpcmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSk7VD0idmFsdWUifSxhZnRlckFycmF5VmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIsIjpjYXNlIl0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpfXRocm93IHJ1KFcoKSl9LGVuZDpmdW5jdGlvbigpe3Rocm93IHJ1KFcoKSl9fTtmdW5jdGlvbiBLKHUsRCl7cmV0dXJue3R5cGU6dSx2YWx1ZTpELGxpbmU6Vixjb2x1bW46Sn19ZnVuY3Rpb24gUSh1KXtmb3IodmFyIEQ9MCxlPXU7RDxlLmxlbmd0aDtEKz0xKXt2YXIgcj1lW0RdO2lmKHEoKSE9PXIpdGhyb3cgcnUoVygpKTtXKCl9fWZ1bmN0aW9uIFkoKXtmb3IodmFyIHU9IiIsRD00O0QtLSA+MDspe3ZhciBlPXEoKTtpZighVS5pc0hleERpZ2l0KGUpKXRocm93IHJ1KFcoKSk7dSs9VygpfXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChwYXJzZUludCh1LDE2KSl9dmFyIHV1PXtzdGFydDpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7RHUoKX0sYmVmb3JlUHJvcGVydHlOYW1lOmZ1bmN0aW9uKCl7c3dpdGNoKE0udHlwZSl7Y2FzZSJpZGVudGlmaWVyIjpjYXNlInN0cmluZyI6cmV0dXJuIGs9TS52YWx1ZSx2b2lkKE89ImFmdGVyUHJvcGVydHlOYW1lIik7Y2FzZSJwdW5jdHVhdG9yIjpyZXR1cm4gdm9pZCBldSgpO2Nhc2UiZW9mIjp0aHJvdyB0dSgpfX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO089ImJlZm9yZVByb3BlcnR5VmFsdWUifSxiZWZvcmVQcm9wZXJ0eVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTtEdSgpfSxiZWZvcmVBcnJheVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTsicHVuY3R1YXRvciIhPT1NLnR5cGV8fCJdIiE9PU0udmFsdWU/RHUoKTpldSgpfSxhZnRlclByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO3N3aXRjaChNLnZhbHVlKXtjYXNlIiwiOnJldHVybiB2b2lkKE89ImJlZm9yZVByb3BlcnR5TmFtZSIpO2Nhc2UifSI6ZXUoKX19LGFmdGVyQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7c3dpdGNoKE0udmFsdWUpe2Nhc2UiLCI6cmV0dXJuIHZvaWQoTz0iYmVmb3JlQXJyYXlWYWx1ZSIpO2Nhc2UiXSI6ZXUoKX19LGVuZDpmdW5jdGlvbigpe319O2Z1bmN0aW9uIER1KCl7dmFyIHU7c3dpdGNoKE0udHlwZSl7Y2FzZSJwdW5jdHVhdG9yIjpzd2l0Y2goTS52YWx1ZSl7Y2FzZSJ7Ijp1PXt9O2JyZWFrO2Nhc2UiWyI6dT1bXX1icmVhaztjYXNlIm51bGwiOmNhc2UiYm9vbGVhbiI6Y2FzZSJudW1lcmljIjpjYXNlInN0cmluZyI6dT1NLnZhbHVlfWlmKHZvaWQgMD09PUwpTD11O2Vsc2V7dmFyIEQ9altqLmxlbmd0aC0xXTtBcnJheS5pc0FycmF5KEQpP0QucHVzaCh1KTpPYmplY3QuZGVmaW5lUHJvcGVydHkoRCxrLHt2YWx1ZTp1LHdyaXRhYmxlOiEwLGVudW1lcmFibGU6ITAsY29uZmlndXJhYmxlOiEwfSl9aWYobnVsbCE9PXUmJiJvYmplY3QiPT10eXBlb2YgdSlqLnB1c2godSksTz1BcnJheS5pc0FycmF5KHUpPyJiZWZvcmVBcnJheVZhbHVlIjoiYmVmb3JlUHJvcGVydHlOYW1lIjtlbHNle3ZhciBlPWpbai5sZW5ndGgtMV07Tz1udWxsPT1lPyJlbmQiOkFycmF5LmlzQXJyYXkoZSk/ImFmdGVyQXJyYXlWYWx1ZSI6ImFmdGVyUHJvcGVydHlWYWx1ZSJ9fWZ1bmN0aW9uIGV1KCl7ai5wb3AoKTt2YXIgdT1qW2oubGVuZ3RoLTFdO089bnVsbD09dT8iZW5kIjpBcnJheS5pc0FycmF5KHUpPyJhZnRlckFycmF5VmFsdWUiOiJhZnRlclByb3BlcnR5VmFsdWUifWZ1bmN0aW9uIHJ1KHUpe3JldHVybiBDdSh2b2lkIDA9PT11PyJKU09ONTogaW52YWxpZCBlbmQgb2YgaW5wdXQgYXQgIitWKyI6IitKOiJKU09ONTogaW52YWxpZCBjaGFyYWN0ZXIgJyIrRnUodSkrIicgYXQgIitWKyI6IitKKX1mdW5jdGlvbiB0dSgpe3JldHVybiBDdSgiSlNPTjU6IGludmFsaWQgZW5kIG9mIGlucHV0IGF0ICIrVisiOiIrSil9ZnVuY3Rpb24gbnUoKXtyZXR1cm4gQ3UoIkpTT041OiBpbnZhbGlkIGlkZW50aWZpZXIgY2hhcmFjdGVyIGF0ICIrVisiOiIrKEotPTUpKX1mdW5jdGlvbiBGdSh1KXt2YXIgRD17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9O2lmKERbdV0pcmV0dXJuIERbdV07aWYodTwiICIpe3ZhciBlPXUuY2hhckNvZGVBdCgwKS50b1N0cmluZygxNik7cmV0dXJuIlxceCIrKCIwMCIrZSkuc3Vic3RyaW5nKGUubGVuZ3RoKX1yZXR1cm4gdX1mdW5jdGlvbiBDdSh1KXt2YXIgRD1uZXcgU3ludGF4RXJyb3IodSk7cmV0dXJuIEQubGluZU51bWJlcj1WLEQuY29sdW1uTnVtYmVyPUosRH1yZXR1cm57cGFyc2U6ZnVuY3Rpb24odSxEKXtfPVN0cmluZyh1KSxPPSJzdGFydCIsaj1bXSxJPTAsVj0xLEo9MCxNPXZvaWQgMCxrPXZvaWQgMCxMPXZvaWQgMDtkb3tNPVooKSx1dVtPXSgpfXdoaWxlKCJlb2YiIT09TS50eXBlKTtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgRD9mdW5jdGlvbiB1KEQsZSxyKXt2YXIgdD1EW2VdO2lmKG51bGwhPXQmJiJvYmplY3QiPT10eXBlb2YgdClpZihBcnJheS5pc0FycmF5KHQpKWZvcih2YXIgbj0wO248dC5sZW5ndGg7bisrKXt2YXIgRj1TdHJpbmcobiksQz11KHQsRixyKTt2b2lkIDA9PT1DP2RlbGV0ZSB0W0ZdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEYse3ZhbHVlOkMsd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1lbHNlIGZvcih2YXIgQSBpbiB0KXt2YXIgaT11KHQsQSxyKTt2b2lkIDA9PT1pP2RlbGV0ZSB0W0FdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEEse3ZhbHVlOmksd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1yZXR1cm4gci5jYWxsKEQsZSx0KX0oeyIiOkx9LCIiLEQpOkx9LHN0cmluZ2lmeTpmdW5jdGlvbih1LEQsZSl7dmFyIHIsdCxuLEY9W10sQz0iIixBPSIiO2lmKG51bGw9PUR8fCJvYmplY3QiIT10eXBlb2YgRHx8QXJyYXkuaXNBcnJheShEKXx8KGU9RC5zcGFjZSxuPUQucXVvdGUsRD1ELnJlcGxhY2VyKSwiZnVuY3Rpb24iPT10eXBlb2YgRCl0PUQ7ZWxzZSBpZihBcnJheS5pc0FycmF5KEQpKXtyPVtdO2Zvcih2YXIgaT0wLEU9RDtpPEUubGVuZ3RoO2krPTEpe3ZhciBvPUVbaV0sYT12b2lkIDA7InN0cmluZyI9PXR5cGVvZiBvP2E9bzooIm51bWJlciI9PXR5cGVvZiBvfHxvIGluc3RhbmNlb2YgU3RyaW5nfHxvIGluc3RhbmNlb2YgTnVtYmVyKSYmKGE9U3RyaW5nKG8pKSx2b2lkIDAhPT1hJiZyLmluZGV4T2YoYSk8MCYmci5wdXNoKGEpfX1yZXR1cm4gZSBpbnN0YW5jZW9mIE51bWJlcj9lPU51bWJlcihlKTplIGluc3RhbmNlb2YgU3RyaW5nJiYoZT1TdHJpbmcoZSkpLCJudW1iZXIiPT10eXBlb2YgZT9lPjAmJihlPU1hdGgubWluKDEwLE1hdGguZmxvb3IoZSkpLEE9IiAgICAgICAgICAiLnN1YnN0cigwLGUpKToic3RyaW5nIj09dHlwZW9mIGUmJihBPWUuc3Vic3RyKDAsMTApKSxjKCIiLHsiIjp1fSk7ZnVuY3Rpb24gYyh1LEQpe3ZhciBlPURbdV07c3dpdGNoKG51bGwhPWUmJigiZnVuY3Rpb24iPT10eXBlb2YgZS50b0pTT041P2U9ZS50b0pTT041KHUpOiJmdW5jdGlvbiI9PXR5cGVvZiBlLnRvSlNPTiYmKGU9ZS50b0pTT04odSkpKSx0JiYoZT10LmNhbGwoRCx1LGUpKSxlIGluc3RhbmNlb2YgTnVtYmVyP2U9TnVtYmVyKGUpOmUgaW5zdGFuY2VvZiBTdHJpbmc/ZT1TdHJpbmcoZSk6ZSBpbnN0YW5jZW9mIEJvb2xlYW4mJihlPWUudmFsdWVPZigpKSxlKXtjYXNlIG51bGw6cmV0dXJuIm51bGwiO2Nhc2UhMDpyZXR1cm4idHJ1ZSI7Y2FzZSExOnJldHVybiJmYWxzZSJ9cmV0dXJuInN0cmluZyI9PXR5cGVvZiBlP0IoZSk6Im51bWJlciI9PXR5cGVvZiBlP1N0cmluZyhlKToib2JqZWN0Ij09dHlwZW9mIGU/QXJyYXkuaXNBcnJheShlKT9mdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHI9W10sdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgbj1jKFN0cmluZyh0KSx1KTtyLnB1c2godm9pZCAwIT09bj9uOiJudWxsIil9aWYoMD09PXIubGVuZ3RoKWU9IltdIjtlbHNlIGlmKCIiPT09QSl7dmFyIGk9ci5qb2luKCIsIik7ZT0iWyIraSsiXSJ9ZWxzZXt2YXIgRT0iLFxuIitDLG89ci5qb2luKEUpO2U9IltcbiIrQytvKyIsXG4iK0QrIl0ifXJldHVybiBGLnBvcCgpLEM9RCxlfShlKTpmdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHQsbj1yfHxPYmplY3Qua2V5cyh1KSxpPVtdLEU9MCxvPW47RTxvLmxlbmd0aDtFKz0xKXt2YXIgYT1vW0VdLEI9YyhhLHUpO2lmKHZvaWQgMCE9PUIpe3ZhciBmPXMoYSkrIjoiOyIiIT09QSYmKGYrPSIgIiksZis9QixpLnB1c2goZil9fWlmKDA9PT1pLmxlbmd0aCllPSJ7fSI7ZWxzZSBpZigiIj09PUEpdD1pLmpvaW4oIiwiKSxlPSJ7Iit0KyJ9IjtlbHNle3ZhciBsPSIsXG4iK0M7dD1pLmpvaW4obCksZT0ie1xuIitDK3QrIixcbiIrRCsifSJ9cmV0dXJuIEYucG9wKCksQz1ELGV9KGUpOnZvaWQgMH1mdW5jdGlvbiBCKHUpe2Zvcih2YXIgRD17IiciOi4xLCciJzouMn0sZT17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9LHI9IiIsdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgRj11W3RdO3N3aXRjaChGKXtjYXNlIiciOmNhc2UnIic6RFtGXSsrLHIrPUY7Y29udGludWU7Y2FzZSJcMCI6aWYoVS5pc0RpZ2l0KHVbdCsxXSkpe3IrPSJcXHgwMCI7Y29udGludWV9fWlmKGVbRl0pcis9ZVtGXTtlbHNlIGlmKEY8IiAiKXt2YXIgQz1GLmNoYXJDb2RlQXQoMCkudG9TdHJpbmcoMTYpO3IrPSJcXHgiKygiMDAiK0MpLnN1YnN0cmluZyhDLmxlbmd0aCl9ZWxzZSByKz1GfXZhciBBPW58fE9iamVjdC5rZXlzKEQpLnJlZHVjZShmdW5jdGlvbih1LGUpe3JldHVybiBEW3VdPERbZV0/dTplfSk7cmV0dXJuIEErKHI9ci5yZXBsYWNlKG5ldyBSZWdFeHAoQSwiZyIpLGVbQV0pKStBfWZ1bmN0aW9uIHModSl7aWYoMD09PXUubGVuZ3RoKXJldHVybiBCKHUpO3ZhciBEPVN0cmluZy5mcm9tQ29kZVBvaW50KHUuY29kZVBvaW50QXQoMCkpO2lmKCFVLmlzSWRTdGFydENoYXIoRCkpcmV0dXJuIEIodSk7Zm9yKHZhciBlPUQubGVuZ3RoO2U8dS5sZW5ndGg7ZSsrKWlmKCFVLmlzSWRDb250aW51ZUNoYXIoU3RyaW5nLmZyb21Db2RlUG9pbnQodS5jb2RlUG9pbnRBdChlKSkpKXJldHVybiBCKHUpO3JldHVybiB1fX19fSk7`;
+var kJson5ScriptBase64 = `IWZ1bmN0aW9uKHUsRCl7Im9iamVjdCI9PXR5cGVvZiBleHBvcnRzJiYidW5kZWZpbmVkIiE9dHlwZW9mIG1vZHVsZT9tb2R1bGUuZXhwb3J0cz1EKCk6ImZ1bmN0aW9uIj09dHlwZW9mIGRlZmluZSYmZGVmaW5lLmFtZD9kZWZpbmUoRCk6dS5KU09ONT1EKCl9KHRoaXMsZnVuY3Rpb24oKXsidXNlIHN0cmljdCI7ZnVuY3Rpb24gdSh1LEQpe3JldHVybiB1KEQ9e2V4cG9ydHM6e319LEQuZXhwb3J0cyksRC5leHBvcnRzfXZhciBEPXUoZnVuY3Rpb24odSl7dmFyIEQ9dS5leHBvcnRzPSJ1bmRlZmluZWQiIT10eXBlb2Ygd2luZG93JiZ3aW5kb3cuTWF0aD09TWF0aD93aW5kb3c6InVuZGVmaW5lZCIhPXR5cGVvZiBzZWxmJiZzZWxmLk1hdGg9PU1hdGg/c2VsZjpGdW5jdGlvbigicmV0dXJuIHRoaXMiKSgpOyJudW1iZXIiPT10eXBlb2YgX19nJiYoX19nPUQpfSksZT11KGZ1bmN0aW9uKHUpe3ZhciBEPXUuZXhwb3J0cz17dmVyc2lvbjoiMi42LjUifTsibnVtYmVyIj09dHlwZW9mIF9fZSYmKF9fZT1EKX0pLHI9KGUudmVyc2lvbixmdW5jdGlvbih1KXtyZXR1cm4ib2JqZWN0Ij09dHlwZW9mIHU/bnVsbCE9PXU6ImZ1bmN0aW9uIj09dHlwZW9mIHV9KSx0PWZ1bmN0aW9uKHUpe2lmKCFyKHUpKXRocm93IFR5cGVFcnJvcih1KyIgaXMgbm90IGFuIG9iamVjdCEiKTtyZXR1cm4gdX0sbj1mdW5jdGlvbih1KXt0cnl7cmV0dXJuISF1KCl9Y2F0Y2godSl7cmV0dXJuITB9fSxGPSFuKGZ1bmN0aW9uKCl7cmV0dXJuIDchPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSh7fSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmF9KSxDPUQuZG9jdW1lbnQsQT1yKEMpJiZyKEMuY3JlYXRlRWxlbWVudCksaT0hRiYmIW4oZnVuY3Rpb24oKXtyZXR1cm4gNyE9T2JqZWN0LmRlZmluZVByb3BlcnR5KCh1PSJkaXYiLEE/Qy5jcmVhdGVFbGVtZW50KHUpOnt9KSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmE7dmFyIHV9KSxFPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSxvPXtmOkY/T2JqZWN0LmRlZmluZVByb3BlcnR5OmZ1bmN0aW9uKHUsRCxlKXtpZih0KHUpLEQ9ZnVuY3Rpb24odSxEKXtpZighcih1KSlyZXR1cm4gdTt2YXIgZSx0O2lmKEQmJiJmdW5jdGlvbiI9PXR5cGVvZihlPXUudG9TdHJpbmcpJiYhcih0PWUuY2FsbCh1KSkpcmV0dXJuIHQ7aWYoImZ1bmN0aW9uIj09dHlwZW9mKGU9dS52YWx1ZU9mKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O2lmKCFEJiYiZnVuY3Rpb24iPT10eXBlb2YoZT11LnRvU3RyaW5nKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O3Rocm93IFR5cGVFcnJvcigiQ2FuJ3QgY29udmVydCBvYmplY3QgdG8gcHJpbWl0aXZlIHZhbHVlIil9KEQsITApLHQoZSksaSl0cnl7cmV0dXJuIEUodSxELGUpfWNhdGNoKHUpe31pZigiZ2V0ImluIGV8fCJzZXQiaW4gZSl0aHJvdyBUeXBlRXJyb3IoIkFjY2Vzc29ycyBub3Qgc3VwcG9ydGVkISIpO3JldHVybiJ2YWx1ZSJpbiBlJiYodVtEXT1lLnZhbHVlKSx1fX0sYT1GP2Z1bmN0aW9uKHUsRCxlKXtyZXR1cm4gby5mKHUsRCxmdW5jdGlvbih1LEQpe3JldHVybntlbnVtZXJhYmxlOiEoMSZ1KSxjb25maWd1cmFibGU6ISgyJnUpLHdyaXRhYmxlOiEoNCZ1KSx2YWx1ZTpEfX0oMSxlKSl9OmZ1bmN0aW9uKHUsRCxlKXtyZXR1cm4gdVtEXT1lLHV9LGM9e30uaGFzT3duUHJvcGVydHksQj1mdW5jdGlvbih1LEQpe3JldHVybiBjLmNhbGwodSxEKX0scz0wLGY9TWF0aC5yYW5kb20oKSxsPXUoZnVuY3Rpb24odSl7dmFyIHI9RFsiX19jb3JlLWpzX3NoYXJlZF9fIl18fChEWyJfX2NvcmUtanNfc2hhcmVkX18iXT17fSk7KHUuZXhwb3J0cz1mdW5jdGlvbih1LEQpe3JldHVybiByW3VdfHwoclt1XT12b2lkIDAhPT1EP0Q6e30pfSkoInZlcnNpb25zIixbXSkucHVzaCh7dmVyc2lvbjplLnZlcnNpb24sbW9kZToiZ2xvYmFsIixjb3B5cmlnaHQ6IsKpIDIwMTkgRGVuaXMgUHVzaGthcmV2ICh6bG9pcm9jay5ydSkifSl9KSgibmF0aXZlLWZ1bmN0aW9uLXRvLXN0cmluZyIsRnVuY3Rpb24udG9TdHJpbmcpLGQ9dShmdW5jdGlvbih1KXt2YXIgcix0PSJTeW1ib2woIi5jb25jYXQodm9pZCAwPT09KHI9InNyYyIpPyIiOnIsIilfIiwoKytzK2YpLnRvU3RyaW5nKDM2KSksbj0oIiIrbCkuc3BsaXQoInRvU3RyaW5nIik7ZS5pbnNwZWN0U291cmNlPWZ1bmN0aW9uKHUpe3JldHVybiBsLmNhbGwodSl9LCh1LmV4cG9ydHM9ZnVuY3Rpb24odSxlLHIsRil7dmFyIEM9ImZ1bmN0aW9uIj09dHlwZW9mIHI7QyYmKEIociwibmFtZSIpfHxhKHIsIm5hbWUiLGUpKSx1W2VdIT09ciYmKEMmJihCKHIsdCl8fGEocix0LHVbZV0/IiIrdVtlXTpuLmpvaW4oU3RyaW5nKGUpKSkpLHU9PT1EP3VbZV09cjpGP3VbZV0/dVtlXT1yOmEodSxlLHIpOihkZWxldGUgdVtlXSxhKHUsZSxyKSkpfSkoRnVuY3Rpb24ucHJvdG90eXBlLCJ0b1N0cmluZyIsZnVuY3Rpb24oKXtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgdGhpcyYmdGhpc1t0XXx8bC5jYWxsKHRoaXMpfSl9KSx2PWZ1bmN0aW9uKHUsRCxlKXtpZihmdW5jdGlvbih1KXtpZigiZnVuY3Rpb24iIT10eXBlb2YgdSl0aHJvdyBUeXBlRXJyb3IodSsiIGlzIG5vdCBhIGZ1bmN0aW9uISIpfSh1KSx2b2lkIDA9PT1EKXJldHVybiB1O3N3aXRjaChlKXtjYXNlIDE6cmV0dXJuIGZ1bmN0aW9uKGUpe3JldHVybiB1LmNhbGwoRCxlKX07Y2FzZSAyOnJldHVybiBmdW5jdGlvbihlLHIpe3JldHVybiB1LmNhbGwoRCxlLHIpfTtjYXNlIDM6cmV0dXJuIGZ1bmN0aW9uKGUscix0KXtyZXR1cm4gdS5jYWxsKEQsZSxyLHQpfX1yZXR1cm4gZnVuY3Rpb24oKXtyZXR1cm4gdS5hcHBseShELGFyZ3VtZW50cyl9fSxwPWZ1bmN0aW9uKHUscix0KXt2YXIgbixGLEMsQSxpPXUmcC5GLEU9dSZwLkcsbz11JnAuUyxjPXUmcC5QLEI9dSZwLkIscz1FP0Q6bz9EW3JdfHwoRFtyXT17fSk6KERbcl18fHt9KS5wcm90b3R5cGUsZj1FP2U6ZVtyXXx8KGVbcl09e30pLGw9Zi5wcm90b3R5cGV8fChmLnByb3RvdHlwZT17fSk7Zm9yKG4gaW4gRSYmKHQ9ciksdClDPSgoRj0haSYmcyYmdm9pZCAwIT09c1tuXSk/czp0KVtuXSxBPUImJkY/dihDLEQpOmMmJiJmdW5jdGlvbiI9PXR5cGVvZiBDP3YoRnVuY3Rpb24uY2FsbCxDKTpDLHMmJmQocyxuLEMsdSZwLlUpLGZbbl0hPUMmJmEoZixuLEEpLGMmJmxbbl0hPUMmJihsW25dPUMpfTtELmNvcmU9ZSxwLkY9MSxwLkc9MixwLlM9NCxwLlA9OCxwLkI9MTYscC5XPTMyLHAuVT02NCxwLlI9MTI4O3ZhciBoLG09cCxnPU1hdGguY2VpbCx5PU1hdGguZmxvb3Isdz1mdW5jdGlvbih1KXtyZXR1cm4gaXNOYU4odT0rdSk/MDoodT4wP3k6ZykodSl9LGI9KGg9ITEsZnVuY3Rpb24odSxEKXt2YXIgZSxyLHQ9U3RyaW5nKGZ1bmN0aW9uKHUpe2lmKG51bGw9PXUpdGhyb3cgVHlwZUVycm9yKCJDYW4ndCBjYWxsIG1ldGhvZCBvbiAgIit1KTtyZXR1cm4gdX0odSkpLG49dyhEKSxGPXQubGVuZ3RoO3JldHVybiBuPDB8fG4+PUY/aD8iIjp2b2lkIDA6KGU9dC5jaGFyQ29kZUF0KG4pKTw1NTI5Nnx8ZT41NjMxOXx8bisxPT09Rnx8KHI9dC5jaGFyQ29kZUF0KG4rMSkpPDU2MzIwfHxyPjU3MzQzP2g/dC5jaGFyQXQobik6ZTpoP3Quc2xpY2UobixuKzIpOnItNTYzMjArKGUtNTUyOTY8PDEwKSs2NTUzNn0pO20obS5QLCJTdHJpbmciLHtjb2RlUG9pbnRBdDpmdW5jdGlvbih1KXtyZXR1cm4gYih0aGlzLHUpfX0pO2UuU3RyaW5nLmNvZGVQb2ludEF0O3ZhciBTPU1hdGgubWF4LHg9TWF0aC5taW4sTj1TdHJpbmcuZnJvbUNoYXJDb2RlLFA9U3RyaW5nLmZyb21Db2RlUG9pbnQ7bShtLlMrbS5GKighIVAmJjEhPVAubGVuZ3RoKSwiU3RyaW5nIix7ZnJvbUNvZGVQb2ludDpmdW5jdGlvbih1KXtmb3IodmFyIEQsZSxyLHQ9YXJndW1lbnRzLG49W10sRj1hcmd1bWVudHMubGVuZ3RoLEM9MDtGPkM7KXtpZihEPSt0W0MrK10scj0xMTE0MTExLCgoZT13KGU9RCkpPDA/UyhlK3IsMCk6eChlLHIpKSE9PUQpdGhyb3cgUmFuZ2VFcnJvcihEKyIgaXMgbm90IGEgdmFsaWQgY29kZSBwb2ludCIpO24ucHVzaChEPDY1NTM2P04oRCk6Tig1NTI5NisoKEQtPTY1NTM2KT4+MTApLEQlMTAyNCs1NjMyMCkpfXJldHVybiBuLmpvaW4oIiIpfX0pO2UuU3RyaW5nLmZyb21Db2RlUG9pbnQ7dmFyIF8sTyxqLEksVixKLE0sayxMLFQseixILCQsUixHPXtTcGFjZV9TZXBhcmF0b3I6L1tcdTE2ODBcdTIwMDAtXHUyMDBBXHUyMDJGXHUyMDVGXHUzMDAwXS8sSURfU3RhcnQ6L1tceEFBXHhCNVx4QkFceEMwLVx4RDZceEQ4LVx4RjZceEY4LVx1MDJDMVx1MDJDNi1cdTAyRDFcdTAyRTAtXHUwMkU0XHUwMkVDXHUwMkVFXHUwMzcwLVx1MDM3NFx1MDM3Nlx1MDM3N1x1MDM3QS1cdTAzN0RcdTAzN0ZcdTAzODZcdTAzODgtXHUwMzhBXHUwMzhDXHUwMzhFLVx1MDNBMVx1MDNBMy1cdTAzRjVcdTAzRjctXHUwNDgxXHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNUQwLVx1MDVFQVx1MDVGMC1cdTA1RjJcdTA2MjAtXHUwNjRBXHUwNjZFXHUwNjZGXHUwNjcxLVx1MDZEM1x1MDZENVx1MDZFNVx1MDZFNlx1MDZFRVx1MDZFRlx1MDZGQS1cdTA2RkNcdTA2RkZcdTA3MTBcdTA3MTItXHUwNzJGXHUwNzRELVx1MDdBNVx1MDdCMVx1MDdDQS1cdTA3RUFcdTA3RjRcdTA3RjVcdTA3RkFcdTA4MDAtXHUwODE1XHUwODFBXHUwODI0XHUwODI4XHUwODQwLVx1MDg1OFx1MDg2MC1cdTA4NkFcdTA4QTAtXHUwOEI0XHUwOEI2LVx1MDhCRFx1MDkwNC1cdTA5MzlcdTA5M0RcdTA5NTBcdTA5NTgtXHUwOTYxXHUwOTcxLVx1MDk4MFx1MDk4NS1cdTA5OENcdTA5OEZcdTA5OTBcdTA5OTMtXHUwOUE4XHUwOUFBLVx1MDlCMFx1MDlCMlx1MDlCNi1cdTA5QjlcdTA5QkRcdTA5Q0VcdTA5RENcdTA5RERcdTA5REYtXHUwOUUxXHUwOUYwXHUwOUYxXHUwOUZDXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTU5LVx1MEE1Q1x1MEE1RVx1MEE3Mi1cdTBBNzRcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCRFx1MEFEMFx1MEFFMFx1MEFFMVx1MEFGOVx1MEIwNS1cdTBCMENcdTBCMEZcdTBCMTBcdTBCMTMtXHUwQjI4XHUwQjJBLVx1MEIzMFx1MEIzMlx1MEIzM1x1MEIzNS1cdTBCMzlcdTBCM0RcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYxXHUwQjcxXHUwQjgzXHUwQjg1LVx1MEI4QVx1MEI4RS1cdTBCOTBcdTBCOTItXHUwQjk1XHUwQjk5XHUwQjlBXHUwQjlDXHUwQjlFXHUwQjlGXHUwQkEzXHUwQkE0XHUwQkE4LVx1MEJBQVx1MEJBRS1cdTBCQjlcdTBCRDBcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNEXHUwQzU4LVx1MEM1QVx1MEM2MFx1MEM2MVx1MEM4MFx1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JEXHUwQ0RFXHUwQ0UwXHUwQ0UxXHUwQ0YxXHUwQ0YyXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDNBXHUwRDNEXHUwRDRFXHUwRDU0LVx1MEQ1Nlx1MEQ1Ri1cdTBENjFcdTBEN0EtXHUwRDdGXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MEUwMS1cdTBFMzBcdTBFMzJcdTBFMzNcdTBFNDAtXHUwRTQ2XHUwRTgxXHUwRTgyXHUwRTg0XHUwRTg3XHUwRTg4XHUwRThBXHUwRThEXHUwRTk0LVx1MEU5N1x1MEU5OS1cdTBFOUZcdTBFQTEtXHUwRUEzXHUwRUE1XHUwRUE3XHUwRUFBXHUwRUFCXHUwRUFELVx1MEVCMFx1MEVCMlx1MEVCM1x1MEVCRFx1MEVDMC1cdTBFQzRcdTBFQzZcdTBFREMtXHUwRURGXHUwRjAwXHUwRjQwLVx1MEY0N1x1MEY0OS1cdTBGNkNcdTBGODgtXHUwRjhDXHUxMDAwLVx1MTAyQVx1MTAzRlx1MTA1MC1cdTEwNTVcdTEwNUEtXHUxMDVEXHUxMDYxXHUxMDY1XHUxMDY2XHUxMDZFLVx1MTA3MFx1MTA3NS1cdTEwODFcdTEwOEVcdTEwQTAtXHUxMEM1XHUxMEM3XHUxMENEXHUxMEQwLVx1MTBGQVx1MTBGQy1cdTEyNDhcdTEyNEEtXHUxMjREXHUxMjUwLVx1MTI1Nlx1MTI1OFx1MTI1QS1cdTEyNURcdTEyNjAtXHUxMjg4XHUxMjhBLVx1MTI4RFx1MTI5MC1cdTEyQjBcdTEyQjItXHUxMkI1XHUxMkI4LVx1MTJCRVx1MTJDMFx1MTJDMi1cdTEyQzVcdTEyQzgtXHUxMkQ2XHUxMkQ4LVx1MTMxMFx1MTMxMi1cdTEzMTVcdTEzMTgtXHUxMzVBXHUxMzgwLVx1MTM4Rlx1MTNBMC1cdTEzRjVcdTEzRjgtXHUxM0ZEXHUxNDAxLVx1MTY2Q1x1MTY2Ri1cdTE2N0ZcdTE2ODEtXHUxNjlBXHUxNkEwLVx1MTZFQVx1MTZFRS1cdTE2RjhcdTE3MDAtXHUxNzBDXHUxNzBFLVx1MTcxMVx1MTcyMC1cdTE3MzFcdTE3NDAtXHUxNzUxXHUxNzYwLVx1MTc2Q1x1MTc2RS1cdTE3NzBcdTE3ODAtXHUxN0IzXHUxN0Q3XHUxN0RDXHUxODIwLVx1MTg3N1x1MTg4MC1cdTE4ODRcdTE4ODctXHUxOEE4XHUxOEFBXHUxOEIwLVx1MThGNVx1MTkwMC1cdTE5MUVcdTE5NTAtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxQTAwLVx1MUExNlx1MUEyMC1cdTFBNTRcdTFBQTdcdTFCMDUtXHUxQjMzXHUxQjQ1LVx1MUI0Qlx1MUI4My1cdTFCQTBcdTFCQUVcdTFCQUZcdTFCQkEtXHUxQkU1XHUxQzAwLVx1MUMyM1x1MUM0RC1cdTFDNEZcdTFDNUEtXHUxQzdEXHUxQzgwLVx1MUM4OFx1MUNFOS1cdTFDRUNcdTFDRUUtXHUxQ0YxXHUxQ0Y1XHUxQ0Y2XHUxRDAwLVx1MURCRlx1MUUwMC1cdTFGMTVcdTFGMTgtXHUxRjFEXHUxRjIwLVx1MUY0NVx1MUY0OC1cdTFGNERcdTFGNTAtXHUxRjU3XHUxRjU5XHUxRjVCXHUxRjVEXHUxRjVGLVx1MUY3RFx1MUY4MC1cdTFGQjRcdTFGQjYtXHUxRkJDXHUxRkJFXHUxRkMyLVx1MUZDNFx1MUZDNi1cdTFGQ0NcdTFGRDAtXHUxRkQzXHUxRkQ2LVx1MUZEQlx1MUZFMC1cdTFGRUNcdTFGRjItXHUxRkY0XHUxRkY2LVx1MUZGQ1x1MjA3MVx1MjA3Rlx1MjA5MC1cdTIwOUNcdTIxMDJcdTIxMDdcdTIxMEEtXHUyMTEzXHUyMTE1XHUyMTE5LVx1MjExRFx1MjEyNFx1MjEyNlx1MjEyOFx1MjEyQS1cdTIxMkRcdTIxMkYtXHUyMTM5XHUyMTNDLVx1MjEzRlx1MjE0NS1cdTIxNDlcdTIxNEVcdTIxNjAtXHUyMTg4XHUyQzAwLVx1MkMyRVx1MkMzMC1cdTJDNUVcdTJDNjAtXHUyQ0U0XHUyQ0VCLVx1MkNFRVx1MkNGMlx1MkNGM1x1MkQwMC1cdTJEMjVcdTJEMjdcdTJEMkRcdTJEMzAtXHUyRDY3XHUyRDZGXHUyRDgwLVx1MkQ5Nlx1MkRBMC1cdTJEQTZcdTJEQTgtXHUyREFFXHUyREIwLVx1MkRCNlx1MkRCOC1cdTJEQkVcdTJEQzAtXHUyREM2XHUyREM4LVx1MkRDRVx1MkREMC1cdTJERDZcdTJERDgtXHUyRERFXHUyRTJGXHUzMDA1LVx1MzAwN1x1MzAyMS1cdTMwMjlcdTMwMzEtXHUzMDM1XHUzMDM4LVx1MzAzQ1x1MzA0MS1cdTMwOTZcdTMwOUQtXHUzMDlGXHUzMEExLVx1MzBGQVx1MzBGQy1cdTMwRkZcdTMxMDUtXHUzMTJFXHUzMTMxLVx1MzE4RVx1MzFBMC1cdTMxQkFcdTMxRjAtXHUzMUZGXHUzNDAwLVx1NERCNVx1NEUwMC1cdTlGRUFcdUEwMDAtXHVBNDhDXHVBNEQwLVx1QTRGRFx1QTUwMC1cdUE2MENcdUE2MTAtXHVBNjFGXHVBNjJBXHVBNjJCXHVBNjQwLVx1QTY2RVx1QTY3Ri1cdUE2OURcdUE2QTAtXHVBNkVGXHVBNzE3LVx1QTcxRlx1QTcyMi1cdUE3ODhcdUE3OEItXHVBN0FFXHVBN0IwLVx1QTdCN1x1QTdGNy1cdUE4MDFcdUE4MDMtXHVBODA1XHVBODA3LVx1QTgwQVx1QTgwQy1cdUE4MjJcdUE4NDAtXHVBODczXHVBODgyLVx1QThCM1x1QThGMi1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MEEtXHVBOTI1XHVBOTMwLVx1QTk0Nlx1QTk2MC1cdUE5N0NcdUE5ODQtXHVBOUIyXHVBOUNGXHVBOUUwLVx1QTlFNFx1QTlFNi1cdUE5RUZcdUE5RkEtXHVBOUZFXHVBQTAwLVx1QUEyOFx1QUE0MC1cdUFBNDJcdUFBNDQtXHVBQTRCXHVBQTYwLVx1QUE3Nlx1QUE3QVx1QUE3RS1cdUFBQUZcdUFBQjFcdUFBQjVcdUFBQjZcdUFBQjktXHVBQUJEXHVBQUMwXHVBQUMyXHVBQURCLVx1QUFERFx1QUFFMC1cdUFBRUFcdUFBRjItXHVBQUY0XHVBQjAxLVx1QUIwNlx1QUIwOS1cdUFCMEVcdUFCMTEtXHVBQjE2XHVBQjIwLVx1QUIyNlx1QUIyOC1cdUFCMkVcdUFCMzAtXHVBQjVBXHVBQjVDLVx1QUI2NVx1QUI3MC1cdUFCRTJcdUFDMDAtXHVEN0EzXHVEN0IwLVx1RDdDNlx1RDdDQi1cdUQ3RkJcdUY5MDAtXHVGQTZEXHVGQTcwLVx1RkFEOVx1RkIwMC1cdUZCMDZcdUZCMTMtXHVGQjE3XHVGQjFEXHVGQjFGLVx1RkIyOFx1RkIyQS1cdUZCMzZcdUZCMzgtXHVGQjNDXHVGQjNFXHVGQjQwXHVGQjQxXHVGQjQzXHVGQjQ0XHVGQjQ2LVx1RkJCMVx1RkJEMy1cdUZEM0RcdUZENTAtXHVGRDhGXHVGRDkyLVx1RkRDN1x1RkRGMC1cdUZERkJcdUZFNzAtXHVGRTc0XHVGRTc2LVx1RkVGQ1x1RkYyMS1cdUZGM0FcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGNzVcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENCMC1cdURDRDNcdURDRDgtXHVEQ0ZCXHVERDAwLVx1REQyN1x1REQzMC1cdURENjNcdURFMDAtXHVERjM2XHVERjQwLVx1REY1NVx1REY2MC1cdURGNjddfFx1RDgwMltcdURDMDAtXHVEQzA1XHVEQzA4XHVEQzBBLVx1REMzNVx1REMzN1x1REMzOFx1REMzQ1x1REMzRi1cdURDNTVcdURDNjAtXHVEQzc2XHVEQzgwLVx1REM5RVx1RENFMC1cdURDRjJcdURDRjRcdURDRjVcdUREMDAtXHVERDE1XHVERDIwLVx1REQzOVx1REQ4MC1cdUREQjdcdUREQkVcdUREQkZcdURFMDBcdURFMTAtXHVERTEzXHVERTE1LVx1REUxN1x1REUxOS1cdURFMzNcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU0XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMy1cdURDMzdcdURDODMtXHVEQ0FGXHVEQ0QwLVx1RENFOFx1REQwMy1cdUREMjZcdURENTAtXHVERDcyXHVERDc2XHVERDgzLVx1RERCMlx1RERDMS1cdUREQzRcdUREREFcdURERENcdURFMDAtXHVERTExXHVERTEzLVx1REUyQlx1REU4MC1cdURFODZcdURFODhcdURFOEEtXHVERThEXHVERThGLVx1REU5RFx1REU5Ri1cdURFQThcdURFQjAtXHVERURFXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzRFx1REY1MFx1REY1RC1cdURGNjFdfFx1RDgwNVtcdURDMDAtXHVEQzM0XHVEQzQ3LVx1REM0QVx1REM4MC1cdURDQUZcdURDQzRcdURDQzVcdURDQzdcdUREODAtXHVEREFFXHVEREQ4LVx1REREQlx1REUwMC1cdURFMkZcdURFNDRcdURFODAtXHVERUFBXHVERjAwLVx1REYxOV18XHVEODA2W1x1RENBMC1cdURDREZcdURDRkZcdURFMDBcdURFMEItXHVERTMyXHVERTNBXHVERTUwXHVERTVDLVx1REU4M1x1REU4Ni1cdURFODlcdURFQzAtXHVERUY4XXxcdUQ4MDdbXHVEQzAwLVx1REMwOFx1REMwQS1cdURDMkVcdURDNDBcdURDNzItXHVEQzhGXHVERDAwLVx1REQwNlx1REQwOFx1REQwOVx1REQwQi1cdUREMzBcdURENDZdfFx1RDgwOFtcdURDMDAtXHVERjk5XXxcdUQ4MDlbXHVEQzAwLVx1REM2RVx1REM4MC1cdURENDNdfFtcdUQ4MENcdUQ4MUMtXHVEODIwXHVEODQwLVx1RDg2OFx1RDg2QS1cdUQ4NkNcdUQ4NkYtXHVEODcyXHVEODc0LVx1RDg3OV1bXHVEQzAwLVx1REZGRl18XHVEODBEW1x1REMwMC1cdURDMkVdfFx1RDgxMVtcdURDMDAtXHVERTQ2XXxcdUQ4MUFbXHVEQzAwLVx1REUzOFx1REU0MC1cdURFNUVcdURFRDAtXHVERUVEXHVERjAwLVx1REYyRlx1REY0MC1cdURGNDNcdURGNjMtXHVERjc3XHVERjdELVx1REY4Rl18XHVEODFCW1x1REYwMC1cdURGNDRcdURGNTBcdURGOTMtXHVERjlGXHVERkUwXHVERkUxXXxcdUQ4MjFbXHVEQzAwLVx1REZFQ118XHVEODIyW1x1REMwMC1cdURFRjJdfFx1RDgyQ1tcdURDMDAtXHVERDFFXHVERDcwLVx1REVGQl18XHVEODJGW1x1REMwMC1cdURDNkFcdURDNzAtXHVEQzdDXHVEQzgwLVx1REM4OFx1REM5MC1cdURDOTldfFx1RDgzNVtcdURDMDAtXHVEQzU0XHVEQzU2LVx1REM5Q1x1REM5RVx1REM5Rlx1RENBMlx1RENBNVx1RENBNlx1RENBOS1cdURDQUNcdURDQUUtXHVEQ0I5XHVEQ0JCXHVEQ0JELVx1RENDM1x1RENDNS1cdUREMDVcdUREMDctXHVERDBBXHVERDBELVx1REQxNFx1REQxNi1cdUREMUNcdUREMUUtXHVERDM5XHVERDNCLVx1REQzRVx1REQ0MC1cdURENDRcdURENDZcdURENEEtXHVERDUwXHVERDUyLVx1REVBNVx1REVBOC1cdURFQzBcdURFQzItXHVERURBXHVERURDLVx1REVGQVx1REVGQy1cdURGMTRcdURGMTYtXHVERjM0XHVERjM2LVx1REY0RVx1REY1MC1cdURGNkVcdURGNzAtXHVERjg4XHVERjhBLVx1REZBOFx1REZBQS1cdURGQzJcdURGQzQtXHVERkNCXXxcdUQ4M0FbXHVEQzAwLVx1RENDNFx1REQwMC1cdURENDNdfFx1RDgzQltcdURFMDAtXHVERTAzXHVERTA1LVx1REUxRlx1REUyMVx1REUyMlx1REUyNFx1REUyN1x1REUyOS1cdURFMzJcdURFMzQtXHVERTM3XHVERTM5XHVERTNCXHVERTQyXHVERTQ3XHVERTQ5XHVERTRCXHVERTRELVx1REU0Rlx1REU1MVx1REU1Mlx1REU1NFx1REU1N1x1REU1OVx1REU1Qlx1REU1RFx1REU1Rlx1REU2MVx1REU2Mlx1REU2NFx1REU2Ny1cdURFNkFcdURFNkMtXHVERTcyXHVERTc0LVx1REU3N1x1REU3OS1cdURFN0NcdURFN0VcdURFODAtXHVERTg5XHVERThCLVx1REU5Qlx1REVBMS1cdURFQTNcdURFQTUtXHVERUE5XHVERUFCLVx1REVCQl18XHVEODY5W1x1REMwMC1cdURFRDZcdURGMDAtXHVERkZGXXxcdUQ4NkRbXHVEQzAwLVx1REYzNFx1REY0MC1cdURGRkZdfFx1RDg2RVtcdURDMDAtXHVEQzFEXHVEQzIwLVx1REZGRl18XHVEODczW1x1REMwMC1cdURFQTFcdURFQjAtXHVERkZGXXxcdUQ4N0FbXHVEQzAwLVx1REZFMF18XHVEODdFW1x1REMwMC1cdURFMURdLyxJRF9Db250aW51ZTovW1x4QUFceEI1XHhCQVx4QzAtXHhENlx4RDgtXHhGNlx4RjgtXHUwMkMxXHUwMkM2LVx1MDJEMVx1MDJFMC1cdTAyRTRcdTAyRUNcdTAyRUVcdTAzMDAtXHUwMzc0XHUwMzc2XHUwMzc3XHUwMzdBLVx1MDM3RFx1MDM3Rlx1MDM4Nlx1MDM4OC1cdTAzOEFcdTAzOENcdTAzOEUtXHUwM0ExXHUwM0EzLVx1MDNGNVx1MDNGNy1cdTA0ODFcdTA0ODMtXHUwNDg3XHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNTkxLVx1MDVCRFx1MDVCRlx1MDVDMVx1MDVDMlx1MDVDNFx1MDVDNVx1MDVDN1x1MDVEMC1cdTA1RUFcdTA1RjAtXHUwNUYyXHUwNjEwLVx1MDYxQVx1MDYyMC1cdTA2NjlcdTA2NkUtXHUwNkQzXHUwNkQ1LVx1MDZEQ1x1MDZERi1cdTA2RThcdTA2RUEtXHUwNkZDXHUwNkZGXHUwNzEwLVx1MDc0QVx1MDc0RC1cdTA3QjFcdTA3QzAtXHUwN0Y1XHUwN0ZBXHUwODAwLVx1MDgyRFx1MDg0MC1cdTA4NUJcdTA4NjAtXHUwODZBXHUwOEEwLVx1MDhCNFx1MDhCNi1cdTA4QkRcdTA4RDQtXHUwOEUxXHUwOEUzLVx1MDk2M1x1MDk2Ni1cdTA5NkZcdTA5NzEtXHUwOTgzXHUwOTg1LVx1MDk4Q1x1MDk4Rlx1MDk5MFx1MDk5My1cdTA5QThcdTA5QUEtXHUwOUIwXHUwOUIyXHUwOUI2LVx1MDlCOVx1MDlCQy1cdTA5QzRcdTA5QzdcdTA5QzhcdTA5Q0ItXHUwOUNFXHUwOUQ3XHUwOURDXHUwOUREXHUwOURGLVx1MDlFM1x1MDlFNi1cdTA5RjFcdTA5RkNcdTBBMDEtXHUwQTAzXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTNDXHUwQTNFLVx1MEE0Mlx1MEE0N1x1MEE0OFx1MEE0Qi1cdTBBNERcdTBBNTFcdTBBNTktXHUwQTVDXHUwQTVFXHUwQTY2LVx1MEE3NVx1MEE4MS1cdTBBODNcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCQy1cdTBBQzVcdTBBQzctXHUwQUM5XHUwQUNCLVx1MEFDRFx1MEFEMFx1MEFFMC1cdTBBRTNcdTBBRTYtXHUwQUVGXHUwQUY5LVx1MEFGRlx1MEIwMS1cdTBCMDNcdTBCMDUtXHUwQjBDXHUwQjBGXHUwQjEwXHUwQjEzLVx1MEIyOFx1MEIyQS1cdTBCMzBcdTBCMzJcdTBCMzNcdTBCMzUtXHUwQjM5XHUwQjNDLVx1MEI0NFx1MEI0N1x1MEI0OFx1MEI0Qi1cdTBCNERcdTBCNTZcdTBCNTdcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYzXHUwQjY2LVx1MEI2Rlx1MEI3MVx1MEI4Mlx1MEI4M1x1MEI4NS1cdTBCOEFcdTBCOEUtXHUwQjkwXHUwQjkyLVx1MEI5NVx1MEI5OVx1MEI5QVx1MEI5Q1x1MEI5RVx1MEI5Rlx1MEJBM1x1MEJBNFx1MEJBOC1cdTBCQUFcdTBCQUUtXHUwQkI5XHUwQkJFLVx1MEJDMlx1MEJDNi1cdTBCQzhcdTBCQ0EtXHUwQkNEXHUwQkQwXHUwQkQ3XHUwQkU2LVx1MEJFRlx1MEMwMC1cdTBDMDNcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNELVx1MEM0NFx1MEM0Ni1cdTBDNDhcdTBDNEEtXHUwQzREXHUwQzU1XHUwQzU2XHUwQzU4LVx1MEM1QVx1MEM2MC1cdTBDNjNcdTBDNjYtXHUwQzZGXHUwQzgwLVx1MEM4M1x1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JDLVx1MENDNFx1MENDNi1cdTBDQzhcdTBDQ0EtXHUwQ0NEXHUwQ0Q1XHUwQ0Q2XHUwQ0RFXHUwQ0UwLVx1MENFM1x1MENFNi1cdTBDRUZcdTBDRjFcdTBDRjJcdTBEMDAtXHUwRDAzXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDQ0XHUwRDQ2LVx1MEQ0OFx1MEQ0QS1cdTBENEVcdTBENTQtXHUwRDU3XHUwRDVGLVx1MEQ2M1x1MEQ2Ni1cdTBENkZcdTBEN0EtXHUwRDdGXHUwRDgyXHUwRDgzXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MERDQVx1MERDRi1cdTBERDRcdTBERDZcdTBERDgtXHUwRERGXHUwREU2LVx1MERFRlx1MERGMlx1MERGM1x1MEUwMS1cdTBFM0FcdTBFNDAtXHUwRTRFXHUwRTUwLVx1MEU1OVx1MEU4MVx1MEU4Mlx1MEU4NFx1MEU4N1x1MEU4OFx1MEU4QVx1MEU4RFx1MEU5NC1cdTBFOTdcdTBFOTktXHUwRTlGXHUwRUExLVx1MEVBM1x1MEVBNVx1MEVBN1x1MEVBQVx1MEVBQlx1MEVBRC1cdTBFQjlcdTBFQkItXHUwRUJEXHUwRUMwLVx1MEVDNFx1MEVDNlx1MEVDOC1cdTBFQ0RcdTBFRDAtXHUwRUQ5XHUwRURDLVx1MEVERlx1MEYwMFx1MEYxOFx1MEYxOVx1MEYyMC1cdTBGMjlcdTBGMzVcdTBGMzdcdTBGMzlcdTBGM0UtXHUwRjQ3XHUwRjQ5LVx1MEY2Q1x1MEY3MS1cdTBGODRcdTBGODYtXHUwRjk3XHUwRjk5LVx1MEZCQ1x1MEZDNlx1MTAwMC1cdTEwNDlcdTEwNTAtXHUxMDlEXHUxMEEwLVx1MTBDNVx1MTBDN1x1MTBDRFx1MTBEMC1cdTEwRkFcdTEwRkMtXHUxMjQ4XHUxMjRBLVx1MTI0RFx1MTI1MC1cdTEyNTZcdTEyNThcdTEyNUEtXHUxMjVEXHUxMjYwLVx1MTI4OFx1MTI4QS1cdTEyOERcdTEyOTAtXHUxMkIwXHUxMkIyLVx1MTJCNVx1MTJCOC1cdTEyQkVcdTEyQzBcdTEyQzItXHUxMkM1XHUxMkM4LVx1MTJENlx1MTJEOC1cdTEzMTBcdTEzMTItXHUxMzE1XHUxMzE4LVx1MTM1QVx1MTM1RC1cdTEzNUZcdTEzODAtXHUxMzhGXHUxM0EwLVx1MTNGNVx1MTNGOC1cdTEzRkRcdTE0MDEtXHUxNjZDXHUxNjZGLVx1MTY3Rlx1MTY4MS1cdTE2OUFcdTE2QTAtXHUxNkVBXHUxNkVFLVx1MTZGOFx1MTcwMC1cdTE3MENcdTE3MEUtXHUxNzE0XHUxNzIwLVx1MTczNFx1MTc0MC1cdTE3NTNcdTE3NjAtXHUxNzZDXHUxNzZFLVx1MTc3MFx1MTc3Mlx1MTc3M1x1MTc4MC1cdTE3RDNcdTE3RDdcdTE3RENcdTE3RERcdTE3RTAtXHUxN0U5XHUxODBCLVx1MTgwRFx1MTgxMC1cdTE4MTlcdTE4MjAtXHUxODc3XHUxODgwLVx1MThBQVx1MThCMC1cdTE4RjVcdTE5MDAtXHUxOTFFXHUxOTIwLVx1MTkyQlx1MTkzMC1cdTE5M0JcdTE5NDYtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxOUQwLVx1MTlEOVx1MUEwMC1cdTFBMUJcdTFBMjAtXHUxQTVFXHUxQTYwLVx1MUE3Q1x1MUE3Ri1cdTFBODlcdTFBOTAtXHUxQTk5XHUxQUE3XHUxQUIwLVx1MUFCRFx1MUIwMC1cdTFCNEJcdTFCNTAtXHUxQjU5XHUxQjZCLVx1MUI3M1x1MUI4MC1cdTFCRjNcdTFDMDAtXHUxQzM3XHUxQzQwLVx1MUM0OVx1MUM0RC1cdTFDN0RcdTFDODAtXHUxQzg4XHUxQ0QwLVx1MUNEMlx1MUNENC1cdTFDRjlcdTFEMDAtXHUxREY5XHUxREZCLVx1MUYxNVx1MUYxOC1cdTFGMURcdTFGMjAtXHUxRjQ1XHUxRjQ4LVx1MUY0RFx1MUY1MC1cdTFGNTdcdTFGNTlcdTFGNUJcdTFGNURcdTFGNUYtXHUxRjdEXHUxRjgwLVx1MUZCNFx1MUZCNi1cdTFGQkNcdTFGQkVcdTFGQzItXHUxRkM0XHUxRkM2LVx1MUZDQ1x1MUZEMC1cdTFGRDNcdTFGRDYtXHUxRkRCXHUxRkUwLVx1MUZFQ1x1MUZGMi1cdTFGRjRcdTFGRjYtXHUxRkZDXHUyMDNGXHUyMDQwXHUyMDU0XHUyMDcxXHUyMDdGXHUyMDkwLVx1MjA5Q1x1MjBEMC1cdTIwRENcdTIwRTFcdTIwRTUtXHUyMEYwXHUyMTAyXHUyMTA3XHUyMTBBLVx1MjExM1x1MjExNVx1MjExOS1cdTIxMURcdTIxMjRcdTIxMjZcdTIxMjhcdTIxMkEtXHUyMTJEXHUyMTJGLVx1MjEzOVx1MjEzQy1cdTIxM0ZcdTIxNDUtXHUyMTQ5XHUyMTRFXHUyMTYwLVx1MjE4OFx1MkMwMC1cdTJDMkVcdTJDMzAtXHUyQzVFXHUyQzYwLVx1MkNFNFx1MkNFQi1cdTJDRjNcdTJEMDAtXHUyRDI1XHUyRDI3XHUyRDJEXHUyRDMwLVx1MkQ2N1x1MkQ2Rlx1MkQ3Ri1cdTJEOTZcdTJEQTAtXHUyREE2XHUyREE4LVx1MkRBRVx1MkRCMC1cdTJEQjZcdTJEQjgtXHUyREJFXHUyREMwLVx1MkRDNlx1MkRDOC1cdTJEQ0VcdTJERDAtXHUyREQ2XHUyREQ4LVx1MkRERVx1MkRFMC1cdTJERkZcdTJFMkZcdTMwMDUtXHUzMDA3XHUzMDIxLVx1MzAyRlx1MzAzMS1cdTMwMzVcdTMwMzgtXHUzMDNDXHUzMDQxLVx1MzA5Nlx1MzA5OVx1MzA5QVx1MzA5RC1cdTMwOUZcdTMwQTEtXHUzMEZBXHUzMEZDLVx1MzBGRlx1MzEwNS1cdTMxMkVcdTMxMzEtXHUzMThFXHUzMUEwLVx1MzFCQVx1MzFGMC1cdTMxRkZcdTM0MDAtXHU0REI1XHU0RTAwLVx1OUZFQVx1QTAwMC1cdUE0OENcdUE0RDAtXHVBNEZEXHVBNTAwLVx1QTYwQ1x1QTYxMC1cdUE2MkJcdUE2NDAtXHVBNjZGXHVBNjc0LVx1QTY3RFx1QTY3Ri1cdUE2RjFcdUE3MTctXHVBNzFGXHVBNzIyLVx1QTc4OFx1QTc4Qi1cdUE3QUVcdUE3QjAtXHVBN0I3XHVBN0Y3LVx1QTgyN1x1QTg0MC1cdUE4NzNcdUE4ODAtXHVBOEM1XHVBOEQwLVx1QThEOVx1QThFMC1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MDAtXHVBOTJEXHVBOTMwLVx1QTk1M1x1QTk2MC1cdUE5N0NcdUE5ODAtXHVBOUMwXHVBOUNGLVx1QTlEOVx1QTlFMC1cdUE5RkVcdUFBMDAtXHVBQTM2XHVBQTQwLVx1QUE0RFx1QUE1MC1cdUFBNTlcdUFBNjAtXHVBQTc2XHVBQTdBLVx1QUFDMlx1QUFEQi1cdUFBRERcdUFBRTAtXHVBQUVGXHVBQUYyLVx1QUFGNlx1QUIwMS1cdUFCMDZcdUFCMDktXHVBQjBFXHVBQjExLVx1QUIxNlx1QUIyMC1cdUFCMjZcdUFCMjgtXHVBQjJFXHVBQjMwLVx1QUI1QVx1QUI1Qy1cdUFCNjVcdUFCNzAtXHVBQkVBXHVBQkVDXHVBQkVEXHVBQkYwLVx1QUJGOVx1QUMwMC1cdUQ3QTNcdUQ3QjAtXHVEN0M2XHVEN0NCLVx1RDdGQlx1RjkwMC1cdUZBNkRcdUZBNzAtXHVGQUQ5XHVGQjAwLVx1RkIwNlx1RkIxMy1cdUZCMTdcdUZCMUQtXHVGQjI4XHVGQjJBLVx1RkIzNlx1RkIzOC1cdUZCM0NcdUZCM0VcdUZCNDBcdUZCNDFcdUZCNDNcdUZCNDRcdUZCNDYtXHVGQkIxXHVGQkQzLVx1RkQzRFx1RkQ1MC1cdUZEOEZcdUZEOTItXHVGREM3XHVGREYwLVx1RkRGQlx1RkUwMC1cdUZFMEZcdUZFMjAtXHVGRTJGXHVGRTMzXHVGRTM0XHVGRTRELVx1RkU0Rlx1RkU3MC1cdUZFNzRcdUZFNzYtXHVGRUZDXHVGRjEwLVx1RkYxOVx1RkYyMS1cdUZGM0FcdUZGM0ZcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVEREZEXHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURFRTBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGN0FcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENBMC1cdURDQTlcdURDQjAtXHVEQ0QzXHVEQ0Q4LVx1RENGQlx1REQwMC1cdUREMjdcdUREMzAtXHVERDYzXHVERTAwLVx1REYzNlx1REY0MC1cdURGNTVcdURGNjAtXHVERjY3XXxcdUQ4MDJbXHVEQzAwLVx1REMwNVx1REMwOFx1REMwQS1cdURDMzVcdURDMzdcdURDMzhcdURDM0NcdURDM0YtXHVEQzU1XHVEQzYwLVx1REM3Nlx1REM4MC1cdURDOUVcdURDRTAtXHVEQ0YyXHVEQ0Y0XHVEQ0Y1XHVERDAwLVx1REQxNVx1REQyMC1cdUREMzlcdUREODAtXHVEREI3XHVEREJFXHVEREJGXHVERTAwLVx1REUwM1x1REUwNVx1REUwNlx1REUwQy1cdURFMTNcdURFMTUtXHVERTE3XHVERTE5LVx1REUzM1x1REUzOC1cdURFM0FcdURFM0ZcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU2XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMC1cdURDNDZcdURDNjYtXHVEQzZGXHVEQzdGLVx1RENCQVx1RENEMC1cdURDRThcdURDRjAtXHVEQ0Y5XHVERDAwLVx1REQzNFx1REQzNi1cdUREM0ZcdURENTAtXHVERDczXHVERDc2XHVERDgwLVx1RERDNFx1RERDQS1cdUREQ0NcdURERDAtXHVERERBXHVERERDXHVERTAwLVx1REUxMVx1REUxMy1cdURFMzdcdURFM0VcdURFODAtXHVERTg2XHVERTg4XHVERThBLVx1REU4RFx1REU4Ri1cdURFOURcdURFOUYtXHVERUE4XHVERUIwLVx1REVFQVx1REVGMC1cdURFRjlcdURGMDAtXHVERjAzXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzQy1cdURGNDRcdURGNDdcdURGNDhcdURGNEItXHVERjREXHVERjUwXHVERjU3XHVERjVELVx1REY2M1x1REY2Ni1cdURGNkNcdURGNzAtXHVERjc0XXxcdUQ4MDVbXHVEQzAwLVx1REM0QVx1REM1MC1cdURDNTlcdURDODAtXHVEQ0M1XHVEQ0M3XHVEQ0QwLVx1RENEOVx1REQ4MC1cdUREQjVcdUREQjgtXHVEREMwXHVEREQ4LVx1RERERFx1REUwMC1cdURFNDBcdURFNDRcdURFNTAtXHVERTU5XHVERTgwLVx1REVCN1x1REVDMC1cdURFQzlcdURGMDAtXHVERjE5XHVERjFELVx1REYyQlx1REYzMC1cdURGMzldfFx1RDgwNltcdURDQTAtXHVEQ0U5XHVEQ0ZGXHVERTAwLVx1REUzRVx1REU0N1x1REU1MC1cdURFODNcdURFODYtXHVERTk5XHVERUMwLVx1REVGOF18XHVEODA3W1x1REMwMC1cdURDMDhcdURDMEEtXHVEQzM2XHVEQzM4LVx1REM0MFx1REM1MC1cdURDNTlcdURDNzItXHVEQzhGXHVEQzkyLVx1RENBN1x1RENBOS1cdURDQjZcdUREMDAtXHVERDA2XHVERDA4XHVERDA5XHVERDBCLVx1REQzNlx1REQzQVx1REQzQ1x1REQzRFx1REQzRi1cdURENDdcdURENTAtXHVERDU5XXxcdUQ4MDhbXHVEQzAwLVx1REY5OV18XHVEODA5W1x1REMwMC1cdURDNkVcdURDODAtXHVERDQzXXxbXHVEODBDXHVEODFDLVx1RDgyMFx1RDg0MC1cdUQ4NjhcdUQ4NkEtXHVEODZDXHVEODZGLVx1RDg3Mlx1RDg3NC1cdUQ4NzldW1x1REMwMC1cdURGRkZdfFx1RDgwRFtcdURDMDAtXHVEQzJFXXxcdUQ4MTFbXHVEQzAwLVx1REU0Nl18XHVEODFBW1x1REMwMC1cdURFMzhcdURFNDAtXHVERTVFXHVERTYwLVx1REU2OVx1REVEMC1cdURFRURcdURFRjAtXHVERUY0XHVERjAwLVx1REYzNlx1REY0MC1cdURGNDNcdURGNTAtXHVERjU5XHVERjYzLVx1REY3N1x1REY3RC1cdURGOEZdfFx1RDgxQltcdURGMDAtXHVERjQ0XHVERjUwLVx1REY3RVx1REY4Ri1cdURGOUZcdURGRTBcdURGRTFdfFx1RDgyMVtcdURDMDAtXHVERkVDXXxcdUQ4MjJbXHVEQzAwLVx1REVGMl18XHVEODJDW1x1REMwMC1cdUREMUVcdURENzAtXHVERUZCXXxcdUQ4MkZbXHVEQzAwLVx1REM2QVx1REM3MC1cdURDN0NcdURDODAtXHVEQzg4XHVEQzkwLVx1REM5OVx1REM5RFx1REM5RV18XHVEODM0W1x1REQ2NS1cdURENjlcdURENkQtXHVERDcyXHVERDdCLVx1REQ4Mlx1REQ4NS1cdUREOEJcdUREQUEtXHVEREFEXHVERTQyLVx1REU0NF18XHVEODM1W1x1REMwMC1cdURDNTRcdURDNTYtXHVEQzlDXHVEQzlFXHVEQzlGXHVEQ0EyXHVEQ0E1XHVEQ0E2XHVEQ0E5LVx1RENBQ1x1RENBRS1cdURDQjlcdURDQkJcdURDQkQtXHVEQ0MzXHVEQ0M1LVx1REQwNVx1REQwNy1cdUREMEFcdUREMEQtXHVERDE0XHVERDE2LVx1REQxQ1x1REQxRS1cdUREMzlcdUREM0ItXHVERDNFXHVERDQwLVx1REQ0NFx1REQ0Nlx1REQ0QS1cdURENTBcdURENTItXHVERUE1XHVERUE4LVx1REVDMFx1REVDMi1cdURFREFcdURFREMtXHVERUZBXHVERUZDLVx1REYxNFx1REYxNi1cdURGMzRcdURGMzYtXHVERjRFXHVERjUwLVx1REY2RVx1REY3MC1cdURGODhcdURGOEEtXHVERkE4XHVERkFBLVx1REZDMlx1REZDNC1cdURGQ0JcdURGQ0UtXHVERkZGXXxcdUQ4MzZbXHVERTAwLVx1REUzNlx1REUzQi1cdURFNkNcdURFNzVcdURFODRcdURFOUItXHVERTlGXHVERUExLVx1REVBRl18XHVEODM4W1x1REMwMC1cdURDMDZcdURDMDgtXHVEQzE4XHVEQzFCLVx1REMyMVx1REMyM1x1REMyNFx1REMyNi1cdURDMkFdfFx1RDgzQVtcdURDMDAtXHVEQ0M0XHVEQ0QwLVx1RENENlx1REQwMC1cdURENEFcdURENTAtXHVERDU5XXxcdUQ4M0JbXHVERTAwLVx1REUwM1x1REUwNS1cdURFMUZcdURFMjFcdURFMjJcdURFMjRcdURFMjdcdURFMjktXHVERTMyXHVERTM0LVx1REUzN1x1REUzOVx1REUzQlx1REU0Mlx1REU0N1x1REU0OVx1REU0Qlx1REU0RC1cdURFNEZcdURFNTFcdURFNTJcdURFNTRcdURFNTdcdURFNTlcdURFNUJcdURFNURcdURFNUZcdURFNjFcdURFNjJcdURFNjRcdURFNjctXHVERTZBXHVERTZDLVx1REU3Mlx1REU3NC1cdURFNzdcdURFNzktXHVERTdDXHVERTdFXHVERTgwLVx1REU4OVx1REU4Qi1cdURFOUJcdURFQTEtXHVERUEzXHVERUE1LVx1REVBOVx1REVBQi1cdURFQkJdfFx1RDg2OVtcdURDMDAtXHVERUQ2XHVERjAwLVx1REZGRl18XHVEODZEW1x1REMwMC1cdURGMzRcdURGNDAtXHVERkZGXXxcdUQ4NkVbXHVEQzAwLVx1REMxRFx1REMyMC1cdURGRkZdfFx1RDg3M1tcdURDMDAtXHVERUExXHVERUIwLVx1REZGRl18XHVEODdBW1x1REMwMC1cdURGRTBdfFx1RDg3RVtcdURDMDAtXHVERTFEXXxcdURCNDBbXHVERDAwLVx1RERFRl0vfSxVPXtpc1NwYWNlU2VwYXJhdG9yOmZ1bmN0aW9uKHUpe3JldHVybiJzdHJpbmciPT10eXBlb2YgdSYmRy5TcGFjZV9TZXBhcmF0b3IudGVzdCh1KX0saXNJZFN0YXJ0Q2hhcjpmdW5jdGlvbih1KXtyZXR1cm4ic3RyaW5nIj09dHlwZW9mIHUmJih1Pj0iYSImJnU8PSJ6Inx8dT49IkEiJiZ1PD0iWiJ8fCIkIj09PXV8fCJfIj09PXV8fEcuSURfU3RhcnQudGVzdCh1KSl9LGlzSWRDb250aW51ZUNoYXI6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYodT49ImEiJiZ1PD0ieiJ8fHU+PSJBIiYmdTw9IloifHx1Pj0iMCImJnU8PSI5Inx8IiQiPT09dXx8Il8iPT09dXx8IuKAjCI9PT11fHwi4oCNIj09PXV8fEcuSURfQ29udGludWUudGVzdCh1KSl9LGlzRGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOV0vLnRlc3QodSl9LGlzSGV4RGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOUEtRmEtZl0vLnRlc3QodSl9fTtmdW5jdGlvbiBaKCl7Zm9yKFQ9ImRlZmF1bHQiLHo9IiIsSD0hMSwkPTE7Oyl7Uj1xKCk7dmFyIHU9WFtUXSgpO2lmKHUpcmV0dXJuIHV9fWZ1bmN0aW9uIHEoKXtpZihfW0ldKXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChfLmNvZGVQb2ludEF0KEkpKX1mdW5jdGlvbiBXKCl7dmFyIHU9cSgpO3JldHVybiJcbiI9PT11PyhWKyssSj0wKTp1P0orPXUubGVuZ3RoOkorKyx1JiYoSSs9dS5sZW5ndGgpLHV9dmFyIFg9e2RlZmF1bHQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJcdCI6Y2FzZSJcdiI6Y2FzZSJcZiI6Y2FzZSIgIjpjYXNlIiAiOmNhc2UiXHVmZWZmIjpjYXNlIlxuIjpjYXNlIlxyIjpjYXNlIlx1MjAyOCI6Y2FzZSJcdTIwMjkiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJjb21tZW50Iik7Y2FzZSB2b2lkIDA6cmV0dXJuIFcoKSxLKCJlb2YiKX1pZighVS5pc1NwYWNlU2VwYXJhdG9yKFIpKXJldHVybiBYW09dKCk7VygpfSxjb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiKiI6cmV0dXJuIFcoKSx2b2lkKFQ9Im11bHRpTGluZUNvbW1lbnQiKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJzaW5nbGVMaW5lQ29tbWVudCIpfXRocm93IHJ1KFcoKSl9LG11bHRpTGluZUNvbW1lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIqIjpyZXR1cm4gVygpLHZvaWQoVD0ibXVsdGlMaW5lQ29tbWVudEFzdGVyaXNrIik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCl9LG11bHRpTGluZUNvbW1lbnRBc3RlcmlzazpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIioiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJkZWZhdWx0Iik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCksVD0ibXVsdGlMaW5lQ29tbWVudCJ9LHNpbmdsZUxpbmVDb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXG4iOmNhc2UiXHIiOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSx2b2lkKFQ9ImRlZmF1bHQiKTtjYXNlIHZvaWQgMDpyZXR1cm4gVygpLEsoImVvZiIpfVcoKX0sdmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJ7IjpjYXNlIlsiOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UibiI6cmV0dXJuIFcoKSxRKCJ1bGwiKSxLKCJudWxsIixudWxsKTtjYXNlInQiOnJldHVybiBXKCksUSgicnVlIiksSygiYm9vbGVhbiIsITApO2Nhc2UiZiI6cmV0dXJuIFcoKSxRKCJhbHNlIiksSygiYm9vbGVhbiIsITEpO2Nhc2UiLSI6Y2FzZSIrIjpyZXR1cm4iLSI9PT1XKCkmJigkPS0xKSx2b2lkKFQ9InNpZ24iKTtjYXNlIi4iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImRlY2ltYWxQb2ludExlYWRpbmciKTtjYXNlIjAiOnJldHVybiB6PVcoKSx2b2lkKFQ9Inplcm8iKTtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsSW50ZWdlciIpO2Nhc2UiSSI6cmV0dXJuIFcoKSxRKCJuZmluaXR5IiksSygibnVtZXJpYyIsMS8wKTtjYXNlIk4iOnJldHVybiBXKCksUSgiYU4iKSxLKCJudW1lcmljIixOYU4pO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksej0iIix2b2lkKFQ9InN0cmluZyIpfXRocm93IHJ1KFcoKSl9LGlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmJyZWFrO2RlZmF1bHQ6aWYoIVUuaXNJZFN0YXJ0Q2hhcih1KSl0aHJvdyBudSgpfXorPXUsVD0iaWRlbnRpZmllck5hbWUifSxpZGVudGlmaWVyTmFtZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiQiOmNhc2UiXyI6Y2FzZSLigIwiOmNhc2Ui4oCNIjpyZXR1cm4gdm9pZCh6Kz1XKCkpO2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZChUPSJpZGVudGlmaWVyTmFtZUVzY2FwZSIpfWlmKCFVLmlzSWRDb250aW51ZUNoYXIoUikpcmV0dXJuIEsoImlkZW50aWZpZXIiLHopO3orPVcoKX0saWRlbnRpZmllck5hbWVFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmNhc2Ui4oCMIjpjYXNlIuKAjSI6YnJlYWs7ZGVmYXVsdDppZighVS5pc0lkQ29udGludWVDaGFyKHUpKXRocm93IG51KCl9eis9dSxUPSJpZGVudGlmaWVyTmFtZSJ9LHNpZ246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnRMZWFkaW5nIik7Y2FzZSIwIjpyZXR1cm4gej1XKCksdm9pZChUPSJ6ZXJvIik7Y2FzZSIxIjpjYXNlIjIiOmNhc2UiMyI6Y2FzZSI0IjpjYXNlIjUiOmNhc2UiNiI6Y2FzZSI3IjpjYXNlIjgiOmNhc2UiOSI6cmV0dXJuIHo9VygpLHZvaWQoVD0iZGVjaW1hbEludGVnZXIiKTtjYXNlIkkiOnJldHVybiBXKCksUSgibmZpbml0eSIpLEsoIm51bWVyaWMiLCQqKDEvMCkpO2Nhc2UiTiI6cmV0dXJuIFcoKSxRKCJhTiIpLEsoIm51bWVyaWMiLE5hTil9dGhyb3cgcnUoVygpKX0semVybzpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIi4iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnQiKTtjYXNlImUiOmNhc2UiRSI6cmV0dXJuIHorPVcoKSx2b2lkKFQ9ImRlY2ltYWxFeHBvbmVudCIpO2Nhc2UieCI6Y2FzZSJYIjpyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWwiKX1yZXR1cm4gSygibnVtZXJpYyIsMCokKX0sZGVjaW1hbEludGVnZXI6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbFBvaW50Iik7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsUG9pbnRMZWFkaW5nOmZ1bmN0aW9uKCl7aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKTt0aHJvdyBydShXKCkpfSxkZWNpbWFsUG9pbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1yZXR1cm4gVS5pc0RpZ2l0KFIpPyh6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKSk6SygibnVtZXJpYyIsJCpOdW1iZXIoeikpfSxkZWNpbWFsRnJhY3Rpb246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsRXhwb25lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIrIjpjYXNlIi0iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRTaWduIil9aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0sZGVjaW1hbEV4cG9uZW50U2lnbjpmdW5jdGlvbigpe2lmKFUuaXNEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbEV4cG9uZW50SW50ZWdlciIpO3Rocm93IHJ1KFcoKSl9LGRlY2ltYWxFeHBvbmVudEludGVnZXI6ZnVuY3Rpb24oKXtpZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxoZXhhZGVjaW1hbDpmdW5jdGlvbigpe2lmKFUuaXNIZXhEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWxJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0saGV4YWRlY2ltYWxJbnRlZ2VyOmZ1bmN0aW9uKCl7aWYoIVUuaXNIZXhEaWdpdChSKSlyZXR1cm4gSygibnVtZXJpYyIsJCpOdW1iZXIoeikpO3orPVcoKX0sc3RyaW5nOmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZCh6Kz1mdW5jdGlvbigpe3N3aXRjaChxKCkpe2Nhc2UiYiI6cmV0dXJuIFcoKSwiXGIiO2Nhc2UiZiI6cmV0dXJuIFcoKSwiXGYiO2Nhc2UibiI6cmV0dXJuIFcoKSwiXG4iO2Nhc2UiciI6cmV0dXJuIFcoKSwiXHIiO2Nhc2UidCI6cmV0dXJuIFcoKSwiXHQiO2Nhc2UidiI6cmV0dXJuIFcoKSwiXHYiO2Nhc2UiMCI6aWYoVygpLFUuaXNEaWdpdChxKCkpKXRocm93IHJ1KFcoKSk7cmV0dXJuIlwwIjtjYXNlIngiOnJldHVybiBXKCksZnVuY3Rpb24oKXt2YXIgdT0iIixEPXEoKTtpZighVS5pc0hleERpZ2l0KEQpKXRocm93IHJ1KFcoKSk7aWYodSs9VygpLEQ9cSgpLCFVLmlzSGV4RGlnaXQoRCkpdGhyb3cgcnUoVygpKTtyZXR1cm4gdSs9VygpLFN0cmluZy5mcm9tQ29kZVBvaW50KHBhcnNlSW50KHUsMTYpKX0oKTtjYXNlInUiOnJldHVybiBXKCksWSgpO2Nhc2UiXG4iOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSwiIjtjYXNlIlxyIjpyZXR1cm4gVygpLCJcbiI9PT1xKCkmJlcoKSwiIjtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpjYXNlIHZvaWQgMDp0aHJvdyBydShXKCkpfXJldHVybiBXKCl9KCkpO2Nhc2UnIic6cmV0dXJuIEg/KFcoKSxLKCJzdHJpbmciLHopKTp2b2lkKHorPVcoKSk7Y2FzZSInIjpyZXR1cm4gSD92b2lkKHorPVcoKSk6KFcoKSxLKCJzdHJpbmciLHopKTtjYXNlIlxuIjpjYXNlIlxyIjp0aHJvdyBydShXKCkpO2Nhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6IWZ1bmN0aW9uKHUpe2NvbnNvbGUud2FybigiSlNPTjU6ICciK0Z1KHUpKyInIGluIHN0cmluZ3MgaXMgbm90IHZhbGlkIEVDTUFTY3JpcHQ7IGNvbnNpZGVyIGVzY2FwaW5nIil9KFIpO2JyZWFrO2Nhc2Ugdm9pZCAwOnRocm93IHJ1KFcoKSl9eis9VygpfSxzdGFydDpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlInsiOmNhc2UiWyI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9VD0idmFsdWUifSxiZWZvcmVQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIkIjpjYXNlIl8iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7Y2FzZSJcXCI6cmV0dXJuIFcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGUiKTtjYXNlIn0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksdm9pZChUPSJzdHJpbmciKX1pZihVLmlzSWRTdGFydENoYXIoUikpcmV0dXJuIHorPVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7dGhyb3cgcnUoVygpKX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiOiI9PT1SKXJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO3Rocm93IHJ1KFcoKSl9LGJlZm9yZVByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtUPSJ2YWx1ZSJ9LGFmdGVyUHJvcGVydHlWYWx1ZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiwiOmNhc2UifSI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9dGhyb3cgcnUoVygpKX0sYmVmb3JlQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJdIj09PVIpcmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSk7VD0idmFsdWUifSxhZnRlckFycmF5VmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIsIjpjYXNlIl0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpfXRocm93IHJ1KFcoKSl9LGVuZDpmdW5jdGlvbigpe3Rocm93IHJ1KFcoKSl9fTtmdW5jdGlvbiBLKHUsRCl7cmV0dXJue3R5cGU6dSx2YWx1ZTpELGxpbmU6Vixjb2x1bW46Sn19ZnVuY3Rpb24gUSh1KXtmb3IodmFyIEQ9MCxlPXU7RDxlLmxlbmd0aDtEKz0xKXt2YXIgcj1lW0RdO2lmKHEoKSE9PXIpdGhyb3cgcnUoVygpKTtXKCl9fWZ1bmN0aW9uIFkoKXtmb3IodmFyIHU9IiIsRD00O0QtLSA+MDspe3ZhciBlPXEoKTtpZighVS5pc0hleERpZ2l0KGUpKXRocm93IHJ1KFcoKSk7dSs9VygpfXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChwYXJzZUludCh1LDE2KSl9dmFyIHV1PXtzdGFydDpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7RHUoKX0sYmVmb3JlUHJvcGVydHlOYW1lOmZ1bmN0aW9uKCl7c3dpdGNoKE0udHlwZSl7Y2FzZSJpZGVudGlmaWVyIjpjYXNlInN0cmluZyI6cmV0dXJuIGs9TS52YWx1ZSx2b2lkKE89ImFmdGVyUHJvcGVydHlOYW1lIik7Y2FzZSJwdW5jdHVhdG9yIjpyZXR1cm4gdm9pZCBldSgpO2Nhc2UiZW9mIjp0aHJvdyB0dSgpfX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO089ImJlZm9yZVByb3BlcnR5VmFsdWUifSxiZWZvcmVQcm9wZXJ0eVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTtEdSgpfSxiZWZvcmVBcnJheVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTsicHVuY3R1YXRvciIhPT1NLnR5cGV8fCJdIiE9PU0udmFsdWU/RHUoKTpldSgpfSxhZnRlclByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO3N3aXRjaChNLnZhbHVlKXtjYXNlIiwiOnJldHVybiB2b2lkKE89ImJlZm9yZVByb3BlcnR5TmFtZSIpO2Nhc2UifSI6ZXUoKX19LGFmdGVyQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7c3dpdGNoKE0udmFsdWUpe2Nhc2UiLCI6cmV0dXJuIHZvaWQoTz0iYmVmb3JlQXJyYXlWYWx1ZSIpO2Nhc2UiXSI6ZXUoKX19LGVuZDpmdW5jdGlvbigpe319O2Z1bmN0aW9uIER1KCl7dmFyIHU7c3dpdGNoKE0udHlwZSl7Y2FzZSJwdW5jdHVhdG9yIjpzd2l0Y2goTS52YWx1ZSl7Y2FzZSJ7Ijp1PXt9O2JyZWFrO2Nhc2UiWyI6dT1bXX1icmVhaztjYXNlIm51bGwiOmNhc2UiYm9vbGVhbiI6Y2FzZSJudW1lcmljIjpjYXNlInN0cmluZyI6dT1NLnZhbHVlfWlmKHZvaWQgMD09PUwpTD11O2Vsc2V7dmFyIEQ9altqLmxlbmd0aC0xXTtBcnJheS5pc0FycmF5KEQpP0QucHVzaCh1KTpPYmplY3QuZGVmaW5lUHJvcGVydHkoRCxrLHt2YWx1ZTp1LHdyaXRhYmxlOiEwLGVudW1lcmFibGU6ITAsY29uZmlndXJhYmxlOiEwfSl9aWYobnVsbCE9PXUmJiJvYmplY3QiPT10eXBlb2YgdSlqLnB1c2godSksTz1BcnJheS5pc0FycmF5KHUpPyJiZWZvcmVBcnJheVZhbHVlIjoiYmVmb3JlUHJvcGVydHlOYW1lIjtlbHNle3ZhciBlPWpbai5sZW5ndGgtMV07Tz1udWxsPT1lPyJlbmQiOkFycmF5LmlzQXJyYXkoZSk/ImFmdGVyQXJyYXlWYWx1ZSI6ImFmdGVyUHJvcGVydHlWYWx1ZSJ9fWZ1bmN0aW9uIGV1KCl7ai5wb3AoKTt2YXIgdT1qW2oubGVuZ3RoLTFdO089bnVsbD09dT8iZW5kIjpBcnJheS5pc0FycmF5KHUpPyJhZnRlckFycmF5VmFsdWUiOiJhZnRlclByb3BlcnR5VmFsdWUifWZ1bmN0aW9uIHJ1KHUpe3JldHVybiBDdSh2b2lkIDA9PT11PyJKU09ONTogaW52YWxpZCBlbmQgb2YgaW5wdXQgYXQgIitWKyI6IitKOiJKU09ONTogaW52YWxpZCBjaGFyYWN0ZXIgJyIrRnUodSkrIicgYXQgIitWKyI6IitKKX1mdW5jdGlvbiB0dSgpe3JldHVybiBDdSgiSlNPTjU6IGludmFsaWQgZW5kIG9mIGlucHV0IGF0ICIrVisiOiIrSil9ZnVuY3Rpb24gbnUoKXtyZXR1cm4gQ3UoIkpTT041OiBpbnZhbGlkIGlkZW50aWZpZXIgY2hhcmFjdGVyIGF0ICIrVisiOiIrKEotPTUpKX1mdW5jdGlvbiBGdSh1KXt2YXIgRD17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9O2lmKERbdV0pcmV0dXJuIERbdV07aWYodTwiICIpe3ZhciBlPXUuY2hhckNvZGVBdCgwKS50b1N0cmluZygxNik7cmV0dXJuIlxceCIrKCIwMCIrZSkuc3Vic3RyaW5nKGUubGVuZ3RoKX1yZXR1cm4gdX1mdW5jdGlvbiBDdSh1KXt2YXIgRD1uZXcgU3ludGF4RXJyb3IodSk7cmV0dXJuIEQubGluZU51bWJlcj1WLEQuY29sdW1uTnVtYmVyPUosRH1yZXR1cm57cGFyc2U6ZnVuY3Rpb24odSxEKXtfPVN0cmluZyh1KSxPPSJzdGFydCIsaj1bXSxJPTAsVj0xLEo9MCxNPXZvaWQgMCxrPXZvaWQgMCxMPXZvaWQgMDtkb3tNPVooKSx1dVtPXSgpfXdoaWxlKCJlb2YiIT09TS50eXBlKTtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgRD9mdW5jdGlvbiB1KEQsZSxyKXt2YXIgdD1EW2VdO2lmKG51bGwhPXQmJiJvYmplY3QiPT10eXBlb2YgdClpZihBcnJheS5pc0FycmF5KHQpKWZvcih2YXIgbj0wO248dC5sZW5ndGg7bisrKXt2YXIgRj1TdHJpbmcobiksQz11KHQsRixyKTt2b2lkIDA9PT1DP2RlbGV0ZSB0W0ZdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEYse3ZhbHVlOkMsd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1lbHNlIGZvcih2YXIgQSBpbiB0KXt2YXIgaT11KHQsQSxyKTt2b2lkIDA9PT1pP2RlbGV0ZSB0W0FdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEEse3ZhbHVlOmksd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1yZXR1cm4gci5jYWxsKEQsZSx0KX0oeyIiOkx9LCIiLEQpOkx9LHN0cmluZ2lmeTpmdW5jdGlvbih1LEQsZSl7dmFyIHIsdCxuLEY9W10sQz0iIixBPSIiO2lmKG51bGw9PUR8fCJvYmplY3QiIT10eXBlb2YgRHx8QXJyYXkuaXNBcnJheShEKXx8KGU9RC5zcGFjZSxuPUQucXVvdGUsRD1ELnJlcGxhY2VyKSwiZnVuY3Rpb24iPT10eXBlb2YgRCl0PUQ7ZWxzZSBpZihBcnJheS5pc0FycmF5KEQpKXtyPVtdO2Zvcih2YXIgaT0wLEU9RDtpPEUubGVuZ3RoO2krPTEpe3ZhciBvPUVbaV0sYT12b2lkIDA7InN0cmluZyI9PXR5cGVvZiBvP2E9bzooIm51bWJlciI9PXR5cGVvZiBvfHxvIGluc3RhbmNlb2YgU3RyaW5nfHxvIGluc3RhbmNlb2YgTnVtYmVyKSYmKGE9U3RyaW5nKG8pKSx2b2lkIDAhPT1hJiZyLmluZGV4T2YoYSk8MCYmci5wdXNoKGEpfX1yZXR1cm4gZSBpbnN0YW5jZW9mIE51bWJlcj9lPU51bWJlcihlKTplIGluc3RhbmNlb2YgU3RyaW5nJiYoZT1TdHJpbmcoZSkpLCJudW1iZXIiPT10eXBlb2YgZT9lPjAmJihlPU1hdGgubWluKDEwLE1hdGguZmxvb3IoZSkpLEE9IiAgICAgICAgICAiLnN1YnN0cigwLGUpKToic3RyaW5nIj09dHlwZW9mIGUmJihBPWUuc3Vic3RyKDAsMTApKSxjKCIiLHsiIjp1fSk7ZnVuY3Rpb24gYyh1LEQpe3ZhciBlPURbdV07c3dpdGNoKG51bGwhPWUmJigiZnVuY3Rpb24iPT10eXBlb2YgZS50b0pTT041P2U9ZS50b0pTT041KHUpOiJmdW5jdGlvbiI9PXR5cGVvZiBlLnRvSlNPTiYmKGU9ZS50b0pTT04odSkpKSx0JiYoZT10LmNhbGwoRCx1LGUpKSxlIGluc3RhbmNlb2YgTnVtYmVyP2U9TnVtYmVyKGUpOmUgaW5zdGFuY2VvZiBTdHJpbmc/ZT1TdHJpbmcoZSk6ZSBpbnN0YW5jZW9mIEJvb2xlYW4mJihlPWUudmFsdWVPZigpKSxlKXtjYXNlIG51bGw6cmV0dXJuIm51bGwiO2Nhc2UhMDpyZXR1cm4idHJ1ZSI7Y2FzZSExOnJldHVybiJmYWxzZSJ9cmV0dXJuInN0cmluZyI9PXR5cGVvZiBlP0IoZSk6Im51bWJlciI9PXR5cGVvZiBlP1N0cmluZyhlKToib2JqZWN0Ij09dHlwZW9mIGU/QXJyYXkuaXNBcnJheShlKT9mdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHI9W10sdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgbj1jKFN0cmluZyh0KSx1KTtyLnB1c2godm9pZCAwIT09bj9uOiJudWxsIil9aWYoMD09PXIubGVuZ3RoKWU9IltdIjtlbHNlIGlmKCIiPT09QSl7dmFyIGk9ci5qb2luKCIsIik7ZT0iWyIraSsiXSJ9ZWxzZXt2YXIgRT0iLFxuIitDLG89ci5qb2luKEUpO2U9IltcbiIrQytvKyIsXG4iK0QrIl0ifXJldHVybiBGLnBvcCgpLEM9RCxlfShlKTpmdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHQsbj1yfHxPYmplY3Qua2V5cyh1KSxpPVtdLEU9MCxvPW47RTxvLmxlbmd0aDtFKz0xKXt2YXIgYT1vW0VdLEI9YyhhLHUpO2lmKHZvaWQgMCE9PUIpe3ZhciBmPXMoYSkrIjoiOyIiIT09QSYmKGYrPSIgIiksZis9QixpLnB1c2goZil9fWlmKDA9PT1pLmxlbmd0aCllPSJ7fSI7ZWxzZSBpZigiIj09PUEpdD1pLmpvaW4oIiwiKSxlPSJ7Iit0KyJ9IjtlbHNle3ZhciBsPSIsXG4iK0M7dD1pLmpvaW4obCksZT0ie1xuIitDK3QrIixcbiIrRCsifSJ9cmV0dXJuIEYucG9wKCksQz1ELGV9KGUpOnZvaWQgMH1mdW5jdGlvbiBCKHUpe2Zvcih2YXIgRD17IiciOi4xLCciJzouMn0sZT17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9LHI9IiIsdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgRj11W3RdO3N3aXRjaChGKXtjYXNlIiciOmNhc2UnIic6RFtGXSsrLHIrPUY7Y29udGludWU7Y2FzZSJcMCI6aWYoVS5pc0RpZ2l0KHVbdCsxXSkpe3IrPSJcXHgwMCI7Y29udGludWV9fWlmKGVbRl0pcis9ZVtGXTtlbHNlIGlmKEY8IiAiKXt2YXIgQz1GLmNoYXJDb2RlQXQoMCkudG9TdHJpbmcoMTYpO3IrPSJcXHgiKygiMDAiK0MpLnN1YnN0cmluZyhDLmxlbmd0aCl9ZWxzZSByKz1GfXZhciBBPW58fE9iamVjdC5rZXlzKEQpLnJlZHVjZShmdW5jdGlvbih1LGUpe3JldHVybiBEW3VdPERbZV0/dTplfSk7cmV0dXJuIEErKHI9ci5yZXBsYWNlKG5ldyBSZWdFeHAoQSwiZyIpLGVbQV0pKStBfWZ1bmN0aW9uIHModSl7aWYoMD09PXUubGVuZ3RoKXJldHVybiBCKHUpO3ZhciBEPVN0cmluZy5mcm9tQ29kZVBvaW50KHUuY29kZVBvaW50QXQoMCkpO2lmKCFVLmlzSWRTdGFydENoYXIoRCkpcmV0dXJuIEIodSk7Zm9yKHZhciBlPUQubGVuZ3RoO2U8dS5sZW5ndGg7ZSsrKWlmKCFVLmlzSWRDb250aW51ZUNoYXIoU3RyaW5nLmZyb21Db2RlUG9pbnQodS5jb2RlUG9pbnRBdChlKSkpKXJldHVybiBCKHUpO3JldHVybiB1fX19fSk7`;
 function webViewJsonRpcClient(vscode) {
 	return jsonRpcPostMessageRequestTransport({
 		postMessage: (data) => {
@@ -24641,7 +25197,7 @@ var deleteLegacyDatabases = async () => {
 };
 //#endregion
 //#region src/client/database/manager.ts
-var log$7 = createLogger("DatabaseManager");
+var log$8 = createLogger("DatabaseManager");
 /**
 * Manages the (single, per-origin) database connection. Log dirs are query
 * scopes over the unified database, not separate databases.
@@ -24654,18 +25210,18 @@ var DatabaseManager = class {
 	async openDatabase() {
 		if (this.database) return this.database;
 		if (await AppDatabase.checkVersionMismatch()) {
-			log$7.info("Recreating database due to version mismatch");
+			log$8.info("Recreating database due to version mismatch");
 			await Dexie.delete(DB_NAME);
-			log$7.debug(`Deleted old database: ${DB_NAME}`);
+			log$8.debug(`Deleted old database: ${DB_NAME}`);
 		}
 		this.database = new AppDatabase();
 		try {
 			await this.database.open();
-			log$7.debug("Successfully opened database");
+			log$8.debug("Successfully opened database");
 			deleteLegacyDatabases();
 			return this.database;
 		} catch (error) {
-			log$7.error("Failed to open database:", error);
+			log$8.error("Failed to open database:", error);
 			this.database = null;
 			throw error;
 		}
@@ -24682,7 +25238,7 @@ var DatabaseManager = class {
 	*/
 	close() {
 		if (this.database) {
-			log$7.debug("Closing database");
+			log$8.debug("Closing database");
 			this.database.close();
 			this.database = null;
 		}
@@ -24697,7 +25253,7 @@ var DatabaseManager = class {
 };
 //#endregion
 //#region src/client/database/service.ts
-var log$6 = createLogger("DatabaseService");
+var log$7 = createLogger("DatabaseService");
 var newRow$1 = (handle) => ({
 	...handle,
 	depth: "listed",
@@ -24758,13 +25314,13 @@ var DatabaseService = class {
 				cached_at: now
 			} : toLogRecord(newRow$1(handle), void 0, now);
 		});
-		log$6.debug(`Upserting ${records.length} log rows (identity tier)`);
+		log$7.debug(`Upserting ${records.length} log rows (identity tier)`);
 		await db.logs.bulkPut(records);
 	}
 	async readLogs(scope) {
 		try {
 			if (!this.opened()) {
-				log$6.debug("Database not open");
+				log$7.debug("Database not open");
 				return null;
 			}
 			const records = await this.getDb().logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
@@ -24773,10 +25329,10 @@ var DatabaseService = class {
 				if (a.id != null && b.id != null) return a.id - b.id;
 				return 0;
 			});
-			log$6.debug(`Retrieved ${records.length} log rows`);
+			log$7.debug(`Retrieved ${records.length} log rows`);
 			return records.map(fromLogRecord);
 		} catch (error) {
-			log$6.error("Error retrieving log rows:", error);
+			log$7.error("Error retrieving log rows:", error);
 			return null;
 		}
 	}
@@ -24785,7 +25341,7 @@ var DatabaseService = class {
 			const record = await this.getDb().logs.where("file_path").equals(filePath).first();
 			return record ? fromLogRecord(record) : null;
 		} catch (error) {
-			log$6.error(`Error retrieving log row for ${filePath}:`, error);
+			log$7.error(`Error retrieving log row for ${filePath}:`, error);
 			return null;
 		}
 	}
@@ -24796,7 +25352,7 @@ var DatabaseService = class {
 			for (const record of records) result[record.file_path] = fromLogRecord(record);
 			return result;
 		} catch (error) {
-			log$6.error("Error retrieving log rows:", error);
+			log$7.error("Error retrieving log rows:", error);
 			return {};
 		}
 	}
@@ -24824,7 +25380,7 @@ var DatabaseService = class {
 		await db.logs.bulkPut(records);
 	}
 	async writeLogPreviews(previews) {
-		log$6.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
+		log$7.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
 		await this.mergeRows(Object.fromEntries(Object.entries(previews).map(([file, preview]) => [file, previewTier(preview)])));
 	}
 	/**
@@ -24838,7 +25394,7 @@ var DatabaseService = class {
 		const db = this.getDb();
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const entries = Object.entries(details);
-		log$6.debug(`Ingesting ${entries.length} log details (split)`);
+		log$7.debug(`Ingesting ${entries.length} log details (split)`);
 		await db.transaction("rw", db.logs, db.sample_summaries, async () => {
 			await this.mergeRows(Object.fromEntries(entries.map(([file, { patch }]) => [file, patch])));
 			const files = entries.map(([filePath]) => filePath);
@@ -24858,7 +25414,7 @@ var DatabaseService = class {
 		return ("file" in scope ? db.sample_summaries.where("file_path").equals(scope.file) : db.sample_summaries.where("file_path").startsWith(scopePrefix(scope.prefix))).toArray();
 	}
 	async writeFetchStates(states) {
-		log$6.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
+		log$7.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
 		await this.mergeRows(states);
 	}
 	/**
@@ -24883,7 +25439,7 @@ var DatabaseService = class {
 	/** Remove a deleted file's row and its sample summaries. */
 	async clearCacheForFile(filePath) {
 		const db = this.getDb();
-		log$6.debug(`Clearing cache for file: ${filePath}`);
+		log$7.debug(`Clearing cache for file: ${filePath}`);
 		await Promise.all([db.logs.where("file_path").equals(filePath).delete(), db.sample_summaries.where("file_path").equals(filePath).delete()]);
 	}
 	/**
@@ -24893,7 +25449,7 @@ var DatabaseService = class {
 	*/
 	async clearAllData() {
 		const db = this.getDb();
-		log$6.debug("Clearing all cached data");
+		log$7.debug("Clearing all cached data");
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -24911,7 +25467,7 @@ var DatabaseService = class {
 	async clearScope(scope) {
 		const db = this.getDb();
 		const prefix = scopePrefix(scope.prefix);
-		log$6.debug(`Clearing caches under: ${prefix}`);
+		log$7.debug(`Clearing caches under: ${prefix}`);
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -25147,7 +25703,8 @@ function objectToString$1(value) {
 //#endregion
 //#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/_baseGetTag.js
 /** `Object#toString` result references. */
-var nullTag = "[object Null]", undefinedTag = "[object Undefined]";
+var nullTag = "[object Null]";
+var undefinedTag = "[object Undefined]";
 /** Built-in value references. */
 var symToStringTag = Symbol$1 ? Symbol$1.toStringTag : void 0;
 /**
@@ -25348,7 +25905,8 @@ var now = function() {
 //#region ../../node_modules/.pnpm/lodash-es@4.18.1/node_modules/lodash-es/debounce.js
 /** Error message constants. */
 var FUNC_ERROR_TEXT = "Expected a function";
-var nativeMax = Math.max, nativeMin = Math.min;
+var nativeMax = Math.max;
+var nativeMin = Math.min;
 /**
 * Creates a debounced function that delays invoking `func` until after `wait`
 * milliseconds have elapsed since the last time the debounced function was
@@ -28841,7 +29399,10 @@ var IDLE_BLOCKER = {
 var defaultMapRouteProperties = (route) => ({ hasErrorBoundary: Boolean(route.hasErrorBoundary) });
 var TRANSITIONS_STORAGE_KEY = "remix-router-transitions";
 var ResetLoaderDataSymbol = Symbol("ResetLoaderData");
-var _routes, _branches, _hmrRoutes, _hmrBranches;
+var _routes;
+var _branches;
+var _hmrRoutes;
+var _hmrBranches;
 var DataRoutes = class {
 	constructor(routes) {
 		__privateAdd(this, _routes);
@@ -34589,7 +35150,7 @@ var useCollapsibleIds = (key) => {
 };
 //#endregion
 //#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
-var log$5 = createLogger("scrolling");
+var log$6 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable = true) {
 	const [scrollPosition, setScrollPosition] = useProperty("scrollPosition", elementKey);
 	const scrollPositionRef = (0, import_react.useRef)(scrollPosition);
@@ -34598,7 +35159,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	}, [scrollPosition]);
 	const handleScrollInner = (0, import_react.useCallback)((e) => {
 		const position = e.target.scrollTop;
-		log$5.debug(`Storing scroll position`, elementKey, position);
+		log$6.debug(`Storing scroll position`, elementKey, position);
 		setScrollPosition(position);
 	}, [elementKey, setScrollPosition]);
 	const handleScroll = (0, import_react.useMemo)(() => debounce$3(handleScrollInner, delay), [handleScrollInner, delay]);
@@ -34615,15 +35176,15 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	(0, import_react.useEffect)(() => {
 		const element = elementRef.current;
 		if (!element || !scrollable) return;
-		log$5.debug(`Restore Scroll Hook`, elementKey);
+		log$6.debug(`Restore Scroll Hook`, elementKey);
 		const savedPosition = scrollPositionRef.current;
 		if (savedPosition !== void 0) {
-			log$5.debug(`Restoring scroll position`, savedPosition);
+			log$6.debug(`Restoring scroll position`, savedPosition);
 			const tryRestoreScroll = () => {
 				if (element.scrollHeight > element.clientHeight) {
 					if (element.scrollTop !== savedPosition) {
 						element.scrollTop = savedPosition;
-						log$5.debug(`Scroll position restored to ${savedPosition}`);
+						log$6.debug(`Scroll position restored to ${savedPosition}`);
 					}
 					return true;
 				}
@@ -34634,7 +35195,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 				const maxAttempts = 20;
 				const pollForRender = () => {
 					if (tryRestoreScroll() || attempts >= maxAttempts) {
-						if (attempts >= maxAttempts) log$5.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
+						if (attempts >= maxAttempts) log$6.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
 						return;
 					}
 					attempts++;
@@ -34644,10 +35205,10 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 			}
 		}
 		if (element.addEventListener) element.addEventListener("scroll", handleScroll);
-		else log$5.warn("Element has no way to add event listener", element);
+		else log$6.warn("Element has no way to add event listener", element);
 		return () => {
 			if (element.removeEventListener) element.removeEventListener("scroll", handleScroll);
-			else log$5.warn("Element has no way to remove event listener", element);
+			else log$6.warn("Element has no way to remove event listener", element);
 		};
 	}, [
 		elementKey,
@@ -36838,7 +37399,9 @@ var e$11 = /* @__PURE__ */ new Set([
 	"ref",
 	"style",
 	"className"
-]), n$8 = /* @__PURE__ */ new WeakMap(), t$5 = (e, t, o, l, a) => {
+]);
+var n$8 = /* @__PURE__ */ new WeakMap();
+var t$5 = (e, t, o, l, a) => {
 	const s = a?.[t];
 	void 0 === s ? (e[t] = o, null == o && t in HTMLElement.prototype && e.removeAttribute(t)) : o !== l && ((e, t, o) => {
 		let l = n$8.get(e);
@@ -36846,7 +37409,8 @@ var e$11 = /* @__PURE__ */ new Set([
 		let a = l.get(t);
 		void 0 !== o ? void 0 === a ? (l.set(t, a = { handleEvent: o }), e.addEventListener(t, a)) : a.handleEvent = o : void 0 !== a && (l.delete(t), e.removeEventListener(t, a));
 	})(e, s, o);
-}, o$7 = ({ react: n, tagName: o, elementClass: l, events: a, displayName: s }) => {
+};
+var o$7 = ({ react: n, tagName: o, elementClass: l, events: a, displayName: s }) => {
 	const c = new Set(Object.keys(a ?? {})), r = n.forwardRef(((s, r) => {
 		const i = n.useRef(/* @__PURE__ */ new Map()), d = n.useRef(null), f = {}, u = {};
 		for (const [n, t] of Object.entries(s)) e$11.has(n) ? f["className" === n ? "class" : n] = t : c.has(n) || n in l.prototype ? u[n] = t : f[n] = t;
@@ -36874,7 +37438,10 @@ var e$11 = /* @__PURE__ */ new Set([
 * Copyright 2019 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
-var t$4 = globalThis, e$10 = t$4.ShadowRoot && (void 0 === t$4.ShadyCSS || t$4.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, s$6 = Symbol(), o$6 = /* @__PURE__ */ new WeakMap();
+var t$4 = globalThis;
+var e$10 = t$4.ShadowRoot && (void 0 === t$4.ShadyCSS || t$4.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype;
+var s$6 = Symbol();
+var o$6 = /* @__PURE__ */ new WeakMap();
 var n$7 = class {
 	constructor(t, e, o) {
 		if (this._$cssResult$ = !0, o !== s$6) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
@@ -36893,19 +37460,22 @@ var n$7 = class {
 		return this.cssText;
 	}
 };
-var r$6 = (t) => new n$7("string" == typeof t ? t : t + "", void 0, s$6), i$8 = (t, ...e) => {
+var r$6 = (t) => new n$7("string" == typeof t ? t : t + "", void 0, s$6);
+var i$8 = (t, ...e) => {
 	return new n$7(1 === t.length ? t[0] : e.reduce((e, s, o) => e + ((t) => {
 		if (!0 === t._$cssResult$) return t.cssText;
 		if ("number" == typeof t) return t;
 		throw Error("Value passed to 'css' function must be a 'css' function result: " + t + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
 	})(s) + t[o + 1], t[0]), t, s$6);
-}, S$1 = (s, o) => {
+};
+var S$1 = (s, o) => {
 	if (e$10) s.adoptedStyleSheets = o.map((t) => t instanceof CSSStyleSheet ? t : t.styleSheet);
 	else for (const e of o) {
 		const o = document.createElement("style"), n = t$4.litNonce;
 		void 0 !== n && o.setAttribute("nonce", n), o.textContent = e.cssText, s.appendChild(o);
 	}
-}, c$5 = e$10 ? (t) => t : (t) => t instanceof CSSStyleSheet ? ((t) => {
+};
+var c$5 = e$10 ? (t) => t : (t) => t instanceof CSSStyleSheet ? ((t) => {
 	let e = "";
 	for (const s of t.cssRules) e += s.cssText;
 	return r$6(e);
@@ -37147,11 +37717,38 @@ y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$2("eleme
 * Copyright 2017 Google LLC
 * SPDX-License-Identifier: BSD-3-Clause
 */
-var t$3 = globalThis, i$6 = (t) => t, s$5 = t$3.trustedTypes, e$8 = s$5 ? s$5.createPolicy("lit-html", { createHTML: (t) => t }) : void 0, h$1 = "$lit$", o$4 = `lit$${Math.random().toFixed(9).slice(2)}$`, n$5 = "?" + o$4, r$4 = `<${n$5}>`, l$1 = document, c$3 = () => l$1.createComment(""), a = (t) => null === t || "object" != typeof t && "function" != typeof t, u$2 = Array.isArray, d$1 = (t) => u$2(t) || "function" == typeof t?.[Symbol.iterator], f$1 = "[ 	\n\f\r]", v$1 = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, _$1 = /-->/g, m$1 = />/g, p$1 = RegExp(`>|${f$1}(?:([^\\s"'>=/]+)(${f$1}*=${f$1}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`, "g"), g = /'/g, $$1 = /"/g, y = /^(?:script|style|textarea|title)$/i, x$2 = (t) => (i, ...s) => ({
+var t$3 = globalThis;
+var i$6 = (t) => t;
+var s$5 = t$3.trustedTypes;
+var e$8 = s$5 ? s$5.createPolicy("lit-html", { createHTML: (t) => t }) : void 0;
+var h$1 = "$lit$";
+var o$4 = `lit$${Math.random().toFixed(9).slice(2)}$`;
+var n$5 = "?" + o$4;
+var r$4 = `<${n$5}>`;
+var l$1 = document;
+var c$3 = () => l$1.createComment("");
+var a = (t) => null === t || "object" != typeof t && "function" != typeof t;
+var u$2 = Array.isArray;
+var d$1 = (t) => u$2(t) || "function" == typeof t?.[Symbol.iterator];
+var f$1 = "[ 	\n\f\r]";
+var v$1 = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g;
+var _$1 = /-->/g;
+var m$1 = />/g;
+var p$1 = RegExp(`>|${f$1}(?:([^\\s"'>=/]+)(${f$1}*=${f$1}*(?:[^ \t\n\f\r"'\`<>=]|("|')|))|$)`, "g");
+var g = /'/g;
+var $$1 = /"/g;
+var y = /^(?:script|style|textarea|title)$/i;
+var x$2 = (t) => (i, ...s) => ({
 	_$litType$: t,
 	strings: i,
 	values: s
-}), b = x$2(1), w = x$2(2), E$1 = Symbol.for("lit-noChange"), A$1 = Symbol.for("lit-nothing"), C$1 = /* @__PURE__ */ new WeakMap(), P$1 = l$1.createTreeWalker(l$1, 129);
+});
+var b = x$2(1);
+var w = x$2(2);
+var E$1 = Symbol.for("lit-noChange");
+var A$1 = Symbol.for("lit-nothing");
+var C$1 = /* @__PURE__ */ new WeakMap();
+var P$1 = l$1.createTreeWalker(l$1, 129);
 function V(t, i) {
 	if (!u$2(t) || !t.hasOwnProperty("raw")) throw Error("invalid template strings array");
 	return void 0 !== e$8 ? e$8.createHTML(i) : i;
@@ -37396,7 +37993,8 @@ var j$2 = {
 	U: z$1,
 	B: I,
 	F: Z
-}, B$1 = t$3.litHtmlPolyfillSupport;
+};
+var B$1 = t$3.litHtmlPolyfillSupport;
 B$1?.(S, k), (t$3.litHtmlVersions ??= []).push("3.3.2");
 var D = (t, i, s) => {
 	const e = s?.renderBefore ?? i;
@@ -37452,7 +38050,8 @@ o$3?.({ LitElement: i$5 });
 	converter: u$3,
 	reflect: !1,
 	hasChanged: f$2
-}, r$3 = (t = o$2, e, r) => {
+};
+var r$3 = (t = o$2, e, r) => {
 	const { kind: n, metadata: i } = r;
 	let s = globalThis.litPropertyMetadata.get(i);
 	if (void 0 === s && globalThis.litPropertyMetadata.set(i, s = /* @__PURE__ */ new Map()), "setter" === n && ((t = Object.create(t)).wrapped = !0), s.set(r.name, t), "accessor" === n) {
@@ -37739,7 +38338,8 @@ var t$2 = {
 	BOOLEAN_ATTRIBUTE: 4,
 	EVENT: 5,
 	ELEMENT: 6
-}, e$4 = (t) => (...e) => ({
+};
+var e$4 = (t) => (...e) => ({
 	_$litDirective$: t,
 	values: e
 });
@@ -40263,7 +40863,8 @@ var u = (e, s, t) => {
 	const r = /* @__PURE__ */ new Map();
 	for (let l = s; l <= t; l++) r.set(e[l], l);
 	return r;
-}, c$1 = e$4(class extends i$4 {
+};
+var c$1 = e$4(class extends i$4 {
 	constructor(e) {
 		if (super(e), e.type !== t$2.CHILD) throw Error("repeat() can only be used in text expressions");
 	}
@@ -50752,7 +51353,7 @@ function escapedSplit(str) {
 	result.push(current + str.substring(lastPos));
 	return result;
 }
-function table$4(state, startLine, endLine, silent) {
+function table$5(state, startLine, endLine, silent) {
 	if (startLine + 2 > endLine) return false;
 	let nextLine = startLine + 1;
 	if (state.sCount[nextLine] < state.blkIndent) return false;
@@ -51092,7 +51693,7 @@ function markTightParagraphs(state, idx) {
 		i += 2;
 	}
 }
-function list$3(state, startLine, endLine, silent) {
+function list$4(state, startLine, endLine, silent) {
 	let max, pos, start, token;
 	let nextLine = startLine;
 	let tight = true;
@@ -51601,7 +52202,7 @@ function paragraph(state, startLine, endLine) {
 var _rules$1 = [
 	[
 		"table",
-		table$4,
+		table$5,
 		["paragraph", "reference"]
 	],
 	["code", code$5],
@@ -51637,7 +52238,7 @@ var _rules$1 = [
 	],
 	[
 		"list",
-		list$3,
+		list$4,
 		[
 			"paragraph",
 			"reference",
@@ -54138,8 +54739,8 @@ var markdownRenderers = {
 };
 var renderMarkdown = (markdown, renderer = defaultMarkdownRenderer) => markdownRenderers[renderer](markdown);
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.11/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.11 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.11/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.12/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.12 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.12/LICENSE */
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -54180,9 +54781,17 @@ function _unsupportedIterableToArray(r, a) {
 		return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0;
 	}
 }
-var entries = Object.entries, setPrototypeOf = Object.setPrototypeOf, isFrozen$1 = Object.isFrozen, getPrototypeOf$1 = Object.getPrototypeOf, getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-var freeze$1 = Object.freeze, seal = Object.seal, create$1 = Object.create;
-var _ref = typeof Reflect !== "undefined" && Reflect, apply = _ref.apply, construct = _ref.construct;
+var entries = Object.entries;
+var setPrototypeOf = Object.setPrototypeOf;
+var isFrozen$1 = Object.isFrozen;
+var getPrototypeOf$1 = Object.getPrototypeOf;
+var getOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+var freeze$1 = Object.freeze;
+var seal = Object.seal;
+var create$1 = Object.create;
+var _ref = typeof Reflect !== "undefined" && Reflect;
+var apply = _ref.apply;
+var construct = _ref.construct;
 if (!freeze$1) freeze$1 = function freeze(x) {
 	return x;
 };
@@ -54474,7 +55083,7 @@ var html$1 = freeze$1([
 	"video",
 	"wbr"
 ]);
-var svg$1 = freeze$1([
+var svg$1$1 = freeze$1([
 	"svg",
 	"a",
 	"altglyph",
@@ -54778,6 +55387,7 @@ var svg$2 = freeze$1([
 	"direction",
 	"display",
 	"divisor",
+	"dominant-baseline",
 	"dur",
 	"edgemode",
 	"elevation",
@@ -54905,6 +55515,7 @@ var svg$2 = freeze$1([
 	"transform-origin",
 	"text-anchor",
 	"text-decoration",
+	"text-orientation",
 	"text-rendering",
 	"textlength",
 	"type",
@@ -55087,7 +55698,7 @@ var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) 
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.11";
+	DOMPurify.version = "3.4.12";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -55164,7 +55775,7 @@ function createDOMPurify() {
 	let ALLOWED_TAGS = null;
 	const DEFAULT_ALLOWED_TAGS = addToSet({}, [
 		...html$1,
-		...svg$1,
+		...svg$1$1,
 		...svgFilters,
 		...mathMl$1,
 		...text$3
@@ -55386,7 +55997,7 @@ function createDOMPurify() {
 				addToSet(ALLOWED_ATTR, html);
 			}
 			if (USE_PROFILES.svg === true) {
-				addToSet(ALLOWED_TAGS, svg$1);
+				addToSet(ALLOWED_TAGS, svg$1$1);
 				addToSet(ALLOWED_ATTR, svg$2);
 				addToSet(ALLOWED_ATTR, xml);
 			}
@@ -55458,7 +56069,7 @@ function createDOMPurify() {
 		CONFIG = cfg;
 	};
 	const ALL_SVG_TAGS = addToSet({}, [
-		...svg$1,
+		...svg$1$1,
 		...svgFilters,
 		...svgDisallowed
 	]);
@@ -55554,6 +56165,7 @@ function createDOMPurify() {
 	* @param root the in-place root to empty
 	*/
 	const _neutralizeRoot = function _neutralizeRoot(root) {
+		_neutralizeSubtree(root);
 		const childNodes = getChildNodes(root);
 		if (childNodes) {
 			const snapshot = [];
@@ -55650,6 +56262,65 @@ function createDOMPurify() {
 		while (stack.length > 0) {
 			const node = stack.pop();
 			if ((getNodeType ? getNodeType(node) : node.nodeType) === NODE_TYPE.element) _stripDisallowedAttributes(node);
+			const childNodes = getChildNodes(node);
+			if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push(childNodes[i]);
+		}
+	};
+	/**
+	* _neutralizePatchLinkage
+	*
+	* IN_PLACE entry pre-pass (declarative-partial-updates / streaming
+	* hardening, https://github.com/WICG/declarative-partial-updates).
+	*
+	* The main walk strips patch linkage (`for`/`patchsrc`) and removes range
+	* markers (PIs / markup comments) node-by-node, in document order, AS it
+	* reaches each node. On a live in-place root that leaves a window: from the
+	* moment the root is connected until the walk arrives at a given node, that
+	* node's linkage is live. A patch applied on connection/stream can fire as
+	* a microtask during the walk and inject or teleport an unsanitized DOM
+	* range into a region the iterator has already passed and will not revisit,
+	* so the post-return "tree is sanitized" contract is violated. Sweep the
+	* whole tree once up front and sever every linkage before the walk begins,
+	* closing that window.
+	*
+	* This CANNOT undo a patch that already fired before sanitize ran — that is
+	* the irreducible "do not IN_PLACE a live-connected attacker tree" caveat —
+	* but it closes everything from sanitize-start onward. Gated on SAFE_FOR_XML
+	* to group with the rest of the declarative-partial-updates handling and
+	* stay overridable, consistent with the codebase.
+	*
+	* Clobber-safe traversal (cached childNodes getter); per-node try/catch so a
+	* clobbered root cannot defeat the sweep of its non-clobbered descendants.
+	*
+	* NOTE (pending real-Chrome confirmation, see test/declarative-patch-probe
+	* .html Q1): this mirrors the existing policy of keeping `for` on
+	* <label>/<output>. If the shipping feature can drive a patch through a
+	* surviving `for`-on-label/output + `id` pair, this pre-pass and the
+	* attribute check at _isBasicCustomElement's caller must additionally drop
+	* that pair on the IN_PLACE path. Left as-is until the taxonomy is verified.
+	*
+	* @param root the in-place root to sweep
+	*/
+	const _neutralizePatchLinkage = function _neutralizePatchLinkage(root) {
+		if (!SAFE_FOR_XML) return;
+		const stack = [root];
+		while (stack.length > 0) {
+			const node = stack.pop();
+			const nodeType = getNodeType ? getNodeType(node) : node.nodeType;
+			if (nodeType === NODE_TYPE.processingInstruction || nodeType === NODE_TYPE.comment && regExpTest(COMMENT_MARKUP_PROBE, node.data)) {
+				try {
+					remove(node);
+				} catch (_) {}
+				continue;
+			}
+			if (nodeType === NODE_TYPE.element) {
+				const element = node;
+				const lcTag = transformCaseFunc(getNodeName ? getNodeName(node) : node.nodeName);
+				try {
+					if (element.hasAttribute && element.hasAttribute("patchsrc")) element.removeAttribute("patchsrc");
+					if (element.hasAttribute && element.hasAttribute("for") && lcTag !== "label" && lcTag !== "output") element.removeAttribute("for");
+				} catch (_) {}
+			}
 			const childNodes = getChildNodes(node);
 			if (childNodes) for (let i = childNodes.length - 1; i >= 0; --i) stack.push(childNodes[i]);
 		}
@@ -55822,9 +56493,15 @@ function createDOMPurify() {
 	/**
 	* Handle a node whose tag is forbidden or not allowlisted: keep
 	* allowed custom elements (false return exits _sanitizeElements
-	* early - namespace/fallback checks and the afterSanitizeElements
-	* hook are intentionally skipped for kept custom elements), else
-	* hoist content per KEEP_CONTENT and remove.
+	* early - the namespace and fallback-tag removal checks are
+	* intentionally skipped for kept custom elements), else hoist
+	* content per KEEP_CONTENT and remove.
+	*
+	* A kept custom element is the ONLY case in which this function
+	* returns false, so the caller uses that return value to run the
+	* afterSanitizeElements hook on the kept element and keep the
+	* element-hook lifecycle consistent with normal allowlisted
+	* elements (GHSA-c2j3-45gr-mqc4).
 	*
 	* @param currentNode the disallowed node
 	* @param tagName the node's transformCaseFunc'd tag name
@@ -55858,8 +56535,9 @@ function createDOMPurify() {
 	* @param currentNode to check for permission to exist
 	* @return true if node was killed, false if left alive
 	*/
-	const _sanitizeElements = function _sanitizeElements(currentNode) {
+	const _sanitizeElements = function _sanitizeElements(currentNode, root) {
 		_executeHooks(hooks.beforeSanitizeElements, currentNode, null);
+		if (currentNode !== root && getParentNode(currentNode) === null) return true;
 		if (_isClobbered(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
@@ -55869,11 +56547,16 @@ function createDOMPurify() {
 			tagName,
 			allowedTags: ALLOWED_TAGS
 		});
+		if (currentNode !== root && getParentNode(currentNode) === null) return true;
 		if (_isUnsafeNode(currentNode, tagName)) {
 			_forceRemove(currentNode);
 			return true;
 		}
-		if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) return _sanitizeDisallowedNode(currentNode, tagName);
+		if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
+			const removed = _sanitizeDisallowedNode(currentNode, tagName);
+			if (removed === false) _executeHooks(hooks.afterSanitizeElements, currentNode, null);
+			return removed;
+		}
 		if ((getNodeType ? getNodeType(currentNode) : currentNode.nodeType) === NODE_TYPE.element && !_checkValidNamespace(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
@@ -55902,6 +56585,8 @@ function createDOMPurify() {
 	*/
 	const _isValidAttribute = function _isValidAttribute(lcTag, lcName, value) {
 		if (FORBID_ATTR[lcName]) return false;
+		if (SAFE_FOR_XML && lcName === "patchsrc") return false;
+		if (SAFE_FOR_XML && lcName === "for" && lcTag !== "label" && lcTag !== "output") return false;
 		if (SANITIZE_DOM && (lcName === "id" || lcName === "name") && (value in document || value in formElement)) return false;
 		const nameIsPermitted = ALLOWED_ATTR[lcName] || EXTRA_ELEMENT_HANDLING.attributeCheck instanceof Function && EXTRA_ELEMENT_HANDLING.attributeCheck(lcName, lcTag);
 		if (ALLOW_DATA_ATTR && regExpTest(DATA_ATTR$1, lcName));
@@ -56055,7 +56740,7 @@ function createDOMPurify() {
 		_executeHooks(hooks.beforeSanitizeShadowDOM, fragment, null);
 		while (shadowNode = shadowIterator.nextNode()) {
 			_executeHooks(hooks.uponSanitizeShadowNode, shadowNode, null);
-			_sanitizeElements(shadowNode);
+			_sanitizeElements(shadowNode, fragment);
 			_sanitizeAttributes(shadowNode);
 			if (_isDocumentFragment(shadowNode.content)) _sanitizeShadowDOM2(shadowNode.content);
 			if ((getNodeType ? getNodeType(shadowNode) : shadowNode.nodeType) === NODE_TYPE.element) {
@@ -56149,12 +56834,19 @@ function createDOMPurify() {
 		DOMPurify.removed = [];
 		const inPlace = IN_PLACE && typeof dirty !== "string" && _isNode(dirty);
 		if (inPlace) {
+			_neutralizePatchLinkage(dirty);
 			const nn = getNodeName ? getNodeName(dirty) : dirty.nodeName;
 			if (typeof nn === "string") {
 				const tagName = transformCaseFunc(nn);
-				if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
+				if (!ALLOWED_TAGS[tagName] || FORBID_TAGS[tagName]) {
+					_neutralizeRoot(dirty);
+					throw typeErrorCreate("root node is forbidden and cannot be sanitized in-place");
+				}
 			}
-			if (_isClobbered(dirty)) throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
+			if (_isClobbered(dirty)) {
+				_neutralizeRoot(dirty);
+				throw typeErrorCreate("root node is clobbered and cannot be sanitized in-place");
+			}
 			try {
 				_sanitizeAttachedShadowRoots(dirty);
 			} catch (error) {
@@ -56174,15 +56866,21 @@ function createDOMPurify() {
 			if (!body) return RETURN_DOM ? null : RETURN_TRUSTED_TYPE ? emptyHTML : "";
 		}
 		if (body && FORCE_BODY) _forceRemove(body.firstChild);
-		const nodeIterator = _createNodeIterator(inPlace ? dirty : body);
+		const walkRoot = inPlace ? dirty : body;
+		const nodeIterator = _createNodeIterator(walkRoot);
 		try {
 			while (currentNode = nodeIterator.nextNode()) {
-				_sanitizeElements(currentNode);
+				_sanitizeElements(currentNode, walkRoot);
 				_sanitizeAttributes(currentNode);
 				if (_isDocumentFragment(currentNode.content)) _sanitizeShadowDOM2(currentNode.content);
 			}
 		} catch (error) {
-			if (inPlace) _neutralizeRoot(dirty);
+			if (inPlace) {
+				_neutralizeRoot(dirty);
+				arrayForEach(DOMPurify.removed, (entry) => {
+					if (entry.element) _neutralizeSubtree(entry.element);
+				});
+			}
 			throw error;
 		}
 		if (inPlace) {
@@ -60109,6 +60807,33 @@ var defaultRetry = (failureCount, error) => !globalThis.__TEST_DISABLE_RETRY && 
 */
 var queryClient = new QueryClient({ defaultOptions: { queries: { retry: defaultRetry } } });
 //#endregion
+//#region src/log_data/databaseListings.ts
+var databaseLogsListingKeyRoot = [
+	"log_data",
+	"dexie-listing",
+	"logs"
+];
+var databaseLogsListingKey = (universe, accessorsKey, filter, orderBy, pagination) => [
+	...databaseLogsListingKeyRoot,
+	universe ?? null,
+	accessorsKey,
+	filter ?? null,
+	orderBy ?? null,
+	pagination ?? null
+];
+/** The universe slot of a {@link databaseLogsListingKey} — for same-universe
+*  checks (placeholders) without hard-coding the key shape at call sites. */
+var listingKeyUniverse = (queryKey) => queryKey[databaseLogsListingKeyRoot.length];
+/**
+* Coalesce replication bursts into at most one refetch of observed Dexie
+* listings per 100ms. A throttle, not a debounce: the flush loops can write
+* back-to-back for a whole sync, and a trailing-only debounce would postpone
+* the invalidation for the entire burst instead of updating incrementally.
+*/
+var invalidateDatabaseLogsListings = throttle(() => {
+	queryClient.invalidateQueries({ queryKey: databaseLogsListingKeyRoot });
+}, 100, { leading: false });
+//#endregion
 //#region src/log_data/samplesListing.ts
 var EMPTY_ROWS = [];
 /** The whole key family for a dir — the invalidation target. */
@@ -60233,7 +60958,7 @@ var removeSamplesListings = (logDir) => {
 * `set*`/`merge*`/`seed*` primitives) are allowed; the invariant is
 * one-directional (db ⟹ cache).
 */
-var log$4 = createLogger("logsContent");
+var log$5 = createLogger("logsContent");
 var EMPTY_LOGS = [];
 var logsKey = (logDir) => [
 	"log_data",
@@ -60357,14 +61082,21 @@ var clearCache = (logDir) => {
 * remove. "Clear Local Database" (`clearAll`) wipes them along with
 * everything else.
 */
-var warnedScopes = /* @__PURE__ */ new Set();
+var cacheOnlyScopes = /* @__PURE__ */ new Set();
+/**
+* Whether `logDir`'s listing degraded to cache-only persistence
+* (out-of-namespace names — see `namesInScope`). Session-sticky: once a
+* listing sync detects the degrade, listing reads for the dir serve from
+* the react-query cache instead of the database.
+*/
+var isCacheOnlyListingScope = (logDir) => cacheOnlyScopes.has(scopePrefix(logDir));
 var namesInScope = (logDir, handles) => {
 	const prefix = scopePrefix(logDir);
 	const misnamed = handles.find((handle) => !handle.name.startsWith(prefix));
 	if (misnamed !== void 0) {
-		if (!warnedScopes.has(prefix)) {
-			warnedScopes.add(prefix);
-			log$4.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
+		if (!cacheOnlyScopes.has(prefix)) {
+			cacheOnlyScopes.add(prefix);
+			log$5.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
 		}
 		return false;
 	}
@@ -60383,15 +61115,18 @@ var writeListing = async (db, logDir, handles) => {
 		const all = await db.readLogs({ prefix: logDir });
 		if (all) {
 			setRows(logDir, all);
+			invalidateDatabaseLogsListings();
 			return all;
 		}
 	}
 	setListing(logDir, handles);
+	invalidateDatabaseLogsListings();
 	return currentLogs(logDir);
 };
 var writePreviews = async (db, logDir, previews) => {
 	mergePreviews(logDir, previews);
 	if (db?.opened()) await db.writeLogPreviews(previews);
+	invalidateDatabaseLogsListings();
 };
 /**
 * Details INGESTION: normalize each transport payload into the entity
@@ -60399,10 +61134,11 @@ var writePreviews = async (db, logDir, previews) => {
 * own store. Cache updates land synchronously; samples rows land BEFORE the
 * row merge (the status flip is what drops a running log's pending-buffer
 * rows, so a render between the two updates must already have the settled
-* rows). Persistence is one transaction per call; the invalidation sweep
-* then refreshes prefix-scope listings from the committed rows. In db-less
-* sessions the pushes are the only landing spot, and invalidating would
-* clobber them with an empty read — so the sweep is persistence-gated.
+* rows). Persistence is one transaction per call. The samples sweep is
+* persistence-gated: samples listings read from the database, and in db-less
+* sessions invalidating would clobber the pushes — the only landing spot —
+* with an empty read. Log listings have a cache-backed read path, so their
+* invalidation is unconditional.
 */
 var writeDetails = async (db, logDir, details) => {
 	const prepared = Object.entries(details).map(([name, payload]) => [name, prepareLogDetails(payload)]);
@@ -60412,6 +61148,7 @@ var writeDetails = async (db, logDir, details) => {
 		await db.writeLogDetails(Object.fromEntries(prepared));
 		invalidateSamplesListings(logDir);
 	}
+	invalidateDatabaseLogsListings();
 };
 var writeFetchStates = async (db, logDir, states) => {
 	mergeFetchStates(logDir, states);
@@ -60434,16 +61171,19 @@ var resetDepth = async (db, logDir, names) => {
 	queryClient.setQueryData(logsKey(logDir), next);
 	for (const row of next) if (nameSet.has(row.name)) pushLog(logDir, row);
 	if (db?.opened()) await db.resetDepth(names);
+	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearFile = async (db, logDir, name) => {
 	evictFile(logDir, name);
 	if (db?.opened()) await db.clearCacheForFile(name);
+	invalidateDatabaseLogsListings();
 	invalidateSamplesListings(logDir);
 };
 var clearAll = async (db, logDir) => {
 	clearCache(logDir);
 	if (db?.opened()) await db.clearAllData();
+	invalidateDatabaseLogsListings();
 };
 /**
 * The seam as a fetch-engine sink: the write surface bound to a directory and
@@ -60453,6 +61193,7 @@ var clearAll = async (db, logDir) => {
 var createLogsContentSink = (db, logDir) => ({
 	seedRows: (rows) => {
 		setRows(logDir, rows);
+		invalidateDatabaseLogsListings();
 		invalidateSamplesListings(logDir);
 	},
 	setListing: (handles) => setListing(logDir, handles),
@@ -60707,6 +61448,271 @@ var imperativeLogData = {
 	}
 };
 //#endregion
+//#region src/client/database/listing.ts
+/** Slice one page (with its continuation cursor) off filtered+sorted rows. */
+var pageRows = (rows, pagination) => {
+	if (!pagination) return {
+		items: rows,
+		next_cursor: null
+	};
+	const offset = pagination.cursor && typeof pagination.cursor.offset === "number" ? pagination.cursor.offset : 0;
+	const end = offset + pagination.limit;
+	return {
+		items: rows.slice(offset, end),
+		next_cursor: end < rows.length ? { offset: end } : null
+	};
+};
+//#endregion
+//#region src/utils/uri.ts
+/** First segment of a relative path ("" when empty). */
+var rootName = (relativePath) => relativePath.split("/")[0] ?? "";
+var directoryRelativeUrl = (file, dir) => {
+	if (!dir) return uriEncodePathSegments(file);
+	const normalizedFile = file.replace(/\\/g, "/");
+	const normalizedLogDir = dir.replace(/\\/g, "/");
+	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile.substring(dirWithSlash.length).split("/").map((segment) => encodeURIComponent(segment)).join("/");
+	return uriEncodePathSegments(normalizedFile);
+};
+var uriEncodePathSegments = (path) => {
+	return path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+};
+var join = (file, dir) => {
+	if (!dir) return file;
+	const normalizedFile = file.replace(/\\/g, "/");
+	const normalizedLogDir = dir.replace(/\\/g, "/");
+	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile;
+	return dirWithSlash + normalizedFile;
+};
+/**
+* Encodes the path segments of a URL or relative path to ensure special characters
+* (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
+*
+* This function will encode file names and path portions of both absolute URLs and
+* relative paths. It ensures that components of a full URL, such as the protocol and
+* query parameters, remain intact, while only encoding the path.
+*/
+function encodePathParts(url) {
+	if (!url) return url;
+	try {
+		const fullUrl = new URL(url);
+		fullUrl.pathname = fullUrl.pathname.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
+		return fullUrl.toString();
+	} catch {
+		return url.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
+	}
+}
+/**
+* Tests whether a string is a valid URI.
+*
+* @param value - The string to test
+* @returns true if the string is a valid URI, false otherwise
+*/
+var isUri = (value) => {
+	if (!value) return false;
+	try {
+		new URL(value);
+		return true;
+	} catch {
+		return false;
+	}
+};
+var prettyDirUri = (uri) => {
+	if (uri.startsWith("file://")) return uri.replace("file://", "");
+	else return uri;
+};
+//#endregion
+//#region src/log_data/logListing.ts
+/**
+* The listing read: one row per log file in the directory — the Log entity
+* row with retried runs marked. Content fills in as depth increases; that
+* the tiers are fetched separately is not observable here beyond attribute
+* columns being briefly undefined. Lives here (not in state/) so the
+* paged-listing migration can swap its internals (whole-dir read → paged
+* Dexie query) without touching consumers.
+*/
+var isActiveStatus = (status) => status === "started" || status === "success";
+/**
+* Pure dedup logic for {@link useLogListing}.
+*
+* Groups logs by (parent directory, task_id) so that logs sharing a task_id
+* across different folders (e.g. copied log directories under a shared parent)
+* are not treated as retries of each other. Within each group, logs whose
+* status is `started` or `success` rank above other statuses; ties are
+* broken by filename descending so the newest run wins. The winner is
+* marked `retried: false`; the rest are marked `retried: true`.
+*/
+var computeLogsWithRetried = (logs) => {
+	const logsByGroup = logs.reduce((acc, log) => {
+		const taskId = log.task_id;
+		if (taskId) {
+			const slash = log.name.lastIndexOf("/");
+			const key = `${slash >= 0 ? log.name.substring(0, slash) : ""}|${taskId}`;
+			(acc[key] ??= []).push(log);
+		}
+		return acc;
+	}, {});
+	const bestByName = {};
+	for (const items of Object.values(logsByGroup)) {
+		const best = [...items].sort((a, b) => {
+			const aActive = isActiveStatus(a.status);
+			if (aActive !== isActiveStatus(b.status)) return aActive ? -1 : 1;
+			return b.name.localeCompare(a.name);
+		})[0];
+		if (best !== void 0) bestByName[best.name] = {
+			...best,
+			retried: false
+		};
+	}
+	return logs.map((log) => bestByName[log.name] ?? {
+		...log,
+		retried: log.task_id ? true : void 0
+	});
+};
+var useLogListing = (logDir) => {
+	return useMapAsyncData((0, import_react.useDeferredValue)(useLogs(logDir)), computeLogsWithRetried);
+};
+//#endregion
+//#region src/log_data/logsListingRead.ts
+/**
+* Where listing queries for `logDir` read their rows — an explicit,
+* scope-level decision rather than a per-query fallback:
+*
+* - "database": the normal dir-mode path; IndexedDB holds the replicated
+*   rows and is the row source.
+* - "cache": the react-query logs cache is the row source. This serves the
+*   out-of-namespace degrade (listing persistence skipped — see
+*   `namesInScope` in logsContent) and db-less sessions (the database
+*   failed to open; single-file mode renders no log list at all).
+*/
+var logsListingSource = (logDir) => getDatabaseService().opened() && !isCacheOnlyListingScope(logDir) ? "database" : "cache";
+var scanRows = async (logDir, prefix) => {
+	if (logsListingSource(logDir) === "database") {
+		const logs = await getDatabaseService().readLogs({ prefix });
+		if (logs !== null) return logs;
+	}
+	if (isCacheOnlyListingScope(logDir)) return getLogRows(logDir);
+	const scope = scopePrefix(prefix);
+	return getLogRows(logDir).filter((row) => row.name.startsWith(scope));
+};
+/**
+* Run a listing plan over `logDir`'s rows: scan the source, mark retried
+* runs (a cross-row derivation, so it runs over the scan, before `toRow`),
+* shape each record through `toRow` (which owns row-universe membership —
+* it drops records the view has no row for), then filter, sort, paginate.
+*
+* Deliberately NOT gated on the scope's sync state: results reflect
+* whatever has replicated so far — a warm cache from a prior session, or a
+* partially-landed sync — and the write path's invalidation refreshes
+* observers as further writes land. Callers surface sync progress
+* separately rather than hiding rows behind it.
+*
+* `prefix` narrows the scan (folder mode lists a subdirectory). Retried
+* grouping keys on a row's exact parent directory, so a boundary-safe
+* prefix scan never splits a group and the marking matches a whole-dir
+* scan's.
+*/
+var scanListingRows = async (logDir, prefix, toRow, plan) => {
+	const scanned = await scanRows(logDir, prefix);
+	const rows = [];
+	for (const log of computeLogsWithRetried(scanned)) {
+		const row = toRow(log);
+		if (row !== void 0 && plan.matches(row)) rows.push(row);
+	}
+	if (plan.compare) rows.sort(plan.compare);
+	return rows;
+};
+var readLogsListing = async (logDir, prefix, toRow, plan) => {
+	const rows = await scanListingRows(logDir, prefix, toRow, plan);
+	const total_count = rows.length;
+	return {
+		...pageRows(rows, plan.pagination),
+		total_count
+	};
+};
+/** Immediate subdirectories of `currentDir` with per-folder log counts. */
+var deriveFolders = (rows, currentDir) => {
+	const dirWithSlash = ensureTrailingSlash(currentDir);
+	const sortedNames = rows.map((row) => row.name).sort();
+	const lowerBound = (target) => {
+		let lo = 0;
+		let hi = sortedNames.length;
+		while (lo < hi) {
+			const mid = lo + hi >> 1;
+			const name = sortedNames[mid];
+			if (name !== void 0 && name < target) lo = mid + 1;
+			else hi = mid;
+		}
+		return lo;
+	};
+	const countWithPrefix = (prefix) => lowerBound(prefix + "￿") - lowerBound(prefix);
+	const folders = [];
+	const seen = /* @__PURE__ */ new Set();
+	for (const row of rows) {
+		const name = row.name;
+		if (isInDirectory(name, currentDir) || !name.startsWith(dirWithSlash)) continue;
+		const relativePath = directoryRelativeUrl(name, currentDir);
+		const dirName = decodeURIComponent(rootName(relativePath));
+		if (seen.has(dirName)) continue;
+		seen.add(dirName);
+		folders.push({
+			name: dirName,
+			itemCount: countWithPrefix(dirWithSlash + dirName + "/")
+		});
+	}
+	return folders;
+};
+/**
+* One scan of `logDir`'s rows producing the page-level aggregates: pending
+* anti-join input, progress/footer counts, retried presence, the sole-file
+* redirect target, and folder summaries. These are the derivations that
+* would otherwise force the full row list into memory beside the row query;
+* keeping them behind one read means pagination only changes this module.
+* Like `readLogsListing`, deliberately not gated on sync state.
+*/
+var readLogsOverview = async (logDir, view) => {
+	const rows = computeLogsWithRetried(await scanRows(logDir, logDir));
+	const taskIds = /* @__PURE__ */ new Set();
+	let fileCount = 0;
+	let startedCount = 0;
+	let retriedCount = 0;
+	let soleFileName;
+	for (const log of rows) {
+		if (log.task_id) taskIds.add(log.task_id);
+		if (!view.isCandidate(log)) continue;
+		if (log.retried) {
+			retriedCount += 1;
+			if (!view.showRetriedLogs) continue;
+		}
+		fileCount += 1;
+		soleFileName = fileCount === 1 ? log.name : void 0;
+		if (log.status === "started") startedCount += 1;
+	}
+	return {
+		taskIds: [...taskIds],
+		fileCount,
+		startedCount,
+		retriedCount,
+		soleFileName,
+		folders: view.folderDir === void 0 ? [] : deriveFolders(rows, view.folderDir)
+	};
+};
+/**
+* Ids of the rows whose searchable text contains `term`
+* (case-insensitive), in listing order under the same universe + plan as
+* the row query — the find band's data-level backing. Runs over the scan
+* today; under keys-first pagination it becomes a snapshot projection, so
+* matches keep covering rows outside the loaded pages.
+*/
+var readLogsListingMatches = async (logDir, prefix, toRow, plan, find) => {
+	const rows = await scanListingRows(logDir, prefix, toRow, plan);
+	const term = find.term.toLowerCase();
+	const ids = [];
+	for (const row of rows) if (find.rowText(row).includes(term)) ids.push(find.getRowId(row));
+	return ids;
+};
+//#endregion
 //#region src/log_data/log.ts
 /**
 * One log's entity row as a per-entity, db-backed cache entry. The `queryFn`
@@ -60784,57 +61790,6 @@ var useLogHeader = (logDir, logFile, opts) => {
 var useLogFetchState = (logDir, name) => {
 	const row = useLogRow(logDir, name);
 	return (0, import_react.useMemo)(() => row.loading || row.error ? row : data$1(row.data ?? void 0), [row]);
-};
-//#endregion
-//#region src/log_data/logListing.ts
-/**
-* The listing read: one row per log file in the directory — the Log entity
-* row with retried runs marked. Content fills in as depth increases; that
-* the tiers are fetched separately is not observable here beyond attribute
-* columns being briefly undefined. Lives here (not in state/) so the
-* paged-listing migration can swap its internals (whole-dir read → paged
-* Dexie query) without touching consumers.
-*/
-var isActiveStatus = (status) => status === "started" || status === "success";
-/**
-* Pure dedup logic for {@link useLogListing}.
-*
-* Groups logs by (parent directory, task_id) so that logs sharing a task_id
-* across different folders (e.g. copied log directories under a shared parent)
-* are not treated as retries of each other. Within each group, logs whose
-* status is `started` or `success` rank above other statuses; ties are
-* broken by filename descending so the newest run wins. The winner is
-* marked `retried: false`; the rest are marked `retried: true`.
-*/
-var computeLogsWithRetried = (logs) => {
-	const logsByGroup = logs.reduce((acc, log) => {
-		const taskId = log.task_id;
-		if (taskId) {
-			const slash = log.name.lastIndexOf("/");
-			const key = `${slash >= 0 ? log.name.substring(0, slash) : ""}|${taskId}`;
-			(acc[key] ??= []).push(log);
-		}
-		return acc;
-	}, {});
-	const bestByName = {};
-	for (const items of Object.values(logsByGroup)) {
-		const best = [...items].sort((a, b) => {
-			const aActive = isActiveStatus(a.status);
-			if (aActive !== isActiveStatus(b.status)) return aActive ? -1 : 1;
-			return b.name.localeCompare(a.name);
-		})[0];
-		if (best !== void 0) bestByName[best.name] = {
-			...best,
-			retried: false
-		};
-	}
-	return logs.map((log) => bestByName[log.name] ?? {
-		...log,
-		retried: log.task_id ? true : void 0
-	});
-};
-var useLogListing = (logDir) => {
-	return useMapAsyncData((0, import_react.useDeferredValue)(useLogs(logDir)), computeLogsWithRetried);
 };
 //#endregion
 //#region src/log_data/pendingSamples.ts
@@ -60957,6 +61912,975 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	if (!sample1 && !sample2) return true;
 	if (!sample1 || !sample2) return false;
 	return sampleIdsEqual(sample1.id, sample2.id) && sample1.epoch === sample2.epoch && sample1.logFile === sample2.logFile;
+};
+//#endregion
+//#region src/log_data/chunked/format.ts
+var SAMPLES_DIR = "samples";
+var SHELL_JSON = "sample.json";
+var METADATA_JSON = "metadata.json";
+var SKELETON_JSON = "skeleton.json";
+var STATS_JSON = "stats.json";
+/** `samples/{id}_epoch_{epoch}` — the per-sample prefix (no trailing slash). */
+var samplePrefix = (id, epoch) => `${SAMPLES_DIR}/${id}_epoch_${epoch}`;
+/** Today's monolith sample entry name (`samples/{id}_epoch_{epoch}.json`). */
+var monolithEntryName = (id, epoch) => `${samplePrefix(id, epoch)}.json`;
+var shellEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/${SHELL_JSON}`;
+var metadataEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/${METADATA_JSON}`;
+var skeletonEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/${SKELETON_JSON}`;
+var statsEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/events/${STATS_JSON}`;
+/** `{prefix}/{sequence}/{start}.json` — chunk holding items from `start`. */
+var chunkEntryName = (id, epoch, sequence, start) => `${samplePrefix(id, epoch)}/${sequence}/${start}.json`;
+/**
+* Classify a sample's on-disk shape from zip entry names (the central
+* directory). Structural per-sample dispatch: one log may mix shapes.
+* Returns undefined when the sample has no entries at all.
+*/
+var classifySampleShape = (entryNames, id, epoch) => entryNames.has(shellEntryName(id, epoch)) ? "chunked" : entryNames.has(monolithEntryName(id, epoch)) ? "monolith" : void 0;
+/**
+* Chunk start indexes for a sequence, from the shell's cumulative
+* end-exclusive `boundaries`. Empty sequences have no chunks.
+*/
+var chunkStarts = (boundaries) => boundaries.length === 0 ? [] : [0, ...boundaries.slice(0, -1)];
+/** Total item count for a sequence. */
+var sequenceCount = (boundaries) => boundaries.at(-1) ?? 0;
+/** Bounds-checked index (an out-of-range index is a coding error). */
+var at$1 = (items, i) => {
+	const item = items[i];
+	if (item === void 0) throw new Error(`Index ${i} out of range (length ${items.length})`);
+	return item;
+};
+/**
+* Index of the chunk holding item `i`: greatest start ≤ i (binary search
+* over ascending starts). Callers must ensure `0 ≤ i < sequenceCount`.
+*/
+var chunkIndexOf = (starts, i) => {
+	let lo = 0;
+	let hi = starts.length - 1;
+	while (lo < hi) {
+		const mid = lo + hi + 1 >> 1;
+		if (at$1(starts, mid) <= i) lo = mid;
+		else hi = mid - 1;
+	}
+	return lo;
+};
+//#endregion
+//#region src/log_data/chunked/log.ts
+/**
+* Unconditional console logging for the chunked read path: every member
+* fetch/cache-hit/eviction, chunk parse, sidecar read, attachment
+* resolution, and row materialization, for confirming windowed-read
+* behavior while browsing. Deliberately NOT the gated `createLogger` —
+* the chunked path is dev-phase (only the hidden converter produces
+* chunked logs), and the point is to see the reads in any build. Dial
+* back to `createLogger("chunked")` before the format ships by default.
+*/
+var log$4 = {
+	info: (message) => {
+		console.log(`[chunked] ${message}`);
+	},
+	debug: (message) => {
+		console.log(`[chunked] ${message}`);
+	}
+};
+//#endregion
+//#region src/log_data/chunked/chunkStore.ts
+/**
+* The framework-free chunk-byte store and per-sequence readers for chunked
+* samples (design/large-samples.md, "Data-loading architecture").
+*
+* Two tiers: `ChunkByteStore` owns raw decompressed entry bytes with a
+* byte-budget LRU and in-flight request dedup (raw ArrayBuffers live outside
+* the V8 heap cage; parsed objects are the scarce resource, owned by
+* callers). `SequenceReader` layers chunk math + JSON parsing + `getRange`
+* over it for one sequence.
+*/
+var kb = (bytes) => `${(bytes / 1024).toFixed(1)}KB`;
+var DEFAULT_BYTE_BUDGET = 256 * 1024 * 1024;
+/**
+* LRU-cached, request-deduped reads of decompressed entry bytes. Eviction
+* is by total cached bytes against a generous budget; in-flight reads are
+* never evicted (they only enter the cache on settle).
+*/
+var ChunkByteStore = class {
+	source;
+	byteBudget;
+	cache = /* @__PURE__ */ new Map();
+	inflight = /* @__PURE__ */ new Map();
+	cachedBytes = 0;
+	constructor(source, byteBudget = DEFAULT_BYTE_BUDGET) {
+		this.source = source;
+		this.byteBudget = byteBudget;
+	}
+	read(name) {
+		const cached = this.cache.get(name);
+		if (cached) {
+			log$4.debug(`byte-cache hit ${name} (${kb(cached.byteLength)})`);
+			this.cache.delete(name);
+			this.cache.set(name, cached);
+			return Promise.resolve(cached);
+		}
+		let pending = this.inflight.get(name);
+		if (!pending) {
+			const startedAt = performance.now();
+			pending = this.source.readFile(name).then((bytes) => {
+				this.cache.set(name, bytes);
+				this.cachedBytes += bytes.byteLength;
+				log$4.info(`fetch ${name} — ${kb(bytes.byteLength)} in ${(performance.now() - startedAt).toFixed(0)}ms (byte cache ${kb(this.cachedBytes)})`);
+				this.evict();
+				return bytes;
+			}).finally(() => {
+				this.inflight.delete(name);
+			});
+			this.inflight.set(name, pending);
+		} else log$4.debug(`fetch dedup ${name} (already in flight)`);
+		return pending;
+	}
+	evict() {
+		for (const [name, bytes] of this.cache) {
+			if (this.cachedBytes <= this.byteBudget || this.cache.size === 1) return;
+			this.cache.delete(name);
+			this.cachedBytes -= bytes.byteLength;
+			log$4.info(`evict ${name} (${kb(bytes.byteLength)}) — over byte budget`);
+		}
+	}
+	get size() {
+		return this.cachedBytes;
+	}
+	clear() {
+		this.cache.clear();
+		this.cachedBytes = 0;
+	}
+};
+var decoder$1 = new TextDecoder();
+/** Chunks kept parsed per sequence; scroll-back re-parses from bytes. */
+var PARSED_CHUNK_CAP = 32;
+/**
+* Random access over one chunked sequence: index→chunk resolution from the
+* shell's boundaries, JSON parse on top of the byte store, and half-open
+* `getRange`. A small parsed-chunk LRU absorbs the walk's re-reads; the
+* byte store below makes cap misses a re-parse, not a re-download.
+*/
+var SequenceReader = class SequenceReader {
+	bytes;
+	entryNameFor;
+	transform;
+	starts;
+	ends;
+	count;
+	parsed = /* @__PURE__ */ new Map();
+	constructor(bytes, entryNameFor, boundaries, transform) {
+		this.bytes = bytes;
+		this.entryNameFor = entryNameFor;
+		this.transform = transform;
+		this.starts = chunkStarts(boundaries);
+		this.ends = [...boundaries];
+		this.count = sequenceCount(boundaries);
+	}
+	/** A reader over the same chunks with `transform` applied post-parse. */
+	withTransform(transform) {
+		return new SequenceReader(this.bytes, this.entryNameFor, this.ends, transform);
+	}
+	/** Index of the chunk holding item `i`: greatest start ≤ i. */
+	chunkIndexOf(i) {
+		return chunkIndexOf(this.starts, i);
+	}
+	chunkBounds(chunkIdx) {
+		return [at$1(this.starts, chunkIdx), at$1(this.ends, chunkIdx)];
+	}
+	loadChunk(chunkIdx) {
+		const start = at$1(this.starts, chunkIdx);
+		let pending = this.parsed.get(start);
+		if (!pending) {
+			const name = this.entryNameFor(start);
+			pending = this.bytes.read(name).then((bytes) => {
+				const items = JSON.parse(decoder$1.decode(bytes));
+				log$4.debug(`parse ${name}: ${items.length} items`);
+				return items;
+			}).then((items) => this.transform?.(items, start) ?? items);
+			const inserted = pending;
+			pending.catch(() => {
+				if (this.parsed.get(start) === inserted) this.parsed.delete(start);
+			});
+			this.parsed.set(start, pending);
+			for (const key of this.parsed.keys()) {
+				if (this.parsed.size <= PARSED_CHUNK_CAP) break;
+				this.parsed.delete(key);
+				log$4.debug(`parsed-cache evict ${this.entryNameFor(key)} — over ${PARSED_CHUNK_CAP}-chunk cap`);
+			}
+		} else {
+			this.parsed.delete(start);
+			this.parsed.set(start, pending);
+		}
+		return pending;
+	}
+	/** Items `[lo, hi)` — fetches the covering chunks in parallel. */
+	async getRange(lo, hi) {
+		lo = Math.max(0, lo);
+		hi = Math.min(hi, this.count);
+		if (hi <= lo) return [];
+		const firstChunk = this.chunkIndexOf(lo);
+		const lastChunk = this.chunkIndexOf(hi - 1);
+		const chunks = await Promise.all(Array.from({ length: lastChunk - firstChunk + 1 }, (_, k) => this.loadChunk(firstChunk + k)));
+		const base = at$1(this.starts, firstChunk);
+		return chunks.flat().slice(lo - base, hi - base);
+	}
+};
+//#endregion
+//#region src/log_data/chunked/skeletonIndex.ts
+/**
+* Query layer over a sample skeleton: span-by-begin-ordinal, ancestor
+* stacks, and filter visibility — all answered from span extents and
+* counters with zero event reads (sticky headers and depth seeding for the
+* decode walk).
+*/
+var SkeletonIndex = class {
+	skeleton;
+	spans;
+	childrenOf;
+	roots;
+	spanIds;
+	byBegin = /* @__PURE__ */ new Map();
+	constructor(skeleton) {
+		this.skeleton = skeleton;
+		this.spans = skeleton.spans;
+		this.childrenOf = this.spans.map(() => []);
+		this.roots = [];
+		this.spans.forEach((span, i) => {
+			this.byBegin.set(span.begin, i);
+			if (span.parent === void 0) this.roots.push(i);
+			else at$1(this.childrenOf, span.parent).push(i);
+		});
+		this.spanIds = new Set(this.spans.map((span) => span.id));
+	}
+	/** Span whose begin event sits at `ordinal` (undefined: dissolved span). */
+	spanAtBegin(ordinal) {
+		return this.byBegin.get(ordinal);
+	}
+	/**
+	* Structural ancestor stack (outermost first) containing `ordinal` —
+	* answered entirely from extents; the span_begin events need never be
+	* fetched. Interleaved-span extent overlap: first containing child wins
+	* (tolerated per spec; correctness comes from span_id on fetched events).
+	*/
+	spanStackAt(ordinal) {
+		const stack = [];
+		let candidates = this.roots;
+		for (;;) {
+			const hit = candidates.find((i) => {
+				const [lo, hi] = at$1(this.spans, i).extent;
+				return lo <= ordinal && ordinal <= hi;
+			});
+			if (hit === void 0) return stack;
+			stack.push(hit);
+			candidates = at$1(this.childrenOf, hit);
+		}
+	}
+	depthAt(ordinal) {
+		return this.spanStackAt(ordinal).length;
+	}
+	/** Does an expanded span have anything to show under the current filter? */
+	hasVisibleContents(spanIdx, visibleTypes) {
+		const span = at$1(this.spans, spanIdx);
+		if (Object.entries(span.children).some(([type, count]) => count > 0 && visibleTypes(type))) return true;
+		return at$1(this.childrenOf, spanIdx).length > 0;
+	}
+};
+//#endregion
+//#region src/log_data/chunked/chunkedSample.ts
+var decoder = new TextDecoder();
+var readJson = async (source, name) => {
+	const startedAt = performance.now();
+	const bytes = await source.readFile(name);
+	log$4.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
+	return JSON.parse(decoder.decode(bytes));
+};
+/**
+* Open a chunked sample. `entryNames` is the log's central-directory name
+* set (used only to detect the optional metadata entry); the three parsed
+* artifacts — shell, skeleton, stats — are fetched in parallel.
+*/
+var openChunkedSample = async (source, entryNames, id, epoch, byteBudget) => {
+	const [shell, skeleton, stats] = await Promise.all([
+		readJson(source, shellEntryName(id, epoch)),
+		readJson(source, skeletonEntryName(id, epoch)),
+		readJson(source, statsEntryName(id, epoch))
+	]);
+	const bytes = new ChunkByteStore(source, byteBudget);
+	const reader = (sequence) => new SequenceReader(bytes, (start) => chunkEntryName(id, epoch, sequence, start), shell.sequences[sequence] ?? []);
+	const metadataEntry = metadataEntryName(id, epoch);
+	return {
+		shell,
+		skeleton,
+		skel: new SkeletonIndex(skeleton),
+		stats: stats.chunks,
+		events: reader("events"),
+		messages: reader("messages"),
+		calls: reader("calls"),
+		attachments: reader("attachments"),
+		...entryNames.has(metadataEntry) ? { readMetadata: () => readJson(source, metadataEntry) } : {}
+	};
+};
+//#endregion
+//#region src/log_data/chunked/cursor.ts
+/** Buffered surviving events per refill — about one screenful. */
+var REFILL = 64;
+var FilteredCursor = class {
+	store;
+	stats;
+	survives;
+	buffer = [];
+	from;
+	exhausted = false;
+	constructor(store, stats, start, survives) {
+		this.store = store;
+		this.stats = stats;
+		this.survives = survives;
+		this.from = start;
+	}
+	get done() {
+		return this.buffer.length === 0 && this.exhausted;
+	}
+	chunkSurvivorCount(chunkIdx) {
+		const stats = this.stats[chunkIdx];
+		if (!stats) return 1;
+		return Object.entries(stats.type_counts).reduce((n, [type, count]) => n + (this.survives(type) ? count : 0), 0);
+	}
+	statsFor(chunkIdx) {
+		return this.stats[chunkIdx];
+	}
+	chunkIndexOf(ordinal) {
+		return this.store.chunkIndexOf(ordinal);
+	}
+	chunkBounds(chunkIdx) {
+		return this.store.chunkBounds(chunkIdx);
+	}
+	async refill() {
+		while (this.buffer.length < REFILL && !this.exhausted) {
+			if (this.from >= this.store.count) {
+				this.exhausted = true;
+				return;
+			}
+			const chunkIdx = this.store.chunkIndexOf(this.from);
+			const [lo, hi] = this.chunkBounds(chunkIdx);
+			if (this.chunkSurvivorCount(chunkIdx) === 0) {
+				this.from = hi;
+				continue;
+			}
+			const items = await this.store.loadChunk(chunkIdx);
+			for (let i = this.from - lo; i < items.length; i++) {
+				const ev = items[i];
+				if (ev !== void 0 && this.survives(ev.event)) this.buffer.push({
+					ordinal: lo + i,
+					ev
+				});
+			}
+			this.from = hi;
+		}
+	}
+	async peek() {
+		if (this.buffer.length === 0) await this.refill();
+		return this.buffer[0] ?? null;
+	}
+	async next() {
+		const head = await this.peek();
+		if (head) this.buffer.shift();
+		return head;
+	}
+	/** Jump to `ordinal`: advance in-buffer if already buffered, else drop and refetch. */
+	seek(ordinal) {
+		const bufferLast = this.buffer.at(-1);
+		if (bufferLast !== void 0 && bufferLast.ordinal >= ordinal) {
+			let head = this.buffer[0];
+			while (head !== void 0 && head.ordinal < ordinal) {
+				this.buffer.shift();
+				head = this.buffer[0];
+			}
+			return;
+		}
+		this.buffer = [];
+		this.exhausted = false;
+		this.from = Math.max(this.from, ordinal);
+	}
+};
+//#endregion
+//#region src/log_data/chunked/decode.ts
+/**
+* Event types whose consecutive same-span occurrences merge into one row.
+* Binding constraint (spec): run membership must be decidable from type +
+* span facts available in chunk stats — never from event payload contents.
+*/
+var RUN_TYPES = /* @__PURE__ */ new Set(["sandbox"]);
+/**
+* Structural marker types: span begin/end pairs and legacy step begin/end
+* pairs (the skeleton folds steps into span-table entries — one contract,
+* no legacy carve-out). Structure drives the walk and is only conditionally
+* a row, never subject to the user's filter.
+*/
+var STRUCTURAL_TYPES = /* @__PURE__ */ new Set([
+	"span_begin",
+	"span_end",
+	"step"
+]);
+var isSpanBegin = (ev) => ev.event === "span_begin" || ev.event === "step" && ev.action === "begin";
+var isSpanEnd = (ev) => ev.event === "span_end" || ev.event === "step" && ev.action === "end";
+/**
+* Decode view rows for ordinals `[startOrd, endOrd)`. Rows whose decode
+* unit starts in-range are emitted even if (via seeks or runs) they extend
+* past `endOrd`. `headRunContinues` — the caller detected (from the
+* previous chunk's stats) that `startOrd` begins mid-run; leading run
+* events are consumed rowless (the row belongs to the chunk where the run
+* starts).
+*/
+async function decodeRange(ctx, startOrd, endOrd, headRunContinues) {
+	const survives = (type) => STRUCTURAL_TYPES.has(type) || RUN_TYPES.has(type) || ctx.visible(type);
+	const cursor = new FilteredCursor(ctx.events, ctx.stats, startOrd, survives);
+	const rows = [];
+	const spanIds = ctx.skel.spanIds;
+	if (headRunContinues) {
+		const head = await cursor.peek();
+		if (head && RUN_TYPES.has(head.ev.event)) await takeRun(cursor, head);
+	}
+	for (;;) {
+		const item = await cursor.peek();
+		if (!item || item.ordinal >= endOrd) break;
+		const { ordinal, ev } = item;
+		if (isSpanBegin(ev)) {
+			const spanIdx = ctx.skel.spanAtBegin(ordinal);
+			const span = spanIdx !== void 0 ? ctx.skel.spans[spanIdx] : void 0;
+			if (spanIdx === void 0 || span === void 0) {
+				await cursor.next();
+				continue;
+			}
+			const depth = ctx.skel.spanStackAt(ordinal).length - 1;
+			if (!ctx.skel.hasVisibleContents(spanIdx, ctx.visible)) cursor.seek(span.extent[1] + 1);
+			else if (ctx.isCollapsed(span.id)) {
+				rows.push({
+					kind: "span",
+					ordinal,
+					depth,
+					spanIdx,
+					span,
+					collapsed: true
+				});
+				cursor.seek(span.extent[1] + 1);
+			} else {
+				rows.push({
+					kind: "span",
+					ordinal,
+					depth,
+					spanIdx,
+					span,
+					collapsed: false
+				});
+				await cursor.next();
+			}
+		} else if (isSpanEnd(ev)) await cursor.next();
+		else if (RUN_TYPES.has(ev.event)) {
+			const depth = rowDepth(ctx, ordinal, ev, spanIds);
+			const run = await takeRun(cursor, item);
+			if (ctx.visible(ev.event)) rows.push({
+				kind: "run",
+				ordinal,
+				depth,
+				runType: ev.event,
+				count: run.count,
+				extent: [ordinal, run.last],
+				sample: ev
+			});
+		} else {
+			rows.push({
+				kind: "event",
+				ordinal,
+				depth: rowDepth(ctx, ordinal, ev, spanIds),
+				ev
+			});
+			await cursor.next();
+		}
+	}
+	return rows;
+}
+function rowDepth(ctx, ordinal, ev, structuralIds) {
+	return ctx.skel.spanStackAt(ordinal).length + (ev.span_id && !structuralIds.has(ev.span_id) ? 1 : 0);
+}
+/**
+* Consume a maximal run of consecutive same-type same-span events. Fast
+* path: a following chunk whose stats say "uniform run type, same span at
+* both edges" is counted from stats and skipped unread — only mixed edge
+* chunks are fetched (reads ∝ rows emitted).
+*/
+async function takeRun(cursor, first) {
+	const runType = first.ev.event;
+	const spanId = first.ev.span_id ?? null;
+	let count = 0;
+	let last = first.ordinal;
+	for (;;) {
+		const item = await cursor.peek();
+		if (!item || item.ev.event !== runType || (item.ev.span_id ?? null) !== spanId) break;
+		count += 1;
+		last = item.ordinal;
+		await cursor.next();
+		let chunkIdx = cursor.chunkIndexOf(last) + 1;
+		for (;;) {
+			const stats = cursor.statsFor(chunkIdx);
+			if (!stats) break;
+			const [lo, hi] = cursor.chunkBounds(chunkIdx);
+			if (last !== lo - 1 || Object.keys(stats.type_counts).some((type) => type !== runType) || (stats.first.span_id ?? null) !== spanId || (stats.last.span_id ?? null) !== spanId) break;
+			count += stats.type_counts[runType] ?? 0;
+			last = hi - 1;
+			cursor.seek(hi);
+			chunkIdx += 1;
+		}
+	}
+	return {
+		count,
+		last
+	};
+}
+//#endregion
+//#region src/log_data/chunked/pyTimestamp.ts
+var TS_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6})\d*)?(Z|[+-]\d{2}:?\d{2})?$/;
+/** Parse an ISO-8601 timestamp; offset-less values are treated as UTC. */
+var parsePyTimestamp = (value) => {
+	const m = TS_RE.exec(value);
+	if (!m) throw new Error(`Unparseable timestamp: ${value}`);
+	const [, year, month, day, hour, minute, second, fraction, offset] = m;
+	const micros = fraction ? Number(fraction.padEnd(6, "0")) : 0;
+	const baseMs = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+	let offsetMinutes = 0;
+	if (offset && offset !== "Z") {
+		const sign = offset[0] === "-" ? -1 : 1;
+		const digits = offset.slice(1).replace(":", "");
+		offsetMinutes = sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2)));
+	}
+	const epochUs = (baseMs - offsetMinutes * 6e4) * 1e3 + micros;
+	return {
+		epochUs,
+		iso: formatPyTimestamp(epochUs)
+	};
+};
+/** Python `datetime.isoformat()` of a UTC microsecond epoch. */
+var formatPyTimestamp = (epochUs) => {
+	const micros = (epochUs % 1e6 + 1e6) % 1e6;
+	const date = /* @__PURE__ */ new Date((epochUs - micros) / 1e3);
+	const pad = (n, width = 2) => String(n).padStart(width, "0");
+	const fraction = micros === 0 ? "" : `.${pad(micros, 6)}`;
+	return `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}${fraction}+00:00`;
+};
+//#endregion
+//#region src/log_data/chunked/outlineRows.ts
+/** `kSandboxSignalName` (inspect-components `transform/fixups.ts`). */
+var SANDBOX_SIGNAL_NAME = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
+var defaultCollapsed = (span) => {
+	if (span.type === "solver" && span.name === "system_message") return true;
+	if (span.name === SANDBOX_SIGNAL_NAME || span.name === "init" || span.name === "sample_init") return true;
+	return (span.type === "tool" || span.type === "subtask") && Boolean(span.children[span.type]);
+};
+/**
+* Span ids the default-collapse policy collapses — for seeding transcript
+* collapse state to match `candidateOutlineRows(skeleton, "default")`.
+*/
+var defaultCollapsedSpanIds = (skeleton) => new Set(skeleton.spans.filter(defaultCollapsed).map((span) => span.id));
+//#endregion
+//#region src/log_data/chunked/syntheticEvents.ts
+/** Legacy step pairs are skeleton spans with a synthesized `step-<i>` id. */
+var isStepSpan = (span) => /^step-\d+$/.test(span.id);
+/**
+* Single choke point for constructing events the pipeline treats as real.
+* The synthesized objects carry every field the transcript pipeline reads
+* (see module docstring); the cast acknowledges they are not full payloads.
+*/
+var synth = (fields) => fields;
+var syntheticEventsFromSkeleton = (skel) => {
+	const events = [];
+	const ordinals = /* @__PURE__ */ new Map();
+	const spans = skel.spans;
+	const childSpans = /* @__PURE__ */ new Map();
+	const spanNotables = /* @__PURE__ */ new Map();
+	const append = (map, key, value) => {
+		const list = map.get(key);
+		if (list === void 0) map.set(key, [value]);
+		else list.push(value);
+	};
+	spans.forEach((span, index) => {
+		append(childSpans, span.parent ?? null, index);
+	});
+	for (const notable of skel.notables) append(spanNotables, notable.span ?? null, notable);
+	const beginsUs = spans.map((span) => parsePyTimestamp(span.t[0]).epochUs);
+	const endsUs = spans.map((span) => parsePyTimestamp(span.t[1]).epochUs);
+	const beginUs = (index) => beginsUs[index] ?? 0;
+	const endUs = (index) => endsUs[index] ?? 0;
+	/** Nearest non-step ancestor's span id (steps have no span identity). */
+	const realSpanId = (index) => {
+		let current = index;
+		while (current !== null) {
+			const span = spans[current];
+			if (span === void 0) return null;
+			if (!isStepSpan(span)) return span.id;
+			current = span.parent ?? null;
+		}
+		return null;
+	};
+	const push = (event, uuid, ordinal) => {
+		events.push(event);
+		ordinals.set(uuid, ordinal);
+	};
+	const common = (uuid, spanId, us) => ({
+		timestamp: formatPyTimestamp(us),
+		pending: false,
+		working_start: 0,
+		uuid,
+		span_id: spanId,
+		metadata: null
+	});
+	const emitModel = (spanIdx, gap, k, ordinal, us) => {
+		const uuid = `synth-model-${spanIdx ?? "root"}-${gap}-${k}`;
+		push(synth({
+			event: "model",
+			model: "",
+			input: [],
+			output: {
+				model: "",
+				choices: [],
+				usage: null
+			},
+			...common(uuid, realSpanId(spanIdx), us)
+		}), uuid, ordinal);
+	};
+	const emitNotable = (notable, spanId, us) => {
+		const uuid = `synth-notable-${notable.i}`;
+		const fields = notable.type === "score" ? {
+			event: "score",
+			score: {
+				value: "",
+				answer: null,
+				explanation: null,
+				metadata: null
+			},
+			intermediate: false
+		} : notable.type === "checkpoint" ? {
+			event: "checkpoint",
+			checkpoint_id: notable.checkpoint_id
+		} : { event: notable.type };
+		push(synth({
+			...fields,
+			...common(uuid, spanId, us)
+		}), uuid, notable.i);
+	};
+	/** Minimum payload each stray type needs to survive the outline pipeline
+	* (labelers/summarizers dereference these fields without guards). */
+	const strayPayload = (type, uuid) => type === "tool" ? {
+		id: uuid,
+		function: "",
+		agent: null,
+		events: [],
+		result: null
+	} : type === "subtask" ? {
+		name: "subtask",
+		input: {},
+		result: null,
+		events: []
+	} : type === "score" ? {
+		score: {
+			value: "",
+			answer: null,
+			explanation: null,
+			metadata: null
+		},
+		intermediate: false
+	} : type === "checkpoint" ? { checkpoint_id: "" } : {};
+	const emitStrays = (spanIdx, us) => {
+		const span = spans[spanIdx];
+		if (span === void 0) return;
+		const notableCounts = /* @__PURE__ */ new Map();
+		for (const notable of spanNotables.get(spanIdx) ?? []) notableCounts.set(notable.type, (notableCounts.get(notable.type) ?? 0) + 1);
+		const spanId = realSpanId(spanIdx);
+		for (const [type, count] of Object.entries(span.children)) {
+			if (type === "model") continue;
+			const persisted = notableCounts.get(type) ?? 0;
+			if (count - persisted <= 0) continue;
+			if (persisted > 0) continue;
+			const uuid = `synth-stray-${spanIdx}-${type}`;
+			push(synth({
+				event: type,
+				...strayPayload(type, uuid),
+				...common(uuid, spanId, us)
+			}), uuid, span.begin + 1);
+		}
+	};
+	/**
+	* Emit a container's gap models + items (child spans and notables).
+	*
+	* Timing: child spans carry real begin/end times; the loose points
+	* between them (gap models + notables) are spaced evenly inside the
+	* segment's real time bounds. Inverted bounds (cross-context span exits)
+	* degrade to the segment's lower bound — order still holds because
+	* `buildSpanTree`'s child sort is stable.
+	*/
+	const emitContents = (spanIdx, loUs, hiUs) => {
+		const span = spanIdx !== null ? spans[spanIdx] : void 0;
+		const children = childSpans.get(spanIdx) ?? [];
+		const notables = spanNotables.get(spanIdx) ?? [];
+		const items = [...children.map((index) => {
+			return {
+				kind: "span",
+				index,
+				at: spans[index]?.begin ?? 0
+			};
+		}), ...notables.map((notable) => ({
+			kind: "notable",
+			notable,
+			at: notable.i
+		}))].sort((a, b) => a.at - b.at);
+		const gaps = span?.gap_models ?? [];
+		const gapLowerBound = (g) => {
+			if (g === 0) return span === void 0 ? 0 : span.begin + 1;
+			const prev = items[g - 1];
+			if (prev === void 0) return span?.begin ?? 0;
+			return prev.kind === "span" ? (spans[prev.index]?.extent[1] ?? prev.at) + 1 : prev.at + 1;
+		};
+		let g = 0;
+		let segmentLoUs = loUs;
+		while (g <= items.length) {
+			const points = [];
+			let nextSpan;
+			while (g <= items.length) {
+				const count = gaps[g] ?? 0;
+				const ordinal = gapLowerBound(g);
+				for (let k = 0; k < count; k++) points.push({
+					kind: "model",
+					gap: g,
+					k,
+					ordinal
+				});
+				const item = items[g];
+				g++;
+				if (item === void 0) break;
+				if (item.kind === "span") {
+					nextSpan = item.index;
+					break;
+				}
+				points.push({
+					kind: "notable",
+					notable: item.notable
+				});
+			}
+			const segmentHiUs = nextSpan !== void 0 ? beginUs(nextSpan) : hiUs;
+			const step = segmentHiUs > segmentLoUs ? (segmentHiUs - segmentLoUs) / (points.length + 1) : 0;
+			points.forEach((point, i) => {
+				const us = Math.round(segmentLoUs + step * (i + 1));
+				if (point.kind === "model") emitModel(spanIdx, point.gap, point.k, point.ordinal, us);
+				else emitNotable(point.notable, realSpanId(spanIdx), us);
+			});
+			if (nextSpan !== void 0) {
+				emitSpan(nextSpan);
+				segmentLoUs = Math.max(segmentLoUs, endUs(nextSpan));
+			}
+		}
+	};
+	const emitSpan = (spanIdx) => {
+		const span = spans[spanIdx];
+		if (span === void 0) return;
+		const loUs = beginUs(spanIdx);
+		const hiUs = endUs(spanIdx);
+		const beginUuid = `synth-begin-${spanIdx}`;
+		const endUuid = `synth-end-${spanIdx}`;
+		const step = isStepSpan(span);
+		const stepFields = (action) => ({
+			event: "step",
+			action,
+			name: span.name,
+			type: span.type ?? null
+		});
+		push(synth(step ? {
+			...stepFields("begin"),
+			...common(beginUuid, realSpanId(span.parent ?? null), loUs)
+		} : {
+			event: "span_begin",
+			id: span.id,
+			parent_id: realSpanId(span.parent ?? null),
+			name: span.name,
+			type: span.type ?? null,
+			...common(beginUuid, span.id, loUs)
+		}), beginUuid, span.begin);
+		if (!step) ordinals.set(span.id, span.begin);
+		emitStrays(spanIdx, loUs);
+		emitContents(spanIdx, loUs, hiUs);
+		push(synth(step ? {
+			...stepFields("end"),
+			...common(endUuid, realSpanId(span.parent ?? null), hiUs)
+		} : {
+			event: "span_end",
+			id: span.id,
+			...common(endUuid, span.id, hiUs)
+		}), endUuid, span.extent[1]);
+	};
+	const rootLoUs = spans.length > 0 ? beginUs(0) : 0;
+	emitContents(null, rootLoUs, spans.reduce((acc, _, index) => Math.max(acc, endUs(index)), rootLoUs));
+	return {
+		events,
+		ordinals
+	};
+};
+//#endregion
+//#region src/log_data/chunked/rowSpace.ts
+/** Guessed events per run row when a chunk is only estimated. */
+var EST_RUN_LEN = 6;
+var RowSpace = class {
+	events;
+	stats;
+	skel;
+	visible;
+	chunkRows;
+	exact;
+	materializedRows = /* @__PURE__ */ new Map();
+	inflight = /* @__PURE__ */ new Map();
+	prefix = [];
+	version = 0;
+	listeners = /* @__PURE__ */ new Set();
+	/** Merged elided ordinal ranges `[lo, hi]` (collapsed span interiors). */
+	elision = [];
+	constructor(events, stats, skel, collapsed, visible) {
+		this.events = events;
+		this.stats = stats;
+		this.skel = skel;
+		this.visible = visible;
+		const ranges = [];
+		skel.spans.forEach((span, i) => {
+			if (!skel.hasVisibleContents(i, visible)) ranges.push([span.begin, span.extent[1]]);
+			else if (collapsed.has(span.id)) ranges.push([span.begin + 1, span.extent[1]]);
+		});
+		ranges.sort((a, b) => a[0] - b[0]);
+		for (const range of ranges) {
+			const last = this.elision[this.elision.length - 1];
+			if (last && range[0] <= last[1] + 1) last[1] = Math.max(last[1], range[1]);
+			else this.elision.push([range[0], range[1]]);
+		}
+		this.chunkRows = this.stats.map((chunkStats, c) => this.estimateChunk(chunkStats, c));
+		this.exact = this.stats.map((_, c) => this.chunkRows[c] === 0 && this.fullyElided(c));
+		this.recompute();
+	}
+	onChange(fn) {
+		this.listeners.add(fn);
+		return () => {
+			this.listeners.delete(fn);
+		};
+	}
+	get total() {
+		return this.prefix[this.prefix.length - 1] ?? 0;
+	}
+	chunkBounds(c) {
+		return this.events.chunkBounds(c);
+	}
+	elidedOverlap(lo, hi) {
+		let covered = 0;
+		for (const [a, b] of this.elision) {
+			const start = Math.max(lo, a);
+			const end = Math.min(hi - 1, b);
+			if (start <= end) covered += end - start + 1;
+		}
+		return covered;
+	}
+	fullyElided(c) {
+		const [lo, hi] = this.chunkBounds(c);
+		return this.elidedOverlap(lo, hi) >= hi - lo;
+	}
+	estimateChunk(chunkStats, c) {
+		const [lo, hi] = this.chunkBounds(c);
+		const visibleFrac = 1 - this.elidedOverlap(lo, hi) / (hi - lo);
+		if (visibleFrac <= 0) return 0;
+		let typeRows = 0;
+		let runRows = 0;
+		for (const [type, count] of Object.entries(chunkStats.type_counts)) {
+			if (STRUCTURAL_TYPES.has(type) || !this.visible(type)) continue;
+			if (RUN_TYPES.has(type)) runRows += Math.max(1, Math.round(count / EST_RUN_LEN));
+			else typeRows += count;
+		}
+		const spanRows = this.skel.spans.filter((span, i) => span.begin >= lo && span.begin < hi && this.elidedOverlap(span.begin, span.begin + 1) === 0 && this.skel.hasVisibleContents(i, this.visible)).length;
+		return Math.round((typeRows + runRows) * visibleFrac) + spanRows;
+	}
+	recompute() {
+		this.prefix = [0];
+		for (const n of this.chunkRows) this.prefix.push((this.prefix.at(-1) ?? 0) + n);
+		this.version += 1;
+		this.listeners.forEach((fn) => fn());
+	}
+	slotAt(globalIndex) {
+		let lo = 0;
+		let hi = this.chunkRows.length - 1;
+		while (lo < hi) {
+			const mid = lo + hi + 1 >> 1;
+			if (at$1(this.prefix, mid) <= globalIndex) lo = mid;
+			else hi = mid - 1;
+		}
+		const offset = globalIndex - at$1(this.prefix, lo);
+		const row = this.materializedRows.get(lo)?.[offset];
+		if (row !== void 0) return {
+			kind: "row",
+			row,
+			globalIndex
+		};
+		const [clo, chi] = this.chunkBounds(lo);
+		const est = Math.max(at$1(this.chunkRows, lo), 1);
+		const estOrdinal = Math.min(chi - 1, clo + Math.floor((offset + .5) / est * (chi - clo)));
+		return {
+			kind: "placeholder",
+			chunkIdx: lo,
+			estOrdinal,
+			globalIndex
+		};
+	}
+	/**
+	* The ordinal anchor: map an event ordinal to its global row index.
+	*
+	* Two accepted one-row inaccuracies on materialized chunks: an ordinal
+	* covered by a run row that STARTS in the previous chunk anchors one row
+	* late (the containing run row lives in that chunk), and an ordinal past
+	* the chunk's last row (e.g. a trailing span_end) clamps backward to it.
+	*/
+	rowIndexForOrdinal(ordinal) {
+		const c = this.events.chunkIndexOf(Math.min(ordinal, this.events.count - 1));
+		const rows = this.materializedRows.get(c);
+		if (rows) {
+			const i = rows.findIndex((row) => row.ordinal >= ordinal);
+			return at$1(this.prefix, c) + (i === -1 ? Math.max(rows.length - 1, 0) : i);
+		}
+		const [lo, hi] = this.chunkBounds(c);
+		return at$1(this.prefix, c) + Math.floor((ordinal - lo) / (hi - lo) * at$1(this.chunkRows, c));
+	}
+	isMaterialized(chunkIdx) {
+		return this.materializedRows.has(chunkIdx);
+	}
+	/** Decode a chunk's window and correct its row count; idempotent. */
+	materialize(chunkIdx, ctx) {
+		if (this.materializedRows.has(chunkIdx)) return Promise.resolve();
+		let pending = this.inflight.get(chunkIdx);
+		if (!pending) {
+			pending = this.doMaterialize(chunkIdx, ctx).finally(() => this.inflight.delete(chunkIdx));
+			this.inflight.set(chunkIdx, pending);
+		}
+		return pending;
+	}
+	async doMaterialize(chunkIdx, ctx) {
+		const [lo, hi] = this.chunkBounds(chunkIdx);
+		const estimated = at$1(this.chunkRows, chunkIdx);
+		let start = lo;
+		for (const [a, b] of this.elision) if (a <= start && start <= b) start = b + 1;
+		let rows = [];
+		if (start < hi) {
+			const prev = this.stats[chunkIdx - 1];
+			const cur = this.stats[chunkIdx];
+			const headRunContinues = start === lo && prev !== void 0 && cur !== void 0 && RUN_TYPES.has(prev.last.type) && prev.last.type === cur.first.type && (prev.last.span_id ?? null) === (cur.first.span_id ?? null);
+			rows = await decodeRange(ctx, start, hi, headRunContinues);
+		}
+		this.materializedRows.set(chunkIdx, rows);
+		this.chunkRows[chunkIdx] = rows.length;
+		this.exact[chunkIdx] = true;
+		log$4.info(`materialize events chunk ${chunkIdx} [${lo},${hi}) → ${rows.length} rows (estimate was ${estimated}${start > lo ? `, decode from ${start} past elision` : ""})`);
+		this.recompute();
+	}
+	get materializedCount() {
+		return this.materializedRows.size;
+	}
 };
 //#endregion
 //#region src/utils/attachments.ts
@@ -61139,6 +63063,61 @@ var usePassiveEvalSample = (logDir, handle) => useAsyncDataFromQuery({
 	queryKey: sampleQueryKey(logDir, handle),
 	queryFn: skipToken,
 	gcTime: kSampleGcTimeMs
+});
+//#endregion
+//#region src/log_data/chunkedSampleQuery.ts
+var chunkedSampleQueryKey = (logDir, handle) => [
+	"log_data",
+	"chunked-sample",
+	logDir,
+	handle?.logFile ?? null,
+	handle?.id ?? null,
+	handle?.epoch ?? null
+];
+var shellEvalSample = async (chunked) => {
+	const { sequences: _sequences, message_refs: _messageRefs, ...shell } = chunked.shell;
+	return {
+		...shell,
+		messages: [],
+		events: [],
+		attachments: {},
+		metadata: await chunked.readMetadata?.() ?? {}
+	};
+};
+/**
+* Chunked-shape classification + open for a sample, keyed
+* `["log_data", "chunked-sample", ...]`. Settles `null` for monolith
+* samples (classification is a central-directory lookup on the already-open
+* log — no extra fetch); the completed-sample fetch is gated on that
+* settlement so exactly one path acquires the sample.
+*
+* Classification failures also settle `null`: the pre-existing monolith
+* path must stay the sole error surface for old-format samples (its
+* retry/fallback handling is authoritative), so this query only reports
+* errors for samples it has positively classified as chunked — which the
+* monolith path could never serve anyway.
+*/
+var useChunkedSample = (logDir, handle) => useAsyncDataFromQuery({
+	queryKey: chunkedSampleQueryKey(logDir, handle),
+	queryFn: handle ? async () => {
+		let zip;
+		try {
+			zip = await getApi().get_log_zip_access?.(handle.logFile);
+		} catch {
+			return null;
+		}
+		if (!zip || classifySampleShape(zip.entryNames, handle.id, handle.epoch) !== "chunked") return null;
+		const chunked = await openChunkedSample(zip, zip.entryNames, handle.id, handle.epoch);
+		return {
+			chunked,
+			evalSample: await shellEvalSample(chunked)
+		};
+	} : skipToken,
+	gcTime: kSampleGcTimeMs,
+	retry: false,
+	refetchOnWindowFocus: false,
+	refetchOnReconnect: false,
+	structuralSharing: false
 });
 //#endregion
 //#region src/log_data/sampleStream.ts
@@ -61465,7 +63444,7 @@ var settledSampleData = (sample) => ({
 	backfilling: false
 });
 /** The path-selection state machine (exported for tests). */
-var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedSample }) => {
+var deriveSampleData = ({ handle, summaries, summary, chunked, query, running, finalizedSample }) => {
 	if (handle === void 0) return {
 		sample: void 0,
 		status: "ok",
@@ -61509,6 +63488,23 @@ var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedS
 			backfilling: running.data?.backfilling ?? false
 		};
 	}
+	if (chunked.data) return {
+		sample: chunked.data.evalSample,
+		status: "ok",
+		error: void 0,
+		running: kNoRunningEvents,
+		eventsCleared: false,
+		backfilling: false,
+		chunked: chunked.data.chunked
+	};
+	if (chunked.error) return {
+		sample: void 0,
+		status: "error",
+		error: chunked.error,
+		running: kNoRunningEvents,
+		eventsCleared: false,
+		backfilling: false
+	};
 	if (query.data !== void 0) return settledSampleData(query.data);
 	if (query.loading && running.data !== void 0 && running.data.events.length > 0) return {
 		sample: void 0,
@@ -61518,10 +63514,11 @@ var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedS
 		eventsCleared: false,
 		backfilling: false
 	};
+	const loading = chunked.loading || query.loading;
 	return {
 		sample: void 0,
-		status: query.loading ? "loading" : query.error ? "error" : "ok",
-		error: query.loading ? void 0 : query.error,
+		status: loading ? "loading" : query.error ? "error" : "ok",
+		error: loading ? void 0 : query.error,
 		running: kNoRunningEvents,
 		eventsCleared: false,
 		backfilling: false
@@ -61539,13 +63536,16 @@ var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedS
 var useEvalSampleData = (logDir, handle) => {
 	const summaries = useSampleSummaries(logDir, handle?.logFile);
 	const summary = (0, import_react.useMemo)(() => handle === void 0 ? void 0 : summaries.data?.find((s) => sampleIdsEqual(s.id, handle.id) && s.epoch === handle.epoch), [summaries, handle]);
-	const query = useSample(logDir, !(summary?.completed === false) && summary !== void 0 ? handle : void 0, summary);
+	const runningPath = summary?.completed === false;
+	const chunked = useChunkedSample(logDir, !runningPath && summary !== void 0 ? handle : void 0);
+	const query = useSample(logDir, !runningPath && summary !== void 0 && chunked.data === null ? handle : void 0, summary);
 	const running = useRunningSample(logDir, handle, summary);
 	const finalizedSample = usePassiveEvalSample(logDir, handle);
 	return (0, import_react.useMemo)(() => deriveSampleData({
 		handle,
 		summaries,
 		summary,
+		chunked,
 		query,
 		running,
 		finalizedSample
@@ -61553,6 +63553,7 @@ var useEvalSampleData = (logDir, handle) => {
 		handle,
 		summaries,
 		summary,
+		chunked,
 		query,
 		running,
 		finalizedSample
@@ -61569,6 +63570,117 @@ var useEvalSampleData = (logDir, handle) => {
 var usePassiveEvalSampleData = (logDir, handle) => {
 	return useMapAsyncData(usePassiveEvalSample(logDir, handle), settledSampleData);
 };
+//#endregion
+//#region src/log_data/chunkedAttachments.ts
+/**
+* Attachment resolution for chunked samples: event chunks are materialized
+* with their `attachment://<index>` refs substituted before anything
+* downstream (decode walk, renderers) sees them — the UI never sees a ref
+* (design/large-samples.md, "Data-loading architecture"). Resolution is
+* per-chunk: refs are collected from the parsed chunk, the covering
+* attachment chunks fetched, and the existing `resolveAttachments`
+* substitution applied. ModelEvent `input_refs` message ranges are NOT
+* resolved here — they stay lazy (Confounder 1: the last event references
+* essentially the whole conversation).
+*/
+var ATTACHMENT_PROTOCOL = "attachment://";
+var CONTENT_PROTOCOL = "tc://";
+var collectRefs = (value, into) => {
+	if (typeof value === "string") {
+		const ref = value.startsWith(CONTENT_PROTOCOL) ? value.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL) : value;
+		if (ref.startsWith(ATTACHMENT_PROTOCOL)) {
+			const suffix = ref.slice(13);
+			if (/^\d+$/.test(suffix)) into.add(Number(suffix));
+		}
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (const item of value) collectRefs(item, into);
+		return;
+	}
+	if (value !== null && typeof value === "object") for (const item of Object.values(value)) collectRefs(item, into);
+};
+/**
+* Substitute every attachment ref in `items` from the sample's attachments
+* sequence (fetches dedup through the shared chunk-byte store). `label`
+* names the batch in the read log.
+*/
+var withAttachmentsResolved = async (items, chunked, label) => {
+	const refs = /* @__PURE__ */ new Set();
+	collectRefs(items, refs);
+	if (refs.size === 0) return items;
+	log$4.info(`resolve ${refs.size} attachment ref${refs.size === 1 ? "" : "s"} for ${label}`);
+	const attachments = {};
+	await Promise.all([...refs].map(async (index) => {
+		const [content] = await chunked.attachments.getRange(index, index + 1);
+		if (content !== void 0) attachments[String(index)] = content;
+	}));
+	return items.map((item) => resolveAttachments(item, attachments));
+};
+/**
+* Warm the attachment chunks `items` reference without resolving (the
+* parsed-chunk and byte caches make the later `withAttachmentsResolved`
+* pass a cache hit). Lets callers overlap attachment downloads with
+* whatever else they're still fetching.
+*/
+var prefetchAttachments = async (items, chunked) => {
+	const refs = /* @__PURE__ */ new Set();
+	collectRefs(items, refs);
+	await Promise.all([...refs].map((index) => chunked.attachments.getRange(index, index + 1)));
+};
+/**
+* The sample's events reader with attachment refs resolved per chunk.
+* Chunk-level caching means each chunk resolves once.
+*/
+var resolvedEventsReader = (chunked) => chunked.events.withTransform((items, start) => withAttachmentsResolved(items, chunked, `events chunk ${start}`));
+//#endregion
+//#region src/log_data/chunkedMessages.ts
+/**
+* Hydrate a chunked sample's final conversation: the shell's `message_refs`
+* ranges resolved against the messages sequence, attachments substituted —
+* the same material a monolith sample stores inline as `messages`.
+*
+* INTERIM: full hydration is a bridge until the Messages tab pages by
+* index window (design/large-samples.md, access pattern 3 / effort C3).
+* "The final conversation is conversation-sized" does NOT hold under
+* compaction — measured 134,989 messages / 7,961 ranges (~135MB of member
+* fetches) on the mirror-code monster — so this matches the monolith
+* path's memory profile, no better. Windowed replacement is C3; this
+* fetches on-demand (tab open), never at sample open.
+*
+* Attachment chunks are prefetched per message range as ranges arrive, so
+* attachment downloads overlap the remaining message downloads instead of
+* serializing behind the full conversation assembly.
+*/
+var hydrateFinalConversation = async (chunked) => {
+	const refs = chunked.shell.message_refs;
+	const messages = (await Promise.all(refs.map(([start, end]) => chunked.messages.getRange(start, end).then((messages) => {
+		prefetchAttachments(messages, chunked).catch(() => void 0);
+		return messages;
+	})))).flat();
+	log$4.info(`hydrate final conversation: ${messages.length} messages via ${refs.length} range${refs.length === 1 ? "" : "s"}`);
+	return withAttachmentsResolved(messages, chunked, "final conversation");
+};
+/**
+* The final conversation for the Messages tab, hydrated on first use and
+* cached alongside the sample queries.
+*/
+var useChunkedMessages = (logDir, handle, chunked) => useAsyncDataFromQuery({
+	queryKey: [
+		"log_data",
+		"chunked-messages",
+		logDir,
+		handle?.logFile ?? null,
+		handle?.id ?? null,
+		handle?.epoch ?? null
+	],
+	queryFn: chunked && handle ? () => hydrateFinalConversation(chunked) : skipToken,
+	gcTime: kSampleGcTimeMs,
+	retry: false,
+	refetchOnWindowFocus: false,
+	refetchOnReconnect: false,
+	structuralSharing: false
+});
 //#endregion
 //#region src/app/shared/useStableValue.ts
 /**
@@ -61650,64 +63762,6 @@ function scorerMapsEqual(a, b) {
 var asyncScorerMapsEqual = (a, b) => a.loading === b.loading && a.error === b.error && (a.data !== void 0 && b.data !== void 0 ? scorerMapsEqual(a.data, b.data) : a.data === b.data);
 var useScoreSchema = (logDir, scopeDir) => {
 	return useStableValue(useMapAsyncData(useLogs(logDir), (0, import_react.useCallback)((rows) => computeScorerMap(rows, scopeDir), [scopeDir])), asyncScorerMapsEqual);
-};
-//#endregion
-//#region src/utils/uri.ts
-var directoryRelativeUrl = (file, dir) => {
-	if (!dir) return uriEncodePathSegments(file);
-	const normalizedFile = file.replace(/\\/g, "/");
-	const normalizedLogDir = dir.replace(/\\/g, "/");
-	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile.substring(dirWithSlash.length).split("/").map((segment) => encodeURIComponent(segment)).join("/");
-	return uriEncodePathSegments(normalizedFile);
-};
-var uriEncodePathSegments = (path) => {
-	return path.split("/").map((segment) => encodeURIComponent(segment)).join("/");
-};
-var join = (file, dir) => {
-	if (!dir) return file;
-	const normalizedFile = file.replace(/\\/g, "/");
-	const normalizedLogDir = dir.replace(/\\/g, "/");
-	const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-	if (normalizedFile.startsWith(dirWithSlash)) return normalizedFile;
-	return dirWithSlash + normalizedFile;
-};
-/**
-* Encodes the path segments of a URL or relative path to ensure special characters
-* (like `+`, spaces, etc.) are properly encoded without affecting legal characters like `/`.
-*
-* This function will encode file names and path portions of both absolute URLs and
-* relative paths. It ensures that components of a full URL, such as the protocol and
-* query parameters, remain intact, while only encoding the path.
-*/
-function encodePathParts(url) {
-	if (!url) return url;
-	try {
-		const fullUrl = new URL(url);
-		fullUrl.pathname = fullUrl.pathname.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
-		return fullUrl.toString();
-	} catch {
-		return url.split("/").map((segment) => segment ? encodeURIComponent(decodeURIComponent(segment)) : "").join("/");
-	}
-}
-/**
-* Tests whether a string is a valid URI.
-*
-* @param value - The string to test
-* @returns true if the string is a valid URI, false otherwise
-*/
-var isUri = (value) => {
-	if (!value) return false;
-	try {
-		new URL(value);
-		return true;
-	} catch {
-		return false;
-	}
-};
-var prettyDirUri = (uri) => {
-	if (uri.startsWith("file://")) return uri.replace("file://", "");
-	else return uri;
 };
 //#endregion
 //#region ../../node_modules/.pnpm/immer@11.1.11/node_modules/immer/dist/immer.mjs
@@ -64730,203 +66784,6 @@ function clearLargeEventsArray(data) {
 	return result;
 }
 //#endregion
-//#region src/utils/json-worker.ts
-var JsonWorkerPool = class {
-	encoder = new TextEncoder();
-	decoder = new TextDecoder();
-	workers = [];
-	blobURL = null;
-	nextRequestId = 0;
-	pendingRequests = /* @__PURE__ */ new Map();
-	poolSize = 4;
-	ensureWorkers() {
-		if (this.workers.length === 0) {
-			const blob = new Blob([kWorkerCode], { type: "application/javascript" });
-			this.blobURL = URL.createObjectURL(blob);
-			for (let i = 0; i < this.poolSize; i++) {
-				const worker = new Worker(this.blobURL);
-				worker.onmessage = (e) => this.handleMessage(e);
-				worker.onerror = (error) => this.handleError(error);
-				this.workers.push(worker);
-				worker.postMessage({
-					type: "init",
-					scriptContent: kJson5ScriptBase64
-				});
-			}
-		}
-	}
-	handleMessage(e) {
-		const { requestId, success, serialized, result, error, stack } = e.data;
-		const pending = this.pendingRequests.get(requestId);
-		if (!pending) return;
-		this.pendingRequests.delete(requestId);
-		if (success) if (serialized) {
-			const resultString = this.decoder.decode(result);
-			pending.resolve(JSON.parse(resultString));
-		} else pending.resolve(result);
-		else {
-			const err = new Error(error);
-			if (stack) err.stack = stack;
-			pending.reject(err);
-		}
-	}
-	handleError(error) {
-		const err = /* @__PURE__ */ new Error(`Worker error: ${error.message}`);
-		for (const pending of this.pendingRequests.values()) pending.reject(err);
-		this.pendingRequests.clear();
-	}
-	async parse(text) {
-		this.ensureWorkers();
-		const encodedText = this.encoder.encode(text);
-		const requestId = this.nextRequestId++;
-		return new Promise((resolve, reject) => {
-			this.pendingRequests.set(requestId, {
-				resolve,
-				reject
-			});
-			this.workers[requestId % this.workers.length]?.postMessage({
-				type: "parse",
-				requestId,
-				encodedText
-			}, [encodedText.buffer]);
-		});
-	}
-	async parseBytes(data) {
-		this.ensureWorkers();
-		const requestId = this.nextRequestId++;
-		const ownedData = data.byteOffset === 0 && data.byteLength === data.buffer.byteLength ? data : data.slice();
-		return new Promise((resolve, reject) => {
-			this.pendingRequests.set(requestId, {
-				resolve,
-				reject
-			});
-			this.workers[requestId % this.workers.length]?.postMessage({
-				type: "parse",
-				requestId,
-				encodedText: ownedData
-			}, [ownedData.buffer]);
-		});
-	}
-	terminate() {
-		this.workers.forEach((w) => w.terminate());
-		this.workers = [];
-		if (this.blobURL) {
-			URL.revokeObjectURL(this.blobURL);
-			this.blobURL = null;
-		}
-		this.pendingRequests.clear();
-	}
-};
-var workerPool = new JsonWorkerPool();
-var asyncJsonParse = async (text) => {
-	if (text.length < 5e4) {
-		let result = void 0;
-		try {
-			result = JSON.parse(text);
-		} catch {
-			result = import_dist.default.parse(text);
-		}
-		return result;
-	} else return workerPool.parse(text);
-};
-/**
-* Parse JSON from raw UTF-8 bytes, avoiding redundant main-thread
-* string allocation for large payloads.
-*
-* For small data (<50KB) decodes and parses on the main thread.
-* For large data, transfers the bytes directly to a Web Worker,
-* skipping the main-thread TextDecoder.decode + TextEncoder.encode
-* round-trip that asyncJsonParse(string) would require.
-*/
-var asyncJsonParseBytes = async (data) => {
-	if (data.length < 5e4) return jsonParse$1(new TextDecoder("utf-8").decode(data));
-	else return workerPool.parseBytes(data);
-};
-var jsonParse$1 = (text) => {
-	try {
-		return JSON.parse(text);
-	} catch {
-		return import_dist.default.parse(text);
-	}
-};
-var kWorkerCode = `
-// Store the JSON5 parser once loaded
-let JSON5 = null;
-const decoder = new TextDecoder();
-const encoder = new TextEncoder();
-
-self.onmessage = function (e) {
-  const { type } = e.data || {};
-
-  if (type === 'init') {
-    const { scriptContent } = e.data;
-    try {
-      if (!JSON5) {
-        const script = atob(scriptContent);
-        new Function(script)();
-        if (typeof self.JSON5 !== 'object' || typeof self.JSON5.parse !== 'function') {
-          throw new Error('Failed to initialize JSON5 parser');
-        }
-        JSON5 = self.JSON5;
-      }
-    } catch (err) {
-      // nothing to respond to yet; worker will fail on first parse if init failed
-      console.error('JSON5 init error in worker', err);
-    }
-    return;
-  }
-
-  if (type === 'parse') {
-    const { requestId, encodedText, scriptContent } = e.data;
-
-    try {
-      
-      // Decode the text using TextDecoder
-      const text = decoder.decode(encodedText);
-
-      // Parse with JSON/JSON5
-      let result = undefined;
-      try {
-        // Optimistically, try a regular JSON parse first (this is much faster)
-        result = JSON.parse(text);
-      } catch {
-        result = JSON5.parse(text);
-      }
-
-      if (result && typeof result === 'object' &&
-          (Array.isArray(result) ? result.length > 10000 : Object.keys(result).length > 10000)) {
-
-        // Large result, use transferrable object
-        const resultString = JSON.stringify(result);
-        const serialized = encoder.encode(resultString);
-
-        postMessage({
-          requestId,
-          success: true,
-          serialized: true,
-          result: serialized
-        }, [serialized.buffer]);
-      } else {
-        // Small results, send directly
-        postMessage({
-          requestId,
-          success: true, 
-          serialized: false, 
-          result: result 
-        });
-      }
-    } catch (err) {
-      postMessage({
-        requestId,
-        success: false, 
-        error: err.message,
-        stack: err.stack || ''
-      });
-    }
-  }
-};`;
-var kJson5ScriptBase64 = `IWZ1bmN0aW9uKHUsRCl7Im9iamVjdCI9PXR5cGVvZiBleHBvcnRzJiYidW5kZWZpbmVkIiE9dHlwZW9mIG1vZHVsZT9tb2R1bGUuZXhwb3J0cz1EKCk6ImZ1bmN0aW9uIj09dHlwZW9mIGRlZmluZSYmZGVmaW5lLmFtZD9kZWZpbmUoRCk6dS5KU09ONT1EKCl9KHRoaXMsZnVuY3Rpb24oKXsidXNlIHN0cmljdCI7ZnVuY3Rpb24gdSh1LEQpe3JldHVybiB1KEQ9e2V4cG9ydHM6e319LEQuZXhwb3J0cyksRC5leHBvcnRzfXZhciBEPXUoZnVuY3Rpb24odSl7dmFyIEQ9dS5leHBvcnRzPSJ1bmRlZmluZWQiIT10eXBlb2Ygd2luZG93JiZ3aW5kb3cuTWF0aD09TWF0aD93aW5kb3c6InVuZGVmaW5lZCIhPXR5cGVvZiBzZWxmJiZzZWxmLk1hdGg9PU1hdGg/c2VsZjpGdW5jdGlvbigicmV0dXJuIHRoaXMiKSgpOyJudW1iZXIiPT10eXBlb2YgX19nJiYoX19nPUQpfSksZT11KGZ1bmN0aW9uKHUpe3ZhciBEPXUuZXhwb3J0cz17dmVyc2lvbjoiMi42LjUifTsibnVtYmVyIj09dHlwZW9mIF9fZSYmKF9fZT1EKX0pLHI9KGUudmVyc2lvbixmdW5jdGlvbih1KXtyZXR1cm4ib2JqZWN0Ij09dHlwZW9mIHU/bnVsbCE9PXU6ImZ1bmN0aW9uIj09dHlwZW9mIHV9KSx0PWZ1bmN0aW9uKHUpe2lmKCFyKHUpKXRocm93IFR5cGVFcnJvcih1KyIgaXMgbm90IGFuIG9iamVjdCEiKTtyZXR1cm4gdX0sbj1mdW5jdGlvbih1KXt0cnl7cmV0dXJuISF1KCl9Y2F0Y2godSl7cmV0dXJuITB9fSxGPSFuKGZ1bmN0aW9uKCl7cmV0dXJuIDchPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSh7fSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmF9KSxDPUQuZG9jdW1lbnQsQT1yKEMpJiZyKEMuY3JlYXRlRWxlbWVudCksaT0hRiYmIW4oZnVuY3Rpb24oKXtyZXR1cm4gNyE9T2JqZWN0LmRlZmluZVByb3BlcnR5KCh1PSJkaXYiLEE/Qy5jcmVhdGVFbGVtZW50KHUpOnt9KSwiYSIse2dldDpmdW5jdGlvbigpe3JldHVybiA3fX0pLmE7dmFyIHV9KSxFPU9iamVjdC5kZWZpbmVQcm9wZXJ0eSxvPXtmOkY/T2JqZWN0LmRlZmluZVByb3BlcnR5OmZ1bmN0aW9uKHUsRCxlKXtpZih0KHUpLEQ9ZnVuY3Rpb24odSxEKXtpZighcih1KSlyZXR1cm4gdTt2YXIgZSx0O2lmKEQmJiJmdW5jdGlvbiI9PXR5cGVvZihlPXUudG9TdHJpbmcpJiYhcih0PWUuY2FsbCh1KSkpcmV0dXJuIHQ7aWYoImZ1bmN0aW9uIj09dHlwZW9mKGU9dS52YWx1ZU9mKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O2lmKCFEJiYiZnVuY3Rpb24iPT10eXBlb2YoZT11LnRvU3RyaW5nKSYmIXIodD1lLmNhbGwodSkpKXJldHVybiB0O3Rocm93IFR5cGVFcnJvcigiQ2FuJ3QgY29udmVydCBvYmplY3QgdG8gcHJpbWl0aXZlIHZhbHVlIil9KEQsITApLHQoZSksaSl0cnl7cmV0dXJuIEUodSxELGUpfWNhdGNoKHUpe31pZigiZ2V0ImluIGV8fCJzZXQiaW4gZSl0aHJvdyBUeXBlRXJyb3IoIkFjY2Vzc29ycyBub3Qgc3VwcG9ydGVkISIpO3JldHVybiJ2YWx1ZSJpbiBlJiYodVtEXT1lLnZhbHVlKSx1fX0sYT1GP2Z1bmN0aW9uKHUsRCxlKXtyZXR1cm4gby5mKHUsRCxmdW5jdGlvbih1LEQpe3JldHVybntlbnVtZXJhYmxlOiEoMSZ1KSxjb25maWd1cmFibGU6ISgyJnUpLHdyaXRhYmxlOiEoNCZ1KSx2YWx1ZTpEfX0oMSxlKSl9OmZ1bmN0aW9uKHUsRCxlKXtyZXR1cm4gdVtEXT1lLHV9LGM9e30uaGFzT3duUHJvcGVydHksQj1mdW5jdGlvbih1LEQpe3JldHVybiBjLmNhbGwodSxEKX0scz0wLGY9TWF0aC5yYW5kb20oKSxsPXUoZnVuY3Rpb24odSl7dmFyIHI9RFsiX19jb3JlLWpzX3NoYXJlZF9fIl18fChEWyJfX2NvcmUtanNfc2hhcmVkX18iXT17fSk7KHUuZXhwb3J0cz1mdW5jdGlvbih1LEQpe3JldHVybiByW3VdfHwoclt1XT12b2lkIDAhPT1EP0Q6e30pfSkoInZlcnNpb25zIixbXSkucHVzaCh7dmVyc2lvbjplLnZlcnNpb24sbW9kZToiZ2xvYmFsIixjb3B5cmlnaHQ6IsKpIDIwMTkgRGVuaXMgUHVzaGthcmV2ICh6bG9pcm9jay5ydSkifSl9KSgibmF0aXZlLWZ1bmN0aW9uLXRvLXN0cmluZyIsRnVuY3Rpb24udG9TdHJpbmcpLGQ9dShmdW5jdGlvbih1KXt2YXIgcix0PSJTeW1ib2woIi5jb25jYXQodm9pZCAwPT09KHI9InNyYyIpPyIiOnIsIilfIiwoKytzK2YpLnRvU3RyaW5nKDM2KSksbj0oIiIrbCkuc3BsaXQoInRvU3RyaW5nIik7ZS5pbnNwZWN0U291cmNlPWZ1bmN0aW9uKHUpe3JldHVybiBsLmNhbGwodSl9LCh1LmV4cG9ydHM9ZnVuY3Rpb24odSxlLHIsRil7dmFyIEM9ImZ1bmN0aW9uIj09dHlwZW9mIHI7QyYmKEIociwibmFtZSIpfHxhKHIsIm5hbWUiLGUpKSx1W2VdIT09ciYmKEMmJihCKHIsdCl8fGEocix0LHVbZV0/IiIrdVtlXTpuLmpvaW4oU3RyaW5nKGUpKSkpLHU9PT1EP3VbZV09cjpGP3VbZV0/dVtlXT1yOmEodSxlLHIpOihkZWxldGUgdVtlXSxhKHUsZSxyKSkpfSkoRnVuY3Rpb24ucHJvdG90eXBlLCJ0b1N0cmluZyIsZnVuY3Rpb24oKXtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgdGhpcyYmdGhpc1t0XXx8bC5jYWxsKHRoaXMpfSl9KSx2PWZ1bmN0aW9uKHUsRCxlKXtpZihmdW5jdGlvbih1KXtpZigiZnVuY3Rpb24iIT10eXBlb2YgdSl0aHJvdyBUeXBlRXJyb3IodSsiIGlzIG5vdCBhIGZ1bmN0aW9uISIpfSh1KSx2b2lkIDA9PT1EKXJldHVybiB1O3N3aXRjaChlKXtjYXNlIDE6cmV0dXJuIGZ1bmN0aW9uKGUpe3JldHVybiB1LmNhbGwoRCxlKX07Y2FzZSAyOnJldHVybiBmdW5jdGlvbihlLHIpe3JldHVybiB1LmNhbGwoRCxlLHIpfTtjYXNlIDM6cmV0dXJuIGZ1bmN0aW9uKGUscix0KXtyZXR1cm4gdS5jYWxsKEQsZSxyLHQpfX1yZXR1cm4gZnVuY3Rpb24oKXtyZXR1cm4gdS5hcHBseShELGFyZ3VtZW50cyl9fSxwPWZ1bmN0aW9uKHUscix0KXt2YXIgbixGLEMsQSxpPXUmcC5GLEU9dSZwLkcsbz11JnAuUyxjPXUmcC5QLEI9dSZwLkIscz1FP0Q6bz9EW3JdfHwoRFtyXT17fSk6KERbcl18fHt9KS5wcm90b3R5cGUsZj1FP2U6ZVtyXXx8KGVbcl09e30pLGw9Zi5wcm90b3R5cGV8fChmLnByb3RvdHlwZT17fSk7Zm9yKG4gaW4gRSYmKHQ9ciksdClDPSgoRj0haSYmcyYmdm9pZCAwIT09c1tuXSk/czp0KVtuXSxBPUImJkY/dihDLEQpOmMmJiJmdW5jdGlvbiI9PXR5cGVvZiBDP3YoRnVuY3Rpb24uY2FsbCxDKTpDLHMmJmQocyxuLEMsdSZwLlUpLGZbbl0hPUMmJmEoZixuLEEpLGMmJmxbbl0hPUMmJihsW25dPUMpfTtELmNvcmU9ZSxwLkY9MSxwLkc9MixwLlM9NCxwLlA9OCxwLkI9MTYscC5XPTMyLHAuVT02NCxwLlI9MTI4O3ZhciBoLG09cCxnPU1hdGguY2VpbCx5PU1hdGguZmxvb3Isdz1mdW5jdGlvbih1KXtyZXR1cm4gaXNOYU4odT0rdSk/MDoodT4wP3k6ZykodSl9LGI9KGg9ITEsZnVuY3Rpb24odSxEKXt2YXIgZSxyLHQ9U3RyaW5nKGZ1bmN0aW9uKHUpe2lmKG51bGw9PXUpdGhyb3cgVHlwZUVycm9yKCJDYW4ndCBjYWxsIG1ldGhvZCBvbiAgIit1KTtyZXR1cm4gdX0odSkpLG49dyhEKSxGPXQubGVuZ3RoO3JldHVybiBuPDB8fG4+PUY/aD8iIjp2b2lkIDA6KGU9dC5jaGFyQ29kZUF0KG4pKTw1NTI5Nnx8ZT41NjMxOXx8bisxPT09Rnx8KHI9dC5jaGFyQ29kZUF0KG4rMSkpPDU2MzIwfHxyPjU3MzQzP2g/dC5jaGFyQXQobik6ZTpoP3Quc2xpY2UobixuKzIpOnItNTYzMjArKGUtNTUyOTY8PDEwKSs2NTUzNn0pO20obS5QLCJTdHJpbmciLHtjb2RlUG9pbnRBdDpmdW5jdGlvbih1KXtyZXR1cm4gYih0aGlzLHUpfX0pO2UuU3RyaW5nLmNvZGVQb2ludEF0O3ZhciBTPU1hdGgubWF4LHg9TWF0aC5taW4sTj1TdHJpbmcuZnJvbUNoYXJDb2RlLFA9U3RyaW5nLmZyb21Db2RlUG9pbnQ7bShtLlMrbS5GKighIVAmJjEhPVAubGVuZ3RoKSwiU3RyaW5nIix7ZnJvbUNvZGVQb2ludDpmdW5jdGlvbih1KXtmb3IodmFyIEQsZSxyLHQ9YXJndW1lbnRzLG49W10sRj1hcmd1bWVudHMubGVuZ3RoLEM9MDtGPkM7KXtpZihEPSt0W0MrK10scj0xMTE0MTExLCgoZT13KGU9RCkpPDA/UyhlK3IsMCk6eChlLHIpKSE9PUQpdGhyb3cgUmFuZ2VFcnJvcihEKyIgaXMgbm90IGEgdmFsaWQgY29kZSBwb2ludCIpO24ucHVzaChEPDY1NTM2P04oRCk6Tig1NTI5NisoKEQtPTY1NTM2KT4+MTApLEQlMTAyNCs1NjMyMCkpfXJldHVybiBuLmpvaW4oIiIpfX0pO2UuU3RyaW5nLmZyb21Db2RlUG9pbnQ7dmFyIF8sTyxqLEksVixKLE0sayxMLFQseixILCQsUixHPXtTcGFjZV9TZXBhcmF0b3I6L1tcdTE2ODBcdTIwMDAtXHUyMDBBXHUyMDJGXHUyMDVGXHUzMDAwXS8sSURfU3RhcnQ6L1tceEFBXHhCNVx4QkFceEMwLVx4RDZceEQ4LVx4RjZceEY4LVx1MDJDMVx1MDJDNi1cdTAyRDFcdTAyRTAtXHUwMkU0XHUwMkVDXHUwMkVFXHUwMzcwLVx1MDM3NFx1MDM3Nlx1MDM3N1x1MDM3QS1cdTAzN0RcdTAzN0ZcdTAzODZcdTAzODgtXHUwMzhBXHUwMzhDXHUwMzhFLVx1MDNBMVx1MDNBMy1cdTAzRjVcdTAzRjctXHUwNDgxXHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNUQwLVx1MDVFQVx1MDVGMC1cdTA1RjJcdTA2MjAtXHUwNjRBXHUwNjZFXHUwNjZGXHUwNjcxLVx1MDZEM1x1MDZENVx1MDZFNVx1MDZFNlx1MDZFRVx1MDZFRlx1MDZGQS1cdTA2RkNcdTA2RkZcdTA3MTBcdTA3MTItXHUwNzJGXHUwNzRELVx1MDdBNVx1MDdCMVx1MDdDQS1cdTA3RUFcdTA3RjRcdTA3RjVcdTA3RkFcdTA4MDAtXHUwODE1XHUwODFBXHUwODI0XHUwODI4XHUwODQwLVx1MDg1OFx1MDg2MC1cdTA4NkFcdTA4QTAtXHUwOEI0XHUwOEI2LVx1MDhCRFx1MDkwNC1cdTA5MzlcdTA5M0RcdTA5NTBcdTA5NTgtXHUwOTYxXHUwOTcxLVx1MDk4MFx1MDk4NS1cdTA5OENcdTA5OEZcdTA5OTBcdTA5OTMtXHUwOUE4XHUwOUFBLVx1MDlCMFx1MDlCMlx1MDlCNi1cdTA5QjlcdTA5QkRcdTA5Q0VcdTA5RENcdTA5RERcdTA5REYtXHUwOUUxXHUwOUYwXHUwOUYxXHUwOUZDXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTU5LVx1MEE1Q1x1MEE1RVx1MEE3Mi1cdTBBNzRcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCRFx1MEFEMFx1MEFFMFx1MEFFMVx1MEFGOVx1MEIwNS1cdTBCMENcdTBCMEZcdTBCMTBcdTBCMTMtXHUwQjI4XHUwQjJBLVx1MEIzMFx1MEIzMlx1MEIzM1x1MEIzNS1cdTBCMzlcdTBCM0RcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYxXHUwQjcxXHUwQjgzXHUwQjg1LVx1MEI4QVx1MEI4RS1cdTBCOTBcdTBCOTItXHUwQjk1XHUwQjk5XHUwQjlBXHUwQjlDXHUwQjlFXHUwQjlGXHUwQkEzXHUwQkE0XHUwQkE4LVx1MEJBQVx1MEJBRS1cdTBCQjlcdTBCRDBcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNEXHUwQzU4LVx1MEM1QVx1MEM2MFx1MEM2MVx1MEM4MFx1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JEXHUwQ0RFXHUwQ0UwXHUwQ0UxXHUwQ0YxXHUwQ0YyXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDNBXHUwRDNEXHUwRDRFXHUwRDU0LVx1MEQ1Nlx1MEQ1Ri1cdTBENjFcdTBEN0EtXHUwRDdGXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MEUwMS1cdTBFMzBcdTBFMzJcdTBFMzNcdTBFNDAtXHUwRTQ2XHUwRTgxXHUwRTgyXHUwRTg0XHUwRTg3XHUwRTg4XHUwRThBXHUwRThEXHUwRTk0LVx1MEU5N1x1MEU5OS1cdTBFOUZcdTBFQTEtXHUwRUEzXHUwRUE1XHUwRUE3XHUwRUFBXHUwRUFCXHUwRUFELVx1MEVCMFx1MEVCMlx1MEVCM1x1MEVCRFx1MEVDMC1cdTBFQzRcdTBFQzZcdTBFREMtXHUwRURGXHUwRjAwXHUwRjQwLVx1MEY0N1x1MEY0OS1cdTBGNkNcdTBGODgtXHUwRjhDXHUxMDAwLVx1MTAyQVx1MTAzRlx1MTA1MC1cdTEwNTVcdTEwNUEtXHUxMDVEXHUxMDYxXHUxMDY1XHUxMDY2XHUxMDZFLVx1MTA3MFx1MTA3NS1cdTEwODFcdTEwOEVcdTEwQTAtXHUxMEM1XHUxMEM3XHUxMENEXHUxMEQwLVx1MTBGQVx1MTBGQy1cdTEyNDhcdTEyNEEtXHUxMjREXHUxMjUwLVx1MTI1Nlx1MTI1OFx1MTI1QS1cdTEyNURcdTEyNjAtXHUxMjg4XHUxMjhBLVx1MTI4RFx1MTI5MC1cdTEyQjBcdTEyQjItXHUxMkI1XHUxMkI4LVx1MTJCRVx1MTJDMFx1MTJDMi1cdTEyQzVcdTEyQzgtXHUxMkQ2XHUxMkQ4LVx1MTMxMFx1MTMxMi1cdTEzMTVcdTEzMTgtXHUxMzVBXHUxMzgwLVx1MTM4Rlx1MTNBMC1cdTEzRjVcdTEzRjgtXHUxM0ZEXHUxNDAxLVx1MTY2Q1x1MTY2Ri1cdTE2N0ZcdTE2ODEtXHUxNjlBXHUxNkEwLVx1MTZFQVx1MTZFRS1cdTE2RjhcdTE3MDAtXHUxNzBDXHUxNzBFLVx1MTcxMVx1MTcyMC1cdTE3MzFcdTE3NDAtXHUxNzUxXHUxNzYwLVx1MTc2Q1x1MTc2RS1cdTE3NzBcdTE3ODAtXHUxN0IzXHUxN0Q3XHUxN0RDXHUxODIwLVx1MTg3N1x1MTg4MC1cdTE4ODRcdTE4ODctXHUxOEE4XHUxOEFBXHUxOEIwLVx1MThGNVx1MTkwMC1cdTE5MUVcdTE5NTAtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxQTAwLVx1MUExNlx1MUEyMC1cdTFBNTRcdTFBQTdcdTFCMDUtXHUxQjMzXHUxQjQ1LVx1MUI0Qlx1MUI4My1cdTFCQTBcdTFCQUVcdTFCQUZcdTFCQkEtXHUxQkU1XHUxQzAwLVx1MUMyM1x1MUM0RC1cdTFDNEZcdTFDNUEtXHUxQzdEXHUxQzgwLVx1MUM4OFx1MUNFOS1cdTFDRUNcdTFDRUUtXHUxQ0YxXHUxQ0Y1XHUxQ0Y2XHUxRDAwLVx1MURCRlx1MUUwMC1cdTFGMTVcdTFGMTgtXHUxRjFEXHUxRjIwLVx1MUY0NVx1MUY0OC1cdTFGNERcdTFGNTAtXHUxRjU3XHUxRjU5XHUxRjVCXHUxRjVEXHUxRjVGLVx1MUY3RFx1MUY4MC1cdTFGQjRcdTFGQjYtXHUxRkJDXHUxRkJFXHUxRkMyLVx1MUZDNFx1MUZDNi1cdTFGQ0NcdTFGRDAtXHUxRkQzXHUxRkQ2LVx1MUZEQlx1MUZFMC1cdTFGRUNcdTFGRjItXHUxRkY0XHUxRkY2LVx1MUZGQ1x1MjA3MVx1MjA3Rlx1MjA5MC1cdTIwOUNcdTIxMDJcdTIxMDdcdTIxMEEtXHUyMTEzXHUyMTE1XHUyMTE5LVx1MjExRFx1MjEyNFx1MjEyNlx1MjEyOFx1MjEyQS1cdTIxMkRcdTIxMkYtXHUyMTM5XHUyMTNDLVx1MjEzRlx1MjE0NS1cdTIxNDlcdTIxNEVcdTIxNjAtXHUyMTg4XHUyQzAwLVx1MkMyRVx1MkMzMC1cdTJDNUVcdTJDNjAtXHUyQ0U0XHUyQ0VCLVx1MkNFRVx1MkNGMlx1MkNGM1x1MkQwMC1cdTJEMjVcdTJEMjdcdTJEMkRcdTJEMzAtXHUyRDY3XHUyRDZGXHUyRDgwLVx1MkQ5Nlx1MkRBMC1cdTJEQTZcdTJEQTgtXHUyREFFXHUyREIwLVx1MkRCNlx1MkRCOC1cdTJEQkVcdTJEQzAtXHUyREM2XHUyREM4LVx1MkRDRVx1MkREMC1cdTJERDZcdTJERDgtXHUyRERFXHUyRTJGXHUzMDA1LVx1MzAwN1x1MzAyMS1cdTMwMjlcdTMwMzEtXHUzMDM1XHUzMDM4LVx1MzAzQ1x1MzA0MS1cdTMwOTZcdTMwOUQtXHUzMDlGXHUzMEExLVx1MzBGQVx1MzBGQy1cdTMwRkZcdTMxMDUtXHUzMTJFXHUzMTMxLVx1MzE4RVx1MzFBMC1cdTMxQkFcdTMxRjAtXHUzMUZGXHUzNDAwLVx1NERCNVx1NEUwMC1cdTlGRUFcdUEwMDAtXHVBNDhDXHVBNEQwLVx1QTRGRFx1QTUwMC1cdUE2MENcdUE2MTAtXHVBNjFGXHVBNjJBXHVBNjJCXHVBNjQwLVx1QTY2RVx1QTY3Ri1cdUE2OURcdUE2QTAtXHVBNkVGXHVBNzE3LVx1QTcxRlx1QTcyMi1cdUE3ODhcdUE3OEItXHVBN0FFXHVBN0IwLVx1QTdCN1x1QTdGNy1cdUE4MDFcdUE4MDMtXHVBODA1XHVBODA3LVx1QTgwQVx1QTgwQy1cdUE4MjJcdUE4NDAtXHVBODczXHVBODgyLVx1QThCM1x1QThGMi1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MEEtXHVBOTI1XHVBOTMwLVx1QTk0Nlx1QTk2MC1cdUE5N0NcdUE5ODQtXHVBOUIyXHVBOUNGXHVBOUUwLVx1QTlFNFx1QTlFNi1cdUE5RUZcdUE5RkEtXHVBOUZFXHVBQTAwLVx1QUEyOFx1QUE0MC1cdUFBNDJcdUFBNDQtXHVBQTRCXHVBQTYwLVx1QUE3Nlx1QUE3QVx1QUE3RS1cdUFBQUZcdUFBQjFcdUFBQjVcdUFBQjZcdUFBQjktXHVBQUJEXHVBQUMwXHVBQUMyXHVBQURCLVx1QUFERFx1QUFFMC1cdUFBRUFcdUFBRjItXHVBQUY0XHVBQjAxLVx1QUIwNlx1QUIwOS1cdUFCMEVcdUFCMTEtXHVBQjE2XHVBQjIwLVx1QUIyNlx1QUIyOC1cdUFCMkVcdUFCMzAtXHVBQjVBXHVBQjVDLVx1QUI2NVx1QUI3MC1cdUFCRTJcdUFDMDAtXHVEN0EzXHVEN0IwLVx1RDdDNlx1RDdDQi1cdUQ3RkJcdUY5MDAtXHVGQTZEXHVGQTcwLVx1RkFEOVx1RkIwMC1cdUZCMDZcdUZCMTMtXHVGQjE3XHVGQjFEXHVGQjFGLVx1RkIyOFx1RkIyQS1cdUZCMzZcdUZCMzgtXHVGQjNDXHVGQjNFXHVGQjQwXHVGQjQxXHVGQjQzXHVGQjQ0XHVGQjQ2LVx1RkJCMVx1RkJEMy1cdUZEM0RcdUZENTAtXHVGRDhGXHVGRDkyLVx1RkRDN1x1RkRGMC1cdUZERkJcdUZFNzAtXHVGRTc0XHVGRTc2LVx1RkVGQ1x1RkYyMS1cdUZGM0FcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGNzVcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENCMC1cdURDRDNcdURDRDgtXHVEQ0ZCXHVERDAwLVx1REQyN1x1REQzMC1cdURENjNcdURFMDAtXHVERjM2XHVERjQwLVx1REY1NVx1REY2MC1cdURGNjddfFx1RDgwMltcdURDMDAtXHVEQzA1XHVEQzA4XHVEQzBBLVx1REMzNVx1REMzN1x1REMzOFx1REMzQ1x1REMzRi1cdURDNTVcdURDNjAtXHVEQzc2XHVEQzgwLVx1REM5RVx1RENFMC1cdURDRjJcdURDRjRcdURDRjVcdUREMDAtXHVERDE1XHVERDIwLVx1REQzOVx1REQ4MC1cdUREQjdcdUREQkVcdUREQkZcdURFMDBcdURFMTAtXHVERTEzXHVERTE1LVx1REUxN1x1REUxOS1cdURFMzNcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU0XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMy1cdURDMzdcdURDODMtXHVEQ0FGXHVEQ0QwLVx1RENFOFx1REQwMy1cdUREMjZcdURENTAtXHVERDcyXHVERDc2XHVERDgzLVx1RERCMlx1RERDMS1cdUREQzRcdUREREFcdURERENcdURFMDAtXHVERTExXHVERTEzLVx1REUyQlx1REU4MC1cdURFODZcdURFODhcdURFOEEtXHVERThEXHVERThGLVx1REU5RFx1REU5Ri1cdURFQThcdURFQjAtXHVERURFXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzRFx1REY1MFx1REY1RC1cdURGNjFdfFx1RDgwNVtcdURDMDAtXHVEQzM0XHVEQzQ3LVx1REM0QVx1REM4MC1cdURDQUZcdURDQzRcdURDQzVcdURDQzdcdUREODAtXHVEREFFXHVEREQ4LVx1REREQlx1REUwMC1cdURFMkZcdURFNDRcdURFODAtXHVERUFBXHVERjAwLVx1REYxOV18XHVEODA2W1x1RENBMC1cdURDREZcdURDRkZcdURFMDBcdURFMEItXHVERTMyXHVERTNBXHVERTUwXHVERTVDLVx1REU4M1x1REU4Ni1cdURFODlcdURFQzAtXHVERUY4XXxcdUQ4MDdbXHVEQzAwLVx1REMwOFx1REMwQS1cdURDMkVcdURDNDBcdURDNzItXHVEQzhGXHVERDAwLVx1REQwNlx1REQwOFx1REQwOVx1REQwQi1cdUREMzBcdURENDZdfFx1RDgwOFtcdURDMDAtXHVERjk5XXxcdUQ4MDlbXHVEQzAwLVx1REM2RVx1REM4MC1cdURENDNdfFtcdUQ4MENcdUQ4MUMtXHVEODIwXHVEODQwLVx1RDg2OFx1RDg2QS1cdUQ4NkNcdUQ4NkYtXHVEODcyXHVEODc0LVx1RDg3OV1bXHVEQzAwLVx1REZGRl18XHVEODBEW1x1REMwMC1cdURDMkVdfFx1RDgxMVtcdURDMDAtXHVERTQ2XXxcdUQ4MUFbXHVEQzAwLVx1REUzOFx1REU0MC1cdURFNUVcdURFRDAtXHVERUVEXHVERjAwLVx1REYyRlx1REY0MC1cdURGNDNcdURGNjMtXHVERjc3XHVERjdELVx1REY4Rl18XHVEODFCW1x1REYwMC1cdURGNDRcdURGNTBcdURGOTMtXHVERjlGXHVERkUwXHVERkUxXXxcdUQ4MjFbXHVEQzAwLVx1REZFQ118XHVEODIyW1x1REMwMC1cdURFRjJdfFx1RDgyQ1tcdURDMDAtXHVERDFFXHVERDcwLVx1REVGQl18XHVEODJGW1x1REMwMC1cdURDNkFcdURDNzAtXHVEQzdDXHVEQzgwLVx1REM4OFx1REM5MC1cdURDOTldfFx1RDgzNVtcdURDMDAtXHVEQzU0XHVEQzU2LVx1REM5Q1x1REM5RVx1REM5Rlx1RENBMlx1RENBNVx1RENBNlx1RENBOS1cdURDQUNcdURDQUUtXHVEQ0I5XHVEQ0JCXHVEQ0JELVx1RENDM1x1RENDNS1cdUREMDVcdUREMDctXHVERDBBXHVERDBELVx1REQxNFx1REQxNi1cdUREMUNcdUREMUUtXHVERDM5XHVERDNCLVx1REQzRVx1REQ0MC1cdURENDRcdURENDZcdURENEEtXHVERDUwXHVERDUyLVx1REVBNVx1REVBOC1cdURFQzBcdURFQzItXHVERURBXHVERURDLVx1REVGQVx1REVGQy1cdURGMTRcdURGMTYtXHVERjM0XHVERjM2LVx1REY0RVx1REY1MC1cdURGNkVcdURGNzAtXHVERjg4XHVERjhBLVx1REZBOFx1REZBQS1cdURGQzJcdURGQzQtXHVERkNCXXxcdUQ4M0FbXHVEQzAwLVx1RENDNFx1REQwMC1cdURENDNdfFx1RDgzQltcdURFMDAtXHVERTAzXHVERTA1LVx1REUxRlx1REUyMVx1REUyMlx1REUyNFx1REUyN1x1REUyOS1cdURFMzJcdURFMzQtXHVERTM3XHVERTM5XHVERTNCXHVERTQyXHVERTQ3XHVERTQ5XHVERTRCXHVERTRELVx1REU0Rlx1REU1MVx1REU1Mlx1REU1NFx1REU1N1x1REU1OVx1REU1Qlx1REU1RFx1REU1Rlx1REU2MVx1REU2Mlx1REU2NFx1REU2Ny1cdURFNkFcdURFNkMtXHVERTcyXHVERTc0LVx1REU3N1x1REU3OS1cdURFN0NcdURFN0VcdURFODAtXHVERTg5XHVERThCLVx1REU5Qlx1REVBMS1cdURFQTNcdURFQTUtXHVERUE5XHVERUFCLVx1REVCQl18XHVEODY5W1x1REMwMC1cdURFRDZcdURGMDAtXHVERkZGXXxcdUQ4NkRbXHVEQzAwLVx1REYzNFx1REY0MC1cdURGRkZdfFx1RDg2RVtcdURDMDAtXHVEQzFEXHVEQzIwLVx1REZGRl18XHVEODczW1x1REMwMC1cdURFQTFcdURFQjAtXHVERkZGXXxcdUQ4N0FbXHVEQzAwLVx1REZFMF18XHVEODdFW1x1REMwMC1cdURFMURdLyxJRF9Db250aW51ZTovW1x4QUFceEI1XHhCQVx4QzAtXHhENlx4RDgtXHhGNlx4RjgtXHUwMkMxXHUwMkM2LVx1MDJEMVx1MDJFMC1cdTAyRTRcdTAyRUNcdTAyRUVcdTAzMDAtXHUwMzc0XHUwMzc2XHUwMzc3XHUwMzdBLVx1MDM3RFx1MDM3Rlx1MDM4Nlx1MDM4OC1cdTAzOEFcdTAzOENcdTAzOEUtXHUwM0ExXHUwM0EzLVx1MDNGNVx1MDNGNy1cdTA0ODFcdTA0ODMtXHUwNDg3XHUwNDhBLVx1MDUyRlx1MDUzMS1cdTA1NTZcdTA1NTlcdTA1NjEtXHUwNTg3XHUwNTkxLVx1MDVCRFx1MDVCRlx1MDVDMVx1MDVDMlx1MDVDNFx1MDVDNVx1MDVDN1x1MDVEMC1cdTA1RUFcdTA1RjAtXHUwNUYyXHUwNjEwLVx1MDYxQVx1MDYyMC1cdTA2NjlcdTA2NkUtXHUwNkQzXHUwNkQ1LVx1MDZEQ1x1MDZERi1cdTA2RThcdTA2RUEtXHUwNkZDXHUwNkZGXHUwNzEwLVx1MDc0QVx1MDc0RC1cdTA3QjFcdTA3QzAtXHUwN0Y1XHUwN0ZBXHUwODAwLVx1MDgyRFx1MDg0MC1cdTA4NUJcdTA4NjAtXHUwODZBXHUwOEEwLVx1MDhCNFx1MDhCNi1cdTA4QkRcdTA4RDQtXHUwOEUxXHUwOEUzLVx1MDk2M1x1MDk2Ni1cdTA5NkZcdTA5NzEtXHUwOTgzXHUwOTg1LVx1MDk4Q1x1MDk4Rlx1MDk5MFx1MDk5My1cdTA5QThcdTA5QUEtXHUwOUIwXHUwOUIyXHUwOUI2LVx1MDlCOVx1MDlCQy1cdTA5QzRcdTA5QzdcdTA5QzhcdTA5Q0ItXHUwOUNFXHUwOUQ3XHUwOURDXHUwOUREXHUwOURGLVx1MDlFM1x1MDlFNi1cdTA5RjFcdTA5RkNcdTBBMDEtXHUwQTAzXHUwQTA1LVx1MEEwQVx1MEEwRlx1MEExMFx1MEExMy1cdTBBMjhcdTBBMkEtXHUwQTMwXHUwQTMyXHUwQTMzXHUwQTM1XHUwQTM2XHUwQTM4XHUwQTM5XHUwQTNDXHUwQTNFLVx1MEE0Mlx1MEE0N1x1MEE0OFx1MEE0Qi1cdTBBNERcdTBBNTFcdTBBNTktXHUwQTVDXHUwQTVFXHUwQTY2LVx1MEE3NVx1MEE4MS1cdTBBODNcdTBBODUtXHUwQThEXHUwQThGLVx1MEE5MVx1MEE5My1cdTBBQThcdTBBQUEtXHUwQUIwXHUwQUIyXHUwQUIzXHUwQUI1LVx1MEFCOVx1MEFCQy1cdTBBQzVcdTBBQzctXHUwQUM5XHUwQUNCLVx1MEFDRFx1MEFEMFx1MEFFMC1cdTBBRTNcdTBBRTYtXHUwQUVGXHUwQUY5LVx1MEFGRlx1MEIwMS1cdTBCMDNcdTBCMDUtXHUwQjBDXHUwQjBGXHUwQjEwXHUwQjEzLVx1MEIyOFx1MEIyQS1cdTBCMzBcdTBCMzJcdTBCMzNcdTBCMzUtXHUwQjM5XHUwQjNDLVx1MEI0NFx1MEI0N1x1MEI0OFx1MEI0Qi1cdTBCNERcdTBCNTZcdTBCNTdcdTBCNUNcdTBCNURcdTBCNUYtXHUwQjYzXHUwQjY2LVx1MEI2Rlx1MEI3MVx1MEI4Mlx1MEI4M1x1MEI4NS1cdTBCOEFcdTBCOEUtXHUwQjkwXHUwQjkyLVx1MEI5NVx1MEI5OVx1MEI5QVx1MEI5Q1x1MEI5RVx1MEI5Rlx1MEJBM1x1MEJBNFx1MEJBOC1cdTBCQUFcdTBCQUUtXHUwQkI5XHUwQkJFLVx1MEJDMlx1MEJDNi1cdTBCQzhcdTBCQ0EtXHUwQkNEXHUwQkQwXHUwQkQ3XHUwQkU2LVx1MEJFRlx1MEMwMC1cdTBDMDNcdTBDMDUtXHUwQzBDXHUwQzBFLVx1MEMxMFx1MEMxMi1cdTBDMjhcdTBDMkEtXHUwQzM5XHUwQzNELVx1MEM0NFx1MEM0Ni1cdTBDNDhcdTBDNEEtXHUwQzREXHUwQzU1XHUwQzU2XHUwQzU4LVx1MEM1QVx1MEM2MC1cdTBDNjNcdTBDNjYtXHUwQzZGXHUwQzgwLVx1MEM4M1x1MEM4NS1cdTBDOENcdTBDOEUtXHUwQzkwXHUwQzkyLVx1MENBOFx1MENBQS1cdTBDQjNcdTBDQjUtXHUwQ0I5XHUwQ0JDLVx1MENDNFx1MENDNi1cdTBDQzhcdTBDQ0EtXHUwQ0NEXHUwQ0Q1XHUwQ0Q2XHUwQ0RFXHUwQ0UwLVx1MENFM1x1MENFNi1cdTBDRUZcdTBDRjFcdTBDRjJcdTBEMDAtXHUwRDAzXHUwRDA1LVx1MEQwQ1x1MEQwRS1cdTBEMTBcdTBEMTItXHUwRDQ0XHUwRDQ2LVx1MEQ0OFx1MEQ0QS1cdTBENEVcdTBENTQtXHUwRDU3XHUwRDVGLVx1MEQ2M1x1MEQ2Ni1cdTBENkZcdTBEN0EtXHUwRDdGXHUwRDgyXHUwRDgzXHUwRDg1LVx1MEQ5Nlx1MEQ5QS1cdTBEQjFcdTBEQjMtXHUwREJCXHUwREJEXHUwREMwLVx1MERDNlx1MERDQVx1MERDRi1cdTBERDRcdTBERDZcdTBERDgtXHUwRERGXHUwREU2LVx1MERFRlx1MERGMlx1MERGM1x1MEUwMS1cdTBFM0FcdTBFNDAtXHUwRTRFXHUwRTUwLVx1MEU1OVx1MEU4MVx1MEU4Mlx1MEU4NFx1MEU4N1x1MEU4OFx1MEU4QVx1MEU4RFx1MEU5NC1cdTBFOTdcdTBFOTktXHUwRTlGXHUwRUExLVx1MEVBM1x1MEVBNVx1MEVBN1x1MEVBQVx1MEVBQlx1MEVBRC1cdTBFQjlcdTBFQkItXHUwRUJEXHUwRUMwLVx1MEVDNFx1MEVDNlx1MEVDOC1cdTBFQ0RcdTBFRDAtXHUwRUQ5XHUwRURDLVx1MEVERlx1MEYwMFx1MEYxOFx1MEYxOVx1MEYyMC1cdTBGMjlcdTBGMzVcdTBGMzdcdTBGMzlcdTBGM0UtXHUwRjQ3XHUwRjQ5LVx1MEY2Q1x1MEY3MS1cdTBGODRcdTBGODYtXHUwRjk3XHUwRjk5LVx1MEZCQ1x1MEZDNlx1MTAwMC1cdTEwNDlcdTEwNTAtXHUxMDlEXHUxMEEwLVx1MTBDNVx1MTBDN1x1MTBDRFx1MTBEMC1cdTEwRkFcdTEwRkMtXHUxMjQ4XHUxMjRBLVx1MTI0RFx1MTI1MC1cdTEyNTZcdTEyNThcdTEyNUEtXHUxMjVEXHUxMjYwLVx1MTI4OFx1MTI4QS1cdTEyOERcdTEyOTAtXHUxMkIwXHUxMkIyLVx1MTJCNVx1MTJCOC1cdTEyQkVcdTEyQzBcdTEyQzItXHUxMkM1XHUxMkM4LVx1MTJENlx1MTJEOC1cdTEzMTBcdTEzMTItXHUxMzE1XHUxMzE4LVx1MTM1QVx1MTM1RC1cdTEzNUZcdTEzODAtXHUxMzhGXHUxM0EwLVx1MTNGNVx1MTNGOC1cdTEzRkRcdTE0MDEtXHUxNjZDXHUxNjZGLVx1MTY3Rlx1MTY4MS1cdTE2OUFcdTE2QTAtXHUxNkVBXHUxNkVFLVx1MTZGOFx1MTcwMC1cdTE3MENcdTE3MEUtXHUxNzE0XHUxNzIwLVx1MTczNFx1MTc0MC1cdTE3NTNcdTE3NjAtXHUxNzZDXHUxNzZFLVx1MTc3MFx1MTc3Mlx1MTc3M1x1MTc4MC1cdTE3RDNcdTE3RDdcdTE3RENcdTE3RERcdTE3RTAtXHUxN0U5XHUxODBCLVx1MTgwRFx1MTgxMC1cdTE4MTlcdTE4MjAtXHUxODc3XHUxODgwLVx1MThBQVx1MThCMC1cdTE4RjVcdTE5MDAtXHUxOTFFXHUxOTIwLVx1MTkyQlx1MTkzMC1cdTE5M0JcdTE5NDYtXHUxOTZEXHUxOTcwLVx1MTk3NFx1MTk4MC1cdTE5QUJcdTE5QjAtXHUxOUM5XHUxOUQwLVx1MTlEOVx1MUEwMC1cdTFBMUJcdTFBMjAtXHUxQTVFXHUxQTYwLVx1MUE3Q1x1MUE3Ri1cdTFBODlcdTFBOTAtXHUxQTk5XHUxQUE3XHUxQUIwLVx1MUFCRFx1MUIwMC1cdTFCNEJcdTFCNTAtXHUxQjU5XHUxQjZCLVx1MUI3M1x1MUI4MC1cdTFCRjNcdTFDMDAtXHUxQzM3XHUxQzQwLVx1MUM0OVx1MUM0RC1cdTFDN0RcdTFDODAtXHUxQzg4XHUxQ0QwLVx1MUNEMlx1MUNENC1cdTFDRjlcdTFEMDAtXHUxREY5XHUxREZCLVx1MUYxNVx1MUYxOC1cdTFGMURcdTFGMjAtXHUxRjQ1XHUxRjQ4LVx1MUY0RFx1MUY1MC1cdTFGNTdcdTFGNTlcdTFGNUJcdTFGNURcdTFGNUYtXHUxRjdEXHUxRjgwLVx1MUZCNFx1MUZCNi1cdTFGQkNcdTFGQkVcdTFGQzItXHUxRkM0XHUxRkM2LVx1MUZDQ1x1MUZEMC1cdTFGRDNcdTFGRDYtXHUxRkRCXHUxRkUwLVx1MUZFQ1x1MUZGMi1cdTFGRjRcdTFGRjYtXHUxRkZDXHUyMDNGXHUyMDQwXHUyMDU0XHUyMDcxXHUyMDdGXHUyMDkwLVx1MjA5Q1x1MjBEMC1cdTIwRENcdTIwRTFcdTIwRTUtXHUyMEYwXHUyMTAyXHUyMTA3XHUyMTBBLVx1MjExM1x1MjExNVx1MjExOS1cdTIxMURcdTIxMjRcdTIxMjZcdTIxMjhcdTIxMkEtXHUyMTJEXHUyMTJGLVx1MjEzOVx1MjEzQy1cdTIxM0ZcdTIxNDUtXHUyMTQ5XHUyMTRFXHUyMTYwLVx1MjE4OFx1MkMwMC1cdTJDMkVcdTJDMzAtXHUyQzVFXHUyQzYwLVx1MkNFNFx1MkNFQi1cdTJDRjNcdTJEMDAtXHUyRDI1XHUyRDI3XHUyRDJEXHUyRDMwLVx1MkQ2N1x1MkQ2Rlx1MkQ3Ri1cdTJEOTZcdTJEQTAtXHUyREE2XHUyREE4LVx1MkRBRVx1MkRCMC1cdTJEQjZcdTJEQjgtXHUyREJFXHUyREMwLVx1MkRDNlx1MkRDOC1cdTJEQ0VcdTJERDAtXHUyREQ2XHUyREQ4LVx1MkRERVx1MkRFMC1cdTJERkZcdTJFMkZcdTMwMDUtXHUzMDA3XHUzMDIxLVx1MzAyRlx1MzAzMS1cdTMwMzVcdTMwMzgtXHUzMDNDXHUzMDQxLVx1MzA5Nlx1MzA5OVx1MzA5QVx1MzA5RC1cdTMwOUZcdTMwQTEtXHUzMEZBXHUzMEZDLVx1MzBGRlx1MzEwNS1cdTMxMkVcdTMxMzEtXHUzMThFXHUzMUEwLVx1MzFCQVx1MzFGMC1cdTMxRkZcdTM0MDAtXHU0REI1XHU0RTAwLVx1OUZFQVx1QTAwMC1cdUE0OENcdUE0RDAtXHVBNEZEXHVBNTAwLVx1QTYwQ1x1QTYxMC1cdUE2MkJcdUE2NDAtXHVBNjZGXHVBNjc0LVx1QTY3RFx1QTY3Ri1cdUE2RjFcdUE3MTctXHVBNzFGXHVBNzIyLVx1QTc4OFx1QTc4Qi1cdUE3QUVcdUE3QjAtXHVBN0I3XHVBN0Y3LVx1QTgyN1x1QTg0MC1cdUE4NzNcdUE4ODAtXHVBOEM1XHVBOEQwLVx1QThEOVx1QThFMC1cdUE4RjdcdUE4RkJcdUE4RkRcdUE5MDAtXHVBOTJEXHVBOTMwLVx1QTk1M1x1QTk2MC1cdUE5N0NcdUE5ODAtXHVBOUMwXHVBOUNGLVx1QTlEOVx1QTlFMC1cdUE5RkVcdUFBMDAtXHVBQTM2XHVBQTQwLVx1QUE0RFx1QUE1MC1cdUFBNTlcdUFBNjAtXHVBQTc2XHVBQTdBLVx1QUFDMlx1QUFEQi1cdUFBRERcdUFBRTAtXHVBQUVGXHVBQUYyLVx1QUFGNlx1QUIwMS1cdUFCMDZcdUFCMDktXHVBQjBFXHVBQjExLVx1QUIxNlx1QUIyMC1cdUFCMjZcdUFCMjgtXHVBQjJFXHVBQjMwLVx1QUI1QVx1QUI1Qy1cdUFCNjVcdUFCNzAtXHVBQkVBXHVBQkVDXHVBQkVEXHVBQkYwLVx1QUJGOVx1QUMwMC1cdUQ3QTNcdUQ3QjAtXHVEN0M2XHVEN0NCLVx1RDdGQlx1RjkwMC1cdUZBNkRcdUZBNzAtXHVGQUQ5XHVGQjAwLVx1RkIwNlx1RkIxMy1cdUZCMTdcdUZCMUQtXHVGQjI4XHVGQjJBLVx1RkIzNlx1RkIzOC1cdUZCM0NcdUZCM0VcdUZCNDBcdUZCNDFcdUZCNDNcdUZCNDRcdUZCNDYtXHVGQkIxXHVGQkQzLVx1RkQzRFx1RkQ1MC1cdUZEOEZcdUZEOTItXHVGREM3XHVGREYwLVx1RkRGQlx1RkUwMC1cdUZFMEZcdUZFMjAtXHVGRTJGXHVGRTMzXHVGRTM0XHVGRTRELVx1RkU0Rlx1RkU3MC1cdUZFNzRcdUZFNzYtXHVGRUZDXHVGRjEwLVx1RkYxOVx1RkYyMS1cdUZGM0FcdUZGM0ZcdUZGNDEtXHVGRjVBXHVGRjY2LVx1RkZCRVx1RkZDMi1cdUZGQzdcdUZGQ0EtXHVGRkNGXHVGRkQyLVx1RkZEN1x1RkZEQS1cdUZGRENdfFx1RDgwMFtcdURDMDAtXHVEQzBCXHVEQzBELVx1REMyNlx1REMyOC1cdURDM0FcdURDM0NcdURDM0RcdURDM0YtXHVEQzREXHVEQzUwLVx1REM1RFx1REM4MC1cdURDRkFcdURENDAtXHVERDc0XHVEREZEXHVERTgwLVx1REU5Q1x1REVBMC1cdURFRDBcdURFRTBcdURGMDAtXHVERjFGXHVERjJELVx1REY0QVx1REY1MC1cdURGN0FcdURGODAtXHVERjlEXHVERkEwLVx1REZDM1x1REZDOC1cdURGQ0ZcdURGRDEtXHVERkQ1XXxcdUQ4MDFbXHVEQzAwLVx1REM5RFx1RENBMC1cdURDQTlcdURDQjAtXHVEQ0QzXHVEQ0Q4LVx1RENGQlx1REQwMC1cdUREMjdcdUREMzAtXHVERDYzXHVERTAwLVx1REYzNlx1REY0MC1cdURGNTVcdURGNjAtXHVERjY3XXxcdUQ4MDJbXHVEQzAwLVx1REMwNVx1REMwOFx1REMwQS1cdURDMzVcdURDMzdcdURDMzhcdURDM0NcdURDM0YtXHVEQzU1XHVEQzYwLVx1REM3Nlx1REM4MC1cdURDOUVcdURDRTAtXHVEQ0YyXHVEQ0Y0XHVEQ0Y1XHVERDAwLVx1REQxNVx1REQyMC1cdUREMzlcdUREODAtXHVEREI3XHVEREJFXHVEREJGXHVERTAwLVx1REUwM1x1REUwNVx1REUwNlx1REUwQy1cdURFMTNcdURFMTUtXHVERTE3XHVERTE5LVx1REUzM1x1REUzOC1cdURFM0FcdURFM0ZcdURFNjAtXHVERTdDXHVERTgwLVx1REU5Q1x1REVDMC1cdURFQzdcdURFQzktXHVERUU2XHVERjAwLVx1REYzNVx1REY0MC1cdURGNTVcdURGNjAtXHVERjcyXHVERjgwLVx1REY5MV18XHVEODAzW1x1REMwMC1cdURDNDhcdURDODAtXHVEQ0IyXHVEQ0MwLVx1RENGMl18XHVEODA0W1x1REMwMC1cdURDNDZcdURDNjYtXHVEQzZGXHVEQzdGLVx1RENCQVx1RENEMC1cdURDRThcdURDRjAtXHVEQ0Y5XHVERDAwLVx1REQzNFx1REQzNi1cdUREM0ZcdURENTAtXHVERDczXHVERDc2XHVERDgwLVx1RERDNFx1RERDQS1cdUREQ0NcdURERDAtXHVERERBXHVERERDXHVERTAwLVx1REUxMVx1REUxMy1cdURFMzdcdURFM0VcdURFODAtXHVERTg2XHVERTg4XHVERThBLVx1REU4RFx1REU4Ri1cdURFOURcdURFOUYtXHVERUE4XHVERUIwLVx1REVFQVx1REVGMC1cdURFRjlcdURGMDAtXHVERjAzXHVERjA1LVx1REYwQ1x1REYwRlx1REYxMFx1REYxMy1cdURGMjhcdURGMkEtXHVERjMwXHVERjMyXHVERjMzXHVERjM1LVx1REYzOVx1REYzQy1cdURGNDRcdURGNDdcdURGNDhcdURGNEItXHVERjREXHVERjUwXHVERjU3XHVERjVELVx1REY2M1x1REY2Ni1cdURGNkNcdURGNzAtXHVERjc0XXxcdUQ4MDVbXHVEQzAwLVx1REM0QVx1REM1MC1cdURDNTlcdURDODAtXHVEQ0M1XHVEQ0M3XHVEQ0QwLVx1RENEOVx1REQ4MC1cdUREQjVcdUREQjgtXHVEREMwXHVEREQ4LVx1RERERFx1REUwMC1cdURFNDBcdURFNDRcdURFNTAtXHVERTU5XHVERTgwLVx1REVCN1x1REVDMC1cdURFQzlcdURGMDAtXHVERjE5XHVERjFELVx1REYyQlx1REYzMC1cdURGMzldfFx1RDgwNltcdURDQTAtXHVEQ0U5XHVEQ0ZGXHVERTAwLVx1REUzRVx1REU0N1x1REU1MC1cdURFODNcdURFODYtXHVERTk5XHVERUMwLVx1REVGOF18XHVEODA3W1x1REMwMC1cdURDMDhcdURDMEEtXHVEQzM2XHVEQzM4LVx1REM0MFx1REM1MC1cdURDNTlcdURDNzItXHVEQzhGXHVEQzkyLVx1RENBN1x1RENBOS1cdURDQjZcdUREMDAtXHVERDA2XHVERDA4XHVERDA5XHVERDBCLVx1REQzNlx1REQzQVx1REQzQ1x1REQzRFx1REQzRi1cdURENDdcdURENTAtXHVERDU5XXxcdUQ4MDhbXHVEQzAwLVx1REY5OV18XHVEODA5W1x1REMwMC1cdURDNkVcdURDODAtXHVERDQzXXxbXHVEODBDXHVEODFDLVx1RDgyMFx1RDg0MC1cdUQ4NjhcdUQ4NkEtXHVEODZDXHVEODZGLVx1RDg3Mlx1RDg3NC1cdUQ4NzldW1x1REMwMC1cdURGRkZdfFx1RDgwRFtcdURDMDAtXHVEQzJFXXxcdUQ4MTFbXHVEQzAwLVx1REU0Nl18XHVEODFBW1x1REMwMC1cdURFMzhcdURFNDAtXHVERTVFXHVERTYwLVx1REU2OVx1REVEMC1cdURFRURcdURFRjAtXHVERUY0XHVERjAwLVx1REYzNlx1REY0MC1cdURGNDNcdURGNTAtXHVERjU5XHVERjYzLVx1REY3N1x1REY3RC1cdURGOEZdfFx1RDgxQltcdURGMDAtXHVERjQ0XHVERjUwLVx1REY3RVx1REY4Ri1cdURGOUZcdURGRTBcdURGRTFdfFx1RDgyMVtcdURDMDAtXHVERkVDXXxcdUQ4MjJbXHVEQzAwLVx1REVGMl18XHVEODJDW1x1REMwMC1cdUREMUVcdURENzAtXHVERUZCXXxcdUQ4MkZbXHVEQzAwLVx1REM2QVx1REM3MC1cdURDN0NcdURDODAtXHVEQzg4XHVEQzkwLVx1REM5OVx1REM5RFx1REM5RV18XHVEODM0W1x1REQ2NS1cdURENjlcdURENkQtXHVERDcyXHVERDdCLVx1REQ4Mlx1REQ4NS1cdUREOEJcdUREQUEtXHVEREFEXHVERTQyLVx1REU0NF18XHVEODM1W1x1REMwMC1cdURDNTRcdURDNTYtXHVEQzlDXHVEQzlFXHVEQzlGXHVEQ0EyXHVEQ0E1XHVEQ0E2XHVEQ0E5LVx1RENBQ1x1RENBRS1cdURDQjlcdURDQkJcdURDQkQtXHVEQ0MzXHVEQ0M1LVx1REQwNVx1REQwNy1cdUREMEFcdUREMEQtXHVERDE0XHVERDE2LVx1REQxQ1x1REQxRS1cdUREMzlcdUREM0ItXHVERDNFXHVERDQwLVx1REQ0NFx1REQ0Nlx1REQ0QS1cdURENTBcdURENTItXHVERUE1XHVERUE4LVx1REVDMFx1REVDMi1cdURFREFcdURFREMtXHVERUZBXHVERUZDLVx1REYxNFx1REYxNi1cdURGMzRcdURGMzYtXHVERjRFXHVERjUwLVx1REY2RVx1REY3MC1cdURGODhcdURGOEEtXHVERkE4XHVERkFBLVx1REZDMlx1REZDNC1cdURGQ0JcdURGQ0UtXHVERkZGXXxcdUQ4MzZbXHVERTAwLVx1REUzNlx1REUzQi1cdURFNkNcdURFNzVcdURFODRcdURFOUItXHVERTlGXHVERUExLVx1REVBRl18XHVEODM4W1x1REMwMC1cdURDMDZcdURDMDgtXHVEQzE4XHVEQzFCLVx1REMyMVx1REMyM1x1REMyNFx1REMyNi1cdURDMkFdfFx1RDgzQVtcdURDMDAtXHVEQ0M0XHVEQ0QwLVx1RENENlx1REQwMC1cdURENEFcdURENTAtXHVERDU5XXxcdUQ4M0JbXHVERTAwLVx1REUwM1x1REUwNS1cdURFMUZcdURFMjFcdURFMjJcdURFMjRcdURFMjdcdURFMjktXHVERTMyXHVERTM0LVx1REUzN1x1REUzOVx1REUzQlx1REU0Mlx1REU0N1x1REU0OVx1REU0Qlx1REU0RC1cdURFNEZcdURFNTFcdURFNTJcdURFNTRcdURFNTdcdURFNTlcdURFNUJcdURFNURcdURFNUZcdURFNjFcdURFNjJcdURFNjRcdURFNjctXHVERTZBXHVERTZDLVx1REU3Mlx1REU3NC1cdURFNzdcdURFNzktXHVERTdDXHVERTdFXHVERTgwLVx1REU4OVx1REU4Qi1cdURFOUJcdURFQTEtXHVERUEzXHVERUE1LVx1REVBOVx1REVBQi1cdURFQkJdfFx1RDg2OVtcdURDMDAtXHVERUQ2XHVERjAwLVx1REZGRl18XHVEODZEW1x1REMwMC1cdURGMzRcdURGNDAtXHVERkZGXXxcdUQ4NkVbXHVEQzAwLVx1REMxRFx1REMyMC1cdURGRkZdfFx1RDg3M1tcdURDMDAtXHVERUExXHVERUIwLVx1REZGRl18XHVEODdBW1x1REMwMC1cdURGRTBdfFx1RDg3RVtcdURDMDAtXHVERTFEXXxcdURCNDBbXHVERDAwLVx1RERFRl0vfSxVPXtpc1NwYWNlU2VwYXJhdG9yOmZ1bmN0aW9uKHUpe3JldHVybiJzdHJpbmciPT10eXBlb2YgdSYmRy5TcGFjZV9TZXBhcmF0b3IudGVzdCh1KX0saXNJZFN0YXJ0Q2hhcjpmdW5jdGlvbih1KXtyZXR1cm4ic3RyaW5nIj09dHlwZW9mIHUmJih1Pj0iYSImJnU8PSJ6Inx8dT49IkEiJiZ1PD0iWiJ8fCIkIj09PXV8fCJfIj09PXV8fEcuSURfU3RhcnQudGVzdCh1KSl9LGlzSWRDb250aW51ZUNoYXI6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYodT49ImEiJiZ1PD0ieiJ8fHU+PSJBIiYmdTw9IloifHx1Pj0iMCImJnU8PSI5Inx8IiQiPT09dXx8Il8iPT09dXx8IuKAjCI9PT11fHwi4oCNIj09PXV8fEcuSURfQ29udGludWUudGVzdCh1KSl9LGlzRGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOV0vLnRlc3QodSl9LGlzSGV4RGlnaXQ6ZnVuY3Rpb24odSl7cmV0dXJuInN0cmluZyI9PXR5cGVvZiB1JiYvWzAtOUEtRmEtZl0vLnRlc3QodSl9fTtmdW5jdGlvbiBaKCl7Zm9yKFQ9ImRlZmF1bHQiLHo9IiIsSD0hMSwkPTE7Oyl7Uj1xKCk7dmFyIHU9WFtUXSgpO2lmKHUpcmV0dXJuIHV9fWZ1bmN0aW9uIHEoKXtpZihfW0ldKXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChfLmNvZGVQb2ludEF0KEkpKX1mdW5jdGlvbiBXKCl7dmFyIHU9cSgpO3JldHVybiJcbiI9PT11PyhWKyssSj0wKTp1P0orPXUubGVuZ3RoOkorKyx1JiYoSSs9dS5sZW5ndGgpLHV9dmFyIFg9e2RlZmF1bHQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJcdCI6Y2FzZSJcdiI6Y2FzZSJcZiI6Y2FzZSIgIjpjYXNlIiAiOmNhc2UiXHVmZWZmIjpjYXNlIlxuIjpjYXNlIlxyIjpjYXNlIlx1MjAyOCI6Y2FzZSJcdTIwMjkiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJjb21tZW50Iik7Y2FzZSB2b2lkIDA6cmV0dXJuIFcoKSxLKCJlb2YiKX1pZighVS5pc1NwYWNlU2VwYXJhdG9yKFIpKXJldHVybiBYW09dKCk7VygpfSxjb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiKiI6cmV0dXJuIFcoKSx2b2lkKFQ9Im11bHRpTGluZUNvbW1lbnQiKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJzaW5nbGVMaW5lQ29tbWVudCIpfXRocm93IHJ1KFcoKSl9LG11bHRpTGluZUNvbW1lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIqIjpyZXR1cm4gVygpLHZvaWQoVD0ibXVsdGlMaW5lQ29tbWVudEFzdGVyaXNrIik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCl9LG11bHRpTGluZUNvbW1lbnRBc3RlcmlzazpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIioiOnJldHVybiB2b2lkIFcoKTtjYXNlIi8iOnJldHVybiBXKCksdm9pZChUPSJkZWZhdWx0Iik7Y2FzZSB2b2lkIDA6dGhyb3cgcnUoVygpKX1XKCksVD0ibXVsdGlMaW5lQ29tbWVudCJ9LHNpbmdsZUxpbmVDb21tZW50OmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXG4iOmNhc2UiXHIiOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSx2b2lkKFQ9ImRlZmF1bHQiKTtjYXNlIHZvaWQgMDpyZXR1cm4gVygpLEsoImVvZiIpfVcoKX0sdmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJ7IjpjYXNlIlsiOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UibiI6cmV0dXJuIFcoKSxRKCJ1bGwiKSxLKCJudWxsIixudWxsKTtjYXNlInQiOnJldHVybiBXKCksUSgicnVlIiksSygiYm9vbGVhbiIsITApO2Nhc2UiZiI6cmV0dXJuIFcoKSxRKCJhbHNlIiksSygiYm9vbGVhbiIsITEpO2Nhc2UiLSI6Y2FzZSIrIjpyZXR1cm4iLSI9PT1XKCkmJigkPS0xKSx2b2lkKFQ9InNpZ24iKTtjYXNlIi4iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImRlY2ltYWxQb2ludExlYWRpbmciKTtjYXNlIjAiOnJldHVybiB6PVcoKSx2b2lkKFQ9Inplcm8iKTtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsSW50ZWdlciIpO2Nhc2UiSSI6cmV0dXJuIFcoKSxRKCJuZmluaXR5IiksSygibnVtZXJpYyIsMS8wKTtjYXNlIk4iOnJldHVybiBXKCksUSgiYU4iKSxLKCJudW1lcmljIixOYU4pO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksej0iIix2b2lkKFQ9InN0cmluZyIpfXRocm93IHJ1KFcoKSl9LGlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmJyZWFrO2RlZmF1bHQ6aWYoIVUuaXNJZFN0YXJ0Q2hhcih1KSl0aHJvdyBudSgpfXorPXUsVD0iaWRlbnRpZmllck5hbWUifSxpZGVudGlmaWVyTmFtZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiQiOmNhc2UiXyI6Y2FzZSLigIwiOmNhc2Ui4oCNIjpyZXR1cm4gdm9pZCh6Kz1XKCkpO2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZChUPSJpZGVudGlmaWVyTmFtZUVzY2FwZSIpfWlmKCFVLmlzSWRDb250aW51ZUNoYXIoUikpcmV0dXJuIEsoImlkZW50aWZpZXIiLHopO3orPVcoKX0saWRlbnRpZmllck5hbWVFc2NhcGU6ZnVuY3Rpb24oKXtpZigidSIhPT1SKXRocm93IHJ1KFcoKSk7VygpO3ZhciB1PVkoKTtzd2l0Y2godSl7Y2FzZSIkIjpjYXNlIl8iOmNhc2Ui4oCMIjpjYXNlIuKAjSI6YnJlYWs7ZGVmYXVsdDppZighVS5pc0lkQ29udGludWVDaGFyKHUpKXRocm93IG51KCl9eis9dSxUPSJpZGVudGlmaWVyTmFtZSJ9LHNpZ246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4gej1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnRMZWFkaW5nIik7Y2FzZSIwIjpyZXR1cm4gej1XKCksdm9pZChUPSJ6ZXJvIik7Y2FzZSIxIjpjYXNlIjIiOmNhc2UiMyI6Y2FzZSI0IjpjYXNlIjUiOmNhc2UiNiI6Y2FzZSI3IjpjYXNlIjgiOmNhc2UiOSI6cmV0dXJuIHo9VygpLHZvaWQoVD0iZGVjaW1hbEludGVnZXIiKTtjYXNlIkkiOnJldHVybiBXKCksUSgibmZpbml0eSIpLEsoIm51bWVyaWMiLCQqKDEvMCkpO2Nhc2UiTiI6cmV0dXJuIFcoKSxRKCJhTiIpLEsoIm51bWVyaWMiLE5hTil9dGhyb3cgcnUoVygpKX0semVybzpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIi4iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsUG9pbnQiKTtjYXNlImUiOmNhc2UiRSI6cmV0dXJuIHorPVcoKSx2b2lkKFQ9ImRlY2ltYWxFeHBvbmVudCIpO2Nhc2UieCI6Y2FzZSJYIjpyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWwiKX1yZXR1cm4gSygibnVtZXJpYyIsMCokKX0sZGVjaW1hbEludGVnZXI6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIuIjpyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbFBvaW50Iik7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsUG9pbnRMZWFkaW5nOmZ1bmN0aW9uKCl7aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKTt0aHJvdyBydShXKCkpfSxkZWNpbWFsUG9pbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1yZXR1cm4gVS5pc0RpZ2l0KFIpPyh6Kz1XKCksdm9pZChUPSJkZWNpbWFsRnJhY3Rpb24iKSk6SygibnVtZXJpYyIsJCpOdW1iZXIoeikpfSxkZWNpbWFsRnJhY3Rpb246ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSJlIjpjYXNlIkUiOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnQiKX1pZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxkZWNpbWFsRXhwb25lbnQ6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIrIjpjYXNlIi0iOnJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRTaWduIil9aWYoVS5pc0RpZ2l0KFIpKXJldHVybiB6Kz1XKCksdm9pZChUPSJkZWNpbWFsRXhwb25lbnRJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0sZGVjaW1hbEV4cG9uZW50U2lnbjpmdW5jdGlvbigpe2lmKFUuaXNEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iZGVjaW1hbEV4cG9uZW50SW50ZWdlciIpO3Rocm93IHJ1KFcoKSl9LGRlY2ltYWxFeHBvbmVudEludGVnZXI6ZnVuY3Rpb24oKXtpZighVS5pc0RpZ2l0KFIpKXJldHVybiBLKCJudW1lcmljIiwkKk51bWJlcih6KSk7eis9VygpfSxoZXhhZGVjaW1hbDpmdW5jdGlvbigpe2lmKFUuaXNIZXhEaWdpdChSKSlyZXR1cm4geis9VygpLHZvaWQoVD0iaGV4YWRlY2ltYWxJbnRlZ2VyIik7dGhyb3cgcnUoVygpKX0saGV4YWRlY2ltYWxJbnRlZ2VyOmZ1bmN0aW9uKCl7aWYoIVUuaXNIZXhEaWdpdChSKSlyZXR1cm4gSygibnVtZXJpYyIsJCpOdW1iZXIoeikpO3orPVcoKX0sc3RyaW5nOmZ1bmN0aW9uKCl7c3dpdGNoKFIpe2Nhc2UiXFwiOnJldHVybiBXKCksdm9pZCh6Kz1mdW5jdGlvbigpe3N3aXRjaChxKCkpe2Nhc2UiYiI6cmV0dXJuIFcoKSwiXGIiO2Nhc2UiZiI6cmV0dXJuIFcoKSwiXGYiO2Nhc2UibiI6cmV0dXJuIFcoKSwiXG4iO2Nhc2UiciI6cmV0dXJuIFcoKSwiXHIiO2Nhc2UidCI6cmV0dXJuIFcoKSwiXHQiO2Nhc2UidiI6cmV0dXJuIFcoKSwiXHYiO2Nhc2UiMCI6aWYoVygpLFUuaXNEaWdpdChxKCkpKXRocm93IHJ1KFcoKSk7cmV0dXJuIlwwIjtjYXNlIngiOnJldHVybiBXKCksZnVuY3Rpb24oKXt2YXIgdT0iIixEPXEoKTtpZighVS5pc0hleERpZ2l0KEQpKXRocm93IHJ1KFcoKSk7aWYodSs9VygpLEQ9cSgpLCFVLmlzSGV4RGlnaXQoRCkpdGhyb3cgcnUoVygpKTtyZXR1cm4gdSs9VygpLFN0cmluZy5mcm9tQ29kZVBvaW50KHBhcnNlSW50KHUsMTYpKX0oKTtjYXNlInUiOnJldHVybiBXKCksWSgpO2Nhc2UiXG4iOmNhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6cmV0dXJuIFcoKSwiIjtjYXNlIlxyIjpyZXR1cm4gVygpLCJcbiI9PT1xKCkmJlcoKSwiIjtjYXNlIjEiOmNhc2UiMiI6Y2FzZSIzIjpjYXNlIjQiOmNhc2UiNSI6Y2FzZSI2IjpjYXNlIjciOmNhc2UiOCI6Y2FzZSI5IjpjYXNlIHZvaWQgMDp0aHJvdyBydShXKCkpfXJldHVybiBXKCl9KCkpO2Nhc2UnIic6cmV0dXJuIEg/KFcoKSxLKCJzdHJpbmciLHopKTp2b2lkKHorPVcoKSk7Y2FzZSInIjpyZXR1cm4gSD92b2lkKHorPVcoKSk6KFcoKSxLKCJzdHJpbmciLHopKTtjYXNlIlxuIjpjYXNlIlxyIjp0aHJvdyBydShXKCkpO2Nhc2UiXHUyMDI4IjpjYXNlIlx1MjAyOSI6IWZ1bmN0aW9uKHUpe2NvbnNvbGUud2FybigiSlNPTjU6ICciK0Z1KHUpKyInIGluIHN0cmluZ3MgaXMgbm90IHZhbGlkIEVDTUFTY3JpcHQ7IGNvbnNpZGVyIGVzY2FwaW5nIil9KFIpO2JyZWFrO2Nhc2Ugdm9pZCAwOnRocm93IHJ1KFcoKSl9eis9VygpfSxzdGFydDpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlInsiOmNhc2UiWyI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9VD0idmFsdWUifSxiZWZvcmVQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIkIjpjYXNlIl8iOnJldHVybiB6PVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7Y2FzZSJcXCI6cmV0dXJuIFcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lU3RhcnRFc2NhcGUiKTtjYXNlIn0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO2Nhc2UnIic6Y2FzZSInIjpyZXR1cm4gSD0nIic9PT1XKCksdm9pZChUPSJzdHJpbmciKX1pZihVLmlzSWRTdGFydENoYXIoUikpcmV0dXJuIHorPVcoKSx2b2lkKFQ9ImlkZW50aWZpZXJOYW1lIik7dGhyb3cgcnUoVygpKX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiOiI9PT1SKXJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpO3Rocm93IHJ1KFcoKSl9LGJlZm9yZVByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtUPSJ2YWx1ZSJ9LGFmdGVyUHJvcGVydHlWYWx1ZTpmdW5jdGlvbigpe3N3aXRjaChSKXtjYXNlIiwiOmNhc2UifSI6cmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSl9dGhyb3cgcnUoVygpKX0sYmVmb3JlQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJdIj09PVIpcmV0dXJuIEsoInB1bmN0dWF0b3IiLFcoKSk7VD0idmFsdWUifSxhZnRlckFycmF5VmFsdWU6ZnVuY3Rpb24oKXtzd2l0Y2goUil7Y2FzZSIsIjpjYXNlIl0iOnJldHVybiBLKCJwdW5jdHVhdG9yIixXKCkpfXRocm93IHJ1KFcoKSl9LGVuZDpmdW5jdGlvbigpe3Rocm93IHJ1KFcoKSl9fTtmdW5jdGlvbiBLKHUsRCl7cmV0dXJue3R5cGU6dSx2YWx1ZTpELGxpbmU6Vixjb2x1bW46Sn19ZnVuY3Rpb24gUSh1KXtmb3IodmFyIEQ9MCxlPXU7RDxlLmxlbmd0aDtEKz0xKXt2YXIgcj1lW0RdO2lmKHEoKSE9PXIpdGhyb3cgcnUoVygpKTtXKCl9fWZ1bmN0aW9uIFkoKXtmb3IodmFyIHU9IiIsRD00O0QtLSA+MDspe3ZhciBlPXEoKTtpZighVS5pc0hleERpZ2l0KGUpKXRocm93IHJ1KFcoKSk7dSs9VygpfXJldHVybiBTdHJpbmcuZnJvbUNvZGVQb2ludChwYXJzZUludCh1LDE2KSl9dmFyIHV1PXtzdGFydDpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7RHUoKX0sYmVmb3JlUHJvcGVydHlOYW1lOmZ1bmN0aW9uKCl7c3dpdGNoKE0udHlwZSl7Y2FzZSJpZGVudGlmaWVyIjpjYXNlInN0cmluZyI6cmV0dXJuIGs9TS52YWx1ZSx2b2lkKE89ImFmdGVyUHJvcGVydHlOYW1lIik7Y2FzZSJwdW5jdHVhdG9yIjpyZXR1cm4gdm9pZCBldSgpO2Nhc2UiZW9mIjp0aHJvdyB0dSgpfX0sYWZ0ZXJQcm9wZXJ0eU5hbWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO089ImJlZm9yZVByb3BlcnR5VmFsdWUifSxiZWZvcmVQcm9wZXJ0eVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTtEdSgpfSxiZWZvcmVBcnJheVZhbHVlOmZ1bmN0aW9uKCl7aWYoImVvZiI9PT1NLnR5cGUpdGhyb3cgdHUoKTsicHVuY3R1YXRvciIhPT1NLnR5cGV8fCJdIiE9PU0udmFsdWU/RHUoKTpldSgpfSxhZnRlclByb3BlcnR5VmFsdWU6ZnVuY3Rpb24oKXtpZigiZW9mIj09PU0udHlwZSl0aHJvdyB0dSgpO3N3aXRjaChNLnZhbHVlKXtjYXNlIiwiOnJldHVybiB2b2lkKE89ImJlZm9yZVByb3BlcnR5TmFtZSIpO2Nhc2UifSI6ZXUoKX19LGFmdGVyQXJyYXlWYWx1ZTpmdW5jdGlvbigpe2lmKCJlb2YiPT09TS50eXBlKXRocm93IHR1KCk7c3dpdGNoKE0udmFsdWUpe2Nhc2UiLCI6cmV0dXJuIHZvaWQoTz0iYmVmb3JlQXJyYXlWYWx1ZSIpO2Nhc2UiXSI6ZXUoKX19LGVuZDpmdW5jdGlvbigpe319O2Z1bmN0aW9uIER1KCl7dmFyIHU7c3dpdGNoKE0udHlwZSl7Y2FzZSJwdW5jdHVhdG9yIjpzd2l0Y2goTS52YWx1ZSl7Y2FzZSJ7Ijp1PXt9O2JyZWFrO2Nhc2UiWyI6dT1bXX1icmVhaztjYXNlIm51bGwiOmNhc2UiYm9vbGVhbiI6Y2FzZSJudW1lcmljIjpjYXNlInN0cmluZyI6dT1NLnZhbHVlfWlmKHZvaWQgMD09PUwpTD11O2Vsc2V7dmFyIEQ9altqLmxlbmd0aC0xXTtBcnJheS5pc0FycmF5KEQpP0QucHVzaCh1KTpPYmplY3QuZGVmaW5lUHJvcGVydHkoRCxrLHt2YWx1ZTp1LHdyaXRhYmxlOiEwLGVudW1lcmFibGU6ITAsY29uZmlndXJhYmxlOiEwfSl9aWYobnVsbCE9PXUmJiJvYmplY3QiPT10eXBlb2YgdSlqLnB1c2godSksTz1BcnJheS5pc0FycmF5KHUpPyJiZWZvcmVBcnJheVZhbHVlIjoiYmVmb3JlUHJvcGVydHlOYW1lIjtlbHNle3ZhciBlPWpbai5sZW5ndGgtMV07Tz1udWxsPT1lPyJlbmQiOkFycmF5LmlzQXJyYXkoZSk/ImFmdGVyQXJyYXlWYWx1ZSI6ImFmdGVyUHJvcGVydHlWYWx1ZSJ9fWZ1bmN0aW9uIGV1KCl7ai5wb3AoKTt2YXIgdT1qW2oubGVuZ3RoLTFdO089bnVsbD09dT8iZW5kIjpBcnJheS5pc0FycmF5KHUpPyJhZnRlckFycmF5VmFsdWUiOiJhZnRlclByb3BlcnR5VmFsdWUifWZ1bmN0aW9uIHJ1KHUpe3JldHVybiBDdSh2b2lkIDA9PT11PyJKU09ONTogaW52YWxpZCBlbmQgb2YgaW5wdXQgYXQgIitWKyI6IitKOiJKU09ONTogaW52YWxpZCBjaGFyYWN0ZXIgJyIrRnUodSkrIicgYXQgIitWKyI6IitKKX1mdW5jdGlvbiB0dSgpe3JldHVybiBDdSgiSlNPTjU6IGludmFsaWQgZW5kIG9mIGlucHV0IGF0ICIrVisiOiIrSil9ZnVuY3Rpb24gbnUoKXtyZXR1cm4gQ3UoIkpTT041OiBpbnZhbGlkIGlkZW50aWZpZXIgY2hhcmFjdGVyIGF0ICIrVisiOiIrKEotPTUpKX1mdW5jdGlvbiBGdSh1KXt2YXIgRD17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9O2lmKERbdV0pcmV0dXJuIERbdV07aWYodTwiICIpe3ZhciBlPXUuY2hhckNvZGVBdCgwKS50b1N0cmluZygxNik7cmV0dXJuIlxceCIrKCIwMCIrZSkuc3Vic3RyaW5nKGUubGVuZ3RoKX1yZXR1cm4gdX1mdW5jdGlvbiBDdSh1KXt2YXIgRD1uZXcgU3ludGF4RXJyb3IodSk7cmV0dXJuIEQubGluZU51bWJlcj1WLEQuY29sdW1uTnVtYmVyPUosRH1yZXR1cm57cGFyc2U6ZnVuY3Rpb24odSxEKXtfPVN0cmluZyh1KSxPPSJzdGFydCIsaj1bXSxJPTAsVj0xLEo9MCxNPXZvaWQgMCxrPXZvaWQgMCxMPXZvaWQgMDtkb3tNPVooKSx1dVtPXSgpfXdoaWxlKCJlb2YiIT09TS50eXBlKTtyZXR1cm4iZnVuY3Rpb24iPT10eXBlb2YgRD9mdW5jdGlvbiB1KEQsZSxyKXt2YXIgdD1EW2VdO2lmKG51bGwhPXQmJiJvYmplY3QiPT10eXBlb2YgdClpZihBcnJheS5pc0FycmF5KHQpKWZvcih2YXIgbj0wO248dC5sZW5ndGg7bisrKXt2YXIgRj1TdHJpbmcobiksQz11KHQsRixyKTt2b2lkIDA9PT1DP2RlbGV0ZSB0W0ZdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEYse3ZhbHVlOkMsd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1lbHNlIGZvcih2YXIgQSBpbiB0KXt2YXIgaT11KHQsQSxyKTt2b2lkIDA9PT1pP2RlbGV0ZSB0W0FdOk9iamVjdC5kZWZpbmVQcm9wZXJ0eSh0LEEse3ZhbHVlOmksd3JpdGFibGU6ITAsZW51bWVyYWJsZTohMCxjb25maWd1cmFibGU6ITB9KX1yZXR1cm4gci5jYWxsKEQsZSx0KX0oeyIiOkx9LCIiLEQpOkx9LHN0cmluZ2lmeTpmdW5jdGlvbih1LEQsZSl7dmFyIHIsdCxuLEY9W10sQz0iIixBPSIiO2lmKG51bGw9PUR8fCJvYmplY3QiIT10eXBlb2YgRHx8QXJyYXkuaXNBcnJheShEKXx8KGU9RC5zcGFjZSxuPUQucXVvdGUsRD1ELnJlcGxhY2VyKSwiZnVuY3Rpb24iPT10eXBlb2YgRCl0PUQ7ZWxzZSBpZihBcnJheS5pc0FycmF5KEQpKXtyPVtdO2Zvcih2YXIgaT0wLEU9RDtpPEUubGVuZ3RoO2krPTEpe3ZhciBvPUVbaV0sYT12b2lkIDA7InN0cmluZyI9PXR5cGVvZiBvP2E9bzooIm51bWJlciI9PXR5cGVvZiBvfHxvIGluc3RhbmNlb2YgU3RyaW5nfHxvIGluc3RhbmNlb2YgTnVtYmVyKSYmKGE9U3RyaW5nKG8pKSx2b2lkIDAhPT1hJiZyLmluZGV4T2YoYSk8MCYmci5wdXNoKGEpfX1yZXR1cm4gZSBpbnN0YW5jZW9mIE51bWJlcj9lPU51bWJlcihlKTplIGluc3RhbmNlb2YgU3RyaW5nJiYoZT1TdHJpbmcoZSkpLCJudW1iZXIiPT10eXBlb2YgZT9lPjAmJihlPU1hdGgubWluKDEwLE1hdGguZmxvb3IoZSkpLEE9IiAgICAgICAgICAiLnN1YnN0cigwLGUpKToic3RyaW5nIj09dHlwZW9mIGUmJihBPWUuc3Vic3RyKDAsMTApKSxjKCIiLHsiIjp1fSk7ZnVuY3Rpb24gYyh1LEQpe3ZhciBlPURbdV07c3dpdGNoKG51bGwhPWUmJigiZnVuY3Rpb24iPT10eXBlb2YgZS50b0pTT041P2U9ZS50b0pTT041KHUpOiJmdW5jdGlvbiI9PXR5cGVvZiBlLnRvSlNPTiYmKGU9ZS50b0pTT04odSkpKSx0JiYoZT10LmNhbGwoRCx1LGUpKSxlIGluc3RhbmNlb2YgTnVtYmVyP2U9TnVtYmVyKGUpOmUgaW5zdGFuY2VvZiBTdHJpbmc/ZT1TdHJpbmcoZSk6ZSBpbnN0YW5jZW9mIEJvb2xlYW4mJihlPWUudmFsdWVPZigpKSxlKXtjYXNlIG51bGw6cmV0dXJuIm51bGwiO2Nhc2UhMDpyZXR1cm4idHJ1ZSI7Y2FzZSExOnJldHVybiJmYWxzZSJ9cmV0dXJuInN0cmluZyI9PXR5cGVvZiBlP0IoZSk6Im51bWJlciI9PXR5cGVvZiBlP1N0cmluZyhlKToib2JqZWN0Ij09dHlwZW9mIGU/QXJyYXkuaXNBcnJheShlKT9mdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHI9W10sdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgbj1jKFN0cmluZyh0KSx1KTtyLnB1c2godm9pZCAwIT09bj9uOiJudWxsIil9aWYoMD09PXIubGVuZ3RoKWU9IltdIjtlbHNlIGlmKCIiPT09QSl7dmFyIGk9ci5qb2luKCIsIik7ZT0iWyIraSsiXSJ9ZWxzZXt2YXIgRT0iLFxuIitDLG89ci5qb2luKEUpO2U9IltcbiIrQytvKyIsXG4iK0QrIl0ifXJldHVybiBGLnBvcCgpLEM9RCxlfShlKTpmdW5jdGlvbih1KXtpZihGLmluZGV4T2YodSk+PTApdGhyb3cgVHlwZUVycm9yKCJDb252ZXJ0aW5nIGNpcmN1bGFyIHN0cnVjdHVyZSB0byBKU09ONSIpO0YucHVzaCh1KTt2YXIgRD1DO0MrPUE7Zm9yKHZhciBlLHQsbj1yfHxPYmplY3Qua2V5cyh1KSxpPVtdLEU9MCxvPW47RTxvLmxlbmd0aDtFKz0xKXt2YXIgYT1vW0VdLEI9YyhhLHUpO2lmKHZvaWQgMCE9PUIpe3ZhciBmPXMoYSkrIjoiOyIiIT09QSYmKGYrPSIgIiksZis9QixpLnB1c2goZil9fWlmKDA9PT1pLmxlbmd0aCllPSJ7fSI7ZWxzZSBpZigiIj09PUEpdD1pLmpvaW4oIiwiKSxlPSJ7Iit0KyJ9IjtlbHNle3ZhciBsPSIsXG4iK0M7dD1pLmpvaW4obCksZT0ie1xuIitDK3QrIixcbiIrRCsifSJ9cmV0dXJuIEYucG9wKCksQz1ELGV9KGUpOnZvaWQgMH1mdW5jdGlvbiBCKHUpe2Zvcih2YXIgRD17IiciOi4xLCciJzouMn0sZT17IiciOiJcXCciLCciJzonXFwiJywiXFwiOiJcXFxcIiwiXGIiOiJcXGIiLCJcZiI6IlxcZiIsIlxuIjoiXFxuIiwiXHIiOiJcXHIiLCJcdCI6IlxcdCIsIlx2IjoiXFx2IiwiXDAiOiJcXDAiLCJcdTIwMjgiOiJcXHUyMDI4IiwiXHUyMDI5IjoiXFx1MjAyOSJ9LHI9IiIsdD0wO3Q8dS5sZW5ndGg7dCsrKXt2YXIgRj11W3RdO3N3aXRjaChGKXtjYXNlIiciOmNhc2UnIic6RFtGXSsrLHIrPUY7Y29udGludWU7Y2FzZSJcMCI6aWYoVS5pc0RpZ2l0KHVbdCsxXSkpe3IrPSJcXHgwMCI7Y29udGludWV9fWlmKGVbRl0pcis9ZVtGXTtlbHNlIGlmKEY8IiAiKXt2YXIgQz1GLmNoYXJDb2RlQXQoMCkudG9TdHJpbmcoMTYpO3IrPSJcXHgiKygiMDAiK0MpLnN1YnN0cmluZyhDLmxlbmd0aCl9ZWxzZSByKz1GfXZhciBBPW58fE9iamVjdC5rZXlzKEQpLnJlZHVjZShmdW5jdGlvbih1LGUpe3JldHVybiBEW3VdPERbZV0/dTplfSk7cmV0dXJuIEErKHI9ci5yZXBsYWNlKG5ldyBSZWdFeHAoQSwiZyIpLGVbQV0pKStBfWZ1bmN0aW9uIHModSl7aWYoMD09PXUubGVuZ3RoKXJldHVybiBCKHUpO3ZhciBEPVN0cmluZy5mcm9tQ29kZVBvaW50KHUuY29kZVBvaW50QXQoMCkpO2lmKCFVLmlzSWRTdGFydENoYXIoRCkpcmV0dXJuIEIodSk7Zm9yKHZhciBlPUQubGVuZ3RoO2U8dS5sZW5ndGg7ZSsrKWlmKCFVLmlzSWRDb250aW51ZUNoYXIoU3RyaW5nLmZyb21Db2RlUG9pbnQodS5jb2RlUG9pbnRBdChlKSkpKXJldHVybiBCKHUpO3JldHVybiB1fX19fSk7`;
-//#endregion
 //#region ../../node_modules/.pnpm/fflate@0.8.3/node_modules/fflate/esm/browser.js
 var ch2 = {};
 var wk = (function(c, id, msg, transfer, cb) {
@@ -64943,7 +66800,9 @@ var wk = (function(c, id, msg, transfer, cb) {
 	w.postMessage(msg, transfer);
 	return w;
 });
-var u8$1 = Uint8Array, u16$1 = Uint16Array, i32$1 = Int32Array;
+var u8$1 = Uint8Array;
+var u16$1 = Uint16Array;
+var i32$1 = Int32Array;
 var fleb = new u8$1([
 	0,
 	0,
@@ -65043,9 +66902,12 @@ var freb = function(eb, start) {
 		r
 	};
 };
-var _a$1 = freb(fleb, 2), fl = _a$1.b, revfl = _a$1.r;
+var _a$1 = freb(fleb, 2);
+var fl = _a$1.b;
+var revfl = _a$1.r;
 fl[28] = 258, revfl[258] = 28;
-var _b = freb(fdeb, 0), fd = _b.b;
+var _b = freb(fdeb, 0);
+var fd = _b.b;
 _b.r;
 var rev = new u16$1(32768);
 for (var i$1 = 0; i$1 < 32768; ++i$1) {
@@ -65084,7 +66946,8 @@ for (var i$1 = 256; i$1 < 280; ++i$1) flt[i$1] = 7;
 for (var i$1 = 280; i$1 < 288; ++i$1) flt[i$1] = 8;
 var fdt = new u8$1(32);
 for (var i$1 = 0; i$1 < 32; ++i$1) fdt[i$1] = 5;
-var flrm = /*#__PURE__*/ hMap(flt, 9, 1), fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
+var flrm = /*#__PURE__*/ hMap(flt, 9, 1);
+var fdrm = /*#__PURE__*/ hMap(fdt, 5, 1);
 var max$1 = function(a) {
 	var m = a[0];
 	for (var i = 1; i < a.length; ++i) if (a[i] > m) m = a[i];
@@ -65415,7 +67278,11 @@ try {
 } catch (e) {}
 //#endregion
 //#region ../../node_modules/.pnpm/fzstd@0.1.1/node_modules/fzstd/esm/index.mjs
-var ab = ArrayBuffer, u8 = Uint8Array, u16 = Uint16Array, i16 = Int16Array, i32 = Int32Array;
+var ab = ArrayBuffer;
+var u8 = Uint8Array;
+var u16 = Uint16Array;
+var i16 = Int16Array;
+var i32 = Int32Array;
 var slc = function(v, s, e) {
 	if (u8.prototype.slice) return u8.prototype.slice.call(v, s, e);
 	if (s == null || s < 0) s = 0;
@@ -66638,6 +68505,10 @@ var openRemoteLogFile = async (api, url, concurrency) => {
 			};
 		},
 		readSample,
+		zipAccess: () => ({
+			entryNames: new Set(remoteZipFile.centralDirectory.keys()),
+			readFile: (name) => remoteZipFile.readFile(name)
+		}),
 		/**
 		* Reads the complete log file.
 		*/
@@ -67011,6 +68882,12 @@ var clientApi = (api, log_file, debug = false) => {
 			});
 		}
 	};
+	const get_log_zip_access = async (log_file) => {
+		if (!isEvalFile(log_file)) return;
+		const remoteLogFile = await remoteEvalFile(log_file, true);
+		if (!remoteLogFile) throw new Error(`Unable to read remote eval file ${log_file}`);
+		return remoteLogFile.zipAccess();
+	};
 	const read_eval_file_log_summary = async (log_file) => {
 		if (api.get_log_summary) return api.get_log_summary(log_file);
 		else return (await openRemoteLogFile(api, encodePathParts(log_file), 5)).readEvalBasicInfo();
@@ -67153,6 +69030,7 @@ var clientApi = (api, log_file, debug = false) => {
 		}),
 		get_log_info: middleware("get_log_info", (log_file) => api.get_log_info(encodePathParts(log_file))),
 		get_log_sample: middleware("get_log_sample", get_log_sample),
+		get_log_zip_access: middleware("get_log_zip_access", get_log_zip_access),
 		open_log_file: middleware("open_log_file", (log_file, log_dir) => {
 			return api.open_log_file(log_file, log_dir);
 		}),
@@ -70347,7 +72225,10 @@ var entryRecords = (entries) => {
 };
 //#endregion
 //#region ../../node_modules/.pnpm/react-virtuoso@4.18.10_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-virtuoso/dist/index.mjs
-var we = 0, Pt = 1, Xt = 2, Pn = 4;
+var we = 0;
+var Pt = 1;
+var Xt = 2;
+var Pn = 4;
 function mn(t) {
 	return () => t;
 }
@@ -70591,12 +72472,15 @@ var ft = {
 	WARN: 2,
 	/** Error messages for failures (default level) */
 	ERROR: 3
-}, Bo = {
+};
+var Bo = {
 	[ft.DEBUG]: "debug",
 	[ft.ERROR]: "error",
 	[ft.INFO]: "log",
 	[ft.WARN]: "warn"
-}, Oo = () => typeof globalThis > "u" ? window : globalThis, Gt = j(() => {
+};
+var Oo = () => typeof globalThis > "u" ? window : globalThis;
+var Gt = j(() => {
 	const t = T(ft.ERROR);
 	return {
 		log: T((n, o, r = ft.INFO) => {
@@ -70604,7 +72488,8 @@ var ft = {
 		}),
 		logLevel: t
 	};
-}, [], { singleton: !0 }), Ve = /* @__PURE__ */ new WeakMap();
+}, [], { singleton: !0 });
+var Ve = /* @__PURE__ */ new WeakMap();
 function An(t) {
 	return "self" in t ? t.document.documentElement : t;
 }
@@ -70750,7 +72635,8 @@ var It = j(() => {
 		statefulScrollTop: r,
 		viewportHeight: s
 	};
-}, [], { singleton: !0 }), se = { lvl: 0 };
+}, [], { singleton: !0 });
+var se = { lvl: 0 };
 function Nn(t, e) {
 	const n = t.length;
 	if (n === 0) return [];
@@ -71067,7 +72953,8 @@ function Do(t) {
 var $o = {
 	offsetHeight: "height",
 	offsetWidth: "width"
-}, kt = j(([{ log: t }, { recalcInProgress: e }]) => {
+};
+var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 	const n = U(), o = U(), r = ht(o, 0), s = U(), i = U(), l = T(0), c = T([]), d = T(void 0), m = T(void 0), v = T(void 0), p = T(void 0), I = T((u, g) => Ht(u, $o[g])), w = T(void 0), R = T(0), h = Vo(), f = ht(x(n, $(c, t, R), Ot(Mo, h), nt()), h), a = ht(x(c, nt(), Ot((u, g) => ({
 		current: g,
 		prev: u.current
@@ -71274,7 +73161,8 @@ var Xn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, sc
 		groupCounts: s,
 		topItemsIndexes: i
 	};
-}, rt(kt, It)), At = j(([{ log: t }]) => {
+}, rt(kt, It));
+var At = j(([{ log: t }]) => {
 	const e = T(!1), n = Tt(x(e, P((o) => o), nt()));
 	return Y(e, (o) => {
 		o && it(t)("props updated", {}, ft.DEBUG);
@@ -71282,7 +73170,8 @@ var Xn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, sc
 		didMount: n,
 		propsReady: e
 	};
-}, rt(Gt), { singleton: !0 }), Ko = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
+}, rt(Gt), { singleton: !0 });
+var Ko = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
 function Jn(t) {
 	const e = typeof t == "number" ? { index: t } : { ...t };
 	return e.align || (e.align = "start"), (!e.behavior || !Ko) && (e.behavior = "auto"), e.offset === void 0 && (e.offset = 0), e;
@@ -71370,7 +73259,10 @@ var me = j(([{ defaultItemSize: t, listRefresh: e, sizes: n }, { scrollTop: o },
 function Qn(t, e) {
 	return Math.abs(t - e) < 1.01;
 }
-var ue = "up", ne = "down", qo = "none", Yo = {
+var ue = "up";
+var ne = "down";
+var qo = "none";
+var Yo = {
 	atBottom: !1,
 	notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
 	state: {
@@ -71379,7 +73271,9 @@ var ue = "up", ne = "down", qo = "none", Yo = {
 		scrollTop: 0,
 		viewportHeight: 0
 	}
-}, Zo = 0, pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r, viewportHeight: s }]) => {
+};
+var Zo = 0;
+var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r, viewportHeight: s }]) => {
 	const i = T(!1), l = T(!0), c = U(), d = U(), m = T(4), v = T(Zo), p = ht(x(Fe(x(W(r), Ut(1), Bt(!0)), x(W(r), Ut(1), Bt(!1), hn(100))), nt()), !1), I = ht(x(Fe(x(n, Bt(!0)), x(n, Bt(!1), hn(200))), nt()), !1);
 	z(x(at(W(r), W(v)), B(([a, S]) => a <= S), nt()), l), z(x(l, zt(50)), d);
 	const w = Tt(x(at(o, W(s), W(e), W(t), W(m)), Ot((a, [{ scrollHeight: S, scrollTop: H }, y, L, u, g]) => {
@@ -71456,7 +73350,10 @@ var ue = "up", ne = "down", qo = "none", Yo = {
 		scrollDirection: h,
 		scrollVelocity: f
 	};
-}, rt(It)), ae = "top", de = "bottom", Tn = "none";
+}, rt(It));
+var ae = "top";
+var de = "bottom";
+var Tn = "none";
 function Cn(t, e, n) {
 	return typeof t == "number" ? n === ue && e === ae || n === ne && e === de ? t : 0 : n === ue ? e === ae ? t.main : t.reverse : e === de ? t.main : t.reverse;
 }
@@ -71683,19 +73580,23 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 		topItemsIndexes: R,
 		...p
 	};
-}, rt(kt, Xn, Ze, me, fe, pe, At, Ke), { singleton: !0 }), eo = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
+}, rt(kt, Xn, Ze, me, fe, pe, At, Ke), { singleton: !0 });
+var eo = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
 	const s = U(), i = ht(x(at(n, t, o, e, r), B(([l, c, d, m, v]) => l + c + d + m + v.offsetBottom + v.bottom)), 0);
 	return z(W(i), s), {
 		totalListHeight: i,
 		totalListHeightChanged: s
 	};
-}, rt(It, Kt), { singleton: !0 }), Jo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
+}, rt(It, Kt), { singleton: !0 });
+var Jo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
 	const n = T(!1);
 	return {
 		alignToBottom: n,
 		paddingTopAddition: ht(x(at(n, t, e), P(([r]) => r), B(([, r, s]) => Math.max(0, r - s)), zt(0), nt()), 0)
 	};
-}, rt(It, eo), { singleton: !0 }), no = j(() => ({ context: T(null) })), Qo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
+}, rt(It, eo), { singleton: !0 });
+var no = j(() => ({ context: T(null) }));
+var Qo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
 	...r,
 	align: n ?? "start",
 	...o === void 0 ? {} : { behavior: o }
@@ -71703,7 +73604,8 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 	...r,
 	align: n ?? "end",
 	...o === void 0 ? {} : { behavior: o }
-} : null, oo = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
+} : null;
+var oo = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
 	const m = U();
 	return z(x(m, $(e, c, n, s, r, o, l), $(t), B(([[v, p, I, w, R, h, f, a], S]) => {
 		const { calculateViewLocation: H = Qo, done: y, ...L } = v, u = Zn(v, p, w - 1), g = ce(u, p.offsetTree, S) + R + h, C = g + Rt(p.sizeTree, u)[1], k = a + h, V = H({
@@ -71719,7 +73621,8 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 function Rn(t) {
 	return t === !1 ? !1 : t === "smooth" ? "smooth" : "auto";
 }
-var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
+var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t);
+var er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
 	const w = T(!1), R = U();
 	let h = null;
 	function f(y) {
@@ -71778,7 +73681,9 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 		followOutput: w,
 		scrollIntoViewOnChange: S
 	};
-}, rt(kt, pe, fe, me, At, Gt, It, no, oo)), nr = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => to(c, d, m, v, p, I))), i), {}), rt(kt, me, Kt, At), { singleton: !0 }), or = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
+}, rt(kt, pe, fe, me, At, Gt, It, no, oo));
+var nr = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => to(c, d, m, v, p, I))), i), {}), rt(kt, me, Kt, At), { singleton: !0 });
+var or = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
 	const o = T(0);
 	return Y(x(t, $(o), P(([, r]) => r !== 0), B(([, r]) => ({ top: r }))), (r) => {
 		yt(x(n, Ut(1), P((s) => s.items.length > 1)), () => {
@@ -71787,7 +73692,8 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 			});
 		});
 	}), { initialScrollTop: o };
-}, rt(At, It, Kt), { singleton: !0 }), ro = j(([{ scrollVelocity: t }]) => {
+}, rt(At, It, Kt), { singleton: !0 });
+var ro = j(([{ scrollVelocity: t }]) => {
 	const e = T(!1), n = U(), o = T(!1);
 	return z(x(t, $(o, e, n), P(([r, s]) => s !== !1 && s !== void 0), B(([r, s, i, l]) => {
 		const { enter: c, exit: d } = s;
@@ -71803,7 +73709,8 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 		scrollSeekRangeChanged: n,
 		scrollVelocity: t
 	};
-}, rt(pe), { singleton: !0 }), Xe = j(([{ scrollContainerState: t, scrollTo: e }]) => {
+}, rt(pe), { singleton: !0 });
+var Xe = j(([{ scrollContainerState: t, scrollTo: e }]) => {
 	const n = U(), o = U(), r = U(), s = T(!1), i = T(void 0);
 	return z(x(at(n, o), B(([{ scrollTop: l, viewportHeight: c }, { offsetTop: d, listHeight: m }]) => ({
 		scrollHeight: m,
@@ -71819,7 +73726,8 @@ var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t), er = j(([{ li
 		windowScrollTo: r,
 		windowViewportRect: o
 	};
-}, rt(It)), rr = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
+}, rt(It));
+var rr = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
 	const d = U(), m = T(void 0), v = T(null), p = T(null);
 	return z(l, v), z(c, p), Y(x(d, $(e, o, i, v, p, n)), ([I, w, R, h, f, a, S]) => {
 		const H = _o(w.sizeTree);
@@ -71847,7 +73755,8 @@ function so(t) {
 	let e = !1, n;
 	return (() => (e || (e = !0, n = t()), n));
 }
-var lr = so(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent)), io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, L, { topItemCount: u }, { groupCounts: g }, C]) => {
+var lr = so(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent));
+var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, L, { topItemCount: u }, { groupCounts: g }, C]) => {
 	const { listState: k, minOverscanItemCount: O, topItemsIndexes: V, rangeChanged: N, ...Z } = H;
 	return z(N, C.scrollSeekRangeChanged), z(x(C.windowViewportRect, B((F) => F.visibleHeight)), f.viewportHeight), {
 		data: t,
@@ -72025,11 +73934,16 @@ function Je(t, e, n) {
 		usePublisher: p
 	};
 }
-var Re = import_react.createContext(void 0), lo = import_react.createContext(void 0), Le = "-webkit-sticky", Hn = "sticky", Qe = so(() => {
+var Re = import_react.createContext(void 0);
+var lo = import_react.createContext(void 0);
+var Le = "-webkit-sticky";
+var Hn = "sticky";
+var Qe = so(() => {
 	if (typeof document > "u") return Hn;
 	const t = document.createElement("div");
 	return t.style.position = Le, t.style.position === Le ? Le : Hn;
-}), co = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
+});
+var co = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
 function ke(t) {
 	return "self" in t;
 }
@@ -72136,15 +74050,20 @@ var mr = /* @__PURE__ */ j(([t, e]) => ({
 		ScrollSeekPlaceholder: i("ScrollSeekPlaceholder"),
 		TopItemListComponent: i("TopItemList")
 	};
-}))), pr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } }), hr = {
+})));
+var pr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } });
+var hr = {
 	overflowAnchor: "none",
 	position: Qe(),
 	zIndex: 1
-}, ao = { overflowAnchor: "none" }, gr = {
+};
+var ao = { overflowAnchor: "none" };
+var gr = {
 	...ao,
 	display: "inline-block",
 	height: "100%"
-}, En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
+};
+var En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
 	const n = A("listState"), o = Ct("sizeRanges"), r = A("useWindowScroll"), s = A("customScrollParent"), i = Ct("windowScrollContainerState"), l = Ct("scrollContainerState"), c = s || r ? i : l, d = A("itemContent"), m = A("context"), v = A("groupContent"), p = A("trackItemSizes"), I = A("itemSize"), w = A("log"), R = Ct("gap"), h = A("horizontalDirection"), { callbackRef: f } = _n(o, I, p, e ? Jt : c, w, R, s, h, A("skipAnimationFrameInResizeObserver")), [a, S] = import_react.useState(0);
 	rn("deviation", (F) => {
 		a !== F && S(F);
@@ -72198,17 +74117,20 @@ var mr = /* @__PURE__ */ j(([t, e]) => ({
 			}, O ? d(F.index, F.groupIndex, F.data, m) : d(F.index, F.data, m));
 		})
 	});
-}), Ir = {
+});
+var Ir = {
 	height: "100%",
 	outline: "none",
 	overflowY: "auto",
 	position: "relative",
 	WebkitOverflowScrolling: "touch"
-}, Sr = {
+};
+var Sr = {
 	outline: "none",
 	overflowX: "auto",
 	position: "relative"
-}, He = (t) => ({
+};
+var He = (t) => ({
 	height: "100%",
 	position: "absolute",
 	top: 0,
@@ -72217,11 +74139,13 @@ var mr = /* @__PURE__ */ j(([t, e]) => ({
 		display: "flex",
 		flexDirection: "column"
 	} : void 0
-}), en = (t, e, n = 0) => ({
+});
+var en = (t, e, n = 0) => ({
 	...He(t),
 	position: e ? "relative" : "absolute",
 	top: e ? -n : 0
-}), xr = {
+});
+var xr = {
 	position: Qe(),
 	top: 0,
 	width: "100%",
@@ -72241,7 +74165,8 @@ var vr = /* @__PURE__ */ import_react.memo(function() {
 		ref: r,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
 	}) : null;
-}), Tr = /* @__PURE__ */ import_react.memo(function() {
+});
+var Tr = /* @__PURE__ */ import_react.memo(function() {
 	const e = A("FooterComponent"), n = Ct("footerHeight"), o = A("HeaderFooterTag"), r = Lt(import_react.useMemo(() => (i) => {
 		n(Ht(i, "height"));
 	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
@@ -77783,6 +79708,55 @@ var ColumnSelectorPopover = ({ showing, setShowing, columns, onVisibilityChange,
 	});
 };
 //#endregion
+//#region src/app/log-list/fileLogItem.ts
+/**
+* The path-derived part of a file item — id, display name, and url — or
+* `undefined` when the path isn't a file row of the view (folder mode: not
+* directly in the current directory; it displays through its folder
+* instead). Pure path logic: display toggles like retried-hiding live in
+* {@link fileLogItem}, so overview facts that need pre-hide membership (and
+* URL derivations that have only a name) can use this directly.
+*/
+var fileLogIdentity = (name, view) => {
+	if (view.mode === "tasks") {
+		const relativePath = directoryRelativeUrl(name, view.logDir);
+		const decodedPath = decodeURIComponent(relativePath);
+		return {
+			id: name,
+			name: decodedPath,
+			url: tasksUrl(decodedPath, view.logDir)
+		};
+	}
+	if (!isInDirectory(name, view.currentDir)) return void 0;
+	const dirName = directoryRelativeUrl(view.currentDir, view.logDir);
+	const relativePath = directoryRelativeUrl(name, view.currentDir);
+	const fileOrFolderName = decodeURIComponent(rootName(relativePath));
+	return {
+		id: fileOrFolderName,
+		name: fileOrFolderName,
+		url: logsUrl(join(decodeURIComponent(relativePath), decodeURIComponent(dirName)), view.logDir)
+	};
+};
+/**
+* Map a listing row to the file item it displays as under `view`, or
+* `undefined` when the view has no file row for it: a retried run while
+* retried logs are hidden, or (folder mode) a file that isn't directly in
+* the current directory.
+*
+* This is the row-universe membership + identity function for the log list:
+* LogsPanel builds its items through it, and the listing query applies it to
+* database records, so the two can never disagree about which files are rows.
+*/
+var fileLogItem = (logFile, view) => {
+	if (!view.showRetriedLogs && logFile.retried) return void 0;
+	const identity = fileLogIdentity(logFile.name, view);
+	return identity === void 0 ? void 0 : {
+		...identity,
+		type: "file",
+		log: logFile
+	};
+};
+//#endregion
 //#region src/utils/evallog.ts
 var kLogFilePattern = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}[-+]\d{2}-\d{2})_(.+)_([0-9A-Za-z]+)\.(eval|json)$/;
 /** Log file names carry a filesystem-safe ISO timestamp (colons replaced
@@ -77889,7 +79863,7 @@ var styles = {
 };
 var EmptyCell$1 = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: "-" });
 var kNoScorerMap = {};
-var kNoListingRows$1 = [];
+var kNoListingRows = [];
 var displayModelRoles = (row) => {
 	if (!row) return [];
 	if (row.model && row.model !== "none/none") return [];
@@ -78426,7 +80400,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		}
 		return allCols;
 	}, [scorerMap, mode]);
-	const listingRows = useLogListing(logDir).data ?? kNoListingRows$1;
+	const listingRows = useLogListing(logDir).data ?? kNoListingRows;
 	const hasSampleLimits = (0, import_react.useMemo)(() => {
 		const prefix = scopeDir ? scopePrefix(scopeDir) : void 0;
 		return listingRows.some((row) => (!prefix || row.name.startsWith(prefix)) && (row.header?.sampleLimits.length ?? 0) > 0);
@@ -78491,6 +80465,7 @@ var useLogListColumns = (mode = "logs", scopeDir, viewMode = "by-metric") => {
 		}, [columnsById]),
 		getComparator: (0, import_react.useCallback)((columnId) => columnsById.get(columnId)?.meta?.sortComparator, [columnsById]),
 		getFilterType: (0, import_react.useCallback)((columnId) => columnsById.get(columnId)?.meta?.filterType, [columnsById]),
+		accessorsKey: (0, import_react.useMemo)(() => Object.entries(scorerMap).map(([key, { valueType }]) => `${key}:${valueType}`).sort().join(","), [scorerMap]),
 		setColumnVisibility
 	};
 };
@@ -80922,7 +82897,7 @@ function useReactTable(options) {
 	return tableRef.current;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.3/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function createLazyMeasurementsView(count, flat, getItemKey) {
 	const cache = new Array(count);
 	return new Proxy(cache, { get(target, prop, receiver) {
@@ -80952,7 +82927,7 @@ function createLazyMeasurementsView(count, flat, getItemKey) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.3/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$8(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -80984,7 +82959,7 @@ var debounce = (targetWindow, fn, ms) => {
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.3/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -81290,6 +83265,9 @@ var Virtualizer = class {
 				this.rafId = null;
 			}
 			this.scrollState = null;
+			this._iosDeferredAdjustment = 0;
+			this._iosTouching = false;
+			this._iosJustTouchEnded = false;
 			this.scrollElement = null;
 			this.targetWindow = null;
 		};
@@ -81411,22 +83389,6 @@ var Virtualizer = class {
 			this.scrollOffset = this.scrollOffset ?? (typeof this.options.initialOffset === "function" ? this.options.initialOffset() : this.options.initialOffset);
 			return this.scrollOffset;
 		};
-		this.getFurthestMeasurement = (measurements, index) => {
-			const furthestMeasurementsFound = /* @__PURE__ */ new Map();
-			const furthestMeasurements = /* @__PURE__ */ new Map();
-			for (let m = index - 1; m >= 0; m--) {
-				const measurement = measurements[m];
-				if (furthestMeasurementsFound.has(measurement.lane)) continue;
-				const previousFurthestMeasurement = furthestMeasurements.get(measurement.lane);
-				if (previousFurthestMeasurement == null || measurement.end > previousFurthestMeasurement.end) furthestMeasurements.set(measurement.lane, measurement);
-				else if (measurement.end < previousFurthestMeasurement.end) furthestMeasurementsFound.set(measurement.lane, true);
-				if (furthestMeasurementsFound.size === this.options.lanes) break;
-			}
-			return furthestMeasurements.size === this.options.lanes ? Array.from(furthestMeasurements.values()).sort((a, b) => {
-				if (a.end === b.end) return a.index - b.index;
-				return a.end - b.end;
-			})[0] : void 0;
-		};
 		this.getMeasurementOptions = memo$8(() => [
 			this.options.count,
 			this.options.paddingStart,
@@ -81434,8 +83396,9 @@ var Virtualizer = class {
 			this.options.getItemKey,
 			this.options.enabled,
 			this.options.lanes,
-			this.options.laneAssignmentMode
-		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode) => {
+			this.options.laneAssignmentMode,
+			this.options.gap
+		], (count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap) => {
 			if (this.prevLanes !== void 0 && this.prevLanes !== lanes) this.lanesChangedFlag = true;
 			this.prevLanes = lanes;
 			this.pendingMin = null;
@@ -81446,10 +83409,11 @@ var Virtualizer = class {
 				getItemKey,
 				enabled,
 				lanes,
-				laneAssignmentMode
+				laneAssignmentMode,
+				gap
 			};
 		}, { key: false });
-		this.getMeasurements = memo$8(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode }, _itemSizeCacheVersion) => {
+		this.getMeasurements = memo$8(() => [this.getMeasurementOptions(), this.itemSizeCacheVersion], ({ count, paddingStart, scrollMargin, getItemKey, enabled, lanes, laneAssignmentMode, gap }, _itemSizeCacheVersion) => {
 			const itemSizeCache = this.itemSizeCache;
 			if (!enabled) {
 				this.measurementsCache = [];
@@ -81478,7 +83442,6 @@ var Virtualizer = class {
 			this.pendingMin = null;
 			if (this.lanesSettling && this.measurementsCache.length === count) this.lanesSettling = false;
 			if (lanes === 1) {
-				const gap = this.options.gap;
 				const need = count * 2;
 				let flat = this._flatMeasurements;
 				if (!flat || flat.length < need) {
@@ -81507,9 +83470,15 @@ var Virtualizer = class {
 			}
 			const measurements = this.measurementsCache.slice(0, min);
 			const laneLastIndex = new Array(lanes).fill(void 0);
+			const laneEnds = new Float64Array(lanes);
+			let filledLanes = 0;
 			for (let m = 0; m < min; m++) {
 				const item = measurements[m];
-				if (item) laneLastIndex[item.lane] = m;
+				if (item) {
+					if (laneLastIndex[item.lane] === void 0) filledLanes++;
+					laneLastIndex[item.lane] = m;
+					laneEnds[item.lane] = item.end;
+				}
 			}
 			for (let i = min; i < count; i++) {
 				const key = getItemKey(i);
@@ -81521,12 +83490,26 @@ var Virtualizer = class {
 					lane = cachedLane;
 					const prevIndex = laneLastIndex[lane];
 					const prevInLane = prevIndex !== void 0 ? measurements[prevIndex] : void 0;
-					start = prevInLane ? prevInLane.end + this.options.gap : paddingStart + scrollMargin;
+					start = prevInLane ? prevInLane.end + gap : paddingStart + scrollMargin;
+				} else if (filledLanes === lanes) {
+					let bestLane = 0;
+					let bestEnd = laneEnds[0];
+					let bestIdx = laneLastIndex[0];
+					for (let l = 1; l < lanes; l++) {
+						const e = laneEnds[l];
+						if (e < bestEnd || e === bestEnd && laneLastIndex[l] < bestIdx) {
+							bestLane = l;
+							bestEnd = e;
+							bestIdx = laneLastIndex[l];
+						}
+					}
+					lane = bestLane;
+					start = bestEnd + gap;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
 				} else {
-					const furthestMeasurement = this.options.lanes === 1 ? measurements[i - 1] : this.getFurthestMeasurement(measurements, i);
-					start = furthestMeasurement ? furthestMeasurement.end + this.options.gap : paddingStart + scrollMargin;
-					lane = furthestMeasurement ? furthestMeasurement.lane : i % this.options.lanes;
-					if (this.options.lanes > 1 && shouldCacheLane) this.laneAssignments.set(i, lane);
+					lane = i % this.options.lanes;
+					start = paddingStart + scrollMargin;
+					if (shouldCacheLane) this.laneAssignments.set(i, lane);
 				}
 				const measuredSize = itemSizeCache.get(key);
 				const size = typeof measuredSize === "number" ? measuredSize : this.options.estimateSize(i);
@@ -81539,7 +83522,9 @@ var Virtualizer = class {
 					key,
 					lane
 				};
+				if (laneLastIndex[lane] === void 0) filledLanes++;
 				laneLastIndex[lane] = i;
+				laneEnds[lane] = end;
 			}
 			this.measurementsCache = measurements;
 			return measurements;
@@ -81974,7 +83959,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.5_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.6_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -83676,23 +85661,27 @@ function primitiveText(value) {
 	}
 }
 /**
-* Search index for the grid find band: lowercased plain-text per row id,
-* built from the visible columns' `textValue` (display formatting) or raw
-* accessor value. Data-level — searches all rows, not just the virtualized
-* window. Insertion order follows `rows`, so match order is row order.
+* One row's searchable text: lowercased plain-text built from the visible
+* columns' `textValue` (display formatting) or raw accessor value.
+*/
+function rowSearchText(row, columns) {
+	const parts = [];
+	for (const column of columns) {
+		let text = null;
+		if (column.textValue) text = column.textValue(row);
+		else if ("accessorFn" in column && column.accessorFn) text = primitiveText(column.accessorFn(row, 0));
+		if (text) parts.push(text);
+	}
+	return parts.join("\n").toLowerCase();
+}
+/**
+* Search index for the grid find band: searchable text per row id.
+* Data-level — searches all rows, not just the virtualized window.
+* Insertion order follows `rows`, so match order is row order.
 */
 function buildSearchIndex(rows, columns, getRowId) {
 	const index = /* @__PURE__ */ new Map();
-	for (const row of rows) {
-		const parts = [];
-		for (const column of columns) {
-			let text = null;
-			if (column.textValue) text = column.textValue(row);
-			else if ("accessorFn" in column && column.accessorFn) text = primitiveText(column.accessorFn(row, 0));
-			if (text) parts.push(text);
-		}
-		index.set(getRowId(row), parts.join("\n").toLowerCase());
-	}
+	for (const row of rows) index.set(getRowId(row), rowSearchText(row, columns));
 	return index;
 }
 /** Row ids whose search text contains `term` (case-insensitive), in row
@@ -83703,202 +85692,6 @@ function findMatches(index, term) {
 	const ids = [];
 	for (const [id, text] of index) if (text.includes(lowerTerm)) ids.push(id);
 	return ids;
-}
-//#endregion
-//#region src/app/log-list/grid/LogListGrid.tsx
-var LogListGrid = ({ rows, totalRowCount, sorting, columnFilters, currentPath, scopeKey, mode = "logs", busy }) => {
-	const { gridStateByScope, patchGridState } = useLogsListing();
-	const navigate = useNavigate();
-	const scopeDir = mode === "logs" ? currentPath : void 0;
-	const [scoresViewMode] = useProperty("log-list-scores-view", "mode", { defaultValue: "by-metric" });
-	const { columns, visibility } = useLogListColumns(mode, scopeDir, scoresViewMode);
-	const handleRowActivate = (0, import_react.useCallback)((row) => {
-		if (row.url) navigate(row.url);
-	}, [navigate]);
-	const columnSizing = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnSizing : void 0, [gridStateByScope, scopeKey]);
-	const columnOrder = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnOrder : void 0, [gridStateByScope, scopeKey]);
-	const persistedSelectedId = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.selectedRowId : void 0, [gridStateByScope, scopeKey]);
-	const handleSortingChange = (0, import_react.useCallback)((next) => {
-		if (scopeKey) patchGridState(scopeKey, { sorting: next });
-	}, [scopeKey, patchGridState]);
-	const handleColumnFilterChange = (0, import_react.useCallback)((columnId, filterType, spec) => {
-		if (!scopeKey) return;
-		const next = { ...columnFilters };
-		if (spec === null) delete next[columnId];
-		else next[columnId] = {
-			columnId,
-			filterType,
-			spec
-		};
-		patchGridState(scopeKey, { columnFilters: next });
-	}, [
-		scopeKey,
-		patchGridState,
-		columnFilters
-	]);
-	const handleColumnSizingChange = (0, import_react.useCallback)((next) => {
-		if (scopeKey) patchGridState(scopeKey, { columnSizing: next });
-	}, [scopeKey, patchGridState]);
-	const handleColumnOrderChange = (0, import_react.useCallback)((next) => {
-		if (scopeKey) patchGridState(scopeKey, { columnOrder: next });
-	}, [scopeKey, patchGridState]);
-	const persistSelectedId = (0, import_react.useCallback)((id) => {
-		if (scopeKey) patchGridState(scopeKey, { selectedRowId: id });
-	}, [scopeKey, patchGridState]);
-	const openBandMatchIdRef = (0, import_react.useRef)(void 0);
-	const handleSelectedRowChange = (0, import_react.useCallback)((row) => {
-		openBandMatchIdRef.current = void 0;
-		persistSelectedId(row.id);
-	}, [persistSelectedId]);
-	const [showFind, setShowFind] = (0, import_react.useState)(false);
-	const [findTerm, setFindTerm] = (0, import_react.useState)("");
-	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
-	const findInputRef = (0, import_react.useRef)(null);
-	const searchColumns = (0, import_react.useMemo)(() => columns.filter((col) => col.id !== void 0 && visibility[col.id]), [columns, visibility]);
-	const searchIndex = (0, import_react.useMemo)(() => showFind ? buildSearchIndex(rows, searchColumns, (row) => row.id) : void 0, [
-		showFind,
-		rows,
-		searchColumns
-	]);
-	const matchIds = (0, import_react.useMemo)(() => searchIndex ? findMatches(searchIndex, findTerm) : [], [searchIndex, findTerm]);
-	const handleFindTermChange = (0, import_react.useCallback)(() => {
-		setFindTerm(findInputRef.current?.value ?? "");
-		setCurrentMatchIndex(0);
-	}, []);
-	const goToMatch = (0, import_react.useCallback)((index) => {
-		if (matchIds.length === 0) return;
-		setCurrentMatchIndex((index % matchIds.length + matchIds.length) % matchIds.length);
-	}, [matchIds.length]);
-	const activeMatchIndex = Math.min(currentMatchIndex, Math.max(matchIds.length - 1, 0));
-	const activeMatchId = matchIds.length > 0 ? matchIds[activeMatchIndex] : void 0;
-	const closeFind = (0, import_react.useCallback)(() => {
-		const id = openBandMatchIdRef.current;
-		if (id !== void 0) persistSelectedId(id);
-		openBandMatchIdRef.current = void 0;
-		setShowFind(false);
-		setFindTerm("");
-		setCurrentMatchIndex(0);
-	}, [persistSelectedId]);
-	(0, import_react.useEffect)(() => {
-		openBandMatchIdRef.current = showFind ? activeMatchId : void 0;
-	}, [showFind, activeMatchId]);
-	(0, import_react.useEffect)(() => () => {
-		const id = openBandMatchIdRef.current;
-		if (id !== void 0) persistSelectedId(id);
-	}, [persistSelectedId]);
-	const handleFindInputKeyDown = (0, import_react.useCallback)((e) => {
-		if (e.key === "Escape") closeFind();
-		else if (e.key === "Enter") {
-			e.preventDefault();
-			goToMatch(activeMatchIndex + (e.shiftKey ? -1 : 1));
-		}
-	}, [
-		goToMatch,
-		activeMatchIndex,
-		closeFind
-	]);
-	useFindBandShortcut((0, import_react.useCallback)(() => {
-		setShowFind(true);
-		setTimeout(() => findInputRef.current?.focus(), 100);
-	}, []), {
-		onClose: closeFind,
-		isOpen: showFind
-	});
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(gridCells_module_default.gridWrapper),
-		children: [showFind && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FindBandUI, {
-			inputRef: findInputRef,
-			value: findTerm,
-			onChange: handleFindTermChange,
-			onKeyDown: handleFindInputKeyDown,
-			onClose: closeFind,
-			onPrevious: () => goToMatch(activeMatchIndex - 1),
-			onNext: () => goToMatch(activeMatchIndex + 1),
-			disableNav: matchIds.length === 0,
-			noResults: !!findTerm && matchIds.length === 0,
-			matchCount: findTerm ? matchIds.length : void 0,
-			matchIndex: findTerm ? activeMatchIndex : void 0
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(gridCells_module_default.gridContainer),
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DataGrid, {
-				data: rows,
-				columns,
-				columnVisibility: visibility,
-				sorting,
-				onSortingChange: handleSortingChange,
-				columnFilters,
-				onColumnFilterChange: handleColumnFilterChange,
-				columnSizing,
-				onColumnSizingChange: handleColumnSizingChange,
-				columnOrder,
-				onColumnOrderChange: handleColumnOrderChange,
-				getRowId: (row) => row.id,
-				selectedRowId: activeMatchId ?? persistedSelectedId,
-				onSelectedRowChange: handleSelectedRowChange,
-				onRowActivate: handleRowActivate,
-				autoFocus: true,
-				ariaLabel: "Evaluation logs",
-				loading: totalRowCount === 0 && busy
-			}, scopeKey ?? "pending")
-		})]
-	});
-};
-//#endregion
-//#region src/app/shared/useKeyedMemo.ts
-var shallowEqual = (a, b) => {
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
-	return true;
-};
-/**
-* Map a list to derived values, reusing the prior output object for any item
-* whose per-item deps are unchanged.
-*
-* `useMemo` is all-or-nothing: any dep change rebuilds every element, handing
-* a consumer (e.g. a data grid's row list) all-new identities and forcing a full refresh.
-* This keeps a per-key cache so only the items that actually changed get a new
-* object — the rest keep reference identity. Reuse is gated on `itemDeps`, so
-* the cache must be pure: same deps must always yield the same value.
-*
-* The list is re-walked on every render; reuse keeps that cheap (a shallow dep
-* compare per item, builds only on change). The returned array keeps the same
-* reference when nothing changed, so consumers that key off its identity (deps
-* arrays, a grid's row-data diff) don't re-run on unrelated renders.
-*/
-function useKeyedMemo(source, getKey, itemDeps, build) {
-	"use no memo";
-	const cacheRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
-	const resultRef = (0, import_react.useRef)([]);
-	const prev = cacheRef.current;
-	const next = /* @__PURE__ */ new Map();
-	let changed = source.length !== resultRef.current.length;
-	const result = source.map((item, i) => {
-		const key = getKey(item);
-		const deps = itemDeps(item);
-		const hit = prev.get(key);
-		const value = hit && shallowEqual(hit.deps, deps) ? hit.value : build(item);
-		next.set(key, {
-			deps,
-			value
-		});
-		if (!changed && resultRef.current[i] !== value) changed = true;
-		return value;
-	});
-	cacheRef.current = next;
-	if (changed) resultRef.current = result;
-	return resultRef.current;
-}
-//#endregion
-//#region src/app/log-list/listing/combineFilters.ts
-/**
-* AND-combine a scope's per-column filter specs into a single `Condition`
-* (`undefined` when none are active). Mirrors scout's `useFilterConditions`.
-* Entries persisted by pre-FilterSpec builds (which stored a compiled
-* `condition`) fail the guard and are dropped.
-*/
-function combineFilters(columnFilters) {
-	if (!columnFilters) return void 0;
-	return Object.values(columnFilters).map((f) => isColumnFilter(f) ? specToCondition(f.columnId, f.filterType, f.spec) : null).filter((c) => c !== null && c !== void 0).reduce((acc, c) => acc ? acc.and(c) : c, void 0);
 }
 //#endregion
 //#region src/app/log-list/listing/evaluator.ts
@@ -84022,19 +85815,42 @@ function compareByOrderBy(orderBy, getValue, getComparator) {
 	};
 }
 //#endregion
-//#region src/app/log-list/listing/applyListingQuery.ts
-var paginate = (rows, pagination) => {
-	if (!pagination) return {
-		page: rows,
-		next_cursor: null
-	};
-	const offset = pagination.cursor && typeof pagination.cursor.offset === "number" ? pagination.cursor.offset : 0;
-	const end = offset + pagination.limit;
+//#region src/app/log-list/listing/planner.ts
+/**
+* Compile the wire filter and ordering into record-level listing operations.
+*
+* `compare` has no position tiebreak: executors sort stably over the
+* source's listing order, so ties (and the unsorted listing) keep it.
+*/
+var createListingPlan = (query) => {
+	const { filter, getValue, getFilterType, getComparator, pagination } = query;
+	const orderBy = query.orderBy ? Array.isArray(query.orderBy) ? query.orderBy : [query.orderBy] : [];
 	return {
-		page: rows.slice(offset, end),
-		next_cursor: end < rows.length ? { offset: end } : null
+		matches: filter ? (row) => evaluateCondition(row, filter, getValue, getFilterType) : () => true,
+		compare: orderBy.length > 0 ? compareByOrderBy(orderBy, getValue, getComparator) : void 0,
+		pagination
 	};
 };
+//#endregion
+//#region src/app/log-list/listing/applyListingQuery.ts
+/**
+* Merge two individually-sorted row lists into one sorted list; ties place
+* `base` rows first. Without a comparator the overlay is appended (the
+* unsorted listing shows transient rows after files). This is how transient
+* rows (e.g. pending tasks, which have no database record) join a
+* database-produced page without forcing the whole listing back into memory.
+*/
+function mergeSortedRows(base, overlay, compare) {
+	if (overlay.length === 0) return base;
+	if (!compare || base.length === 0) return [...base, ...overlay];
+	const merged = [];
+	let i = 0;
+	let j = 0;
+	while (i < base.length && j < overlay.length) merged.push(compare(base[i], overlay[j]) <= 0 ? base[i++] : overlay[j++]);
+	while (i < base.length) merged.push(base[i++]);
+	while (j < overlay.length) merged.push(overlay[j++]);
+	return merged;
+}
 /**
 * TRANSITIONAL client-side stand-in for a server `getLogsListing(dir, filter,
 * orderBy, pagination)`. Filters → sorts → paginates the in-memory rows and
@@ -84042,18 +85858,13 @@ var paginate = (rows, pagination) => {
 * by an API fetch; the react-query boundary above it stays.
 */
 function applyListingQuery(rows, query) {
-	const { filter, orderBy, pagination, getValue, getComparator, getFilterType } = query;
-	let result = filter ? rows.filter((row) => evaluateCondition(row, filter, getValue, getFilterType)) : rows;
-	if (orderBy) {
-		const orderArr = Array.isArray(orderBy) ? orderBy : [orderBy];
-		if (orderArr.length > 0) result = [...result].sort(compareByOrderBy(orderArr, getValue, getComparator));
-	}
+	const plan = createListingPlan(query);
+	let result = rows.filter(plan.matches);
+	if (plan.compare) result = [...result].sort(plan.compare);
 	const total_count = result.length;
-	const { page, next_cursor } = paginate(result, pagination);
 	return {
-		items: page,
-		total_count,
-		next_cursor
+		...pageRows(result, plan.pagination),
+		total_count
 	};
 }
 //#endregion
@@ -84064,13 +85875,11 @@ var sortingStateToOrderBy = (sorting) => sorting.map((s) => ({
 	direction: s.desc ? "DESC" : "ASC"
 }));
 /**
-* The log listing query: filter + sort + paginate over the rows. Mirrors
-* scout's `getTranscripts(filter, orderBy, pagination)` tail and response shape.
-*
-* Client-side for now — a derived `useMemo` over the (reactive) rows. The async
-* data source already lives in the react-query logs-content cache; when inspect
-* moves filter/sort server-side this hook becomes a `useQuery` that fetches a
-* filtered/sorted page instead.
+* The generic in-memory listing query: filter + sort + paginate over the
+* rows. Mirrors scout's `getTranscripts(filter, orderBy, pagination)` tail
+* and response shape. Retained for samples listings, which don't have a
+* database-backed path yet — the log list uses
+* {@link useDatabaseLogsListingQuery}.
 */
 function useLogsListingQuery({ rows, filter, orderBy, pagination, getValue, getComparator, getFilterType }) {
 	return (0, import_react.useMemo)(() => applyListingQuery(rows, {
@@ -84090,8 +85899,255 @@ function useLogsListingQuery({ rows, filter, orderBy, pagination, getValue, getC
 		getFilterType
 	]);
 }
+/**
+* The log listing query: rows are read from the listing source (IndexedDB
+* in dir mode — see `readLogsListing`) and shaped per view inside the
+* queryFn, so the full row list never has to live in memory for the grid's
+* sake. Results are asynchronous by design: the first read shows whatever
+* has replicated so far, and the write path's throttled invalidation
+* streams further rows in as they land. `loading` covers hydration and the
+* universe's first read; within one universe a re-filter/sort reports the
+* previous result as `data` (no loading flash) until the new read lands.
+*/
+function useDatabaseLogsListingQuery({ filter, orderBy, pagination, getValue, getComparator, getFilterType, accessorsKey, listing }) {
+	const { logDir, prefix, universe, toRow } = listing;
+	return useAsyncDataFromQuery({
+		queryKey: databaseLogsListingKey(universe, accessorsKey, filter, orderBy, pagination),
+		queryFn: () => readLogsListing(logDir, prefix, toRow, createListingPlan({
+			filter,
+			orderBy,
+			pagination,
+			getValue,
+			getComparator,
+			getFilterType
+		})),
+		enabled: universe !== void 0,
+		placeholderData: (previousData, previousQuery) => universe !== void 0 && previousQuery !== void 0 && listingKeyUniverse(previousQuery.queryKey) === universe ? previousData : void 0,
+		staleTime: 0,
+		gcTime: 3e4,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false
+	});
+}
+/**
+* The find band's data-level match query, beside the row query so the two
+* share key shape and universe semantics: the key is the row query's key
+* (same universe slot, so `listingKeyUniverse` and the root invalidation
+* cover both) extended with the find-only inputs, and the placeholder keeps
+* previous matches only within one universe — folder-mode row ids are
+* basenames, so another directory's ids could otherwise mark unrelated
+* same-named rows as matches while a scope change's refetch is in flight.
+*/
+function useLogsListingMatches({ filter, orderBy, getValue, getComparator, getFilterType, accessorsKey, listing, term, enabled, getRowId, rowText, searchKey }) {
+	const [matchTerm, setMatchTerm] = (0, import_react.useState)("");
+	const syncMatchTerm = useDebouncedCallback(() => setMatchTerm(term), 100);
+	(0, import_react.useEffect)(() => {
+		syncMatchTerm();
+	}, [term, syncMatchTerm]);
+	const reset = (0, import_react.useCallback)(() => {
+		syncMatchTerm.cancel();
+		setMatchTerm("");
+	}, [syncMatchTerm]);
+	const { logDir, prefix, universe, toRow } = listing;
+	const query = useQuery({
+		queryKey: [
+			...databaseLogsListingKey(universe, accessorsKey, filter, orderBy),
+			"find",
+			matchTerm,
+			searchKey
+		],
+		queryFn: () => readLogsListingMatches(logDir, prefix, toRow, createListingPlan({
+			filter,
+			orderBy,
+			getValue,
+			getComparator,
+			getFilterType
+		}), {
+			term: matchTerm,
+			getRowId,
+			rowText
+		}),
+		enabled: enabled && matchTerm !== "" && universe !== void 0,
+		placeholderData: (previousData, previousQuery) => universe !== void 0 && previousQuery !== void 0 && listingKeyUniverse(previousQuery.queryKey) === universe ? previousData : void 0,
+		staleTime: 0,
+		gcTime: 3e4,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false
+	});
+	return {
+		ids: query.data,
+		settled: term === matchTerm && !query.isPending && !query.isPlaceholderData && !query.isError,
+		reset
+	};
+}
 //#endregion
-//#region src/app/log-list/grid/useLogListData.ts
+//#region src/app/log-list/grid/LogListGrid.tsx
+var LogListGrid = ({ rows, totalRowCount, sorting, columnFilters, filter, orderBy, currentPath, scopeKey, mode = "logs", busy, listing }) => {
+	const { gridStateByScope, patchGridState } = useLogsListing();
+	const navigate = useNavigate();
+	const scopeDir = mode === "logs" ? currentPath : void 0;
+	const [scoresViewMode] = useProperty("log-list-scores-view", "mode", { defaultValue: "by-metric" });
+	const { columns, visibility, getValue, getComparator, getFilterType, accessorsKey } = useLogListColumns(mode, scopeDir, scoresViewMode);
+	const handleRowActivate = (0, import_react.useCallback)((row) => {
+		if (row.url) navigate(row.url);
+	}, [navigate]);
+	const columnSizing = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnSizing : void 0, [gridStateByScope, scopeKey]);
+	const columnOrder = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnOrder : void 0, [gridStateByScope, scopeKey]);
+	const persistedSelectedId = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.selectedRowId : void 0, [gridStateByScope, scopeKey]);
+	const handleSortingChange = (0, import_react.useCallback)((next) => {
+		if (scopeKey) patchGridState(scopeKey, { sorting: next });
+	}, [scopeKey, patchGridState]);
+	const handleColumnFilterChange = (0, import_react.useCallback)((columnId, filterType, spec) => {
+		if (!scopeKey) return;
+		const next = { ...columnFilters };
+		if (spec === null) delete next[columnId];
+		else next[columnId] = {
+			columnId,
+			filterType,
+			spec
+		};
+		patchGridState(scopeKey, { columnFilters: next });
+	}, [
+		scopeKey,
+		patchGridState,
+		columnFilters
+	]);
+	const handleColumnSizingChange = (0, import_react.useCallback)((next) => {
+		if (scopeKey) patchGridState(scopeKey, { columnSizing: next });
+	}, [scopeKey, patchGridState]);
+	const handleColumnOrderChange = (0, import_react.useCallback)((next) => {
+		if (scopeKey) patchGridState(scopeKey, { columnOrder: next });
+	}, [scopeKey, patchGridState]);
+	const persistSelectedId = (0, import_react.useCallback)((id) => {
+		if (scopeKey) patchGridState(scopeKey, { selectedRowId: id });
+	}, [scopeKey, patchGridState]);
+	const openBandMatchIdRef = (0, import_react.useRef)(void 0);
+	const handleSelectedRowChange = (0, import_react.useCallback)((row) => {
+		openBandMatchIdRef.current = void 0;
+		persistSelectedId(row.id);
+	}, [persistSelectedId]);
+	const [showFind, setShowFind] = (0, import_react.useState)(false);
+	const [findTerm, setFindTerm] = (0, import_react.useState)("");
+	const [currentMatchIndex, setCurrentMatchIndex] = (0, import_react.useState)(0);
+	const findInputRef = (0, import_react.useRef)(null);
+	const searchColumns = (0, import_react.useMemo)(() => columns.filter((col) => col.id !== void 0 && visibility[col.id]), [columns, visibility]);
+	const searchKey = (0, import_react.useMemo)(() => searchColumns.map((col) => col.id ?? ""), [searchColumns]);
+	const rowText = (0, import_react.useCallback)((row) => rowSearchText(row, searchColumns), [searchColumns]);
+	const fileMatches = useLogsListingMatches({
+		filter,
+		orderBy,
+		getValue,
+		getComparator,
+		getFilterType,
+		accessorsKey,
+		listing,
+		term: findTerm,
+		enabled: showFind,
+		getRowId: (0, import_react.useCallback)((row) => row.id, []),
+		rowText,
+		searchKey
+	});
+	const { reset: resetMatches } = fileMatches;
+	const overlayIndex = (0, import_react.useMemo)(() => showFind ? buildSearchIndex(rows.filter((row) => row.type !== "file"), searchColumns, (row) => row.id) : void 0, [
+		showFind,
+		rows,
+		searchColumns
+	]);
+	const matchIds = (0, import_react.useMemo)(() => {
+		if (!findTerm) return [];
+		const matchSet = /* @__PURE__ */ new Set([...fileMatches.ids ?? [], ...overlayIndex ? findMatches(overlayIndex, findTerm) : []]);
+		return rows.filter((row) => matchSet.has(row.id)).map((row) => row.id);
+	}, [
+		findTerm,
+		fileMatches.ids,
+		overlayIndex,
+		rows
+	]);
+	const handleFindTermChange = (0, import_react.useCallback)(() => {
+		setFindTerm(findInputRef.current?.value ?? "");
+		setCurrentMatchIndex(0);
+	}, []);
+	const goToMatch = (0, import_react.useCallback)((index) => {
+		if (matchIds.length === 0) return;
+		setCurrentMatchIndex((index % matchIds.length + matchIds.length) % matchIds.length);
+	}, [matchIds.length]);
+	const activeMatchIndex = Math.min(currentMatchIndex, Math.max(matchIds.length - 1, 0));
+	const activeMatchId = matchIds.length > 0 ? matchIds[activeMatchIndex] : void 0;
+	const closeFind = (0, import_react.useCallback)(() => {
+		const id = openBandMatchIdRef.current;
+		if (id !== void 0) persistSelectedId(id);
+		openBandMatchIdRef.current = void 0;
+		setShowFind(false);
+		setFindTerm("");
+		resetMatches();
+		setCurrentMatchIndex(0);
+	}, [persistSelectedId, resetMatches]);
+	(0, import_react.useEffect)(() => {
+		openBandMatchIdRef.current = showFind ? activeMatchId : void 0;
+	}, [showFind, activeMatchId]);
+	(0, import_react.useEffect)(() => () => {
+		const id = openBandMatchIdRef.current;
+		if (id !== void 0) persistSelectedId(id);
+	}, [persistSelectedId]);
+	const handleFindInputKeyDown = (0, import_react.useCallback)((e) => {
+		if (e.key === "Escape") closeFind();
+		else if (e.key === "Enter") {
+			e.preventDefault();
+			goToMatch(activeMatchIndex + (e.shiftKey ? -1 : 1));
+		}
+	}, [
+		goToMatch,
+		activeMatchIndex,
+		closeFind
+	]);
+	useFindBandShortcut((0, import_react.useCallback)(() => {
+		setShowFind(true);
+		setTimeout(() => findInputRef.current?.focus(), 100);
+	}, []), {
+		onClose: closeFind,
+		isOpen: showFind
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(gridCells_module_default.gridWrapper),
+		children: [showFind && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(FindBandUI, {
+			inputRef: findInputRef,
+			value: findTerm,
+			onChange: handleFindTermChange,
+			onKeyDown: handleFindInputKeyDown,
+			onClose: closeFind,
+			onPrevious: () => goToMatch(activeMatchIndex - 1),
+			onNext: () => goToMatch(activeMatchIndex + 1),
+			disableNav: matchIds.length === 0,
+			noResults: !!findTerm && matchIds.length === 0 && fileMatches.settled,
+			matchCount: findTerm ? matchIds.length : void 0,
+			matchIndex: findTerm ? activeMatchIndex : void 0
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(gridCells_module_default.gridContainer),
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(DataGrid, {
+				data: rows,
+				columns,
+				columnVisibility: visibility,
+				sorting,
+				onSortingChange: handleSortingChange,
+				columnFilters,
+				onColumnFilterChange: handleColumnFilterChange,
+				columnSizing,
+				onColumnSizingChange: handleColumnSizingChange,
+				columnOrder,
+				onColumnOrderChange: handleColumnOrderChange,
+				getRowId: (row) => row.id,
+				selectedRowId: activeMatchId ?? persistedSelectedId,
+				onSelectedRowChange: handleSelectedRowChange,
+				onRowActivate: handleRowActivate,
+				autoFocus: true,
+				ariaLabel: "Evaluation logs",
+				loading: totalRowCount === 0 && busy
+			})
+		})]
+	});
+};
+//#endregion
+//#region src/app/log-list/grid/logListRow.ts
 var rowForItem = (item) => item.type === "file" ? item.log : void 0;
 var buildLogListRow = (item) => {
 	const log = rowForItem(item);
@@ -84130,51 +86186,154 @@ var buildLogListRow = (item) => {
 	if (derived?.scores) for (const [scorerName, metrics] of Object.entries(derived.scores)) for (const [metricName, value] of Object.entries(metrics)) row[`score_${scorerName}/${metricName}`] = value;
 	return row;
 };
+//#endregion
+//#region src/app/shared/useKeyedMemo.ts
+var shallowEqual = (a, b) => {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) return false;
+	return true;
+};
 /**
-* The log-list data pipeline: shape items into rows, apply the scope's
-* persisted sorting/filters via the listing query, and pin folders on top.
-* Called by LogsPanel (the panel owns shaping — see `useLogsListingQuery`);
-* the grid just renders the result.
+* Map a list to derived values, reusing the prior output object for any item
+* whose per-item deps are unchanged.
+*
+* `useMemo` is all-or-nothing: any dep change rebuilds every element, handing
+* a consumer (e.g. a data grid's row list) all-new identities and forcing a full refresh.
+* This keeps a per-key cache so only the items that actually changed get a new
+* object — the rest keep reference identity. Reuse is gated on `itemDeps`, so
+* the cache must be pure: same deps must always yield the same value.
+*
+* The list is re-walked on every render; reuse keeps that cheap (a shallow dep
+* compare per item, builds only on change). The returned array keeps the same
+* reference when nothing changed, so consumers that key off its identity (deps
+* arrays, a grid's row-data diff) don't re-run on unrelated renders.
 */
-var useLogListData = ({ items, scopeKey, getValue, getComparator, getFilterType }) => {
+function useKeyedMemo(source, getKey, itemDeps, build) {
+	"use no memo";
+	const cacheRef = (0, import_react.useRef)(/* @__PURE__ */ new Map());
+	const resultRef = (0, import_react.useRef)([]);
+	const prev = cacheRef.current;
+	const next = /* @__PURE__ */ new Map();
+	let changed = source.length !== resultRef.current.length;
+	const result = source.map((item, i) => {
+		const key = getKey(item);
+		const deps = itemDeps(item);
+		const hit = prev.get(key);
+		const value = hit && shallowEqual(hit.deps, deps) ? hit.value : build(item);
+		next.set(key, {
+			deps,
+			value
+		});
+		if (!changed && resultRef.current[i] !== value) changed = true;
+		return value;
+	});
+	cacheRef.current = next;
+	if (changed) resultRef.current = result;
+	return resultRef.current;
+}
+//#endregion
+//#region src/app/log-list/listing/combineFilters.ts
+/**
+* AND-combine a scope's per-column filter specs into a single `Condition`
+* (`undefined` when none are active). Mirrors scout's `useFilterConditions`.
+* Entries persisted by pre-FilterSpec builds (which stored a compiled
+* `condition`) fail the guard and are dropped.
+*/
+function combineFilters(columnFilters) {
+	if (!columnFilters) return void 0;
+	return Object.values(columnFilters).map((f) => isColumnFilter(f) ? specToCondition(f.columnId, f.filterType, f.spec) : null).filter((c) => c !== null && c !== void 0).reduce((acc, c) => acc ? acc.and(c) : c, void 0);
+}
+//#endregion
+//#region src/app/log-list/grid/useLogListData.ts
+var kNoRows = [];
+/** Pending rows minus the tasks that already have a file row in `fileRows`
+*  (pending row ids are task ids; file rows carry their record's task_id). */
+var dropSettledPendingRows = (pendingRows, fileRows) => {
+	if (pendingRows.length === 0 || fileRows.length === 0) return pendingRows;
+	const fileTaskIds = /* @__PURE__ */ new Set();
+	for (const row of fileRows) {
+		const taskId = row.log?.task_id;
+		if (taskId) fileTaskIds.add(taskId);
+	}
+	if (fileTaskIds.size === 0) return pendingRows;
+	return pendingRows.filter((row) => !fileTaskIds.has(row.id));
+};
+/**
+* The log-list data pipeline: run the scope's persisted sorting/filters as a
+* listing query against the listing source (IndexedDB in dir mode), shape the
+* resulting records into grid rows, merge in transient rows (pending tasks),
+* and pin folders on top. Called by LogsPanel; the grid just renders the
+* result.
+*/
+var useLogListData = ({ overlayItems, scopeKey, getValue, getComparator, getFilterType, accessorsKey, listing }) => {
 	const { gridStateByScope } = useLogsListing();
-	const data = useKeyedMemo(items, (item) => item.id, (item) => [
+	const overlayData = useKeyedMemo(overlayItems, (item) => item.id, (item) => [
 		item.id,
 		item.type,
 		item.url,
 		item.name,
 		item.displayIndex,
-		rowForItem(item),
 		item.type === "folder" ? item.itemCount : void 0,
 		item.type === "pending-task" ? item.model : void 0
 	], (item) => buildLogListRow(item));
+	const { folders, pendingRows } = (0, import_react.useMemo)(() => {
+		const folders = [];
+		const pendingRows = [];
+		for (const row of overlayData) (row.type === "folder" ? folders : pendingRows).push(row);
+		return {
+			folders,
+			pendingRows
+		};
+	}, [overlayData]);
 	const sorting = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.sorting ?? [] : [], [gridStateByScope, scopeKey]);
 	const orderBy = (0, import_react.useMemo)(() => sortingStateToOrderBy(sorting), [sorting]);
 	const columnFilters = (0, import_react.useMemo)(() => scopeKey ? gridStateByScope[scopeKey]?.columnFilters : void 0, [gridStateByScope, scopeKey]);
 	const filter = (0, import_react.useMemo)(() => combineFilters(columnFilters), [columnFilters]);
-	const { folders, files } = (0, import_react.useMemo)(() => {
-		const folders = [];
-		const files = [];
-		for (const row of data) (row.type === "folder" ? folders : files).push(row);
-		return {
-			folders,
-			files
-		};
-	}, [data]);
-	const { items: sortedFiles, total_count } = useLogsListingQuery({
-		rows: files,
+	const { data: result, loading: pending, error } = useDatabaseLogsListingQuery({
+		filter,
+		orderBy,
+		getValue,
+		getComparator,
+		getFilterType,
+		accessorsKey,
+		listing
+	});
+	const visiblePendingRows = (0, import_react.useMemo)(() => dropSettledPendingRows(pendingRows, result?.items ?? kNoRows), [pendingRows, result]);
+	const overlay = (0, import_react.useMemo)(() => visiblePendingRows.length === 0 ? void 0 : applyListingQuery(visiblePendingRows, {
 		filter,
 		orderBy,
 		getValue,
 		getComparator,
 		getFilterType
-	});
+	}), [
+		visiblePendingRows,
+		filter,
+		orderBy,
+		getValue,
+		getComparator,
+		getFilterType
+	]);
+	const files = (0, import_react.useMemo)(() => {
+		const base = result?.items ?? kNoRows;
+		if (!overlay) return base;
+		const compare = orderBy.length > 0 ? compareByOrderBy(orderBy, getValue, getComparator) : void 0;
+		return mergeSortedRows(base, overlay.items, compare);
+	}, [
+		result,
+		overlay,
+		orderBy,
+		getValue,
+		getComparator
+	]);
 	return {
-		rows: (0, import_react.useMemo)(() => folders.length > 0 ? [...folders, ...sortedFiles] : sortedFiles, [folders, sortedFiles]),
-		totalRowCount: data.length,
-		filteredCount: folders.length + total_count,
+		rows: (0, import_react.useMemo)(() => folders.length > 0 ? [...folders, ...files] : files, [folders, files]),
+		filteredCount: folders.length + (result?.total_count ?? 0) + (overlay?.total_count ?? 0),
 		sorting,
-		columnFilters
+		columnFilters,
+		filter,
+		orderBy,
+		pending,
+		error
 	};
 };
 var LogListFooter_module_default = {
@@ -84225,127 +86384,118 @@ var LogsPanel_module_default = {
 	list: "_list_16dj8_8"
 };
 //#endregion
-//#region src/app/log-list/LogsPanel.tsx
-var rootName = (relativePath) => {
-	return relativePath.split("/")[0] ?? "";
+//#region src/app/log-list/useLogsOverview.ts
+/**
+* The page-level aggregates beside the row query (see `readLogsOverview`).
+* Keyed under the listing root so the write path's throttled invalidation
+* refreshes it alongside the row queries.
+*/
+var useLogsOverview = ({ logDir, universe, view }) => {
+	return useAsyncDataFromQuery({
+		queryKey: [
+			...databaseLogsListingKeyRoot,
+			"overview",
+			logDir,
+			universe
+		],
+		queryFn: () => readLogsOverview(logDir, view),
+		enabled: universe !== void 0,
+		staleTime: 0,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false
+	});
 };
-var kNoListingRows = [];
+//#endregion
+//#region src/app/log-list/LogsPanel.tsx
 var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 	const [showColumnSelector, setShowColumnSelector] = (0, import_react.useState)(false);
 	const [columnButtonEl, setColumnButtonEl] = (0, import_react.useState)(null);
 	const showRetriedLogs = useUserSettings((state) => state.showRetriedLogs);
 	const setShowRetriedLogs = useUserSettings((state) => state.setShowRetriedLogs);
 	const logDir = useLogDir();
-	const listing = useLogListing(logDir);
-	const logFiles = listing.data ?? kNoListingRows;
 	const { gridStateByScope, patchGridState } = useLogsListing();
 	const { logPath } = useLogRouteParams();
 	const evalSet = useEvalSet(logPath || "").data;
 	const sync = useLogsSync(logDir, logPath ?? "");
-	const busy = sync.busy || listing.loading;
-	const navbarLoading = sync.loading || listing.loading;
-	const error = sync.error ?? listing.error;
 	const currentDir = join(logPath || "", logDir);
 	const scopeKey = logDir === void 0 ? void 0 : `${mode}::${currentDir}`;
+	const universe = scopeKey === void 0 ? void 0 : `${scopeKey}::retried=${showRetriedLogs}`;
 	const flowData = useFlowQuery(logPath || "").data;
 	(0, import_react.useEffect)(() => {
 		setDocumentTitle({ logDir });
 	}, [logDir]);
-	const [logItems, hasRetriedLogs] = (0, import_react.useMemo)(() => {
-		if (mode === "tasks") {
-			const fileItems = [];
-			const existingLogTaskIds = /* @__PURE__ */ new Set();
-			let _hasRetriedLogs = false;
-			for (const logFile of logFiles) {
-				if (logFile.task_id) existingLogTaskIds.add(logFile.task_id);
-				if (logFile.retried) _hasRetriedLogs = true;
-				if (showRetriedLogs || !logFile.retried) {
-					const relativePath = directoryRelativeUrl(logFile.name, logDir);
-					const decodedPath = decodeURIComponent(relativePath);
-					fileItems.push({
-						id: logFile.name,
-						name: decodedPath,
-						type: "file",
-						url: tasksUrl(decodedPath, logDir),
-						log: logFile
-					});
-				}
-			}
-			return [appendPendingItems(evalSet, existingLogTaskIds, fileItems), _hasRetriedLogs];
-		}
-		const folderItems = [];
-		const fileItems = [];
-		const processedFolders = /* @__PURE__ */ new Set();
-		const existingLogTaskIds = /* @__PURE__ */ new Set();
-		let _hasRetriedLogs = false;
-		const sortedNames = logFiles.map((f) => f.name).sort();
-		const lowerBound = (target) => {
-			let lo = 0;
-			let hi = sortedNames.length;
-			while (lo < hi) {
-				const mid = lo + hi >> 1;
-				const name = sortedNames[mid];
-				if (name !== void 0 && name < target) lo = mid + 1;
-				else hi = mid;
-			}
-			return lo;
-		};
-		const countWithPrefix = (prefix) => lowerBound(prefix + "￿") - lowerBound(prefix);
-		for (const logFile of logFiles) {
-			if (logFile.task_id) existingLogTaskIds.add(logFile.task_id);
-			const name = logFile.name;
-			const cleanDir = currentDir.endsWith("/") ? currentDir.slice(0, -1) : currentDir;
-			const dirWithSlash = !currentDir.endsWith("/") ? currentDir + "/" : currentDir;
-			if (isInDirectory(name, cleanDir)) {
-				const dirName = directoryRelativeUrl(currentDir, logDir);
-				const relativePath = directoryRelativeUrl(name, currentDir);
-				const fileOrFolderName = decodeURIComponent(rootName(relativePath));
-				const path = join(decodeURIComponent(relativePath), decodeURIComponent(dirName));
-				if (logFile.retried) _hasRetriedLogs = true;
-				if (showRetriedLogs || !logFile.retried) fileItems.push({
-					id: fileOrFolderName,
-					name: fileOrFolderName,
-					type: "file",
-					url: logsUrl(path, logDir),
-					log: logFile
-				});
-			} else if (name.startsWith(dirWithSlash)) {
-				const relativePath = directoryRelativeUrl(name, currentDir);
-				const dirName = decodeURIComponent(rootName(relativePath));
-				const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
-				const url = join(dirName, decodeURIComponent(currentDirRelative));
-				if (!processedFolders.has(dirName)) {
-					folderItems.push({
-						id: dirName,
-						name: dirName,
-						type: "folder",
-						url: logsUrl(url, logDir),
-						itemCount: countWithPrefix(dirname(name))
-					});
-					processedFolders.add(dirName);
-				}
-			}
-		}
-		const orderedItems = [...folderItems, ...fileItems];
-		return [appendPendingItems(evalSet, existingLogTaskIds, orderedItems), _hasRetriedLogs];
-	}, [
+	const itemView = (0, import_react.useMemo)(() => ({
 		mode,
-		evalSet,
-		logFiles,
-		currentDir,
 		logDir,
+		currentDir,
+		showRetriedLogs
+	}), [
+		mode,
+		logDir,
+		currentDir,
 		showRetriedLogs
 	]);
+	const isCandidate = (0, import_react.useCallback)((log) => fileLogIdentity(log.name, itemView) !== void 0, [itemView]);
+	const overviewQuery = useLogsOverview({
+		logDir,
+		universe,
+		view: {
+			folderDir: mode === "logs" ? currentDir : void 0,
+			showRetriedLogs,
+			isCandidate
+		}
+	});
+	const overview = overviewQuery.data;
+	const busy = sync.busy;
+	const navbarLoading = sync.loading || overviewQuery.loading;
+	const logItems = (0, import_react.useMemo)(() => {
+		const currentDirRelative = directoryRelativeUrl(currentDir, logDir);
+		const folderItems = (overview?.folders ?? []).map((folder) => ({
+			id: folder.name,
+			name: folder.name,
+			type: "folder",
+			url: logsUrl(join(folder.name, decodeURIComponent(currentDirRelative)), logDir),
+			itemCount: folder.itemCount
+		}));
+		return appendPendingItems(evalSet, new Set(overview?.taskIds), folderItems);
+	}, [
+		overview,
+		evalSet,
+		currentDir,
+		logDir
+	]);
+	const hasRetriedLogs = (overview?.retriedCount ?? 0) > 0;
 	const scopeDir = mode === "logs" ? currentDir : void 0;
 	const [scoresViewMode, setScoresViewMode] = useProperty("log-list-scores-view", "mode", { defaultValue: "by-metric" });
-	const { pickerColumns, visibility, setColumnVisibility, getValue, getComparator, getFilterType } = useLogListColumns(mode, scopeDir, scoresViewMode);
+	const { pickerColumns, visibility, setColumnVisibility, getValue, getComparator, getFilterType, accessorsKey } = useLogListColumns(mode, scopeDir, scoresViewMode);
+	const toRow = (0, import_react.useCallback)((log) => {
+		const item = fileLogItem(log, itemView);
+		return item === void 0 ? void 0 : buildLogListRow(item);
+	}, [itemView]);
+	const listing = (0, import_react.useMemo)(() => ({
+		logDir,
+		prefix: mode === "logs" ? currentDir : logDir,
+		universe,
+		toRow
+	}), [
+		logDir,
+		mode,
+		currentDir,
+		universe,
+		toRow
+	]);
 	const listData = useLogListData({
-		items: logItems,
+		overlayItems: logItems,
 		scopeKey,
 		getValue,
 		getComparator,
-		getFilterType
+		getFilterType,
+		accessorsKey,
+		listing
 	});
+	const totalRowCount = (overview?.fileCount ?? 0) + logItems.length;
+	const listBusy = busy || listData.pending || overviewQuery.loading;
+	const error = sync.error ?? overviewQuery.error ?? listData.error;
 	const currentColumnVisibility = useStore((state) => state.logs.listing.columnVisibility);
 	const filteredFields = (0, import_react.useMemo)(() => Object.keys(listData.columnFilters ?? {}), [listData.columnFilters]);
 	const hasFilter = filteredFields.length > 0;
@@ -84375,20 +86525,16 @@ var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 		patchGridState
 	]);
 	const progress = (0, import_react.useMemo)(() => {
-		let pending = 0;
-		let total = 0;
-		for (const item of logItems) if (item.type === "file" || item.type === "pending-task") {
-			total += 1;
-			if (item.type === "pending-task" || item.log?.status === "started") pending += 1;
-		}
+		const pendingTasks = logItems.filter((item) => item.type === "pending-task").length;
+		const total = (overview?.fileCount ?? 0) + pendingTasks;
 		return {
-			complete: total - pending,
+			complete: total - ((overview?.startedCount ?? 0) + pendingTasks),
 			total
 		};
-	}, [logItems]);
-	const onlyItem = logItems.length === 1 ? logItems[0] : void 0;
-	if (maybeShowSingleLog && onlyItem?.url) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Navigate, {
-		to: onlyItem.url,
+	}, [logItems, overview]);
+	const soleItemUrl = soleItemRedirectUrl(overview, logItems, itemView);
+	if (maybeShowSingleLog && soleItemUrl) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Navigate, {
+		to: soleItemUrl,
 		replace: true
 	});
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -84449,18 +86595,21 @@ var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 				className: clsx(LogsPanel_module_default.list, "text-size-smaller"),
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogListGrid, {
 					rows: listData.rows,
-					totalRowCount: listData.totalRowCount,
+					totalRowCount,
 					sorting: listData.sorting,
 					columnFilters: listData.columnFilters,
+					filter: listData.filter,
+					orderBy: listData.orderBy,
 					currentPath: currentDir,
 					scopeKey,
 					mode,
-					busy
-				})
+					busy: listBusy,
+					listing
+				}, scopeKey ?? "pending")
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LogListFooter, {
-				itemCount: logItems.length,
+				itemCount: totalRowCount,
 				filteredCount: listData.filteredCount,
-				progressText: busy ? "Syncing data" : void 0,
+				progressText: listBusy ? "Syncing data" : void 0,
 				progressBar: progress.total !== progress.complete ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ProgressBar, {
 					min: 0,
 					max: progress.total,
@@ -84471,7 +86620,14 @@ var LogsPanel = ({ maybeShowSingleLog, mode = "logs" }) => {
 		]
 	});
 };
-var appendPendingItems = (evalSet, tasksWithLogFiles, collapsedLogItems) => {
+/** The redirect target when the view holds exactly one item (folder, file,
+*  or pending task — the latter has no url, so no redirect). */
+var soleItemRedirectUrl = (overview, logItems, itemView) => {
+	if ((overview?.fileCount ?? 0) + logItems.length !== 1) return void 0;
+	if (logItems.length === 1) return logItems[0]?.url;
+	return overview?.soleFileName !== void 0 ? fileLogIdentity(overview.soleFileName, itemView)?.url : void 0;
+};
+var appendPendingItems = (evalSet, tasksWithLogFiles, items) => {
 	const pendingTasks = new Array();
 	for (const task of evalSet?.tasks || []) if (!tasksWithLogFiles.has(task.task_id)) pendingTasks.push({
 		id: task.task_id,
@@ -84480,8 +86636,8 @@ var appendPendingItems = (evalSet, tasksWithLogFiles, collapsedLogItems) => {
 		type: "pending-task"
 	});
 	pendingTasks.sort((a, b) => a.name.localeCompare(b.name));
-	collapsedLogItems.push(...pendingTasks);
-	return collapsedLogItems;
+	items.push(...pendingTasks);
+	return items;
 };
 //#endregion
 //#region src/app/shared/openInNewTab.ts
@@ -86592,11 +88748,11 @@ var ToolCallView = ({ id, tool, functionCall, input, selfAnnotation, inputScreen
 	if (actionElement) outputContent = hasContent ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(NavPills, {
 		id: `${id}-browser-action`,
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			title: "Result",
-			children: outputSection
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			title: "Action",
 			children: actionElement
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			title: "Result",
+			children: outputSection
 		})]
 	}) : actionElement;
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -88143,7 +90299,7 @@ var flatTree = (eventNodes, collapsed, visitors, parentNode) => {
 			const children = flatTree(pendingNode.children, collapsed, visitors, pendingNode);
 			pendingNode.children = children;
 			result.push(pendingNode);
-			if (collapsed === null || collapsed[pendingNode.id] !== true) result.push(...children);
+			if (collapsed === null || collapsed[pendingNode.id] !== true) for (const child of children) result.push(child);
 		}
 		for (const visitor of visitors) if (visitor.flush) {
 			const finalNodes = visitor.flush();
@@ -88152,7 +90308,7 @@ var flatTree = (eventNodes, collapsed, visitors, parentNode) => {
 	} else {
 		result.push(node);
 		const children = flatTree(node.children, collapsed, visitors, node);
-		if (collapsed === null || collapsed[node.id] !== true) result.push(...children);
+		if (collapsed === null || collapsed[node.id] !== true) for (const child of children) result.push(child);
 	}
 	return result;
 };
@@ -88446,6 +90602,20 @@ var injectScorersSpan = (events) => {
 		else results.push(event);
 	}
 	return results;
+};
+/**
+* Remove span/step nodes with no visible children (filtering recursively, in
+* place on each node's `children`). Nodes with an attached `sourceSpan`
+* (agent cards) and structural `fork_nav`/`empty_branch` spans are preserved
+* even when childless.
+*/
+var filterEmptySpans = (eventNodes) => {
+	return eventNodes.filter((node) => {
+		if (node.children && node.children.length > 0) node.children = filterEmptySpans(node.children);
+		if (node.sourceSpan) return true;
+		if (node.event.event === "span_begin" && (node.event.type === "fork_nav" || node.event.type === "empty_branch")) return true;
+		return node.event.event !== "span_begin" && node.event.event !== "step" || node.children && node.children.length > 0;
+	});
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/utils.ts
@@ -88858,6 +91028,23 @@ function spanHasBranches(span) {
 	return false;
 }
 /**
+* Count utility spans in `span`'s content tree.
+*
+* Used to surface how many utility agents are elided from display when the
+* "Utility agents" option is off, so they never disappear without a trace.
+* Branches are deliberately excluded: the indicator's contract is "what the
+* utility toggle reveals", and branch content stays hidden behind the
+* separate branches option regardless of the utility setting.
+*/
+function countUtilitySpans(span) {
+	let count = 0;
+	for (const item of span.content) if (item.type === "span") {
+		if (item.utility) count++;
+		count += countUtilitySpans(item);
+	}
+	return count;
+}
+/**
 * Creates a display-ready TimelineSpan from a branch span.
 *
 * If the branch has exactly one child span, returns that span directly.
@@ -89257,6 +91444,7 @@ function unwrapSolverSpan(span) {
 	while (span.type === "solver") {
 		const agentChildren = span.children.filter((child) => isSpanNode(child) && child.type === "agent");
 		if (agentChildren.length !== 1) break;
+		if (span.children.some((c) => !isSpanNode(c) && c.event !== "state" && c.event !== "store")) break;
 		span = agentChildren[0];
 	}
 	return span;
@@ -89425,13 +91613,15 @@ function getSystemPromptForEvent(event) {
 	const input = event.input;
 	if (!input) return null;
 	for (const msg of input) if (msg.role === "system") {
-		if (typeof msg.content === "string") return normalizeSystemPrompt(msg.content);
-		if (Array.isArray(msg.content)) {
+		let raw;
+		if (typeof msg.content === "string") raw = msg.content;
+		else if (Array.isArray(msg.content)) {
 			const parts = [];
 			for (const c of msg.content) if ("text" in c && typeof c.text === "string") parts.push(c.text);
-			const raw = parts.length > 0 ? parts.join("\n") : null;
-			return raw ? normalizeSystemPrompt(raw) : null;
-		}
+			raw = parts.join("\n");
+		} else return null;
+		const normalized = normalizeSystemPrompt(raw);
+		return normalized ? normalized : null;
 	}
 	return null;
 }
@@ -89454,6 +91644,13 @@ function hasToolCalls(event) {
 * This function detects them and wraps each one in a TimelineSpan
 * with utility=true so downstream code treats them as utility agents.
 *
+* The primary trajectory is identified by the system prompt of the first
+* tool-calling ModelEvent. When a span contains no tool-calling model
+* events there is no agentic loop to distinguish helpers from — plain
+* workflows of generate() calls routinely mix system prompts — so
+* foreign-prompt wrapping is skipped entirely (warmup calls are still
+* wrapped; they are identified independently of prompts).
+*
 * Operates recursively on the entire span tree.
 */
 function wrapUtilityEvents(agent) {
@@ -89465,46 +91662,33 @@ function wrapUtilityEvents(agent) {
 			break;
 		}
 	}
-	if (primaryPrompt === null) {
-		for (const item of agent.content) if (item.type === "event" && item.event.event === "model") {
-			primaryPrompt = getSystemPromptForEvent(item.event);
-			break;
-		}
-	}
-	if (primaryPrompt === null) {
-		for (const item of agent.content) if (item.type === "span") wrapUtilityEvents(item);
-		for (const branch of agent.branches) {
-			wrapUtilityEvents(branch);
-			for (const item of branch.content) if (item.type === "span") wrapUtilityEvents(item);
-		}
-		return;
-	}
+	const utilityWrapper = (item, index) => {
+		const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? `${agent.id}-${index}`}`, "utility", "agent", [item]);
+		wrapper.utility = true;
+		return wrapper;
+	};
+	const originalSpans = agent.content.filter((item) => item.type === "span");
 	const newContent = [];
-	for (const item of agent.content) {
+	for (const [index, item] of agent.content.entries()) {
 		if (item.type === "event" && item.event.event === "model") {
 			const modelEvt = item.event;
 			if (isWarmupCall(modelEvt)) {
-				const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? "unknown"}`, "utility", "agent", [item]);
-				wrapper.utility = true;
-				newContent.push(wrapper);
+				newContent.push(utilityWrapper(item, index));
 				continue;
 			}
-			const evtPrompt = getSystemPromptForEvent(modelEvt);
-			if (evtPrompt !== null && evtPrompt !== primaryPrompt && !hasToolCalls(modelEvt)) {
-				const wrapper = createTimelineSpan(`utility-${item.event.uuid ?? "unknown"}`, "utility", "agent", [item]);
-				wrapper.utility = true;
-				newContent.push(wrapper);
-				continue;
+			if (primaryPrompt !== null && !hasToolCalls(modelEvt)) {
+				const evtPrompt = getSystemPromptForEvent(modelEvt);
+				if (evtPrompt !== null && evtPrompt !== primaryPrompt) {
+					newContent.push(utilityWrapper(item, index));
+					continue;
+				}
 			}
 		}
 		newContent.push(item);
 	}
 	agent.content = newContent;
-	for (const item of agent.content) if (item.type === "span") wrapUtilityEvents(item);
-	for (const branch of agent.branches) {
-		wrapUtilityEvents(branch);
-		for (const item of branch.content) if (item.type === "span") wrapUtilityEvents(item);
-	}
+	for (const item of originalSpans) wrapUtilityEvents(item);
+	for (const branch of agent.branches) wrapUtilityEvents(branch);
 }
 function isWarmupCall(event) {
 	if (event.config?.max_tokens == null || event.config.max_tokens > 1) return false;
@@ -89520,24 +91704,11 @@ function isWarmupCall(event) {
 	return false;
 }
 /**
-* Extract system prompt from the first ModelEvent in span's direct content.
+* Extract the normalized system prompt from the first ModelEvent in span's
+* direct content (see getSystemPromptForEvent).
 */
 function getSystemPrompt(span) {
-	for (const item of span.content) if (item.type === "event" && item.event.event === "model") {
-		const input = item.event.input;
-		if (input) {
-			for (const msg of input) if (msg.role === "system") {
-				if (typeof msg.content === "string") return normalizeSystemPrompt(msg.content);
-				if (Array.isArray(msg.content)) {
-					const parts = [];
-					for (const c of msg.content) if ("text" in c && typeof c.text === "string") parts.push(c.text);
-					if (parts.length > 0) return normalizeSystemPrompt(parts.join("\n"));
-					return null;
-				}
-			}
-		}
-		return null;
-	}
+	for (const item of span.content) if (item.type === "event" && item.event.event === "model") return getSystemPromptForEvent(item.event);
 	return null;
 }
 /**
@@ -89563,18 +91734,29 @@ function isSingleTurn(span) {
 	return false;
 }
 /**
+* Check whether span's direct content contains a tool-calling ModelEvent.
+*/
+function hasAgenticLoop(span) {
+	for (const item of span.content) if (item.type === "event" && item.event.event === "model" && hasToolCalls(item.event)) return true;
+	return false;
+}
+/**
 * Classify utility agents in the tree via post-processing.
 *
 * An agent is utility if it has a single turn (or single tool-calling turn)
-* and a different system prompt than its parent.
+* and a different system prompt than its parent. Classification only applies
+* when the parent runs an agentic (tool-calling) loop: absent a loop there
+* is no main trajectory for a helper to be subordinate to — plain workflows
+* of generate() calls routinely mix system prompts.
 */
-function classifyUtilityAgents(node, parentSystemPrompt = null) {
+function classifyUtilityAgents(node, parentSystemPrompt = null, parentHasLoop = false) {
 	const agentSystemPrompt = getSystemPrompt(node);
-	if (parentSystemPrompt !== null && agentSystemPrompt !== null && !node.toolInvoked) {
+	if (parentSystemPrompt !== null && parentHasLoop && agentSystemPrompt !== null && !node.toolInvoked) {
 		if (agentSystemPrompt !== parentSystemPrompt && isSingleTurn(node)) node.utility = true;
 	}
 	const effectivePrompt = agentSystemPrompt ?? parentSystemPrompt;
-	for (const item of node.content) if (item.type === "span") classifyUtilityAgents(item, effectivePrompt);
+	const effectiveHasLoop = node.content.some((item) => item.type === "event" && item.event.event === "model") ? hasAgenticLoop(node) : parentHasLoop;
+	for (const item of node.content) if (item.type === "span") classifyUtilityAgents(item, effectivePrompt, effectiveHasLoop);
 }
 /**
 * Build a Timeline from a flat event list.
@@ -92482,1873 +94664,6 @@ function useListPositionManager(baseListId, selected, scrollRef, hasScrollTarget
 	return { effectiveListId };
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/icons.ts
-/**
-* Bootstrap icon class names used by transcript event components.
-* Both apps (scout and inspect) use the same Bootstrap icons,
-* so these are safe to hardcode as string constants.
-*/
-var TranscriptIcons = {
-	agent: "bi bi-grid",
-	approve: "bi bi-shield",
-	cancel: "bi bi-x-circle",
-	checkpoint: "bi bi-bookmark-check-fill",
-	approvals: {
-		approve: "bi bi-shield-check",
-		reject: "bi bi-shield-x",
-		terminate: "bi bi-shield-exclamation",
-		escalate: "bi bi-box-arrow-up",
-		modify: "bi bi-pencil-square"
-	},
-	arrows: { right: "bi bi-arrow-right" },
-	expand: "bi bi-chevron-up",
-	compaction: "bi bi-arrows-collapse-vertical",
-	edit: "bi bi-pencil-square",
-	error: "bi bi-exclamation-circle-fill",
-	fork: "bi bi-sign-intersection-y-fill",
-	info: "bi bi-info-circle",
-	input: "bi bi-terminal",
-	interrupt: "bi bi-slash-circle",
-	limits: {
-		messages: "bi bi-chat-right-text",
-		custom: "bi bi-exclamation-triangle",
-		operator: "bi bi-person-workspace",
-		tokens: "bi bi-list",
-		turns: "bi bi-arrow-repeat",
-		time: "bi bi-clock",
-		execution: "bi bi-stopwatch",
-		cost: "bi bi-currency-dollar"
-	},
-	logging: {
-		notset: "bi bi-card-text",
-		debug: "bi bi-bug",
-		http: "bi bi-download",
-		info: "bi bi-info-square",
-		warning: "bi bi-exclamation-triangle",
-		error: "bi bi-x-circle",
-		critical: "bi bi-fire"
-	},
-	model: "bi bi-grid-3x3-gap",
-	sample: "bi bi-database",
-	sandbox: "bi bi-box-seam",
-	scorer: "bi bi-calculator",
-	solvers: { use_tools: "bi bi-tools" }
-};
-var OutlineRow_module_default = {
-	eventRow: "_eventRow_lpuxs_1",
-	selected: "_selected_lpuxs_9",
-	toggle: "_toggle_lpuxs_13",
-	eventLink: "_eventLink_lpuxs_18",
-	label: "_label_lpuxs_31",
-	iconSlot: "_iconSlot_lpuxs_37",
-	progress: "_progress_lpuxs_49",
-	loadingRow: "_loadingRow_lpuxs_53",
-	spinner: "_spinner_lpuxs_57",
-	"outline-spin": "_outline-spin_lpuxs_1",
-	popover: "_popover_lpuxs_78"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
-var OutlineRow = ({ node, running, selected, getEventUrl, onSelect, onNavigateToEvent, getCollapsed, setCollapsed, renderLink }) => {
-	const collapsed = getCollapsed?.(node.id) ?? false;
-	const icon = iconForNode(node);
-	const toggle = toggleIcon(node, collapsed);
-	const eventUrl = getEventUrl?.(node.id);
-	const labelText = parsePackageName(labelForNode(node)).module;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(OutlineRow_module_default.eventRow, "text-size-smaller", selected ? OutlineRow_module_default.selected : ""),
-		style: { paddingLeft: `${node.depth * .75}em` },
-		"data-unsearchable": true,
-		onClick: () => {
-			onSelect?.(node.id);
-			onNavigateToEvent?.(node.id);
-		},
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: OutlineRow_module_default.toggle,
-			onClick: () => {
-				if (node.children.length > 0) setCollapsed?.(node.id, !collapsed);
-			},
-			children: toggle ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(toggle) }) : void 0
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: clsx(OutlineRow_module_default.label),
-			"data-depth": node.depth,
-			title: tooltipForNode(node),
-			children: [
-				icon && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: OutlineRow_module_default.iconSlot,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon) })
-				}),
-				eventUrl ? renderLink ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: clsx(OutlineRow_module_default.eventLink),
-					children: renderLink(eventUrl, labelText)
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-					href: eventUrl,
-					className: clsx(OutlineRow_module_default.eventLink),
-					children: labelText
-				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: labelText }),
-				running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
-					size: "small",
-					className: clsx(OutlineRow_module_default.progress),
-					subtle: false
-				}) : void 0
-			]
-		})]
-	}) });
-};
-/** A row rendered below the last outline item while events are still loading. */
-var OutlineLoadingRow = () => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-	className: clsx(OutlineRow_module_default.eventRow, OutlineRow_module_default.loadingRow, "text-size-smaller"),
-	style: { paddingLeft: 0 },
-	"data-unsearchable": true,
-	children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: OutlineRow_module_default.toggle }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(OutlineRow_module_default.label),
-		role: "status",
-		"aria-live": "polite",
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			className: OutlineRow_module_default.iconSlot,
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: OutlineRow_module_default.spinner,
-				"aria-hidden": "true"
-			})
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "loading" })]
-	})]
-});
-var toggleIcon = (node, collapsed) => {
-	if (node.children.length > 0) return collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
-};
-var iconForNode = (node) => {
-	if (node.sourceSpan?.spanType === "agent") return TranscriptIcons.agent;
-	if (node.sourceSpan?.spanType === "branch") return TranscriptIcons.fork;
-	if (node.event.event === "span_begin" && node.event.type === "fork_nav") return TranscriptIcons.fork;
-	switch (node.event.event) {
-		case "sample_limit": return TranscriptIcons.limits.custom;
-		case "score": return TranscriptIcons.scorer;
-		case "error": return TranscriptIcons.error;
-		case "compaction": return TranscriptIcons.compaction;
-	}
-};
-/** Tooltip for the outline row (description for agent nodes, undefined otherwise). */
-var tooltipForNode = (node) => {
-	if (node.sourceSpan?.spanType === "agent" && node.sourceSpan.description) return node.sourceSpan.description;
-};
-var labelForNode = (node) => {
-	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name.toLowerCase();
-	if (node.sourceSpan?.spanType === "branch") return node.sourceSpan.name.toLowerCase();
-	if (node.event.event === "span_begin") switch (node.event.type) {
-		case "solver": return node.event.name;
-		case "tool": return node.event.name;
-		default:
-			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
-			return node.event.name;
-	}
-	else switch (node.event.event) {
-		case "subtask": return node.event.name;
-		case "approval": switch (node.event.decision) {
-			case "approve": return "approved";
-			case "reject": return "rejected";
-			case "escalate": return "escalated";
-			case "modify": return "modified";
-			case "terminate": return "terminated";
-			default: return node.event.decision;
-		}
-		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
-		case "score": return "scoring";
-		case "step":
-			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
-			return node.event.name;
-		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
-		default: return node.event.event;
-	}
-};
-var TranscriptOutline_module_default = {
-	node: "_node_1eney_1",
-	rootHeader: "_rootHeader_1eney_7",
-	panel: "_panel_1eney_18"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/useOutlineWidth.ts
-var kMinWidth = 120;
-var kMaxWidth = 600;
-/** Lazily-created off-screen measurement container. Never removed. */
-var measureRoot = null;
-function getOrCreateMeasureRoot() {
-	if (!measureRoot) {
-		measureRoot = document.createElement("div");
-		measureRoot.style.position = "fixed";
-		measureRoot.style.top = "-9999px";
-		measureRoot.style.left = "-9999px";
-		measureRoot.style.visibility = "hidden";
-		measureRoot.style.pointerEvents = "none";
-		measureRoot.style.width = "max-content";
-		document.body.appendChild(measureRoot);
-	}
-	return measureRoot;
-}
-/**
-* Computes the ideal outline column width by rendering labels into a hidden
-* DOM container that mirrors the real outline structure (same CSS-module
-* classes and inline styles), then reading its natural width.
-*
-* Result is clamped to [kMinWidth, kMaxWidth] px.
-*/
-function useOutlineWidth(outlineNodes, _font, agentName) {
-	return (0, import_react.useMemo)(() => {
-		if (outlineNodes.length === 0 && !agentName) return kMinWidth;
-		const root = getOrCreateMeasureRoot();
-		root.innerHTML = "";
-		root.style.paddingLeft = "0.5rem";
-		root.style.paddingRight = "0.5rem";
-		if (agentName) {
-			const header = document.createElement("div");
-			header.className = [
-				TranscriptOutline_module_default.rootHeader ?? "",
-				"text-size-smaller",
-				"text-style-secondary"
-			].join(" ");
-			header.style.overflow = "visible";
-			header.style.textOverflow = "clip";
-			header.textContent = parsePackageName(agentName).module;
-			root.appendChild(header);
-		}
-		for (const node of outlineNodes) {
-			const row = document.createElement("div");
-			row.className = [OutlineRow_module_default.eventRow ?? "", "text-size-smaller"].join(" ");
-			row.style.paddingLeft = `${node.depth * .75}em`;
-			row.style.fontWeight = "800";
-			const toggle = document.createElement("div");
-			toggle.className = OutlineRow_module_default.toggle ?? "";
-			row.appendChild(toggle);
-			const label = document.createElement("div");
-			label.className = OutlineRow_module_default.label ?? "";
-			label.style.overflow = "visible";
-			label.style.width = "max-content";
-			if (iconForNode(node) !== void 0) {
-				const iconSpan = document.createElement("span");
-				iconSpan.className = OutlineRow_module_default.iconSlot ?? "";
-				iconSpan.innerHTML = "&#x25C6;";
-				label.appendChild(iconSpan);
-			}
-			label.appendChild(document.createTextNode(parsePackageName(labelForOutlineNode(node)).module));
-			row.appendChild(label);
-			root.appendChild(row);
-		}
-		const width = root.getBoundingClientRect().width;
-		return Math.min(kMaxWidth, Math.max(kMinWidth, Math.ceil(width)));
-	}, [outlineNodes, agentName]);
-}
-/**
-* Simplified label extraction matching OutlineRow's labelForNode.
-* Only needs the text content for width measurement.
-*/
-function labelForOutlineNode(node) {
-	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name;
-	if (node.event.event === "span_begin") return node.event.name;
-	switch (node.event.event) {
-		case "subtask": return node.event.name;
-		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
-		case "score": return "scoring";
-		case "step": return node.event.name;
-		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
-		default: return node.event.event;
-	}
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
-var kFramesToStabilize = 10;
-var outlineNodeRunning = ({ running, backfilling, isLast }) => running && !backfilling && isLast;
-var EventPaddingNode = {
-	id: "padding",
-	event: {
-		event: "info",
-		source: "",
-		data: "",
-		timestamp: "",
-		pending: false,
-		working_start: 0,
-		span_id: null,
-		uuid: null,
-		metadata: null
-	},
-	depth: 0,
-	children: []
-};
-var OutlineLoadingNode = {
-	...EventPaddingNode,
-	id: "loading"
-};
-var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, agentName, onHasNodesChange, onWidthChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, getCollapsed, setCollapsed, collapsedEvents, setCollapsedEvents, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
-	const id = "transcript-tree";
-	const listHandle = (0, import_react.useRef)(null);
-	const { getRestoreState } = useVirtuosoState(listHandle, id);
-	const isProgrammaticScrolling = (0, import_react.useRef)(false);
-	const lastScrollPosition = (0, import_react.useRef)(null);
-	const stableFrameCount = (0, import_react.useRef)(0);
-	const beginProgrammaticScroll = (0, import_react.useCallback)(() => {
-		isProgrammaticScrolling.current = true;
-		lastScrollPosition.current = null;
-		stableFrameCount.current = 0;
-		const checkScrollStabilized = () => {
-			if (!isProgrammaticScrolling.current) return;
-			const currentPosition = scrollRef?.current?.scrollTop ?? null;
-			if (currentPosition === lastScrollPosition.current) {
-				stableFrameCount.current++;
-				if (stableFrameCount.current >= kFramesToStabilize) {
-					isProgrammaticScrolling.current = false;
-					return;
-				}
-			} else {
-				stableFrameCount.current = 0;
-				lastScrollPosition.current = currentPosition;
-			}
-			requestAnimationFrame(checkScrollStabilized);
-		};
-		requestAnimationFrame(checkScrollStabilized);
-	}, [scrollRef]);
-	const handleOutlineSelect = (0, import_react.useCallback)((nodeId) => {
-		setSelectedOutlineId?.(nodeId);
-		beginProgrammaticScroll();
-	}, [setSelectedOutlineId, beginProgrammaticScroll]);
-	const outlineNodeList = (0, import_react.useMemo)(() => {
-		return collapseScoring(collapseTurns(makeTurns(flatTree(eventNodes, (collapsedEvents ? collapsedEvents : void 0) || defaultCollapsedIds, [
-			removeNodeVisitor("logger"),
-			removeNodeVisitor("info"),
-			removeNodeVisitor("state"),
-			removeNodeVisitor("store"),
-			removeNodeVisitor("approval"),
-			removeNodeVisitor("input"),
-			removeNodeVisitor("sandbox"),
-			removeStepSpanNameVisitor(kSandboxSignalName),
-			noScorerChildren()
-		]))));
-	}, [
-		eventNodes,
-		collapsedEvents,
-		defaultCollapsedIds
-	]);
-	const hasOutlineNodes = outlineNodeList.length > 0;
-	(0, import_react.useEffect)(() => {
-		onHasNodesChange?.(hasOutlineNodes);
-	}, [hasOutlineNodes, onHasNodesChange]);
-	const outlineWidth = useOutlineWidth(outlineNodeList, void 0, agentName);
-	(0, import_react.useEffect)(() => {
-		onWidthChange?.(outlineWidth);
-	}, [outlineWidth, onWidthChange]);
-	const rootRef = (0, import_react.useRef)(null);
-	(0, import_react.useEffect)(() => {
-		const el = rootRef.current;
-		if (!el) return;
-		let ancestor = el.parentElement;
-		while (ancestor) {
-			if (getComputedStyle(ancestor).display === "grid") {
-				ancestor.style.setProperty("--outline-width", `${outlineWidth}px`);
-				return;
-			}
-			ancestor = ancestor.parentElement;
-		}
-	}, [outlineWidth]);
-	const allNodesList = (0, import_react.useMemo)(() => {
-		return flatTree(eventNodes, null);
-	}, [eventNodes]);
-	const elementIds = allNodesList.map((node) => node.id);
-	const findNearestOutlineAbove = (0, import_react.useCallback)((targetId) => {
-		const targetIndex = allNodesList.findIndex((node) => node.id === targetId);
-		if (targetIndex === -1) return null;
-		const outlineIds = new Set(outlineNodeList.map((node) => node.id));
-		for (let i = targetIndex; i >= 0; i--) {
-			const node = allNodesList[i];
-			if (node !== void 0 && node.id) {
-				if (outlineIds.has(node.id)) return node;
-			}
-		}
-		return null;
-	}, [allNodesList, outlineNodeList]);
-	useScrollTrack(elementIds, (scrolledId) => {
-		if (!isProgrammaticScrolling.current) {
-			const parentNode = findNearestOutlineAbove(scrolledId);
-			if (parentNode) setSelectedOutlineId?.(parentNode.id);
-		}
-	}, scrollRef, { topOffset: scrollTrackOffset });
-	(0, import_react.useEffect)(() => {
-		if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) setCollapsedEvents?.(defaultCollapsedIds);
-	}, [
-		defaultCollapsedIds,
-		collapsedEvents,
-		setCollapsedEvents
-	]);
-	const renderRow = (0, import_react.useCallback)((index, node) => {
-		if (node === EventPaddingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(TranscriptOutline_module_default.eventPadding),
-			style: { height: "2em" }
-		}, node.id);
-		else if (node === OutlineLoadingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineLoadingRow, {}, node.id);
-		else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineRow, {
-			node,
-			running: outlineNodeRunning({
-				running: running === true,
-				backfilling: backfilling === true,
-				isLast: index === outlineNodeList.length - 1
-			}),
-			selected: selectedOutlineId ? selectedOutlineId === node.id : index === 0,
-			getEventUrl,
-			onSelect: handleOutlineSelect,
-			onNavigateToEvent,
-			getCollapsed,
-			setCollapsed,
-			renderLink
-		}, node.id);
-	}, [
-		outlineNodeList,
-		running,
-		backfilling,
-		selectedOutlineId,
-		getEventUrl,
-		handleOutlineSelect,
-		onNavigateToEvent,
-		getCollapsed,
-		setCollapsed,
-		renderLink
-	]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		ref: rootRef,
-		style,
-		children: [agentName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(TranscriptOutline_module_default.rootHeader, "text-size-smaller", "text-style-secondary"),
-			children: agentName
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(rs, {
-			ref: listHandle,
-			customScrollParent: outlineScrollEl ?? void 0,
-			id,
-			data: backfilling ? [
-				...outlineNodeList,
-				OutlineLoadingNode,
-				EventPaddingNode
-			] : [...outlineNodeList, EventPaddingNode],
-			defaultItemHeight: 50,
-			itemContent: renderRow,
-			atBottomThreshold: 30,
-			increaseViewportBy: {
-				top: 300,
-				bottom: 300
-			},
-			overscan: {
-				main: 10,
-				reverse: 10
-			},
-			className: clsx(className, "transcript-outline"),
-			skipAnimationFrameInResizeObserver: true,
-			restoreStateFrom: getRestoreState(),
-			tabIndex: 0
-		})]
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/search/sampleSearch.ts
-/**
-* Build a map from event ID to the swimlane row key that contains it.
-*
-* Walks each row's agents. Within each agent, iterates through its `content`
-* but stops descending into nested agent spans — those events belong to
-* their own row (a separate entry in `state.rows`).
-*
-* If `state.rows` is sorted with deeper rows after their parents (the convention
-* established by `useTimeline`), processing them in order means the deepest row
-* wins when the same event would otherwise be reachable via multiple rows
-* (defensive — normally each event has exactly one containing row).
-*/
-function buildEventToRowMap(rows) {
-	const map = /* @__PURE__ */ new Map();
-	const ordered = [...rows].sort((a, b) => a.depth - b.depth);
-	for (const row of ordered) for (const rowSpan of row.spans) for (const agent of getAgents(rowSpan)) recordRowEvents(agent, row.key, map);
-	return map;
-}
-function recordRowEvents(agent, rowKey, out) {
-	const stack = [agent];
-	while (stack.length > 0) {
-		const span = stack.pop();
-		for (const item of span.content) if (item.type === "event") {
-			const uuid = item.event.uuid;
-			if (uuid) out.set(uuid, rowKey);
-		} else {
-			if (item.spanType === "agent") continue;
-			stack.push(item);
-		}
-	}
-}
-/**
-* Find every occurrence of `term` across the sample's events.
-*
-* Reuses `extractEventFields` so the searchable text exactly matches what
-* `eventSearchText` (the per-row counter) would extract. Events whose uuid
-* isn't in `eventToRow` are skipped (they're not addressable by row switch).
-*
-* Order: events in input order, fields in `extractEventFields` order,
-* occurrences left-to-right. Stable across calls with the same inputs.
-*/
-function findAllMatches(events, term, eventToRow) {
-	if (!term) return [];
-	const prepared = prepareSearchTerm(term);
-	const variants = [
-		prepared.simple,
-		...prepared.unquoted ? [prepared.unquoted] : [],
-		...prepared.jsonEscaped ? [prepared.jsonEscaped] : []
-	];
-	const out = [];
-	for (const event of events) {
-		const uuid = event.uuid;
-		if (!uuid) continue;
-		const rowKey = eventToRow.get(uuid);
-		if (rowKey === void 0) continue;
-		const fields = extractEventFields(event);
-		let fieldIndex = 0;
-		for (const [fieldKey, text] of fields) {
-			const positions = findVariantPositions(text.toLowerCase(), variants);
-			for (let i = 0; i < positions.length; i++) out.push({
-				rowKey,
-				eventId: uuid,
-				fieldKey,
-				fieldIndex,
-				occurrenceIndex: i
-			});
-			fieldIndex++;
-		}
-	}
-	return out;
-}
-/**
-* Find every occurrence of any `variants` substring in `lowered`, deduped by
-* range so a JSON-quoted form `"foo"` matched by both `simple` and `unquoted`
-* counts as one occurrence (the longer variant wins). Mirrors the variant
-* matching `LiveVirtualList.searchInText` does for the chat counter so the
-* two counters agree on the total.
-*/
-function findVariantPositions(lowered, variants) {
-	const hits = [];
-	for (const v of variants) {
-		if (!v) continue;
-		let from = 0;
-		let p = 0;
-		while ((p = lowered.indexOf(v, from)) !== -1) {
-			hits.push({
-				pos: p,
-				len: v.length
-			});
-			from = p + v.length;
-		}
-	}
-	hits.sort((a, b) => a.pos - b.pos || b.len - a.len);
-	const out = [];
-	let endOfLast = -1;
-	for (const h of hits) if (h.pos >= endOfLast) {
-		out.push(h.pos);
-		endOfLast = h.pos + h.len;
-	}
-	return out;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
-var DEFAULT_ID = "transcript-sample";
-var SETTLE_LIMIT = 90;
-/**
-* Registers a sample-wide search source with ExtendedFindContext.
-*
-* - count(term): findAllMatches over the full sample. Cached per term.
-* - searchFn(term, dir): finds the next match across the entire sample,
-*   switches swimlane row if needed, sets the find target (auto-expand),
-*   then delegates to viewNodesRef.scrollToEvent.
-*
-* Preconditions: must be mounted inside an `ExtendedFindProvider`. The
-* `FindTargetProvider` is optional — its setter no-ops when absent.
-*/
-function useTranscriptSearchSource(options) {
-	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id = DEFAULT_ID } = options;
-	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
-	const setFindTarget = useFindTargetSetter();
-	const eventToRow = (0, import_react.useMemo)(() => buildEventToRowMap(rows), [rows]);
-	const cacheRef = (0, import_react.useRef)(null);
-	const getMatches = (0, import_react.useCallback)((term) => {
-		const c = cacheRef.current;
-		if (c && c.events === events && c.eventToRow === eventToRow && c.term === term) return c.matches;
-		const matches = findAllMatches(events, term, eventToRow);
-		cacheRef.current = {
-			events,
-			eventToRow,
-			term,
-			matches
-		};
-		return matches;
-	}, [events, eventToRow]);
-	const selectedRef = (0, import_react.useRef)(selected);
-	(0, import_react.useEffect)(() => {
-		selectedRef.current = selected;
-	}, [selected]);
-	const lastResolvedRef = (0, import_react.useRef)(null);
-	const invocationIdRef = (0, import_react.useRef)(0);
-	const pendingTimersRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
-	(0, import_react.useEffect)(() => {
-		const timers = pendingTimersRef.current;
-		return () => {
-			for (const t of timers) clearTimeout(t);
-			timers.clear();
-		};
-	}, []);
-	const activeTermRef = (0, import_react.useRef)("");
-	(0, import_react.useEffect)(() => {
-		if (typeof document === "undefined") return;
-		const onSelectionChange = () => {
-			const term = activeTermRef.current;
-			if (!term) return;
-			const sel = document.getSelection();
-			if (!sel || sel.rangeCount === 0) return;
-			const range = sel.getRangeAt(0);
-			if (range.startContainer !== range.endContainer) return;
-			if (range.endOffset - range.startOffset !== term.length) return;
-			if (range.toString().toLowerCase() !== term.toLowerCase()) return;
-			const match = matchAtSelection(getMatches(term), term);
-			if (match) lastResolvedRef.current = {
-				match,
-				term
-			};
-		};
-		document.addEventListener("selectionchange", onSelectionChange);
-		return () => document.removeEventListener("selectionchange", onSelectionChange);
-	}, [getMatches]);
-	const countFn = (0, import_react.useCallback)((term) => {
-		activeTermRef.current = term;
-		return getMatches(term).length;
-	}, [getMatches]);
-	const searchFn = (0, import_react.useCallback)(async (term, direction, onContentReady) => {
-		const myId = ++invocationIdRef.current;
-		const isStale = () => myId !== invocationIdRef.current;
-		const matches = getMatches(term);
-		if (matches.length === 0) return false;
-		activeTermRef.current = term;
-		onHeadroomResetAnchor?.(true);
-		onHeadroomSetHidden?.(direction === "forward");
-		let position = resolvePosition(matches, lastResolvedRef.current, viewNodesRef.current, selectedRef.current, term);
-		const SKIP_LIMIT = Math.min(matches.length, 8);
-		let next = null;
-		for (let attempt = 0; attempt < SKIP_LIMIT; attempt++) {
-			next = pickNext(matches, position, direction);
-			if (next.rowKey !== selectedRef.current) {
-				onSelect(next.rowKey);
-				const ready = await waitForRow(viewNodesRef, next.eventId);
-				if (isStale()) return false;
-				if (!ready) {
-					position = matches.indexOf(next);
-					lastResolvedRef.current = {
-						match: next,
-						term
-					};
-					continue;
-				}
-			}
-			setFindTarget({
-				term,
-				eventId: next.eventId
-			});
-			await raf();
-			if (isStale()) return false;
-			await raf();
-			if (isStale()) return false;
-			viewNodesRef.current?.scrollToEvent(next.eventId);
-			const inDom = await waitForEventInDOM(next.eventId);
-			if (isStale()) return false;
-			if (inDom) break;
-			const skippedEventId = next.eventId;
-			let lastSkipIdx = matches.indexOf(next);
-			const stride = direction === "forward" ? 1 : -1;
-			for (let idx = lastSkipIdx + stride; idx >= 0 && idx < matches.length && matches[idx].eventId === skippedEventId; idx += stride) lastSkipIdx = idx;
-			position = lastSkipIdx;
-			lastResolvedRef.current = {
-				match: matches[lastSkipIdx],
-				term
-			};
-			next = null;
-		}
-		if (!next) return false;
-		positionSelectionAroundTerm(next.eventId, term, direction);
-		lastResolvedRef.current = {
-			match: next,
-			term
-		};
-		onContentReady();
-		const reselectId = next.eventId;
-		const timer = window.setTimeout(() => {
-			if (isStale()) return;
-			reselectTermInPanel(reselectId, term);
-		}, 300);
-		pendingTimersRef.current.add(timer);
-		return true;
-	}, [
-		getMatches,
-		viewNodesRef,
-		onSelect,
-		setFindTarget,
-		onHeadroomResetAnchor,
-		onHeadroomSetHidden
-	]);
-	(0, import_react.useEffect)(() => {
-		const unCount = registerMatchCounter(id, countFn);
-		const unSearch = registerVirtualList(id, searchFn);
-		return () => {
-			unCount();
-			unSearch();
-		};
-	}, [
-		id,
-		registerMatchCounter,
-		registerVirtualList,
-		countFn,
-		searchFn
-	]);
-}
-function pickNext(matches, position, dir) {
-	const len = matches.length;
-	if (position < 0) return dir === "forward" ? matches[0] : matches[len - 1];
-	return dir === "forward" ? matches[(position + 1) % len] : matches[(position - 1 + len) % len];
-}
-function resolvePosition(matches, last, view, selected, term) {
-	if (last && last.term === term) {
-		const idx = matches.findIndex((m) => m.eventId === last.match.eventId && m.fieldKey === last.match.fieldKey && m.fieldIndex === last.match.fieldIndex && m.occurrenceIndex === last.match.occurrenceIndex);
-		if (idx !== -1) return idx;
-	}
-	const range = view?.getVisibleRange();
-	const flattened = view?.getFlattenedNodes() ?? [];
-	if (!range || flattened.length === 0) return -1;
-	const visibleIds = new Set(flattened.slice(range.startIndex, range.endIndex + 1).map((n) => n.id));
-	return matches.findIndex((m) => m.rowKey === selected && visibleIds.has(m.eventId));
-}
-/**
-* Find the SampleMatch corresponding to the current document selection, if any.
-*
-* Walks up from the selection's startContainer to find an event-panel element
-* (one whose `id` is in `matches`'s eventId set). Then counts how many
-* occurrences of `term` precede the selection within that event's text — that
-* count is the DOM-order occurrence index, which we map to the n-th match in
-* our array for that event.
-*
-* Returns `null` if there is no selection, no event ancestor, or the count
-* runs past the matches we know about (e.g. selection isn't actually on a
-* `term` instance).
-*/
-function matchAtSelection(matches, term) {
-	if (typeof window === "undefined" || !term) return null;
-	const sel = window.getSelection();
-	if (!sel || sel.rangeCount === 0) return null;
-	const range = sel.getRangeAt(0);
-	const eventIds = new Set(matches.map((m) => m.eventId));
-	let el = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
-	while (el && !eventIds.has(el.id)) el = el.parentElement;
-	if (!el) return null;
-	const eventId = el.id;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-	let occurrenceInEvent = 0;
-	let node;
-	while (node = walker.nextNode()) {
-		const textNode = node;
-		if (textNode === range.startContainer) {
-			const head = textNode.data.slice(0, range.startOffset).toLowerCase();
-			let from = 0;
-			while ((from = head.indexOf(lowered, from)) !== -1) {
-				occurrenceInEvent++;
-				from += lowered.length;
-			}
-			break;
-		}
-		const text = textNode.data.toLowerCase();
-		let from = 0;
-		while ((from = text.indexOf(lowered, from)) !== -1) {
-			occurrenceInEvent++;
-			from += lowered.length;
-		}
-	}
-	let seen = 0;
-	for (const m of matches) {
-		if (m.eventId !== eventId) continue;
-		if (seen === occurrenceInEvent) return m;
-		seen++;
-	}
-	return null;
-}
-/**
-* Walk the DOM under the event element with `eventId` and place a collapsed
-* selection adjacent to the FIRST occurrence of `term` (forward) or the LAST
-* occurrence (backward), so FindBand's subsequent `window.find` advances onto
-* exactly that occurrence.
-*
-* Forward: cursor BEFORE the first match — `window.find` searches forward
-* from the cursor and lands on the term.
-* Backward: cursor AFTER the last match — `window.find` with backward=true
-* searches backward from the cursor and lands on the term. (If we collapsed
-* before instead, backward would skip past it and either find nothing or
-* land in unrelated DOM, which makes findExtendedInDOM return false and the
-* counter fail to update.)
-*
-* If the panel isn't mounted or doesn't render the term as text (e.g. the
-* match was in a JSON-stringified field we don't render), bail silently —
-* FindBand will fall back to its default windowFind behavior.
-*/
-function positionSelectionAroundTerm(eventId, term, direction) {
-	const root = document.getElementById(eventId);
-	if (!root) return false;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	let target = null;
-	for (let node; node = walker.nextNode();) {
-		const textNode = node;
-		const text = textNode.data.toLowerCase();
-		let from = 0;
-		while ((from = text.indexOf(lowered, from)) !== -1) {
-			target = {
-				node: textNode,
-				idx: from
-			};
-			from += lowered.length;
-			if (direction === "forward") break;
-		}
-		if (target && direction === "forward") break;
-	}
-	if (!target) return false;
-	const sel = window.getSelection();
-	if (!sel) return false;
-	const range = document.createRange();
-	range.setStart(target.node, direction === "forward" ? target.idx : target.idx + term.length);
-	range.collapse(true);
-	sel.removeAllRanges();
-	sel.addRange(range);
-	return true;
-}
-/**
-* If the current selection no longer covers `term` inside the panel
-* (because a late settling pass — Virtuoso re-render, lazy syntax
-* highlighting, ExpandablePanel auto-expand reflow — detached the text
-* node `window.find` was anchored on), re-anchor the selection to the
-* first occurrence of `term` in the panel. Returns false (no-op) when
-* the existing highlight is intact.
-*/
-function reselectTermInPanel(eventId, term) {
-	const root = document.getElementById(eventId);
-	if (!root) return false;
-	const sel = window.getSelection();
-	if (!sel) return false;
-	if (sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && sel.getRangeAt(0).toString().toLowerCase() === term.toLowerCase() && root.contains(sel.getRangeAt(0).startContainer)) return true;
-	const lowered = term.toLowerCase();
-	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-	for (let node; node = walker.nextNode();) {
-		const idx = (node.textContent ?? "").toLowerCase().indexOf(lowered);
-		if (idx === -1) continue;
-		const range = document.createRange();
-		range.setStart(node, idx);
-		range.setEnd(node, idx + term.length);
-		sel.removeAllRanges();
-		sel.addRange(range);
-		return true;
-	}
-	return false;
-}
-function raf() {
-	return new Promise((resolve) => typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame(() => resolve()) : setTimeout(resolve, 0));
-}
-/**
-* Wait for the freshly-selected row to mount: poll until the target eventId
-* is present in the flattened-node list, or the budget expires.
-* Returns false if the view is not mounted or the event never appears.
-*/
-async function waitForRow(viewNodesRef, eventId) {
-	for (let i = 0; i < SETTLE_LIMIT; i++) {
-		const view = viewNodesRef.current;
-		if (!view) return false;
-		if (view.getFlattenedNodes().some((n) => n.id === eventId)) return true;
-		await raf();
-	}
-	return false;
-}
-/**
-* Wait until the event panel is actually rendered to the DOM. After
-* `scrollToEvent` triggers a Virtuoso scroll for an off-screen target, the
-* panel takes several frames to mount. Returns false on timeout. The budget
-* is shorter than for row mount because we use this to detect unreachable
-* matches and skip them — too long a wait makes skipping feel laggy.
-*/
-async function waitForEventInDOM(eventId) {
-	if (typeof document === "undefined") return false;
-	const DOM_BUDGET = 30;
-	for (let i = 0; i < DOM_BUDGET; i++) {
-		if (document.getElementById(eventId)) return true;
-		await raf();
-	}
-	return false;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/TimelineSelectContext.ts
-var TimelineSelectContext = (0, import_react.createContext)(null);
-function useTimelineSelect() {
-	return (0, import_react.useContext)(TimelineSelectContext);
-}
-var TimelineRowSelectContext = (0, import_react.createContext)(null);
-function useTimelineRowSelect() {
-	return (0, import_react.useContext)(TimelineRowSelectContext);
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/markers.ts
-var defaultMarkerConfig = {
-	kinds: ["compaction", "branch"],
-	depth: "direct"
-};
-/**
-* Returns true if the event is an error event.
-*
-* An event is an error if:
-* - It's a ToolEvent with a non-null `.error`
-* - It's a ModelEvent with a non-null `.error`
-*
-* Noneable fields are stripped during serialization (`exclude_none=True`), so
-* `null`/missing both manifest as `undefined` at runtime — hence the `!= null`
-* check. See packages/inspect-common/src/types/index.ts.
-*
-* Note: `ModelOutput.error` (a soft-refusal/content-filter channel populated
-* by some providers without raising) is intentionally excluded — the
-* transcript's ModelEventView only renders `event.error`, so flagging on
-* `output.error` produces markers that navigate to a card with no visible
-* error.
-*/
-function isErrorEvent(event) {
-	if (event.event === "tool") return event.error != null;
-	if (event.event === "model") return event.error != null;
-	return false;
-}
-/**
-* Returns true if the event is a compaction event.
-*/
-function isCompactionEvent(event) {
-	return event.event === "compaction";
-}
-/**
-* Builds a tooltip string for an error event.
-*/
-function errorTooltip(event) {
-	if (event.event === "tool") {
-		const msg = event.error?.message ?? "Unknown error";
-		return `Error (${event.function}): ${msg}`;
-	}
-	if (event.event === "model") {
-		const msg = (typeof event.error === "string" ? event.error : null) ?? "Unknown error";
-		return `Error (${event.model}): ${msg}`;
-	}
-	return "Error";
-}
-/**
-* Collects timeline markers from a TimelineSpan at the specified depth.
-*
-* - `"direct"`: Only markers from the span's own TimelineEvent content.
-* - `"children"`: Own events + events from direct child spans.
-* - `"recursive"`: Full subtree traversal.
-*
-* Branch markers are always collected from the span's own branches
-* (not from child spans), regardless of depth.
-*
-* Results are sorted by timestamp.
-*/
-function collectMarkers(node, depth) {
-	const markers = [];
-	collectEventMarkers(node, depth, 0, markers);
-	collectBranchMarkers(node, markers);
-	markers.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-	return markers;
-}
-/**
-* Collects error and compaction markers from event nodes.
-*
-* @param node The span to scan
-* @param depth The depth mode
-* @param currentLevel 0 = the root node itself, 1 = direct children, etc.
-* @param markers Accumulator array
-*/
-function collectEventMarkers(node, depth, currentLevel, markers) {
-	for (const item of node.content) if (item.type === "event") addEventMarker(item, markers);
-	else if (item.type === "span" && shouldDescend(depth, currentLevel)) collectEventMarkers(item, depth, currentLevel + 1, markers);
-}
-/**
-* Determines whether to descend into a child span based on depth mode.
-*/
-function shouldDescend(depth, currentLevel) {
-	if (depth === "direct") return false;
-	if (depth === "children") return currentLevel === 0;
-	return true;
-}
-/**
-* Adds a marker for a timeline event if it's an error or compaction event.
-*/
-function addEventMarker(eventNode, markers) {
-	const event = eventNode.event;
-	const uuid = event.uuid;
-	if (isErrorEvent(event)) markers.push({
-		kind: "error",
-		timestamp: eventNode.startTime(),
-		reference: uuid ?? "",
-		tooltip: errorTooltip(event)
-	});
-	else if (isCompactionEvent(event)) {
-		const ce = event;
-		const before = ce.tokens_before?.toLocaleString() ?? "?";
-		const after = ce.tokens_after?.toLocaleString() ?? "?";
-		markers.push({
-			kind: "compaction",
-			timestamp: eventNode.startTime(),
-			reference: uuid ?? "",
-			tooltip: `Context compaction: ${before} → ${after} tokens`
-		});
-	}
-}
-/**
-* Collects branch markers from a span's branches.
-*
-* Emits one marker per branch, positioned at the fork point event in the
-* parent span (resolved via the branch's `branchedFrom` identifier).
-* Clicking a branch marker toggles the showBranches display option.
-*/
-function collectBranchMarkers(node, markers) {
-	for (const branch of node.branches) markers.push({
-		kind: "branch",
-		timestamp: resolveForkTimestamp(node, branch),
-		reference: branch.branchedFrom ?? "",
-		tooltip: branchTooltip([branch])
-	});
-}
-/**
-* Resolves the fork point timestamp from the parent span's content.
-*
-* `branch.branchedFrom` is a message ID (not an event UUID). Searches
-* parent events for one that produced or carries this message ID.
-*
-* When `branchedFrom` is empty the branch is unrolled from the very
-* beginning, so we return the parent's start time.
-*
-* Falls back to `parent.startTime()` when no matching event is found.
-*/
-function resolveForkTimestamp(parent, branch) {
-	if (!branch.branchedFrom) return parent.startTime();
-	for (const item of parent.content) if (item.type === "event" && item.matchesForkPoint(branch.branchedFrom)) return item.startTime();
-	return parent.startTime();
-}
-/**
-* Builds a tooltip string summarizing branches at a fork point.
-*/
-function branchTooltip(branches) {
-	const count = branches.length;
-	const tokenStr = formatCompactTokens(branches.reduce((sum, b) => sum + b.totalTokens(), 0));
-	const envelope = computeTimeEnvelope(branches);
-	const duration = formatDuration$1(envelope.startTime, envelope.endTime);
-	return `${count === 1 ? "1 branch" : `${count} branches`} (${tokenStr}, ${duration})`;
-}
-/**
-* Formats a token count compactly with " tokens" suffix: "48.5k tokens", "1.2M tokens", etc.
-*/
-function formatCompactTokens(tokens) {
-	return `${formatTokenCount(tokens)} tokens`;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneLayout.ts
-/**
-* Swimlane layout computation for the timeline UI.
-*
-* Maps swimlane rows + a time range to percentage-based positions for CSS
-* rendering. All functions are pure with no DOM or React dependencies.
-*/
-/**
-* Computes a single percentage position for a timestamp within a view range.
-* Result is clamped to [0, 100]. Returns 0 for zero-duration view ranges.
-*/
-function timestampToPercent(timestamp, viewStart, viewEnd) {
-	const range = viewEnd.getTime() - viewStart.getTime();
-	if (range <= 0) return 0;
-	const offset = timestamp.getTime() - viewStart.getTime();
-	return Math.max(0, Math.min(100, offset / range * 100));
-}
-/**
-* Computes the bar position (left + width) for a time range within a view range.
-* Both left and width are clamped so the bar stays within [0, 100].
-*/
-function computeBarPosition(spanStart, spanEnd, viewStart, viewEnd) {
-	const left = timestampToPercent(spanStart, viewStart, viewEnd);
-	const right = timestampToPercent(spanEnd, viewStart, viewEnd);
-	return {
-		left,
-		width: Math.max(0, right - left)
-	};
-}
-/**
-* Computes the time envelope (earliest start, latest end) of a non-empty array.
-* Useful for computing the bounding range of parallel agents or branches.
-*/
-function computeTimeEnvelope(items) {
-	const first = items[0];
-	let startTime = first.startTime();
-	let endTime = first.endTime();
-	for (let i = 1; i < items.length; i++) {
-		const item = items[i];
-		if (item.startTime() < startTime) startTime = item.startTime();
-		if (item.endTime() > endTime) endTime = item.endTime();
-	}
-	return {
-		startTime,
-		endTime
-	};
-}
-/**
-* Formats a token count for compact display: "48.5k", "1.2M", etc.
-* Uses rounding thresholds so values like 999,950 display as "1.0M" not "1000.0k".
-*/
-function formatTokenCount(tokens) {
-	if (tokens >= 999950) return `${formatPrettyDecimal(tokens / 1e6, 1)}M`;
-	if (tokens >= 1e3) return `${formatPrettyDecimal(tokens / 1e3, 1)}k`;
-	return String(tokens);
-}
-/**
-* Computes the full layout for all swimlane rows.
-*
-* The TimeMapping defines how timestamps map to percentage positions. When
-* gap compression is active, idle gaps are compressed into narrow regions.
-* Markers are collected at the specified depth for each row's spans.
-*/
-function computeRowLayouts(rows, mapping, markerDepth, markerKinds, branchMappings) {
-	return rows.map((row) => {
-		const isParent = row.depth === 0;
-		const rowMapping = branchMappings?.get(row.key) ?? mapping;
-		const spans = row.spans.map((rowSpan) => {
-			if (isSingleSpan(rowSpan)) return {
-				bar: computeBarFromMapping(rowSpan.agent.startTime(false), rowSpan.agent.endTime(false), rowMapping),
-				drillable: false,
-				childCount: 0,
-				parallelCount: null,
-				description: rowSpan.agent.description ?? null
-			};
-			const agents = rowSpan.agents;
-			let envStart = agents[0].startTime(false);
-			let envEnd = agents[0].endTime(false);
-			for (let i = 1; i < agents.length; i++) {
-				const a = agents[i];
-				if (a.startTime(false) < envStart) envStart = a.startTime(false);
-				if (a.endTime(false) > envEnd) envEnd = a.endTime(false);
-			}
-			return {
-				bar: computeBarFromMapping(envStart, envEnd, rowMapping),
-				drillable: false,
-				childCount: 0,
-				parallelCount: agents.length,
-				description: null
-			};
-		});
-		const allMarkers = collectRowMarkers(row, markerDepth, rowMapping);
-		const markers = markerKinds ? allMarkers.filter((m) => markerKinds.includes(m.kind)) : allMarkers;
-		const rowParallelCount = spans.length === 1 && spans[0].parallelCount !== null ? spans[0].parallelCount : null;
-		return {
-			key: row.key,
-			name: row.name,
-			isParent,
-			depth: row.depth,
-			spans,
-			markers,
-			totalTokens: row.totalTokens,
-			parallelCount: rowParallelCount,
-			branch: row.branch
-		};
-	});
-}
-/** Computes bar position using a TimeMapping (which may compress gaps). */
-function computeBarFromMapping(spanStart, spanEnd, mapping) {
-	const left = mapping.toPercent(spanStart);
-	const right = mapping.toPercent(spanEnd);
-	return {
-		left,
-		width: Math.max(0, right - left)
-	};
-}
-/** Returns true if a TimelineSpan has any TimelineEvent items in its content tree. */
-function spanHasEvents(span) {
-	for (const item of span.content) {
-		if (item.type === "event") return true;
-		if (item.type === "span" && spanHasEvents(item)) return true;
-	}
-	return false;
-}
-/** Returns true if any agent across all spans in a row has events. */
-function rowHasEvents(row) {
-	return row.spans.some((rowSpan) => getAgents(rowSpan).some(spanHasEvents));
-}
-/**
-* Collects and positions markers for a single row.
-*
-* For the parent row, markers come from the parent span itself.
-* For child rows, markers are collected from each span's agent and merged.
-*/
-function collectRowMarkers(row, depth, mapping) {
-	const allMarkers = [];
-	for (const rowSpan of row.spans) {
-		const agents = getAgents(rowSpan);
-		for (const agent of agents) {
-			const markers = collectMarkers(agent, depth);
-			for (const m of markers) allMarkers.push({
-				left: mapping.toPercent(m.timestamp),
-				kind: m.kind,
-				reference: m.reference,
-				tooltip: m.tooltip
-			});
-		}
-	}
-	allMarkers.sort((a, b) => a.left - b.left);
-	let compactionIdx = 0;
-	for (const m of allMarkers) if (m.kind === "compaction") m.compactionIndex = compactionIdx++;
-	return allMarkers;
-}
-var AgentCardView_module_default = {
-	card: "_card_fxgye_1",
-	branchCard: "_branchCard_fxgye_13",
-	utilityCard: "_utilityCard_fxgye_21",
-	header: "_header_fxgye_30",
-	icon: "_icon_fxgye_39",
-	title: "_title_fxgye_43",
-	meta: "_meta_fxgye_49",
-	disclosure: "_disclosure_fxgye_54",
-	description: "_description_fxgye_59",
-	resultPanel: "_resultPanel_fxgye_64"
-};
-var TimelineIconsContext = (0, import_react.createContext)({
-	error: "bi bi-exclamation-circle-fill",
-	compaction: "bi bi-arrows-collapse-vertical",
-	fork: "bi bi-sign-intersection-y-fill",
-	agent: "bi bi-grid",
-	threeDots: "bi bi-three-dots",
-	expand: { down: "bi bi-chevron-down" },
-	collapse: { up: "bi bi-chevron-up" },
-	chevron: {
-		down: "bi bi-chevron-down",
-		left: "bi bi-chevron-left",
-		right: "bi bi-chevron-right"
-	},
-	solvers: { default: "bi bi-arrow-return-right" },
-	punchDown: "bi bi-arrows-angle-expand"
-});
-function useTimelineIcons() {
-	return (0, import_react.useContext)(TimelineIconsContext);
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/AgentCardView.tsx
-var AgentCardView = ({ span, className }) => {
-	const icons = useTimelineIcons();
-	const select = useTimelineSelect();
-	const handleClick = (0, import_react.useCallback)(() => {
-		select?.(span.id);
-	}, [select, span.id]);
-	const stopPropagation = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-	}, []);
-	const resultOutput = (0, import_react.useMemo)(() => getSpanToolResult(span), [span]);
-	const isUtility = span.utility;
-	const isBranch = span.spanType === "branch";
-	const title = isUtility ? getUtilityAgentLabel(span) : span.name.toLowerCase();
-	const tokens = formatTokenCount(span.totalTokens());
-	const duration = formatDurationShort(span.startTime(), span.endTime());
-	const iconClass = isBranch ? icons.fork : icons.agent;
-	const label = isBranch ? "branch" : isUtility ? "utility" : "sub-agent";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(AgentCardView_module_default.card, isUtility && AgentCardView_module_default.utilityCard, isBranch && AgentCardView_module_default.branchCard, className),
-		onClick: isBranch ? void 0 : handleClick,
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(AgentCardView_module_default.header, "text-size-small"),
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(iconClass, AgentCardView_module_default.icon, "text-style-secondary") }),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: clsx(AgentCardView_module_default.title, "text-style-secondary", "text-style-label"),
-						children: [
-							label,
-							": ",
-							title
-						]
-					}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {}),
-					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: clsx(AgentCardView_module_default.meta, "text-style-secondary"),
-						children: [
-							tokens,
-							" · ",
-							duration
-						]
-					}),
-					!isBranch && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icons.chevron.right, AgentCardView_module_default.disclosure, "text-style-secondary") })
-				]
-			}),
-			!isUtility && span.description && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx(AgentCardView_module_default.description, "text-size-small"),
-				children: span.description
-			}),
-			resultOutput && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: AgentCardView_module_default.resultPanel,
-				onClick: stopPropagation,
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
-					id: `agent-result-${span.id}`,
-					collapse: true,
-					lines: 15,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: resultOutput })
-				})
-			})
-		]
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/timeMapping.ts
-/** Same threshold as computeIdleTime in timeline.ts — 5 minutes. */
-var GAP_THRESHOLD_MS = 3e5;
-/** Each compressed gap gets zero width — gaps simply vanish from the timeline. */
-var GAP_PERCENT = 0;
-/** Maximum total percentage allocated to all gaps combined. */
-var MAX_TOTAL_GAP_PERCENT = 0;
-/**
-* Creates an identity (linear) time mapping with no compression.
-* Useful as a fallback or for timelines without idle gaps.
-*/
-function createIdentityMapping(viewStart, viewEnd) {
-	const startMs = viewStart.getTime();
-	const range = viewEnd.getTime() - startMs;
-	return {
-		toPercent(timestamp) {
-			if (range <= 0) return 0;
-			const offset = timestamp.getTime() - startMs;
-			return Math.max(0, Math.min(100, offset / range * 100));
-		},
-		hasCompression: false,
-		gaps: []
-	};
-}
-/**
-* Compute the full view range of a node, including branches recursively.
-*
-* The span's own startTime/endTime cover only direct content. Branches
-* (and their nested branches) may extend beyond that range. The view
-* range is the recursive union of the span's time range and all branch
-* time ranges, giving the full time extent needed by the swimlane
-* visualization.
-*/
-function computeViewRange(node) {
-	const items = [node];
-	collectBranches(node, items);
-	let start = items[0].startTime(false);
-	let end = items[0].endTime(false);
-	for (let i = 1; i < items.length; i++) {
-		const s = items[i];
-		if (s.content.length === 0) continue;
-		const st = s.startTime(false);
-		const et = s.endTime(false);
-		if (st < start) start = st;
-		if (et > end) end = et;
-	}
-	return {
-		start,
-		end
-	};
-}
-/** Recursively collect all branch spans for view range computation. */
-function collectBranches(node, out) {
-	for (const branch of node.branches) {
-		out.push(branch);
-		collectBranches(branch, out);
-	}
-	for (const item of node.content) if (item.type === "span") collectBranches(item, out);
-}
-/**
-* Computes a TimeMapping for a timeline node.
-*
-* The mapping covers the full view range (content + branches) so that
-* branch rows render at correct positions within the swimlane.
-*
-* If the node has no idle time (idleTime === 0), returns an identity mapping
-* with zero overhead. Otherwise, detects gaps between content items and
-* compresses them into small fixed-width regions.
-*/
-function computeTimeMapping(node) {
-	const { start: viewStart, end: viewEnd } = computeViewRange(node);
-	if (node.idleTime() === 0) return createIdentityMapping(viewStart, viewEnd);
-	const nodeStartMs = viewStart.getTime();
-	const nodeEndMs = viewEnd.getTime();
-	if (nodeEndMs - nodeStartMs <= 0) return createIdentityMapping(viewStart, viewEnd);
-	const intervals = extractIntervals([...node.content, ...node.branches]);
-	if (intervals.length === 0) return createIdentityMapping(viewStart, viewEnd);
-	const activeRegions = mergeIntervals(intervals);
-	const rawGaps = findGaps(nodeStartMs, nodeEndMs, activeRegions);
-	if (rawGaps.length === 0) return createIdentityMapping(viewStart, viewEnd);
-	const totalActiveMs = activeRegions.reduce((sum, r) => sum + (r.endMs - r.startMs), 0);
-	let gapPercentEach = GAP_PERCENT;
-	if (rawGaps.length * gapPercentEach > MAX_TOTAL_GAP_PERCENT) gapPercentEach = MAX_TOTAL_GAP_PERCENT / rawGaps.length;
-	const activePercent = 100 - rawGaps.length * gapPercentEach;
-	const segments = [];
-	const gapRegions = [];
-	let currentPercent = 0;
-	let gapIdx = 0;
-	if (rawGaps.length > 0 && rawGaps[0].startMs === nodeStartMs) {
-		const gap = rawGaps[0];
-		const percentEnd = currentPercent + gapPercentEach;
-		segments.push({
-			startMs: gap.startMs,
-			endMs: gap.endMs,
-			percentStart: currentPercent,
-			percentEnd
-		});
-		gapRegions.push({
-			startMs: gap.startMs,
-			endMs: gap.endMs,
-			durationMs: gap.endMs - gap.startMs,
-			percentStart: currentPercent,
-			percentEnd
-		});
-		currentPercent = percentEnd;
-		gapIdx = 1;
-	}
-	for (let i = 0; i < activeRegions.length; i++) {
-		const region = activeRegions[i];
-		const regionDurationMs = region.endMs - region.startMs;
-		const regionPercent = totalActiveMs > 0 ? regionDurationMs / totalActiveMs * activePercent : activePercent / activeRegions.length;
-		const percentEnd = currentPercent + regionPercent;
-		segments.push({
-			startMs: region.startMs,
-			endMs: region.endMs,
-			percentStart: currentPercent,
-			percentEnd
-		});
-		currentPercent = percentEnd;
-		if (gapIdx < rawGaps.length) {
-			const gap = rawGaps[gapIdx];
-			if (gap.startMs >= region.endMs - 1) {
-				const gapPercentEnd = currentPercent + gapPercentEach;
-				segments.push({
-					startMs: gap.startMs,
-					endMs: gap.endMs,
-					percentStart: currentPercent,
-					percentEnd: gapPercentEnd
-				});
-				gapRegions.push({
-					startMs: gap.startMs,
-					endMs: gap.endMs,
-					durationMs: gap.endMs - gap.startMs,
-					percentStart: currentPercent,
-					percentEnd: gapPercentEnd
-				});
-				currentPercent = gapPercentEnd;
-				gapIdx++;
-			}
-		}
-	}
-	const frozenSegments = segments;
-	return {
-		toPercent(timestamp) {
-			const ms = timestamp.getTime();
-			if (ms <= nodeStartMs) return 0;
-			if (ms >= nodeEndMs) return 100;
-			const seg = findSegment(frozenSegments, ms);
-			if (!seg) return 0;
-			const segRange = seg.endMs - seg.startMs;
-			if (segRange <= 0) return seg.percentStart;
-			const t = (ms - seg.startMs) / segRange;
-			return seg.percentStart + t * (seg.percentEnd - seg.percentStart);
-		},
-		hasCompression: true,
-		gaps: gapRegions
-	};
-}
-/**
-* Compute active time (seconds) within [startMs, endMs] by subtracting
-* overlapping gap durations from the mapping.
-*/
-function computeActiveTime(mapping, startMs, endMs) {
-	const wallClockMs = endMs - startMs;
-	let gapMs = 0;
-	for (const gap of mapping.gaps) {
-		const overlapStart = Math.max(gap.startMs, startMs);
-		const overlapEnd = Math.min(gap.endMs, endMs);
-		if (overlapEnd > overlapStart) gapMs += overlapEnd - overlapStart;
-	}
-	return Math.max(0, (wallClockMs - gapMs) / 1e3);
-}
-/** Recursively extract [startMs, endMs] intervals from leaf content items. */
-function extractIntervals(content) {
-	const intervals = [];
-	for (const item of content) if (item.type === "event") intervals.push({
-		startMs: item.startTime().getTime(),
-		endMs: item.endTime().getTime()
-	});
-	else {
-		const childIntervals = extractIntervals(item.content);
-		if (childIntervals.length > 0) intervals.push(...childIntervals);
-		else intervals.push({
-			startMs: item.startTime().getTime(),
-			endMs: item.endTime().getTime()
-		});
-	}
-	return intervals;
-}
-/** Sort intervals by start time and merge overlapping ones. */
-function mergeIntervals(intervals) {
-	if (intervals.length === 0) return [];
-	const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs);
-	const merged = [{ ...sorted[0] }];
-	for (let i = 1; i < sorted.length; i++) {
-		const current = sorted[i];
-		const last = merged[merged.length - 1];
-		if (current.startMs <= last.endMs) last.endMs = Math.max(last.endMs, current.endMs);
-		else merged.push({ ...current });
-	}
-	return merged;
-}
-/** Find gaps between active regions that exceed the threshold. */
-function findGaps(nodeStartMs, nodeEndMs, activeRegions) {
-	const gaps = [];
-	if (activeRegions.length > 0) {
-		const firstStart = activeRegions[0].startMs;
-		if (firstStart - nodeStartMs > GAP_THRESHOLD_MS) gaps.push({
-			startMs: nodeStartMs,
-			endMs: firstStart
-		});
-	}
-	for (let i = 1; i < activeRegions.length; i++) {
-		const prevEnd = activeRegions[i - 1].endMs;
-		const nextStart = activeRegions[i].startMs;
-		if (nextStart - prevEnd > GAP_THRESHOLD_MS) gaps.push({
-			startMs: prevEnd,
-			endMs: nextStart
-		});
-	}
-	if (activeRegions.length > 0) {
-		const lastEnd = activeRegions[activeRegions.length - 1].endMs;
-		if (nodeEndMs - lastEnd > GAP_THRESHOLD_MS) gaps.push({
-			startMs: lastEnd,
-			endMs: nodeEndMs
-		});
-	}
-	return gaps;
-}
-/** Binary search for the segment containing a given timestamp. */
-function findSegment(segments, ms) {
-	let lo = 0;
-	let hi = segments.length - 1;
-	while (lo <= hi) {
-		const mid = lo + hi >>> 1;
-		const seg = segments[mid];
-		if (ms < seg.startMs) hi = mid - 1;
-		else if (ms > seg.endMs) lo = mid + 1;
-		else return seg;
-	}
-	if (lo < segments.length) return segments[lo];
-	if (hi >= 0) return segments[hi];
-	return null;
-}
-var TimelineMinimap_module_default = {
-	container: "_container_1h53w_3",
-	stableLabel: "_stableLabel_1h53w_17",
-	alignRight: "_alignRight_1h53w_32",
-	alignLeft: "_alignLeft_1h53w_36",
-	hidden: "_hidden_1h53w_40",
-	minimap: "_minimap_1h53w_44",
-	track: "_track_1h53w_53",
-	regionFill: "_regionFill_1h53w_66",
-	marker: "_marker_1h53w_79",
-	selectionRegion: "_selectionRegion_1h53w_96",
-	sectionTime: "_sectionTime_1h53w_114",
-	sectionTimePill: "_sectionTimePill_1h53w_126",
-	scrubber: "_scrubber_1h53w_142",
-	scrubberLine: "_scrubberLine_1h53w_153",
-	scrubberCaretUp: "_scrubberCaretUp_1h53w_161"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineMinimap.tsx
-/**
-* Compact minimap showing the selected row's position within the full timeline.
-*
-* Renders as a self-contained flex row: mode label + bar area.
-* Designed to sit inside the breadcrumb row, right-aligned.
-*/
-var TimelineMinimap = ({ root, selection, mapping, scrubberProgress, onScrub }) => {
-	const regionRef = (0, import_react.useRef)(null);
-	const draggingRef = (0, import_react.useRef)(false);
-	const localProgressRef = (0, import_react.useRef)(null);
-	const [dragging, setDragging] = (0, import_react.useState)(false);
-	const [localProgress, setLocalProgress] = (0, import_react.useState)(null);
-	const progressFromPointer = (0, import_react.useCallback)((clientX) => {
-		const rect = regionRef.current?.getBoundingClientRect();
-		if (!rect || rect.width === 0) return 0;
-		return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-	}, []);
-	const handlePointerDown = (0, import_react.useCallback)((e) => {
-		if (!onScrub) return;
-		e.preventDefault();
-		draggingRef.current = true;
-		const p = progressFromPointer(e.clientX);
-		localProgressRef.current = p;
-		setDragging(true);
-		setLocalProgress(p);
-		regionRef.current?.setPointerCapture(e.pointerId);
-	}, [onScrub, progressFromPointer]);
-	const handlePointerMove = (0, import_react.useCallback)((e) => {
-		if (!draggingRef.current) return;
-		const p = progressFromPointer(e.clientX);
-		localProgressRef.current = p;
-		setLocalProgress(p);
-	}, [progressFromPointer]);
-	const handlePointerUp = (0, import_react.useCallback)((e) => {
-		if (!draggingRef.current) return;
-		draggingRef.current = false;
-		setDragging(false);
-		const progress = progressFromPointer(e.clientX);
-		localProgressRef.current = progress;
-		setLocalProgress(progress);
-		onScrub?.(progress);
-	}, [onScrub, progressFromPointer]);
-	const handleLostCapture = (0, import_react.useCallback)(() => {
-		if (!draggingRef.current) return;
-		draggingRef.current = false;
-		setDragging(false);
-		const progress = localProgressRef.current;
-		if (progress !== null) onScrub?.(progress);
-	}, [onScrub]);
-	const [prevScrubberProgress, setPrevScrubberProgress] = (0, import_react.useState)(scrubberProgress);
-	if (prevScrubberProgress !== scrubberProgress) {
-		setPrevScrubberProgress(scrubberProgress);
-		if (!dragging && localProgress !== null) setLocalProgress(null);
-	}
-	const [showTokens, setShowTokens] = useProperty("timeline", "minimapShowTokens", { defaultValue: false });
-	const isTokenMode = !!showTokens;
-	const toggle = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		setShowTokens(!isTokenMode);
-	}, [isTokenMode, setShowTokens]);
-	const displayProgress = localProgress !== null ? localProgress : scrubberProgress;
-	const bar = selection ? mapping ? {
-		left: mapping.toPercent(selection.startTime),
-		width: Math.max(0, mapping.toPercent(selection.endTime) - mapping.toPercent(selection.startTime))
-	} : computeBarPosition(selection.startTime, selection.endTime, root.startTime(), root.endTime()) : null;
-	const showRegion = bar !== null;
-	const useShortFormat = bar !== null && bar.width <= 15;
-	const hasCompression = mapping?.hasCompression ?? false;
-	const timeRightLabel = hasCompression && mapping ? formatTime$1(computeActiveTime(mapping, root.startTime().getTime(), root.endTime().getTime())) : formatDuration$1(root.startTime(false), root.endTime(false));
-	const tokenRightLabel = formatTokenCount(root.totalTokens(false));
-	const computeSectionLabel = () => {
-		if (!selection) return "";
-		if (isTokenMode) return formatTokenCount(selection.totalTokens);
-		if (hasCompression && mapping) return formatTime$1(computeActiveTime(mapping, selection.startTime.getTime(), selection.endTime.getTime()));
-		return useShortFormat ? formatDurationShort(selection.startTime, selection.endTime) : formatDuration$1(selection.startTime, selection.endTime);
-	};
-	const sectionLabel = computeSectionLabel();
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineMinimap_module_default.container,
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignRight),
-				onClick: toggle,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
-					children: "time"
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
-					children: "tokens"
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: TimelineMinimap_module_default.minimap,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.track }), showRegion && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					ref: regionRef,
-					className: TimelineMinimap_module_default.selectionRegion,
-					style: bar.left + bar.width / 2 < 50 ? {
-						left: `${bar.left}%`,
-						minWidth: `${bar.width}%`
-					} : {
-						right: `${100 - bar.left - bar.width}%`,
-						minWidth: `${bar.width}%`
-					},
-					onPointerDown: onScrub ? handlePointerDown : void 0,
-					onPointerMove: onScrub ? handlePointerMove : void 0,
-					onPointerUp: onScrub ? handlePointerUp : void 0,
-					onLostPointerCapture: onScrub ? handleLostCapture : void 0,
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.regionFill }),
-						displayProgress != null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-							className: TimelineMinimap_module_default.scrubber,
-							style: { left: `${displayProgress * 100}%` },
-							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberLine }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberCaretUp })]
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker }),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-							className: TimelineMinimap_module_default.sectionTime,
-							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-								className: TimelineMinimap_module_default.sectionTimePill,
-								onClick: toggle,
-								children: sectionLabel
-							})
-						}),
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker })
-					]
-				})]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignLeft),
-				onClick: toggle,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
-					children: timeRightLabel
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
-					children: tokenRightLabel
-				})]
-			})
-		]
-	});
-};
-var TimelineOptionsPopover_module_default = {
-	title: "_title_1f23l_1",
-	rows: "_rows_1f23l_8",
-	row: "_row_1f23l_8",
-	groupHeader: "_groupHeader_1f23l_29"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineOptionsPopover.tsx
-var kMarkerKindLabels = [{
-	kind: "error",
-	label: "Errors"
-}, {
-	kind: "compaction",
-	label: "Compaction"
-}];
-var TimelineOptionsPopover = ({ isOpen, setIsOpen, positionEl, config, onToggleBranches }) => {
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(PopOver, {
-		id: "timeline-options-popover",
-		positionEl,
-		isOpen,
-		setIsOpen,
-		placement: "bottom-end",
-		hoverDelay: -1,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: `${TimelineOptionsPopover_module_default.title} text-size-smaller`,
-			children: "View Options"
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: `${TimelineOptionsPopover_module_default.rows} text-size-smaller`,
-			children: [
-				kMarkerKindLabels.map(({ kind, label }) => {
-					const checked = config.markerKinds.includes(kind);
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: TimelineOptionsPopover_module_default.row,
-						onClick: () => config.toggleMarkerKind(kind),
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-							type: "checkbox",
-							checked,
-							onChange: (e) => {
-								e.stopPropagation();
-								config.toggleMarkerKind(kind);
-							}
-						}), label]
-					}, kind);
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: () => config.setIncludeUtility(!config.includeUtility),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.includeUtility,
-						onChange: (e) => {
-							e.stopPropagation();
-							config.setIncludeUtility(!config.includeUtility);
-						}
-					}), "Utility agents"]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: TimelineOptionsPopover_module_default.groupHeader,
-					children: "Branches"
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: onToggleBranches,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.showBranches,
-						onChange: (e) => {
-							e.stopPropagation();
-							onToggleBranches();
-						}
-					}), "Show branches"]
-				}),
-				config.showBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: () => config.setForkRelative(!config.forkRelative),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.forkRelative,
-						onChange: (e) => {
-							e.stopPropagation();
-							config.setForkRelative(!config.forkRelative);
-						}
-					}), "Fork-relative branches"]
-				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineOptionsPopover_module_default.row,
-					onClick: () => config.setShowEmptyBranches(!config.showEmptyBranches),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-						type: "checkbox",
-						checked: config.showEmptyBranches,
-						onChange: (e) => {
-							e.stopPropagation();
-							config.setShowEmptyBranches(!config.showEmptyBranches);
-						}
-					}), "Show empty branches"]
-				})] })
-			]
-		})]
-	});
-};
-var TimelineSelector_module_default = {
-	selectorContainer: "_selectorContainer_djjmp_1",
-	selectorButton: "_selectorButton_djjmp_8",
-	chevron: "_chevron_djjmp_28",
-	backdrop: "_backdrop_djjmp_33",
-	dropdownMenu: "_dropdownMenu_djjmp_42",
-	dropdownItem: "_dropdownItem_djjmp_57",
-	dropdownItemActive: "_dropdownItemActive_djjmp_74"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSelector.tsx
-var TimelineSelector = ({ timelines, activeIndex, onSelect }) => {
-	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
-	const handleSelect = (0, import_react.useCallback)((index) => {
-		onSelect(index);
-		setIsOpen(false);
-	}, [onSelect]);
-	if (timelines.length <= 1) return null;
-	const active = timelines[activeIndex];
-	if (!active) return null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineSelector_module_default.selectorContainer,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-			type: "button",
-			className: TimelineSelector_module_default.selectorButton,
-			onClick: () => setIsOpen((prev) => !prev),
-			title: active.description,
-			"aria-haspopup": "listbox",
-			"aria-expanded": isOpen,
-			children: [active.name, /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi-chevron-down", TimelineSelector_module_default.chevron) })]
-		}), isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: TimelineSelector_module_default.backdrop,
-			onClick: () => setIsOpen(false)
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: TimelineSelector_module_default.dropdownMenu,
-			role: "listbox",
-			children: timelines.map((tl, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				type: "button",
-				className: clsx(TimelineSelector_module_default.dropdownItem, i === activeIndex && TimelineSelector_module_default.dropdownItemActive),
-				role: "option",
-				"aria-selected": i === activeIndex,
-				onClick: () => handleSelect(i),
-				children: tl.name
-			}, tl.name))
-		})] })]
-	});
-};
-//#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/timelineEventNodes.ts
 /**
 * Parses a selection string into row key + optional span index + optional region index.
@@ -94911,637 +95226,546 @@ function attachSourceSpans(nodes, spanMap) {
 		if (node.children.length > 0) attachSourceSpans(node.children, spanMap);
 	}
 }
-var TimelineSwimLanes_module_default = {
-	swimlane: "_swimlane_1itnu_1",
-	pinnedSection: "_pinnedSection_1itnu_17",
-	scrollSection: "_scrollSection_1itnu_25",
-	collapsibleSection: "_collapsibleSection_1itnu_40",
-	collapsibleCollapsed: "_collapsibleCollapsed_1itnu_53",
-	swimlaneSticky: "_swimlaneSticky_1itnu_63",
-	collapsibleInner: "_collapsibleInner_1itnu_67",
-	collapseToggle: "_collapseToggle_1itnu_77",
-	row: "_row_1itnu_105",
-	label: "_label_1itnu_111",
-	labelSelected: "_labelSelected_1itnu_129",
-	labelHighlighted: "_labelHighlighted_1itnu_134",
-	chevron: "_chevron_1itnu_141",
-	chevronSpacer: "_chevronSpacer_1itnu_156",
-	punchDownBtn: "_punchDownBtn_1itnu_162",
-	viewStackBack: "_viewStackBack_1itnu_184",
-	barArea: "_barArea_1itnu_203",
-	barInner: "_barInner_1itnu_209",
-	fill: "_fill_1itnu_215",
-	fillParent: "_fillParent_1itnu_233",
-	fillSelected: "_fillSelected_1itnu_237",
-	fillHighlight: "_fillHighlight_1itnu_245",
-	fillDimmed: "_fillDimmed_1itnu_256",
-	regionSegment: "_regionSegment_1itnu_263",
-	regionDefault: "_regionDefault_1itnu_262",
-	regionHover: "_regionHover_1itnu_262",
-	regionFirst: "_regionFirst_1itnu_283",
-	regionLast: "_regionLast_1itnu_287",
-	regionMiddle: "_regionMiddle_1itnu_291",
-	parallelBadge: "_parallelBadge_1itnu_295",
-	marker: "_marker_1itnu_302",
-	markerBranch: "_markerBranch_1itnu_316",
-	markerError: "_markerError_1itnu_330",
-	markerCompaction: "_markerCompaction_1itnu_351",
-	branchConnector: "_branchConnector_1itnu_371",
-	connectorArrow: "_connectorArrow_1itnu_382",
-	breadcrumbRow: "_breadcrumbRow_1itnu_410",
-	optionsButton: "_optionsButton_1itnu_419",
-	breadcrumbTrail: "_breadcrumbTrail_1itnu_443",
-	breadcrumbSegment: "_breadcrumbSegment_1itnu_451",
-	breadcrumbDivider: "_breadcrumbDivider_1itnu_457",
-	breadcrumbLink: "_breadcrumbLink_1itnu_465",
-	breadcrumbCurrent: "_breadcrumbCurrent_1itnu_479",
-	tokens: "_tokens_1itnu_490"
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useDeepLinkResolution.ts
+/**
+* View-model hook for transcript deep links (`?event=` / `?message=`).
+*
+* Resolves the deep-link target against the timeline and drives the
+* selection side effects needed to make it visible:
+* - message ID → event resolution (selected span first, then root/branches)
+* - cross-timeline switch when the target lives in another root timeline
+* - swimlane row selection when the target is outside the visible rows
+*
+* Each side effect fires once per deep-link key change, guarded by refs —
+* see the comments on each effect for the races those guards prevent.
+*/
+function useDeepLinkResolution(options) {
+	const { initialEventId, initialMessageId, timeline: { timeline: timelineData, state: timelineState, multiTimeline: { timelines, activeIndex: activeTimelineIndex, setActive: setActiveTimeline }, selection: { branchScrollTarget } }, spanSelectKeys, showSwimlanes, nodeFeedEvents, onHeadroomResetAnchor } = options;
+	const resolvedLocal = (0, import_react.useMemo)(() => {
+		if (initialEventId || !initialMessageId) return void 0;
+		const selectedSpans = getSelectedSpans(timelineState.rows, timelineState.selected);
+		for (const span of selectedSpans) {
+			const result = resolveMessageToEvent(initialMessageId, span);
+			if (result && !result.agentSpanId) return result;
+		}
+	}, [
+		initialEventId,
+		initialMessageId,
+		timelineState.rows,
+		timelineState.selected
+	]);
+	const resolvedRoot = (0, import_react.useMemo)(() => {
+		if (initialEventId || !initialMessageId || resolvedLocal) return void 0;
+		const main = resolveMessageToEvent(initialMessageId, timelineData.root);
+		if (main) return main;
+		return resolveMessageInBranches(initialMessageId, timelineData.root);
+	}, [
+		initialEventId,
+		initialMessageId,
+		resolvedLocal,
+		timelineData.root
+	]);
+	const resolved = resolvedLocal ?? resolvedRoot;
+	const deepLinkTimelineIndex = (0, import_react.useMemo)(() => {
+		if (timelines.length <= 1) return -1;
+		if (initialEventId) {
+			const active = timelines[activeTimelineIndex];
+			if (!active || timelineContainsEvent(initialEventId, active)) return -1;
+			return findTimelineIndexForEvent(initialEventId, timelines);
+		}
+		if (initialMessageId && !resolvedLocal && !resolvedRoot) return findTimelineIndexForMessage(initialMessageId, timelines);
+		return -1;
+	}, [
+		initialEventId,
+		initialMessageId,
+		resolvedLocal,
+		resolvedRoot,
+		timelines,
+		activeTimelineIndex
+	]);
+	const prevMessageIdRef = (0, import_react.useRef)(void 0);
+	(0, import_react.useEffect)(() => {
+		if (prevMessageIdRef.current === initialMessageId) return;
+		if (deepLinkTimelineIndex >= 0) return;
+		prevMessageIdRef.current = initialMessageId;
+		if (!resolvedRoot) return;
+		let targetKey = null;
+		if (resolvedRoot.branchRowKey) targetKey = resolvedRoot.branchRowKey;
+		else if (resolvedRoot.agentSpanId) targetKey = spanSelectKeys.get(resolvedRoot.agentSpanId)?.key ?? null;
+		if (timelineState.selected === targetKey) return;
+		timelineState.select(targetKey, { preserveDeepLink: true });
+	}, [
+		initialMessageId,
+		deepLinkTimelineIndex,
+		resolvedRoot,
+		spanSelectKeys,
+		timelineState
+	]);
+	const prevDeepLinkRef = (0, import_react.useRef)(null);
+	(0, import_react.useEffect)(() => {
+		if (timelines.length <= 1) return;
+		const key = initialEventId ?? initialMessageId ?? null;
+		if (key === null) {
+			prevDeepLinkRef.current = null;
+			return;
+		}
+		if (prevDeepLinkRef.current === key) return;
+		if (deepLinkTimelineIndex < 0) return;
+		prevDeepLinkRef.current = key;
+		if (deepLinkTimelineIndex === activeTimelineIndex) return;
+		setActiveTimeline(deepLinkTimelineIndex);
+	}, [
+		initialEventId,
+		initialMessageId,
+		deepLinkTimelineIndex,
+		activeTimelineIndex,
+		setActiveTimeline,
+		timelines.length
+	]);
+	const resolvedEventSpan = (0, import_react.useMemo)(() => {
+		if (!initialEventId || !showSwimlanes) return void 0;
+		if (nodeFeedEvents.some((e) => e.uuid === initialEventId)) return void 0;
+		return resolveEventToSpan(initialEventId, timelineData.root) ?? resolveEventInBranches(initialEventId, timelineData.root);
+	}, [
+		initialEventId,
+		showSwimlanes,
+		nodeFeedEvents,
+		timelineData.root
+	]);
+	const prevEventIdRef = (0, import_react.useRef)(void 0);
+	(0, import_react.useEffect)(() => {
+		if (prevEventIdRef.current === initialEventId) return;
+		if (deepLinkTimelineIndex >= 0) return;
+		prevEventIdRef.current = initialEventId;
+		if (!resolvedEventSpan) return;
+		let targetKey = null;
+		if (resolvedEventSpan.branchRowKey) targetKey = resolvedEventSpan.branchRowKey;
+		else if (resolvedEventSpan.agentSpanId) targetKey = spanSelectKeys.get(resolvedEventSpan.agentSpanId)?.key ?? null;
+		if (!targetKey) return;
+		if (timelineState.selected === targetKey) return;
+		timelineState.select(targetKey, { preserveDeepLink: true });
+	}, [
+		initialEventId,
+		deepLinkTimelineIndex,
+		resolvedEventSpan,
+		spanSelectKeys,
+		timelineState
+	]);
+	const effectiveInitialEventId = initialEventId ?? resolved?.eventId ?? branchScrollTarget ?? null;
+	(0, import_react.useEffect)(() => {
+		if (effectiveInitialEventId) onHeadroomResetAnchor?.(true);
+	}, [effectiveInitialEventId, onHeadroomResetAnchor]);
+	return { effectiveInitialEventId };
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/labels.ts
+/**
+* Derive tool-event labels from message labels.
+*
+* A tool event inherits the label of the tool message it produced — matched
+* via `ToolEvent.message_id`, or via tool-role input messages on model
+* events (keyed by `tool_call_id`).
+*/
+var buildToolLabels = (events, messageLabels) => {
+	if (!messageLabels) return void 0;
+	const toolLabels = {};
+	for (const event of events) if (event.event === "tool") {
+		const label = event.message_id ? messageLabels[event.message_id] : void 0;
+		if (label) toolLabels[event.id] = label;
+	} else if (event.event === "model") for (const message of event.input ?? []) {
+		if (message.role !== "tool" || !message.id) continue;
+		const label = messageLabels[message.id];
+		if (label && message.tool_call_id) toolLabels[message.tool_call_id] = label;
+	}
+	return Object.keys(toolLabels).length > 0 ? toolLabels : void 0;
+};
+/**
+* Restrict the message-label map to messages actually present in `events`.
+*
+* The map is shared across the whole sample, but timelines (e.g. auditor vs
+* target) show different events — without this an unlabeled timeline would
+* reserve label-column space just because another timeline is labeled.
+*/
+var scopeMessageLabels = (events, messageLabels) => {
+	if (!messageLabels) return void 0;
+	const present = /* @__PURE__ */ new Set();
+	for (const event of events) if (event.event === "model") {
+		for (const message of event.input ?? []) if (message.id) present.add(message.id);
+		for (const choice of event.output?.choices ?? []) if (choice.message?.id) present.add(choice.message.id);
+	} else if (event.event === "tool" && event.message_id) present.add(event.message_id);
+	const scoped = {};
+	for (const [id, label] of Object.entries(messageLabels)) if (present.has(id)) scoped[id] = label;
+	return Object.keys(scoped).length > 0 ? scoped : void 0;
 };
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSwimLanes.tsx
-/**
-* Builds breadcrumb segments from the layouts and selected key.
-*
-* The selected key encodes tree position (e.g. "transcript/build/test").
-* We find ancestor rows by matching prefix keys, producing a trail like:
-* [main, Build, Test] where "Test" is the currently selected row.
-*/
-function buildBreadcrumbs(layouts, selectedRowKey) {
-	if (!selectedRowKey) return [];
-	const byKey = /* @__PURE__ */ new Map();
-	for (const layout of layouts) byKey.set(layout.key, layout);
-	const parts = selectedRowKey.split("/");
-	const segments = [];
-	for (let i = 1; i <= parts.length; i++) {
-		const ancestorKey = parts.slice(0, i).join("/");
-		const layout = byKey.get(ancestorKey);
-		if (layout) {
-			const label = layout.depth === 0 && layout.name === "solvers" ? "main" : layout.name;
-			segments.push({
-				label,
-				key: layout.key
+//#region ../../packages/inspect-components/src/transcript/timeline/retryGrouping.ts
+var retryAttemptKey = (event) => {
+	if (event.uuid) return `uuid:${event.uuid}`;
+	const epoch = Date.parse(event.timestamp);
+	const tsPart = Number.isNaN(epoch) ? event.timestamp : String(epoch);
+	return `ts:${event.span_id ?? ""}:${tsPart}`;
+};
+function toolChoiceEqual(a, b) {
+	if (a === b) return true;
+	if (typeof a === "string" || typeof b === "string") return a === b;
+	return a?.name === b?.name;
+}
+function toolsEqual(a, b) {
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) if (a[i]?.name !== b[i]?.name) return false;
+	return true;
+}
+function isSameCall(failed, success) {
+	return failed.model === success.model && failed.input.length === success.input.length && toolsEqual(failed.tools, success.tools) && toolChoiceEqual(failed.tool_choice, success.tool_choice);
+}
+function groupRetryAttempts(events) {
+	const attempts = /* @__PURE__ */ new Map();
+	const pendingFailed = /* @__PURE__ */ new Map();
+	const dropIndices = /* @__PURE__ */ new Set();
+	for (let i = 0; i < events.length; i++) {
+		const e = events[i];
+		if (e.event !== "model") continue;
+		const m = e;
+		const key = m.span_id ?? "";
+		if (m.error != null) {
+			const run = pendingFailed.get(key) ?? [];
+			run.push({
+				event: m,
+				index: i
 			});
+			pendingFailed.set(key, run);
+			continue;
+		}
+		const run = pendingFailed.get(key);
+		if (run && run.length > 0) {
+			const matches = run.filter((p) => isSameCall(p.event, m));
+			if (matches.length > 0) {
+				attempts.set(retryAttemptKey(m), [...matches.map((p) => p.event), m]);
+				for (const p of matches) dropIndices.add(p.index);
+			}
+			pendingFailed.delete(key);
 		}
 	}
-	return segments;
-}
-var TimelineSwimLanes = ({ layouts, timeline, header, isSticky, onMarkerNavigate, headroomCollapsed = false, onLayoutShift, regionCounts, defaultCollapsed: defaultCollapsedProp, highlightedKeys, onPunchDown }) => {
-	const icons = useTimelineIcons();
-	const { selected, select: onSelect, clearSelection } = timeline;
-	const [collapsed, setCollapsed] = useProperty("timeline", "swimlanesCollapsed");
-	const isFlat = layouts.length <= 1;
-	const [headroomOverride, setHeadroomOverride] = (0, import_react.useState)(false);
-	const [prevHeadroomCollapsed, setPrevHeadroomCollapsed] = (0, import_react.useState)(headroomCollapsed);
-	if (prevHeadroomCollapsed !== headroomCollapsed) {
-		setPrevHeadroomCollapsed(headroomCollapsed);
-		setHeadroomOverride(false);
-	}
-	const isCollapsed = (collapsed ?? defaultCollapsedProp ?? isFlat) || headroomCollapsed && !headroomOverride;
-	const toggleCollapsed = (0, import_react.useCallback)(() => {
-		onLayoutShift?.();
-		setHeadroomOverride(true);
-		setCollapsed(!isCollapsed);
-	}, [
-		isCollapsed,
-		setCollapsed,
-		onLayoutShift
-	]);
-	const [stableCollapsedBucket, setRowCollapsedById] = useCollapsibleIds("timeline-swimlane-rows");
-	const parentKeys = (0, import_react.useMemo)(() => {
-		const keys = /* @__PURE__ */ new Set();
-		for (const layout of layouts) {
-			const prefix = layout.key + "/";
-			for (const other of layouts) if (other.key.startsWith(prefix)) {
-				keys.add(layout.key);
-				break;
-			}
-		}
-		return keys;
-	}, [layouts]);
-	const expandableKeys = (0, import_react.useMemo)(() => {
-		const keys = new Set(parentKeys);
-		for (const layout of layouts) if (layout.markers.some((m) => m.kind === "branch")) keys.add(layout.key);
-		return keys;
-	}, [layouts, parentKeys]);
-	const isRowCollapsed = (0, import_react.useCallback)((rowKey) => {
-		const explicit = stableCollapsedBucket?.[rowKey];
-		if (explicit !== void 0) return explicit;
-		const layout = layouts.find((l) => l.key === rowKey);
-		if (!layout) return false;
-		if (layout.branch) return false;
-		if (!parentKeys.has(rowKey) && expandableKeys.has(rowKey)) return true;
-		return layout.depth >= 1 && parentKeys.has(rowKey);
-	}, [
-		stableCollapsedBucket,
-		layouts,
-		parentKeys,
-		expandableKeys
-	]);
-	const visibleLayouts = (0, import_react.useMemo)(() => {
-		return layouts.filter((layout) => {
-			const parts = layout.key.split("/");
-			for (let i = 1; i < parts.length; i++) {
-				const ancestorKey = parts.slice(0, i).join("/");
-				if (isRowCollapsed(ancestorKey)) return false;
-			}
-			return true;
-		});
-	}, [layouts, isRowCollapsed]);
-	const handleToggleRowCollapse = (0, import_react.useCallback)((rowKey) => {
-		const current = isRowCollapsed(rowKey);
-		if (current && !header?.timelineConfig?.showBranches) {
-			if (layouts.find((l) => l.key === rowKey)?.markers.some((m) => m.kind === "branch")) header?.timelineConfig?.setShowBranches(true);
-		}
-		setRowCollapsedById(rowKey, !current);
-	}, [
-		isRowCollapsed,
-		setRowCollapsedById,
-		header?.timelineConfig,
-		layouts
-	]);
-	const handleBranchMarkerClick = (0, import_react.useCallback)((rowKey) => {
-		if (!header?.timelineConfig?.showBranches) header?.timelineConfig?.setShowBranches(true);
-		setRowCollapsedById(rowKey, false);
-	}, [header?.timelineConfig, setRowCollapsedById]);
-	const handleBranchToggle = (0, import_react.useCallback)(() => {
-		const turningOff = header?.timelineConfig?.showBranches;
-		header?.timelineConfig?.setShowBranches(!turningOff);
-		if (turningOff && selected && /\/branch-/.test(selected)) clearSelection();
-	}, [
-		header?.timelineConfig,
-		selected,
-		clearSelection
-	]);
-	const parsedSelection = (0, import_react.useMemo)(() => parseSelection(selected), [selected]);
-	const selectedRowKey = parsedSelection?.rowKey ?? null;
-	const breadcrumbs = (0, import_react.useMemo)(() => buildBreadcrumbs(layouts, selectedRowKey), [layouts, selectedRowKey]);
-	const handleKeyDown = (0, import_react.useCallback)((e) => {
-		const rowKeys = visibleLayouts.map((l) => l.key);
-		const currentIndex = selectedRowKey ? rowKeys.indexOf(selectedRowKey) : -1;
-		switch (e.key) {
-			case "ArrowDown": {
-				e.preventDefault();
-				const key = rowKeys[currentIndex < rowKeys.length - 1 ? currentIndex + 1 : currentIndex];
-				if (key !== void 0) onSelect(key);
-				break;
-			}
-			case "ArrowUp": {
-				e.preventDefault();
-				const key = rowKeys[currentIndex > 0 ? currentIndex - 1 : 0];
-				if (key !== void 0) onSelect(key);
-				break;
-			}
-			case "Escape":
-				e.preventDefault();
-				clearSelection();
-				break;
-		}
-	}, [
-		visibleLayouts,
-		selectedRowKey,
-		onSelect,
-		clearSelection
-	]);
-	const parentRow = visibleLayouts[0];
-	const childRows = visibleLayouts.slice(1);
-	const branchConnectors = (0, import_react.useMemo)(() => computeBranchConnectors(visibleLayouts), [visibleLayouts]);
-	const renderRow = (layout, displayName) => {
-		const isRowSelected = selectedRowKey === layout.key;
-		const selectedSpanIndex = isRowSelected ? parsedSelection?.spanIndex ?? null : null;
-		const selectedRegionIndex = isRowSelected ? parsedSelection?.regionIndex ?? null : null;
-		const hasChildren = expandableKeys.has(layout.key);
-		const isRowExpanded = hasChildren ? !isRowCollapsed(layout.key) : void 0;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SwimlaneRow, {
-			layout,
-			displayName,
-			isRowSelected,
-			highlightClip: highlightedKeys?.get(layout.key),
-			selectedSpanIndex,
-			selectedRegionIndex,
-			regionCount: regionCounts?.get(layout.key),
-			isExpanded: isRowExpanded,
-			onToggleExpand: hasChildren ? () => handleToggleRowCollapse(layout.key) : void 0,
-			onSelectRow: () => onSelect(layout.key),
-			onSelectSpan: (spanIndex) => onSelect(buildSelectionKey(layout.key, spanIndex)),
-			onSelectRegion: (spanIndex, regionIndex) => onSelect(buildSelectionKey(layout.key, spanIndex, regionIndex)),
-			onBranchToggle: () => handleBranchMarkerClick(layout.key),
-			onMarkerNavigate,
-			connector: branchConnectors.get(layout.key),
-			onPunchDown: layout.branch && onPunchDown ? () => onPunchDown(layout.key, layout.name) : void 0
-		}, layout.key);
+	if (dropIndices.size === 0) return {
+		events,
+		attempts
 	};
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(TimelineSwimLanes_module_default.swimlane, isSticky && TimelineSwimLanes_module_default.swimlaneSticky),
-		tabIndex: 0,
-		onKeyDown: handleKeyDown,
-		role: "grid",
-		"aria-label": "Timeline swimlane",
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.pinnedSection,
-				children: header && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HeaderRow, {
-					...header,
-					breadcrumbs,
-					onBreadcrumbSelect: onSelect,
-					onToggleBranches: handleBranchToggle
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx(TimelineSwimLanes_module_default.collapsibleSection, isCollapsed && TimelineSwimLanes_module_default.collapsibleCollapsed),
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: TimelineSwimLanes_module_default.collapsibleInner,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: TimelineSwimLanes_module_default.scrollSection,
-						children: [parentRow && renderRow(parentRow, parentRow.name === "solvers" ? "main" : void 0), childRows.map((layout) => renderRow(layout))]
-					})
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				className: TimelineSwimLanes_module_default.collapseToggle,
-				onClick: toggleCollapsed,
-				title: isCollapsed ? "Expand swimlanes" : "Collapse swimlanes",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isCollapsed ? icons.expand.down : icons.collapse.up })
-			})
-		]
-	});
-};
-var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
-/**
-* For each branch row, compute the connector from its parent's fork marker
-* down to the branch bar start.
-*/
-function computeBranchConnectors(layouts) {
-	const connectors = /* @__PURE__ */ new Map();
-	const indexByKey = /* @__PURE__ */ new Map();
-	for (let i = 0; i < layouts.length; i++) indexByKey.set(layouts[i].key, i);
-	for (let i = 0; i < layouts.length; i++) {
-		const layout = layouts[i];
-		if (!layout.branch) continue;
-		const match = kBranchKeyPattern$1.exec(layout.key);
-		if (!match) continue;
-		const branchedFrom = match[1];
-		const parentKey = layout.key.replace(kBranchKeyPattern$1, "");
-		const parentIndex = indexByKey.get(parentKey);
-		if (parentIndex === void 0) continue;
-		const marker = layouts[parentIndex].markers.find((m) => m.kind === "branch" && m.reference === branchedFrom);
-		if (!marker) continue;
-		const barLeft = layout.spans[0]?.bar.left ?? 0;
-		connectors.set(layout.key, {
-			markerLeft: marker.left,
-			barLeft,
-			rowGap: i - parentIndex
-		});
-	}
-	return connectors;
+	const filtered = [];
+	for (let i = 0; i < events.length; i++) if (!dropIndices.has(i)) filtered.push(events[i]);
+	return {
+		events: filtered,
+		attempts
+	};
 }
-var SwimlaneRow = ({ layout, displayName, isRowSelected, highlightClip, selectedSpanIndex, selectedRegionIndex, regionCount, isExpanded, onToggleExpand, onSelectRow, onSelectSpan, onSelectRegion, onBranchToggle, onMarkerNavigate, connector, onPunchDown }) => {
-	const icons = useTimelineIcons();
-	const hasMultipleSpans = layout.spans.length > 1;
-	const hasChildren = isExpanded !== void 0;
-	const compactionMarkerPositions = (0, import_react.useMemo)(() => {
-		if (!regionCount || regionCount <= 1) return null;
-		const positions = [];
-		for (const marker of layout.markers) if (marker.compactionIndex !== void 0) positions.push(marker.left);
-		return positions.length > 0 ? positions : null;
-	}, [regionCount, layout.markers]);
-	const handleChevronClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onToggleExpand?.();
-	}, [onToggleExpand]);
-	const handleMarkerNavigate = (0, import_react.useMemo)(() => {
-		if (!onMarkerNavigate) return void 0;
-		return (eventId) => onMarkerNavigate(eventId, layout.key);
-	}, [onMarkerNavigate, layout.key]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineSwimLanes_module_default.row,
-		role: "row",
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(TimelineSwimLanes_module_default.label, isRowSelected && TimelineSwimLanes_module_default.labelSelected, highlightClip !== void 0 && !isRowSelected && TimelineSwimLanes_module_default.labelHighlighted),
-				style: { paddingLeft: `${.3 + layout.depth * .5}rem` },
-				onClick: onSelectRow,
-				children: [
-					hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: TimelineSwimLanes_module_default.chevron,
-						onClick: handleChevronClick,
-						role: "button",
-						"aria-label": isExpanded ? "Collapse" : "Expand",
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isExpanded ? icons.chevron.down : icons.chevron.right })
-					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: TimelineSwimLanes_module_default.chevronSpacer }),
-					displayName ?? (layout.branch ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.solvers.default }),
-						" ",
-						layout.name
-					] }) : layout.name),
-					onPunchDown && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: TimelineSwimLanes_module_default.punchDownBtn,
-						title: "Open as standalone timeline",
-						onClick: (e) => {
-							e.stopPropagation();
-							onPunchDown();
-						},
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.punchDown })
-					})
-				]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.barArea,
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: TimelineSwimLanes_module_default.barInner,
-					children: [
-						layout.spans.map((span, spanIndex) => {
-							const isBarSelected = isRowSelected && (!hasMultipleSpans || selectedSpanIndex === null || selectedSpanIndex === spanIndex);
-							const isBarDimmed = isRowSelected && hasMultipleSpans && selectedSpanIndex !== null && selectedSpanIndex !== spanIndex;
-							if (compactionMarkerPositions !== null && (!hasMultipleSpans || selectedSpanIndex === spanIndex)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RegionBarFill, {
-								span,
-								isParent: layout.isParent,
-								isBarSelected,
-								isBarDimmed,
-								selectedRegionIndex,
-								compactionPositions: compactionMarkerPositions,
-								onSelectBar: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
-								onSelectRegion: (regionIndex) => onSelectRegion(hasMultipleSpans ? spanIndex : void 0, regionIndex),
-								onDoubleClick: onToggleExpand
-							}, spanIndex);
-							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BarFill, {
-								span,
-								isParent: layout.isParent,
-								isSelected: isBarSelected,
-								isDimmed: isBarDimmed,
-								onSelect: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
-								onDoubleClick: onToggleExpand,
-								insetPx: connector ? 1.5 : void 0
-							}, spanIndex);
-						}),
-						highlightClip !== void 0 && !isRowSelected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HighlightOverlay, {
-							spans: layout.spans,
-							clipRight: highlightClip
-						}),
-						layout.markers.map((marker, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkerGlyph, {
-							marker,
-							onBranchToggle,
-							onMarkerNavigate: handleMarkerNavigate
-						}, i)),
-						connector && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BranchConnectorLine, { connector })
-					]
-				})
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.tokens,
-				children: formatTokenCount(layout.totalTokens)
-			})
-		]
-	});
-};
-var HeaderRow = ({ rootLabel, minimap, onScrollToTop, breadcrumbs, onBreadcrumbSelect, timelineConfig, timelineSelector, onToggleBranches, viewStack, onPopView }) => {
-	const icons = useTimelineIcons();
-	const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 1;
-	const rootDisplay = rootLabel === "solvers" ? "main" : rootLabel;
-	const [optionsOpen, setOptionsOpen] = (0, import_react.useState)(false);
-	const optionsButtonRef = (0, import_react.useRef)(null);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: TimelineSwimLanes_module_default.breadcrumbRow,
-		children: [
-			timelineSelector && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSelector, { ...timelineSelector }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: TimelineSwimLanes_module_default.breadcrumbDivider,
-				children: "/"
-			})] }),
-			viewStack && viewStack.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-				className: TimelineSwimLanes_module_default.viewStackBack,
-				onClick: onPopView,
-				title: "Back to branch overview",
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.chevron.left }), viewStack.at(-1).label]
-			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: TimelineSwimLanes_module_default.breadcrumbDivider,
-				children: "/"
-			})] }),
-			hasBreadcrumbs ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: TimelineSwimLanes_module_default.breadcrumbTrail,
-				children: breadcrumbs.map((segment, i) => {
-					const isLast = i === breadcrumbs.length - 1;
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-						className: TimelineSwimLanes_module_default.breadcrumbSegment,
-						children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: TimelineSwimLanes_module_default.breadcrumbDivider,
-							children: "/"
-						}), isLast ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: TimelineSwimLanes_module_default.breadcrumbCurrent,
-							children: segment.label
-						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-							className: TimelineSwimLanes_module_default.breadcrumbLink,
-							onClick: () => onBreadcrumbSelect?.(segment.key),
-							children: segment.label
-						})]
-					}, segment.key);
-				})
-			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				className: TimelineSwimLanes_module_default.breadcrumbCurrent,
-				onClick: onScrollToTop,
-				children: rootDisplay
-			}),
-			timelineConfig && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				ref: optionsButtonRef,
-				type: "button",
-				className: TimelineSwimLanes_module_default.optionsButton,
-				onClick: () => setOptionsOpen((prev) => !prev),
-				title: "Timeline options",
-				"aria-label": "Timeline options",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.threeDots })
-			}),
-			minimap && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineMinimap, { ...minimap }),
-			timelineConfig && onToggleBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineOptionsPopover, {
-				isOpen: optionsOpen,
-				setIsOpen: setOptionsOpen,
-				positionEl: optionsButtonRef.current,
-				config: timelineConfig,
-				onToggleBranches
-			})
-		]
-	});
-};
-var BarFill = ({ span, isParent, isSelected, isDimmed, onSelect, onDoubleClick, insetPx }) => {
-	const handleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onSelect();
-	}, [onSelect]);
-	const handleDoubleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onDoubleClick?.();
-	}, [onDoubleClick]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, isSelected && TimelineSwimLanes_module_default.fillSelected, isDimmed && TimelineSwimLanes_module_default.fillDimmed),
-		style: {
-			left: insetPx ? `calc(${span.bar.left}% + ${insetPx}px)` : `${span.bar.left}%`,
-			width: insetPx ? `calc(${span.bar.width}% - ${insetPx}px)` : `${span.bar.width}%`
-		},
-		title: span.description ?? void 0,
-		onClick: handleClick,
-		onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
-	});
-};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
+var EPSILON_MS = 1;
 /**
-* Renders an overlay on the bar area to indicate which portion of the row's
-* spans are "active" (shown in the transcript). Positioned as a sibling of
-* .fill so it has independent opacity instead of stacking with the bar's own.
+* Return `events` with retry-inverted ModelEvent timestamps repaired.
 *
-* - clipRight = 100 → covers the full span range (e.g. the branch row itself).
-* - clipRight < 100 → covers from the first span's left edge to the clip
-*   percentage (e.g. a parent bar up to the fork point marker).
+* Returns the input array reference unchanged when no inversion is
+* detected, so callers can safely memoize on the result.
+*
+* Comparisons are done in parsed epoch milliseconds so mixed input
+* formats (the backend emits `+00:00`; corrected outputs use `Z`) sort
+* correctly. The output timestamp is always normalized to ISO-Z via
+* `new Date(epoch).toISOString()`.
 */
-var HighlightOverlay = ({ spans, clipRight }) => {
-	const firstSpan = spans[0];
-	if (!firstSpan) return null;
-	const barLeft = firstSpan.bar.left;
-	const lastSpan = spans[spans.length - 1] ?? firstSpan;
-	const barRight = lastSpan.bar.left + lastSpan.bar.width;
-	const width = Math.max(0, (clipRight >= 100 ? barRight : Math.min(clipRight, barRight)) - barLeft);
-	if (width <= 0) return null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: TimelineSwimLanes_module_default.fillHighlight,
-		style: {
-			left: `${barLeft}%`,
-			width: `${width}%`
+function correctRetryTimestamps(events) {
+	const lastModelTs = /* @__PURE__ */ new Map();
+	let result = null;
+	for (let i = 0; i < events.length; i++) {
+		const e = events[i];
+		if (e.event !== "model") continue;
+		if (!e.timestamp) continue;
+		const epoch = Date.parse(e.timestamp);
+		if (Number.isNaN(epoch)) continue;
+		const key = e.span_id ?? null;
+		const prev = lastModelTs.get(key);
+		if (prev != null && epoch < prev) {
+			const correctedEpoch = prev + EPSILON_MS;
+			const correctedIso = new Date(correctedEpoch).toISOString();
+			if (!result) result = events.slice();
+			result[i] = {
+				...e,
+				timestamp: correctedIso
+			};
+			lastModelTs.set(key, correctedEpoch);
+		} else lastModelTs.set(key, epoch);
+	}
+	return result ?? events;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/collapse.ts
+var collapseFilters = [
+	(event) => event.type === "solver" && event.name === "system_message",
+	(event) => {
+		if (event.event === "step" || event.event === "span_begin") return event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA" || event.name === "init" || event.name === "sample_init";
+		return false;
+	},
+	(event) => event.event === "tool" && !event.agent && !event.failed,
+	(event) => event.event === "subtask"
+];
+/**
+* Compute the node IDs that start collapsed by default (system messages,
+* init spans, successful non-agent tool calls, subtasks).
+*/
+var computeDefaultCollapsedIds = (eventNodes) => {
+	const defaultCollapsedIds = {};
+	const findCollapsibleEvents = (nodes) => {
+		for (const node of nodes) {
+			if (kCollapsibleEventTypes.includes(node.event.event) && collapseFilters.some((filter) => filter(node.event))) defaultCollapsedIds[node.id] = true;
+			findCollapsibleEvents(node.children);
 		}
-	});
+	};
+	findCollapsibleEvents(eventNodes);
+	return defaultCollapsedIds;
 };
 /**
-* Renders a bar fill split into clickable region segments at compaction marker
-* positions. Each segment spans from one compaction marker to the next (or
-* bar start/end). When no region is selected, all segments look like one
-* continuous bar. When a region is selected, the selected segment is
-* highlighted and others are dimmed.
+* Collect every collapsible node ID in the tree (tree-collapsible and
+* content-collapsible), for bulk collapse-all.
 */
-var RegionBarFill = ({ span, isParent, isBarSelected, isBarDimmed, selectedRegionIndex, compactionPositions, onSelectBar, onSelectRegion, onDoubleClick }) => {
-	const barLeft = span.bar.left;
-	const barRight = span.bar.left + span.bar.width;
-	const boundaries = [
-		barLeft,
-		...compactionPositions,
-		barRight
-	];
-	const regionCount = boundaries.length - 1;
-	const [hoveredIndex, setHoveredIndex] = (0, import_react.useState)(null);
-	const suppressHoverRef = (0, import_react.useRef)(false);
-	const handleDoubleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		onDoubleClick?.();
-	}, [onDoubleClick]);
-	if (isBarDimmed) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, TimelineSwimLanes_module_default.fillDimmed),
-		style: {
-			left: `${barLeft}%`,
-			width: `${span.bar.width}%`
-		},
-		title: span.description ?? void 0,
-		onClick: (e) => {
-			e.stopPropagation();
-			onSelectBar();
+var collectAllCollapsibleIds = (nodes) => {
+	const result = {};
+	const traverse = (nodeList) => {
+		for (const node of nodeList) {
+			if (kCollapsibleEventTypes.includes(node.event.event) || kContentCollapsibleEventTypes.includes(node.event.event)) result[node.id] = true;
+			if (node.children.length > 0) traverse(node.children);
 		}
-	});
-	const hasRegionSelection = isBarSelected && selectedRegionIndex !== null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: boundaries.map((start, i) => {
-		if (i >= regionCount) return null;
-		const end = boundaries[i + 1];
-		if (end === void 0 || end <= start) return null;
-		const segmentLeft = start;
-		const segmentWidth = end - start;
-		const isSegmentSelected = hasRegionSelection && selectedRegionIndex === i;
-		const isFirst = i === 0;
-		const isLast = i === regionCount - 1;
-		let opacityClass;
-		if (hasRegionSelection) if (isSegmentSelected) opacityClass = TimelineSwimLanes_module_default.fillSelected;
-		else if (hoveredIndex === i) opacityClass = TimelineSwimLanes_module_default.regionHover;
-		else opacityClass = TimelineSwimLanes_module_default.fillDimmed;
-		else if (isBarSelected) if (hoveredIndex !== null && hoveredIndex !== i) opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
-		else opacityClass = TimelineSwimLanes_module_default.fillSelected;
-		else if (hoveredIndex !== null) opacityClass = TimelineSwimLanes_module_default.regionHover;
-		else opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx(TimelineSwimLanes_module_default.regionSegment, opacityClass, isFirst && TimelineSwimLanes_module_default.regionFirst, isLast && TimelineSwimLanes_module_default.regionLast, !isFirst && !isLast && TimelineSwimLanes_module_default.regionMiddle),
-			style: {
-				left: `${segmentLeft}%`,
-				width: `${segmentWidth}%`
-			},
-			title: span.description ?? void 0,
-			onMouseEnter: () => {
-				if (!suppressHoverRef.current) setHoveredIndex(i);
-			},
-			onMouseLeave: () => {
-				suppressHoverRef.current = false;
-				setHoveredIndex(null);
-			},
-			onClick: (e) => {
-				e.stopPropagation();
-				suppressHoverRef.current = true;
-				setHoveredIndex(null);
-				if (isBarSelected && selectedRegionIndex === null) onSelectRegion(i);
-				else if (hasRegionSelection && selectedRegionIndex === i) onSelectBar();
-				else if (hasRegionSelection) onSelectRegion(i);
-				else onSelectBar();
-			},
-			onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
-		}, i);
-	}) });
+	};
+	traverse(nodes);
+	return result;
 };
-var kRowHeight = 18;
-var BranchConnectorLine = ({ connector }) => {
-	const { markerLeft, barLeft, rowGap } = connector;
-	const topY = -(rowGap * kRowHeight) + kRowHeight / 2;
-	const midY = kRowHeight / 2;
-	const endLeft = Math.max(barLeft, markerLeft + .5);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
-		className: TimelineSwimLanes_module_default.branchConnector,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
-			x1: `${markerLeft}%`,
-			y1: topY,
-			x2: `${markerLeft}%`,
-			y2: 9.5,
-			stroke: "var(--vscode-descriptionForeground, #717171)",
-			strokeWidth: 1
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
-			x1: `${markerLeft}%`,
-			y1: midY,
-			x2: `${endLeft}%`,
-			y2: midY,
-			stroke: "var(--vscode-descriptionForeground, #717171)",
-			strokeWidth: 1
-		})]
-	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: TimelineSwimLanes_module_default.connectorArrow,
-		style: { left: `calc(${endLeft}% + 4px)` }
-	})] });
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodes.ts
+/**
+* Shared hook that builds an EventNode tree from raw events.
+*
+* Handles fixup, treeification, empty-span filtering, source-span attachment
+* (for agent card rendering), and default-collapse computation.
+*/
+/**
+* Build an EventNode tree from raw events (pure core of `useEventNodes`).
+*
+* Exposed for headless consumers (tests, non-React derivations) that need
+* the exact production pipeline: retry ordering/grouping, fixups,
+* treeification, empty-span filtering, source-span attachment, and
+* default-collapse computation.
+*/
+var buildEventNodes = (events, running, sourceSpans) => {
+	const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
+	const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0);
+	if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
+	const eventNodes = filterEmptySpans(rawEventTree);
+	return {
+		eventNodes,
+		defaultCollapsedIds: computeDefaultCollapsedIds(eventNodes),
+		retryAttempts
+	};
 };
-var MarkerGlyph = ({ marker, onBranchToggle, onMarkerNavigate }) => {
-	const icons = useTimelineIcons();
-	const icon = {
-		error: icons.error,
-		compaction: icons.compaction,
-		branch: icons.fork
-	}[marker.kind] ?? "bi bi-question-circle";
-	const kindClass = marker.kind === "error" ? TimelineSwimLanes_module_default.markerError : marker.kind === "compaction" ? TimelineSwimLanes_module_default.markerCompaction : TimelineSwimLanes_module_default.markerBranch;
-	const handleClick = (0, import_react.useCallback)((e) => {
-		e.stopPropagation();
-		if (marker.kind === "branch") onBranchToggle();
-		else if (marker.reference && onMarkerNavigate) onMarkerNavigate(marker.reference);
-	}, [
-		marker.kind,
-		marker.reference,
-		onMarkerNavigate,
-		onBranchToggle
+var useEventNodes = (events, running, sourceSpans) => {
+	return (0, import_react.useMemo)(() => buildEventNodes(events, running, sourceSpans), [
+		events,
+		running,
+		sourceSpans
 	]);
-	const isBranch = marker.kind === "branch";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-		className: clsx(TimelineSwimLanes_module_default.marker, kindClass),
-		style: { left: `${marker.left}%` },
-		title: marker.tooltip,
-		onClick: handleClick,
-		tabIndex: isBranch ? 0 : void 0,
-		role: isBranch ? "button" : void 0,
-		"aria-label": isBranch ? "Toggle branches" : void 0,
-		children: marker.kind !== "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icon })
-	});
 };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useEventNodeData.ts
+/**
+* View-model hook producing the EventNode tree and its render context from an
+* EventNodeFeed (see useTimelinePipeline).
+*/
+var useEventNodeData = (nodeFeed, running, extraContext) => {
+	const { eventNodes, defaultCollapsedIds, retryAttempts } = useEventNodes(nodeFeed.events, running, nodeFeed.sourceSpans);
+	return {
+		eventNodes,
+		defaultCollapsedIds,
+		eventNodeContext: (0, import_react.useMemo)(() => {
+			const messageLabels = scopeMessageLabels(nodeFeed.events, extraContext?.messageLabels);
+			const toolLabels = buildToolLabels(nodeFeed.events, messageLabels);
+			return {
+				...extraContext,
+				messageLabels,
+				retryAttempts,
+				...toolLabels ? { toolLabels } : {}
+			};
+		}, [
+			nodeFeed.events,
+			extraContext,
+			retryAttempts
+		])
+	};
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useOutlineAutoHide.ts
+/**
+* View-model hook for outline auto-hide.
+*
+* Tracks whether the outline component reports displayable nodes. When the
+* outline is collapsed (unmounted), it can't report, so we optimistically
+* fall back to eventNodes.length > 0 to keep the toggle enabled.
+*
+* Auto-hides the outline when content has no nodes (e.g. utility agent)
+* without touching the user's persistent preference. When the user navigates
+* back to an agent with outline content, the preference is still intact.
+*/
+function useOutlineAutoHide(options) {
+	const { eventNodes, hasOutline, outlineCollapsed } = options;
+	const [reportedHasNodes, setReportedHasNodes] = (0, import_react.useState)(true);
+	const [prevEventNodes, setPrevEventNodes] = (0, import_react.useState)(eventNodes);
+	if (prevEventNodes !== eventNodes) {
+		setPrevEventNodes(eventNodes);
+		if (!reportedHasNodes) setReportedHasNodes(true);
+	}
+	const hasMatchingEvents = eventNodes.length > 0;
+	const isOutlineCollapsed = !hasOutline || !!outlineCollapsed || (hasOutline ? !reportedHasNodes && !outlineCollapsed : false);
+	return {
+		isOutlineCollapsed,
+		outlineHasNodes: isOutlineCollapsed ? hasMatchingEvents : reportedHasNodes,
+		onOutlineHasNodesChange: (0, import_react.useCallback)((hasNodes) => {
+			setReportedHasNodes(hasNodes);
+		}, [])
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useSelectionActions.ts
+/**
+* View-model hook for user-driven swimlane selection: agent-card clicks
+* (span id → row key) and inline fork-navigator clicks (which preserve the
+* clicked element's viewport position via a scroll anchor), plus the
+* pending-scroll-target signal that suppresses scroll-to-top on selection
+* change.
+*/
+function useSelectionActions(options) {
+	const { timelineState, scrollRef, initialEventId, initialMessageId } = options;
+	const [scrollAnchor, setScrollAnchor] = (0, import_react.useState)(null);
+	const hasScrollTarget = !!(initialEventId || initialMessageId || scrollAnchor);
+	const spanSelectKeys = (0, import_react.useMemo)(() => buildSpanSelectKeys(timelineState.rows), [timelineState.rows]);
+	const selectBySpanId = (0, import_react.useCallback)((spanId) => {
+		const key = spanSelectKeys.get(spanId);
+		if (!key) return;
+		timelineState.select(key.key);
+	}, [spanSelectKeys, timelineState]);
+	const selectByRowKey = (0, import_react.useCallback)((rowKey, anchorEl) => {
+		if (anchorEl && scrollRef.current) setScrollAnchor({ scrollTop: scrollRef.current.scrollTop });
+		timelineState.select(rowKey, { preserveScroll: true });
+	}, [timelineState, scrollRef]);
+	(0, import_react.useEffect)(() => {
+		if (!scrollAnchor) return;
+		requestAnimationFrame(() => {
+			scrollRef.current?.scrollTo({ top: scrollAnchor.scrollTop });
+		});
+	}, [scrollAnchor, scrollRef]);
+	return {
+		spanSelectKeys,
+		selectBySpanId,
+		selectByRowKey,
+		hasScrollTarget
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useSidebarScrollCoupling.ts
+/**
+* Couples sticky sidebars to the main scroll container.
+*
+* Forwards wheel events from a sidebar to the main scroller only while the
+* header above the tabs is still visible. Once the sidebar is stuck at its
+* sticky top (header fully out), wheel events stop chaining so the main
+* content doesn't scroll along with the sidebar. Also dispatches a synthetic
+* scroll event when a sidebar mounts/unmounts: the layout reflows but no
+* scroll/resize event fires, so sticky-state observers (useStickyObserver,
+* StickyScroll) would otherwise keep stale state.
+*
+* Nothing here is transcript-specific; candidate for @tsmono/react/hooks.
+*/
+function useSidebarScrollCoupling(options) {
+	const { mainScrollRef, sidebars } = options;
+	const sidebarsRef = (0, import_react.useRef)(sidebars);
+	(0, import_react.useEffect)(() => {
+		sidebarsRef.current = sidebars;
+	});
+	const structureKey = sidebars.map((s) => String(s.remountKey)).join("|");
+	(0, import_react.useEffect)(() => {
+		const el = mainScrollRef.current;
+		if (!el) return;
+		const timer = setTimeout(() => {
+			el.dispatchEvent(new Event("scroll"));
+		}, 0);
+		return () => clearTimeout(timer);
+	}, [structureKey, mainScrollRef]);
+	(0, import_react.useEffect)(() => {
+		const main = mainScrollRef.current;
+		if (!main) return;
+		const makeHandler = (sidebar, index) => (e) => {
+			const mainMaxTop = main.scrollHeight - main.clientHeight;
+			const mainRect = main.getBoundingClientRect();
+			if (!(sidebar.getBoundingClientRect().top - mainRect.top <= (sidebarsRef.current[index]?.stickyTop ?? 0) + 1)) {
+				if (e.deltaY > 0 && main.scrollTop < mainMaxTop - .5 || e.deltaY < 0 && main.scrollTop > .5) {
+					e.preventDefault();
+					main.scrollBy({
+						top: e.deltaY,
+						behavior: "auto"
+					});
+				}
+			} else if (e.deltaY < 0 && sidebar.scrollTop <= 0 && main.scrollTop > 0) {
+				e.preventDefault();
+				main.scrollBy({
+					top: e.deltaY,
+					behavior: "auto"
+				});
+			}
+		};
+		const entries = sidebarsRef.current.flatMap((target, index) => {
+			const el = target.scrollRef?.current;
+			if (!el) return [];
+			const handler = makeHandler(el, index);
+			el.addEventListener("wheel", handler, { passive: false });
+			return [{
+				el,
+				handler
+			}];
+		});
+		return () => {
+			for (const { el, handler } of entries) el.removeEventListener("wheel", handler);
+		};
+	}, [mainScrollRef, structureKey]);
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useSwimlaneHeader.ts
+/**
+* View-model hook for the swimlane header row: owns the minimap scrubber
+* wiring (progress tracking + headroom anchor reset on scrub) and assembles
+* the memoized `TimelineHeaderProps` object for `TimelineSwimLanes`.
+*/
+function useSwimlaneHeader(options) {
+	const { scrollRef, onScrollToTop, onHeadroomResetAnchor, timelineConfig, hiddenUtilityCount, minimap, multiTimeline, views } = options;
+	const [scrubberProgress, scrubTo] = useScrubberProgress(scrollRef);
+	const handleScrub = (0, import_react.useCallback)((progress) => {
+		onHeadroomResetAnchor?.(true);
+		scrubTo(progress);
+	}, [onHeadroomResetAnchor, scrubTo]);
+	return (0, import_react.useMemo)(() => ({
+		onScrollToTop,
+		minimap,
+		scrubberProgress,
+		onScrub: handleScrub,
+		timelineConfig,
+		hiddenUtilityCount,
+		multiTimeline,
+		views
+	}), [
+		onScrollToTop,
+		minimap,
+		scrubberProgress,
+		handleScrub,
+		timelineConfig,
+		hiddenUtilityCount,
+		multiTimeline,
+		views
+	]);
+}
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/hooks/useActiveTimeline.ts
 /**
@@ -95624,6 +95848,318 @@ function useTimeline(timeline, options, props) {
 			onSelect?.(null);
 		}, [onSelect])
 	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/swimlaneLayout.ts
+/**
+* Swimlane layout computation for the timeline UI.
+*
+* Maps swimlane rows + a time range to percentage-based positions for CSS
+* rendering. All functions are pure with no DOM or React dependencies.
+*/
+/**
+* Computes a single percentage position for a timestamp within a view range.
+* Result is clamped to [0, 100]. Returns 0 for zero-duration view ranges.
+*/
+function timestampToPercent(timestamp, viewStart, viewEnd) {
+	const range = viewEnd.getTime() - viewStart.getTime();
+	if (range <= 0) return 0;
+	const offset = timestamp.getTime() - viewStart.getTime();
+	return Math.max(0, Math.min(100, offset / range * 100));
+}
+/**
+* Computes the bar position (left + width) for a time range within a view range.
+* Both left and width are clamped so the bar stays within [0, 100].
+*/
+function computeBarPosition(spanStart, spanEnd, viewStart, viewEnd) {
+	const left = timestampToPercent(spanStart, viewStart, viewEnd);
+	const right = timestampToPercent(spanEnd, viewStart, viewEnd);
+	return {
+		left,
+		width: Math.max(0, right - left)
+	};
+}
+/**
+* Computes the time envelope (earliest start, latest end) of a non-empty array.
+* Useful for computing the bounding range of parallel agents or branches.
+*/
+function computeTimeEnvelope(items) {
+	const first = items[0];
+	let startTime = first.startTime();
+	let endTime = first.endTime();
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (item.startTime() < startTime) startTime = item.startTime();
+		if (item.endTime() > endTime) endTime = item.endTime();
+	}
+	return {
+		startTime,
+		endTime
+	};
+}
+/**
+* Formats a token count for compact display: "48.5k", "1.2M", etc.
+* Uses rounding thresholds so values like 999,950 display as "1.0M" not "1000.0k".
+*/
+function formatTokenCount(tokens) {
+	if (tokens >= 999950) return `${formatPrettyDecimal(tokens / 1e6, 1)}M`;
+	if (tokens >= 1e3) return `${formatPrettyDecimal(tokens / 1e3, 1)}k`;
+	return String(tokens);
+}
+/**
+* Computes the full layout for all swimlane rows.
+*
+* The TimeMapping defines how timestamps map to percentage positions. When
+* gap compression is active, idle gaps are compressed into narrow regions.
+* Markers are collected at the specified depth for each row's spans.
+*/
+function computeRowLayouts(rows, mapping, markerDepth, markerKinds, branchMappings) {
+	return rows.map((row) => {
+		const isParent = row.depth === 0;
+		const rowMapping = branchMappings?.get(row.key) ?? mapping;
+		const spans = row.spans.map((rowSpan) => {
+			if (isSingleSpan(rowSpan)) return {
+				bar: computeBarFromMapping(rowSpan.agent.startTime(false), rowSpan.agent.endTime(false), rowMapping),
+				drillable: false,
+				childCount: 0,
+				parallelCount: null,
+				description: rowSpan.agent.description ?? null
+			};
+			const agents = rowSpan.agents;
+			let envStart = agents[0].startTime(false);
+			let envEnd = agents[0].endTime(false);
+			for (let i = 1; i < agents.length; i++) {
+				const a = agents[i];
+				if (a.startTime(false) < envStart) envStart = a.startTime(false);
+				if (a.endTime(false) > envEnd) envEnd = a.endTime(false);
+			}
+			return {
+				bar: computeBarFromMapping(envStart, envEnd, rowMapping),
+				drillable: false,
+				childCount: 0,
+				parallelCount: agents.length,
+				description: null
+			};
+		});
+		const allMarkers = collectRowMarkers(row, markerDepth, rowMapping);
+		const markers = markerKinds ? allMarkers.filter((m) => markerKinds.includes(m.kind)) : allMarkers;
+		const rowParallelCount = spans.length === 1 && spans[0].parallelCount !== null ? spans[0].parallelCount : null;
+		return {
+			key: row.key,
+			name: row.name,
+			isParent,
+			depth: row.depth,
+			spans,
+			markers,
+			totalTokens: row.totalTokens,
+			parallelCount: rowParallelCount,
+			branch: row.branch
+		};
+	});
+}
+/** Computes bar position using a TimeMapping (which may compress gaps). */
+function computeBarFromMapping(spanStart, spanEnd, mapping) {
+	const left = mapping.toPercent(spanStart);
+	const right = mapping.toPercent(spanEnd);
+	return {
+		left,
+		width: Math.max(0, right - left)
+	};
+}
+/** Returns true if a TimelineSpan has any TimelineEvent items in its content tree. */
+function spanHasEvents(span) {
+	for (const item of span.content) {
+		if (item.type === "event") return true;
+		if (item.type === "span" && spanHasEvents(item)) return true;
+	}
+	return false;
+}
+/** Returns true if any agent across all spans in a row has events. */
+function rowHasEvents(row) {
+	return row.spans.some((rowSpan) => getAgents(rowSpan).some(spanHasEvents));
+}
+/**
+* Collects and positions markers for a single row.
+*
+* For the parent row, markers come from the parent span itself.
+* For child rows, markers are collected from each span's agent and merged.
+*/
+function collectRowMarkers(row, depth, mapping) {
+	const allMarkers = [];
+	for (const rowSpan of row.spans) {
+		const agents = getAgents(rowSpan);
+		for (const agent of agents) {
+			const markers = collectMarkers(agent, depth);
+			for (const m of markers) allMarkers.push({
+				left: mapping.toPercent(m.timestamp),
+				kind: m.kind,
+				reference: m.reference,
+				tooltip: m.tooltip
+			});
+		}
+	}
+	allMarkers.sort((a, b) => a.left - b.left);
+	let compactionIdx = 0;
+	for (const m of allMarkers) if (m.kind === "compaction") m.compactionIndex = compactionIdx++;
+	return allMarkers;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/markers.ts
+var defaultMarkerConfig = {
+	kinds: ["compaction", "branch"],
+	depth: "direct"
+};
+/**
+* Returns true if the event is an error event.
+*
+* An event is an error if:
+* - It's a ToolEvent with a non-null `.error`
+* - It's a ModelEvent with a non-null `.error`
+*
+* Noneable fields are stripped during serialization (`exclude_none=True`), so
+* `null`/missing both manifest as `undefined` at runtime — hence the `!= null`
+* check. See packages/inspect-common/src/types/index.ts.
+*
+* Note: `ModelOutput.error` (a soft-refusal/content-filter channel populated
+* by some providers without raising) is intentionally excluded — the
+* transcript's ModelEventView only renders `event.error`, so flagging on
+* `output.error` produces markers that navigate to a card with no visible
+* error.
+*/
+function isErrorEvent(event) {
+	if (event.event === "tool") return event.error != null;
+	if (event.event === "model") return event.error != null;
+	return false;
+}
+/**
+* Returns true if the event is a compaction event.
+*/
+function isCompactionEvent(event) {
+	return event.event === "compaction";
+}
+/**
+* Builds a tooltip string for an error event.
+*/
+function errorTooltip(event) {
+	if (event.event === "tool") {
+		const msg = event.error?.message ?? "Unknown error";
+		return `Error (${event.function}): ${msg}`;
+	}
+	if (event.event === "model") {
+		const msg = (typeof event.error === "string" ? event.error : null) ?? "Unknown error";
+		return `Error (${event.model}): ${msg}`;
+	}
+	return "Error";
+}
+/**
+* Collects timeline markers from a TimelineSpan at the specified depth.
+*
+* - `"direct"`: Only markers from the span's own TimelineEvent content.
+* - `"children"`: Own events + events from direct child spans.
+* - `"recursive"`: Full subtree traversal.
+*
+* Branch markers are always collected from the span's own branches
+* (not from child spans), regardless of depth.
+*
+* Results are sorted by timestamp.
+*/
+function collectMarkers(node, depth) {
+	const markers = [];
+	collectEventMarkers(node, depth, 0, markers);
+	collectBranchMarkers(node, markers);
+	markers.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+	return markers;
+}
+/**
+* Collects error and compaction markers from event nodes.
+*
+* @param node The span to scan
+* @param depth The depth mode
+* @param currentLevel 0 = the root node itself, 1 = direct children, etc.
+* @param markers Accumulator array
+*/
+function collectEventMarkers(node, depth, currentLevel, markers) {
+	for (const item of node.content) if (item.type === "event") addEventMarker(item, markers);
+	else if (item.type === "span" && shouldDescend(depth, currentLevel)) collectEventMarkers(item, depth, currentLevel + 1, markers);
+}
+/**
+* Determines whether to descend into a child span based on depth mode.
+*/
+function shouldDescend(depth, currentLevel) {
+	if (depth === "direct") return false;
+	if (depth === "children") return currentLevel === 0;
+	return true;
+}
+/**
+* Adds a marker for a timeline event if it's an error or compaction event.
+*/
+function addEventMarker(eventNode, markers) {
+	const event = eventNode.event;
+	const uuid = event.uuid;
+	if (isErrorEvent(event)) markers.push({
+		kind: "error",
+		timestamp: eventNode.startTime(),
+		reference: uuid ?? "",
+		tooltip: errorTooltip(event)
+	});
+	else if (isCompactionEvent(event)) {
+		const ce = event;
+		const before = ce.tokens_before?.toLocaleString() ?? "?";
+		const after = ce.tokens_after?.toLocaleString() ?? "?";
+		markers.push({
+			kind: "compaction",
+			timestamp: eventNode.startTime(),
+			reference: uuid ?? "",
+			tooltip: `Context compaction: ${before} → ${after} tokens`
+		});
+	}
+}
+/**
+* Collects branch markers from a span's branches.
+*
+* Emits one marker per branch, positioned at the fork point event in the
+* parent span (resolved via the branch's `branchedFrom` identifier).
+* Clicking a branch marker toggles the showBranches display option.
+*/
+function collectBranchMarkers(node, markers) {
+	for (const branch of node.branches) markers.push({
+		kind: "branch",
+		timestamp: resolveForkTimestamp(node, branch),
+		reference: branch.branchedFrom ?? "",
+		tooltip: branchTooltip([branch])
+	});
+}
+/**
+* Resolves the fork point timestamp from the parent span's content.
+*
+* `branch.branchedFrom` is a message ID (not an event UUID). Searches
+* parent events for one that produced or carries this message ID.
+*
+* When `branchedFrom` is empty the branch is unrolled from the very
+* beginning, so we return the parent's start time.
+*
+* Falls back to `parent.startTime()` when no matching event is found.
+*/
+function resolveForkTimestamp(parent, branch) {
+	if (!branch.branchedFrom) return parent.startTime();
+	for (const item of parent.content) if (item.type === "event" && item.matchesForkPoint(branch.branchedFrom)) return item.startTime();
+	return parent.startTime();
+}
+/**
+* Builds a tooltip string summarizing branches at a fork point.
+*/
+function branchTooltip(branches) {
+	const count = branches.length;
+	const tokenStr = formatCompactTokens(branches.reduce((sum, b) => sum + b.totalTokens(), 0));
+	const envelope = computeTimeEnvelope(branches);
+	const duration = formatDuration$1(envelope.startTime, envelope.endTime);
+	return `${count === 1 ? "1 branch" : `${count} branches`} (${tokenStr}, ${duration})`;
+}
+/**
+* Formats a token count compactly with " tokens" suffix: "48.5k tokens", "1.2M tokens", etc.
+*/
+function formatCompactTokens(tokens) {
+	return `${formatTokenCount(tokens)} tokens`;
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelineConfig.ts
@@ -95715,42 +96251,249 @@ function useTimelineConfig(options = {}) {
 	};
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/retryOrdering.ts
-var EPSILON_MS = 1;
+//#region ../../packages/inspect-components/src/transcript/timeline/timeMapping.ts
+/** Same threshold as computeIdleTime in timeline.ts — 5 minutes. */
+var GAP_THRESHOLD_MS = 3e5;
+/** Each compressed gap gets zero width — gaps simply vanish from the timeline. */
+var GAP_PERCENT = 0;
+/** Maximum total percentage allocated to all gaps combined. */
+var MAX_TOTAL_GAP_PERCENT = 0;
 /**
-* Return `events` with retry-inverted ModelEvent timestamps repaired.
-*
-* Returns the input array reference unchanged when no inversion is
-* detected, so callers can safely memoize on the result.
-*
-* Comparisons are done in parsed epoch milliseconds so mixed input
-* formats (the backend emits `+00:00`; corrected outputs use `Z`) sort
-* correctly. The output timestamp is always normalized to ISO-Z via
-* `new Date(epoch).toISOString()`.
+* Creates an identity (linear) time mapping with no compression.
+* Useful as a fallback or for timelines without idle gaps.
 */
-function correctRetryTimestamps(events) {
-	const lastModelTs = /* @__PURE__ */ new Map();
-	let result = null;
-	for (let i = 0; i < events.length; i++) {
-		const e = events[i];
-		if (e.event !== "model") continue;
-		if (!e.timestamp) continue;
-		const epoch = Date.parse(e.timestamp);
-		if (Number.isNaN(epoch)) continue;
-		const key = e.span_id ?? null;
-		const prev = lastModelTs.get(key);
-		if (prev != null && epoch < prev) {
-			const correctedEpoch = prev + EPSILON_MS;
-			const correctedIso = new Date(correctedEpoch).toISOString();
-			if (!result) result = events.slice();
-			result[i] = {
-				...e,
-				timestamp: correctedIso
-			};
-			lastModelTs.set(key, correctedEpoch);
-		} else lastModelTs.set(key, epoch);
+function createIdentityMapping(viewStart, viewEnd) {
+	const startMs = viewStart.getTime();
+	const range = viewEnd.getTime() - startMs;
+	return {
+		toPercent(timestamp) {
+			if (range <= 0) return 0;
+			const offset = timestamp.getTime() - startMs;
+			return Math.max(0, Math.min(100, offset / range * 100));
+		},
+		hasCompression: false,
+		gaps: []
+	};
+}
+/**
+* Compute the full view range of a node, including branches recursively.
+*
+* The span's own startTime/endTime cover only direct content. Branches
+* (and their nested branches) may extend beyond that range. The view
+* range is the recursive union of the span's time range and all branch
+* time ranges, giving the full time extent needed by the swimlane
+* visualization.
+*/
+function computeViewRange(node) {
+	const items = [node];
+	collectBranches(node, items);
+	let start = items[0].startTime(false);
+	let end = items[0].endTime(false);
+	for (let i = 1; i < items.length; i++) {
+		const s = items[i];
+		if (s.content.length === 0) continue;
+		const st = s.startTime(false);
+		const et = s.endTime(false);
+		if (st < start) start = st;
+		if (et > end) end = et;
 	}
-	return result ?? events;
+	return {
+		start,
+		end
+	};
+}
+/** Recursively collect all branch spans for view range computation. */
+function collectBranches(node, out) {
+	for (const branch of node.branches) {
+		out.push(branch);
+		collectBranches(branch, out);
+	}
+	for (const item of node.content) if (item.type === "span") collectBranches(item, out);
+}
+/**
+* Computes a TimeMapping for a timeline node.
+*
+* The mapping covers the full view range (content + branches) so that
+* branch rows render at correct positions within the swimlane.
+*
+* If the node has no idle time (idleTime === 0), returns an identity mapping
+* with zero overhead. Otherwise, detects gaps between content items and
+* compresses them into small fixed-width regions.
+*/
+function computeTimeMapping(node) {
+	const { start: viewStart, end: viewEnd } = computeViewRange(node);
+	if (node.idleTime() === 0) return createIdentityMapping(viewStart, viewEnd);
+	const nodeStartMs = viewStart.getTime();
+	const nodeEndMs = viewEnd.getTime();
+	if (nodeEndMs - nodeStartMs <= 0) return createIdentityMapping(viewStart, viewEnd);
+	const intervals = extractIntervals([...node.content, ...node.branches]);
+	if (intervals.length === 0) return createIdentityMapping(viewStart, viewEnd);
+	const activeRegions = mergeIntervals(intervals);
+	const rawGaps = findGaps(nodeStartMs, nodeEndMs, activeRegions);
+	if (rawGaps.length === 0) return createIdentityMapping(viewStart, viewEnd);
+	const totalActiveMs = activeRegions.reduce((sum, r) => sum + (r.endMs - r.startMs), 0);
+	let gapPercentEach = GAP_PERCENT;
+	if (rawGaps.length * gapPercentEach > MAX_TOTAL_GAP_PERCENT) gapPercentEach = MAX_TOTAL_GAP_PERCENT / rawGaps.length;
+	const activePercent = 100 - rawGaps.length * gapPercentEach;
+	const segments = [];
+	const gapRegions = [];
+	let currentPercent = 0;
+	let gapIdx = 0;
+	if (rawGaps.length > 0 && rawGaps[0].startMs === nodeStartMs) {
+		const gap = rawGaps[0];
+		const percentEnd = currentPercent + gapPercentEach;
+		segments.push({
+			startMs: gap.startMs,
+			endMs: gap.endMs,
+			percentStart: currentPercent,
+			percentEnd
+		});
+		gapRegions.push({
+			startMs: gap.startMs,
+			endMs: gap.endMs,
+			durationMs: gap.endMs - gap.startMs,
+			percentStart: currentPercent,
+			percentEnd
+		});
+		currentPercent = percentEnd;
+		gapIdx = 1;
+	}
+	for (let i = 0; i < activeRegions.length; i++) {
+		const region = activeRegions[i];
+		const regionDurationMs = region.endMs - region.startMs;
+		const regionPercent = totalActiveMs > 0 ? regionDurationMs / totalActiveMs * activePercent : activePercent / activeRegions.length;
+		const percentEnd = currentPercent + regionPercent;
+		segments.push({
+			startMs: region.startMs,
+			endMs: region.endMs,
+			percentStart: currentPercent,
+			percentEnd
+		});
+		currentPercent = percentEnd;
+		if (gapIdx < rawGaps.length) {
+			const gap = rawGaps[gapIdx];
+			if (gap.startMs >= region.endMs - 1) {
+				const gapPercentEnd = currentPercent + gapPercentEach;
+				segments.push({
+					startMs: gap.startMs,
+					endMs: gap.endMs,
+					percentStart: currentPercent,
+					percentEnd: gapPercentEnd
+				});
+				gapRegions.push({
+					startMs: gap.startMs,
+					endMs: gap.endMs,
+					durationMs: gap.endMs - gap.startMs,
+					percentStart: currentPercent,
+					percentEnd: gapPercentEnd
+				});
+				currentPercent = gapPercentEnd;
+				gapIdx++;
+			}
+		}
+	}
+	const frozenSegments = segments;
+	return {
+		toPercent(timestamp) {
+			const ms = timestamp.getTime();
+			if (ms <= nodeStartMs) return 0;
+			if (ms >= nodeEndMs) return 100;
+			const seg = findSegment(frozenSegments, ms);
+			if (!seg) return 0;
+			const segRange = seg.endMs - seg.startMs;
+			if (segRange <= 0) return seg.percentStart;
+			const t = (ms - seg.startMs) / segRange;
+			return seg.percentStart + t * (seg.percentEnd - seg.percentStart);
+		},
+		hasCompression: true,
+		gaps: gapRegions
+	};
+}
+/**
+* Compute active time (seconds) within [startMs, endMs] by subtracting
+* overlapping gap durations from the mapping.
+*/
+function computeActiveTime(mapping, startMs, endMs) {
+	const wallClockMs = endMs - startMs;
+	let gapMs = 0;
+	for (const gap of mapping.gaps) {
+		const overlapStart = Math.max(gap.startMs, startMs);
+		const overlapEnd = Math.min(gap.endMs, endMs);
+		if (overlapEnd > overlapStart) gapMs += overlapEnd - overlapStart;
+	}
+	return Math.max(0, (wallClockMs - gapMs) / 1e3);
+}
+/** Recursively extract [startMs, endMs] intervals from leaf content items. */
+function extractIntervals(content) {
+	const intervals = [];
+	for (const item of content) if (item.type === "event") intervals.push({
+		startMs: item.startTime().getTime(),
+		endMs: item.endTime().getTime()
+	});
+	else {
+		const childIntervals = extractIntervals(item.content);
+		if (childIntervals.length > 0) intervals.push(...childIntervals);
+		else intervals.push({
+			startMs: item.startTime().getTime(),
+			endMs: item.endTime().getTime()
+		});
+	}
+	return intervals;
+}
+/** Sort intervals by start time and merge overlapping ones. */
+function mergeIntervals(intervals) {
+	if (intervals.length === 0) return [];
+	const sorted = [...intervals].sort((a, b) => a.startMs - b.startMs);
+	const merged = [{ ...sorted[0] }];
+	for (let i = 1; i < sorted.length; i++) {
+		const current = sorted[i];
+		const last = merged[merged.length - 1];
+		if (current.startMs <= last.endMs) last.endMs = Math.max(last.endMs, current.endMs);
+		else merged.push({ ...current });
+	}
+	return merged;
+}
+/** Find gaps between active regions that exceed the threshold. */
+function findGaps(nodeStartMs, nodeEndMs, activeRegions) {
+	const gaps = [];
+	if (activeRegions.length > 0) {
+		const firstStart = activeRegions[0].startMs;
+		if (firstStart - nodeStartMs > GAP_THRESHOLD_MS) gaps.push({
+			startMs: nodeStartMs,
+			endMs: firstStart
+		});
+	}
+	for (let i = 1; i < activeRegions.length; i++) {
+		const prevEnd = activeRegions[i - 1].endMs;
+		const nextStart = activeRegions[i].startMs;
+		if (nextStart - prevEnd > GAP_THRESHOLD_MS) gaps.push({
+			startMs: prevEnd,
+			endMs: nextStart
+		});
+	}
+	if (activeRegions.length > 0) {
+		const lastEnd = activeRegions[activeRegions.length - 1].endMs;
+		if (nodeEndMs - lastEnd > GAP_THRESHOLD_MS) gaps.push({
+			startMs: lastEnd,
+			endMs: nodeEndMs
+		});
+	}
+	return gaps;
+}
+/** Binary search for the segment containing a given timestamp. */
+function findSegment(segments, ms) {
+	let lo = 0;
+	let hi = segments.length - 1;
+	while (lo <= hi) {
+		const mid = lo + hi >>> 1;
+		const seg = segments[mid];
+		if (ms < seg.startMs) hi = mid - 1;
+		else if (ms > seg.endMs) lo = mid + 1;
+		else return seg;
+	}
+	if (lo < segments.length) return segments[lo];
+	if (hi >= 0) return segments[hi];
+	return null;
 }
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/timeline/hooks/useTimelinesArray.ts
@@ -96071,44 +96814,84 @@ function useTranscriptTimeline(options) {
 		state.rows,
 		layouts
 	]);
+	const hasTimeline = timeline.root.content.length > 0 && (timeline.root.content.some((item) => item.type === "span" || item.type === "event" && item.event.event === "span_begin") || timeline.root.branches.length > 0);
+	const hasAgentTimeline = visibleRows.some((row) => {
+		if (row.depth < 1) return false;
+		const rowSpan = row.spans[0];
+		if (!rowSpan) return false;
+		const span = getAgents(rowSpan)[0];
+		return !!span && !PHASE_SPAN_TYPES.has(span.spanType ?? "");
+	});
+	const selectedRowName = (0, import_react.useMemo)(() => {
+		if (!state.selected) return timeline.root.name;
+		const rowKey = parseSelection(state.selected)?.rowKey ?? state.selected;
+		return state.rows.find((r) => r.key === rowKey)?.name ?? timeline.root.name;
+	}, [
+		state.selected,
+		state.rows,
+		timeline.root.name
+	]);
+	const swimlanes = (0, import_react.useMemo)(() => ({
+		layouts,
+		regionCounts,
+		highlightedKeys,
+		timeMapping
+	}), [
+		layouts,
+		regionCounts,
+		highlightedKeys,
+		timeMapping
+	]);
+	const minimap = (0, import_react.useMemo)(() => ({
+		mapping: rootTimeMapping,
+		selection: minimapSelection
+	}), [rootTimeMapping, minimapSelection]);
+	const multiTimeline = (0, import_react.useMemo)(() => ({
+		timelines,
+		activeIndex: activeTimelineIndex,
+		setActive: setActiveTimeline
+	}), [
+		timelines,
+		activeTimelineIndex,
+		setActiveTimeline
+	]);
+	const pushViewByRowKey = (0, import_react.useCallback)((rowKey, label) => {
+		const span = state.rows.find((r) => r.key === rowKey)?.spans[0];
+		if (span && "agent" in span) pushView(span.agent, label);
+	}, [state.rows, pushView]);
 	return {
 		timeline,
 		state,
-		layouts,
-		timeMapping,
-		rootTimeMapping,
-		selectedEvents,
-		sourceSpans,
-		minimapSelection,
-		hasTimeline: timeline.root.content.length > 0 && (timeline.root.content.some((item) => item.type === "span" || item.type === "event" && item.event.event === "span_begin") || timeline.root.branches.length > 0),
-		hasAgentTimeline: visibleRows.some((row) => {
-			if (row.depth < 1) return false;
-			const rowSpan = row.spans[0];
-			if (!rowSpan) return false;
-			const span = getAgents(rowSpan)[0];
-			return !!span && !PHASE_SPAN_TYPES.has(span.spanType ?? "");
-		}),
-		timelines,
-		activeTimelineIndex,
-		setActiveTimeline,
-		regionCounts,
-		branchScrollTarget,
-		highlightedKeys,
-		selectedRowName: (0, import_react.useMemo)(() => {
-			if (!state.selected) return timeline.root.name;
-			const rowKey = parseSelection(state.selected)?.rowKey ?? state.selected;
-			return state.rows.find((r) => r.key === rowKey)?.name ?? timeline.root.name;
-		}, [
-			state.selected,
-			state.rows,
-			timeline.root.name
+		hasTimeline,
+		hasAgentTimeline,
+		swimlanes,
+		minimap,
+		multiTimeline,
+		views: (0, import_react.useMemo)(() => ({
+			stack: viewStack,
+			push: pushView,
+			pushByRowKey: pushViewByRowKey,
+			pop: popView
+		}), [
+			viewStack,
+			pushView,
+			pushViewByRowKey,
+			popView
 		]),
-		viewStack,
-		pushView,
-		popView
+		selection: (0, import_react.useMemo)(() => ({
+			events: selectedEvents,
+			sourceSpans,
+			branchScrollTarget,
+			rowName: selectedRowName
+		}), [
+			selectedEvents,
+			sourceSpans,
+			branchScrollTarget,
+			selectedRowName
+		])
 	};
 }
-var kBranchKeyPattern = /\/branch-([^/]*)-(\d+)$/;
+var kBranchKeyPattern$1 = /\/branch-([^/]*)-(\d+)$/;
 /**
 * Compute per-row time mappings for fork-relative layout.
 *
@@ -96145,7 +96928,7 @@ function computeBranchMappings(rows, trunkMapping) {
 			logicalStart.set(row.key, ancLogical + (row.startTime.getTime() - ancStart));
 			continue;
 		}
-		const parentKey = row.key.replace(kBranchKeyPattern, "");
+		const parentKey = row.key.replace(kBranchKeyPattern$1, "");
 		const parentSpan = singleSpan(rowByKey.get(parentKey));
 		const branchSpan = singleSpan(row);
 		if (!parentSpan || !branchSpan) continue;
@@ -96177,119 +96960,653 @@ function computeBranchMappings(rows, trunkMapping) {
 	return mappings;
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/retryGrouping.ts
-var retryAttemptKey = (event) => {
-	if (event.uuid) return `uuid:${event.uuid}`;
-	const epoch = Date.parse(event.timestamp);
-	const tsPart = Number.isNaN(epoch) ? event.timestamp : String(epoch);
-	return `ts:${event.span_id ?? ""}:${tsPart}`;
-};
-function toolChoiceEqual(a, b) {
-	if (a === b) return true;
-	if (typeof a === "string" || typeof b === "string") return a === b;
-	return a?.name === b?.name;
-}
-function toolsEqual(a, b) {
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++) if (a[i]?.name !== b[i]?.name) return false;
-	return true;
-}
-function isSameCall(failed, success) {
-	return failed.model === success.model && failed.input.length === success.input.length && toolsEqual(failed.tools, success.tools) && toolChoiceEqual(failed.tool_choice, success.tool_choice);
-}
-function groupRetryAttempts(events) {
-	const attempts = /* @__PURE__ */ new Map();
-	const pendingFailed = /* @__PURE__ */ new Map();
-	const dropIndices = /* @__PURE__ */ new Set();
-	for (let i = 0; i < events.length; i++) {
-		const e = events[i];
-		if (e.event !== "model") continue;
-		const m = e;
-		const key = m.span_id ?? "";
-		if (m.error != null) {
-			const run = pendingFailed.get(key) ?? [];
-			run.push({
-				event: m,
-				index: i
-			});
-			pendingFailed.set(key, run);
-			continue;
-		}
-		const run = pendingFailed.get(key);
-		if (run && run.length > 0) {
-			const matches = run.filter((p) => isSameCall(p.event, m));
-			if (matches.length > 0) {
-				attempts.set(retryAttemptKey(m), [...matches.map((p) => p.event), m]);
-				for (const p of matches) dropIndices.add(p.index);
-			}
-			pendingFailed.delete(key);
-		}
-	}
-	if (dropIndices.size === 0) return {
-		events,
-		attempts
-	};
-	const filtered = [];
-	for (let i = 0; i < events.length; i++) if (!dropIndices.has(i)) filtered.push(events[i]);
+//#region ../../packages/inspect-components/src/transcript/hooks/useTimelinePipeline.ts
+/**
+* View-model hook for the transcript's timeline section.
+*
+* Encapsulates the dataflow from raw events + configuration to everything the
+* swimlane UI and the event-node tree need: event-type filtering, branch
+* detection, config resolution, the timeline pipeline itself, the swimlane
+* visibility policy, and the choice of which events feed the node tree.
+*/
+function useTimelinePipeline(options) {
+	const { events, hiddenEventTypes, serverTimelines, markerConfig: markerConfigOverride, agentConfig: agentConfigOverride, showSwimlanes: showSwimlanesOption = "auto", timelineSelection, activeTimeline } = options;
+	const eventsForTimeline = (0, import_react.useMemo)(() => {
+		if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
+		return events.filter((e) => e.event === "anchor" || !hiddenEventTypes.includes(e.event));
+	}, [events, hiddenEventTypes]);
+	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
+	const timelineConfig = useTimelineConfig({ branchesPresent: (0, import_react.useMemo)(() => timelinesForBranchDetection.some((tl) => spanHasBranches(tl.root)), [timelinesForBranchDetection]) });
+	const timeline = useTranscriptTimeline({
+		events: eventsForTimeline,
+		markerConfig: markerConfigOverride ?? timelineConfig.markerConfig,
+		timelineOptions: agentConfigOverride ?? timelineConfig.agentConfig,
+		serverTimelines,
+		timelineProps: timelineSelection,
+		activeTimelineProps: activeTimeline
+	});
+	const { hasTimeline, hasAgentTimeline } = timeline;
+	const { regionCounts } = timeline.swimlanes;
+	const { timelines } = timeline.multiTimeline;
+	const { events: selectedEvents, sourceSpans } = timeline.selection;
+	const showSwimlanes = (0, import_react.useMemo)(() => {
+		if (showSwimlanesOption === "auto") return hasTimeline || regionCounts.size > 0 || timelines.length > 1;
+		return showSwimlanesOption;
+	}, [
+		showSwimlanesOption,
+		hasTimeline,
+		regionCounts,
+		timelines.length
+	]);
+	const swimlanesDefaultCollapsed = (0, import_react.useMemo)(() => {
+		if (showSwimlanesOption === "auto" && !hasTimeline && regionCounts.size === 0) return true;
+		if (hasTimeline) return hasAgentTimeline ? false : true;
+	}, [
+		showSwimlanesOption,
+		hasTimeline,
+		hasAgentTimeline,
+		regionCounts
+	]);
+	const rawEventsForNodes = showSwimlanes ? selectedEvents : events;
+	const eventsForNodes = (0, import_react.useMemo)(() => hiddenEventTypes && hiddenEventTypes.length > 0 ? rawEventsForNodes.filter((e) => !hiddenEventTypes.includes(e.event)) : rawEventsForNodes, [rawEventsForNodes, hiddenEventTypes]);
 	return {
-		events: filtered,
-		attempts
+		timeline,
+		timelineConfig,
+		showSwimlanes,
+		swimlanesDefaultCollapsed,
+		nodeFeed: (0, import_react.useMemo)(() => ({
+			events: eventsForNodes,
+			sourceSpans: showSwimlanes ? sourceSpans : void 0
+		}), [
+			eventsForNodes,
+			showSwimlanes,
+			sourceSpans
+		]),
+		searchableEvents: (0, import_react.useMemo)(() => {
+			if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
+			const hidden = new Set(hiddenEventTypes);
+			return events.filter((e) => !hidden.has(e.event));
+		}, [events, hiddenEventTypes])
 	};
 }
 //#endregion
-//#region ../../packages/inspect-components/src/transcript/timeline/hooks/useEventNodes.ts
+//#region ../../packages/inspect-components/src/transcript/hooks/useTranscriptCollapse.ts
 /**
-* Shared hook that builds an EventNode tree from raw events.
+* View-model hook for transcript collapse state.
 *
-* Handles fixup, treeification, empty-span filtering, source-span attachment
-* (for agent card rendering), and default-collapse computation.
+* Bridges the app store's collapse callbacks (TranscriptCollapseState) to the
+* event list: bulk collapse/expand, lazy default seeding on the first
+* individual toggle, and batched expansion for deep links.
 */
-var collapseFilters = [
-	(event) => event.type === "solver" && event.name === "system_message",
-	(event) => {
-		if (event.event === "step" || event.event === "span_begin") return event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA" || event.name === "init" || event.name === "sample_init";
-		return false;
-	},
-	(event) => event.event === "tool" && !event.agent && !event.failed,
-	(event) => event.event === "subtask"
-];
-var useEventNodes = (events, running, sourceSpans) => {
-	const { eventTree, defaultCollapsedIds, retryAttempts } = (0, import_react.useMemo)(() => {
-		const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
-		const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0);
-		if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
-		const filterEmpty = (eventNodes) => {
-			return eventNodes.filter((node) => {
-				if (node.children && node.children.length > 0) node.children = filterEmpty(node.children);
-				if (node.sourceSpan) return true;
-				if (node.event.event === "span_begin" && (node.event.type === "fork_nav" || node.event.type === "empty_branch")) return true;
-				return node.event.event !== "span_begin" && node.event.event !== "step" || node.children && node.children.length > 0;
-			});
-		};
-		const eventTree = filterEmpty(rawEventTree);
-		const defaultCollapsedIds = {};
-		const findCollapsibleEvents = (nodes) => {
-			for (const node of nodes) {
-				if (kCollapsibleEventTypes.includes(node.event.event) && collapseFilters.some((filter) => filter(node.event))) defaultCollapsedIds[node.id] = true;
-				findCollapsibleEvents(node.children);
-			}
-		};
-		findCollapsibleEvents(eventTree);
-		return {
-			eventTree,
-			defaultCollapsedIds,
-			retryAttempts
-		};
+function useTranscriptCollapse(options) {
+	const { eventNodes, defaultCollapsedIds, collapseState, bulkCollapse, eventCount } = options;
+	const onSetTranscriptCollapsed = collapseState?.onSetTranscriptCollapsed;
+	(0, import_react.useEffect)(() => {
+		if (eventCount <= 0 || !bulkCollapse || !onSetTranscriptCollapsed) return;
+		if (bulkCollapse === "expand") onSetTranscriptCollapsed({});
+		else if (bulkCollapse === "collapse") {
+			const allCollapsibleIds = collectAllCollapsibleIds(eventNodes);
+			onSetTranscriptCollapsed(allCollapsibleIds);
+		}
 	}, [
-		events,
-		running,
-		sourceSpans
+		eventNodes,
+		bulkCollapse,
+		onSetTranscriptCollapsed,
+		eventCount
+	]);
+	const onCollapseTranscriptRaw = collapseState?.onCollapseTranscript;
+	const onCollapseTranscript = (0, import_react.useCallback)((nodeId, collapsed) => {
+		if (!onCollapseTranscriptRaw || !onSetTranscriptCollapsed) return;
+		if (!collapseState?.transcript) onSetTranscriptCollapsed({
+			...defaultCollapsedIds,
+			[nodeId]: collapsed
+		});
+		else onCollapseTranscriptRaw(nodeId, collapsed);
+	}, [
+		onCollapseTranscriptRaw,
+		onSetTranscriptCollapsed,
+		collapseState?.transcript,
+		defaultCollapsedIds
+	]);
+	const onExpandNodes = (0, import_react.useCallback)((nodeIds) => {
+		if (!onSetTranscriptCollapsed) return;
+		const next = { ...collapseState?.transcript ?? defaultCollapsedIds };
+		for (const id of nodeIds) next[id] = false;
+		onSetTranscriptCollapsed(next);
+	}, [
+		onSetTranscriptCollapsed,
+		collapseState?.transcript,
+		defaultCollapsedIds
 	]);
 	return {
-		eventNodes: eventTree,
-		defaultCollapsedIds,
-		retryAttempts
+		onCollapseTranscript,
+		onExpandNodes: onSetTranscriptCollapsed ? onExpandNodes : void 0
 	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/icons.ts
+/**
+* Bootstrap icon class names used by transcript event components.
+* Both apps (scout and inspect) use the same Bootstrap icons,
+* so these are safe to hardcode as string constants.
+*/
+var TranscriptIcons = {
+	agent: "bi bi-grid",
+	approve: "bi bi-shield",
+	cancel: "bi bi-x-circle",
+	checkpoint: "bi bi-bookmark-check-fill",
+	approvals: {
+		approve: "bi bi-shield-check",
+		reject: "bi bi-shield-x",
+		terminate: "bi bi-shield-exclamation",
+		escalate: "bi bi-box-arrow-up",
+		modify: "bi bi-pencil-square"
+	},
+	arrows: { right: "bi bi-arrow-right" },
+	expand: "bi bi-chevron-up",
+	compaction: "bi bi-arrows-collapse-vertical",
+	edit: "bi bi-pencil-square",
+	error: "bi bi-exclamation-circle-fill",
+	fork: "bi bi-sign-intersection-y-fill",
+	info: "bi bi-info-circle",
+	input: "bi bi-terminal",
+	interrupt: "bi bi-slash-circle",
+	limits: {
+		messages: "bi bi-chat-right-text",
+		custom: "bi bi-exclamation-triangle",
+		operator: "bi bi-person-workspace",
+		tokens: "bi bi-list",
+		turns: "bi bi-arrow-repeat",
+		time: "bi bi-clock",
+		execution: "bi bi-stopwatch",
+		cost: "bi bi-currency-dollar"
+	},
+	logging: {
+		notset: "bi bi-card-text",
+		debug: "bi bi-bug",
+		http: "bi bi-download",
+		info: "bi bi-info-square",
+		warning: "bi bi-exclamation-triangle",
+		error: "bi bi-x-circle",
+		critical: "bi bi-fire"
+	},
+	model: "bi bi-grid-3x3-gap",
+	sample: "bi bi-database",
+	sandbox: "bi bi-box-seam",
+	scorer: "bi bi-calculator",
+	solvers: { use_tools: "bi bi-tools" }
+};
+var OutlineRow_module_default = {
+	eventRow: "_eventRow_lpuxs_1",
+	selected: "_selected_lpuxs_9",
+	toggle: "_toggle_lpuxs_13",
+	eventLink: "_eventLink_lpuxs_18",
+	label: "_label_lpuxs_31",
+	iconSlot: "_iconSlot_lpuxs_37",
+	progress: "_progress_lpuxs_49",
+	loadingRow: "_loadingRow_lpuxs_53",
+	spinner: "_spinner_lpuxs_57",
+	"outline-spin": "_outline-spin_lpuxs_1",
+	popover: "_popover_lpuxs_78"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/OutlineRow.tsx
+var OutlineRow = ({ node, running, selected, getEventUrl, onSelect, onNavigateToEvent, getCollapsed, setCollapsed, renderLink }) => {
+	const collapsed = getCollapsed?.(node.id) ?? false;
+	const icon = iconForNode(node);
+	const toggle = toggleIcon(node, collapsed);
+	const eventUrl = getEventUrl?.(node.id);
+	const labelText = parsePackageName(labelForNode(node)).module;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(OutlineRow_module_default.eventRow, "text-size-smaller", selected ? OutlineRow_module_default.selected : ""),
+		style: { paddingLeft: `${node.depth * .75}em` },
+		"data-unsearchable": true,
+		onClick: () => {
+			onSelect?.(node.id);
+			onNavigateToEvent?.(node.id);
+		},
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: OutlineRow_module_default.toggle,
+			onClick: () => {
+				if (node.children.length > 0) setCollapsed?.(node.id, !collapsed);
+			},
+			children: toggle ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(toggle) }) : void 0
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: clsx(OutlineRow_module_default.label),
+			"data-depth": node.depth,
+			title: tooltipForNode(node),
+			children: [
+				icon && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: OutlineRow_module_default.iconSlot,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon) })
+				}),
+				eventUrl ? renderLink ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: clsx(OutlineRow_module_default.eventLink),
+					children: renderLink(eventUrl, labelText)
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
+					href: eventUrl,
+					className: clsx(OutlineRow_module_default.eventLink),
+					children: labelText
+				}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: labelText }),
+				running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, {
+					size: "small",
+					className: clsx(OutlineRow_module_default.progress),
+					subtle: false
+				}) : void 0
+			]
+		})]
+	}) });
+};
+/** A row rendered below the last outline item while events are still loading. */
+var OutlineLoadingRow = () => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+	className: clsx(OutlineRow_module_default.eventRow, OutlineRow_module_default.loadingRow, "text-size-smaller"),
+	style: { paddingLeft: 0 },
+	"data-unsearchable": true,
+	children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: OutlineRow_module_default.toggle }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(OutlineRow_module_default.label),
+		role: "status",
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: OutlineRow_module_default.iconSlot,
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: OutlineRow_module_default.spinner,
+				"aria-hidden": "true"
+			})
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "loading" })]
+	})]
+});
+var toggleIcon = (node, collapsed) => {
+	if (node.children.length > 0) return collapsed ? "bi bi-chevron-right" : "bi bi-chevron-down";
+};
+var iconForNode = (node) => {
+	if (node.sourceSpan?.spanType === "agent") return TranscriptIcons.agent;
+	if (node.sourceSpan?.spanType === "branch") return TranscriptIcons.fork;
+	if (node.event.event === "span_begin" && node.event.type === "fork_nav") return TranscriptIcons.fork;
+	switch (node.event.event) {
+		case "sample_limit": return TranscriptIcons.limits.custom;
+		case "score": return TranscriptIcons.scorer;
+		case "error": return TranscriptIcons.error;
+		case "compaction": return TranscriptIcons.compaction;
+	}
+};
+/** Tooltip for the outline row (description for agent nodes, undefined otherwise). */
+var tooltipForNode = (node) => {
+	if (node.sourceSpan?.spanType === "agent" && node.sourceSpan.description) return node.sourceSpan.description;
+};
+var labelForNode = (node) => {
+	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name.toLowerCase();
+	if (node.sourceSpan?.spanType === "branch") return node.sourceSpan.name.toLowerCase();
+	if (node.event.event === "span_begin") switch (node.event.type) {
+		case "solver": return node.event.name;
+		case "tool": return node.event.name;
+		default:
+			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
+			return node.event.name;
+	}
+	else switch (node.event.event) {
+		case "subtask": return node.event.name;
+		case "approval": switch (node.event.decision) {
+			case "approve": return "approved";
+			case "reject": return "rejected";
+			case "escalate": return "escalated";
+			case "modify": return "modified";
+			case "terminate": return "terminated";
+			default: return node.event.decision;
+		}
+		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
+		case "score": return "scoring";
+		case "step":
+			if (node.event.name === "53787D8A-D3FC-426D-B383-9F880B70E4AA") return "sandbox events";
+			return node.event.name;
+		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
+		default: return node.event.event;
+	}
+};
+var TranscriptOutline_module_default = {
+	node: "_node_1eney_1",
+	rootHeader: "_rootHeader_1eney_7",
+	panel: "_panel_1eney_18"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineCollapse.ts
+/**
+* View-model hook for outline collapse state (the outline twin of
+* useTranscriptCollapse).
+*
+* Bridges the app store's outline collapse scope to the outline component:
+* resolves the collapsed-id map (store state falling back to defaults),
+* derives the per-row accessors, and seeds the store with the defaults on
+* first mount so individual toggles preserve the other rows' default state.
+*/
+/** Project the transcript-level collapse store down to the outline scope. */
+function outlineCollapseState(collapseState) {
+	return collapseState ? {
+		collapsed: collapseState.outline,
+		onCollapse: collapseState.onCollapseOutline,
+		onSetCollapsed: collapseState.onSetOutlineCollapsed
+	} : void 0;
+}
+function useOutlineCollapse(defaultCollapsedIds, collapse) {
+	const collapsedEvents = collapse?.collapsed;
+	const onSetCollapsed = collapse?.onSetCollapsed;
+	(0, import_react.useEffect)(() => {
+		if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) onSetCollapsed?.(defaultCollapsedIds);
+	}, [
+		defaultCollapsedIds,
+		collapsedEvents,
+		onSetCollapsed
+	]);
+	const getCollapsed = (0, import_react.useMemo)(() => collapsedEvents ? (id) => collapsedEvents[id] === true : void 0, [collapsedEvents]);
+	return {
+		collapsedIds: collapsedEvents ?? defaultCollapsedIds,
+		getCollapsed,
+		setCollapsed: collapse?.onCollapse
+	};
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineNodes.ts
+/**
+* Derivation of the outline's row list from the transcript EventNode tree.
+*/
+/**
+* Build the outline's row list: flatten the tree with the outline's
+* visibility visitors, then group model/tool runs into turns and collapse
+* consecutive turns and scoring events.
+*/
+var buildOutlineNodeList = (eventNodes, collapsedIds) => {
+	return collapseScoring(collapseTurns(makeTurns(flatTree(eventNodes, collapsedIds, [
+		removeNodeVisitor("logger"),
+		removeNodeVisitor("info"),
+		removeNodeVisitor("state"),
+		removeNodeVisitor("store"),
+		removeNodeVisitor("approval"),
+		removeNodeVisitor("input"),
+		removeNodeVisitor("sandbox"),
+		removeStepSpanNameVisitor(kSandboxSignalName),
+		noScorerChildren()
+	]))));
+};
+var useOutlineNodes = (eventNodes, collapsedIds) => {
+	return {
+		outlineNodeList: (0, import_react.useMemo)(() => buildOutlineNodeList(eventNodes, collapsedIds), [eventNodes, collapsedIds]),
+		allNodesList: (0, import_react.useMemo)(() => {
+			return flatTree(eventNodes, null);
+		}, [eventNodes])
+	};
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineScrollSync.ts
+/**
+* Scroll↔selection sync for the transcript outline.
+*
+* Tracks which transcript node is scrolled into view and reflects it as the
+* outline selection (via the nearest outline row at or above the scrolled
+* node). Outline clicks scroll the transcript programmatically; while that
+* scroll settles, tracking is suppressed so the selection doesn't flicker
+* through intermediate rows.
+*/
+var kFramesToStabilize = 10;
+/**
+* Find the nearest outline row at or above `targetId` in flat-list order.
+* Returns null when the target is not in the list or no outline row
+* precedes it.
+*/
+function findNearestOutlineAbove(targetId, allNodesList, outlineIds) {
+	const targetIndex = allNodesList.findIndex((node) => node.id === targetId);
+	if (targetIndex === -1) return null;
+	for (let i = targetIndex; i >= 0; i--) {
+		const node = allNodesList[i];
+		if (node !== void 0 && node.id) {
+			if (outlineIds.has(node.id)) return node;
+		}
+	}
+	return null;
+}
+function useOutlineScrollSync(options) {
+	const { allNodesList, outlineNodeList, scrollRef, scrollTrackOffset, setSelectedOutlineId } = options;
+	const isProgrammaticScrolling = (0, import_react.useRef)(false);
+	const lastScrollPosition = (0, import_react.useRef)(null);
+	const stableFrameCount = (0, import_react.useRef)(0);
+	const beginProgrammaticScroll = (0, import_react.useCallback)(() => {
+		isProgrammaticScrolling.current = true;
+		lastScrollPosition.current = null;
+		stableFrameCount.current = 0;
+		const checkScrollStabilized = () => {
+			if (!isProgrammaticScrolling.current) return;
+			const currentPosition = scrollRef?.current?.scrollTop ?? null;
+			if (currentPosition === lastScrollPosition.current) {
+				stableFrameCount.current++;
+				if (stableFrameCount.current >= kFramesToStabilize) {
+					isProgrammaticScrolling.current = false;
+					return;
+				}
+			} else {
+				stableFrameCount.current = 0;
+				lastScrollPosition.current = currentPosition;
+			}
+			requestAnimationFrame(checkScrollStabilized);
+		};
+		requestAnimationFrame(checkScrollStabilized);
+	}, [scrollRef]);
+	const onOutlineSelect = (0, import_react.useCallback)((nodeId) => {
+		setSelectedOutlineId?.(nodeId);
+		beginProgrammaticScroll();
+	}, [setSelectedOutlineId, beginProgrammaticScroll]);
+	useScrollTrack(allNodesList.map((node) => node.id), (scrolledId) => {
+		if (!isProgrammaticScrolling.current) {
+			const outlineIds = new Set(outlineNodeList.map((node) => node.id));
+			const parentNode = findNearestOutlineAbove(scrolledId, allNodesList, outlineIds);
+			if (parentNode) setSelectedOutlineId?.(parentNode.id);
+		}
+	}, scrollRef, { topOffset: scrollTrackOffset });
+	return { onOutlineSelect };
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/useOutlineWidth.ts
+var kMinWidth = 120;
+var kMaxWidth = 600;
+/** Lazily-created off-screen measurement container. Never removed. */
+var measureRoot = null;
+function getOrCreateMeasureRoot() {
+	if (!measureRoot) {
+		measureRoot = document.createElement("div");
+		measureRoot.style.position = "fixed";
+		measureRoot.style.top = "-9999px";
+		measureRoot.style.left = "-9999px";
+		measureRoot.style.visibility = "hidden";
+		measureRoot.style.pointerEvents = "none";
+		measureRoot.style.width = "max-content";
+		document.body.appendChild(measureRoot);
+	}
+	return measureRoot;
+}
+/**
+* Computes the ideal outline column width by rendering labels into a hidden
+* DOM container that mirrors the real outline structure (same CSS-module
+* classes and inline styles), then reading its natural width.
+*
+* Result is clamped to [kMinWidth, kMaxWidth] px.
+*/
+function useOutlineWidth(outlineNodes, _font, agentName) {
+	return (0, import_react.useMemo)(() => {
+		if (outlineNodes.length === 0 && !agentName) return kMinWidth;
+		const root = getOrCreateMeasureRoot();
+		root.innerHTML = "";
+		root.style.paddingLeft = "0.5rem";
+		root.style.paddingRight = "0.5rem";
+		if (agentName) {
+			const header = document.createElement("div");
+			header.className = [
+				TranscriptOutline_module_default.rootHeader ?? "",
+				"text-size-smaller",
+				"text-style-secondary"
+			].join(" ");
+			header.style.overflow = "visible";
+			header.style.textOverflow = "clip";
+			header.textContent = parsePackageName(agentName).module;
+			root.appendChild(header);
+		}
+		for (const node of outlineNodes) {
+			const row = document.createElement("div");
+			row.className = [OutlineRow_module_default.eventRow ?? "", "text-size-smaller"].join(" ");
+			row.style.paddingLeft = `${node.depth * .75}em`;
+			row.style.fontWeight = "800";
+			const toggle = document.createElement("div");
+			toggle.className = OutlineRow_module_default.toggle ?? "";
+			row.appendChild(toggle);
+			const label = document.createElement("div");
+			label.className = OutlineRow_module_default.label ?? "";
+			label.style.overflow = "visible";
+			label.style.width = "max-content";
+			if (iconForNode(node) !== void 0) {
+				const iconSpan = document.createElement("span");
+				iconSpan.className = OutlineRow_module_default.iconSlot ?? "";
+				iconSpan.innerHTML = "&#x25C6;";
+				label.appendChild(iconSpan);
+			}
+			label.appendChild(document.createTextNode(parsePackageName(labelForOutlineNode(node)).module));
+			row.appendChild(label);
+			root.appendChild(row);
+		}
+		const width = root.getBoundingClientRect().width;
+		return Math.min(kMaxWidth, Math.max(kMinWidth, Math.ceil(width)));
+	}, [outlineNodes, agentName]);
+}
+/**
+* Simplified label extraction matching OutlineRow's labelForNode.
+* Only needs the text content for width measurement.
+*/
+function labelForOutlineNode(node) {
+	if (node.sourceSpan?.spanType === "agent") return node.sourceSpan.name;
+	if (node.event.event === "span_begin") return node.event.name;
+	switch (node.event.event) {
+		case "subtask": return node.event.name;
+		case "model": return `model${node.event.role ? ` (${node.event.role})` : ""}`;
+		case "score": return "scoring";
+		case "step": return node.event.name;
+		case "checkpoint": return `checkpoint ${node.event.checkpoint_id}`;
+		default: return node.event.event;
+	}
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/outline/TranscriptOutline.tsx
+var outlineNodeRunning = ({ running, backfilling, isLast }) => running && !backfilling && isLast;
+var EventPaddingNode = {
+	id: "padding",
+	event: {
+		event: "info",
+		source: "",
+		data: "",
+		timestamp: "",
+		pending: false,
+		working_start: 0,
+		span_id: null,
+		uuid: null,
+		metadata: null
+	},
+	depth: 0,
+	children: []
+};
+var OutlineLoadingNode = {
+	...EventPaddingNode,
+	id: "loading"
+};
+var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling, className, scrollRef, outlineScrollEl, style, agentName, onHasNodesChange, onNavigateToEvent, scrollTrackOffset, getEventUrl, collapse, selectedOutlineId, setSelectedOutlineId, renderLink }) => {
+	const id = "transcript-tree";
+	const listHandle = (0, import_react.useRef)(null);
+	const { getRestoreState } = useVirtuosoState(listHandle, id);
+	const { collapsedIds, getCollapsed, setCollapsed } = useOutlineCollapse(defaultCollapsedIds, collapse);
+	const { outlineNodeList, allNodesList } = useOutlineNodes(eventNodes, collapsedIds);
+	const { onOutlineSelect } = useOutlineScrollSync({
+		allNodesList,
+		outlineNodeList,
+		scrollRef,
+		scrollTrackOffset,
+		setSelectedOutlineId
+	});
+	const hasOutlineNodes = outlineNodeList.length > 0;
+	(0, import_react.useEffect)(() => {
+		onHasNodesChange?.(hasOutlineNodes);
+	}, [hasOutlineNodes, onHasNodesChange]);
+	const outlineWidth = useOutlineWidth(outlineNodeList, void 0, agentName);
+	const rootRef = (0, import_react.useRef)(null);
+	(0, import_react.useEffect)(() => {
+		const el = rootRef.current;
+		if (!el) return;
+		let ancestor = el.parentElement;
+		while (ancestor) {
+			if (getComputedStyle(ancestor).display === "grid") {
+				ancestor.style.setProperty("--outline-width", `${outlineWidth}px`);
+				return;
+			}
+			ancestor = ancestor.parentElement;
+		}
+	}, [outlineWidth]);
+	const renderRow = (0, import_react.useCallback)((index, node) => {
+		if (node === EventPaddingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(TranscriptOutline_module_default.eventPadding),
+			style: { height: "2em" }
+		}, node.id);
+		else if (node === OutlineLoadingNode) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineLoadingRow, {}, node.id);
+		else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineRow, {
+			node,
+			running: outlineNodeRunning({
+				running: running === true,
+				backfilling: backfilling === true,
+				isLast: index === outlineNodeList.length - 1
+			}),
+			selected: selectedOutlineId ? selectedOutlineId === node.id : index === 0,
+			getEventUrl,
+			onSelect: onOutlineSelect,
+			onNavigateToEvent,
+			getCollapsed,
+			setCollapsed,
+			renderLink
+		}, node.id);
+	}, [
+		outlineNodeList,
+		running,
+		backfilling,
+		selectedOutlineId,
+		getEventUrl,
+		onOutlineSelect,
+		onNavigateToEvent,
+		getCollapsed,
+		setCollapsed,
+		renderLink
+	]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		ref: rootRef,
+		style,
+		children: [agentName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(TranscriptOutline_module_default.rootHeader, "text-size-smaller", "text-style-secondary"),
+			children: agentName
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(rs, {
+			ref: listHandle,
+			customScrollParent: outlineScrollEl ?? void 0,
+			id,
+			data: backfilling ? [
+				...outlineNodeList,
+				OutlineLoadingNode,
+				EventPaddingNode
+			] : [...outlineNodeList, EventPaddingNode],
+			defaultItemHeight: 50,
+			itemContent: renderRow,
+			atBottomThreshold: 30,
+			increaseViewportBy: {
+				top: 300,
+				bottom: 300
+			},
+			overscan: {
+				main: 10,
+				reverse: 10
+			},
+			className: clsx(className, "transcript-outline"),
+			skipAnimationFrameInResizeObserver: true,
+			restoreStateFrom: getRestoreState(),
+			tabIndex: 0
+		})]
+	});
 };
 var TranscriptLayout_module_default = {
 	root: "_root_1t7mh_1",
@@ -96307,6 +97624,1579 @@ var TranscriptLayout_module_default = {
 	sidebarHeaderTitle: "_sidebarHeaderTitle_1t7mh_96",
 	sidebarHeaderCloseAnchor: "_sidebarHeaderCloseAnchor_1t7mh_112",
 	sidebarHeaderClose: "_sidebarHeaderClose_1t7mh_112"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/OutlineSidebar.tsx
+/**
+* The transcript's sticky outline sidebar: the expanded panel (header, close
+* button, outline tree) or the collapsed show-outline toggle, pinned below
+* the swimlanes via StickyScroll.
+*/
+var OutlineSidebar = ({ outline, isCollapsed, hasNodes, onHasNodesChange, eventNodes, defaultCollapsedIds, scrollRef, running, backfilling, agentName, offsetTop, collapseState, getEventUrl }) => {
+	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
+	const { scrollRef: externalScrollRef } = outline;
+	const handleOutlineScrollRef = (0, import_react.useCallback)((el) => {
+		setOutlineScrollEl(el);
+		if (externalScrollRef) externalScrollRef.current = el;
+	}, [externalScrollRef]);
+	const collapse = (0, import_react.useMemo)(() => outlineCollapseState(collapseState), [collapseState]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyScroll, {
+		ref: handleOutlineScrollRef,
+		scrollRef,
+		className: TranscriptLayout_module_default.outline,
+		offsetTop,
+		children: !isCollapsed ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+			outline.title && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TranscriptLayout_module_default.sidebarHeader,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: clsx(TranscriptLayout_module_default.sidebarHeaderTitle, "text-size-smaller"),
+					children: outline.title
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TranscriptLayout_module_default.sidebarHeaderCloseAnchor,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: TranscriptLayout_module_default.sidebarHeaderClose,
+					onClick: () => outline.onCollapsedChange(true),
+					"aria-label": "Hide outline",
+					title: outline.toggleTitle ?? "Hide outline",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-x" })
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptOutline, {
+				eventNodes,
+				defaultCollapsedIds,
+				scrollRef,
+				outlineScrollEl,
+				running,
+				backfilling,
+				agentName,
+				scrollTrackOffset: offsetTop,
+				collapse,
+				selectedOutlineId: outline.selectedId,
+				setSelectedOutlineId: outline.setSelectedId,
+				getEventUrl,
+				renderLink: outline.renderLink,
+				onNavigateToEvent: outline.onNavigateToEvent,
+				onHasNodesChange
+			})
+		] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: TranscriptLayout_module_default.outlineToggle,
+			onClick: hasNodes && !outline.toggleDisabled ? () => outline.onCollapsedChange(false) : void 0,
+			"aria-disabled": outline.toggleDisabled || !hasNodes,
+			title: outline.toggleTitle ?? (!hasNodes ? "No outline available for the current filter" : void 0),
+			"aria-label": "Show outline",
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: outline.toggleIcon })
+		})
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TranscriptLayout_module_default.separator })] });
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/search/sampleSearch.ts
+/**
+* Build a map from event ID to the swimlane row key that contains it.
+*
+* Walks each row's agents. Within each agent, iterates through its `content`
+* but stops descending into nested agent spans — those events belong to
+* their own row (a separate entry in `state.rows`).
+*
+* If `state.rows` is sorted with deeper rows after their parents (the convention
+* established by `useTimeline`), processing them in order means the deepest row
+* wins when the same event would otherwise be reachable via multiple rows
+* (defensive — normally each event has exactly one containing row).
+*/
+function buildEventToRowMap(rows) {
+	const map = /* @__PURE__ */ new Map();
+	const ordered = [...rows].sort((a, b) => a.depth - b.depth);
+	for (const row of ordered) for (const rowSpan of row.spans) for (const agent of getAgents(rowSpan)) recordRowEvents(agent, row.key, map);
+	return map;
+}
+function recordRowEvents(agent, rowKey, out) {
+	const stack = [agent];
+	while (stack.length > 0) {
+		const span = stack.pop();
+		for (const item of span.content) if (item.type === "event") {
+			const uuid = item.event.uuid;
+			if (uuid) out.set(uuid, rowKey);
+		} else {
+			if (item.spanType === "agent") continue;
+			stack.push(item);
+		}
+	}
+}
+/**
+* Find every occurrence of `term` across the sample's events.
+*
+* Reuses `extractEventFields` so the searchable text exactly matches what
+* `eventSearchText` (the per-row counter) would extract. Events whose uuid
+* isn't in `eventToRow` are skipped (they're not addressable by row switch).
+*
+* Order: events in input order, fields in `extractEventFields` order,
+* occurrences left-to-right. Stable across calls with the same inputs.
+*/
+function findAllMatches(events, term, eventToRow) {
+	if (!term) return [];
+	const prepared = prepareSearchTerm(term);
+	const variants = [
+		prepared.simple,
+		...prepared.unquoted ? [prepared.unquoted] : [],
+		...prepared.jsonEscaped ? [prepared.jsonEscaped] : []
+	];
+	const out = [];
+	for (const event of events) {
+		const uuid = event.uuid;
+		if (!uuid) continue;
+		const rowKey = eventToRow.get(uuid);
+		if (rowKey === void 0) continue;
+		const fields = extractEventFields(event);
+		let fieldIndex = 0;
+		for (const [fieldKey, text] of fields) {
+			const positions = findVariantPositions(text.toLowerCase(), variants);
+			for (let i = 0; i < positions.length; i++) out.push({
+				rowKey,
+				eventId: uuid,
+				fieldKey,
+				fieldIndex,
+				occurrenceIndex: i
+			});
+			fieldIndex++;
+		}
+	}
+	return out;
+}
+/**
+* Find every occurrence of any `variants` substring in `lowered`, deduped by
+* range so a JSON-quoted form `"foo"` matched by both `simple` and `unquoted`
+* counts as one occurrence (the longer variant wins). Mirrors the variant
+* matching `LiveVirtualList.searchInText` does for the chat counter so the
+* two counters agree on the total.
+*/
+function findVariantPositions(lowered, variants) {
+	const hits = [];
+	for (const v of variants) {
+		if (!v) continue;
+		let from = 0;
+		let p = 0;
+		while ((p = lowered.indexOf(v, from)) !== -1) {
+			hits.push({
+				pos: p,
+				len: v.length
+			});
+			from = p + v.length;
+		}
+	}
+	hits.sort((a, b) => a.pos - b.pos || b.len - a.len);
+	const out = [];
+	let endOfLast = -1;
+	for (const h of hits) if (h.pos >= endOfLast) {
+		out.push(h.pos);
+		endOfLast = h.pos + h.len;
+	}
+	return out;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/search/useTranscriptSearchSource.ts
+var DEFAULT_ID = "transcript-sample";
+var SETTLE_LIMIT = 90;
+/**
+* Registers a sample-wide search source with ExtendedFindContext.
+*
+* - count(term): findAllMatches over the full sample. Cached per term.
+* - searchFn(term, dir): finds the next match across the entire sample,
+*   switches swimlane row if needed, sets the find target (auto-expand),
+*   then delegates to viewNodesRef.scrollToEvent.
+*
+* Preconditions: must be mounted inside an `ExtendedFindProvider`. The
+* `FindTargetProvider` is optional — its setter no-ops when absent.
+*/
+function useTranscriptSearchSource(options) {
+	const { events, rows, selected, onSelect, viewNodesRef, onHeadroomResetAnchor, onHeadroomSetHidden, id = DEFAULT_ID } = options;
+	const { registerVirtualList, registerMatchCounter } = useExtendedFind();
+	const setFindTarget = useFindTargetSetter();
+	const eventToRow = (0, import_react.useMemo)(() => buildEventToRowMap(rows), [rows]);
+	const cacheRef = (0, import_react.useRef)(null);
+	const getMatches = (0, import_react.useCallback)((term) => {
+		const c = cacheRef.current;
+		if (c && c.events === events && c.eventToRow === eventToRow && c.term === term) return c.matches;
+		const matches = findAllMatches(events, term, eventToRow);
+		cacheRef.current = {
+			events,
+			eventToRow,
+			term,
+			matches
+		};
+		return matches;
+	}, [events, eventToRow]);
+	const selectedRef = (0, import_react.useRef)(selected);
+	(0, import_react.useEffect)(() => {
+		selectedRef.current = selected;
+	}, [selected]);
+	const lastResolvedRef = (0, import_react.useRef)(null);
+	const invocationIdRef = (0, import_react.useRef)(0);
+	const pendingTimersRef = (0, import_react.useRef)(/* @__PURE__ */ new Set());
+	(0, import_react.useEffect)(() => {
+		const timers = pendingTimersRef.current;
+		return () => {
+			for (const t of timers) clearTimeout(t);
+			timers.clear();
+		};
+	}, []);
+	const activeTermRef = (0, import_react.useRef)("");
+	(0, import_react.useEffect)(() => {
+		if (typeof document === "undefined") return;
+		const onSelectionChange = () => {
+			const term = activeTermRef.current;
+			if (!term) return;
+			const sel = document.getSelection();
+			if (!sel || sel.rangeCount === 0) return;
+			const range = sel.getRangeAt(0);
+			if (range.startContainer !== range.endContainer) return;
+			if (range.endOffset - range.startOffset !== term.length) return;
+			if (range.toString().toLowerCase() !== term.toLowerCase()) return;
+			const match = matchAtSelection(getMatches(term), term);
+			if (match) lastResolvedRef.current = {
+				match,
+				term
+			};
+		};
+		document.addEventListener("selectionchange", onSelectionChange);
+		return () => document.removeEventListener("selectionchange", onSelectionChange);
+	}, [getMatches]);
+	const countFn = (0, import_react.useCallback)((term) => {
+		activeTermRef.current = term;
+		return getMatches(term).length;
+	}, [getMatches]);
+	const searchFn = (0, import_react.useCallback)(async (term, direction, onContentReady) => {
+		const myId = ++invocationIdRef.current;
+		const isStale = () => myId !== invocationIdRef.current;
+		const matches = getMatches(term);
+		if (matches.length === 0) return false;
+		activeTermRef.current = term;
+		onHeadroomResetAnchor?.(true);
+		onHeadroomSetHidden?.(direction === "forward");
+		let position = resolvePosition(matches, lastResolvedRef.current, viewNodesRef.current, selectedRef.current, term);
+		const SKIP_LIMIT = Math.min(matches.length, 8);
+		let next = null;
+		for (let attempt = 0; attempt < SKIP_LIMIT; attempt++) {
+			next = pickNext(matches, position, direction);
+			if (next.rowKey !== selectedRef.current) {
+				onSelect(next.rowKey);
+				const ready = await waitForRow(viewNodesRef, next.eventId);
+				if (isStale()) return false;
+				if (!ready) {
+					position = matches.indexOf(next);
+					lastResolvedRef.current = {
+						match: next,
+						term
+					};
+					continue;
+				}
+			}
+			setFindTarget({
+				term,
+				eventId: next.eventId
+			});
+			await raf();
+			if (isStale()) return false;
+			await raf();
+			if (isStale()) return false;
+			viewNodesRef.current?.scrollToEvent(next.eventId);
+			const inDom = await waitForEventInDOM(next.eventId);
+			if (isStale()) return false;
+			if (inDom) break;
+			const skippedEventId = next.eventId;
+			let lastSkipIdx = matches.indexOf(next);
+			const stride = direction === "forward" ? 1 : -1;
+			for (let idx = lastSkipIdx + stride; idx >= 0 && idx < matches.length && matches[idx].eventId === skippedEventId; idx += stride) lastSkipIdx = idx;
+			position = lastSkipIdx;
+			lastResolvedRef.current = {
+				match: matches[lastSkipIdx],
+				term
+			};
+			next = null;
+		}
+		if (!next) return false;
+		positionSelectionAroundTerm(next.eventId, term, direction);
+		lastResolvedRef.current = {
+			match: next,
+			term
+		};
+		onContentReady();
+		const reselectId = next.eventId;
+		const timer = window.setTimeout(() => {
+			if (isStale()) return;
+			reselectTermInPanel(reselectId, term);
+		}, 300);
+		pendingTimersRef.current.add(timer);
+		return true;
+	}, [
+		getMatches,
+		viewNodesRef,
+		onSelect,
+		setFindTarget,
+		onHeadroomResetAnchor,
+		onHeadroomSetHidden
+	]);
+	(0, import_react.useEffect)(() => {
+		const unCount = registerMatchCounter(id, countFn);
+		const unSearch = registerVirtualList(id, searchFn);
+		return () => {
+			unCount();
+			unSearch();
+		};
+	}, [
+		id,
+		registerMatchCounter,
+		registerVirtualList,
+		countFn,
+		searchFn
+	]);
+}
+function pickNext(matches, position, dir) {
+	const len = matches.length;
+	if (position < 0) return dir === "forward" ? matches[0] : matches[len - 1];
+	return dir === "forward" ? matches[(position + 1) % len] : matches[(position - 1 + len) % len];
+}
+function resolvePosition(matches, last, view, selected, term) {
+	if (last && last.term === term) {
+		const idx = matches.findIndex((m) => m.eventId === last.match.eventId && m.fieldKey === last.match.fieldKey && m.fieldIndex === last.match.fieldIndex && m.occurrenceIndex === last.match.occurrenceIndex);
+		if (idx !== -1) return idx;
+	}
+	const range = view?.getVisibleRange();
+	const flattened = view?.getFlattenedNodes() ?? [];
+	if (!range || flattened.length === 0) return -1;
+	const visibleIds = new Set(flattened.slice(range.startIndex, range.endIndex + 1).map((n) => n.id));
+	return matches.findIndex((m) => m.rowKey === selected && visibleIds.has(m.eventId));
+}
+/**
+* Find the SampleMatch corresponding to the current document selection, if any.
+*
+* Walks up from the selection's startContainer to find an event-panel element
+* (one whose `id` is in `matches`'s eventId set). Then counts how many
+* occurrences of `term` precede the selection within that event's text — that
+* count is the DOM-order occurrence index, which we map to the n-th match in
+* our array for that event.
+*
+* Returns `null` if there is no selection, no event ancestor, or the count
+* runs past the matches we know about (e.g. selection isn't actually on a
+* `term` instance).
+*/
+function matchAtSelection(matches, term) {
+	if (typeof window === "undefined" || !term) return null;
+	const sel = window.getSelection();
+	if (!sel || sel.rangeCount === 0) return null;
+	const range = sel.getRangeAt(0);
+	const eventIds = new Set(matches.map((m) => m.eventId));
+	let el = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+	while (el && !eventIds.has(el.id)) el = el.parentElement;
+	if (!el) return null;
+	const eventId = el.id;
+	const lowered = term.toLowerCase();
+	const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+	let occurrenceInEvent = 0;
+	let node;
+	while (node = walker.nextNode()) {
+		const textNode = node;
+		if (textNode === range.startContainer) {
+			const head = textNode.data.slice(0, range.startOffset).toLowerCase();
+			let from = 0;
+			while ((from = head.indexOf(lowered, from)) !== -1) {
+				occurrenceInEvent++;
+				from += lowered.length;
+			}
+			break;
+		}
+		const text = textNode.data.toLowerCase();
+		let from = 0;
+		while ((from = text.indexOf(lowered, from)) !== -1) {
+			occurrenceInEvent++;
+			from += lowered.length;
+		}
+	}
+	let seen = 0;
+	for (const m of matches) {
+		if (m.eventId !== eventId) continue;
+		if (seen === occurrenceInEvent) return m;
+		seen++;
+	}
+	return null;
+}
+/**
+* Walk the DOM under the event element with `eventId` and place a collapsed
+* selection adjacent to the FIRST occurrence of `term` (forward) or the LAST
+* occurrence (backward), so FindBand's subsequent `window.find` advances onto
+* exactly that occurrence.
+*
+* Forward: cursor BEFORE the first match — `window.find` searches forward
+* from the cursor and lands on the term.
+* Backward: cursor AFTER the last match — `window.find` with backward=true
+* searches backward from the cursor and lands on the term. (If we collapsed
+* before instead, backward would skip past it and either find nothing or
+* land in unrelated DOM, which makes findExtendedInDOM return false and the
+* counter fail to update.)
+*
+* If the panel isn't mounted or doesn't render the term as text (e.g. the
+* match was in a JSON-stringified field we don't render), bail silently —
+* FindBand will fall back to its default windowFind behavior.
+*/
+function positionSelectionAroundTerm(eventId, term, direction) {
+	const root = document.getElementById(eventId);
+	if (!root) return false;
+	const lowered = term.toLowerCase();
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	let target = null;
+	for (let node; node = walker.nextNode();) {
+		const textNode = node;
+		const text = textNode.data.toLowerCase();
+		let from = 0;
+		while ((from = text.indexOf(lowered, from)) !== -1) {
+			target = {
+				node: textNode,
+				idx: from
+			};
+			from += lowered.length;
+			if (direction === "forward") break;
+		}
+		if (target && direction === "forward") break;
+	}
+	if (!target) return false;
+	const sel = window.getSelection();
+	if (!sel) return false;
+	const range = document.createRange();
+	range.setStart(target.node, direction === "forward" ? target.idx : target.idx + term.length);
+	range.collapse(true);
+	sel.removeAllRanges();
+	sel.addRange(range);
+	return true;
+}
+/**
+* If the current selection no longer covers `term` inside the panel
+* (because a late settling pass — Virtuoso re-render, lazy syntax
+* highlighting, ExpandablePanel auto-expand reflow — detached the text
+* node `window.find` was anchored on), re-anchor the selection to the
+* first occurrence of `term` in the panel. Returns false (no-op) when
+* the existing highlight is intact.
+*/
+function reselectTermInPanel(eventId, term) {
+	const root = document.getElementById(eventId);
+	if (!root) return false;
+	const sel = window.getSelection();
+	if (!sel) return false;
+	if (sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed && sel.getRangeAt(0).toString().toLowerCase() === term.toLowerCase() && root.contains(sel.getRangeAt(0).startContainer)) return true;
+	const lowered = term.toLowerCase();
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+	for (let node; node = walker.nextNode();) {
+		const idx = (node.textContent ?? "").toLowerCase().indexOf(lowered);
+		if (idx === -1) continue;
+		const range = document.createRange();
+		range.setStart(node, idx);
+		range.setEnd(node, idx + term.length);
+		sel.removeAllRanges();
+		sel.addRange(range);
+		return true;
+	}
+	return false;
+}
+function raf() {
+	return new Promise((resolve) => typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame(() => resolve()) : setTimeout(resolve, 0));
+}
+/**
+* Wait for the freshly-selected row to mount: poll until the target eventId
+* is present in the flattened-node list, or the budget expires.
+* Returns false if the view is not mounted or the event never appears.
+*/
+async function waitForRow(viewNodesRef, eventId) {
+	for (let i = 0; i < SETTLE_LIMIT; i++) {
+		const view = viewNodesRef.current;
+		if (!view) return false;
+		if (view.getFlattenedNodes().some((n) => n.id === eventId)) return true;
+		await raf();
+	}
+	return false;
+}
+/**
+* Wait until the event panel is actually rendered to the DOM. After
+* `scrollToEvent` triggers a Virtuoso scroll for an off-screen target, the
+* panel takes several frames to mount. Returns false on timeout. The budget
+* is shorter than for row mount because we use this to detect unreachable
+* matches and skip them — too long a wait makes skipping feel laggy.
+*/
+async function waitForEventInDOM(eventId) {
+	if (typeof document === "undefined") return false;
+	const DOM_BUDGET = 30;
+	for (let i = 0; i < DOM_BUDGET; i++) {
+		if (document.getElementById(eventId)) return true;
+		await raf();
+	}
+	return false;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/TimelineSelectContext.ts
+var TimelineSelectContext = (0, import_react.createContext)(null);
+function useTimelineSelect() {
+	return (0, import_react.useContext)(TimelineSelectContext);
+}
+var TimelineRowSelectContext = (0, import_react.createContext)(null);
+function useTimelineRowSelect() {
+	return (0, import_react.useContext)(TimelineRowSelectContext);
+}
+var AgentCardView_module_default = {
+	card: "_card_fxgye_1",
+	branchCard: "_branchCard_fxgye_13",
+	utilityCard: "_utilityCard_fxgye_21",
+	header: "_header_fxgye_30",
+	icon: "_icon_fxgye_39",
+	title: "_title_fxgye_43",
+	meta: "_meta_fxgye_49",
+	disclosure: "_disclosure_fxgye_54",
+	description: "_description_fxgye_59",
+	resultPanel: "_resultPanel_fxgye_64"
+};
+var TimelineIconsContext = (0, import_react.createContext)({
+	error: "bi bi-exclamation-circle-fill",
+	compaction: "bi bi-arrows-collapse-vertical",
+	fork: "bi bi-sign-intersection-y-fill",
+	agent: "bi bi-grid",
+	threeDots: "bi bi-three-dots",
+	expand: { down: "bi bi-chevron-down" },
+	collapse: { up: "bi bi-chevron-up" },
+	chevron: {
+		down: "bi bi-chevron-down",
+		left: "bi bi-chevron-left",
+		right: "bi bi-chevron-right"
+	},
+	solvers: { default: "bi bi-arrow-return-right" },
+	punchDown: "bi bi-arrows-angle-expand"
+});
+function useTimelineIcons() {
+	return (0, import_react.useContext)(TimelineIconsContext);
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/AgentCardView.tsx
+var AgentCardView = ({ span, className }) => {
+	const icons = useTimelineIcons();
+	const select = useTimelineSelect();
+	const handleClick = (0, import_react.useCallback)(() => {
+		select?.(span.id);
+	}, [select, span.id]);
+	const stopPropagation = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+	}, []);
+	const resultOutput = (0, import_react.useMemo)(() => getSpanToolResult(span), [span]);
+	const isUtility = span.utility;
+	const isBranch = span.spanType === "branch";
+	const title = isUtility ? getUtilityAgentLabel(span) : span.name.toLowerCase();
+	const tokens = formatTokenCount(span.totalTokens());
+	const duration = formatDurationShort(span.startTime(), span.endTime());
+	const iconClass = isBranch ? icons.fork : icons.agent;
+	const label = isBranch ? "branch" : isUtility ? "utility" : "sub-agent";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(AgentCardView_module_default.card, isUtility && AgentCardView_module_default.utilityCard, isBranch && AgentCardView_module_default.branchCard, className),
+		onClick: isBranch ? void 0 : handleClick,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(AgentCardView_module_default.header, "text-size-small"),
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(iconClass, AgentCardView_module_default.icon, "text-style-secondary") }),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: clsx(AgentCardView_module_default.title, "text-style-secondary", "text-style-label"),
+						children: [
+							label,
+							": ",
+							title
+						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: clsx(AgentCardView_module_default.meta, "text-style-secondary"),
+						children: [
+							tokens,
+							" · ",
+							duration
+						]
+					}),
+					!isBranch && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icons.chevron.right, AgentCardView_module_default.disclosure, "text-style-secondary") })
+				]
+			}),
+			!isUtility && span.description && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx(AgentCardView_module_default.description, "text-size-small"),
+				children: span.description
+			}),
+			resultOutput && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: AgentCardView_module_default.resultPanel,
+				onClick: stopPropagation,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+					id: `agent-result-${span.id}`,
+					collapse: true,
+					lines: 15,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: resultOutput })
+				})
+			})
+		]
+	});
+};
+var TimelineMinimap_module_default = {
+	container: "_container_1h53w_3",
+	stableLabel: "_stableLabel_1h53w_17",
+	alignRight: "_alignRight_1h53w_32",
+	alignLeft: "_alignLeft_1h53w_36",
+	hidden: "_hidden_1h53w_40",
+	minimap: "_minimap_1h53w_44",
+	track: "_track_1h53w_53",
+	regionFill: "_regionFill_1h53w_66",
+	marker: "_marker_1h53w_79",
+	selectionRegion: "_selectionRegion_1h53w_96",
+	sectionTime: "_sectionTime_1h53w_114",
+	sectionTimePill: "_sectionTimePill_1h53w_126",
+	scrubber: "_scrubber_1h53w_142",
+	scrubberLine: "_scrubberLine_1h53w_153",
+	scrubberCaretUp: "_scrubberCaretUp_1h53w_161"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineMinimap.tsx
+/**
+* Compact minimap showing the selected row's position within the full timeline.
+*
+* Renders as a self-contained flex row: mode label + bar area.
+* Designed to sit inside the breadcrumb row, right-aligned.
+*/
+var TimelineMinimap = ({ root, selection, mapping, scrubberProgress, onScrub }) => {
+	const regionRef = (0, import_react.useRef)(null);
+	const draggingRef = (0, import_react.useRef)(false);
+	const localProgressRef = (0, import_react.useRef)(null);
+	const [dragging, setDragging] = (0, import_react.useState)(false);
+	const [localProgress, setLocalProgress] = (0, import_react.useState)(null);
+	const progressFromPointer = (0, import_react.useCallback)((clientX) => {
+		const rect = regionRef.current?.getBoundingClientRect();
+		if (!rect || rect.width === 0) return 0;
+		return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+	}, []);
+	const handlePointerDown = (0, import_react.useCallback)((e) => {
+		if (!onScrub) return;
+		e.preventDefault();
+		draggingRef.current = true;
+		const p = progressFromPointer(e.clientX);
+		localProgressRef.current = p;
+		setDragging(true);
+		setLocalProgress(p);
+		regionRef.current?.setPointerCapture(e.pointerId);
+	}, [onScrub, progressFromPointer]);
+	const handlePointerMove = (0, import_react.useCallback)((e) => {
+		if (!draggingRef.current) return;
+		const p = progressFromPointer(e.clientX);
+		localProgressRef.current = p;
+		setLocalProgress(p);
+	}, [progressFromPointer]);
+	const handlePointerUp = (0, import_react.useCallback)((e) => {
+		if (!draggingRef.current) return;
+		draggingRef.current = false;
+		setDragging(false);
+		const progress = progressFromPointer(e.clientX);
+		localProgressRef.current = progress;
+		setLocalProgress(progress);
+		onScrub?.(progress);
+	}, [onScrub, progressFromPointer]);
+	const handleLostCapture = (0, import_react.useCallback)(() => {
+		if (!draggingRef.current) return;
+		draggingRef.current = false;
+		setDragging(false);
+		const progress = localProgressRef.current;
+		if (progress !== null) onScrub?.(progress);
+	}, [onScrub]);
+	const [prevScrubberProgress, setPrevScrubberProgress] = (0, import_react.useState)(scrubberProgress);
+	if (prevScrubberProgress !== scrubberProgress) {
+		setPrevScrubberProgress(scrubberProgress);
+		if (!dragging && localProgress !== null) setLocalProgress(null);
+	}
+	const [showTokens, setShowTokens] = useProperty("timeline", "minimapShowTokens", { defaultValue: false });
+	const isTokenMode = !!showTokens;
+	const toggle = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		setShowTokens(!isTokenMode);
+	}, [isTokenMode, setShowTokens]);
+	const displayProgress = localProgress !== null ? localProgress : scrubberProgress;
+	const bar = selection ? mapping ? {
+		left: mapping.toPercent(selection.startTime),
+		width: Math.max(0, mapping.toPercent(selection.endTime) - mapping.toPercent(selection.startTime))
+	} : computeBarPosition(selection.startTime, selection.endTime, root.startTime(), root.endTime()) : null;
+	const showRegion = bar !== null;
+	const useShortFormat = bar !== null && bar.width <= 15;
+	const hasCompression = mapping?.hasCompression ?? false;
+	const timeRightLabel = hasCompression && mapping ? formatTime$1(computeActiveTime(mapping, root.startTime().getTime(), root.endTime().getTime())) : formatDuration$1(root.startTime(false), root.endTime(false));
+	const tokenRightLabel = formatTokenCount(root.totalTokens(false));
+	const computeSectionLabel = () => {
+		if (!selection) return "";
+		if (isTokenMode) return formatTokenCount(selection.totalTokens);
+		if (hasCompression && mapping) return formatTime$1(computeActiveTime(mapping, selection.startTime.getTime(), selection.endTime.getTime()));
+		return useShortFormat ? formatDurationShort(selection.startTime, selection.endTime) : formatDuration$1(selection.startTime, selection.endTime);
+	};
+	const sectionLabel = computeSectionLabel();
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineMinimap_module_default.container,
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignRight),
+				onClick: toggle,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
+					children: "time"
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
+					children: "tokens"
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: TimelineMinimap_module_default.minimap,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.track }), showRegion && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					ref: regionRef,
+					className: TimelineMinimap_module_default.selectionRegion,
+					style: bar.left + bar.width / 2 < 50 ? {
+						left: `${bar.left}%`,
+						minWidth: `${bar.width}%`
+					} : {
+						right: `${100 - bar.left - bar.width}%`,
+						minWidth: `${bar.width}%`
+					},
+					onPointerDown: onScrub ? handlePointerDown : void 0,
+					onPointerMove: onScrub ? handlePointerMove : void 0,
+					onPointerUp: onScrub ? handlePointerUp : void 0,
+					onLostPointerCapture: onScrub ? handleLostCapture : void 0,
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.regionFill }),
+						displayProgress != null && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+							className: TimelineMinimap_module_default.scrubber,
+							style: { left: `${displayProgress * 100}%` },
+							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberLine }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.scrubberCaretUp })]
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker }),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							className: TimelineMinimap_module_default.sectionTime,
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: TimelineMinimap_module_default.sectionTimePill,
+								onClick: toggle,
+								children: sectionLabel
+							})
+						}),
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TimelineMinimap_module_default.marker })
+					]
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(TimelineMinimap_module_default.stableLabel, TimelineMinimap_module_default.alignLeft),
+				onClick: toggle,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? TimelineMinimap_module_default.hidden : void 0,
+					children: timeRightLabel
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: isTokenMode ? void 0 : TimelineMinimap_module_default.hidden,
+					children: tokenRightLabel
+				})]
+			})
+		]
+	});
+};
+var TimelineOptionsPopover_module_default = {
+	title: "_title_1f23l_1",
+	rows: "_rows_1f23l_8",
+	row: "_row_1f23l_8",
+	groupHeader: "_groupHeader_1f23l_29"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineOptionsPopover.tsx
+var kMarkerKindLabels = [{
+	kind: "error",
+	label: "Errors"
+}, {
+	kind: "compaction",
+	label: "Compaction"
+}];
+var TimelineOptionsPopover = ({ isOpen, setIsOpen, positionEl, config, onToggleBranches }) => {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(PopOver, {
+		id: "timeline-options-popover",
+		positionEl,
+		isOpen,
+		setIsOpen,
+		placement: "bottom-end",
+		hoverDelay: -1,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: `${TimelineOptionsPopover_module_default.title} text-size-smaller`,
+			children: "View Options"
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: `${TimelineOptionsPopover_module_default.rows} text-size-smaller`,
+			children: [
+				kMarkerKindLabels.map(({ kind, label }) => {
+					const checked = config.markerKinds.includes(kind);
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: TimelineOptionsPopover_module_default.row,
+						onClick: () => config.toggleMarkerKind(kind),
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+							type: "checkbox",
+							checked,
+							onChange: (e) => {
+								e.stopPropagation();
+								config.toggleMarkerKind(kind);
+							}
+						}), label]
+					}, kind);
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: () => config.setIncludeUtility(!config.includeUtility),
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.includeUtility,
+						onChange: (e) => {
+							e.stopPropagation();
+							config.setIncludeUtility(!config.includeUtility);
+						}
+					}), "Utility agents"]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: TimelineOptionsPopover_module_default.groupHeader,
+					children: "Branches"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: onToggleBranches,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.showBranches,
+						onChange: (e) => {
+							e.stopPropagation();
+							onToggleBranches();
+						}
+					}), "Show branches"]
+				}),
+				config.showBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: () => config.setForkRelative(!config.forkRelative),
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.forkRelative,
+						onChange: (e) => {
+							e.stopPropagation();
+							config.setForkRelative(!config.forkRelative);
+						}
+					}), "Fork-relative branches"]
+				}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineOptionsPopover_module_default.row,
+					onClick: () => config.setShowEmptyBranches(!config.showEmptyBranches),
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+						type: "checkbox",
+						checked: config.showEmptyBranches,
+						onChange: (e) => {
+							e.stopPropagation();
+							config.setShowEmptyBranches(!config.showEmptyBranches);
+						}
+					}), "Show empty branches"]
+				})] })
+			]
+		})]
+	});
+};
+var TimelineSelector_module_default = {
+	selectorContainer: "_selectorContainer_djjmp_1",
+	selectorButton: "_selectorButton_djjmp_8",
+	chevron: "_chevron_djjmp_28",
+	backdrop: "_backdrop_djjmp_33",
+	dropdownMenu: "_dropdownMenu_djjmp_42",
+	dropdownItem: "_dropdownItem_djjmp_57",
+	dropdownItemActive: "_dropdownItemActive_djjmp_74"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSelector.tsx
+var TimelineSelector = ({ timelines, activeIndex, onSelect }) => {
+	const [isOpen, setIsOpen] = (0, import_react.useState)(false);
+	const handleSelect = (0, import_react.useCallback)((index) => {
+		onSelect(index);
+		setIsOpen(false);
+	}, [onSelect]);
+	if (timelines.length <= 1) return null;
+	const active = timelines[activeIndex];
+	if (!active) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineSelector_module_default.selectorContainer,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
+			className: TimelineSelector_module_default.selectorButton,
+			onClick: () => setIsOpen((prev) => !prev),
+			title: active.description,
+			"aria-haspopup": "listbox",
+			"aria-expanded": isOpen,
+			children: [active.name, /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi-chevron-down", TimelineSelector_module_default.chevron) })]
+		}), isOpen && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: TimelineSelector_module_default.backdrop,
+			onClick: () => setIsOpen(false)
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: TimelineSelector_module_default.dropdownMenu,
+			role: "listbox",
+			children: timelines.map((tl, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
+				className: clsx(TimelineSelector_module_default.dropdownItem, i === activeIndex && TimelineSelector_module_default.dropdownItemActive),
+				role: "option",
+				"aria-selected": i === activeIndex,
+				onClick: () => handleSelect(i),
+				children: tl.name
+			}, tl.name))
+		})] })]
+	});
+};
+var TimelineSwimLanes_module_default = {
+	swimlane: "_swimlane_1rsxs_1",
+	pinnedSection: "_pinnedSection_1rsxs_17",
+	scrollSection: "_scrollSection_1rsxs_25",
+	collapsibleSection: "_collapsibleSection_1rsxs_40",
+	collapsibleCollapsed: "_collapsibleCollapsed_1rsxs_53",
+	swimlaneSticky: "_swimlaneSticky_1rsxs_63",
+	collapsibleInner: "_collapsibleInner_1rsxs_67",
+	collapseToggle: "_collapseToggle_1rsxs_77",
+	row: "_row_1rsxs_105",
+	label: "_label_1rsxs_111",
+	labelSelected: "_labelSelected_1rsxs_129",
+	labelHighlighted: "_labelHighlighted_1rsxs_134",
+	chevron: "_chevron_1rsxs_141",
+	chevronSpacer: "_chevronSpacer_1rsxs_156",
+	punchDownBtn: "_punchDownBtn_1rsxs_162",
+	viewStackBack: "_viewStackBack_1rsxs_184",
+	barArea: "_barArea_1rsxs_203",
+	barInner: "_barInner_1rsxs_209",
+	fill: "_fill_1rsxs_215",
+	fillParent: "_fillParent_1rsxs_233",
+	fillSelected: "_fillSelected_1rsxs_237",
+	fillHighlight: "_fillHighlight_1rsxs_245",
+	fillDimmed: "_fillDimmed_1rsxs_256",
+	regionSegment: "_regionSegment_1rsxs_263",
+	regionDefault: "_regionDefault_1rsxs_262",
+	regionHover: "_regionHover_1rsxs_262",
+	regionFirst: "_regionFirst_1rsxs_283",
+	regionLast: "_regionLast_1rsxs_287",
+	regionMiddle: "_regionMiddle_1rsxs_291",
+	parallelBadge: "_parallelBadge_1rsxs_295",
+	marker: "_marker_1rsxs_302",
+	markerBranch: "_markerBranch_1rsxs_316",
+	markerError: "_markerError_1rsxs_330",
+	markerCompaction: "_markerCompaction_1rsxs_351",
+	branchConnector: "_branchConnector_1rsxs_371",
+	connectorArrow: "_connectorArrow_1rsxs_382",
+	breadcrumbRow: "_breadcrumbRow_1rsxs_410",
+	optionsButton: "_optionsButton_1rsxs_419",
+	hiddenUtility: "_hiddenUtility_1rsxs_443",
+	breadcrumbTrail: "_breadcrumbTrail_1rsxs_462",
+	breadcrumbSegment: "_breadcrumbSegment_1rsxs_470",
+	breadcrumbDivider: "_breadcrumbDivider_1rsxs_476",
+	breadcrumbLink: "_breadcrumbLink_1rsxs_484",
+	breadcrumbCurrent: "_breadcrumbCurrent_1rsxs_498",
+	tokens: "_tokens_1rsxs_509"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/timeline/components/TimelineSwimLanes.tsx
+/**
+* Builds breadcrumb segments from the layouts and selected key.
+*
+* The selected key encodes tree position (e.g. "transcript/build/test").
+* We find ancestor rows by matching prefix keys, producing a trail like:
+* [main, Build, Test] where "Test" is the currently selected row.
+*/
+function buildBreadcrumbs(layouts, selectedRowKey) {
+	if (!selectedRowKey) return [];
+	const byKey = /* @__PURE__ */ new Map();
+	for (const layout of layouts) byKey.set(layout.key, layout);
+	const parts = selectedRowKey.split("/");
+	const segments = [];
+	for (let i = 1; i <= parts.length; i++) {
+		const ancestorKey = parts.slice(0, i).join("/");
+		const layout = byKey.get(ancestorKey);
+		if (layout) {
+			const label = layout.depth === 0 && layout.name === "solvers" ? "main" : layout.name;
+			segments.push({
+				label,
+				key: layout.key
+			});
+		}
+	}
+	return segments;
+}
+var TimelineSwimLanes = ({ layouts, timeline, header, isSticky, onMarkerNavigate, headroomCollapsed = false, onLayoutShift, regionCounts, defaultCollapsed: defaultCollapsedProp, highlightedKeys, onPunchDown }) => {
+	const icons = useTimelineIcons();
+	const { selected, select: onSelect, clearSelection } = timeline;
+	const [collapsed, setCollapsed] = useProperty("timeline", "swimlanesCollapsed");
+	const isFlat = layouts.length <= 1;
+	const [headroomOverride, setHeadroomOverride] = (0, import_react.useState)(false);
+	const [prevHeadroomCollapsed, setPrevHeadroomCollapsed] = (0, import_react.useState)(headroomCollapsed);
+	if (prevHeadroomCollapsed !== headroomCollapsed) {
+		setPrevHeadroomCollapsed(headroomCollapsed);
+		setHeadroomOverride(false);
+	}
+	const isCollapsed = (collapsed ?? defaultCollapsedProp ?? isFlat) || headroomCollapsed && !headroomOverride;
+	const toggleCollapsed = (0, import_react.useCallback)(() => {
+		onLayoutShift?.();
+		setHeadroomOverride(true);
+		setCollapsed(!isCollapsed);
+	}, [
+		isCollapsed,
+		setCollapsed,
+		onLayoutShift
+	]);
+	const [stableCollapsedBucket, setRowCollapsedById] = useCollapsibleIds("timeline-swimlane-rows");
+	const parentKeys = (0, import_react.useMemo)(() => {
+		const keys = /* @__PURE__ */ new Set();
+		for (const layout of layouts) {
+			const prefix = layout.key + "/";
+			for (const other of layouts) if (other.key.startsWith(prefix)) {
+				keys.add(layout.key);
+				break;
+			}
+		}
+		return keys;
+	}, [layouts]);
+	const expandableKeys = (0, import_react.useMemo)(() => {
+		const keys = new Set(parentKeys);
+		for (const layout of layouts) if (layout.markers.some((m) => m.kind === "branch")) keys.add(layout.key);
+		return keys;
+	}, [layouts, parentKeys]);
+	const isRowCollapsed = (0, import_react.useCallback)((rowKey) => {
+		const explicit = stableCollapsedBucket?.[rowKey];
+		if (explicit !== void 0) return explicit;
+		const layout = layouts.find((l) => l.key === rowKey);
+		if (!layout) return false;
+		if (layout.branch) return false;
+		if (!parentKeys.has(rowKey) && expandableKeys.has(rowKey)) return true;
+		return layout.depth >= 1 && parentKeys.has(rowKey);
+	}, [
+		stableCollapsedBucket,
+		layouts,
+		parentKeys,
+		expandableKeys
+	]);
+	const visibleLayouts = (0, import_react.useMemo)(() => {
+		return layouts.filter((layout) => {
+			const parts = layout.key.split("/");
+			for (let i = 1; i < parts.length; i++) {
+				const ancestorKey = parts.slice(0, i).join("/");
+				if (isRowCollapsed(ancestorKey)) return false;
+			}
+			return true;
+		});
+	}, [layouts, isRowCollapsed]);
+	const handleToggleRowCollapse = (0, import_react.useCallback)((rowKey) => {
+		const current = isRowCollapsed(rowKey);
+		if (current && !header?.timelineConfig?.showBranches) {
+			if (layouts.find((l) => l.key === rowKey)?.markers.some((m) => m.kind === "branch")) header?.timelineConfig?.setShowBranches(true);
+		}
+		setRowCollapsedById(rowKey, !current);
+	}, [
+		isRowCollapsed,
+		setRowCollapsedById,
+		header?.timelineConfig,
+		layouts
+	]);
+	const handleBranchMarkerClick = (0, import_react.useCallback)((rowKey) => {
+		if (!header?.timelineConfig?.showBranches) header?.timelineConfig?.setShowBranches(true);
+		setRowCollapsedById(rowKey, false);
+	}, [header?.timelineConfig, setRowCollapsedById]);
+	const handleBranchToggle = (0, import_react.useCallback)(() => {
+		const turningOff = header?.timelineConfig?.showBranches;
+		header?.timelineConfig?.setShowBranches(!turningOff);
+		if (turningOff && selected && /\/branch-/.test(selected)) clearSelection();
+	}, [
+		header?.timelineConfig,
+		selected,
+		clearSelection
+	]);
+	const parsedSelection = (0, import_react.useMemo)(() => parseSelection(selected), [selected]);
+	const selectedRowKey = parsedSelection?.rowKey ?? null;
+	const breadcrumbs = (0, import_react.useMemo)(() => buildBreadcrumbs(layouts, selectedRowKey), [layouts, selectedRowKey]);
+	const handleKeyDown = (0, import_react.useCallback)((e) => {
+		const rowKeys = visibleLayouts.map((l) => l.key);
+		const currentIndex = selectedRowKey ? rowKeys.indexOf(selectedRowKey) : -1;
+		switch (e.key) {
+			case "ArrowDown": {
+				e.preventDefault();
+				const key = rowKeys[currentIndex < rowKeys.length - 1 ? currentIndex + 1 : currentIndex];
+				if (key !== void 0) onSelect(key);
+				break;
+			}
+			case "ArrowUp": {
+				e.preventDefault();
+				const key = rowKeys[currentIndex > 0 ? currentIndex - 1 : 0];
+				if (key !== void 0) onSelect(key);
+				break;
+			}
+			case "Escape":
+				e.preventDefault();
+				clearSelection();
+				break;
+		}
+	}, [
+		visibleLayouts,
+		selectedRowKey,
+		onSelect,
+		clearSelection
+	]);
+	const parentRow = visibleLayouts[0];
+	const childRows = visibleLayouts.slice(1);
+	const branchConnectors = (0, import_react.useMemo)(() => computeBranchConnectors(visibleLayouts), [visibleLayouts]);
+	const renderRow = (layout, displayName) => {
+		const isRowSelected = selectedRowKey === layout.key;
+		const selectedSpanIndex = isRowSelected ? parsedSelection?.spanIndex ?? null : null;
+		const selectedRegionIndex = isRowSelected ? parsedSelection?.regionIndex ?? null : null;
+		const hasChildren = expandableKeys.has(layout.key);
+		const isRowExpanded = hasChildren ? !isRowCollapsed(layout.key) : void 0;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SwimlaneRow, {
+			layout,
+			displayName,
+			isRowSelected,
+			highlightClip: highlightedKeys?.get(layout.key),
+			selectedSpanIndex,
+			selectedRegionIndex,
+			regionCount: regionCounts?.get(layout.key),
+			isExpanded: isRowExpanded,
+			onToggleExpand: hasChildren ? () => handleToggleRowCollapse(layout.key) : void 0,
+			onSelectRow: () => onSelect(layout.key),
+			onSelectSpan: (spanIndex) => onSelect(buildSelectionKey(layout.key, spanIndex)),
+			onSelectRegion: (spanIndex, regionIndex) => onSelect(buildSelectionKey(layout.key, spanIndex, regionIndex)),
+			onBranchToggle: () => handleBranchMarkerClick(layout.key),
+			onMarkerNavigate,
+			connector: branchConnectors.get(layout.key),
+			onPunchDown: layout.branch && onPunchDown ? () => onPunchDown(layout.key, layout.name) : void 0
+		}, layout.key);
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(TimelineSwimLanes_module_default.swimlane, isSticky && TimelineSwimLanes_module_default.swimlaneSticky),
+		tabIndex: 0,
+		onKeyDown: handleKeyDown,
+		role: "grid",
+		"aria-label": "Timeline swimlane",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.pinnedSection,
+				children: header && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HeaderRow, {
+					...header,
+					node: timeline.node,
+					breadcrumbs,
+					onBreadcrumbSelect: onSelect,
+					onToggleBranches: handleBranchToggle
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx(TimelineSwimLanes_module_default.collapsibleSection, isCollapsed && TimelineSwimLanes_module_default.collapsibleCollapsed),
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: TimelineSwimLanes_module_default.collapsibleInner,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: TimelineSwimLanes_module_default.scrollSection,
+						children: [parentRow && renderRow(parentRow, parentRow.name === "solvers" ? "main" : void 0), childRows.map((layout) => renderRow(layout))]
+					})
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				className: TimelineSwimLanes_module_default.collapseToggle,
+				onClick: toggleCollapsed,
+				title: isCollapsed ? "Expand swimlanes" : "Collapse swimlanes",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isCollapsed ? icons.expand.down : icons.collapse.up })
+			})
+		]
+	});
+};
+var kBranchKeyPattern = /\/branch-([^/]*)-(\d+)$/;
+/**
+* For each branch row, compute the connector from its parent's fork marker
+* down to the branch bar start.
+*/
+function computeBranchConnectors(layouts) {
+	const connectors = /* @__PURE__ */ new Map();
+	const indexByKey = /* @__PURE__ */ new Map();
+	for (let i = 0; i < layouts.length; i++) indexByKey.set(layouts[i].key, i);
+	for (let i = 0; i < layouts.length; i++) {
+		const layout = layouts[i];
+		if (!layout.branch) continue;
+		const match = kBranchKeyPattern.exec(layout.key);
+		if (!match) continue;
+		const branchedFrom = match[1];
+		const parentKey = layout.key.replace(kBranchKeyPattern, "");
+		const parentIndex = indexByKey.get(parentKey);
+		if (parentIndex === void 0) continue;
+		const marker = layouts[parentIndex].markers.find((m) => m.kind === "branch" && m.reference === branchedFrom);
+		if (!marker) continue;
+		const barLeft = layout.spans[0]?.bar.left ?? 0;
+		connectors.set(layout.key, {
+			markerLeft: marker.left,
+			barLeft,
+			rowGap: i - parentIndex
+		});
+	}
+	return connectors;
+}
+var SwimlaneRow = ({ layout, displayName, isRowSelected, highlightClip, selectedSpanIndex, selectedRegionIndex, regionCount, isExpanded, onToggleExpand, onSelectRow, onSelectSpan, onSelectRegion, onBranchToggle, onMarkerNavigate, connector, onPunchDown }) => {
+	const icons = useTimelineIcons();
+	const hasMultipleSpans = layout.spans.length > 1;
+	const hasChildren = isExpanded !== void 0;
+	const compactionMarkerPositions = (0, import_react.useMemo)(() => {
+		if (!regionCount || regionCount <= 1) return null;
+		const positions = [];
+		for (const marker of layout.markers) if (marker.compactionIndex !== void 0) positions.push(marker.left);
+		return positions.length > 0 ? positions : null;
+	}, [regionCount, layout.markers]);
+	const handleChevronClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onToggleExpand?.();
+	}, [onToggleExpand]);
+	const handleMarkerNavigate = (0, import_react.useMemo)(() => {
+		if (!onMarkerNavigate) return void 0;
+		return (eventId) => onMarkerNavigate(eventId, layout.key);
+	}, [onMarkerNavigate, layout.key]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineSwimLanes_module_default.row,
+		role: "row",
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(TimelineSwimLanes_module_default.label, isRowSelected && TimelineSwimLanes_module_default.labelSelected, highlightClip !== void 0 && !isRowSelected && TimelineSwimLanes_module_default.labelHighlighted),
+				style: { paddingLeft: `${.3 + layout.depth * .5}rem` },
+				onClick: onSelectRow,
+				children: [
+					hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: TimelineSwimLanes_module_default.chevron,
+						onClick: handleChevronClick,
+						role: "button",
+						"aria-label": isExpanded ? "Collapse" : "Expand",
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: isExpanded ? icons.chevron.down : icons.chevron.right })
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: TimelineSwimLanes_module_default.chevronSpacer }),
+					displayName ?? (layout.branch ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.solvers.default }),
+						" ",
+						layout.name
+					] }) : layout.name),
+					onPunchDown && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: TimelineSwimLanes_module_default.punchDownBtn,
+						title: "Open as standalone timeline",
+						onClick: (e) => {
+							e.stopPropagation();
+							onPunchDown();
+						},
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.punchDown })
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.barArea,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: TimelineSwimLanes_module_default.barInner,
+					children: [
+						layout.spans.map((span, spanIndex) => {
+							const isBarSelected = isRowSelected && (!hasMultipleSpans || selectedSpanIndex === null || selectedSpanIndex === spanIndex);
+							const isBarDimmed = isRowSelected && hasMultipleSpans && selectedSpanIndex !== null && selectedSpanIndex !== spanIndex;
+							if (compactionMarkerPositions !== null && (!hasMultipleSpans || selectedSpanIndex === spanIndex)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RegionBarFill, {
+								span,
+								isParent: layout.isParent,
+								isBarSelected,
+								isBarDimmed,
+								selectedRegionIndex,
+								compactionPositions: compactionMarkerPositions,
+								onSelectBar: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
+								onSelectRegion: (regionIndex) => onSelectRegion(hasMultipleSpans ? spanIndex : void 0, regionIndex),
+								onDoubleClick: onToggleExpand
+							}, spanIndex);
+							return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BarFill, {
+								span,
+								isParent: layout.isParent,
+								isSelected: isBarSelected,
+								isDimmed: isBarDimmed,
+								onSelect: () => hasMultipleSpans ? onSelectSpan(spanIndex) : onSelectRow(),
+								onDoubleClick: onToggleExpand,
+								insetPx: connector ? 1.5 : void 0
+							}, spanIndex);
+						}),
+						highlightClip !== void 0 && !isRowSelected && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(HighlightOverlay, {
+							spans: layout.spans,
+							clipRight: highlightClip
+						}),
+						layout.markers.map((marker, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkerGlyph, {
+							marker,
+							onBranchToggle,
+							onMarkerNavigate: handleMarkerNavigate
+						}, i)),
+						connector && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(BranchConnectorLine, { connector })
+					]
+				})
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.tokens,
+				children: formatTokenCount(layout.totalTokens)
+			})
+		]
+	});
+};
+var HeaderRow = ({ node, minimap, scrubberProgress, onScrub, onScrollToTop, breadcrumbs, onBreadcrumbSelect, timelineConfig, hiddenUtilityCount, multiTimeline, onToggleBranches, views }) => {
+	const icons = useTimelineIcons();
+	const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 1;
+	const rootDisplay = node.name === "solvers" ? "main" : node.name;
+	const [optionsOpen, setOptionsOpen] = (0, import_react.useState)(false);
+	const optionsButtonRef = (0, import_react.useRef)(null);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: TimelineSwimLanes_module_default.breadcrumbRow,
+		children: [
+			multiTimeline && multiTimeline.timelines.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSelector, {
+				timelines: multiTimeline.timelines,
+				activeIndex: multiTimeline.activeIndex,
+				onSelect: multiTimeline.setActive
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: TimelineSwimLanes_module_default.breadcrumbDivider,
+				children: "/"
+			})] }),
+			views && views.stack.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+				className: TimelineSwimLanes_module_default.viewStackBack,
+				onClick: views.pop,
+				title: "Back to branch overview",
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.chevron.left }), views.stack.at(-1).label]
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: TimelineSwimLanes_module_default.breadcrumbDivider,
+				children: "/"
+			})] }),
+			hasBreadcrumbs ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: TimelineSwimLanes_module_default.breadcrumbTrail,
+				children: breadcrumbs.map((segment, i) => {
+					const isLast = i === breadcrumbs.length - 1;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: TimelineSwimLanes_module_default.breadcrumbSegment,
+						children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: TimelineSwimLanes_module_default.breadcrumbDivider,
+							children: "/"
+						}), isLast ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: TimelineSwimLanes_module_default.breadcrumbCurrent,
+							children: segment.label
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							className: TimelineSwimLanes_module_default.breadcrumbLink,
+							onClick: () => onBreadcrumbSelect?.(segment.key),
+							children: segment.label
+						})]
+					}, segment.key);
+				})
+			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				className: TimelineSwimLanes_module_default.breadcrumbCurrent,
+				onClick: onScrollToTop,
+				children: rootDisplay
+			}),
+			timelineConfig && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				ref: optionsButtonRef,
+				type: "button",
+				className: TimelineSwimLanes_module_default.optionsButton,
+				onClick: () => setOptionsOpen((prev) => !prev),
+				title: "Timeline options",
+				"aria-label": "Timeline options",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.threeDots })
+			}),
+			timelineConfig && !timelineConfig.includeUtility && (hiddenUtilityCount ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+				type: "button",
+				className: TimelineSwimLanes_module_default.hiddenUtility,
+				onClick: () => timelineConfig.setIncludeUtility(true),
+				title: "Show utility agents",
+				children: [
+					hiddenUtilityCount,
+					" utility",
+					" ",
+					hiddenUtilityCount === 1 ? "agent" : "agents",
+					" hidden"
+				]
+			}),
+			minimap && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineMinimap, {
+				root: node,
+				mapping: minimap.mapping,
+				selection: minimap.selection,
+				scrubberProgress,
+				onScrub
+			}),
+			timelineConfig && onToggleBranches && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineOptionsPopover, {
+				isOpen: optionsOpen,
+				setIsOpen: setOptionsOpen,
+				positionEl: optionsButtonRef.current,
+				config: timelineConfig,
+				onToggleBranches
+			})
+		]
+	});
+};
+var BarFill = ({ span, isParent, isSelected, isDimmed, onSelect, onDoubleClick, insetPx }) => {
+	const handleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onSelect();
+	}, [onSelect]);
+	const handleDoubleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onDoubleClick?.();
+	}, [onDoubleClick]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, isSelected && TimelineSwimLanes_module_default.fillSelected, isDimmed && TimelineSwimLanes_module_default.fillDimmed),
+		style: {
+			left: insetPx ? `calc(${span.bar.left}% + ${insetPx}px)` : `${span.bar.left}%`,
+			width: insetPx ? `calc(${span.bar.width}% - ${insetPx}px)` : `${span.bar.width}%`
+		},
+		title: span.description ?? void 0,
+		onClick: handleClick,
+		onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
+	});
+};
+/**
+* Renders an overlay on the bar area to indicate which portion of the row's
+* spans are "active" (shown in the transcript). Positioned as a sibling of
+* .fill so it has independent opacity instead of stacking with the bar's own.
+*
+* - clipRight = 100 → covers the full span range (e.g. the branch row itself).
+* - clipRight < 100 → covers from the first span's left edge to the clip
+*   percentage (e.g. a parent bar up to the fork point marker).
+*/
+var HighlightOverlay = ({ spans, clipRight }) => {
+	const firstSpan = spans[0];
+	if (!firstSpan) return null;
+	const barLeft = firstSpan.bar.left;
+	const lastSpan = spans[spans.length - 1] ?? firstSpan;
+	const barRight = lastSpan.bar.left + lastSpan.bar.width;
+	const width = Math.max(0, (clipRight >= 100 ? barRight : Math.min(clipRight, barRight)) - barLeft);
+	if (width <= 0) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: TimelineSwimLanes_module_default.fillHighlight,
+		style: {
+			left: `${barLeft}%`,
+			width: `${width}%`
+		}
+	});
+};
+/**
+* Renders a bar fill split into clickable region segments at compaction marker
+* positions. Each segment spans from one compaction marker to the next (or
+* bar start/end). When no region is selected, all segments look like one
+* continuous bar. When a region is selected, the selected segment is
+* highlighted and others are dimmed.
+*/
+var RegionBarFill = ({ span, isParent, isBarSelected, isBarDimmed, selectedRegionIndex, compactionPositions, onSelectBar, onSelectRegion, onDoubleClick }) => {
+	const barLeft = span.bar.left;
+	const barRight = span.bar.left + span.bar.width;
+	const boundaries = [
+		barLeft,
+		...compactionPositions,
+		barRight
+	];
+	const regionCount = boundaries.length - 1;
+	const [hoveredIndex, setHoveredIndex] = (0, import_react.useState)(null);
+	const suppressHoverRef = (0, import_react.useRef)(false);
+	const handleDoubleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		onDoubleClick?.();
+	}, [onDoubleClick]);
+	if (isBarDimmed) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: clsx(TimelineSwimLanes_module_default.fill, isParent && TimelineSwimLanes_module_default.fillParent, TimelineSwimLanes_module_default.fillDimmed),
+		style: {
+			left: `${barLeft}%`,
+			width: `${span.bar.width}%`
+		},
+		title: span.description ?? void 0,
+		onClick: (e) => {
+			e.stopPropagation();
+			onSelectBar();
+		}
+	});
+	const hasRegionSelection = isBarSelected && selectedRegionIndex !== null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children: boundaries.map((start, i) => {
+		if (i >= regionCount) return null;
+		const end = boundaries[i + 1];
+		if (end === void 0 || end <= start) return null;
+		const segmentLeft = start;
+		const segmentWidth = end - start;
+		const isSegmentSelected = hasRegionSelection && selectedRegionIndex === i;
+		const isFirst = i === 0;
+		const isLast = i === regionCount - 1;
+		let opacityClass;
+		if (hasRegionSelection) if (isSegmentSelected) opacityClass = TimelineSwimLanes_module_default.fillSelected;
+		else if (hoveredIndex === i) opacityClass = TimelineSwimLanes_module_default.regionHover;
+		else opacityClass = TimelineSwimLanes_module_default.fillDimmed;
+		else if (isBarSelected) if (hoveredIndex !== null && hoveredIndex !== i) opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
+		else opacityClass = TimelineSwimLanes_module_default.fillSelected;
+		else if (hoveredIndex !== null) opacityClass = TimelineSwimLanes_module_default.regionHover;
+		else opacityClass = isParent ? TimelineSwimLanes_module_default.fillParent : TimelineSwimLanes_module_default.regionDefault;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx(TimelineSwimLanes_module_default.regionSegment, opacityClass, isFirst && TimelineSwimLanes_module_default.regionFirst, isLast && TimelineSwimLanes_module_default.regionLast, !isFirst && !isLast && TimelineSwimLanes_module_default.regionMiddle),
+			style: {
+				left: `${segmentLeft}%`,
+				width: `${segmentWidth}%`
+			},
+			title: span.description ?? void 0,
+			onMouseEnter: () => {
+				if (!suppressHoverRef.current) setHoveredIndex(i);
+			},
+			onMouseLeave: () => {
+				suppressHoverRef.current = false;
+				setHoveredIndex(null);
+			},
+			onClick: (e) => {
+				e.stopPropagation();
+				suppressHoverRef.current = true;
+				setHoveredIndex(null);
+				if (isBarSelected && selectedRegionIndex === null) onSelectRegion(i);
+				else if (hasRegionSelection && selectedRegionIndex === i) onSelectBar();
+				else if (hasRegionSelection) onSelectRegion(i);
+				else onSelectBar();
+			},
+			onDoubleClick: onDoubleClick ? handleDoubleClick : void 0
+		}, i);
+	}) });
+};
+var kRowHeight = 18;
+var BranchConnectorLine = ({ connector }) => {
+	const { markerLeft, barLeft, rowGap } = connector;
+	const topY = -(rowGap * kRowHeight) + kRowHeight / 2;
+	const midY = kRowHeight / 2;
+	const endLeft = Math.max(barLeft, markerLeft + .5);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+		className: TimelineSwimLanes_module_default.branchConnector,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+			x1: `${markerLeft}%`,
+			y1: topY,
+			x2: `${markerLeft}%`,
+			y2: 9.5,
+			stroke: "var(--vscode-descriptionForeground, #717171)",
+			strokeWidth: 1
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+			x1: `${markerLeft}%`,
+			y1: midY,
+			x2: `${endLeft}%`,
+			y2: midY,
+			stroke: "var(--vscode-descriptionForeground, #717171)",
+			strokeWidth: 1
+		})]
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: TimelineSwimLanes_module_default.connectorArrow,
+		style: { left: `calc(${endLeft}% + 4px)` }
+	})] });
+};
+var MarkerGlyph = ({ marker, onBranchToggle, onMarkerNavigate }) => {
+	const icons = useTimelineIcons();
+	const icon = {
+		error: icons.error,
+		compaction: icons.compaction,
+		branch: icons.fork
+	}[marker.kind] ?? "bi bi-question-circle";
+	const kindClass = marker.kind === "error" ? TimelineSwimLanes_module_default.markerError : marker.kind === "compaction" ? TimelineSwimLanes_module_default.markerCompaction : TimelineSwimLanes_module_default.markerBranch;
+	const handleClick = (0, import_react.useCallback)((e) => {
+		e.stopPropagation();
+		if (marker.kind === "branch") onBranchToggle();
+		else if (marker.reference && onMarkerNavigate) onMarkerNavigate(marker.reference);
+	}, [
+		marker.kind,
+		marker.reference,
+		onMarkerNavigate,
+		onBranchToggle
+	]);
+	const isBranch = marker.kind === "branch";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+		className: clsx(TimelineSwimLanes_module_default.marker, kindClass),
+		style: { left: `${marker.left}%` },
+		title: marker.tooltip,
+		onClick: handleClick,
+		tabIndex: isBranch ? 0 : void 0,
+		role: isBranch ? "button" : void 0,
+		"aria-label": isBranch ? "Toggle branches" : void 0,
+		children: marker.kind !== "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icon })
+	});
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/AnchorEventView.tsx
@@ -96758,37 +99648,266 @@ var LoggerEventView = ({ eventNode, className }) => {
 		})
 	});
 };
+var ConnectionsLane_module_default = {
+	lane: "_lane_ax2f5_1",
+	statsLine: "_statsLine_ax2f5_5",
+	stripLabel: "_stripLabel_ax2f5_12",
+	stat: "_stat_ax2f5_5",
+	statLabel: "_statLabel_ax2f5_28",
+	statValue: "_statValue_ax2f5_33",
+	rateLimits: "_rateLimits_ax2f5_40",
+	logButton: "_logButton_ax2f5_47",
+	chart: "_chart_ax2f5_68",
+	svg: "_svg_ax2f5_74",
+	series: "_series_ax2f5_81",
+	rateLimitDot: "_rateLimitDot_ax2f5_87",
+	maxGuide: "_maxGuide_ax2f5_91",
+	baseline: "_baseline_ax2f5_96",
+	tickMark: "_tickMark_ax2f5_100",
+	tickLabel: "_tickLabel_ax2f5_104"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/usage/ConnectionsLane.tsx
+var kChartHeight = 70;
+var kPlotTop = 6;
+var kBaselineY = 52;
+var kTickLabelY = 66;
+var kAngledLabelY = 62;
+var kLabelAngle = -30;
+var kApproxCharPx = 5;
+var kNiceIntervals = [
+	60,
+	300,
+	900,
+	1800,
+	3600,
+	7200,
+	14400,
+	21600,
+	43200,
+	86400
+];
+var fmtTickTime = (sec) => (/* @__PURE__ */ new Date(sec * 1e3)).toLocaleTimeString(void 0, {
+	hour: "numeric",
+	minute: "2-digit"
+});
+var fmtTickDate = (sec) => (/* @__PURE__ */ new Date(sec * 1e3)).toLocaleDateString(void 0, {
+	month: "short",
+	day: "numeric"
+});
+var buildTicks = (timeWindow, width, x) => {
+	const span = timeWindow.end - timeWindow.start;
+	if (span <= 0 || width <= 0) return [];
+	const first = {
+		x: 0,
+		label: `${fmtTickDate(timeWindow.start)}, ${fmtTickTime(timeWindow.start)}`,
+		anchor: "start"
+	};
+	const last = {
+		x: width,
+		label: fmtTickTime(timeWindow.end),
+		anchor: "end"
+	};
+	const interval = kNiceIntervals.find((i) => i / span * width >= 55) ?? Math.ceil(55 * span / width / 86400) * 86400;
+	const interior = [];
+	let prevDate = fmtTickDate(timeWindow.start);
+	for (let t = Math.ceil(timeWindow.start / interval) * interval; t < timeWindow.end; t += interval) {
+		const px = x(t);
+		if (px < 90 || px > width - 45) continue;
+		const date = fmtTickDate(t);
+		const label = date !== prevDate ? `${date}, ${fmtTickTime(t)}` : fmtTickTime(t);
+		prevDate = date;
+		interior.push({
+			x: px,
+			label,
+			anchor: "end",
+			angled: true
+		});
+	}
+	return [
+		first,
+		...interior,
+		last
+	];
+};
+var ConnectionsLane = ({ data, timeWindow, variant, onShowLog }) => {
+	const [width, setWidth] = (0, import_react.useState)(0);
+	const chartRef = useResizeObserver((0, import_react.useCallback)((entry) => setWidth(entry.contentRect.width), []));
+	const span = timeWindow.end - timeWindow.start;
+	const yMax = Math.max(data.configuredMax ?? 0, data.peak) * 1.08 || 1;
+	const x = (t) => {
+		const clamped = Math.min(Math.max(t, timeWindow.start), timeWindow.end);
+		return span > 0 ? (clamped - timeWindow.start) / span * width : 0;
+	};
+	const y = (v) => kBaselineY - v / yMax * (kBaselineY - kPlotTop);
+	let path = `M ${x(timeWindow.start)} ${y(data.start)}`;
+	let prev = data.start;
+	for (const e of data.events) {
+		const ex = x(e.timestamp);
+		path += ` L ${ex} ${y(prev)} L ${ex} ${y(e.new_limit)}`;
+		prev = e.new_limit;
+	}
+	path += ` L ${width} ${y(prev)}`;
+	const ticks = width > 0 ? buildTicks(timeWindow, width, x) : [];
+	const maxAngledPx = ticks.reduce((m, t) => t.angled ? Math.max(m, t.label.length * kApproxCharPx) : m, 0);
+	const chartHeight = Math.max(kChartHeight, Math.ceil(kAngledLabelY + maxAngledPx / 2 + 4));
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: ConnectionsLane_module_default.lane,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: ConnectionsLane_module_default.statsLine,
+			children: [
+				variant === "strip" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: ConnectionsLane_module_default.stripLabel,
+					children: "Connections"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "start"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: data.start
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "peak"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: data.peak
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "avg"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: Math.round(data.avg)
+					})]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.stat,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statLabel,
+						children: "final"
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: ConnectionsLane_module_default.statValue,
+						children: data.final
+					})]
+				}),
+				data.rateLimitCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: ConnectionsLane_module_default.rateLimits,
+					children: [
+						data.rateLimitCount,
+						" rate limit",
+						data.rateLimitCount === 1 ? "" : "s"
+					]
+				}),
+				onShowLog && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: ConnectionsLane_module_default.logButton,
+					title: "Change log",
+					"aria-label": `Connection change log for ${data.model}`,
+					onClick: onShowLog,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
+						className: "bi bi-clock-history",
+						"aria-hidden": "true"
+					}), variant === "strip" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "Change log" })]
+				})
+			]
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			ref: chartRef,
+			className: ConnectionsLane_module_default.chart,
+			style: { height: chartHeight },
+			children: width > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", {
+				className: ConnectionsLane_module_default.svg,
+				width,
+				height: chartHeight,
+				role: "img",
+				"aria-label": `Connection limit over time for ${data.model}`,
+				children: [
+					data.configuredMax !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+						className: ConnectionsLane_module_default.maxGuide,
+						x1: 0,
+						x2: width,
+						y1: y(data.configuredMax),
+						y2: y(data.configuredMax)
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+						className: ConnectionsLane_module_default.baseline,
+						x1: 0,
+						x2: width,
+						y1: kBaselineY,
+						y2: kBaselineY
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", {
+						className: ConnectionsLane_module_default.series,
+						d: path
+					}),
+					data.events.filter((e) => e.reason === "rate_limit").map((e, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("circle", {
+						className: ConnectionsLane_module_default.rateLimitDot,
+						cx: x(e.timestamp),
+						cy: y(e.new_limit),
+						r: 2.5
+					}, i)),
+					ticks.map((tick, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("line", {
+						className: ConnectionsLane_module_default.tickMark,
+						x1: tick.x,
+						x2: tick.x,
+						y1: kBaselineY,
+						y2: 55
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("text", {
+						className: ConnectionsLane_module_default.tickLabel,
+						x: tick.x,
+						y: tick.angled ? kAngledLabelY : kTickLabelY,
+						textAnchor: tick.anchor,
+						transform: tick.angled ? `rotate(${kLabelAngle} ${tick.x} ${kAngledLabelY})` : void 0,
+						children: tick.label
+					})] }, i))
+				]
+			})
+		})]
+	});
+};
 var ModelTokenTable_module_default = {
-	wrapper: "_wrapper_1cp7t_1",
-	table: "_table_1cp7t_7",
-	num: "_num_1cp7t_24",
-	modelRow: "_modelRow_1cp7t_28",
-	modelCell: "_modelCell_1cp7t_49",
-	modelName: "_modelName_1cp7t_55",
-	modelAlias: "_modelAlias_1cp7t_60",
-	modelTotal: "_modelTotal_1cp7t_69",
-	configSection: "_configSection_1cp7t_77",
-	configSectionLabel: "_configSectionLabel_1cp7t_84",
-	configTable: "_configTable_1cp7t_98",
-	configKey: "_configKey_1cp7t_110",
-	configVal: "_configVal_1cp7t_116",
-	composeCell: "_composeCell_1cp7t_131",
-	stack: "_stack_1cp7t_139",
-	pcts: "_pcts_1cp7t_154",
-	breakdown: "_breakdown_1cp7t_162",
-	breakdownLabel: "_breakdownLabel_1cp7t_170",
-	breakdownLeader: "_breakdownLeader_1cp7t_178",
-	breakdownValue: "_breakdownValue_1cp7t_185",
-	totalCell: "_totalCell_1cp7t_192",
-	perSampleCell: "_perSampleCell_1cp7t_199",
-	perSampleSub: "_perSampleSub_1cp7t_204",
-	swatch: "_swatch_1cp7t_213",
-	swatchSmall: "_swatchSmall_1cp7t_221",
-	catInput: "_catInput_1cp7t_227",
-	catCacheRead: "_catCacheRead_1cp7t_231",
-	catCacheWrite: "_catCacheWrite_1cp7t_235",
-	catOutput: "_catOutput_1cp7t_239",
-	catReasoning: "_catReasoning_1cp7t_243"
+	wrapper: "_wrapper_ylc06_1",
+	table: "_table_ylc06_7",
+	num: "_num_ylc06_24",
+	modelRow: "_modelRow_ylc06_28",
+	modelCell: "_modelCell_ylc06_49",
+	modelName: "_modelName_ylc06_55",
+	modelAlias: "_modelAlias_ylc06_60",
+	modelTotal: "_modelTotal_ylc06_69",
+	configSection: "_configSection_ylc06_77",
+	configSectionLabel: "_configSectionLabel_ylc06_84",
+	configTable: "_configTable_ylc06_98",
+	configKey: "_configKey_ylc06_110",
+	configVal: "_configVal_ylc06_116",
+	composeCell: "_composeCell_ylc06_131",
+	stack: "_stack_ylc06_139",
+	pcts: "_pcts_ylc06_154",
+	breakdown: "_breakdown_ylc06_162",
+	breakdownLabel: "_breakdownLabel_ylc06_170",
+	breakdownLeader: "_breakdownLeader_ylc06_178",
+	breakdownValue: "_breakdownValue_ylc06_185",
+	totalCell: "_totalCell_ylc06_192",
+	perSampleCell: "_perSampleCell_ylc06_199",
+	perSampleSub: "_perSampleSub_ylc06_204",
+	connectionsCell: "_connectionsCell_ylc06_213",
+	connectionsHead: "_connectionsHead_ylc06_219",
+	connectionsStripRow: "_connectionsStripRow_ylc06_224",
+	swatch: "_swatch_ylc06_229",
+	swatchSmall: "_swatchSmall_ylc06_237",
+	catInput: "_catInput_ylc06_243",
+	catCacheRead: "_catCacheRead_ylc06_247",
+	catCacheWrite: "_catCacheWrite_ylc06_251",
+	catOutput: "_catOutput_ylc06_255",
+	catReasoning: "_catReasoning_ylc06_259"
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/ModelTokenTable.tsx
@@ -96830,28 +99949,41 @@ var categoryValue = (usage, key) => {
 };
 var compositionTotal = (usage) => CAT_ORDER$1.reduce((a, k) => a + categoryValue(usage, k), 0);
 var usageTotal = (usage) => usage.total_tokens || compositionTotal(usage);
-var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_args, model_aliases, rowKeys, showTokenColumns = true }) => {
+var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_args, model_aliases, rowKeys, showTokenColumns = true, connections_by_row, connections_window, onShowConnectionLog }) => {
+	const [containerWidth, setContainerWidth] = (0, import_react.useState)(0);
+	const wrapperRef = useResizeObserver((0, import_react.useCallback)((entry) => setContainerWidth(entry.contentRect.width), []));
 	const models = rowKeys ?? (model_usage ? Object.keys(model_usage).filter((k) => model_usage[k]) : []);
 	if (models.length === 0) return null;
 	const showPerSample = showTokenColumns && samples !== void 0 && samples > 0;
+	const hasConnections = !!connections_window && !!connections_by_row && models.some((m) => connections_by_row[m]);
+	const narrow = containerWidth > 0 && containerWidth < 1e3;
+	const showConnectionsColumn = hasConnections && !narrow;
+	const columnCount = 1 + (showTokenColumns ? 2 : 0) + (showConnectionsColumn ? 1 : 0) + (showPerSample ? 1 : 0);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		ref: wrapperRef,
 		className: clsx(ModelTokenTable_module_default.wrapper, className),
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", {
 			className: ModelTokenTable_module_default.table,
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Model" }),
 				showTokenColumns && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Composition" }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Breakdown" })] }),
+				showConnectionsColumn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+					className: ModelTokenTable_module_default.connectionsHead,
+					children: "Connections"
+				}),
 				showPerSample && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
 					className: ModelTokenTable_module_default.num,
 					children: "Per sample"
 				})
 			] }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: models.map((modelId) => {
 				const usage = model_usage?.[modelId];
+				const lane = connections_by_row?.[modelId];
 				const composeSum = usage ? compositionTotal(usage) : 0;
 				const total = usage ? usageTotal(usage) : 0;
 				const cacheRate = usage && total > 0 ? Math.round((usage.input_tokens_cache_read ?? 0) / total * 100) : 0;
 				const outputRate = usage && total > 0 ? Math.round((usage.output_tokens ?? 0) / total * 100) : 0;
-				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", {
+				const showLog = onShowConnectionLog && lane ? () => onShowConnectionLog(lane.model) : void 0;
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", {
 					className: ModelTokenTable_module_default.modelRow,
 					children: [
 						/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
@@ -96895,6 +100027,7 @@ var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_a
 								})()
 							]
 						}),
+						showTokenColumns && !usage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { colSpan: 2 }),
 						showTokenColumns && usage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
 							className: ModelTokenTable_module_default.composeCell,
 							children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
@@ -96929,6 +100062,16 @@ var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_a
 								] }, k);
 							})
 						}) })] }),
+						showConnectionsColumn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+							className: ModelTokenTable_module_default.connectionsCell,
+							children: lane && connections_window && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConnectionsLane, {
+								data: lane,
+								timeWindow: connections_window,
+								variant: "column",
+								onShowLog: showLog
+							})
+						}),
+						showPerSample && !usage && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {}),
 						showPerSample && usage && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
 							className: clsx(ModelTokenTable_module_default.num, ModelTokenTable_module_default.perSampleCell),
 							children: [formatNumber(Math.round(total / samples)), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
@@ -96937,7 +100080,18 @@ var ModelTokenTable = ({ model_usage, samples, className, model_configs, model_a
 							})]
 						})
 					]
-				}, modelId);
+				}), hasConnections && narrow && lane && connections_window && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", {
+					className: ModelTokenTable_module_default.connectionsStripRow,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+						colSpan: columnCount,
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConnectionsLane, {
+							data: lane,
+							timeWindow: connections_window,
+							variant: "strip",
+							onShowLog: showLog
+						})
+					})
+				})] }, modelId);
 			}) })]
 		})
 	});
@@ -97162,6 +100316,204 @@ var ModelUsagePanel = ({ usage, timing, className }) => {
 		]
 	});
 };
+//#endregion
+//#region ../../packages/inspect-components/src/usage/connectionHistory.ts
+var kAdaptiveDefaultMax = 100;
+var isoToEpoch = (iso) => {
+	if (!iso) return void 0;
+	const ms = new Date(iso).getTime();
+	return Number.isFinite(ms) ? ms / 1e3 : void 0;
+};
+var connectionWindow = (history, startedAt, completedAt) => {
+	if (!history || history.length === 0) return void 0;
+	let first = Infinity;
+	let last = -Infinity;
+	for (const e of history) {
+		if (e.timestamp < first) first = e.timestamp;
+		if (e.timestamp > last) last = e.timestamp;
+	}
+	return {
+		start: Math.min(isoToEpoch(startedAt) ?? first, first),
+		end: Math.max(isoToEpoch(completedAt) ?? last, last)
+	};
+};
+var adaptiveMaxFromConfig = (config) => {
+	const adaptive = config?.["adaptive_connections"];
+	if (adaptive == null || adaptive === false) return void 0;
+	if (adaptive === true) return kAdaptiveDefaultMax;
+	if (typeof adaptive === "number") return adaptive;
+	if (typeof adaptive === "string") {
+		const parts = adaptive.split("-");
+		const max = Number(parts[parts.length - 1]);
+		return Number.isFinite(max) ? max : kAdaptiveDefaultMax;
+	}
+	if (typeof adaptive === "object") {
+		const max = adaptive.max;
+		return typeof max === "number" ? max : kAdaptiveDefaultMax;
+	}
+};
+var buildConnectionLanes = (history, window, configuredMax) => {
+	const lanes = {};
+	if (!history || history.length === 0 || !window) return lanes;
+	const byModel = {};
+	for (const e of history) (byModel[e.model] ??= []).push(e);
+	for (const [model, events] of Object.entries(byModel)) {
+		events.sort((a, b) => a.timestamp - b.timestamp);
+		const start = events[0].old_limit;
+		const final = events[events.length - 1].new_limit;
+		let peak = start;
+		let rateLimitCount = 0;
+		for (const e of events) {
+			peak = Math.max(peak, e.old_limit, e.new_limit);
+			if (e.reason === "rate_limit") rateLimitCount += 1;
+		}
+		let weighted = 0;
+		let prevT = window.start;
+		let prevV = start;
+		for (const e of events) {
+			const t = Math.min(Math.max(e.timestamp, window.start), window.end);
+			weighted += prevV * (t - prevT);
+			prevT = t;
+			prevV = e.new_limit;
+		}
+		weighted += prevV * (window.end - prevT);
+		const span = window.end - window.start;
+		const avg = span > 0 ? weighted / span : final;
+		lanes[model] = {
+			model,
+			events,
+			start,
+			peak,
+			final,
+			avg,
+			rateLimitCount,
+			configuredMax: configuredMax?.(model)
+		};
+	}
+	return lanes;
+};
+var ConnectionLogModal_module_default = {
+	table: "_table_16yk8_1",
+	time: "_time_16yk8_33",
+	limitHead: "_limitHead_16yk8_38",
+	limit: "_limit_16yk8_38",
+	oldLimit: "_oldLimit_16yk8_47",
+	arrowUp: "_arrowUp_16yk8_51",
+	arrowDown: "_arrowDown_16yk8_52",
+	newLimit: "_newLimit_16yk8_64",
+	badge: "_badge_16yk8_68",
+	badgeSlowStart: "_badgeSlowStart_16yk8_77",
+	badgeSteadyUp: "_badgeSteadyUp_16yk8_82",
+	badgeRateLimit: "_badgeRateLimit_16yk8_87",
+	badgeManual: "_badgeManual_16yk8_92"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/usage/timeFormat.ts
+var fmtCompactDuration = (s) => {
+	if (s < 60) return `${Math.round(s)}s`;
+	if (s < 3600) {
+		const m = Math.floor(s / 60);
+		const r = Math.round(s % 60);
+		return r > 0 ? `${m}m ${r}s` : `${m}m`;
+	}
+	if (s < 86400) {
+		const h = Math.floor(s / 3600);
+		const m = Math.round(s % 3600 / 60);
+		return m > 0 ? `${h}h ${m}m` : `${h}h`;
+	}
+	const d = Math.floor(s / 86400);
+	const h = Math.round(s % 86400 / 3600);
+	return h > 0 ? `${d}d ${h}h` : `${d}d`;
+};
+var fmtClock = (iso, showDate = false) => {
+	if (!iso) return "—";
+	try {
+		const d = new Date(iso);
+		const time = d.toLocaleTimeString(void 0, {
+			hour: "numeric",
+			minute: "2-digit",
+			second: "2-digit"
+		});
+		if (!showDate) return time;
+		return `${d.toLocaleDateString(void 0, {
+			month: "short",
+			day: "numeric"
+		})}, ${time}`;
+	} catch {
+		return iso;
+	}
+};
+//#endregion
+//#region ../../packages/inspect-components/src/usage/ConnectionLogModal.tsx
+var kReasonLabel = {
+	slow_start: "slow start",
+	steady_state_up: "steady up",
+	rate_limit: "rate limit",
+	manual: "manual"
+};
+var kReasonBadge = {
+	slow_start: ConnectionLogModal_module_default.badgeSlowStart,
+	steady_state_up: ConnectionLogModal_module_default.badgeSteadyUp,
+	rate_limit: ConnectionLogModal_module_default.badgeRateLimit,
+	manual: ConnectionLogModal_module_default.badgeManual
+};
+var ConnectionLogModal = ({ model, events, show, onHide }) => {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Modal, {
+		id: "connection-log",
+		show,
+		onHide,
+		title: `Connection Log — ${model}`,
+		width: "min(560px, 90vw)",
+		padded: false,
+		footer: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			className: clsx("btn", "btn-secondary", "text-size-smaller"),
+			onClick: onHide,
+			children: "Close"
+		}),
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("table", {
+			className: ConnectionLogModal_module_default.table,
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Time" }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", {
+					className: ConnectionLogModal_module_default.limitHead,
+					children: "Limit"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("th", { children: "Reason" })
+			] }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tbody", { children: events.map((e, i) => {
+				const down = e.new_limit < e.old_limit;
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("tr", { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", {
+						className: ConnectionLogModal_module_default.time,
+						children: fmtClock((/* @__PURE__ */ new Date(e.timestamp * 1e3)).toISOString(), true)
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
+						className: ConnectionLogModal_module_default.limit,
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: ConnectionLogModal_module_default.oldLimit,
+								children: e.old_limit
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: down ? ConnectionLogModal_module_default.arrowDown : ConnectionLogModal_module_default.arrowUp,
+								"aria-label": down ? "decreased to" : "increased to",
+								children: down ? "↓" : "↑"
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+								className: ConnectionLogModal_module_default.newLimit,
+								children: e.new_limit
+							})
+						]
+					}),
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: clsx(ConnectionLogModal_module_default.badge, kReasonBadge[e.reason]),
+						children: kReasonLabel[e.reason]
+					}) })
+				] }, i);
+			}) })]
+		})
+	});
+};
 var UsagePanel_module_default = {
 	panel: "_panel_ald9k_1",
 	head: "_head_ald9k_5",
@@ -97176,17 +100528,20 @@ var UsagePanel_module_default = {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/usage/UsagePanel.tsx
-var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by_role, args_by_model, args_by_role, role_aliases, samples, meta, className }) => {
+var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by_role, args_by_model, args_by_role, role_aliases, samples, meta, className, connection_limit_history, started_at, completed_at }) => {
 	const keysOf = (...maps) => {
 		const out = /* @__PURE__ */ new Set();
 		for (const m of maps) if (m) for (const k of Object.keys(m)) out.add(k);
 		return Array.from(out);
 	};
-	const modelKeys = keysOf(model_usage, configs_by_model, args_by_model);
+	const usageWindow = connectionWindow(connection_limit_history, started_at, completed_at);
+	const lanesByModel = buildConnectionLanes(connection_limit_history, usageWindow, (model) => adaptiveMaxFromConfig(configs_by_model?.[model]));
+	const modelKeys = keysOf(model_usage, configs_by_model, args_by_model, lanesByModel);
 	const roleKeys = keysOf(role_usage, configs_by_role, args_by_role, role_aliases);
 	const hasModel = modelKeys.length > 0;
 	const hasRole = roleKeys.length > 0;
 	const [mode, setMode] = (0, import_react.useState)(!!(role_usage && Object.keys(role_usage).length > 0) ? "role" : "model");
+	const [logModel, setLogModel] = useProperty("usage-connections", "log-model", { defaultValue: null });
 	if (!hasModel && !hasRole) return null;
 	const showSegmented = hasModel && hasRole;
 	const effectiveMode = showSegmented ? mode : hasRole ? "role" : "model";
@@ -97198,50 +100553,69 @@ var UsagePanel = ({ label, model_usage, role_usage, configs_by_model, configs_by
 	const tableArgs = isModel ? args_by_model : args_by_role;
 	const tableAliases = !isModel ? role_aliases : void 0;
 	const tableRowKeys = isModel ? modelKeys : roleKeys;
+	const connectionsByRow = {};
+	if (isModel) Object.assign(connectionsByRow, lanesByModel);
+	else if (role_aliases) for (const [role, model] of Object.entries(role_aliases)) {
+		const lane = lanesByModel[model];
+		if (lane) connectionsByRow[role] = lane;
+	}
+	const logLane = logModel != null ? lanesByModel[logModel] : void 0;
 	const metaItems = hasUsageData ? meta?.filter((m) => m.value != null && m.value !== "") ?? [] : [];
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: clsx(UsagePanel_module_default.panel, className),
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: UsagePanel_module_default.head,
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: UsagePanel_module_default.headLeft,
-				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-					className: clsx("text-style-label", UsagePanel_module_default.title),
-					children: resolvedLabel
-				}), showSegmented && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SegmentedControl, {
-					segments: [{
-						id: "role",
-						label: "Roles"
-					}, {
-						id: "model",
-						label: "Models"
-					}],
-					selectedId: effectiveMode,
-					onSegmentChange: (value) => setMode(value)
-				})]
-			}), metaItems.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: UsagePanel_module_default.meta,
-				children: metaItems.map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: UsagePanel_module_default.metaSep }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-					className: UsagePanel_module_default.metaItem,
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: UsagePanel_module_default.metaLabel,
-						children: m.label
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: UsagePanel_module_default.metaValue,
-						children: m.value
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: UsagePanel_module_default.head,
+				children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: UsagePanel_module_default.headLeft,
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: clsx("text-style-label", UsagePanel_module_default.title),
+						children: resolvedLabel
+					}), showSegmented && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SegmentedControl, {
+						segments: [{
+							id: "role",
+							label: "Roles"
+						}, {
+							id: "model",
+							label: "Models"
+						}],
+						selectedId: effectiveMode,
+						onSegmentChange: (value) => setMode(value)
 					})]
-				})] }, m.label))
-			})]
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModelTokenTable, {
-			model_usage: usageData,
-			model_configs: tableConfigs,
-			model_args: tableArgs,
-			model_aliases: tableAliases,
-			rowKeys: tableRowKeys,
-			showTokenColumns: hasUsageData,
-			samples,
-			className: UsagePanel_module_default.tableNoTop
-		})]
+				}), metaItems.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+					className: UsagePanel_module_default.meta,
+					children: metaItems.map((m, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [i > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: UsagePanel_module_default.metaSep }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+						className: UsagePanel_module_default.metaItem,
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: UsagePanel_module_default.metaLabel,
+							children: m.label
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: UsagePanel_module_default.metaValue,
+							children: m.value
+						})]
+					})] }, m.label))
+				})]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ModelTokenTable, {
+				model_usage: usageData,
+				model_configs: tableConfigs,
+				model_args: tableArgs,
+				model_aliases: tableAliases,
+				rowKeys: tableRowKeys,
+				showTokenColumns: hasUsageData,
+				samples,
+				className: UsagePanel_module_default.tableNoTop,
+				connections_by_row: connectionsByRow,
+				connections_window: usageWindow,
+				onShowConnectionLog: setLogModel
+			}),
+			logLane && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ConnectionLogModal, {
+				model: logLane.model,
+				events: logLane.events,
+				show: true,
+				onHide: () => setLogModel(null)
+			})
+		]
 	});
 };
 //#endregion
@@ -97293,42 +100667,6 @@ var buildArgsByRole = (evalSpec) => {
 	const acc = {};
 	for (const [role, rc] of Object.entries(evalSpec.model_roles)) if (rc.args) acc[role] = stripNullish(rc.args);
 	return finalize(acc);
-};
-//#endregion
-//#region ../../packages/inspect-components/src/usage/timeFormat.ts
-var fmtCompactDuration = (s) => {
-	if (s < 60) return `${Math.round(s)}s`;
-	if (s < 3600) {
-		const m = Math.floor(s / 60);
-		const r = Math.round(s % 60);
-		return r > 0 ? `${m}m ${r}s` : `${m}m`;
-	}
-	if (s < 86400) {
-		const h = Math.floor(s / 3600);
-		const m = Math.round(s % 3600 / 60);
-		return m > 0 ? `${h}h ${m}m` : `${h}h`;
-	}
-	const d = Math.floor(s / 86400);
-	const h = Math.round(s % 86400 / 3600);
-	return h > 0 ? `${d}d ${h}h` : `${d}d`;
-};
-var fmtClock = (iso, showDate = false) => {
-	if (!iso) return "—";
-	try {
-		const d = new Date(iso);
-		const time = d.toLocaleTimeString(void 0, {
-			hour: "numeric",
-			minute: "2-digit",
-			second: "2-digit"
-		});
-		if (!showDate) return time;
-		return `${d.toLocaleDateString(void 0, {
-			month: "short",
-			day: "numeric"
-		})}, ${time}`;
-	} catch {
-		return iso;
-	}
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/event/attemptDuration.ts
@@ -99481,99 +102819,35 @@ var TranscriptViewNodes = (0, import_react.forwardRef)(function TranscriptViewNo
 * - Branch scroll target handling
 * - Empty state display
 */
-var collectAllCollapsibleIds = (nodes) => {
-	const result = {};
-	const traverse = (nodeList) => {
-		for (const node of nodeList) {
-			if (kCollapsibleEventTypes.includes(node.event.event) || kContentCollapsibleEventTypes.includes(node.event.event)) result[node.id] = true;
-			if (node.children.length > 0) traverse(node.children);
-		}
-	};
-	traverse(nodes);
-	return result;
-};
-var buildToolLabels = (events, messageLabels) => {
-	if (!messageLabels) return void 0;
-	const toolLabels = {};
-	for (const event of events) if (event.event === "tool") {
-		const label = event.message_id ? messageLabels[event.message_id] : void 0;
-		if (label) toolLabels[event.id] = label;
-	} else if (event.event === "model") for (const message of event.input ?? []) {
-		if (message.role !== "tool" || !message.id) continue;
-		const label = messageLabels[message.id];
-		if (label && message.tool_call_id) toolLabels[message.tool_call_id] = label;
-	}
-	return Object.keys(toolLabels).length > 0 ? toolLabels : void 0;
-};
-var scopeMessageLabels = (events, messageLabels) => {
-	if (!messageLabels) return void 0;
-	const present = /* @__PURE__ */ new Set();
-	for (const event of events) if (event.event === "model") {
-		for (const message of event.input ?? []) if (message.id) present.add(message.id);
-		for (const choice of event.output?.choices ?? []) if (choice.message?.id) present.add(choice.message.id);
-	} else if (event.event === "tool" && event.message_id) present.add(event.message_id);
-	const scoped = {};
-	for (const [id, label] of Object.entries(messageLabels)) if (present.has(id)) scoped[id] = label;
-	return Object.keys(scoped).length > 0 ? scoped : void 0;
-};
-var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling = false, scrollRef, offsetTop = 0, embedded = false, timelineSelection, activeTimeline, serverTimelines, markerConfig: markerConfigOverride, agentConfig: agentConfigOverride, showSwimlanes: showSwimlanesOption = "auto", onMarkerNavigate, onScrollToTop, headroomHidden, onHeadroomResetAnchor, onHeadroomSetHidden, listId, initialEventId, initialMessageId, eventsListRef, getEventUrl, linkingEnabled, bulkCollapse, collapseState, outline, outlineScrollRef, rightRail, rightRailPanelScrollRef, eventNodeContext, emptyText = "No events match the current filter", emptyBusy, className }) => {
-	const eventsForTimeline = (0, import_react.useMemo)(() => {
-		if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
-		return events.filter((e) => e.event === "anchor" || !hiddenEventTypes.includes(e.event));
-	}, [events, hiddenEventTypes]);
-	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline, serverTimelines);
-	const timelineConfig = useTimelineConfig({ branchesPresent: (0, import_react.useMemo)(() => timelinesForBranchDetection.some((tl) => spanHasBranches(tl.root)), [timelinesForBranchDetection]) });
-	const { timeline: timelineData, state: timelineState, layouts: timelineLayouts, rootTimeMapping, selectedEvents, sourceSpans, minimapSelection, hasTimeline, hasAgentTimeline, timelines, activeTimelineIndex, setActiveTimeline, regionCounts, branchScrollTarget, highlightedKeys, selectedRowName, viewStack, pushView, popView } = useTranscriptTimeline({
-		events: eventsForTimeline,
-		markerConfig: markerConfigOverride ?? timelineConfig.markerConfig,
-		timelineOptions: agentConfigOverride ?? timelineConfig.agentConfig,
-		serverTimelines,
-		timelineProps: timelineSelection,
-		activeTimelineProps: activeTimeline
+function renderAgentCard(node, agentCardClassName) {
+	const span = node.sourceSpan;
+	if (!span) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AgentCardView, {
+		span,
+		className: agentCardClassName
 	});
-	const showSwimlanes = (0, import_react.useMemo)(() => {
-		if (showSwimlanesOption === "auto") return hasTimeline || regionCounts.size > 0 || timelines.length > 1;
-		return showSwimlanesOption;
-	}, [
-		showSwimlanesOption,
-		hasTimeline,
-		regionCounts,
-		timelines.length
-	]);
-	const swimlanesDefaultCollapsed = (0, import_react.useMemo)(() => {
-		if (showSwimlanesOption === "auto" && !hasTimeline && regionCounts.size === 0) return true;
-		if (hasTimeline) return hasAgentTimeline ? false : true;
-	}, [
-		showSwimlanesOption,
-		hasTimeline,
-		hasAgentTimeline,
-		regionCounts
-	]);
-	const rawEventsForNodes = showSwimlanes ? selectedEvents : events;
-	const eventsForNodes = (0, import_react.useMemo)(() => hiddenEventTypes && hiddenEventTypes.length > 0 ? rawEventsForNodes.filter((e) => !hiddenEventTypes.includes(e.event)) : rawEventsForNodes, [rawEventsForNodes, hiddenEventTypes]);
-	const { eventNodes, defaultCollapsedIds, retryAttempts } = useEventNodes(eventsForNodes, running, showSwimlanes ? sourceSpans : void 0);
-	const mergedEventNodeContext = (0, import_react.useMemo)(() => {
-		const messageLabels = scopeMessageLabels(eventsForNodes, eventNodeContext?.messageLabels);
-		const toolLabels = buildToolLabels(eventsForNodes, messageLabels);
-		return {
-			...eventNodeContext,
-			messageLabels,
-			retryAttempts,
-			...toolLabels ? { toolLabels } : {}
-		};
-	}, [
-		eventsForNodes,
-		eventNodeContext,
-		retryAttempts
-	]);
+}
+var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling = false, scrollRef, offsetTop = 0, embedded = false, timeline, deepLink, headroom, empty, listId, eventsListRef, getEventUrl, linkingEnabled, bulkCollapse, collapseState, outline, rightRail, eventNodeContext, className }) => {
+	const { selection: timelineSelection, active: activeTimeline, serverTimelines, markerConfig: markerConfigOverride, agentConfig: agentConfigOverride, showSwimlanes: showSwimlanesOption = "auto", onMarkerNavigate, onScrollToTop } = timeline ?? {};
+	const { eventId: initialEventId, messageId: initialMessageId } = deepLink ?? {};
+	const { hidden: headroomHidden, onSetHidden: onHeadroomSetHidden, onResetAnchor: onHeadroomResetAnchor } = headroom ?? {};
+	const { text: emptyText = "No events match the current filter", busy: emptyBusy } = empty ?? {};
+	const { timeline: transcriptTimeline, timelineConfig, showSwimlanes, swimlanesDefaultCollapsed, nodeFeed, searchableEvents } = useTimelinePipeline({
+		events,
+		hiddenEventTypes,
+		serverTimelines,
+		markerConfig: markerConfigOverride,
+		agentConfig: agentConfigOverride,
+		showSwimlanes: showSwimlanesOption,
+		timelineSelection,
+		activeTimeline
+	});
+	const { state: timelineState, swimlanes: { layouts: timelineLayouts, regionCounts, highlightedKeys }, minimap, multiTimeline, views, selection: { rowName: selectedRowName } } = transcriptTimeline;
+	const { eventNodes, defaultCollapsedIds, eventNodeContext: mergedEventNodeContext } = useEventNodeData(nodeFeed, running, eventNodeContext);
 	const nullViewNodesRef = (0, import_react.useRef)(null);
 	useTranscriptSearchSource({
 		id: listId,
-		events: (0, import_react.useMemo)(() => {
-			if (!hiddenEventTypes || hiddenEventTypes.length === 0) return events;
-			const hidden = new Set(hiddenEventTypes);
-			return events.filter((e) => !hidden.has(e.event));
-		}, [events, hiddenEventTypes]),
+		events: searchableEvents,
 		rows: timelineState.rows,
 		selected: timelineSelection?.selected ?? null,
 		onSelect: timelineSelection?.onSelect ?? (() => {}),
@@ -99583,318 +102857,59 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 	});
 	const { stickySwimLaneHeight, isSwimLaneSticky, swimLaneStickyContentRef, handleSwimLaneStickyChange } = useStickySwimLaneHeight();
 	const effectiveOffsetTop = offsetTop + stickySwimLaneHeight;
-	const [scrollAnchor, setScrollAnchor] = (0, import_react.useState)(null);
-	const hasScrollTarget = !!(initialEventId || initialMessageId || scrollAnchor);
-	const { effectiveListId } = useListPositionManager(listId, timelineState.selected, scrollRef, hasScrollTarget);
-	const [scrubberProgress, scrubTo] = useScrubberProgress(scrollRef);
-	const handleScrub = (0, import_react.useCallback)((progress) => {
-		onHeadroomResetAnchor?.(true);
-		scrubTo(progress);
-	}, [onHeadroomResetAnchor, scrubTo]);
-	const swimlaneHeader = (0, import_react.useMemo)(() => ({
-		rootLabel: timelineData.root.name,
-		onScrollToTop,
-		minimap: {
-			root: timelineData.root,
-			selection: minimapSelection,
-			mapping: rootTimeMapping,
-			scrubberProgress,
-			onScrub: handleScrub
-		},
-		timelineConfig,
-		timelineSelector: timelines.length > 1 ? {
-			timelines,
-			activeIndex: activeTimelineIndex,
-			onSelect: setActiveTimeline
-		} : void 0,
-		viewStack,
-		onPopView: popView
-	}), [
-		timelineData.root,
-		onScrollToTop,
-		minimapSelection,
-		rootTimeMapping,
-		scrubberProgress,
-		handleScrub,
-		timelineConfig,
-		timelines,
-		activeTimelineIndex,
-		setActiveTimeline,
-		viewStack,
-		popView
-	]);
-	const handlePunchDown = (0, import_react.useCallback)((rowKey, label) => {
-		const span = timelineState.rows.find((r) => r.key === rowKey)?.spans[0];
-		if (span && "agent" in span) pushView(span.agent, label);
-	}, [timelineState.rows, pushView]);
-	const spanSelectKeys = (0, import_react.useMemo)(() => buildSpanSelectKeys(timelineState.rows), [timelineState.rows]);
-	const selectBySpanId = (0, import_react.useCallback)((spanId) => {
-		const key = spanSelectKeys.get(spanId);
-		if (!key) return;
-		timelineState.select(key.key);
-	}, [spanSelectKeys, timelineState]);
-	const selectByRowKey = (0, import_react.useCallback)((rowKey, anchorEl) => {
-		if (anchorEl && scrollRef.current) setScrollAnchor({ scrollTop: scrollRef.current.scrollTop });
-		timelineState.select(rowKey, { preserveScroll: true });
-	}, [timelineState, scrollRef]);
-	const resolvedLocal = (0, import_react.useMemo)(() => {
-		if (initialEventId || !initialMessageId) return void 0;
-		const selectedSpans = getSelectedSpans(timelineState.rows, timelineState.selected);
-		for (const span of selectedSpans) {
-			const result = resolveMessageToEvent(initialMessageId, span);
-			if (result && !result.agentSpanId) return result;
-		}
-	}, [
-		initialEventId,
-		initialMessageId,
-		timelineState.rows,
-		timelineState.selected
-	]);
-	const resolvedRoot = (0, import_react.useMemo)(() => {
-		if (initialEventId || !initialMessageId || resolvedLocal) return void 0;
-		const main = resolveMessageToEvent(initialMessageId, timelineData.root);
-		if (main) return main;
-		return resolveMessageInBranches(initialMessageId, timelineData.root);
-	}, [
-		initialEventId,
-		initialMessageId,
-		resolvedLocal,
-		timelineData.root
-	]);
-	const resolved = resolvedLocal ?? resolvedRoot;
-	const deepLinkTimelineIndex = (0, import_react.useMemo)(() => {
-		if (timelines.length <= 1) return -1;
-		if (initialEventId) {
-			const active = timelines[activeTimelineIndex];
-			if (!active || timelineContainsEvent(initialEventId, active)) return -1;
-			return findTimelineIndexForEvent(initialEventId, timelines);
-		}
-		if (initialMessageId && !resolvedLocal && !resolvedRoot) return findTimelineIndexForMessage(initialMessageId, timelines);
-		return -1;
-	}, [
-		initialEventId,
-		initialMessageId,
-		resolvedLocal,
-		resolvedRoot,
-		timelines,
-		activeTimelineIndex
-	]);
-	const prevMessageIdRef = (0, import_react.useRef)(void 0);
-	(0, import_react.useEffect)(() => {
-		if (prevMessageIdRef.current === initialMessageId) return;
-		if (deepLinkTimelineIndex >= 0) return;
-		prevMessageIdRef.current = initialMessageId;
-		if (!resolvedRoot) return;
-		let targetKey = null;
-		if (resolvedRoot.branchRowKey) targetKey = resolvedRoot.branchRowKey;
-		else if (resolvedRoot.agentSpanId) targetKey = spanSelectKeys.get(resolvedRoot.agentSpanId)?.key ?? null;
-		if (timelineState.selected === targetKey) return;
-		timelineState.select(targetKey, { preserveDeepLink: true });
-	}, [
-		initialMessageId,
-		deepLinkTimelineIndex,
-		resolvedRoot,
-		spanSelectKeys,
-		timelineState
-	]);
-	const prevDeepLinkRef = (0, import_react.useRef)(null);
-	(0, import_react.useEffect)(() => {
-		if (timelines.length <= 1) return;
-		const key = initialEventId ?? initialMessageId ?? null;
-		if (key === null) {
-			prevDeepLinkRef.current = null;
-			return;
-		}
-		if (prevDeepLinkRef.current === key) return;
-		if (deepLinkTimelineIndex < 0) return;
-		prevDeepLinkRef.current = key;
-		if (deepLinkTimelineIndex === activeTimelineIndex) return;
-		setActiveTimeline(deepLinkTimelineIndex);
-	}, [
-		initialEventId,
-		initialMessageId,
-		deepLinkTimelineIndex,
-		activeTimelineIndex,
-		setActiveTimeline,
-		timelines.length
-	]);
-	const resolvedEventSpan = (0, import_react.useMemo)(() => {
-		if (!initialEventId || !showSwimlanes) return void 0;
-		if (eventsForNodes.some((e) => e.uuid === initialEventId)) return void 0;
-		return resolveEventToSpan(initialEventId, timelineData.root) ?? resolveEventInBranches(initialEventId, timelineData.root);
-	}, [
-		initialEventId,
-		showSwimlanes,
-		eventsForNodes,
-		timelineData.root
-	]);
-	const prevEventIdRef = (0, import_react.useRef)(void 0);
-	(0, import_react.useEffect)(() => {
-		if (prevEventIdRef.current === initialEventId) return;
-		if (deepLinkTimelineIndex >= 0) return;
-		prevEventIdRef.current = initialEventId;
-		if (!resolvedEventSpan) return;
-		let targetKey = null;
-		if (resolvedEventSpan.branchRowKey) targetKey = resolvedEventSpan.branchRowKey;
-		else if (resolvedEventSpan.agentSpanId) targetKey = spanSelectKeys.get(resolvedEventSpan.agentSpanId)?.key ?? null;
-		if (!targetKey) return;
-		if (timelineState.selected === targetKey) return;
-		timelineState.select(targetKey, { preserveDeepLink: true });
-	}, [
-		initialEventId,
-		deepLinkTimelineIndex,
-		resolvedEventSpan,
-		spanSelectKeys,
-		timelineState
-	]);
-	const effectiveInitialEventId = initialEventId ?? resolved?.eventId ?? branchScrollTarget ?? null;
-	(0, import_react.useEffect)(() => {
-		if (!scrollAnchor) return;
-		requestAnimationFrame(() => {
-			scrollRef.current?.scrollTo({ top: scrollAnchor.scrollTop });
-		});
-	}, [scrollAnchor, scrollRef]);
-	(0, import_react.useEffect)(() => {
-		if (effectiveInitialEventId) onHeadroomResetAnchor?.(true);
-	}, [effectiveInitialEventId, onHeadroomResetAnchor]);
-	const onSetTranscriptCollapsed = collapseState?.onSetTranscriptCollapsed;
-	(0, import_react.useEffect)(() => {
-		if (events.length <= 0 || !bulkCollapse || !onSetTranscriptCollapsed) return;
-		if (bulkCollapse === "expand") onSetTranscriptCollapsed({});
-		else if (bulkCollapse === "collapse") {
-			const allCollapsibleIds = collectAllCollapsibleIds(eventNodes);
-			onSetTranscriptCollapsed(allCollapsibleIds);
-		}
-	}, [
-		eventNodes,
-		bulkCollapse,
-		onSetTranscriptCollapsed,
-		events.length
-	]);
-	const onCollapseTranscriptRaw = collapseState?.onCollapseTranscript;
-	const onCollapseTranscript = (0, import_react.useCallback)((nodeId, collapsed) => {
-		if (!onCollapseTranscriptRaw || !onSetTranscriptCollapsed) return;
-		if (!collapseState?.transcript) onSetTranscriptCollapsed({
-			...defaultCollapsedIds,
-			[nodeId]: collapsed
-		});
-		else onCollapseTranscriptRaw(nodeId, collapsed);
-	}, [
-		onCollapseTranscriptRaw,
-		onSetTranscriptCollapsed,
-		collapseState?.transcript,
-		defaultCollapsedIds
-	]);
-	const onExpandNodes = (0, import_react.useCallback)((nodeIds) => {
-		if (!onSetTranscriptCollapsed) return;
-		const next = { ...collapseState?.transcript ?? defaultCollapsedIds };
-		for (const id of nodeIds) next[id] = false;
-		onSetTranscriptCollapsed(next);
-	}, [
-		onSetTranscriptCollapsed,
-		collapseState?.transcript,
-		defaultCollapsedIds
-	]);
-	const [reportedHasNodes, setReportedHasNodes] = (0, import_react.useState)(true);
-	const [prevEventNodes, setPrevEventNodes] = (0, import_react.useState)(eventNodes);
-	if (prevEventNodes !== eventNodes) {
-		setPrevEventNodes(eventNodes);
-		if (!reportedHasNodes) setReportedHasNodes(true);
-	}
-	const hasMatchingEvents = eventNodes.length > 0;
-	const autoHidden = outline ? !reportedHasNodes && !outline.collapsed : false;
-	const isOutlineCollapsed = !outline || outline.collapsed || autoHidden;
-	const outlineHasNodes = isOutlineCollapsed ? hasMatchingEvents : reportedHasNodes;
-	const handleOutlineHasNodesChange = (0, import_react.useCallback)((hasNodes) => {
-		setReportedHasNodes(hasNodes);
-	}, []);
-	const renderAgentCard = (0, import_react.useCallback)((node, agentCardClassName) => {
-		const span = node.sourceSpan;
-		if (!span) return null;
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AgentCardView, {
-			span,
-			className: agentCardClassName
-		});
-	}, []);
-	const handleLayoutShift = (0, import_react.useCallback)((debounce) => onHeadroomResetAnchor?.(debounce), [onHeadroomResetAnchor]);
-	const outlineCollapsedFlag = outline?.collapsed ?? null;
-	const railPanelOpenFlag = rightRail?.panel != null;
-	(0, import_react.useEffect)(() => {
-		const el = scrollRef.current;
-		if (!el) return;
-		const timer = setTimeout(() => {
-			el.dispatchEvent(new Event("scroll"));
-		}, 0);
-		return () => clearTimeout(timer);
-	}, [
-		outlineCollapsedFlag,
-		railPanelOpenFlag,
-		scrollRef
-	]);
-	const effectiveOffsetTopRef = (0, import_react.useRef)(effectiveOffsetTop);
-	(0, import_react.useEffect)(() => {
-		effectiveOffsetTopRef.current = effectiveOffsetTop;
-	}, [effectiveOffsetTop]);
-	const offsetTopRef = (0, import_react.useRef)(offsetTop);
-	(0, import_react.useEffect)(() => {
-		offsetTopRef.current = offsetTop;
-	}, [offsetTop]);
-	(0, import_react.useEffect)(() => {
-		const main = scrollRef.current;
-		const outlineEl = outlineScrollRef?.current ?? null;
-		const railPanelEl = rightRailPanelScrollRef?.current ?? null;
-		if (!main) return;
-		const makeHandler = (sidebar, stickyTopRef) => (e) => {
-			const mainMaxTop = main.scrollHeight - main.clientHeight;
-			const mainRect = main.getBoundingClientRect();
-			if (!(sidebar.getBoundingClientRect().top - mainRect.top <= stickyTopRef.current + 1)) {
-				if (e.deltaY > 0 && main.scrollTop < mainMaxTop - .5 || e.deltaY < 0 && main.scrollTop > .5) {
-					e.preventDefault();
-					main.scrollBy({
-						top: e.deltaY,
-						behavior: "auto"
-					});
-				}
-			} else if (e.deltaY < 0 && sidebar.scrollTop <= 0 && main.scrollTop > 0) {
-				e.preventDefault();
-				main.scrollBy({
-					top: e.deltaY,
-					behavior: "auto"
-				});
-			}
-		};
-		const targets = [];
-		if (outlineEl) targets.push({
-			el: outlineEl,
-			stickyTopRef: effectiveOffsetTopRef
-		});
-		if (railPanelEl) targets.push({
-			el: railPanelEl,
-			stickyTopRef: offsetTopRef
-		});
-		const entries = targets.map(({ el, stickyTopRef }) => {
-			const handler = makeHandler(el, stickyTopRef);
-			el.addEventListener("wheel", handler, { passive: false });
-			return {
-				el,
-				handler
-			};
-		});
-		return () => {
-			for (const { el, handler } of entries) el.removeEventListener("wheel", handler);
-		};
-	}, [
+	const { spanSelectKeys, selectBySpanId, selectByRowKey, hasScrollTarget } = useSelectionActions({
+		timelineState,
 		scrollRef,
-		outlineScrollRef,
-		rightRailPanelScrollRef,
-		outlineCollapsedFlag,
-		railPanelOpenFlag
-	]);
-	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
-	const handleOutlineScrollRef = (0, import_react.useCallback)((el) => {
-		setOutlineScrollEl(el);
-		if (outlineScrollRef) outlineScrollRef.current = el;
-	}, [outlineScrollRef]);
+		initialEventId,
+		initialMessageId
+	});
+	const { effectiveListId } = useListPositionManager(listId, timelineState.selected, scrollRef, hasScrollTarget);
+	const swimlaneHeader = useSwimlaneHeader({
+		scrollRef,
+		onScrollToTop,
+		onHeadroomResetAnchor,
+		timelineConfig,
+		hiddenUtilityCount: (0, import_react.useMemo)(() => countUtilitySpans(transcriptTimeline.timeline.root), [transcriptTimeline.timeline.root]),
+		minimap,
+		multiTimeline,
+		views
+	});
+	const { effectiveInitialEventId } = useDeepLinkResolution({
+		initialEventId,
+		initialMessageId,
+		timeline: transcriptTimeline,
+		spanSelectKeys,
+		showSwimlanes,
+		nodeFeedEvents: nodeFeed.events,
+		onHeadroomResetAnchor
+	});
+	const { onCollapseTranscript, onExpandNodes } = useTranscriptCollapse({
+		eventNodes,
+		defaultCollapsedIds,
+		collapseState,
+		bulkCollapse,
+		eventCount: events.length
+	});
+	const { isOutlineCollapsed, outlineHasNodes, onOutlineHasNodesChange } = useOutlineAutoHide({
+		eventNodes,
+		hasOutline: !!outline,
+		outlineCollapsed: outline?.collapsed
+	});
+	const hasMatchingEvents = eventNodes.length > 0;
+	const handleLayoutShift = (0, import_react.useCallback)((debounce) => onHeadroomResetAnchor?.(debounce), [onHeadroomResetAnchor]);
+	const railPanelScrollRef = (0, import_react.useRef)(null);
+	useSidebarScrollCoupling({
+		mainScrollRef: scrollRef,
+		sidebars: [{
+			scrollRef: outline?.scrollRef,
+			stickyTop: effectiveOffsetTop,
+			remountKey: outline?.collapsed ?? null
+		}, {
+			scrollRef: railPanelScrollRef,
+			stickyTop: offsetTop,
+			remountKey: rightRail?.panel != null
+		}]
+	});
 	const scrollerHeight = useElementHeight(scrollRef);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSelectContext.Provider, {
 		value: selectBySpanId,
@@ -99923,7 +102938,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 								defaultCollapsed: swimlanesDefaultCollapsed,
 								regionCounts,
 								highlightedKeys,
-								onPunchDown: handlePunchDown
+								onPunchDown: views.pushByRowKey
 							})
 						})
 					}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
@@ -99932,60 +102947,21 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 							"--outline-top": `${effectiveOffsetTop}px`,
 							"--scroller-height": scrollerHeight ? `${scrollerHeight}px` : "100vh"
 						},
-						children: [outline && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(StickyScroll, {
-							ref: handleOutlineScrollRef,
+						children: [outline && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(OutlineSidebar, {
+							outline,
+							isCollapsed: isOutlineCollapsed,
+							hasNodes: outlineHasNodes,
+							onHasNodesChange: onOutlineHasNodesChange,
+							eventNodes,
+							defaultCollapsedIds,
 							scrollRef,
-							className: TranscriptLayout_module_default.outline,
+							running,
+							backfilling,
+							agentName: outline.name ?? (showSwimlanes ? selectedRowName : void 0),
 							offsetTop: effectiveOffsetTop,
-							children: !isOutlineCollapsed ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-								outline.title && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: TranscriptLayout_module_default.sidebarHeader,
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-										className: clsx(TranscriptLayout_module_default.sidebarHeaderTitle, "text-size-smaller"),
-										children: outline.title
-									})
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-									className: TranscriptLayout_module_default.sidebarHeaderCloseAnchor,
-									children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-										type: "button",
-										className: TranscriptLayout_module_default.sidebarHeaderClose,
-										onClick: () => outline.onCollapsedChange(true),
-										"aria-label": "Hide outline",
-										title: outline.toggleTitle ?? "Hide outline",
-										children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-x" })
-									})
-								}),
-								/* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptOutline, {
-									eventNodes,
-									defaultCollapsedIds,
-									scrollRef,
-									outlineScrollEl,
-									running,
-									backfilling,
-									agentName: outline.name ?? (showSwimlanes ? selectedRowName : void 0),
-									scrollTrackOffset: effectiveOffsetTop,
-									getCollapsed: collapseState?.outline ? (nodeId) => collapseState.outline?.[nodeId] === true : void 0,
-									setCollapsed: collapseState?.onCollapseOutline,
-									collapsedEvents: collapseState?.outline,
-									setCollapsedEvents: collapseState?.onSetOutlineCollapsed,
-									selectedOutlineId: outline.selectedId,
-									setSelectedOutlineId: outline.setSelectedId,
-									getEventUrl,
-									renderLink: outline.renderLink,
-									onNavigateToEvent: outline.onNavigateToEvent,
-									onHasNodesChange: handleOutlineHasNodesChange
-								})
-							] }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: TranscriptLayout_module_default.outlineToggle,
-								onClick: outlineHasNodes && !outline.toggleDisabled ? () => outline.onCollapsedChange(false) : void 0,
-								"aria-disabled": outline.toggleDisabled || !outlineHasNodes,
-								title: outline.toggleTitle ?? (!outlineHasNodes ? "No outline available for the current filter" : void 0),
-								"aria-label": "Show outline",
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: outline.toggleIcon })
-							})
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: TranscriptLayout_module_default.separator })] }), hasMatchingEvents ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
+							collapseState,
+							getEventUrl
+						}), hasMatchingEvents ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptViewNodes, {
 							ref: eventsListRef,
 							id: effectiveListId,
 							eventNodes,
@@ -100003,7 +102979,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 							collapsedTranscript: collapseState?.transcript,
 							collapsedOutline: collapseState?.outline,
 							onCollapseTranscript,
-							onExpandNodes: onSetTranscriptCollapsed ? onExpandNodes : void 0,
+							onExpandNodes,
 							eventNodeContext: mergedEventNodeContext
 						}, effectiveListId) : emptyText !== null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
 							text: emptyText,
@@ -100016,7 +102992,7 @@ var TranscriptLayout = ({ events, hiddenEventTypes, running = false, backfilling
 					scrollRef,
 					scrollerHeight,
 					offsetTop,
-					panelScrollRef: rightRailPanelScrollRef,
+					panelScrollRef: railPanelScrollRef,
 					railWidth: rightRail.railWidth,
 					panelWidth: rightRail.panelWidth,
 					onPanelWidthChange: rightRail.onPanelWidthChange,
@@ -100297,7 +103273,7 @@ var RetryEventsView = ({ retry, listId, scrollRef }) => {
 			scrollRef,
 			listId,
 			embedded: true,
-			showSwimlanes: false,
+			timeline: { showSwimlanes: false },
 			collapseState,
 			bulkCollapse,
 			eventNodeContext: { inlineExpansionUX: true }
@@ -104557,6 +107533,327 @@ var SampleScoresView = ({ sample, className, scrollRef }) => {
 	});
 };
 //#endregion
+//#region src/app/samples/transcript/chunked/ChunkedRowView.tsx
+/** Stable row identity: event uuid when present, else the sequence ordinal. */
+var rowNodeId = (row) => {
+	if (row.kind === "span") return row.span.id;
+	const ev = row.kind === "event" ? row.ev : row.sample;
+	const uuid = "uuid" in ev ? ev.uuid : void 0;
+	return typeof uuid === "string" ? uuid : `ordinal-${row.ordinal}`;
+};
+var eventNode = (ev, id, depth) => new EventNode(id, ev, depth);
+var summarizeChildren = (span) => {
+	const parts = Object.entries(span.children).map(([type, count]) => `${count} ${type} event${count === 1 ? "" : "s"}`);
+	return parts.length > 0 ? parts.join(", ") : "(no events)";
+};
+/**
+* One decoded view row: event rows render through the shared per-event
+* renderers; span rows render from the skeleton span (its begin event body
+* may be unfetched — collapsing a span covering a million events costs
+* nothing); runs render as one merged row.
+*/
+var ChunkedRowView = ({ row, eventCallbacks }) => {
+	const node = (0, import_react.useMemo)(() => row.kind === "event" ? eventNode(row.ev, rowNodeId(row), row.depth) : void 0, [row]);
+	if (row.kind === "span") {
+		const span = row.span;
+		const title = span.type ? `${span.type}: ${span.name}` : span.name;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+			eventNodeId: span.id,
+			muted: true,
+			childIds: [`${span.id}#contents`],
+			title,
+			subTitle: formatDateTime$1(new Date(span.t[0])),
+			text: summarizeChildren(span),
+			depth: row.depth,
+			eventCallbacks
+		});
+	}
+	if (row.kind === "run") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: rowNodeId(row),
+		muted: true,
+		title: `${row.count} ${row.runType} events`,
+		depth: row.depth
+	});
+	return node ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedEventNode, {
+		node,
+		eventCallbacks
+	}) : null;
+};
+var ChunkedTranscriptPanel_module_default = {
+	layout: "_layout_6xi98_1",
+	swimlanes: "_swimlanes_6xi98_7",
+	outline: "_outline_6xi98_13",
+	list: "_list_6xi98_21",
+	row: "_row_6xi98_27",
+	placeholder: "_placeholder_6xi98_35",
+	shimmer: "_shimmer_6xi98_1"
+};
+//#endregion
+//#region src/app/samples/transcript/chunked/mainViewOutline.ts
+/**
+* The EventNode tree for a selected timeline view's collected events — the
+* exact `TranscriptLayout.eventsForNodes` + `useEventNodes` composition.
+* This is the shape `TranscriptOutline` consumes directly.
+*/
+var outlineViewTree = (selectedEvents, sourceSpans, hiddenTypes) => {
+	const { eventNodes, defaultCollapsedIds } = buildEventNodes(selectedEvents.filter((e) => !hiddenTypes.includes(e.event)), false, sourceSpans);
+	return {
+		eventNodes,
+		defaultCollapsedIds
+	};
+};
+//#endregion
+//#region src/app/samples/transcript/chunked/useChunkedRows.ts
+/**
+* The row-window model for a chunked sample's transcript: a RowSpace
+* (estimate-then-correct row accounting over event chunks) rebuilt when the
+* filter or collapse state changes. Rebuilds are cheap — estimates come
+* from the stats sidecar and re-materialization re-parses from the byte
+* store, not the network.
+*/
+var useChunkedRows = (chunked, collapsedOverrides, defaultCollapsedIds, hiddenTypes) => {
+	const visible = (0, import_react.useMemo)(() => {
+		const hidden = new Set(hiddenTypes);
+		return (type) => !hidden.has(type);
+	}, [hiddenTypes]);
+	const nextCollapsed = (0, import_react.useMemo)(() => {
+		const ids = /* @__PURE__ */ new Set();
+		for (const span of chunked.skeleton.spans) if (collapsedOverrides?.[span.id] ?? defaultCollapsedIds.has(span.id)) ids.add(span.id);
+		return ids;
+	}, [
+		chunked,
+		collapsedOverrides,
+		defaultCollapsedIds
+	]);
+	const [collapsed, setCollapsed] = (0, import_react.useState)(nextCollapsed);
+	if (collapsed !== nextCollapsed && (collapsed.size !== nextCollapsed.size || ![...nextCollapsed].every((id) => collapsed.has(id)))) setCollapsed(nextCollapsed);
+	const events = (0, import_react.useMemo)(() => resolvedEventsReader(chunked), [chunked]);
+	const { rowSpace, ctx } = (0, import_react.useMemo)(() => {
+		return {
+			rowSpace: new RowSpace(events, chunked.stats, chunked.skel, collapsed, visible),
+			ctx: {
+				events,
+				stats: chunked.stats,
+				skel: chunked.skel,
+				isCollapsed: (spanId) => collapsed.has(spanId),
+				visible
+			}
+		};
+	}, [
+		events,
+		chunked,
+		collapsed,
+		visible
+	]);
+	const version = (0, import_react.useSyncExternalStore)((0, import_react.useCallback)((onChange) => rowSpace.onChange(onChange), [rowSpace]), () => rowSpace.version);
+	return (0, import_react.useMemo)(() => ({
+		version,
+		total: rowSpace.total,
+		slotAt: (globalIndex) => rowSpace.slotAt(globalIndex),
+		materialize: (chunkIdx) => {
+			rowSpace.materialize(chunkIdx, ctx).catch((error) => {
+				console.error(`Failed to materialize chunk ${chunkIdx}`, error);
+			});
+		},
+		rowIndexForOrdinal: (ordinal) => rowSpace.rowIndexForOrdinal(ordinal),
+		isCollapsed: (spanId) => collapsed.has(spanId)
+	}), [
+		rowSpace,
+		ctx,
+		version,
+		collapsed
+	]);
+};
+//#endregion
+//#region src/app/samples/transcript/chunked/ChunkedTranscriptPanel.tsx
+/**
+* The transcript for a chunked-shape sample: a row-window list model over
+* the RowSpace (the forked seam named in design/large-samples.md — shared
+* per-event row renderers, second window model) plus the legacy timeline
+* presentation layer (swimlanes + main-view outline) fed by a synthetic
+* event stream reconstructed from the skeleton. Rows materialize as they
+* scroll into view; everything above the data layer is estimate-then-correct
+* with ordinal re-anchoring.
+*
+* Divergence from the legacy panel: swimlane/outline selection scrolls the
+* body to the selected span rather than re-scoping the body to that view —
+* the body renders the raw event tree (main-view body is a flagged spec
+* follow-up).
+*/
+var ChunkedTranscriptPanel = ({ id, scrollRef, offsetTop, chunked }) => {
+	const hiddenTypes = useStore((state) => state.sample.eventFilter.filteredTypes);
+	const collapsedOverrides = useStore((state) => state.sample.collapsedEvents?.[kTranscriptCollapseScope]);
+	const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+	const rows = useChunkedRows(chunked, collapsedOverrides, (0, import_react.useMemo)(() => defaultCollapsedSpanIds(chunked.skeleton), [chunked]), hiddenTypes);
+	const synth = (0, import_react.useMemo)(() => syntheticEventsFromSkeleton(chunked.skeleton), [chunked]);
+	const eventsForTimeline = (0, import_react.useMemo)(() => synth.events.filter((e) => e.event === "anchor" || !hiddenTypes.includes(e.event)), [synth, hiddenTypes]);
+	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline);
+	const timelineConfig = useTimelineConfig({ branchesPresent: (0, import_react.useMemo)(() => timelinesForBranchDetection.some((tl) => spanHasBranches(tl.root)), [timelinesForBranchDetection]) });
+	const [selectedRow, setSelectedRow] = (0, import_react.useState)(null);
+	const timelineSelection = (0, import_react.useMemo)(() => ({
+		selected: selectedRow,
+		onSelect: (key) => setSelectedRow(key)
+	}), [selectedRow]);
+	const { state: timelineState, swimlanes, minimap, selection, hasTimeline, hasAgentTimeline } = useTranscriptTimeline({
+		events: eventsForTimeline,
+		markerConfig: timelineConfig.markerConfig,
+		timelineOptions: timelineConfig.agentConfig,
+		timelineProps: timelineSelection
+	});
+	const outlineTree = (0, import_react.useMemo)(() => outlineViewTree(selection.events, selection.sourceSpans, hiddenTypes), [
+		selection.events,
+		selection.sourceSpans,
+		hiddenTypes
+	]);
+	const outlineCollapsed = useStore((state) => state.sample.collapsedEvents?.[kTranscriptOutlineCollapseScope]);
+	const setCollapsedEventsStore = useStore((state) => state.sampleActions.setCollapsedEvents);
+	const outlineCollapse = (0, import_react.useMemo)(() => ({
+		collapsed: outlineCollapsed,
+		onCollapse: (nodeId, collapsed) => collapseEvent(kTranscriptOutlineCollapseScope, nodeId, collapsed),
+		onSetCollapsed: (ids) => setCollapsedEventsStore(kTranscriptOutlineCollapseScope, ids)
+	}), [
+		outlineCollapsed,
+		collapseEvent,
+		setCollapsedEventsStore
+	]);
+	const swimlanesDefaultCollapsed = hasTimeline ? !hasAgentTimeline : true;
+	const virtualizer = useVirtualizer({
+		count: rows.total,
+		getScrollElement: () => scrollRef.current,
+		estimateSize: () => 64,
+		overscan: 8,
+		paddingStart: offsetTop,
+		getItemKey: (index) => {
+			const slot = rows.slotAt(index);
+			return slot.kind === "row" ? rowNodeId(slot.row) : `ph-${index}`;
+		}
+	});
+	const items = virtualizer.getVirtualItems();
+	(0, import_react.useEffect)(() => {
+		for (const item of items) {
+			const slot = rows.slotAt(item.index);
+			if (slot.kind === "placeholder") rows.materialize(slot.chunkIdx);
+		}
+	}, [items, rows]);
+	const anchorRef = (0, import_react.useRef)(void 0);
+	const versionRef = (0, import_react.useRef)(rows.version);
+	(0, import_react.useEffect)(() => {
+		if (rows.version !== versionRef.current) {
+			versionRef.current = rows.version;
+			if (anchorRef.current !== void 0) virtualizer.scrollToIndex(rows.rowIndexForOrdinal(anchorRef.current), { align: "start" });
+		}
+	});
+	(0, import_react.useEffect)(() => {
+		const first = items.find((item) => rows.slotAt(item.index).kind === "row");
+		if (first !== void 0) {
+			const slot = rows.slotAt(first.index);
+			if (slot.kind === "row") anchorRef.current = slot.row.ordinal;
+		}
+	}, [items, rows]);
+	const eventCallbacks = (0, import_react.useMemo)(() => ({
+		getCollapsed: (nodeId) => chunked.skel.spanIds.has(nodeId) ? rows.isCollapsed(nodeId) : collapsedOverrides?.[nodeId] ?? false,
+		onCollapse: (nodeId, collapsed) => {
+			collapseEvent(kTranscriptCollapseScope, nodeId, collapsed);
+		}
+	}), [
+		chunked,
+		rows,
+		collapsedOverrides,
+		collapseEvent
+	]);
+	const jumpToOrdinal = (0, import_react.useCallback)((ordinal) => {
+		anchorRef.current = ordinal;
+		virtualizer.scrollToIndex(rows.rowIndexForOrdinal(ordinal), { align: "start" });
+	}, [virtualizer, rows]);
+	const spanBeginByid = (0, import_react.useMemo)(() => new Map(chunked.skeleton.spans.map((span) => [span.id, span.begin])), [chunked]);
+	const handleRowSelect = (0, import_react.useCallback)((key) => {
+		setSelectedRow(key);
+		if (key === null) return;
+		const span = getSelectedSpans(timelineState.rows, key)[0];
+		const begin = span !== void 0 ? spanBeginByid.get(span.id) : void 0;
+		if (begin !== void 0) jumpToOrdinal(begin);
+	}, [
+		timelineState.rows,
+		spanBeginByid,
+		jumpToOrdinal
+	]);
+	const swimlaneNavigation = (0, import_react.useMemo)(() => ({
+		node: timelineState.node,
+		selected: timelineState.selected,
+		select: handleRowSelect,
+		clearSelection: () => setSelectedRow(null)
+	}), [
+		timelineState.node,
+		timelineState.selected,
+		handleRowSelect
+	]);
+	const swimlaneHeader = (0, import_react.useMemo)(() => ({
+		minimap,
+		timelineConfig
+	}), [minimap, timelineConfig]);
+	const [selectedOutlineId, setSelectedOutlineId] = (0, import_react.useState)(null);
+	const navigateToOutlineEvent = (0, import_react.useCallback)((eventId) => {
+		const ordinal = synth.ordinals.get(eventId);
+		if (ordinal !== void 0) jumpToOrdinal(ordinal);
+	}, [synth, jumpToOrdinal]);
+	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		"data-testid": `${id}-chunked`,
+		children: [hasTimeline && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: ChunkedTranscriptPanel_module_default.swimlanes,
+			style: { top: offsetTop ?? 0 },
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSwimLanes, {
+				layouts: swimlanes.layouts,
+				timeline: swimlaneNavigation,
+				header: swimlaneHeader,
+				defaultCollapsed: swimlanesDefaultCollapsed,
+				regionCounts: swimlanes.regionCounts,
+				highlightedKeys: swimlanes.highlightedKeys
+			})
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: ChunkedTranscriptPanel_module_default.layout,
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				ref: setOutlineScrollEl,
+				className: ChunkedTranscriptPanel_module_default.outline,
+				style: {
+					top: offsetTop ?? 0,
+					maxHeight: "80vh"
+				},
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptOutline, {
+					eventNodes: outlineTree.eventNodes,
+					defaultCollapsedIds: outlineTree.defaultCollapsedIds,
+					scrollRef,
+					outlineScrollEl,
+					agentName: selection.rowName,
+					onNavigateToEvent: navigateToOutlineEvent,
+					collapse: outlineCollapse,
+					selectedOutlineId,
+					setSelectedOutlineId
+				})
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: ChunkedTranscriptPanel_module_default.list,
+				style: { height: virtualizer.getTotalSize() },
+				children: items.map((item) => {
+					const slot = rows.slotAt(item.index);
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						"data-index": item.index,
+						ref: virtualizer.measureElement,
+						className: ChunkedTranscriptPanel_module_default.row,
+						style: { transform: `translateY(${item.start}px)` },
+						children: slot.kind === "row" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							style: { paddingLeft: `${slot.row.depth <= 1 ? slot.row.depth * .7 : (.7 + slot.row.depth - 1) * 1}em` },
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChunkedRowView, {
+								row: slot.row,
+								eventCallbacks
+							})
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: ChunkedTranscriptPanel_module_default.placeholder })
+					}, item.key);
+				})
+			})]
+		})]
+	});
+};
+//#endregion
 //#region src/app/samples/transcript/hooks.ts
 var eventTypes = {
 	sample_init: "Sample Init",
@@ -104944,7 +108241,7 @@ var TranscriptFilterPopover = ({ showing, positionEl, setShowing }) => {
 * when the sample provides timeline data.
 */
 var TranscriptPanel = (0, import_react.memo)((props) => {
-	const { id, scrollRef, events, running, backfilling, initialEventId, initialMessageId, offsetTop, timelines: serverTimelines, eventNodeContext, rightRail, rightRailPanelScrollRef } = props;
+	const { id, scrollRef, events, running, backfilling, initialEventId, initialMessageId, offsetTop, timelines: serverTimelines, eventNodeContext, rightRail } = props;
 	const filteredEventTypes = useStore((state) => state.sample.eventFilter.filteredTypes);
 	const { isDefaultFilter } = useTranscriptFilter();
 	const timelineSelected = useStore((state) => state.sample.timelineSelected);
@@ -105062,26 +108359,30 @@ var TranscriptPanel = (0, import_react.memo)((props) => {
 		backfilling,
 		scrollRef,
 		offsetTop,
-		timelineSelection,
-		activeTimeline,
-		serverTimelines,
-		showSwimlanes: "auto",
-		onMarkerNavigate,
-		headroomHidden,
-		onHeadroomResetAnchor,
-		onHeadroomSetHidden: setHeadroomHidden,
+		timeline: {
+			selection: timelineSelection,
+			active: activeTimeline,
+			serverTimelines,
+			showSwimlanes: "auto",
+			onMarkerNavigate
+		},
+		headroom: {
+			hidden: headroomHidden,
+			onSetHidden: setHeadroomHidden,
+			onResetAnchor: onHeadroomResetAnchor
+		},
 		eventNodeContext,
 		listId: id,
-		initialEventId,
-		initialMessageId,
+		deepLink: {
+			eventId: initialEventId,
+			messageId: initialMessageId
+		},
 		getEventUrl: getFullEventUrl,
 		linkingEnabled: isHostedEnvironment(),
 		bulkCollapse,
 		collapseState,
 		eventsListRef,
-		outlineScrollRef,
 		rightRail,
-		rightRailPanelScrollRef,
 		outline: {
 			collapsed: outlineCollapsed,
 			onCollapsedChange: setOutlineCollapsed,
@@ -105090,10 +108391,13 @@ var TranscriptPanel = (0, import_react.memo)((props) => {
 			renderLink,
 			onNavigateToEvent: onOutlineNavigate,
 			selectedId: selectedOutlineId,
-			setSelectedId: setSelectedOutlineId
+			setSelectedId: setSelectedOutlineId,
+			scrollRef: outlineScrollRef
 		},
-		emptyText: backfilling && isDefaultFilter ? "Loading events" : running && isDefaultFilter ? "Sample is starting" : filteredEventTypes.length > 0 ? "The currently applied filter hides all events." : void 0,
-		emptyBusy: (running || backfilling) && isDefaultFilter
+		empty: {
+			text: backfilling && isDefaultFilter ? "Loading events" : running && isDefaultFilter ? "Sample is starting" : filteredEventTypes.length > 0 ? "The currently applied filter hides all events." : void 0,
+			busy: (running || backfilling) && isDefaultFilter
+		}
 	});
 });
 TranscriptPanel.displayName = "TranscriptPanel";
@@ -105119,9 +108423,14 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	}, [sample, evalSpec]);
 	const selectedTab = useStore((state) => state.app.tabs.sample);
 	const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
+	const isChunked = sampleData.chunked !== void 0;
 	(0, import_react.useEffect)(() => {
-		if (sample !== void 0 && sample.events.length < 1) setSelectedTab(kSampleMessagesTabId);
-	}, [sample, setSelectedTab]);
+		if (sample !== void 0 && sample.events.length < 1 && !isChunked) setSelectedTab(kSampleMessagesTabId);
+	}, [
+		sample,
+		isChunked,
+		setSelectedTab
+	]);
 	const removeBagsByPrefix = useStore((state) => state.appActions.removeBagsByPrefix);
 	(0, import_react.useEffect)(() => {
 		const snapshotBagPrefixes = [`chat-${baseId}-chat-${id}`, `${baseId}-transcript-display-${id}`];
@@ -105157,6 +108466,10 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 		};
 	}, [clearSampleTab]);
 	const effectiveSelectedTab = sampleTabId || selectedTab;
+	const logDir = useLogDir();
+	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
+	const chunkedMessages = useChunkedMessages(logDir, isChunked && effectiveSelectedTab === kSampleMessagesTabId ? selectedSampleHandle : void 0, sampleData.chunked);
+	const effectiveMessages = isChunked ? chunkedMessages.data ?? [] : sampleMessages;
 	(0, import_react.useEffect)(() => {
 		setTimeout(() => {
 			if (focusOnLoad) scrollRef.current?.focus();
@@ -105200,7 +108513,6 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	const [filterButtonEl, setFilterButtonEl] = (0, import_react.useState)(null);
 	const optionsRef = (0, import_react.useRef)(null);
 	const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
 	const printLogPath = urlLogPath || selectedLogFile;
 	const printSampleId = urlSampleId || selectedSampleHandle?.id?.toString();
 	const printEpoch = urlEpoch || selectedSampleHandle?.epoch?.toString();
@@ -105269,7 +108581,6 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	const canSearch = searchContext !== null && searchScope !== void 0;
 	const closeDock = (0, import_react.useCallback)(() => setRightDock("none"), [setRightDock]);
 	const onRailSelect = (0, import_react.useCallback)((id) => setRightDock(rightDock === id ? "none" : id), [rightDock, setRightDock]);
-	const railPanelScrollRef = (0, import_react.useRef)(null);
 	const railPanelWidth = useStore((state) => {
 		const value = state.app.propertyBags["sidebar-widths"]?.["rail-panel"];
 		return typeof value === "number" ? value : void 0;
@@ -105493,7 +108804,15 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								showing: isShowing,
 								setShowing,
 								positionEl: filterButtonEl
-							}), !sampleEvents || sampleEvents.length === 0 ? sampleData.status === "loading" ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: eventsCleared ? "Transcript events were removed because this sample exceeds the browser's size limit. Use the Messages tab to view the conversation." : "No events to display." }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							}), sampleData.chunked ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: SampleDisplay_module_default.tabContent,
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChunkedTranscriptPanel, {
+									id: `${baseId}-transcript-display-${id}`,
+									scrollRef,
+									offsetTop: stickyOffsetTop,
+									chunked: sampleData.chunked
+								}, `${baseId}-chunked-transcript-${id}-${sampleData.chunked.shell.id}-${sampleData.chunked.shell.epoch}`)
+							}) : !sampleEvents || sampleEvents.length === 0 ? sampleData.status === "loading" ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: eventsCleared ? "Transcript events were removed because this sample exceeds the browser's size limit. Use the Messages tab to view the conversation." : "No events to display." }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: SampleDisplay_module_default.tabContent,
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptPanel, {
 									id: `${baseId}-transcript-display-${id}`,
@@ -105506,8 +108825,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 									eventNodeContext: transcriptEventNodeContext,
 									initialEventId: sampleDetailNavigation.event,
 									initialMessageId: sampleDetailNavigation.message,
-									rightRail: hasRail ? transcriptRail : void 0,
-									rightRailPanelScrollRef: railPanelScrollRef
+									rightRail: hasRail ? transcriptRail : void 0
 								}, `${baseId}-transcript-display-${id}`)
 							})]
 						}, kSampleTranscriptTabId),
@@ -105529,7 +108847,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								label: railLabel,
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatViewVirtualList, {
 									id: `${baseId}-chat-${id}`,
-									messages: sampleMessages,
+									messages: effectiveMessages,
 									initialMessageId: sampleDetailNavigation.message,
 									offsetTop: stickyOffsetTop,
 									display: chatDisplay,
@@ -107041,7 +110359,7 @@ var useModelsTab = (evalSpec, evalStats, evalStatus) => {
 	return (0, import_react.useMemo)(() => {
 		return {
 			id: kLogViewModelsTabId,
-			label: "Models",
+			label: "Stats",
 			scrollable: true,
 			component: ModelTab,
 			componentProps: {
@@ -107108,7 +110426,10 @@ var ModelTab = ({ evalSpec, evalStats, evalStatus }) => {
 				args_by_model: argsByModel,
 				args_by_role: argsByRole,
 				role_aliases: roleAliases,
-				meta
+				meta,
+				connection_limit_history: evalStats?.connection_limit_history,
+				started_at: evalStats?.started_at,
+				completed_at: evalStats?.completed_at
 			})
 		})
 	});
@@ -107583,7 +110904,8 @@ var NodeSet = class NodeSet {
 		return new NodeSet(newTypes);
 	}
 };
-var CachedNode$1 = /* @__PURE__ */ new WeakMap(), CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
@@ -108845,7 +112167,8 @@ var StringInput = class {
 new NodeProp$1({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.3/node_modules/@marijn/find-cluster-break/src/index.js
-var rangeFrom = [], rangeTo = [];
+var rangeFrom = [];
+var rangeTo = [];
 (() => {
 	let numbers = "lc,34,7n,7,7b,19,,,,2,,2,,,20,b,1c,l,g,,2t,7,2,6,2,2,,4,z,,u,r,2j,b,1m,9,9,,o,4,,9,,3,,5,17,3,3b,f,,w,1j,,,,4,8,4,,3,7,a,2,t,,1m,,,,2,4,8,,9,,a,2,q,,2,2,1l,,4,2,4,2,2,3,3,,u,2,3,,b,2,1l,,4,5,,2,4,,k,2,m,6,,,1m,,,2,,4,8,,7,3,a,2,u,,1n,,,,c,,9,,14,,3,,1l,3,5,3,,4,7,2,b,2,t,,1m,,2,,2,,3,,5,2,7,2,b,2,s,2,1l,2,,,2,4,8,,9,,a,2,t,,20,,4,,2,3,,,8,,29,,2,7,c,8,2q,,2,9,b,6,22,2,r,,,,,,1j,e,,5,,2,5,b,,10,9,,2u,4,,6,,2,2,2,p,2,4,3,g,4,d,,2,2,6,,f,,jj,3,qa,3,t,3,t,2,u,2,1s,2,,7,8,,2,b,9,,19,3,3b,2,y,,3a,3,4,2,9,,6,3,63,2,2,,1m,,,7,,,,,2,8,6,a,2,,1c,h,1r,4,1c,7,,,5,,14,9,c,2,w,4,2,2,,3,1k,,,2,3,,,3,1m,8,2,2,48,3,,d,,7,4,,6,,3,2,5i,1m,,5,ek,,5f,x,2da,3,3x,,2o,w,fe,6,2x,2,n9w,4,,a,w,2,28,2,7k,,3,,4,,p,2,5,,47,2,q,i,d,,12,8,p,b,1a,3,1c,,2,4,2,2,13,,1v,6,2,2,2,2,c,,8,,1b,,1f,,,3,2,2,5,2,,,16,2,8,,6m,,2,,4,,fn4,,kh,g,g,g,a6,2,gt,,6a,,45,5,1ae,3,,2,5,4,14,3,4,,4l,2,fx,4,ar,2,49,b,4w,,1i,f,1k,3,1d,4,2,2,1x,3,10,5,,8,1q,,c,2,1g,9,a,4,2,,2n,3,2,,,2,6,,4g,,3,8,l,2,1l,2,,,,,m,,e,7,3,5,5f,8,2,3,,,n,,29,,2,6,,,2,,,2,,2,6j,,2,4,6,2,,2,r,2,2d,8,2,,,2,2y,,,,2,6,,,2t,3,2,4,,5,77,9,,2,6t,,a,2,,,4,,40,4,2,2,4,,w,a,14,6,2,4,8,,9,6,2,3,1a,d,,2,ba,7,,6,,,2a,m,2,7,,2,,2,3e,6,3,,,2,,7,,,20,2,3,,,,9n,2,f0b,5,1n,7,t4,,1r,4,29,,f5k,2,43q,,,3,4,5,8,8,2,7,u,4,44,3,1iz,1j,4,1e,8,,e,,m,5,,f,11s,7,,h,2,7,,2,,5,79,7,c5,4,15s,7,31,7,240,5,gx7k,2o,3k,6o".split(",").map((s) => s ? parseInt(s, 36) : 1);
 	for (let i = 0, n = 0; i < numbers.length; i++) (i % 2 ? rangeTo : rangeFrom).push(n = n + numbers[i]);
@@ -113200,7 +116523,8 @@ var Direction = /*@__PURE__*/ (function(Direction) {
 	Direction[Direction["RTL"] = 1] = "RTL";
 	return Direction;
 })(Direction || (Direction = {}));
-var LTR = Direction.LTR, RTL = Direction.RTL;
+var LTR = Direction.LTR;
+var RTL = Direction.RTL;
 function dec(str) {
 	let result = [];
 	for (let i = 0; i < str.length; i++) result.push(1 << +str[i]);
@@ -113208,7 +116532,8 @@ function dec(str) {
 }
 var LowTypes = /*@__PURE__*/ dec("88888888888888888888888888888888888666888888787833333333337888888000000000000000000000000008888880000000000000000000000000088888888888888888888888888888888888887866668888088888663380888308888800000000000000000000000800000000000000000000000000000008");
 var ArabicTypes = /*@__PURE__*/ dec("4444448826627288999999999992222222222222222222222222222222222222222222222229999999999999999999994444444444644222822222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222999999949999999229989999223333333333");
-var Brackets = /*@__PURE__*/ Object.create(null), BracketStack = [];
+var Brackets = /*@__PURE__*/ Object.create(null);
+var BracketStack = [];
 for (let p of [
 	"()",
 	"[]",
@@ -116541,7 +119866,9 @@ function rangeForClick(view, pos, bias, type) {
 	}
 }
 var BadMouseDetail = browser.ie && browser.ie_version <= 11;
-var lastMouseDown = null, lastMouseDownCount = 0, lastMouseDownTime = 0;
+var lastMouseDown = null;
+var lastMouseDownCount = 0;
+var lastMouseDownTime = 0;
 function getClickType(event) {
 	if (!BadMouseDetail) return event.detail;
 	let last = lastMouseDown, lastTime = lastMouseDownTime;
@@ -118037,7 +121364,9 @@ function scaleBlock(block, scaler) {
 }
 var theme = /*@__PURE__*/ Facet.define({ combine: (strs) => strs.join(" ") });
 var darkTheme = /*@__PURE__*/ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
-var baseThemeID = /*@__PURE__*/ StyleModule.newName(), baseLightID = /*@__PURE__*/ StyleModule.newName(), baseDarkID = /*@__PURE__*/ StyleModule.newName();
+var baseThemeID = /*@__PURE__*/ StyleModule.newName();
+var baseLightID = /*@__PURE__*/ StyleModule.newName();
+var baseDarkID = /*@__PURE__*/ StyleModule.newName();
 var lightDarkIDs = {
 	"&light": "." + baseLightID,
 	"&dark": "." + baseDarkID
@@ -121662,7 +124991,8 @@ var NodeType = class NodeType {
 An empty dummy node type to use when no actual type is available.
 */
 NodeType.none = new NodeType("", Object.create(null), 0, 8);
-var CachedNode = /* @__PURE__ */ new WeakMap(), CachedInnerNode = /* @__PURE__ */ new WeakMap();
+var CachedNode = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
@@ -123137,7 +126467,20 @@ function getStyleTags(node) {
 	return rule || null;
 }
 var t = Tag.define;
-var comment = t(), name = t(), typeName = t(name), propertyName = t(name), literal = t(), string = t(literal), number = t(literal), content = t(), heading$1 = t(content), keyword = t(), operator = t(), punctuation = t(), bracket = t(punctuation), meta = t();
+var comment = t();
+var name = t();
+var typeName = t(name);
+var propertyName = t(name);
+var literal = t();
+var string = t(literal);
+var number = t(literal);
+var content = t();
+var heading$1 = t(content);
+var keyword = t();
+var operator = t();
+var punctuation = t();
+var bracket = t(punctuation);
+var meta = t();
 /**
 The default set of highlighting [tags](#highlight.Tag).
 
@@ -124661,7 +128004,8 @@ var baseTheme$2 = /*@__PURE__*/ EditorView.baseTheme({
 	"&.cm-focused .cm-matchingBracket": { backgroundColor: "#328c8252" },
 	"&.cm-focused .cm-nonmatchingBracket": { backgroundColor: "#bb555544" }
 });
-var DefaultScanDist = 1e4, DefaultBrackets = "()[]{}";
+var DefaultScanDist = 1e4;
+var DefaultBrackets = "()[]{}";
 var bracketMatchingConfig = /*@__PURE__*/ Facet.define({ combine(configs) {
 	return combineConfig(configs, {
 		afterCursor: true,
@@ -124670,7 +128014,8 @@ var bracketMatchingConfig = /*@__PURE__*/ Facet.define({ combine(configs) {
 		renderMatch: defaultRenderMatch
 	});
 } });
-var matchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-matchingBracket" }), nonmatchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-nonmatchingBracket" });
+var matchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-matchingBracket" });
+var nonmatchingMark = /*@__PURE__*/ Decoration.mark({ class: "cm-nonmatchingBracket" });
 function defaultRenderMatch(match) {
 	let decorations = [];
 	let mark = match.matched ? matchingMark : nonmatchingMark;
@@ -127621,7 +130966,8 @@ var RunningQuery = class {
 		this.done = void 0;
 	}
 };
-var MaxUpdateCount = 50, MinAbortTime = 1e3;
+var MaxUpdateCount = 50;
+var MinAbortTime = 1e3;
 var completionPlugin = /*@__PURE__*/ ViewPlugin.fromClass(class {
 	constructor(view) {
 		this.view = view;

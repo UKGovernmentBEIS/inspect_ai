@@ -131,7 +131,7 @@ async def read_eval_set_info_async(
 
     Async counterpart to `read_eval_set_info`. Reads the manifest through
     `AsyncFilesystem` (riding the shared client) rather than bouncing sync fsspec
-    through a threadpool — see the fsspec/`to_thread` warning in CLAUDE.md.
+    through a threadpool — see the fsspec/`to_thread` warning in AGENTS.md.
     Returns None when the manifest is absent, or (matching `read_eval_set_info`)
     when the check/read fails with an Azure auth error.
     """
