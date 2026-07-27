@@ -25,6 +25,7 @@
 - Bugfix: Transcript timelines no longer hide workflow `generate()` calls with differing system prompts as utility agents; utility classification now requires a tool-calling agent loop.
 - Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed `limit=0` instead of returning all samples.
 - Bugfix: Parameterized score reducers (e.g. `at_least(2)`, `pass_at(2)`, `pass_k(2)`) now round-trip through the registry instead of raising `LookupError` when restored from a log.
+- Bugfix: `EvalResults.completed_samples` is now taken from the sample log (samples whose `error` is `None`) rather than the number of scored samples, so a score-on-error sample no longer changes the reported completion count based on where the raising scorer sits in the scorer list. Applies to both the normal and cancelled/aborted result paths. (#4602)
 - Bugfix: Fixed a memory leak where the result of any synchronous API call made from a context with no running event loop (e.g. each sample yielded by `read_eval_log_samples()`) was retained in memory forever after the caller released it.
 - Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
 - Inspect View: Fixed timeline discarding a solver span containing a single agent span child when it also contains other displayed events. (#443)

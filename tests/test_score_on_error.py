@@ -8,6 +8,7 @@ from inspect_ai import Task, eval
 from inspect_ai._eval.task.run import PreviousError, eval_log_sample_source
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
+from inspect_ai.log import EvalLog
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -90,6 +91,51 @@ def score_by_solver_completion() -> Scorer:
         return Score(value=CORRECT if state.metadata.get("ran") else INCORRECT)
 
     return score
+
+
+@scorer(metrics=[accuracy()])
+def raising_scorer(fail_ids: list[int]) -> Scorer:
+    """Stands in for an external grader that raises on some samples."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if state.sample_id in fail_ids:
+            raise RuntimeError(f"grader unavailable for sample {state.sample_id}")
+        return Score(value=CORRECT)
+
+    return score
+
+
+def test_completed_samples_independent_of_scorer_order():
+    # a raising scorer leaves any earlier scorer's score on the errored sample,
+    # so that sample still reaches the metrics input — which made
+    # completed_samples (documented as "samples completed without error") vary
+    # with where the raising scorer sat in the scorer list. Errored samples
+    # must be counted out either way.
+    def run(scorers: list[Scorer]) -> EvalLog:
+        return eval(
+            Task(
+                dataset=MemoryDataset(
+                    [Sample(id=i, input="hi", target="ok") for i in range(1, 5)]
+                ),
+                scorer=scorers,
+            ),
+            model="mockllm/model",
+            fail_on_error=False,
+            display="none",
+        )[0]
+
+    for log in (
+        run([constant_scorer(), raising_scorer([2, 3])]),
+        run([raising_scorer([2, 3]), constant_scorer()]),
+    ):
+        assert log.samples is not None
+        assert sorted(str(s.id) for s in log.samples if s.error is not None) == [
+            "2",
+            "3",
+        ]
+        assert log.results is not None
+        assert log.results.total_samples == 4
+        assert log.results.completed_samples == 2
 
 
 def test_score_on_error_contributes_to_metrics():
