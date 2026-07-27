@@ -7,7 +7,8 @@ hourly Atlas sync"):
 1. Discovery: open upstream PRs review-requested-to / assigned-to REVIEWER,
    authored by external community contributors (not org members, not bots),
    not already tracked -> create a proxy issue in the fork (External label,
-   Stage=Review, Upstream PR field).
+   Stage=Review, Upstream PR field), then post @review on it so the external
+   review is already running before a human opens the proxy.
 2. State sync: every OPEN fork issue on Atlas with a non-empty "Upstream PR"
    field -> read the upstream PR and advance the stage:
      - External proxies: merged/closed -> close proxy (Done); while in
@@ -18,7 +19,11 @@ hourly Atlas sync"):
        close (Done); closed unmerged -> Review + comment.
 
 Deterministic; runs as the machine account (GH_TOKEN=MARVIN_TOKEN). Per-item
-failures warn and continue. Every write is idempotent.
+failures warn and continue. Every write is idempotent except the @review
+trigger comment, which is at-most-once: only the create path posts it (dedup
+skips tracked proxies, and heal never re-requests), so a failure there is
+surfaced as a "review request FAILED" action + warning rather than retried —
+the manual re-run path is commenting @review on the proxy.
 """
 
 import json
@@ -67,17 +72,21 @@ def gh_json(*args: str):
 def gql(query: str, **variables):
     args = ["api", "graphql", "-f", f"query={query}"]
     for k, v in variables.items():
-        args += (["-F", f"{k}={v}"] if isinstance(v, (int, bool)) else ["-f", f"{k}={v}"])
+        args += ["-F", f"{k}={v}"] if isinstance(v, (int, bool)) else ["-f", f"{k}={v}"]
     out = gh_json(*args)
     if out.get("errors"):
-        raise RuntimeError(f"graphql: {out['errors'][0].get('message', out['errors'])[:300]}")
+        raise RuntimeError(
+            f"graphql: {out['errors'][0].get('message', out['errors'])[:300]}"
+        )
     return out["data"]
 
 
 def is_org_member(login: str) -> bool:
-    """Only a real 404 means "not a member" — any other failure (rate limit,
-    5xx, network) raises, so per-item isolation retries next run instead of
-    misclassifying a teammate as external."""
+    """Only a real 404 means "not a member".
+
+    Any other failure (rate limit, 5xx, network) raises, so per-item isolation
+    retries next run instead of misclassifying a teammate as external.
+    """
     res = subprocess.run(
         ["gh", "api", f"orgs/{ORG}/members/{login}"], capture_output=True, text=True
     )
@@ -85,7 +94,9 @@ def is_org_member(login: str) -> bool:
         return True
     if "HTTP 404" in res.stderr:
         return False
-    raise RuntimeError(f"org membership check failed for {login}: {res.stderr.strip()[:200]}")
+    raise RuntimeError(
+        f"org membership check failed for {login}: {res.stderr.strip()[:200]}"
+    )
 
 
 def set_single_select(item_id: str, field_id: str, option_id: str) -> None:
@@ -93,7 +104,10 @@ def set_single_select(item_id: str, field_id: str, option_id: str) -> None:
         """mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){
              updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,
                value:{singleSelectOptionId:$o}}){projectV2Item{id}}}""",
-        p=PROJECT_ID, i=item_id, f=field_id, o=option_id,
+        p=PROJECT_ID,
+        i=item_id,
+        f=field_id,
+        o=option_id,
     )
 
 
@@ -102,7 +116,10 @@ def set_text(item_id: str, field_id: str, text: str) -> None:
         """mutation($p:ID!,$i:ID!,$f:ID!,$t:String!){
              updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,
                value:{text:$t}}){projectV2Item{id}}}""",
-        p=PROJECT_ID, i=item_id, f=field_id, t=text,
+        p=PROJECT_ID,
+        i=item_id,
+        f=field_id,
+        t=text,
     )
 
 
@@ -111,7 +128,9 @@ def clear_field(item_id: str, field_id: str) -> None:
         """mutation($p:ID!,$i:ID!,$f:ID!){
              clearProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f})
              {projectV2Item{id}}}""",
-        p=PROJECT_ID, i=item_id, f=field_id,
+        p=PROJECT_ID,
+        i=item_id,
+        f=field_id,
     )
 
 
@@ -128,11 +147,15 @@ def set_stage(item_id: str, stage: str, current) -> bool:
 
 
 def tracked_proxies() -> dict:
-    """Upstream URL -> proxy info for every External proxy, open OR closed
-    (closed ones keep a Done proxy from being recreated)."""
+    """Upstream URL -> proxy info for every External proxy, open OR closed.
+
+    Closed ones are included to keep a Done proxy from being recreated.
+    """
     out = {}
     issues = gh_json(
-        "api", f"repos/{FORK}/issues?labels=External&state=all&per_page=100", "--paginate"
+        "api",
+        f"repos/{FORK}/issues?labels=External&state=all&per_page=100",
+        "--paginate",
     )
     for i in issues:
         m = re.search(r"https://github\.com/\S+/pull/\d+", i.get("body") or "")
@@ -146,13 +169,16 @@ def tracked_proxies() -> dict:
 
 
 def ensure_on_board(node_id: str, url: str):
-    """Idempotently make sure a proxy is on Atlas with its field and a stage —
-    heals a previous run that created the issue but died before the board
+    """Idempotently make sure a proxy is on Atlas with its field and a stage.
+
+    Heals a previous run that created the issue but died before the board
     writes (the URL is already in the body, so dedup alone would skip it
-    forever and state sync would never see it)."""
+    forever and state sync would never see it).
+    """
     item = gql(
         """mutation($p:ID!,$c:ID!){addProjectV2ItemById(input:{projectId:$p,contentId:$c}){item{id}}}""",
-        p=PROJECT_ID, c=node_id,
+        p=PROJECT_ID,
+        c=node_id,
     )["addProjectV2ItemById"]["item"]["id"]
     cur = gql(
         """query($i:ID!){ node(id:$i){ ... on ProjectV2Item {
@@ -197,8 +223,12 @@ def discover() -> None:
             if url in tracked:
                 # Heal a partially-seeded OPEN proxy (issue exists, board
                 # writes failed); closed proxies stay untouched.
-                if tracked[url]["open"] and ensure_on_board(tracked[url]["node_id"], url):
-                    actions.append(f"healed proxy #{tracked[url]['number']} for upstream #{num}")
+                if tracked[url]["open"] and ensure_on_board(
+                    tracked[url]["node_id"], url
+                ):
+                    actions.append(
+                        f"healed proxy #{tracked[url]['number']} for upstream #{num}"
+                    )
                 continue
             if author.endswith("[bot]") or author == REVIEWER or is_org_member(author):
                 continue
@@ -211,11 +241,16 @@ def discover() -> None:
                 "after relaying feedback."
             )
             issue = gh_json(
-                "api", f"repos/{FORK}/issues",
-                "-f", f"title=Review upstream #{num}: {title}",
-                "-f", f"body={body}",
-                "-f", "labels[]=External",
-                "-f", f"assignees[]={REVIEWER}",
+                "api",
+                f"repos/{FORK}/issues",
+                "-f",
+                f"title=Review upstream #{num}: {title}",
+                "-f",
+                f"body={body}",
+                "-f",
+                "labels[]=External",
+                "-f",
+                f"assignees[]={REVIEWER}",
             )
             ensure_on_board(issue["node_id"], url)
             # Kick off the automated external review immediately: marvin's
@@ -230,15 +265,19 @@ def discover() -> None:
                 review_note = "review requested"
             except Exception as e:  # noqa: BLE001
                 review_note = "review request FAILED — trigger @review manually"
-                print(f"::warning::auto-@review failed on proxy #{issue['number']}: {e}")
+                print(
+                    f"::warning::auto-@review failed on proxy #{issue['number']}: {e}"
+                )
             actions.append(
-                f"created proxy #{issue['number']} for upstream #{num} ({author}); {review_note}")
+                f"created proxy #{issue['number']} for upstream #{num} ({author}); {review_note}"
+            )
             pending_chips.append(f"#{issue['number']} -> {url}")
         except Exception as e:  # noqa: BLE001 — per-item isolation
             print(f"::warning::discovery failed for upstream #{num}: {e}")
 
 
 # --------------------------------------------------------------- state sync
+
 
 def board_items():
     """Open fork issues on Atlas with a non-empty Upstream PR field."""
@@ -258,7 +297,8 @@ def board_items():
                        number state repository{nameWithOwner}
                        assignees(first:10){nodes{login}}
                        labels(first:20){nodes{name}} }}}}}}}""",
-            p=PROJECT_ID, **({"after": after} if after else {}),
+            p=PROJECT_ID,
+            **({"after": after} if after else {}),
         )["node"]["items"]
         for n in data["nodes"]:
             c = n.get("content") or {}
@@ -277,13 +317,17 @@ def board_items():
                         f"#{c['number']}: skipped (has Upstream PR but not assigned to {REVIEWER})"
                     )
                     continue
-                rows.append({
-                    "item": n["id"],
-                    "issue": c["number"],
-                    "stage": (n.get("stage") or {}).get("name"),
-                    "url": up,
-                    "external": any(lbl["name"] == "External" for lbl in c["labels"]["nodes"]),
-                })
+                rows.append(
+                    {
+                        "item": n["id"],
+                        "issue": c["number"],
+                        "stage": (n.get("stage") or {}).get("name"),
+                        "url": up,
+                        "external": any(
+                            lbl["name"] == "External" for lbl in c["labels"]["nodes"]
+                        ),
+                    }
+                )
         if not data["pageInfo"]["hasNextPage"]:
             return rows
         after = data["pageInfo"]["endCursor"]
@@ -304,7 +348,9 @@ def upstream_pr(url: str):
                changesReviews: reviews(states:[CHANGES_REQUESTED], last:10){
                  nodes{submittedAt}}
              }}}""",
-        o=owner, r=repo, n=num,
+        o=owner,
+        r=repo,
+        n=num,
     )["repository"]["pullRequest"]
     d["_ref"] = (owner, repo, num)
     # Latest review-request event and latest changes-requested review, as ISO
@@ -314,9 +360,11 @@ def upstream_pr(url: str):
     # queue non-empty forever — only a request event NEWER than the latest
     # changes-requested review is the driver handing back.
     d["_req_ts"] = max(
-        (n["createdAt"] for n in d["requestEvents"]["nodes"]), default="")
+        (n["createdAt"] for n in d["requestEvents"]["nodes"]), default=""
+    )
     d["_changes_ts"] = max(
-        (n["submittedAt"] for n in d["changesReviews"]["nodes"]), default="")
+        (n["submittedAt"] for n in d["changesReviews"]["nodes"]), default=""
+    )
     return d
 
 
@@ -331,12 +379,18 @@ def latest_activity(owner: str, repo: str, num: int) -> tuple[str, str]:
                reviews(last:50){nodes{author{login} submittedAt}}
                reviewThreads(last:50){nodes{comments(last:20){nodes{author{login} createdAt}}}}
              }}}""",
-        o=owner, r=repo, n=num,
+        o=owner,
+        r=repo,
+        n=num,
     )["repository"]["pullRequest"]
     pr_author = (d.get("author") or {}).get("login", "")
     events = []
     events += [(c["author"], c["createdAt"]) for c in d["comments"]["nodes"]]
-    events += [(r["author"], r["submittedAt"]) for r in d["reviews"]["nodes"] if r.get("submittedAt")]
+    events += [
+        (r["author"], r["submittedAt"])
+        for r in d["reviews"]["nodes"]
+        if r.get("submittedAt")
+    ]
     for t in d["reviewThreads"]["nodes"]:
         events += [(c["author"], c["createdAt"]) for c in t["comments"]["nodes"]]
     for who, ts in events:
@@ -363,7 +417,9 @@ def sync_item(row) -> None:
     stage, item, issue = row["stage"], row["item"], row["issue"]
 
     if pr["merged"]:
-        close_issue(issue, f"Upstream PR {row['url']} was merged — closing. (Atlas sync)")
+        close_issue(
+            issue, f"Upstream PR {row['url']} was merged — closing. (Atlas sync)"
+        )
         clear_field(item, STAGE_FIELD)
         set_single_select(item, STATUS_FIELD, STATUS_OPTIONS["Done"])
         actions.append(f"#{issue}: upstream merged -> closed (Done)")
@@ -371,14 +427,20 @@ def sync_item(row) -> None:
 
     if pr["state"] == "CLOSED":  # closed without merge
         if row["external"]:
-            close_issue(issue, f"Upstream PR {row['url']} was closed unmerged — closing. (Atlas sync)")
+            close_issue(
+                issue,
+                f"Upstream PR {row['url']} was closed unmerged — closing. (Atlas sync)",
+            )
             clear_field(item, STAGE_FIELD)
             set_single_select(item, STATUS_FIELD, STATUS_OPTIONS["Done"])
             actions.append(f"#{issue}: upstream closed -> proxy closed")
         elif stage in TAIL_STAGES and set_stage(item, "Review", stage):
             # Gated to the tail so a stage the driver parked elsewhere is left
             # alone — and the comment can't be re-posted on an hourly bounce.
-            comment(issue, f"Upstream PR {row['url']} was closed unmerged — needs a human decision. (Atlas sync)")
+            comment(
+                issue,
+                f"Upstream PR {row['url']} was closed unmerged — needs a human decision. (Atlas sync)",
+            )
             actions.append(f"#{issue}: upstream closed unmerged -> Review")
         return
 
@@ -391,7 +453,9 @@ def sync_item(row) -> None:
         for n in pr["reviewRequests"]["nodes"]
     )
     rerequested = (
-        pending_request and pr["_req_ts"] > pr["_changes_ts"] and pr["_changes_ts"] != ""
+        pending_request
+        and pr["_req_ts"] > pr["_changes_ts"]
+        and pr["_changes_ts"] != ""
     )
     if row["external"]:
         if stage == "Contributor":
@@ -399,10 +463,13 @@ def sync_item(row) -> None:
             # Same staleness rule, against MY last activity: only a request to
             # me newer than my last review/comment pulls the proxy back — my
             # own never-consumed initial request must not.
-            rerequested_to_me = any(
-                (n.get("requestedReviewer") or {}).get("login") == REVIEWER
-                for n in pr["reviewRequests"]["nodes"]
-            ) and pr["_req_ts"] > reviewer_ts
+            rerequested_to_me = (
+                any(
+                    (n.get("requestedReviewer") or {}).get("login") == REVIEWER
+                    for n in pr["reviewRequests"]["nodes"]
+                )
+                and pr["_req_ts"] > reviewer_ts
+            )
             if (author_ts and author_ts > reviewer_ts) or rerequested_to_me:
                 if set_stage(item, "Review", stage):
                     actions.append(f"#{issue}: contributor responded -> Review")
