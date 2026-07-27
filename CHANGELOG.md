@@ -5,6 +5,7 @@
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
+- Control Channel: `inspect ctl sample events --tail` (including the default first page) now counts events matching the `--type` filter, so default reads show a useful recent window instead of a near-empty page. (meridianlabs-ai/inspect_ai#162)
 - Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
 - Control Channel: `inspect ctl config` changes are now recorded in each affected eval log (`EvalLog.config_updates`, with author, timestamp, optional `--reason`, and old → new values); `effective_eval_config()`/`effective_generate_config()` fold them over the launch config.
 - Control Channel: New `inspect ctl task pause|resume` and `inspect ctl process pause|resume` commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with `paused`/`quiesced` reported by `inspect ctl task list`.

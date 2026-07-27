@@ -11,6 +11,11 @@ The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are
 applied to the page *after* slicing, and ``next`` advances past every event
 *scanned* (not just matched) so a sparse filter never re-walks or skips. The
+``tail`` seed is the one place that counts *matched* events: it scans the
+trailing page-bounded window and keeps the last ``tail`` matches, so a recent
+tail under the default high-signal filter surfaces a useful window rather
+than the few matches hiding in the last N raw events (a live transcript is
+dominated by structural state / store / span events). The
 nonce identifies one *attempt* of a sample — the sample uuid (``EvalSample
 .uuid`` == ``TaskState.uuid``) plus the attempt count (see :func:`_attempt_
 nonce`). Both the running and terminal sources derive it the same way, so a
@@ -139,7 +144,10 @@ async def sample_events(
         sample_id: The sample's id (string; matched against running + logged).
         epoch: The sample epoch.
         since: Cursor token from a prior page (resume after it). Exclusive.
-        tail: When ``since`` is absent, start ``tail`` events from the end.
+        tail: When ``since`` is absent, show the last ``tail`` events that
+            match the type/time filters: the trailing ``limit``-bounded
+            window is scanned and the filtered page keeps its last ``tail``
+            entries.
         types: Event-type filter; ``None`` = the high-signal tier; a set
             containing ``"all"`` or ``"*"`` means everything (safe magic
             values — no event type carries either name). Applied after the
@@ -161,12 +169,22 @@ async def sample_events(
     # Resolve the start offset: resume from the cursor (reset to 0 if the nonce
     # is from a different source), else a tail window, else the beginning.
     cursor_nonce, cursor_offset = decode_cursor(since)
+    # When set, slice the filtered page down to its last `tail_count` events.
+    tail_count: int | None = None
     if since is not None and cursor_nonce == nonce:
         offset = max(0, cursor_offset)
     elif since is not None:
         offset = 0  # stale/foreign cursor → restart
     elif tail is not None:
-        offset = max(0, total - tail)
+        # A tail read means "the last `tail` events the caller will see" —
+        # counted after the type/time filters, not over the raw sequence.
+        # Slicing the raw sequence under-delivered badly with the default
+        # high-signal filter: a live transcript is dominated by structural
+        # state/store/span events, so the last N raw events could contain a
+        # single match. Seed at one page bound from the end and keep the
+        # last `tail` matches after filtering (below).
+        offset = max(0, total - limit)
+        tail_count = max(0, tail)
     else:
         offset = 0
 
@@ -179,10 +197,28 @@ async def sample_events(
     # stream. `next` advances by what was actually served, so a fetch that
     # returns short (eg. a buffer that lags the in-memory tail) never skips
     # events — the next poll picks them up.
-    scanned = list(fetch(offset, limit))
+    from inspect_ai.log._transcript import TranscriptHistoryUnavailableError
+
+    try:
+        scanned = list(fetch(offset, limit))
+    except TranscriptHistoryUnavailableError:
+        if tail_count is None:
+            raise
+        # The matched-tail scan window reached below a bounded transcript's
+        # resident window with no provider to recover it (not a production
+        # configuration). Degrade to the raw-event tail seed — the resident
+        # window stays readable — rather than failing the default read.
+        offset = max(0, total - tail_count) if tail_count > 0 else total
+        tail_count = None
+        scanned = list(fetch(offset, limit))
     next_offset = offset + len(scanned)
 
     matched = _filter(scanned, types, since_time, until)
+    if tail_count is not None:
+        # Keep the most recent matches; earlier matches inside the scanned
+        # window are intentionally dropped (the read is seeded "near the
+        # end") while `next` still advances past everything scanned.
+        matched = matched[-tail_count:] if tail_count > 0 else []
     return {
         "events": [_project(e, full) for e in matched],
         "next": encode_cursor(nonce, next_offset),
