@@ -56,13 +56,16 @@ any monitors/watches from a previous session are gone — re-arm them.
 
 ### 1. Start submodule work from current main
 
-In the submodule, fetch and check out ts-mono `main` first, then branch. You
-must be current with ts-mono `main` before merging anyway, so get current
-before making changes.
+In the submodule, `git fetch origin` and branch from `origin/main` — NOT the
+local `main` ref, which lags arbitrarily far behind (submodules live on
+detached HEADs; nothing routinely updates their local branches, and `fetch`
+moves only `origin/main`). You must be current with ts-mono `origin/main`
+before merging anyway, so get current before making changes.
 
 ### 2. Make the change / regenerate
 
-Sync this repo's branch with its `main` before regenerating — the schema that
+Sync this repo's branch with its `origin/main` (fetch first) before
+regenerating — the schema that
 lands is generated from the merged Python, so regenerating against a stale
 branch bakes in a schema that drifts the moment you update the branch.
 
@@ -145,7 +148,8 @@ moment the gate clears.
    e.g. `gh pr view <n> --json state,mergeCommit`); a human merges it (agents
    cannot). React to the merge the moment it lands — the blocking window
    opens at merge, so don't wait for the user to come back and tell you.
-2. Compare the gitlink SHA against ts-mono `main`:
+2. Fetch in the submodule, then compare the gitlink SHA against ts-mono
+   `origin/main`:
    - **SHA changed** (squash/rebase merge): bump the gitlink to the merged
      `main` SHA. The bump picks up **every** ts-mono `main` change since the
      last bump, not just yours — so rebuild the viewer bundle at the new
@@ -170,18 +174,18 @@ moment the gate clears.
   author) and close the original with a link.
 - Never leave the gitlink pointing at an unpushed or local-only ts-mono
   commit — push the ts-mono branch before committing the bump.
-- After merging this repo's `main` into your branch, check `git status` for
+- After merging this repo's `origin/main` into your branch, check `git status` for
   the gitlink: a merge can silently revert your intentional bump (the inverse
   of the accidental-bump failure mode in AGENTS.md).
 - If `main` bumps the gitlink while your PR is open, GitHub reports a
-  submodule conflict and stops running CI on the PR. Fix: merge `main` into
-  your branch; at the gitlink conflict, verify main's new pointer is an
+  submodule conflict and stops running CI on the PR. Fix: merge `origin/main`
+  into your branch; at the gitlink conflict, verify main's new pointer is an
   ancestor of your ts-mono branch head
   (`git -C <submodule> merge-base --is-ancestor <main-ptr> <yours>`) — it
   will be if you branched from current ts-mono main — then keep yours
   (`git add <submodule>`), commit, push. If it is NOT an ancestor, first
-  merge ts-mono main into your ts-mono branch and push, then point the
-  gitlink at that. A gitlink-bumping main commit usually also rebuilds the
+  merge ts-mono `origin/main` into your ts-mono branch and push, then point
+  the gitlink at that. A gitlink-bumping main commit usually also rebuilds the
   checked-in viewer `dist/` — taking main's dist is correct when your ts-mono
   delta is types/tests only (type erasure leaves the build output identical);
   otherwise rebuild dist from your ts-mono branch.
