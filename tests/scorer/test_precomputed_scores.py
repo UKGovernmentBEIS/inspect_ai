@@ -80,24 +80,6 @@ def test_precomputed_scores_jsonl(tmp_path: Path) -> None:
     assert scores[("s2", 1)].value == 0.5
 
 
-def test_precomputed_scores_csv(tmp_path: Path) -> None:
-    scores_file = tmp_path / "scores.csv"
-    scores_file.write_text(
-        "id,epoch,value,answer,metadata\n"
-        's1,,0.5,yes,"{""rater"": ""alice""}"\n'
-        "3,1,C,,\n"
-    )
-
-    log = score(run_eval(), precomputed_scores(scores_file.as_posix()))
-
-    scores = sample_scores(log)
-    assert scores[("s1", 1)].value == 0.5
-    assert scores[("s1", 1)].answer == "yes"
-    assert scores[("s1", 1)].metadata == {"rater": "alice"}
-    assert scores[(3, 1)].value == "C"
-    assert scores[(3, 1)].answer is None
-
-
 def test_precomputed_scores_epochs(tmp_path: Path) -> None:
     scores_file = write_records(
         tmp_path / "scores.json",
@@ -116,6 +98,31 @@ def test_precomputed_scores_epochs(tmp_path: Path) -> None:
     assert scores[("s2", 1)].value == 0
     assert scores[("s2", 2)].value == 1
     assert (3, 1) not in scores and (3, 2) not in scores
+
+
+def test_precomputed_scores_on_missing_error(tmp_path: Path) -> None:
+    scores_file = write_records(tmp_path / "scores.json", [{"id": "s1", "value": 1}])
+
+    with pytest.raises(ValueError, match="No score record"):
+        score(run_eval(), precomputed_scores(scores_file, on_missing="error"))
+
+
+def test_precomputed_scores_on_missing_error_all_covered(tmp_path: Path) -> None:
+    scores_file = write_records(
+        tmp_path / "scores.json",
+        [{"id": "s1", "value": 1}, {"id": "s2", "value": 0}, {"id": 3, "value": 1}],
+    )
+
+    log = score(run_eval(epochs=2), precomputed_scores(scores_file, on_missing="error"))
+
+    assert len(sample_scores(log)) == 6
+
+
+def test_precomputed_scores_on_missing_invalid(tmp_path: Path) -> None:
+    scores_file = write_records(tmp_path / "scores.json", [{"id": "s1", "value": 1}])
+
+    with pytest.raises(ValueError, match="on_missing"):
+        precomputed_scores(scores_file, on_missing="nope")  # type: ignore[arg-type]
 
 
 def test_precomputed_scores_custom_metrics(tmp_path: Path) -> None:

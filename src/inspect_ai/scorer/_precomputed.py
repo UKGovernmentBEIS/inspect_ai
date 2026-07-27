@@ -1,11 +1,10 @@
-import csv
 import json
-from typing import Any
+from typing import Any, Literal
 
 from inspect_ai._util.file import file
 from inspect_ai.solver._task_state import TaskState
 
-from ._metric import Score, Value
+from ._metric import Score
 from ._metrics.accuracy import accuracy
 from ._metrics.std import stderr
 from ._scorer import Scorer, scorer
@@ -13,13 +12,16 @@ from ._target import Target
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def precomputed_scores(scores: str) -> Scorer:
+def precomputed_scores(
+    scores: str, on_missing: Literal["unscored", "error"] = "unscored"
+) -> Scorer:
     """Scorer that applies scores computed outside of Inspect.
 
     Reads scores from a file and applies them to samples by id, for
     example to attach human ratings to an existing log using the
     `score()` function or the `inspect score` command. Samples with no
-    matching record are left unscored.
+    matching record are left unscored, or fail the eval if `on_missing`
+    is "error". Records matching no sample are always ignored.
 
     The file must contain a list of records with an `id` field matching
     a sample id, a `value` field with the score value, and optionally
@@ -28,11 +30,8 @@ def precomputed_scores(scores: str) -> Scorer:
     epoch of the sample, and a record with a matching `epoch` takes
     precedence over one without.
 
-    Supported formats are JSON (an array of objects), JSON Lines
-    (`.jsonl`), and CSV (`.csv`, with fields as columns). CSV values
-    are parsed as numbers when possible and as strings otherwise, and a
-    CSV `metadata` column must contain JSON. Use JSON for other value
-    types (e.g. dict-valued scores).
+    Supported formats are JSON (an array of objects) and JSON Lines
+    (`.jsonl`, one object per line).
 
     To score with metrics other than the default accuracy and stderr,
     either pass `metrics` to `score()` or wrap this scorer in your own
@@ -47,13 +46,27 @@ def precomputed_scores(scores: str) -> Scorer:
     Args:
         scores: Path to the scores file. Can be a local filesystem path
             or a path to an S3 bucket (e.g. "s3://my-bucket/scores.json").
+        on_missing: What to do with a sample that has no matching record.
+            "unscored" (the default) leaves it unscored, so metrics are
+            computed over the matched samples only. "error" raises,
+            for a scores file intended to cover every sample.
     """
+    if on_missing not in ("unscored", "error"):
+        raise ValueError(
+            f"Invalid on_missing value '{on_missing}' (expected 'unscored' or 'error')"
+        )
+
     lookup = _read_scores_file(scores)
 
     async def score(state: TaskState, target: Target) -> Score | None:
         found = lookup.get((str(state.sample_id), state.epoch))
         if found is None:
             found = lookup.get((str(state.sample_id), None))
+        if found is None and on_missing == "error":
+            raise ValueError(
+                f"No score record in {scores} for sample id "
+                f"'{state.sample_id}' (epoch {state.epoch})"
+            )
         return found.model_copy(deep=True) if found is not None else None
 
     return score
@@ -63,8 +76,6 @@ def _read_scores_file(scores_file: str) -> dict[tuple[str, int | None], Score]:
     with file(scores_file, "r") as f:
         if scores_file.lower().endswith(".jsonl"):
             records = [json.loads(line) for line in f if line.strip()]
-        elif scores_file.lower().endswith(".csv"):
-            records = [_record_from_csv_row(row) for row in csv.DictReader(f)]
         else:
             records = json.load(f)
 
@@ -84,30 +95,6 @@ def _read_scores_file(scores_file: str) -> dict[tuple[str, int | None], Score]:
             )
         lookup[key] = score
     return lookup
-
-
-def _record_from_csv_row(row: dict[str, str | None]) -> dict[str, Any]:
-    record: dict[str, Any] = {
-        key: value for key, value in row.items() if value not in (None, "")
-    }
-    if "value" in record:
-        record["value"] = _value_from_csv(record["value"])
-    if "epoch" in record:
-        record["epoch"] = int(record["epoch"])
-    if "metadata" in record:
-        record["metadata"] = json.loads(record["metadata"])
-    return record
-
-
-def _value_from_csv(text: str) -> Value:
-    try:
-        return int(text)
-    except ValueError:
-        pass
-    try:
-        return float(text)
-    except ValueError:
-        return text
 
 
 def _score_from_record(
