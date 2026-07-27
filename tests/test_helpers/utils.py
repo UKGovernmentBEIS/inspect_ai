@@ -260,6 +260,10 @@ def skip_if_no_anthropic(func):
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
 
 
+def skip_if_no_anthropic_package(func):
+    return skip_if_no_package("anthropic")(func)
+
+
 def skip_if_no_google(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("GOOGLE_API_KEY", exists=False)(func))
