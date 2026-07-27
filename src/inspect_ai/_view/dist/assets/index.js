@@ -75423,8 +75423,9 @@ var ChatItem = ({ children, ...props }) => {
 };
 var chatComponents = { Item: ChatItem };
 var kChatScrollPaddingStart = -15;
-var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ id, messages, initialMessageId, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
+var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ id, messages, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
 	const listHandle = (0, import_react.useRef)(null);
+	const [navOwned] = (0, import_react.useState)(() => !!initialMessageId);
 	(0, import_react.useEffect)(() => {
 		onNativeFindChanged?.(false);
 	}, [onNativeFindChanged]);
@@ -75509,6 +75510,8 @@ var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ 
 		initialIndex: initialMessageIndex,
 		scrollPaddingStart: kChatScrollPaddingStart,
 		live: running,
+		navOwned,
+		followRequested,
 		scrollToTopOnFinish,
 		components: chatComponents,
 		smoothScroll: false,
@@ -84442,8 +84445,13 @@ function useTranscriptTimeline(options) {
 		branchMappings
 	]);
 	const { selectedEvents, sourceSpans, branchScrollTarget } = (0, import_react.useMemo)(() => {
-		const parsed = parseSelection(state.selected);
-		const spans = getSelectedSpans(state.rows, state.selected);
+		let selection = state.selected;
+		let spans = getSelectedSpans(state.rows, selection);
+		if (spans.length === 0 && state.rows.length > 0) {
+			selection = state.rows[0].key;
+			spans = getSelectedSpans(state.rows, selection);
+		}
+		const parsed = parseSelection(selection);
 		if (spans.length === 0) return {
 			selectedEvents: events,
 			sourceSpans: emptySourceSpans,
@@ -84463,7 +84471,7 @@ function useTranscriptTimeline(options) {
 			includeUtility,
 			regionIndex: parsed?.regionIndex ?? null,
 			showBranches,
-			branchPrefix: getBranchPrefix(state.rows, state.selected)
+			branchPrefix: getBranchPrefix(state.rows, selection)
 		});
 		return {
 			selectedEvents: collected.events,
@@ -110721,6 +110729,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 									id: chatListId,
 									messages: effectiveMessages,
 									initialMessageId: sampleDetailNavigation.message,
+									followRequested: sampleDetailNavigation.follow,
 									display: chatDisplay,
 									labels: messagesSearchLabels,
 									linking: chatLinking,
