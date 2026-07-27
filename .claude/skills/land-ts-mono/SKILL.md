@@ -25,6 +25,7 @@ rule against changing the submodule gitlink.
 - CI jobs (`.github/workflows/log_viewer.yml`):
   - `check-schema-and-types` — artifacts must match the Python source (docstring-only drift tolerated) and each other (exactly)
   - `submodule-on-main` — the gitlink SHA must be reachable from ts-mono `main`
+  - `dist-validation` — the checked-in viewer bundle `src/inspect_ai/_view/dist` must match `pnpm --filter @meridianlabs/log-viewer build` run at the pinned submodule commit
 - Submodule checks before pushing: `pnpm typecheck` and `pnpm test` from the ts-mono root (turbo), not per-package tsc
 - Pipeline internals: `design/type-generation-pipeline.md`
 - Sibling consumer: `inspect_scout` (also embeds ts-mono; its `apps/scout/src/types/generated.ts` duplicates the shared types). Its regen script `scripts/export_openapi_schema.py` regenerates its `openapi.json` from the installed inspect_ai and chains scout's `types:generate`.
@@ -60,6 +61,10 @@ must be current with ts-mono `main` before merging anyway, so get current
 before making changes.
 
 ### 2. Make the change / regenerate
+
+Sync this repo's branch with its `main` before regenerating — the schema that
+lands is generated from the merged Python, so regenerating against a stale
+branch bakes in a schema that drifts the moment you update the branch.
 
 For type changes, run the regeneration command. It rewrites both generated
 artifacts — one in this repo, one in the submodule. Docstring-only changes do
@@ -142,7 +147,13 @@ moment the gate clears.
    opens at merge, so don't wait for the user to come back and tell you.
 2. Compare the gitlink SHA against ts-mono `main`:
    - **SHA changed** (squash/rebase merge): bump the gitlink to the merged
-     `main` SHA, commit, push.
+     `main` SHA. The bump picks up **every** ts-mono `main` change since the
+     last bump, not just yours — so rebuild the viewer bundle at the new
+     commit (`pnpm install --frozen-lockfile && pnpm --filter
+     @meridianlabs/log-viewer build` in the submodule) and commit the gitlink
+     together with any resulting `dist/` changes (often none — type-only
+     deltas build identically — but `dist-validation` fails if you skip the
+     check and something did change). Push.
    - **SHA unchanged** (merge commit; branch head now reachable from main):
      just re-run the red `submodule-on-main` check.
 3. Enable auto-merge on this repo's PR (`gh pr merge --auto`) and tell the
@@ -177,3 +188,8 @@ moment the gate clears.
 - Regenerate only from a venv with this repo installed; stale submodule
   `node_modules` breaks the TypeScript half — `pnpm install` in the submodule
   first.
+- Don't trust the branch's committed schema just because its CI once passed —
+  a later branch commit can change the Python models and leave
+  `inspect-openapi.json` stale against the branch's *own* source. When
+  resuming mid-flight, re-run the regeneration command and confirm it's a
+  no-op before entering the endgame.
