@@ -30,17 +30,21 @@ Staleness is bounded by construction:
   derived from a registered eval, so none can outlive the registry.
 
 No lock: inspect runs on a single event-loop thread (control-server handlers
-included) and every cache operation is a plain dict update with no await
-point, so there is no cross-thread or interleaved access to protect.
+included) and every dict mutation (get / put / invalidate / clear) runs with
+no await point, so there is no cross-thread or interleaved access to protect.
+The one await in :meth:`TerminalSourceCache.get_or_resolve` sits between a
+get and a put — see its docstring for why the interleaving it admits is
+harmless.
 """
 
 from __future__ import annotations
 
 import time
+import weakref
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
 T = TypeVar("T")
 
@@ -65,9 +69,11 @@ An events entry holds a sample's full parsed event list, so the cap bounds
 memory at "a handful of samples being watched at once" — the actual shape of
 control-channel traffic — rather than one entry per sample ever read."""
 
-# Every cache constructed (the events / messages module singletons), so the
-# teardown boundary can clear them without importing their host modules.
-_caches: list["TerminalSourceCache[Any]"] = []
+# Every live cache (the events / messages module singletons), so the teardown
+# boundary can clear them without importing their host modules. Weak so that
+# transient instances (e.g. test-constructed replacements) don't accumulate
+# for the life of the process.
+_caches: "weakref.WeakSet[TerminalSourceCache[Any]]" = weakref.WeakSet()
 
 
 class TerminalSourceCache(Generic[T]):
@@ -89,7 +95,7 @@ class TerminalSourceCache(Generic[T]):
         self._clock = clock
         # key -> (inserted_at, value); dict insertion order is eviction order
         self._entries: dict[SourceKey, tuple[float, T]] = {}
-        _caches.append(self)
+        _caches.add(self)
 
     def get(self, key: SourceKey) -> T | None:
         """The cached source for ``key``, or ``None`` if absent or expired.
@@ -118,6 +124,29 @@ class TerminalSourceCache(Generic[T]):
         while len(self._entries) >= self._max_entries:
             del self._entries[next(iter(self._entries))]
         self._entries[key] = (now, value)
+
+    async def get_or_resolve(
+        self,
+        key: SourceKey,
+        resolve: "Callable[[], Awaitable[T | None]]",
+    ) -> T | None:
+        """The source for ``key``: cached if present, else via ``resolve``.
+
+        A ``None`` resolution is never cached — a just-flushed sample must
+        become visible on the next request, not a TTL later.
+
+        The await on ``resolve`` sits between the get and the put, so an
+        :meth:`invalidate` landing mid-resolution can be overwritten by the
+        put. That interleaving is harmless: any later request that observes
+        the superseding attempt invalidates again, and the entry is in any
+        case bounded by the insertion-time TTL.
+        """
+        value = self.get(key)
+        if value is None:
+            value = await resolve()
+            if value is not None:
+                self.put(key, value)
+        return value
 
     def invalidate(self, key: SourceKey) -> None:
         """Drop ``key`` — a running (retry) attempt supersedes its entry."""

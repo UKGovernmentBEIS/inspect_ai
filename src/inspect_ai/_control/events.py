@@ -268,17 +268,12 @@ async def _logged_source(
     A terminal attempt's transcript is immutable, so the resolved source is
     reused across the paginating / polling requests that dominate this
     endpoint's traffic instead of re-paying the full-sample parse per request
-    (see ``_terminal_sources``). A ``None`` resolution (eval/sample not
-    available here) is never cached — a just-flushed sample must become
-    visible on the next request, not a TTL later.
+    (see ``_terminal_sources`` and ``TerminalSourceCache.get_or_resolve``).
     """
-    key = (eval_id, sample_id, epoch)
-    source = _terminal_sources.get(key)
-    if source is None:
-        source = await _resolve_logged_source(eval_id, sample_id, epoch)
-        if source is not None:
-            _terminal_sources.put(key, source)
-    return source
+    return await _terminal_sources.get_or_resolve(
+        (eval_id, sample_id, epoch),
+        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
 
 
 async def _resolve_logged_source(
