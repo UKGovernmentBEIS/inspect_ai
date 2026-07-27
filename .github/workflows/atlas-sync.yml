@@ -3,10 +3,11 @@
 #
 # Task 1: discover open upstream PRs review-requested-to / assigned-to the
 # reviewer from external contributors and seed proxy issues (External label,
-# Stage=Human Review, Upstream PR field).
+# Stage=Review, Upstream PR field), auto-posting @review on each new proxy so
+# the external review is running before a human opens it.
 # Task 2: sync every open fork issue on Atlas that has an Upstream PR field —
 # promotions follow the upstream reviewDecision tail; External proxies close
-# on upstream merge/close and return to Human Review on contributor response.
+# on upstream merge/close and return to Review on contributor response.
 #
 # Runs as the machine account: MARVIN_TOKEN needs the `project` scope to write
 # the org board (preflight enforces this). Deterministic — no agent invocation.
