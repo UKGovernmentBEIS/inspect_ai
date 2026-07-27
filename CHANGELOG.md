@@ -13,6 +13,7 @@
 - OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
 - Google: Added model info for Gemini 3.6 Flash and Gemini 3.5 Flash-Lite (released 2026-07-21).
 - Agent Bridge: Support Anthropic clients that consume responses via `with_raw_response`, which previously failed with `'Message' object has no attribute 'parse'`.
+- Agent Bridge: Gemini tool results delivered as `functionResponse` parts in model-role turns are now converted to tool messages instead of dropped (fixes 400 "Requests ending with a model turn are not supported").
 - Agent Bridge: Google streaming requests targeting an inspect model now raise the intended streaming-unsupported error instead of being sent to the real Google API.
 - Sandbox: `Sandbox.exec` failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.
 - Memory tool: Canonicalize `/memories` paths so equivalent spellings map to one file rather than several, and add an `instance` parameter to `memory()` for independent per-instance memory stores.
