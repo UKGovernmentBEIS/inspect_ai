@@ -237,6 +237,20 @@ class EvalState:
     those fields hold the header-derived provisional values set at
     registration. ``None`` for live evals."""
 
+    log_sample_summaries: "list[EvalSampleSummary] | None" = None
+    """Memoized on-disk sample summaries for the per-sample listing.
+
+    Once :attr:`live` no longer serves summaries (eval finished and its
+    recorder torn down, reused/synthetic eval, superseded retry attempt),
+    the log at :attr:`log_location` is finalized and immutable — so the
+    listing's fallback read of it is performed once and cached here, and
+    every later request is served from memory (a keep-alive-parked process
+    is polled indefinitely; re-reading an immutable log — possibly from
+    S3 — per poll is pure waste). ``None`` until the first fallback read
+    (and always while :attr:`live` serves summaries). Cleared by
+    :func:`invalidate_log_sample_summaries` when the retry sweep deletes
+    the log, so the memo can't outlive the file it was read from."""
+
     sample_ids: list[str | int] = field(default_factory=list)
     """The eval's planned sample ids (after slicing). With :attr:`epochs`,
     the full set of planned ``(sample_id, epoch)`` pairs — which lets the
@@ -644,7 +658,10 @@ def detach_eval_live(eval_id: str) -> None:
     Clearing it makes the superseded attempt's reads fall back to its own
     ``log_location`` — its data stays correct until the retry sweep removes
     that log, after which per-sample reads degrade to empty/404 (the counters
-    on the state itself are unaffected).
+    on the state itself are unaffected). :attr:`EvalState.log_sample_summaries`
+    is deliberately left alone: it holds data read from this attempt's *own*
+    log, which stays correct until that log is deleted —
+    :func:`invalidate_log_sample_summaries` handles that moment.
 
     No-ops if the eval isn't registered.
     """
@@ -652,6 +669,29 @@ def detach_eval_live(eval_id: str) -> None:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.live = None
+
+
+def invalidate_log_sample_summaries(eval_id: str) -> None:
+    """Drop an eval's memoized on-disk sample summaries.
+
+    Called by the eval-set retry sweep (``latest_completed_task_eval_logs``
+    with ``cleanup_older=True``) right after it deletes a superseded
+    attempt's log file, so the memo can't outlive the log it was read from:
+    later listing reads re-attempt the on-disk read and degrade to an empty
+    listing on ``FileNotFoundError`` (which is never memoized) — exactly the
+    pre-memo per-request behavior. Keyed by ``eval_id`` (the deleted log's
+    header carries it) rather than by matching ``log_location`` strings,
+    which differ in form between fsspec listings and registration
+    (``file://`` prefixes). No stale-memo race with an in-flight listing
+    read: requests are served either on the eval's loop (running only inside
+    an ``eval()`` call) or by the keep-alive park's own server, while sweeps
+    run between ``eval()`` calls and before the park — never concurrently
+    with a request. No-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.log_sample_summaries = None
 
 
 def finalize_eval(eval_id: str) -> None:
