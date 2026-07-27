@@ -11,9 +11,12 @@ hourly Atlas sync"):
    review is already running before a human opens the proxy.
 2. State sync: every OPEN fork issue on Atlas with a non-empty "Upstream PR"
    field -> read the upstream PR and advance the stage:
-     - External proxies: merged/closed -> close proxy (Done); while in
-       Contributor, contributor activity newer than the reviewer's
-       last activity (or a re-review request) -> Review.
+     - External proxies: merged/closed -> close proxy (Done); APPROVED ->
+       Merge (the merge-approved-prs queue; dismiss the approval or request
+       changes to pull one back, sticky APPROVED re-queues a moved card);
+       in Merge without a standing approval -> Review; while in Contributor,
+       contributor activity newer than the reviewer's last activity (or a
+       re-review request) -> Review.
      - Promotions: APPROVED -> Merge; CHANGES_REQUESTED -> Review;
        approval dismissed -> Merge->Sign-off only; merged ->
        close (Done); closed unmerged -> Review + comment.
@@ -457,7 +460,25 @@ def sync_item(row) -> None:
         and pr["_req_ts"] > pr["_changes_ts"]
         and pr["_changes_ts"] != ""
     )
+    decision = pr.get("reviewDecision")
+
     if row["external"]:
+        if decision == "APPROVED":
+            # Maintainer approval hands the external PR to the merge queue
+            # (the merge-approved-prs skill drives Merge-stage items home).
+            # APPROVED is sticky, so this holds the proxy in Merge each hour —
+            # deliberate: to pull a queued external back, dismiss the approval
+            # or request changes upstream, not just move the card.
+            if set_stage(item, "Merge", stage):
+                actions.append(f"#{issue}: upstream approved -> Merge")
+            return
+        if stage == "Merge":
+            # Was queued but the approval no longer stands (dismissed, or a
+            # changes-requested round started) — back to Review: the ball is
+            # with the maintainer to re-decide, not with the contributor.
+            if set_stage(item, "Review", stage):
+                actions.append(f"#{issue}: approval no longer stands -> Review")
+            return
         if stage == "Contributor":
             author_ts, reviewer_ts = latest_activity(owner, repo, num)
             # Same staleness rule, against MY last activity: only a request to
@@ -474,8 +495,6 @@ def sync_item(row) -> None:
                 if set_stage(item, "Review", stage):
                     actions.append(f"#{issue}: contributor responded -> Review")
         return
-
-    decision = pr.get("reviewDecision")
 
     # The one transition allowed OUT of Review: the driver re-requested
     # review upstream after a changes-requested round — the fork's analog of
