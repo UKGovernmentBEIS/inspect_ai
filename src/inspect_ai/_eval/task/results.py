@@ -102,9 +102,10 @@ def eval_results(
         # `scores` also carries samples that errored but were still scored (by
         # score_on_error, or by scorers that ran before another one raised), so
         # its length is not the number of samples that completed without error.
-        # Callers that know that count pass it in; fall back to the number of
-        # scored samples for callers that don't (e.g. re-scoring an existing
-        # log, where the per-sample error state isn't recomputed).
+        # Callers that know that count pass it in; the fallback to the number
+        # of scored samples covers only callers that genuinely can't know it
+        # (e.g. an eval run with --no-log-samples, where the per-sample error
+        # state was never recorded).
         completed_samples=(
             completed_samples if completed_samples is not None else len(scores)
         ),

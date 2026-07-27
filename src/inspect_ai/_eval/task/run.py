@@ -1116,12 +1116,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     metrics=task.metrics,
                     scorer_names=scorer_names,
                     early_stopping=stopping_summary,
-                    # completed_scores includes errored samples that still
-                    # carry a score, and whether an errored sample has one
-                    # depends on where the raising scorer sits in the scorer
-                    # list, so take the completion count from the sample log
-                    # (samples whose `error` is None) instead of the number of
-                    # scored samples.
+                    # see eval_results() for why this isn't len(scores)
                     completed_samples=(
                         logger.samples_completed if log_samples else None
                     ),
@@ -1173,10 +1168,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         scorers=scorers,
                         metrics=task.metrics,
                         scorer_names=scorer_names,
-                        # progress_results carries errored-but-scored samples
-                        # too, so its length is scorer-order dependent; take the
-                        # completion count from the sample log (as the success
-                        # path does) instead of the number of scored samples.
+                        # see eval_results() for why this isn't len(scores)
                         completed_samples=(
                             logger.samples_completed if log_samples else None
                         ),

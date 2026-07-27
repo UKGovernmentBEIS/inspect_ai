@@ -9,6 +9,7 @@ from inspect_ai._eval.task.run import PreviousError, eval_log_sample_source
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log import EvalLog
+from inspect_ai.log._metric import recompute_metrics
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -136,6 +137,33 @@ def test_completed_samples_independent_of_scorer_order():
         assert log.results is not None
         assert log.results.total_samples == 4
         assert log.results.completed_samples == 2
+
+
+def test_recompute_metrics_preserves_completed_samples():
+    # score edits (and `inspect score --action overwrite`) rebuild results from
+    # the sample scores alone; without recounting the persisted per-sample
+    # error state they silently restore the inflated, scorer-order-dependent
+    # count that test_completed_samples_independent_of_scorer_order pins.
+    log = eval(
+        Task(
+            dataset=MemoryDataset(
+                [Sample(id=i, input="hi", target="ok") for i in range(1, 5)]
+            ),
+            scorer=[constant_scorer(), raising_scorer([2, 3])],
+        ),
+        model="mockllm/model",
+        fail_on_error=False,
+        display="none",
+    )[0]
+
+    assert log.results is not None
+    assert log.results.completed_samples == 2
+
+    recompute_metrics(log)
+
+    assert log.results is not None
+    assert log.results.total_samples == 4
+    assert log.results.completed_samples == 2
 
 
 def test_score_on_error_contributes_to_metrics():
