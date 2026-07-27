@@ -215,6 +215,10 @@ _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "thinking with an explicit token budget was removed in Claude 4.7). Use "
     "'reasoning_effort' to control reasoning depth instead."
 )
+_DISABLED_THINKING_EFFORT_WARNING = (
+    "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
+    "'none') combined with effort above 'high'; clamping effort to 'high'."
+)
 _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "anthropic: {count} mid-conversation system message(s) were repositioned "
     "to the top-level system field because their placement violated the API "
@@ -950,10 +954,26 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
-            # Claude 4.7+ (incl. Sonnet 5) run adaptive thinking by default, so
-            # `reasoning_effort="none"` must explicitly disable it. Pre-4.7 models
-            # default to no thinking, so omitting the field already suffices.
+            # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
+            # default, so `reasoning_effort="none"` must explicitly disable it.
+            # Pre-4.7 models default to no thinking, so omitting the field
+            # already suffices.
             params["thinking"] = {"type": "disabled"}
+            # Opus 5 returns a 400 for disabled thinking combined with effort
+            # above `high` (Opus 4.8 and Sonnet 5 accept the combination).
+            output_config = params.get("output_config")
+            if (
+                self.is_claude_opus_5()
+                and isinstance(output_config, dict)
+                and output_config.get("effort") in ("xhigh", "max")
+            ):
+                warn_once(
+                    logger,
+                    _DISABLED_THINKING_EFFORT_WARNING.format(
+                        model=self.service_model_name()
+                    ),
+                )
+                params["output_config"] = OutputConfigParam(effort="high")
 
         # config that applies to all models
         if config.stop_seqs is not None:
@@ -1074,15 +1094,22 @@ class AnthropicAPI(ModelAPI):
     def _supports_disabling_thinking(self) -> bool:
         """Whether `reasoning_effort="none"` should send `thinking:{type:"disabled"}`.
 
-        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5) run adaptive thinking by default and
-        accept `disabled` to turn it off. Fable/Mythos 5 also always think but
-        reject `disabled` (400), so they're excluded — their thinking can't be
-        turned off. Pre-4.7 models default to no thinking, so `"none"` is honored
-        by simply omitting the `thinking` field.
+        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
+        default and accept `disabled` to turn it off (on Opus 5 only at effort
+        `high` or below — see completion_config).
         """
-        return self.is_claude_4_7_or_later() and not (
-            self.is_claude_5() and not self.is_claude_sonnet_5()
-        )
+        if not self.is_claude_4_7_or_later():
+            # pre-4.7 models default to no thinking, so `"none"` is honored by
+            # simply omitting the `thinking` field
+            return False
+        if not self.is_claude_5():
+            # Opus 4.7 / 4.8 (and future 4.x minors)
+            return True
+        # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
+        # always think but reject `disabled` (400) — as do unknown codename
+        # Claude 5 models, which are assumed to follow Fable rather than the
+        # tier-named (opus/sonnet) models.
+        return self.is_claude_sonnet_5() or self.is_claude_opus_5()
 
     def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
         """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
@@ -1154,6 +1181,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_sonnet_5(self) -> bool:
         return self.is_claude_5() and "sonnet" in self.model_family()
+
+    def is_claude_opus_5(self) -> bool:
+        return self.is_claude_5() and "opus" in self.model_family()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1269,16 +1299,17 @@ class AnthropicAPI(ModelAPI):
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
             # Unknown future version: assume the current 1M frontier.
-            return "anthropic/claude-opus-4-8"  # 1MM
+            return "anthropic/claude-opus-5"  # 1MM
         elif (
             self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
             # A Claude 5 variant not yet registered in the model-info database
             # (e.g. a tier-named claude-*-5 or a new codename): assume the 1M
             # Claude 5 frontier rather than missing the lookup. Registered
-            # Claude 5 models (Fable/Mythos and their point releases, which
-            # fuzzy-match their base entry) fall through to the database below.
-            return "anthropic/claude-opus-4-8"  # 1MM
+            # Claude 5 models (Opus/Sonnet/Fable/Mythos and their point
+            # releases, which fuzzy-match their base entry) fall through to the
+            # database below.
+            return "anthropic/claude-opus-5"  # 1MM
         else:
             return super().input_tokens_name()
 
@@ -1571,16 +1602,18 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            # Among Claude 5 models only Sonnet 5 is documented to support native
-            # computer use (the computer-use-2025-11-24 tool). Fable/Mythos 5 are
-            # not listed in Anthropic's computer-use docs, so error for those
-            # rather than degrade to a non-native fallback tool.
-            if self.is_claude_5() and not self.is_claude_sonnet_5():
+            # Among Claude 5 models only Sonnet 5 and Opus 5 are documented to
+            # support native computer use (the computer-use-2025-11-24 tool).
+            # Fable/Mythos 5 are not listed in Anthropic's computer-use docs, so
+            # error for those rather than degrade to a non-native fallback tool.
+            if self.is_claude_5() and not (
+                self.is_claude_sonnet_5() or self.is_claude_opus_5()
+            ):
                 raise PrerequisiteError(
                     f"Computer use is not supported by the model '{self.service_model_name()}'. "
-                    "Anthropic's native computer use requires a Claude 4.x model or "
-                    "Claude Sonnet 5 (e.g. claude-opus-4-8, claude-sonnet-4-6, or "
-                    "claude-sonnet-5)."
+                    "Anthropic's native computer use requires a Claude 4.x model, "
+                    "Claude Sonnet 5, or Claude Opus 5 (e.g. claude-opus-4-8, "
+                    "claude-sonnet-5, or claude-opus-5)."
                 )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
@@ -1592,8 +1625,8 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            # computer_20251124 is supported by Claude Sonnet 5, Opus 4.6/4.7/4.8,
-            # Sonnet 4.6, and Opus 4.5
+            # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -1809,16 +1842,17 @@ def _supports_web_search(model_name: str) -> bool:
 
 
 def _supports_code_interpreter(model_name: str) -> bool:
+    # https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool#model-compatibility
+    # (all Claude 5 models — Opus, Sonnet, Fable, Mythos — support it)
     return model_name.startswith(
         (
             "claude-opus-4",
             "claude-sonnet-4",
-            "claude-sonnet-5",
             "claude-haiku-4",
             "claude-3-7-sonnet",
             "claude-3-5-haiku-latest",
         )
-    )
+    ) or _is_claude_5(model_name)
 
 
 def _supports_memory(model_name: str) -> bool:

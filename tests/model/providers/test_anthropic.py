@@ -1,5 +1,5 @@
 import types
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
@@ -167,6 +167,7 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
     "model_name,disabled",
     [
         # 4.7+ run adaptive thinking by default and accept `disabled`
+        ("claude-opus-5", True),
         ("claude-sonnet-5", True),
         ("claude-opus-4-8", True),
         ("claude-opus-4-7", True),
@@ -203,6 +204,42 @@ def test_anthropic_reasoning_effort_high_still_adaptive_on_sonnet_5() -> None:
         GenerateConfig(max_tokens=64, reasoning_effort="high")
     )
     assert params["thinking"]["type"] == "adaptive"
+
+
+@pytest.mark.parametrize("effort", ["xhigh", "max"])
+def test_anthropic_opus_5_disabled_thinking_clamps_effort(
+    effort: Literal["xhigh", "max"],
+) -> None:
+    """Opus 5 rejects disabled thinking with effort above `high`; clamp to `high`."""
+    api = AnthropicAPI(model_name="claude-opus-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
+    )
+    assert params["thinking"] == {"type": "disabled"}
+    assert params["output_config"]["effort"] == "high"
+
+
+@pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-sonnet-5"])
+def test_anthropic_disabled_thinking_keeps_high_effort_elsewhere(
+    model_name: str,
+) -> None:
+    """Opus 4.8 / Sonnet 5 accept disabled thinking with effort above `high`."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort="xhigh")
+    )
+    assert params["thinking"] == {"type": "disabled"}
+    assert params["output_config"]["effort"] == "xhigh"
+
+
+def test_anthropic_opus_5_disabled_thinking_keeps_high_effort() -> None:
+    """Effort at or below `high` passes through unclamped on Opus 5."""
+    api = AnthropicAPI(model_name="claude-opus-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort="high")
+    )
+    assert params["thinking"] == {"type": "disabled"}
+    assert params["output_config"]["effort"] == "high"
 
 
 @pytest.mark.parametrize(
@@ -1210,6 +1247,33 @@ async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none
     assert len(response.completion) >= 1
 
 
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_5_reasoning_effort_none_live() -> None:
+    """Opus 5 runs adaptive thinking by default; reasoning_effort='none' must disable it."""
+    model = get_model(
+        "anthropic/claude-opus-5",
+        config=GenerateConfig(reasoning_effort="none", max_tokens=64),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+    content = response.choices[0].message.content
+    if isinstance(content, list):
+        assert not any(c.type == "reasoning" for c in content)
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
+    """reasoning_effort='none' + effort='xhigh' must not 400 on Opus 5 (clamped to high)."""
+    model = get_model(
+        "anthropic/claude-opus-5",
+        config=GenerateConfig(reasoning_effort="none", effort="xhigh", max_tokens=64),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
 # ---------------------------------------------------------------------------
 # max_tokens caps across model versions (incl. forward-compat routing)
 # ---------------------------------------------------------------------------
@@ -1223,7 +1287,8 @@ async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none
         ("claude-opus-4-7", 128000),
         # Hypothetical future minor opus version: 128k via frontier+opus
         ("claude-opus-4-8", 128000),
-        # Claude 5 (GA fable + hypothetical tier-named): 128k via "claude 5+" branch
+        # Claude 5 (GA opus/fable + hypothetical tier-named): 128k via "claude 5+" branch
+        ("claude-opus-5", 128000),
         ("claude-fable-5", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
@@ -1252,6 +1317,7 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
     "model_name",
     [
         # GA / limited-release names
+        "claude-opus-5",
         "claude-fable-5",
         "claude-mythos-5",
         # forward-compat variants: point release, tier-named, new codename
@@ -1262,7 +1328,10 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
 )
 def test_anthropic_claude_5_is_known_frontier(model_name: str) -> None:
     """Any claude-*-5 is a known frontier version, not 'latest'/unknown."""
-    from inspect_ai.model._providers.anthropic import _supports_memory
+    from inspect_ai.model._providers.anthropic import (
+        _supports_code_interpreter,
+        _supports_memory,
+    )
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     assert api.is_claude_5() is True
@@ -1270,8 +1339,10 @@ def test_anthropic_claude_5_is_known_frontier(model_name: str) -> None:
     assert api.is_claude_frontier() is True
     assert api.is_claude_4_7_or_later() is True
     assert api.is_claude_4_8_or_later() is True
-    # native memory tool is enabled for all Claude 5 variants (per the launch docs)
+    # native memory and code-execution tools are enabled for all Claude 5
+    # variants (per the launch docs)
     assert _supports_memory(api.model_family()) is True
+    assert _supports_code_interpreter(api.model_family()) is True
 
 
 # ---------------------------------------------------------------------------
@@ -1294,13 +1365,13 @@ def _computer_tool_info() -> ToolInfo:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-opus-5-0"]
+    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-saga-5"]
 )
 def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
     """Undocumented Claude 5 models error on computer use rather than degrade.
 
-    Covers Fable/Mythos and forward-compat non-Sonnet variants (e.g. Opus 5).
-    Sonnet 5 is supported and covered by test_anthropic_computer_use_tool_version.
+    Covers Fable/Mythos and forward-compat codename variants. Sonnet 5 and
+    Opus 5 are supported and covered by test_anthropic_computer_use_tool_version.
     """
     from inspect_ai._util.error import PrerequisiteError
 
@@ -1322,8 +1393,9 @@ def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
         ("claude-opus-4-6", "computer_20251124"),
         ("claude-opus-4-5", "computer_20251124"),
         ("claude-sonnet-4-6", "computer_20251124"),
-        # Sonnet 5: the one Claude 5 model Anthropic documents for computer use
+        # Sonnet 5 / Opus 5: the Claude 5 models Anthropic documents for computer use
         ("claude-sonnet-5", "computer_20251124"),
+        ("claude-opus-5", "computer_20251124"),
         # Older 4.x → computer_20250124
         ("claude-sonnet-4-5", "computer_20250124"),
         ("claude-haiku-4-5", "computer_20250124"),
