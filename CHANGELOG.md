@@ -10,6 +10,7 @@
 - Control Channel: `inspect ctl config` changes are now recorded in each affected eval log (`EvalLog.config_updates`, with author, timestamp, optional `--reason`, and old → new values); `effective_eval_config()`/`effective_generate_config()` fold them over the launch config.
 - Control Channel: New `inspect ctl task pause|resume` and `inspect ctl process pause|resume` commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with `paused`/`quiesced` reported by `inspect ctl task list`.
 - Control Channel: New `inspect ctl process anomalies [PID]` shows a running process's in-flight and anomalous trace actions by reading its trace file directly, so it works against busy, hung, or even exited processes.
+- Control Channel: The control server now rejects socket connections from other users (SO_PEERCRED / LOCAL_PEERCRED peer-UID check), as defence-in-depth alongside the socket file permissions.
 - Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
 - OpenAI Compatible: A length-truncated streaming response (e.g. `-M stream=true` hitting `max_tokens`) now degrades gracefully to a `max_tokens` stop reason instead of raising `LengthFinishReasonError` and aborting the eval. (#4552)
 - OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
@@ -79,7 +80,6 @@
 - Control Channel: `inspect ctl sample show` now reports a cancelled sample as `cancelled`/`pending` (matching `sample list`) instead of `error` with the cancellation as its error.
 - Control Channel: The control server's mutation endpoints (config PATCH, keep/release, log-flush) now reject unknown query parameters with a 400 error before applying anything, instead of silently ignoring them.
 - Control Channel: Added `inspect ctl task cancel` and `inspect ctl sample cancel` to cancel a running task or one running sample (idempotent, with `--dry-run`).
-- Control Channel: The control server now rejects socket connections from other users (SO_PEERCRED / LOCAL_PEERCRED peer-UID check), as defence-in-depth alongside the socket file permissions.
 - Model API: Fixed `max_retries` to permit N retries (N+1 total attempts); previously it counted total attempts, so e.g. `max_retries=1` never actually retried.
 - Performance: Transcript events are now validated through a pydantic discriminator when reading logs (`read_eval_log`, `eval-retry`, `events_df`/`messages_df`), a single keyed lookup instead of trying all 23 `Event` union members in turn; ~6.4x faster per-event validation on large logs, with no change to the log format. (#4445)
 - Bedrock: Assistant text and reasoning are now preserved alongside tool calls in the same turn instead of being dropped. (#4457)
