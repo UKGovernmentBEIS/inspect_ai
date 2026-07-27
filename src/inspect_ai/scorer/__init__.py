@@ -31,6 +31,7 @@ from ._model import model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
 from ._pattern import pattern
 from ._perplexity import perplexity
+from ._precomputed import precomputed_scores
 from ._reducer import (
     ScoreReducer,
     ScoreReducers,
@@ -94,6 +95,7 @@ __all__ = [
     "perplexity",
     "perplexity_per_seq",
     "perplexity_per_token",
+    "precomputed_scores",
     "score",
     "score_reducer",
     "scorer",
