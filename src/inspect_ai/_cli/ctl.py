@@ -2013,12 +2013,20 @@ def _echo_idle_pointer(rows: list[dict[str, Any]], read: list[dict[str, Any]]) -
     the table already shows the stall the surface teaches the escalation
     (see :func:`_anomalies_pointer`) rather than relying on the user knowing
     the trace subsystem exists. ``read`` (the targets whose samples were
-    fetched) supplies the pid; when the stalled rows span several processes
-    the bare verb is suggested, which reads them all. Human rendering only —
-    the ``--json`` path returns before any table is printed.
+    fetched) supplies the pid, keyed by ``task_id`` — the only target
+    identity a row carries. A ``task_id`` is not unique across ``read`` (an
+    old kept-alive attempt a newer process is retrying shares it — see
+    ``stop_on_task_id`` on :func:`_fetch_summaries` — and pre-task-id
+    servers report none), so a task read from several processes counts them
+    all: naming one would risk pointing at the wrong process. Whenever the
+    stalled rows resolve to anything but exactly one pid the bare verb is
+    suggested, which reads every process. Human rendering only — the
+    ``--json`` path returns before any table is printed.
     """
     now = datetime.now(timezone.utc).timestamp()
-    pid_by_task = {t.get("task_id"): t.get("pid") for t in read}
+    pids_by_task: dict[Any, set[Any]] = {}
+    for target in read:
+        pids_by_task.setdefault(target.get("task_id"), set()).add(target.get("pid"))
     idles: list[float] = []
     pids: set[Any] = set()
     for sample in rows:
@@ -2028,7 +2036,7 @@ def _echo_idle_pointer(rows: list[dict[str, Any]], read: list[dict[str, Any]]) -
         idle = now - float(last)
         if idle >= _IDLE_POINTER_MIN_SECONDS:
             idles.append(idle)
-            pids.add(pid_by_task.get(sample.get("task_id")))
+            pids.update(pids_by_task.get(sample.get("task_id")) or {None})
     if not idles:
         return
     only = next(iter(pids)) if len(pids) == 1 else None

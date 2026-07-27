@@ -1723,6 +1723,40 @@ def test_sample_list_idle_pointer_spans_processes(
     )
 
 
+def test_sample_list_idle_pointer_duplicate_task_id_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task_id read from several processes degrades to the bare verb.
+
+    The duplicate-id corner: an old kept-alive attempt shares its task_id
+    with the newer process retrying it, and rows carry only the task_id —
+    the footer must suggest the verb that reads every process rather than
+    risk naming the attempt that has nothing in flight.
+    """
+    import time
+
+    stale = time.time() - 30 * 60
+    newer = _full_summary("aaa111", "t1", pid=9)
+    newer["eval_id"] = "eval_new"
+    older = _full_summary("aaa111", "t1", pid=7)
+    older["eval_id"] = "eval_old"
+    _patch_surface(
+        monkeypatch,
+        [newer, older],  # discovery is newest-first
+        samples_by_eval={
+            "eval_new": [_sample_row("s1", status="running", last_activity_at=stale)],
+            "eval_old": [
+                _sample_row("s1", status="error", error="boom", last_activity_at=stale)
+            ],
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert (
+        "`inspect ctl process anomalies` shows each running process's" in result.output
+    )
+
+
 def test_sample_list_scoped_busy_points_at_process_anomalies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
