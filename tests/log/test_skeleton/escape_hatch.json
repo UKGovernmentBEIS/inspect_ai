@@ -1,0 +1,51 @@
+{
+  "description": "Size escape hatch: a leaf tool span with >= escape_hatch_events descendant events is included despite the leaf-tool exclusion; a small leaf tool span is still excluded.",
+  "policy": {"escape_hatch_events": 5},
+  "events": [
+    {"event": "span_begin", "id": "S1", "name": "agent1", "type": "agent", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
+    {"event": "span_begin", "id": "TB", "parent_id": "S1", "span_id": "S1", "name": "big", "type": "tool", "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
+    {"event": "info", "span_id": "TB", "data": "a", "timestamp": "2026-01-01T00:00:02+00:00", "working_start": 2.0},
+    {"event": "info", "span_id": "TB", "data": "b", "timestamp": "2026-01-01T00:00:03+00:00", "working_start": 3.0},
+    {"event": "info", "span_id": "TB", "data": "c", "timestamp": "2026-01-01T00:00:04+00:00", "working_start": 4.0},
+    {"event": "span_end", "id": "TB", "span_id": "S1", "timestamp": "2026-01-01T00:00:05+00:00", "working_start": 5.0},
+    {"event": "span_begin", "id": "TS", "parent_id": "S1", "span_id": "S1", "name": "small", "type": "tool", "timestamp": "2026-01-01T00:00:06+00:00", "working_start": 6.0},
+    {"event": "info", "span_id": "TS", "data": "d", "timestamp": "2026-01-01T00:00:07+00:00", "working_start": 7.0},
+    {"event": "span_end", "id": "TS", "span_id": "S1", "timestamp": "2026-01-01T00:00:08+00:00", "working_start": 8.0},
+    {"event": "span_end", "id": "S1", "timestamp": "2026-01-01T00:00:09+00:00", "working_start": 9.0}
+  ],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 10, "models": 0},
+    "spans": [
+      {
+        "id": "S1",
+        "name": "agent1",
+        "type": "agent",
+        "begin": 0,
+        "extent": [0, 9],
+        "t": ["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:09+00:00"],
+        "working": [0.0, 9.0],
+        "events": 10,
+        "models": 0,
+        "gap_models": [0, 0],
+        "children": {"info": 1}
+      },
+      {
+        "id": "TB",
+        "parent": 0,
+        "name": "big",
+        "type": "tool",
+        "begin": 1,
+        "extent": [1, 5],
+        "t": ["2026-01-01T00:00:01+00:00", "2026-01-01T00:00:05+00:00"],
+        "working": [1.0, 5.0],
+        "events": 5,
+        "models": 0,
+        "gap_models": [0],
+        "children": {"info": 3}
+      }
+    ],
+    "notables": [],
+    "overflow": {}
+  }
+}
