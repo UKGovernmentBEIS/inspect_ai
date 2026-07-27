@@ -31,7 +31,10 @@ from collections.abc import Callable, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from inspect_ai._control.terminal_cache import TerminalSourceCache
+from inspect_ai._control.terminal_cache import (
+    TerminalSourceCache,
+    invalidate_terminal_sources,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
@@ -164,9 +167,10 @@ async def sample_events(
     source = _running_source(eval_id, sample_id, epoch)
     if source is not None:
         # a running attempt (a retry) supersedes any cached terminal source
-        # for this sample — drop it so the attempt's own terminal source is
-        # resolved fresh once it finishes (see terminal_cache)
-        _terminal_sources.invalidate((eval_id, sample_id, epoch))
+        # for this sample — drop it (from every projection's cache, not just
+        # this endpoint's) so the attempt's own terminal source is resolved
+        # fresh once it finishes (see terminal_cache)
+        invalidate_terminal_sources((eval_id, sample_id, epoch))
     else:
         source = await _logged_source(eval_id, sample_id, epoch)
     if source is None:
@@ -341,9 +345,10 @@ async def _resolve_logged_source(
                 # the page fetch gets the same degrade contract as the
                 # event_count read above: a teardown landing between the two
                 # serves a short (empty) page instead of failing the request.
-                # `next` advances only by what was served, so the client's
-                # retry re-resolves the source (recorder / on-disk log)
-                # without skipping events.
+                # `next` advances only by what was served, so no events are
+                # skipped — the client's retry re-resolves the source
+                # (recorder / on-disk log) once the cached entry expires
+                # (see _terminal_sources).
                 def fetch_buffered(start: int, limit: int) -> Sequence["Event"]:
                     try:
                         return resolved_provider.events_from(start, limit)

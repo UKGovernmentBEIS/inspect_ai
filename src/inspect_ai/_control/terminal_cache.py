@@ -19,9 +19,11 @@ Staleness is bounded by construction:
   source is never more than ``ttl`` seconds old.
 - The one way a terminal source is superseded is a retry — a fresh attempt
   under the same ``(eval_id, sample_id, epoch)``. The events / messages
-  readers invalidate the key whenever they resolve a *running* source for
-  it, so a poll that observes the retry in flight drops the prior attempt's
-  entry immediately rather than waiting out the TTL. (A retry that starts
+  readers call :func:`invalidate_terminal_sources` whenever they resolve a
+  *running* source for the key, dropping it from *every* registered cache —
+  so a poll on either endpoint that observes the retry in flight drops the
+  prior attempt's entry immediately rather than waiting out the TTL, for
+  both endpoints (not just the one that observed it). (A retry that starts
   *and* terminates between polls can still serve the prior attempt for up
   to one TTL; the attempt nonce in the events cursor means a client's
   cursor simply restarts rather than misreading offsets.)
@@ -155,6 +157,19 @@ class TerminalSourceCache(Generic[T]):
     def clear(self) -> None:
         """Drop every entry."""
         self._entries.clear()
+
+
+def invalidate_terminal_sources(key: SourceKey) -> None:
+    """Drop ``key`` from every terminal-source cache.
+
+    Called by the events / messages readers when they resolve a *running*
+    source for the key: the retry supersedes the prior attempt's terminal
+    source in every projection of it, so the invalidation must reach both
+    caches — a per-cache invalidate would leave the other endpoint serving
+    the prior attempt for up to one TTL after the retry was observed.
+    """
+    for cache in _caches:
+        cache.invalidate(key)
 
 
 def clear_terminal_source_caches() -> None:

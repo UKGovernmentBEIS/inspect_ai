@@ -300,6 +300,33 @@ async def test_terminal_source_resolved_once_across_polls(
         clear_all_eval_states()
 
 
+async def test_running_attempt_invalidates_other_endpoints_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Observing a retry on the messages endpoint drops the events cache too.
+
+    The mirror of the events-side test: a retry supersedes the prior
+    attempt's terminal source in both projections, so the invalidation must
+    reach every registered cache, not just this endpoint's.
+    """
+    import inspect_ai._control.events as events_mod
+    import inspect_ai._control.messages as messages_mod
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.events import EventsSource
+
+    key = ("e1", "1", 1)
+    events_mod._terminal_sources.put(
+        key, EventsSource(nonce="n", fetch=lambda start, limit: [], total=0, done=True)
+    )
+
+    running = _fake_running_sample([ChatMessageUser(content="retrying")])
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [running])
+    assert await sample_messages("e1", "1", 1) is not None
+
+    assert events_mod._terminal_sources.get(key) is None
+    assert messages_mod._terminal_sources.get(key) is None
+
+
 async def test_terminal_errored_sample_reports_error_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

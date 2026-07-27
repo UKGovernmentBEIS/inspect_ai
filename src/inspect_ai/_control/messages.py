@@ -27,7 +27,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 # The compact message projection shares its truncation helpers with the events
 # projection so the two renderings of the same underlying objects can't drift.
 from inspect_ai._control.events import _to_text, _truncate
-from inspect_ai._control.terminal_cache import TerminalSourceCache
+from inspect_ai._control.terminal_cache import (
+    TerminalSourceCache,
+    invalidate_terminal_sources,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.model._chat_message import ChatMessage
@@ -86,9 +89,10 @@ async def sample_messages(
     source = _running_source(eval_id, sample_id, epoch)
     if source is not None:
         # a running attempt (a retry) supersedes any cached terminal source
-        # for this sample — drop it so the attempt's own terminal source is
-        # resolved fresh once it finishes (see terminal_cache)
-        _terminal_sources.invalidate((eval_id, sample_id, epoch))
+        # for this sample — drop it (from every projection's cache, not just
+        # this endpoint's) so the attempt's own terminal source is resolved
+        # fresh once it finishes (see terminal_cache)
+        invalidate_terminal_sources((eval_id, sample_id, epoch))
     else:
         source = await _logged_source(eval_id, sample_id, epoch)
     if source is None:

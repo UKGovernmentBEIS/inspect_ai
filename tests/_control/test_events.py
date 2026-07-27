@@ -463,6 +463,38 @@ async def test_running_attempt_invalidates_cached_terminal_source(
     assert [e["source"] for e in page["events"]] == ["attempt2"]
 
 
+async def test_running_attempt_invalidates_other_endpoints_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Observing a retry on one endpoint drops the key from *every* cache.
+
+    A retry supersedes the prior attempt's terminal source in both
+    projections, so an events poll that observes it running must invalidate
+    the messages cache too (and vice versa) — otherwise a messages request
+    within the TTL would still serve the prior attempt's conversation.
+    """
+    import inspect_ai._control.events as events_mod
+    import inspect_ai._control.messages as messages_mod
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.messages import MessagesSource
+
+    key = ("e1", "1", 1)
+    messages_mod._terminal_sources.put(
+        key, MessagesSource(messages=[], status="completed")
+    )
+
+    running = _fake_running_sample(
+        sample_uuid="u1",
+        events=[_info_at("retrying", _now())],
+        error_retries=[object()],
+    )
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [running])
+    assert await sample_events("e1", "1", 1) is not None
+
+    assert messages_mod._terminal_sources.get(key) is None
+    assert events_mod._terminal_sources.get(key) is None
+
+
 def test_terminal_source_cache_evicts_oldest_when_full() -> None:
     """The entry cap evicts oldest-inserted first (memory bound, not LRU)."""
     from inspect_ai._control.terminal_cache import TerminalSourceCache
