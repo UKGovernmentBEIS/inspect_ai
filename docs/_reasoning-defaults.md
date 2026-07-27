@@ -5,6 +5,7 @@
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
+| anthropic/claude-opus-5 | high |
 | anthropic/claude-sonnet-4-6 | adaptive |
 | anthropic/claude-sonnet-5 | high |
 | deepseek/deepseek-reasoner | no effort scale |

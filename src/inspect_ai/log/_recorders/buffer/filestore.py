@@ -1,3 +1,4 @@
+import hashlib
 import os
 import tempfile
 from collections.abc import Iterator
@@ -20,7 +21,13 @@ from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
 
 from ..._log import EvalSampleSummary
-from .types import SampleBuffer, SampleData, Samples, TranscriptEventSink
+from .types import (
+    SampleBuffer,
+    SampleData,
+    Samples,
+    TranscriptEventSink,
+    parse_sample_metadata,
+)
 
 if TYPE_CHECKING:
     from .history import SampleHistory
@@ -54,6 +61,7 @@ class SegmentFile(BaseModel):
 class SampleManifest(BaseModel):
     summary: EvalSampleSummary
     segments: list[SampleSegmentEntry] = Field(default_factory=list)
+    metadata_hash: str | None = None
 
 
 class Manifest(BaseModel):
@@ -166,6 +174,7 @@ class PendingSampleSegments:
 
 
 MANIFEST = "manifest.json"
+SAMPLE_METADATA_IN_SUMMARY = "summary"
 
 
 def _is_s3_tagging_denied(ex: Exception) -> bool:
@@ -265,6 +274,13 @@ class SampleBufferFilestore(SampleBuffer):
         finally:
             os.unlink(name)
 
+    def write_sample_metadata(
+        self, id: str | int, epoch: int, metadata_hash: str, metadata: bytes
+    ) -> None:
+        self._write_bytes(
+            self._sample_metadata_file(id, epoch, metadata_hash), metadata
+        )
+
     def read_manifest(self) -> Manifest | None:
         try:
             with open_file(self._manifest_file(), "r") as f:
@@ -281,6 +297,40 @@ class SampleBufferFilestore(SampleBuffer):
             with ZipFile(f, mode="r") as zip:
                 with zip.open(segment_file_name(sample_id, epoch_id), "r") as sf:
                     return SampleData.model_validate_json(sf.read())
+
+    def read_sample_metadata(
+        self,
+        id: str | int,
+        epoch: int,
+        manifest: Manifest | None = None,
+    ) -> dict[str, Any] | None:
+        manifest = manifest or self.read_manifest()
+        if manifest is None:
+            return None
+        sample = _find_sample(manifest, id, epoch)
+        if sample is None or sample.metadata_hash is None:
+            return None
+        if sample.metadata_hash == SAMPLE_METADATA_IN_SUMMARY:
+            return sample.summary.metadata
+        try:
+            with open_file(
+                self._sample_metadata_file(id, epoch, sample.metadata_hash), "rb"
+            ) as f:
+                contents = f.read()
+            actual_hash = hashlib.sha256(contents).hexdigest()
+            if actual_hash != sample.metadata_hash:
+                raise ValueError(
+                    f"sample metadata hash mismatch for id={id} epoch={epoch}"
+                )
+            return parse_sample_metadata(contents, id=id, epoch=epoch)
+        except (FileNotFoundError, ValueError) as ex:
+            logger.warning(
+                "Unable to read sample metadata for id=%s epoch=%s: %s",
+                id,
+                epoch,
+                ex,
+            )
+            return None
 
     def iter_sample_segments(
         self,
@@ -435,6 +485,10 @@ class SampleBufferFilestore(SampleBuffer):
         return sample_data
 
     @override
+    def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        return self.read_sample_metadata(id, epoch)
+
+    @override
     def sample_event_count(self, id: str | int, epoch: int) -> int:
         raise NotImplementedError("Sample history is only available for buffer DBs")
 
@@ -539,6 +593,13 @@ class SampleBufferFilestore(SampleBuffer):
 
     def _manifest_file(self) -> str:
         return f"{self._dir}{MANIFEST}"
+
+    def _sample_metadata_file(
+        self, id: str | int, epoch: int, metadata_hash: str
+    ) -> str:
+        key = to_json_str_safe([str(id), epoch]).encode("utf-8")
+        digest = hashlib.sha256(key).hexdigest()
+        return f"{self._dir}metadata.{digest}.{metadata_hash}.json"
 
 
 def cleanup_sample_buffer_filestores(log_dir: str) -> None:
