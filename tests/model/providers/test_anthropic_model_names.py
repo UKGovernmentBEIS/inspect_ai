@@ -550,10 +550,12 @@ def test_claude_4_6_opus(model_name: str) -> None:
 @pytest.mark.parametrize(
     "model_name",
     [
-        # GA + limited-release names (no tier word)
+        # GA + limited-release names
+        "claude-opus-5",
         "claude-fable-5",
         "claude-mythos-5",
         # Bedrock
+        "anthropic.claude-opus-5",
         "anthropic.claude-fable-5",
         # Point releases (hyphen + dot forms)
         "claude-fable-5-1",
