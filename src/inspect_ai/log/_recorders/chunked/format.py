@@ -45,7 +45,7 @@ from collections.abc import Container
 from typing import Literal, NamedTuple
 
 DEFAULT_CHUNK_SIZE = 1000
-DEFAULT_ATTACHMENTS_CHUNK_BYTES = 2 * 1024 * 1024
+DEFAULT_ATTACHMENTS_CHUNK_BYTES = 10 * 1024 * 1024
 
 SAMPLES_DIR = "samples"
 SHELL_JSON = "sample.json"
