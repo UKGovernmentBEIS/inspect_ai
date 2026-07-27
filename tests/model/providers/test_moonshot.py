@@ -3,6 +3,7 @@ from test_helpers.utils import skip_if_no_moonshot
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.model import (
+    ChatMessageAssistant,
     ChatMessageUser,
     GenerateConfig,
     get_model,
@@ -212,6 +213,72 @@ def test_moonshot_base_url_default(mock_moonshot_env):
     assert api.base_url == "https://api.moonshot.ai/v1"
 
 
+def test_moonshot_retries_503_as_rate_limit(mock_moonshot_env) -> None:
+    """503 must be retried as a rate limit (scales down adaptive concurrency)."""
+    import httpx
+    from openai import InternalServerError
+
+    from inspect_ai.model._model import RetryDecision
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k3")
+
+    def sdk_error(status_code: int, headers: dict[str, str] | None = None):
+        response = httpx.Response(
+            status_code=status_code,
+            headers=headers,
+            request=httpx.Request(
+                "POST", "https://api.moonshot.ai/v1/chat/completions"
+            ),
+        )
+        return InternalServerError("Server Error", response=response, body=None)
+
+    # SDK-shaped 503 (honoring Retry-After when the server provides one)
+    decision = api.should_retry(sdk_error(503, headers={"retry-after": "7"}))
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "rate_limit"
+    assert decision.retry_after == 7
+
+    # non-SDK exception shape carrying a 503 status code
+    class ServiceUnavailableError(Exception):
+        status_code = 503
+
+    decision = api.should_retry(ServiceUnavailableError())
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "rate_limit"
+
+    # other 5xx still classify as transient via the base
+    decision = api.should_retry(sdk_error(500))
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "transient"
+
+    # non-retryable statuses still don't retry
+    class NotFoundError(Exception):
+        status_code = 404
+
+    assert not api.should_retry(NotFoundError())
+
+
+async def test_moonshot_fills_empty_assistant_content(mock_moonshot_env):
+    """The API rejects assistant messages with empty content — fill with NO_CONTENT."""
+    from inspect_ai._util.constants import NO_CONTENT
+    from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+    api = MoonshotAPI(model_name="kimi-k3")
+    messages = await api.messages_to_openai(
+        [
+            ChatMessageUser(content="Say hello."),
+            ChatMessageAssistant(content=""),
+            ChatMessageAssistant(content="Hello!"),
+        ]
+    )
+    assert messages[1]["content"] == NO_CONTENT
+    assert messages[2]["content"] == "Hello!"
+
+
 @skip_if_no_moonshot
 async def test_moonshot_compatible() -> None:
     # K3 thinking is always on, so the token budget must cover reasoning
@@ -242,6 +309,20 @@ async def test_moonshot_kimi_k3_fixed_sampling_live() -> None:
     message = ChatMessageUser(content="Hello Kimi!")
     res = await model.generate(input=[message])
     assert res.choices
+
+
+@skip_if_no_moonshot
+async def test_moonshot_empty_assistant_message() -> None:
+    """Replaying an empty assistant message must not 400 (filled with NO_CONTENT)."""
+    model = get_model("moonshot/kimi-k3", config=GenerateConfig(max_tokens=2048))
+    res = await model.generate(
+        input=[
+            ChatMessageUser(content="Say hello."),
+            ChatMessageAssistant(content=""),
+            ChatMessageUser(content="Please continue."),
+        ]
+    )
+    assert len(res.completion) >= 1
 
 
 @skip_if_no_moonshot

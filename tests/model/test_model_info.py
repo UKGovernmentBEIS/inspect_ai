@@ -273,7 +273,7 @@ class TestModelInfoFields:
 class TestModelDataConsistency:
     """Consistency checks across the model data YAML files."""
 
-    def test_colliding_lookup_keys_agree_across_files(self):
+    def test_colliding_lookup_keys_agree_across_files(self) -> None:
         """Entries in different files that collide on a lookup key must agree.
 
         Cross-file duplicates exist (e.g. moonshotai.yml's `moonshotai/kimi-k2.5`
