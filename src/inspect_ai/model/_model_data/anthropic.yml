@@ -60,6 +60,23 @@ anthropic:
           snapshot: "20260528"
           aliases:
             - anthropic.claude-opus-4-8
+    claude-opus-5:
+      display_name: Claude Opus 5
+      release_date: 2026-07-24
+      knowledge_cutoff_date: 2026-05-01
+      context_length: 1000000
+      output_tokens: 128000
+      reasoning: True
+      # Adaptive thinking runs by default when no thinking config is sent
+      # (unlike Opus 4.8, which defaults to no thinking); server-side default
+      # effort is `high`. thinking can still be disabled at effort <= high.
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: high
+      versions:
+        claude-opus-5:
+          snapshot: "20260724"
+          aliases:
+            - anthropic.claude-opus-5
     claude-fable-5:
       display_name: Claude Fable 5
       release_date: 2026-06-09
