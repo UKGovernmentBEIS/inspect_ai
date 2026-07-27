@@ -2,18 +2,22 @@ import json
 from typing import Any, Literal
 
 from inspect_ai._util.file import file
+from inspect_ai._util.registry import RegistryInfo, registry_name, registry_tag
 from inspect_ai.solver._task_state import TaskState
 
-from ._metric import Score
+from ._metric import Metric, Score
 from ._metrics.accuracy import accuracy
 from ._metrics.std import stderr
-from ._scorer import Scorer, scorer
+from ._scorer import SCORER_METRICS, Scorer, scorer_register
 from ._target import Target
 
 
-@scorer(metrics=[accuracy(), stderr()])
 def precomputed_scores(
-    scores: str, on_missing: Literal["unscored", "error"] = "unscored"
+    scores: str,
+    on_missing: Literal["unscored", "error"] = "unscored",
+    metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None = None,
 ) -> Scorer:
     """Scorer that applies scores computed outside of Inspect.
 
@@ -33,9 +37,8 @@ def precomputed_scores(
     Supported formats are JSON (an array of objects) and JSON Lines
     (`.jsonl`, one object per line).
 
-    To score with metrics other than the default accuracy and stderr,
-    either pass `metrics` to `score()` or wrap this scorer in your own
-    `@scorer`-decorated factory:
+    To also name the score, wrap this scorer in your own
+    `@scorer`-decorated factory (the score takes the factory's name):
 
     ```python
     @scorer(metrics={"helpful": [mean()], "harmless": [mean()]})
@@ -50,6 +53,10 @@ def precomputed_scores(
             "unscored" (the default) leaves it unscored, so metrics are
             computed over the matched samples only. "error" raises,
             for a scores file intended to cover every sample.
+        metrics: Metrics to aggregate the scores with, defaulting to
+            accuracy and stderr. Use a dict mapping subscore keys to
+            metrics for dict-valued scores. Recorded in the log's scorer
+            entry, so rescoring the log reuses them.
     """
     if on_missing not in ("unscored", "error"):
         raise ValueError(
@@ -69,7 +76,34 @@ def precomputed_scores(
             )
         return found.model_copy(deep=True) if found is not None else None
 
+    params: dict[str, Any] = {"scores": scores}
+    if on_missing != "unscored":
+        params["on_missing"] = on_missing
+    if metrics is not None:
+        params["metrics"] = metrics
+
+    registry_tag(
+        precomputed_scores,
+        score,
+        RegistryInfo(
+            type="scorer",
+            name=registry_name(precomputed_scores, "precomputed_scores"),
+            metadata={
+                SCORER_METRICS: metrics
+                if metrics is not None
+                else [accuracy(), stderr()]
+            },
+        ),
+        **params,
+    )
     return score
+
+
+scorer_register(
+    precomputed_scores,
+    name=registry_name(precomputed_scores, "precomputed_scores"),
+    metadata={SCORER_METRICS: []},
+)
 
 
 def _read_scores_file(scores_file: str) -> dict[tuple[str, int | None], Score]:

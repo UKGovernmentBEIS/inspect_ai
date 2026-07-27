@@ -5,9 +5,12 @@ import pytest
 
 from inspect_ai import Task, eval, score
 from inspect_ai._eval.score import resolve_scorers
+from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
+from inspect_ai.log._log import EvalMetricDefinition
 from inspect_ai.scorer import Scorer, mean, precomputed_scores, scorer
+from inspect_ai.scorer._scorer import scorer_metrics
 
 
 def run_eval(epochs: int = 1) -> EvalLog:
@@ -147,6 +150,50 @@ def test_precomputed_scores_custom_metrics(tmp_path: Path) -> None:
     by_name = {s.name: s for s in log.results.scores}
     assert by_name["helpful"].metrics["mean"].value == 0.5
     assert by_name["harmless"].metrics["mean"].value == 0.5
+
+
+def test_precomputed_scores_metrics(tmp_path: Path) -> None:
+    scores_file = write_records(
+        tmp_path / "scores.json",
+        [
+            {"id": "s1", "value": {"helpful": 1, "harmless": 0}},
+            {"id": "s2", "value": {"helpful": 0, "harmless": 1}},
+        ],
+    )
+
+    log = score(
+        run_eval(),
+        precomputed_scores(
+            scores_file, metrics={"helpful": [mean()], "harmless": [mean()]}
+        ),
+    )
+
+    assert log.results is not None
+    by_name = {s.name: s for s in log.results.scores}
+    assert by_name["helpful"].metrics["mean"].value == 0.5
+    assert by_name["harmless"].metrics["mean"].value == 0.5
+
+
+def test_precomputed_scores_metrics_rescorable(tmp_path: Path) -> None:
+    scores_file = write_records(tmp_path / "scores.json", [{"id": "s1", "value": 1}])
+
+    log = score(run_eval(), precomputed_scores(scores_file, metrics=[mean()]))
+
+    assert log.eval.scorers is not None
+    header_scorer = log.eval.scorers[-1]
+    assert header_scorer.options == {
+        "scores": scores_file,
+        "metrics": [{"type": "metric", "name": "mean", "params": {}}],
+    }
+    assert header_scorer.metrics == [
+        EvalMetricDefinition(name="inspect_ai/mean", options={})
+    ]
+
+    resolved = resolve_scorers(log)
+    assert len(resolved) == 1
+    assert [registry_info(m).name for m in scorer_metrics(resolved[0])] == [
+        "inspect_ai/mean"
+    ]
 
 
 def test_precomputed_scores_rescorable(tmp_path: Path) -> None:
