@@ -2,6 +2,7 @@
 
 - Checkpointing: Sandbox snapshots now support selectable strategies — incremental restic (default) or complete per-checkpoint archives with mid-run storage reclamation. (#4601)
 - AsyncFilesystem: New `delete_file()` method deletes a file on local or remote (e.g. S3) filesystems, treating a missing file as a no-op.
+- Bugfix: `is_data_uri()` now recognizes base64 data URIs that carry media-type parameters (e.g. `;charset=utf-8`) or an empty media type (`data:;base64,...`), which were previously misclassified as non-data URIs.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
