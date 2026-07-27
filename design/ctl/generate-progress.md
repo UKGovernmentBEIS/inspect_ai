@@ -42,7 +42,7 @@ Non-goals:
 Three layers, deliverable in order, each useful without the next:
 
 1. **Activity indicator** — expose the pending-op read the TUI already does through the control channel and CLI. No provider changes. Closes the headline misreading ("generating 7:12" instead of a bare idle clock).
-2. **Progress channel** — a cheap `report_model_progress()` path from provider streaming loops onto the pending event; providers that already iterate a stream call it per delta with cumulative output tokens where the provider supplies them.
+2. **Progress channel** — a cheap `report_active_model_progress()` path from provider streaming loops onto the pending event; providers that already iterate a stream call it per delta with cumulative output tokens where the provider supplies them.
 3. **Idle upgrade** — `last_activity_at` becomes `max(last event timestamp, in-flight progress timestamps)`, so idle = time since last observed progress. Falls out of layer 2 server-side; old CLIs get the improved idle for free.
 
 ### Layer 1 — activity indicator
@@ -51,7 +51,7 @@ Three layers, deliverable in order, each useful without the next:
 
 ```json
 "activity": {
-  "type": "model",                    // "model" | "tool"
+  "type": "model",                    // "model" | "tool" (open question 5 adds "retry_wait")
   "count": 1,                         // concurrent pending ops of that type
   "started_at": 1753649000.1,         // earliest pending op's timestamp (unix ts)
   "detail": "openai/gpt-5-nano",      // model name, or tool function
@@ -61,7 +61,9 @@ Three layers, deliverable in order, each useful without the next:
 }
 ```
 
-Elapsed is client-computed (`now - started_at`), matching the idle column's convention and the TUI clock's definition (wall-clock from the pending event's `timestamp`). `retries` comes from the pending `ModelEvent.retries` — which counts provider-SDK-internal retries within the current attempt; outer tenacity retries emit *completed* error events (which already advance `last_activity_at`) and re-enter with a fresh pending event, so the pending event's own clock always describes the current attempt. Note `report_active_sample_retry` mutates the live event without `transcript()._event_updated()` — fine here, since this read holds the same in-memory object.
+Elapsed is client-computed (`now - started_at`), matching the idle column's convention and the TUI clock's definition (wall-clock from the pending event's `timestamp`). `retries` comes from the pending `ModelEvent.retries` — which counts provider-SDK-internal retries within the current attempt; an outer tenacity retry completes the failed attempt's event *in place* (`complete()` in `_record_model_interaction` sets `pending = None` but never re-stamps `event.timestamp`, so completion advances nothing) and re-enters with a fresh pending event, whose append is what moves `last_activity_at`. The pending event's own clock therefore always describes the current attempt. Note `report_active_sample_retry` mutates the live event without `transcript()._event_updated()` — fine here, since this read holds the same in-memory object.
+
+**Known gap: the tenacity backoff window.** Between attempts — after a failed attempt's event completes and before the next attempt appends its fresh pending event — there is no pending event at all, so `activity` is null while `idle` reads as the failed attempt's full duration plus the backoff elapsed so far (backoff waits reach minutes under rate limiting). That is the same "looks hung but is healthy" misreading this design exists to fix, recurring in exactly the state where an operator is most tempted to conclude a stall. Nothing observable records "waiting to retry" today: `Model.should_retry` → `report_http_retry` → `report_active_sample_retry` runs only after the exception has unwound out of `track_active_model_event`, so the `_active_model_event` ContextVar is already reset and the bump lands nowhere (within-attempt SDK retries fire it while the ContextVar is live, which is why `ModelEvent.retries` counts only those); and the listing's row-level `retries` counts sample-level `error_retries`, not generate-loop retries. The natural place to hang a signal is the retry loop itself: `model_retry_config`'s `on_before_sleep` (`src/inspect_ai/model/_retry.py`) already runs once per backoff and knows `rs.upcoming_sleep` and the attempt number — it could stamp a small retry-wait record on the active sample (there is no pending event to attach to during the wait) that `_active_sample_summary` reads as a third activity type, e.g. `"type": "retry_wait"` with `count` = attempt number, `detail` = model, and the wait deadline; cleared when the next attempt's pending event appends. Whether this ships inside layer 1 or as a fast follow is Open question 5.
 
 Additive response field, so **no `CONTROL_API_VERSION` bump** (per the skew policy in `_control/__init__.py`); an old CLI ignores it, a new CLI against an old server null-guards and renders as today.
 
@@ -140,7 +142,7 @@ The binding constraint (`endpoint-cost-audit.md`): the samples handler shares th
 
 ## Testing
 
-- `tests/_control/test_state.py`: activity classification (pending model / pending tool / both / none), `last_activity_at` max with progress timestamps, null-guarding on terminal and pending rows.
+- `tests/_control/test_state.py`: activity classification (pending model / pending tool / both / none), `last_activity_at` max with progress timestamps, null-guarding on terminal and pending rows; if the `retry_wait` state ships (open question 5), the backoff window classifies as `retry_wait` rather than null.
 - `tests/_control/test_ctl.py`: activity column rendering (conditional display, retries/tokens variants), `sample events` pending-row summary — alongside the existing idle-column tests.
 - Progress channel: unit-test `report_active_model_progress` under `track_active_model_event` (including two concurrent generates in one sample via `tg_collect`); mockllm can drive an end-to-end "listing shows generating + tokens mid-call" test by reporting progress from a stub provider.
 - Provider loops: per-provider tests are thin (assert the loop calls the reporter); the recorded-response harnesses don't exercise real streams, so live-API smoke coverage rides the existing provider test tiers.
@@ -151,3 +153,4 @@ The binding constraint (`endpoint-cost-audit.md`): the samples handler shares th
 2. **Labeled token estimates** for chunk-only providers (OpenAI-compatible until the final usage chunk): worth an `"estimated": true` variant, or does the heartbeat + null-tokens shape suffice? Proposed: ship without estimates and let demand decide.
 3. **Should `sample list` surface `last_progress_at` distinctly from `idle`** (e.g. for streamed calls, "stream quiet for M:SS")? The single upgraded idle number probably suffices; the JSON carries both regardless, so agents can compute anything.
 4. **Mid-flight token-limit awareness**: streamed counts make "this call will blow the sample's token limit" predictable before completion. Enforcement is explicitly out of scope here, but the progress record is the input a future design would need — worth keeping its shape provider-neutral.
+5. **The retry backoff window** (see the known gap under layer 1): should the `retry_wait` activity state ship inside layer 1, or as a fast follow? The gap is real — idle misreads during rate-limit backoffs, precisely when operators most suspect a stall — but the fix needs its own plumbing (a per-sample record stamped from `on_before_sleep`, since no pending event exists during the wait) rather than the pending-events read the rest of layer 1 reuses. Leaning ship-with: the layer's whole point is that a healthy-but-waiting sample must not read as hung, and a rate-limited sample is the commonest healthy-but-waiting case.
