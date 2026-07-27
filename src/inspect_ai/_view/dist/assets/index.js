@@ -10582,7 +10582,7 @@ var math_exports = /* @__PURE__ */ __exportAll({
 	is_finite: () => is_finite,
 	is_nan: () => is_nan,
 	least: () => least,
-	log: () => log$8,
+	log: () => log$9,
 	log10: () => log10,
 	log1p: () => log1p,
 	log2: () => log2,
@@ -10722,7 +10722,7 @@ function least(...values) {
 * @param {number} value The input number value.
 * @return {number} The base-e log value.
 */
-function log$8(value) {
+function log$9(value) {
 	return Math.log(value);
 }
 /**
@@ -12059,20 +12059,20 @@ var ternary = (node, ctx, visitors) => {
 	if (node.alternate) walk(node.alternate, ctx, visitors, node);
 };
 var func = (node, ctx, visitors) => {
-	list$5(node.params, ctx, visitors, node);
+	list$6(node.params, ctx, visitors, node);
 	walk(node.body, ctx, visitors, node);
 };
 var call = (node, ctx, visitors) => {
 	walk(node.callee, ctx, visitors, node);
-	list$5(node.arguments, ctx, visitors, node);
+	list$6(node.arguments, ctx, visitors, node);
 };
-var list$5 = (nodes, ctx, visitors, node) => {
+var list$6 = (nodes, ctx, visitors, node) => {
 	nodes.forEach((item) => walk(item, ctx, visitors, node));
 };
 var walkers = {
 	TemplateLiteral: (node, ctx, visitors) => {
-		list$5(node.expressions, ctx, visitors, node);
-		list$5(node.quasis, ctx, visitors, node);
+		list$6(node.expressions, ctx, visitors, node);
+		list$6(node.quasis, ctx, visitors, node);
 	},
 	MemberExpression: (node, ctx, visitors) => {
 		walk(node.object, ctx, visitors, node);
@@ -12081,7 +12081,7 @@ var walkers = {
 	CallExpression: call,
 	NewExpression: call,
 	ArrayExpression: (node, ctx, visitors) => {
-		list$5(node.elements, ctx, visitors, node);
+		list$6(node.elements, ctx, visitors, node);
 	},
 	AssignmentExpression: binary,
 	AwaitExpression: unary,
@@ -12091,7 +12091,7 @@ var walkers = {
 	UpdateExpression: unary,
 	ConditionalExpression: ternary,
 	ObjectExpression: (node, ctx, visitors) => {
-		list$5(node.properties, ctx, visitors, node);
+		list$6(node.properties, ctx, visitors, node);
 	},
 	Property: (node, ctx, visitors) => {
 		walk(node.key, ctx, visitors, node);
@@ -12101,7 +12101,7 @@ var walkers = {
 	FunctionExpression: func,
 	FunctionDeclaration: func,
 	VariableDeclaration: (node, ctx, visitors) => {
-		list$5(node.declarations, ctx, visitors, node);
+		list$6(node.declarations, ctx, visitors, node);
 	},
 	VariableDeclarator: (node, ctx, visitors) => {
 		walk(node.id, ctx, visitors, node);
@@ -12111,7 +12111,7 @@ var walkers = {
 		walk(node.argument, ctx, visitors, node);
 	},
 	BlockStatement: (node, ctx, visitors) => {
-		list$5(node.body, ctx, visitors, node);
+		list$6(node.body, ctx, visitors, node);
 	},
 	ExpressionStatement: (node, ctx, visitors) => {
 		walk(node.expression, ctx, visitors, node);
@@ -12133,11 +12133,11 @@ var walkers = {
 	},
 	SwitchStatement: (node, ctx, visitors) => {
 		walk(node.discriminant, ctx, visitors, node);
-		list$5(node.cases, ctx, visitors, node);
+		list$6(node.cases, ctx, visitors, node);
 	},
 	SwitchCase: (node, ctx, visitors) => {
 		if (node.test) walk(node.test, ctx, visitors, node);
-		list$5(node.consequent, ctx, visitors, node);
+		list$6(node.consequent, ctx, visitors, node);
 	},
 	ReturnStatement: unary,
 	Program: (node, ctx, visitors) => {
@@ -15727,15 +15727,15 @@ function buildUnicodeData(ecmaVersion) {
 	d.nonBinary.sc = d.nonBinary.Script;
 	d.nonBinary.scx = d.nonBinary.Script_Extensions;
 }
-for (var i$9 = 0, list$4 = [
+for (var i$9 = 0, list$5 = [
 	9,
 	10,
 	11,
 	12,
 	13,
 	14
-]; i$9 < list$4.length; i$9 += 1) {
-	var ecmaVersion = list$4[i$9];
+]; i$9 < list$5.length; i$9 += 1) {
+	var ecmaVersion = list$5[i$9];
 	buildUnicodeData(ecmaVersion);
 }
 var pp$1 = Parser$2.prototype;
@@ -25197,7 +25197,7 @@ var deleteLegacyDatabases = async () => {
 };
 //#endregion
 //#region src/client/database/manager.ts
-var log$7 = createLogger("DatabaseManager");
+var log$8 = createLogger("DatabaseManager");
 /**
 * Manages the (single, per-origin) database connection. Log dirs are query
 * scopes over the unified database, not separate databases.
@@ -25210,18 +25210,18 @@ var DatabaseManager = class {
 	async openDatabase() {
 		if (this.database) return this.database;
 		if (await AppDatabase.checkVersionMismatch()) {
-			log$7.info("Recreating database due to version mismatch");
+			log$8.info("Recreating database due to version mismatch");
 			await Dexie.delete(DB_NAME);
-			log$7.debug(`Deleted old database: ${DB_NAME}`);
+			log$8.debug(`Deleted old database: ${DB_NAME}`);
 		}
 		this.database = new AppDatabase();
 		try {
 			await this.database.open();
-			log$7.debug("Successfully opened database");
+			log$8.debug("Successfully opened database");
 			deleteLegacyDatabases();
 			return this.database;
 		} catch (error) {
-			log$7.error("Failed to open database:", error);
+			log$8.error("Failed to open database:", error);
 			this.database = null;
 			throw error;
 		}
@@ -25238,7 +25238,7 @@ var DatabaseManager = class {
 	*/
 	close() {
 		if (this.database) {
-			log$7.debug("Closing database");
+			log$8.debug("Closing database");
 			this.database.close();
 			this.database = null;
 		}
@@ -25253,7 +25253,7 @@ var DatabaseManager = class {
 };
 //#endregion
 //#region src/client/database/service.ts
-var log$6 = createLogger("DatabaseService");
+var log$7 = createLogger("DatabaseService");
 var newRow$1 = (handle) => ({
 	...handle,
 	depth: "listed",
@@ -25314,13 +25314,13 @@ var DatabaseService = class {
 				cached_at: now
 			} : toLogRecord(newRow$1(handle), void 0, now);
 		});
-		log$6.debug(`Upserting ${records.length} log rows (identity tier)`);
+		log$7.debug(`Upserting ${records.length} log rows (identity tier)`);
 		await db.logs.bulkPut(records);
 	}
 	async readLogs(scope) {
 		try {
 			if (!this.opened()) {
-				log$6.debug("Database not open");
+				log$7.debug("Database not open");
 				return null;
 			}
 			const records = await this.getDb().logs.where("file_path").startsWith(scopePrefix(scope.prefix)).toArray();
@@ -25329,10 +25329,10 @@ var DatabaseService = class {
 				if (a.id != null && b.id != null) return a.id - b.id;
 				return 0;
 			});
-			log$6.debug(`Retrieved ${records.length} log rows`);
+			log$7.debug(`Retrieved ${records.length} log rows`);
 			return records.map(fromLogRecord);
 		} catch (error) {
-			log$6.error("Error retrieving log rows:", error);
+			log$7.error("Error retrieving log rows:", error);
 			return null;
 		}
 	}
@@ -25341,7 +25341,7 @@ var DatabaseService = class {
 			const record = await this.getDb().logs.where("file_path").equals(filePath).first();
 			return record ? fromLogRecord(record) : null;
 		} catch (error) {
-			log$6.error(`Error retrieving log row for ${filePath}:`, error);
+			log$7.error(`Error retrieving log row for ${filePath}:`, error);
 			return null;
 		}
 	}
@@ -25352,7 +25352,7 @@ var DatabaseService = class {
 			for (const record of records) result[record.file_path] = fromLogRecord(record);
 			return result;
 		} catch (error) {
-			log$6.error("Error retrieving log rows:", error);
+			log$7.error("Error retrieving log rows:", error);
 			return {};
 		}
 	}
@@ -25380,7 +25380,7 @@ var DatabaseService = class {
 		await db.logs.bulkPut(records);
 	}
 	async writeLogPreviews(previews) {
-		log$6.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
+		log$7.debug(`Upserting ${Object.keys(previews).length} log rows (previewed tier)`);
 		await this.mergeRows(Object.fromEntries(Object.entries(previews).map(([file, preview]) => [file, previewTier(preview)])));
 	}
 	/**
@@ -25394,7 +25394,7 @@ var DatabaseService = class {
 		const db = this.getDb();
 		const now = (/* @__PURE__ */ new Date()).toISOString();
 		const entries = Object.entries(details);
-		log$6.debug(`Ingesting ${entries.length} log details (split)`);
+		log$7.debug(`Ingesting ${entries.length} log details (split)`);
 		await db.transaction("rw", db.logs, db.sample_summaries, async () => {
 			await this.mergeRows(Object.fromEntries(entries.map(([file, { patch }]) => [file, patch])));
 			const files = entries.map(([filePath]) => filePath);
@@ -25414,7 +25414,7 @@ var DatabaseService = class {
 		return ("file" in scope ? db.sample_summaries.where("file_path").equals(scope.file) : db.sample_summaries.where("file_path").startsWith(scopePrefix(scope.prefix))).toArray();
 	}
 	async writeFetchStates(states) {
-		log$6.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
+		log$7.debug(`Merging retrieval facts into ${Object.keys(states).length} log rows`);
 		await this.mergeRows(states);
 	}
 	/**
@@ -25439,7 +25439,7 @@ var DatabaseService = class {
 	/** Remove a deleted file's row and its sample summaries. */
 	async clearCacheForFile(filePath) {
 		const db = this.getDb();
-		log$6.debug(`Clearing cache for file: ${filePath}`);
+		log$7.debug(`Clearing cache for file: ${filePath}`);
 		await Promise.all([db.logs.where("file_path").equals(filePath).delete(), db.sample_summaries.where("file_path").equals(filePath).delete()]);
 	}
 	/**
@@ -25449,7 +25449,7 @@ var DatabaseService = class {
 	*/
 	async clearAllData() {
 		const db = this.getDb();
-		log$6.debug("Clearing all cached data");
+		log$7.debug("Clearing all cached data");
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -25467,7 +25467,7 @@ var DatabaseService = class {
 	async clearScope(scope) {
 		const db = this.getDb();
 		const prefix = scopePrefix(scope.prefix);
-		log$6.debug(`Clearing caches under: ${prefix}`);
+		log$7.debug(`Clearing caches under: ${prefix}`);
 		await db.transaction("rw", [
 			db.logs,
 			db.sample_summaries,
@@ -35150,7 +35150,7 @@ var useCollapsibleIds = (key) => {
 };
 //#endregion
 //#region ../../packages/react/src/hooks/useStatefulScrollPosition.ts
-var log$5 = createLogger("scrolling");
+var log$6 = createLogger("scrolling");
 function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable = true) {
 	const [scrollPosition, setScrollPosition] = useProperty("scrollPosition", elementKey);
 	const scrollPositionRef = (0, import_react.useRef)(scrollPosition);
@@ -35159,7 +35159,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	}, [scrollPosition]);
 	const handleScrollInner = (0, import_react.useCallback)((e) => {
 		const position = e.target.scrollTop;
-		log$5.debug(`Storing scroll position`, elementKey, position);
+		log$6.debug(`Storing scroll position`, elementKey, position);
 		setScrollPosition(position);
 	}, [elementKey, setScrollPosition]);
 	const handleScroll = (0, import_react.useMemo)(() => debounce$3(handleScrollInner, delay), [handleScrollInner, delay]);
@@ -35176,15 +35176,15 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 	(0, import_react.useEffect)(() => {
 		const element = elementRef.current;
 		if (!element || !scrollable) return;
-		log$5.debug(`Restore Scroll Hook`, elementKey);
+		log$6.debug(`Restore Scroll Hook`, elementKey);
 		const savedPosition = scrollPositionRef.current;
 		if (savedPosition !== void 0) {
-			log$5.debug(`Restoring scroll position`, savedPosition);
+			log$6.debug(`Restoring scroll position`, savedPosition);
 			const tryRestoreScroll = () => {
 				if (element.scrollHeight > element.clientHeight) {
 					if (element.scrollTop !== savedPosition) {
 						element.scrollTop = savedPosition;
-						log$5.debug(`Scroll position restored to ${savedPosition}`);
+						log$6.debug(`Scroll position restored to ${savedPosition}`);
 					}
 					return true;
 				}
@@ -35195,7 +35195,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 				const maxAttempts = 20;
 				const pollForRender = () => {
 					if (tryRestoreScroll() || attempts >= maxAttempts) {
-						if (attempts >= maxAttempts) log$5.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
+						if (attempts >= maxAttempts) log$6.debug(`Failed to restore scroll after ${maxAttempts} attempts`);
 						return;
 					}
 					attempts++;
@@ -35205,10 +35205,10 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 			}
 		}
 		if (element.addEventListener) element.addEventListener("scroll", handleScroll);
-		else log$5.warn("Element has no way to add event listener", element);
+		else log$6.warn("Element has no way to add event listener", element);
 		return () => {
 			if (element.removeEventListener) element.removeEventListener("scroll", handleScroll);
-			else log$5.warn("Element has no way to remove event listener", element);
+			else log$6.warn("Element has no way to remove event listener", element);
 		};
 	}, [
 		elementKey,
@@ -51693,7 +51693,7 @@ function markTightParagraphs(state, idx) {
 		i += 2;
 	}
 }
-function list$3(state, startLine, endLine, silent) {
+function list$4(state, startLine, endLine, silent) {
 	let max, pos, start, token;
 	let nextLine = startLine;
 	let tight = true;
@@ -52238,7 +52238,7 @@ var _rules$1 = [
 	],
 	[
 		"list",
-		list$3,
+		list$4,
 		[
 			"paragraph",
 			"reference",
@@ -60958,7 +60958,7 @@ var removeSamplesListings = (logDir) => {
 * `set*`/`merge*`/`seed*` primitives) are allowed; the invariant is
 * one-directional (db ⟹ cache).
 */
-var log$4 = createLogger("logsContent");
+var log$5 = createLogger("logsContent");
 var EMPTY_LOGS = [];
 var logsKey = (logDir) => [
 	"log_data",
@@ -61096,7 +61096,7 @@ var namesInScope = (logDir, handles) => {
 	if (misnamed !== void 0) {
 		if (!cacheOnlyScopes.has(prefix)) {
 			cacheOnlyScopes.add(prefix);
-			log$4.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
+			log$5.warn(`Listing names (e.g. ${misnamed.name}) are outside the log dir's namespace (${prefix}); skipping persistence for this scope.`);
 		}
 		return false;
 	}
@@ -61914,6 +61914,975 @@ var sampleHandlesEqual = (sample1, sample2) => {
 	return sampleIdsEqual(sample1.id, sample2.id) && sample1.epoch === sample2.epoch && sample1.logFile === sample2.logFile;
 };
 //#endregion
+//#region src/log_data/chunked/format.ts
+var SAMPLES_DIR = "samples";
+var SHELL_JSON = "sample.json";
+var METADATA_JSON = "metadata.json";
+var SKELETON_JSON = "skeleton.json";
+var STATS_JSON = "stats.json";
+/** `samples/{id}_epoch_{epoch}` — the per-sample prefix (no trailing slash). */
+var samplePrefix = (id, epoch) => `${SAMPLES_DIR}/${id}_epoch_${epoch}`;
+/** Today's monolith sample entry name (`samples/{id}_epoch_{epoch}.json`). */
+var monolithEntryName = (id, epoch) => `${samplePrefix(id, epoch)}.json`;
+var shellEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/${SHELL_JSON}`;
+var metadataEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/${METADATA_JSON}`;
+var skeletonEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/${SKELETON_JSON}`;
+var statsEntryName = (id, epoch) => `${samplePrefix(id, epoch)}/events/${STATS_JSON}`;
+/** `{prefix}/{sequence}/{start}.json` — chunk holding items from `start`. */
+var chunkEntryName = (id, epoch, sequence, start) => `${samplePrefix(id, epoch)}/${sequence}/${start}.json`;
+/**
+* Classify a sample's on-disk shape from zip entry names (the central
+* directory). Structural per-sample dispatch: one log may mix shapes.
+* Returns undefined when the sample has no entries at all.
+*/
+var classifySampleShape = (entryNames, id, epoch) => entryNames.has(shellEntryName(id, epoch)) ? "chunked" : entryNames.has(monolithEntryName(id, epoch)) ? "monolith" : void 0;
+/**
+* Chunk start indexes for a sequence, from the shell's cumulative
+* end-exclusive `boundaries`. Empty sequences have no chunks.
+*/
+var chunkStarts = (boundaries) => boundaries.length === 0 ? [] : [0, ...boundaries.slice(0, -1)];
+/** Total item count for a sequence. */
+var sequenceCount = (boundaries) => boundaries.at(-1) ?? 0;
+/** Bounds-checked index (an out-of-range index is a coding error). */
+var at$1 = (items, i) => {
+	const item = items[i];
+	if (item === void 0) throw new Error(`Index ${i} out of range (length ${items.length})`);
+	return item;
+};
+/**
+* Index of the chunk holding item `i`: greatest start ≤ i (binary search
+* over ascending starts). Callers must ensure `0 ≤ i < sequenceCount`.
+*/
+var chunkIndexOf = (starts, i) => {
+	let lo = 0;
+	let hi = starts.length - 1;
+	while (lo < hi) {
+		const mid = lo + hi + 1 >> 1;
+		if (at$1(starts, mid) <= i) lo = mid;
+		else hi = mid - 1;
+	}
+	return lo;
+};
+//#endregion
+//#region src/log_data/chunked/log.ts
+/**
+* Unconditional console logging for the chunked read path: every member
+* fetch/cache-hit/eviction, chunk parse, sidecar read, attachment
+* resolution, and row materialization, for confirming windowed-read
+* behavior while browsing. Deliberately NOT the gated `createLogger` —
+* the chunked path is dev-phase (only the hidden converter produces
+* chunked logs), and the point is to see the reads in any build. Dial
+* back to `createLogger("chunked")` before the format ships by default.
+*/
+var log$4 = {
+	info: (message) => {
+		console.log(`[chunked] ${message}`);
+	},
+	debug: (message) => {
+		console.log(`[chunked] ${message}`);
+	}
+};
+//#endregion
+//#region src/log_data/chunked/chunkStore.ts
+/**
+* The framework-free chunk-byte store and per-sequence readers for chunked
+* samples (design/large-samples.md, "Data-loading architecture").
+*
+* Two tiers: `ChunkByteStore` owns raw decompressed entry bytes with a
+* byte-budget LRU and in-flight request dedup (raw ArrayBuffers live outside
+* the V8 heap cage; parsed objects are the scarce resource, owned by
+* callers). `SequenceReader` layers chunk math + JSON parsing + `getRange`
+* over it for one sequence.
+*/
+var kb = (bytes) => `${(bytes / 1024).toFixed(1)}KB`;
+var DEFAULT_BYTE_BUDGET = 256 * 1024 * 1024;
+/**
+* LRU-cached, request-deduped reads of decompressed entry bytes. Eviction
+* is by total cached bytes against a generous budget; in-flight reads are
+* never evicted (they only enter the cache on settle).
+*/
+var ChunkByteStore = class {
+	source;
+	byteBudget;
+	cache = /* @__PURE__ */ new Map();
+	inflight = /* @__PURE__ */ new Map();
+	cachedBytes = 0;
+	constructor(source, byteBudget = DEFAULT_BYTE_BUDGET) {
+		this.source = source;
+		this.byteBudget = byteBudget;
+	}
+	read(name) {
+		const cached = this.cache.get(name);
+		if (cached) {
+			log$4.debug(`byte-cache hit ${name} (${kb(cached.byteLength)})`);
+			this.cache.delete(name);
+			this.cache.set(name, cached);
+			return Promise.resolve(cached);
+		}
+		let pending = this.inflight.get(name);
+		if (!pending) {
+			const startedAt = performance.now();
+			pending = this.source.readFile(name).then((bytes) => {
+				this.cache.set(name, bytes);
+				this.cachedBytes += bytes.byteLength;
+				log$4.info(`fetch ${name} — ${kb(bytes.byteLength)} in ${(performance.now() - startedAt).toFixed(0)}ms (byte cache ${kb(this.cachedBytes)})`);
+				this.evict();
+				return bytes;
+			}).finally(() => {
+				this.inflight.delete(name);
+			});
+			this.inflight.set(name, pending);
+		} else log$4.debug(`fetch dedup ${name} (already in flight)`);
+		return pending;
+	}
+	evict() {
+		for (const [name, bytes] of this.cache) {
+			if (this.cachedBytes <= this.byteBudget || this.cache.size === 1) return;
+			this.cache.delete(name);
+			this.cachedBytes -= bytes.byteLength;
+			log$4.info(`evict ${name} (${kb(bytes.byteLength)}) — over byte budget`);
+		}
+	}
+	get size() {
+		return this.cachedBytes;
+	}
+	clear() {
+		this.cache.clear();
+		this.cachedBytes = 0;
+	}
+};
+var decoder$1 = new TextDecoder();
+/** Chunks kept parsed per sequence; scroll-back re-parses from bytes. */
+var PARSED_CHUNK_CAP = 32;
+/**
+* Random access over one chunked sequence: index→chunk resolution from the
+* shell's boundaries, JSON parse on top of the byte store, and half-open
+* `getRange`. A small parsed-chunk LRU absorbs the walk's re-reads; the
+* byte store below makes cap misses a re-parse, not a re-download.
+*/
+var SequenceReader = class SequenceReader {
+	bytes;
+	entryNameFor;
+	transform;
+	starts;
+	ends;
+	count;
+	parsed = /* @__PURE__ */ new Map();
+	constructor(bytes, entryNameFor, boundaries, transform) {
+		this.bytes = bytes;
+		this.entryNameFor = entryNameFor;
+		this.transform = transform;
+		this.starts = chunkStarts(boundaries);
+		this.ends = [...boundaries];
+		this.count = sequenceCount(boundaries);
+	}
+	/** A reader over the same chunks with `transform` applied post-parse. */
+	withTransform(transform) {
+		return new SequenceReader(this.bytes, this.entryNameFor, this.ends, transform);
+	}
+	/** Index of the chunk holding item `i`: greatest start ≤ i. */
+	chunkIndexOf(i) {
+		return chunkIndexOf(this.starts, i);
+	}
+	chunkBounds(chunkIdx) {
+		return [at$1(this.starts, chunkIdx), at$1(this.ends, chunkIdx)];
+	}
+	loadChunk(chunkIdx) {
+		const start = at$1(this.starts, chunkIdx);
+		let pending = this.parsed.get(start);
+		if (!pending) {
+			const name = this.entryNameFor(start);
+			pending = this.bytes.read(name).then((bytes) => {
+				const items = JSON.parse(decoder$1.decode(bytes));
+				log$4.debug(`parse ${name}: ${items.length} items`);
+				return items;
+			}).then((items) => this.transform?.(items, start) ?? items);
+			const inserted = pending;
+			pending.catch(() => {
+				if (this.parsed.get(start) === inserted) this.parsed.delete(start);
+			});
+			this.parsed.set(start, pending);
+			for (const key of this.parsed.keys()) {
+				if (this.parsed.size <= PARSED_CHUNK_CAP) break;
+				this.parsed.delete(key);
+				log$4.debug(`parsed-cache evict ${this.entryNameFor(key)} — over ${PARSED_CHUNK_CAP}-chunk cap`);
+			}
+		} else {
+			this.parsed.delete(start);
+			this.parsed.set(start, pending);
+		}
+		return pending;
+	}
+	/** Items `[lo, hi)` — fetches the covering chunks in parallel. */
+	async getRange(lo, hi) {
+		lo = Math.max(0, lo);
+		hi = Math.min(hi, this.count);
+		if (hi <= lo) return [];
+		const firstChunk = this.chunkIndexOf(lo);
+		const lastChunk = this.chunkIndexOf(hi - 1);
+		const chunks = await Promise.all(Array.from({ length: lastChunk - firstChunk + 1 }, (_, k) => this.loadChunk(firstChunk + k)));
+		const base = at$1(this.starts, firstChunk);
+		return chunks.flat().slice(lo - base, hi - base);
+	}
+};
+//#endregion
+//#region src/log_data/chunked/skeletonIndex.ts
+/**
+* Query layer over a sample skeleton: span-by-begin-ordinal, ancestor
+* stacks, and filter visibility — all answered from span extents and
+* counters with zero event reads (sticky headers and depth seeding for the
+* decode walk).
+*/
+var SkeletonIndex = class {
+	skeleton;
+	spans;
+	childrenOf;
+	roots;
+	spanIds;
+	byBegin = /* @__PURE__ */ new Map();
+	constructor(skeleton) {
+		this.skeleton = skeleton;
+		this.spans = skeleton.spans;
+		this.childrenOf = this.spans.map(() => []);
+		this.roots = [];
+		this.spans.forEach((span, i) => {
+			this.byBegin.set(span.begin, i);
+			if (span.parent === void 0) this.roots.push(i);
+			else at$1(this.childrenOf, span.parent).push(i);
+		});
+		this.spanIds = new Set(this.spans.map((span) => span.id));
+	}
+	/** Span whose begin event sits at `ordinal` (undefined: dissolved span). */
+	spanAtBegin(ordinal) {
+		return this.byBegin.get(ordinal);
+	}
+	/**
+	* Structural ancestor stack (outermost first) containing `ordinal` —
+	* answered entirely from extents; the span_begin events need never be
+	* fetched. Interleaved-span extent overlap: first containing child wins
+	* (tolerated per spec; correctness comes from span_id on fetched events).
+	*/
+	spanStackAt(ordinal) {
+		const stack = [];
+		let candidates = this.roots;
+		for (;;) {
+			const hit = candidates.find((i) => {
+				const [lo, hi] = at$1(this.spans, i).extent;
+				return lo <= ordinal && ordinal <= hi;
+			});
+			if (hit === void 0) return stack;
+			stack.push(hit);
+			candidates = at$1(this.childrenOf, hit);
+		}
+	}
+	depthAt(ordinal) {
+		return this.spanStackAt(ordinal).length;
+	}
+	/** Does an expanded span have anything to show under the current filter? */
+	hasVisibleContents(spanIdx, visibleTypes) {
+		const span = at$1(this.spans, spanIdx);
+		if (Object.entries(span.children).some(([type, count]) => count > 0 && visibleTypes(type))) return true;
+		return at$1(this.childrenOf, spanIdx).length > 0;
+	}
+};
+//#endregion
+//#region src/log_data/chunked/chunkedSample.ts
+var decoder = new TextDecoder();
+var readJson = async (source, name) => {
+	const startedAt = performance.now();
+	const bytes = await source.readFile(name);
+	log$4.info(`fetch ${name} — ${(bytes.byteLength / 1024).toFixed(1)}KB in ${(performance.now() - startedAt).toFixed(0)}ms (sidecar, uncached)`);
+	return JSON.parse(decoder.decode(bytes));
+};
+/**
+* Open a chunked sample. `entryNames` is the log's central-directory name
+* set (used only to detect the optional metadata entry); the three parsed
+* artifacts — shell, skeleton, stats — are fetched in parallel.
+*/
+var openChunkedSample = async (source, entryNames, id, epoch, byteBudget) => {
+	const [shell, skeleton, stats] = await Promise.all([
+		readJson(source, shellEntryName(id, epoch)),
+		readJson(source, skeletonEntryName(id, epoch)),
+		readJson(source, statsEntryName(id, epoch))
+	]);
+	const bytes = new ChunkByteStore(source, byteBudget);
+	const reader = (sequence) => new SequenceReader(bytes, (start) => chunkEntryName(id, epoch, sequence, start), shell.sequences[sequence] ?? []);
+	const metadataEntry = metadataEntryName(id, epoch);
+	return {
+		shell,
+		skeleton,
+		skel: new SkeletonIndex(skeleton),
+		stats: stats.chunks,
+		events: reader("events"),
+		messages: reader("messages"),
+		calls: reader("calls"),
+		attachments: reader("attachments"),
+		...entryNames.has(metadataEntry) ? { readMetadata: () => readJson(source, metadataEntry) } : {}
+	};
+};
+//#endregion
+//#region src/log_data/chunked/cursor.ts
+/** Buffered surviving events per refill — about one screenful. */
+var REFILL = 64;
+var FilteredCursor = class {
+	store;
+	stats;
+	survives;
+	buffer = [];
+	from;
+	exhausted = false;
+	constructor(store, stats, start, survives) {
+		this.store = store;
+		this.stats = stats;
+		this.survives = survives;
+		this.from = start;
+	}
+	get done() {
+		return this.buffer.length === 0 && this.exhausted;
+	}
+	chunkSurvivorCount(chunkIdx) {
+		const stats = this.stats[chunkIdx];
+		if (!stats) return 1;
+		return Object.entries(stats.type_counts).reduce((n, [type, count]) => n + (this.survives(type) ? count : 0), 0);
+	}
+	statsFor(chunkIdx) {
+		return this.stats[chunkIdx];
+	}
+	chunkIndexOf(ordinal) {
+		return this.store.chunkIndexOf(ordinal);
+	}
+	chunkBounds(chunkIdx) {
+		return this.store.chunkBounds(chunkIdx);
+	}
+	async refill() {
+		while (this.buffer.length < REFILL && !this.exhausted) {
+			if (this.from >= this.store.count) {
+				this.exhausted = true;
+				return;
+			}
+			const chunkIdx = this.store.chunkIndexOf(this.from);
+			const [lo, hi] = this.chunkBounds(chunkIdx);
+			if (this.chunkSurvivorCount(chunkIdx) === 0) {
+				this.from = hi;
+				continue;
+			}
+			const items = await this.store.loadChunk(chunkIdx);
+			for (let i = this.from - lo; i < items.length; i++) {
+				const ev = items[i];
+				if (ev !== void 0 && this.survives(ev.event)) this.buffer.push({
+					ordinal: lo + i,
+					ev
+				});
+			}
+			this.from = hi;
+		}
+	}
+	async peek() {
+		if (this.buffer.length === 0) await this.refill();
+		return this.buffer[0] ?? null;
+	}
+	async next() {
+		const head = await this.peek();
+		if (head) this.buffer.shift();
+		return head;
+	}
+	/** Jump to `ordinal`: advance in-buffer if already buffered, else drop and refetch. */
+	seek(ordinal) {
+		const bufferLast = this.buffer.at(-1);
+		if (bufferLast !== void 0 && bufferLast.ordinal >= ordinal) {
+			let head = this.buffer[0];
+			while (head !== void 0 && head.ordinal < ordinal) {
+				this.buffer.shift();
+				head = this.buffer[0];
+			}
+			return;
+		}
+		this.buffer = [];
+		this.exhausted = false;
+		this.from = Math.max(this.from, ordinal);
+	}
+};
+//#endregion
+//#region src/log_data/chunked/decode.ts
+/**
+* Event types whose consecutive same-span occurrences merge into one row.
+* Binding constraint (spec): run membership must be decidable from type +
+* span facts available in chunk stats — never from event payload contents.
+*/
+var RUN_TYPES = /* @__PURE__ */ new Set(["sandbox"]);
+/**
+* Structural marker types: span begin/end pairs and legacy step begin/end
+* pairs (the skeleton folds steps into span-table entries — one contract,
+* no legacy carve-out). Structure drives the walk and is only conditionally
+* a row, never subject to the user's filter.
+*/
+var STRUCTURAL_TYPES = /* @__PURE__ */ new Set([
+	"span_begin",
+	"span_end",
+	"step"
+]);
+var isSpanBegin = (ev) => ev.event === "span_begin" || ev.event === "step" && ev.action === "begin";
+var isSpanEnd = (ev) => ev.event === "span_end" || ev.event === "step" && ev.action === "end";
+/**
+* Decode view rows for ordinals `[startOrd, endOrd)`. Rows whose decode
+* unit starts in-range are emitted even if (via seeks or runs) they extend
+* past `endOrd`. `headRunContinues` — the caller detected (from the
+* previous chunk's stats) that `startOrd` begins mid-run; leading run
+* events are consumed rowless (the row belongs to the chunk where the run
+* starts).
+*/
+async function decodeRange(ctx, startOrd, endOrd, headRunContinues) {
+	const survives = (type) => STRUCTURAL_TYPES.has(type) || RUN_TYPES.has(type) || ctx.visible(type);
+	const cursor = new FilteredCursor(ctx.events, ctx.stats, startOrd, survives);
+	const rows = [];
+	const spanIds = ctx.skel.spanIds;
+	if (headRunContinues) {
+		const head = await cursor.peek();
+		if (head && RUN_TYPES.has(head.ev.event)) await takeRun(cursor, head);
+	}
+	for (;;) {
+		const item = await cursor.peek();
+		if (!item || item.ordinal >= endOrd) break;
+		const { ordinal, ev } = item;
+		if (isSpanBegin(ev)) {
+			const spanIdx = ctx.skel.spanAtBegin(ordinal);
+			const span = spanIdx !== void 0 ? ctx.skel.spans[spanIdx] : void 0;
+			if (spanIdx === void 0 || span === void 0) {
+				await cursor.next();
+				continue;
+			}
+			const depth = ctx.skel.spanStackAt(ordinal).length - 1;
+			if (!ctx.skel.hasVisibleContents(spanIdx, ctx.visible)) cursor.seek(span.extent[1] + 1);
+			else if (ctx.isCollapsed(span.id)) {
+				rows.push({
+					kind: "span",
+					ordinal,
+					depth,
+					spanIdx,
+					span,
+					collapsed: true
+				});
+				cursor.seek(span.extent[1] + 1);
+			} else {
+				rows.push({
+					kind: "span",
+					ordinal,
+					depth,
+					spanIdx,
+					span,
+					collapsed: false
+				});
+				await cursor.next();
+			}
+		} else if (isSpanEnd(ev)) await cursor.next();
+		else if (RUN_TYPES.has(ev.event)) {
+			const depth = rowDepth(ctx, ordinal, ev, spanIds);
+			const run = await takeRun(cursor, item);
+			if (ctx.visible(ev.event)) rows.push({
+				kind: "run",
+				ordinal,
+				depth,
+				runType: ev.event,
+				count: run.count,
+				extent: [ordinal, run.last],
+				sample: ev
+			});
+		} else {
+			rows.push({
+				kind: "event",
+				ordinal,
+				depth: rowDepth(ctx, ordinal, ev, spanIds),
+				ev
+			});
+			await cursor.next();
+		}
+	}
+	return rows;
+}
+function rowDepth(ctx, ordinal, ev, structuralIds) {
+	return ctx.skel.spanStackAt(ordinal).length + (ev.span_id && !structuralIds.has(ev.span_id) ? 1 : 0);
+}
+/**
+* Consume a maximal run of consecutive same-type same-span events. Fast
+* path: a following chunk whose stats say "uniform run type, same span at
+* both edges" is counted from stats and skipped unread — only mixed edge
+* chunks are fetched (reads ∝ rows emitted).
+*/
+async function takeRun(cursor, first) {
+	const runType = first.ev.event;
+	const spanId = first.ev.span_id ?? null;
+	let count = 0;
+	let last = first.ordinal;
+	for (;;) {
+		const item = await cursor.peek();
+		if (!item || item.ev.event !== runType || (item.ev.span_id ?? null) !== spanId) break;
+		count += 1;
+		last = item.ordinal;
+		await cursor.next();
+		let chunkIdx = cursor.chunkIndexOf(last) + 1;
+		for (;;) {
+			const stats = cursor.statsFor(chunkIdx);
+			if (!stats) break;
+			const [lo, hi] = cursor.chunkBounds(chunkIdx);
+			if (last !== lo - 1 || Object.keys(stats.type_counts).some((type) => type !== runType) || (stats.first.span_id ?? null) !== spanId || (stats.last.span_id ?? null) !== spanId) break;
+			count += stats.type_counts[runType] ?? 0;
+			last = hi - 1;
+			cursor.seek(hi);
+			chunkIdx += 1;
+		}
+	}
+	return {
+		count,
+		last
+	};
+}
+//#endregion
+//#region src/log_data/chunked/pyTimestamp.ts
+var TS_RE = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6})\d*)?(Z|[+-]\d{2}:?\d{2})?$/;
+/** Parse an ISO-8601 timestamp; offset-less values are treated as UTC. */
+var parsePyTimestamp = (value) => {
+	const m = TS_RE.exec(value);
+	if (!m) throw new Error(`Unparseable timestamp: ${value}`);
+	const [, year, month, day, hour, minute, second, fraction, offset] = m;
+	const micros = fraction ? Number(fraction.padEnd(6, "0")) : 0;
+	const baseMs = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+	let offsetMinutes = 0;
+	if (offset && offset !== "Z") {
+		const sign = offset[0] === "-" ? -1 : 1;
+		const digits = offset.slice(1).replace(":", "");
+		offsetMinutes = sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2)));
+	}
+	const epochUs = (baseMs - offsetMinutes * 6e4) * 1e3 + micros;
+	return {
+		epochUs,
+		iso: formatPyTimestamp(epochUs)
+	};
+};
+/** Python `datetime.isoformat()` of a UTC microsecond epoch. */
+var formatPyTimestamp = (epochUs) => {
+	const micros = (epochUs % 1e6 + 1e6) % 1e6;
+	const date = /* @__PURE__ */ new Date((epochUs - micros) / 1e3);
+	const pad = (n, width = 2) => String(n).padStart(width, "0");
+	const fraction = micros === 0 ? "" : `.${pad(micros, 6)}`;
+	return `${pad(date.getUTCFullYear(), 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}${fraction}+00:00`;
+};
+//#endregion
+//#region src/log_data/chunked/outlineRows.ts
+/** `kSandboxSignalName` (inspect-components `transform/fixups.ts`). */
+var SANDBOX_SIGNAL_NAME = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
+var defaultCollapsed = (span) => {
+	if (span.type === "solver" && span.name === "system_message") return true;
+	if (span.name === SANDBOX_SIGNAL_NAME || span.name === "init" || span.name === "sample_init") return true;
+	return (span.type === "tool" || span.type === "subtask") && Boolean(span.children[span.type]);
+};
+/**
+* Span ids the default-collapse policy collapses — for seeding transcript
+* collapse state to match `candidateOutlineRows(skeleton, "default")`.
+*/
+var defaultCollapsedSpanIds = (skeleton) => new Set(skeleton.spans.filter(defaultCollapsed).map((span) => span.id));
+//#endregion
+//#region src/log_data/chunked/syntheticEvents.ts
+/** Legacy step pairs are skeleton spans with a synthesized `step-<i>` id. */
+var isStepSpan = (span) => /^step-\d+$/.test(span.id);
+/**
+* Single choke point for constructing events the pipeline treats as real.
+* The synthesized objects carry every field the transcript pipeline reads
+* (see module docstring); the cast acknowledges they are not full payloads.
+*/
+var synth = (fields) => fields;
+var syntheticEventsFromSkeleton = (skel) => {
+	const events = [];
+	const ordinals = /* @__PURE__ */ new Map();
+	const spans = skel.spans;
+	const childSpans = /* @__PURE__ */ new Map();
+	const spanNotables = /* @__PURE__ */ new Map();
+	const append = (map, key, value) => {
+		const list = map.get(key);
+		if (list === void 0) map.set(key, [value]);
+		else list.push(value);
+	};
+	spans.forEach((span, index) => {
+		append(childSpans, span.parent ?? null, index);
+	});
+	for (const notable of skel.notables) append(spanNotables, notable.span ?? null, notable);
+	const beginsUs = spans.map((span) => parsePyTimestamp(span.t[0]).epochUs);
+	const endsUs = spans.map((span) => parsePyTimestamp(span.t[1]).epochUs);
+	const beginUs = (index) => beginsUs[index] ?? 0;
+	const endUs = (index) => endsUs[index] ?? 0;
+	/** Nearest non-step ancestor's span id (steps have no span identity). */
+	const realSpanId = (index) => {
+		let current = index;
+		while (current !== null) {
+			const span = spans[current];
+			if (span === void 0) return null;
+			if (!isStepSpan(span)) return span.id;
+			current = span.parent ?? null;
+		}
+		return null;
+	};
+	const push = (event, uuid, ordinal) => {
+		events.push(event);
+		ordinals.set(uuid, ordinal);
+	};
+	const common = (uuid, spanId, us) => ({
+		timestamp: formatPyTimestamp(us),
+		pending: false,
+		working_start: 0,
+		uuid,
+		span_id: spanId,
+		metadata: null
+	});
+	const emitModel = (spanIdx, gap, k, ordinal, us) => {
+		const uuid = `synth-model-${spanIdx ?? "root"}-${gap}-${k}`;
+		push(synth({
+			event: "model",
+			model: "",
+			input: [],
+			output: {
+				model: "",
+				choices: [],
+				usage: null
+			},
+			...common(uuid, realSpanId(spanIdx), us)
+		}), uuid, ordinal);
+	};
+	const emitNotable = (notable, spanId, us) => {
+		const uuid = `synth-notable-${notable.i}`;
+		const fields = notable.type === "score" ? {
+			event: "score",
+			score: {
+				value: "",
+				answer: null,
+				explanation: null,
+				metadata: null
+			},
+			intermediate: false
+		} : notable.type === "checkpoint" ? {
+			event: "checkpoint",
+			checkpoint_id: notable.checkpoint_id
+		} : { event: notable.type };
+		push(synth({
+			...fields,
+			...common(uuid, spanId, us)
+		}), uuid, notable.i);
+	};
+	/** Minimum payload each stray type needs to survive the outline pipeline
+	* (labelers/summarizers dereference these fields without guards). */
+	const strayPayload = (type, uuid) => type === "tool" ? {
+		id: uuid,
+		function: "",
+		agent: null,
+		events: [],
+		result: null
+	} : type === "subtask" ? {
+		name: "subtask",
+		input: {},
+		result: null,
+		events: []
+	} : type === "score" ? {
+		score: {
+			value: "",
+			answer: null,
+			explanation: null,
+			metadata: null
+		},
+		intermediate: false
+	} : type === "checkpoint" ? { checkpoint_id: "" } : {};
+	const emitStrays = (spanIdx, us) => {
+		const span = spans[spanIdx];
+		if (span === void 0) return;
+		const notableCounts = /* @__PURE__ */ new Map();
+		for (const notable of spanNotables.get(spanIdx) ?? []) notableCounts.set(notable.type, (notableCounts.get(notable.type) ?? 0) + 1);
+		const spanId = realSpanId(spanIdx);
+		for (const [type, count] of Object.entries(span.children)) {
+			if (type === "model") continue;
+			const persisted = notableCounts.get(type) ?? 0;
+			if (count - persisted <= 0) continue;
+			if (persisted > 0) continue;
+			const uuid = `synth-stray-${spanIdx}-${type}`;
+			push(synth({
+				event: type,
+				...strayPayload(type, uuid),
+				...common(uuid, spanId, us)
+			}), uuid, span.begin + 1);
+		}
+	};
+	/**
+	* Emit a container's gap models + items (child spans and notables).
+	*
+	* Timing: child spans carry real begin/end times; the loose points
+	* between them (gap models + notables) are spaced evenly inside the
+	* segment's real time bounds. Inverted bounds (cross-context span exits)
+	* degrade to the segment's lower bound — order still holds because
+	* `buildSpanTree`'s child sort is stable.
+	*/
+	const emitContents = (spanIdx, loUs, hiUs) => {
+		const span = spanIdx !== null ? spans[spanIdx] : void 0;
+		const children = childSpans.get(spanIdx) ?? [];
+		const notables = spanNotables.get(spanIdx) ?? [];
+		const items = [...children.map((index) => {
+			return {
+				kind: "span",
+				index,
+				at: spans[index]?.begin ?? 0
+			};
+		}), ...notables.map((notable) => ({
+			kind: "notable",
+			notable,
+			at: notable.i
+		}))].sort((a, b) => a.at - b.at);
+		const gaps = span?.gap_models ?? [];
+		const gapLowerBound = (g) => {
+			if (g === 0) return span === void 0 ? 0 : span.begin + 1;
+			const prev = items[g - 1];
+			if (prev === void 0) return span?.begin ?? 0;
+			return prev.kind === "span" ? (spans[prev.index]?.extent[1] ?? prev.at) + 1 : prev.at + 1;
+		};
+		let g = 0;
+		let segmentLoUs = loUs;
+		while (g <= items.length) {
+			const points = [];
+			let nextSpan;
+			while (g <= items.length) {
+				const count = gaps[g] ?? 0;
+				const ordinal = gapLowerBound(g);
+				for (let k = 0; k < count; k++) points.push({
+					kind: "model",
+					gap: g,
+					k,
+					ordinal
+				});
+				const item = items[g];
+				g++;
+				if (item === void 0) break;
+				if (item.kind === "span") {
+					nextSpan = item.index;
+					break;
+				}
+				points.push({
+					kind: "notable",
+					notable: item.notable
+				});
+			}
+			const segmentHiUs = nextSpan !== void 0 ? beginUs(nextSpan) : hiUs;
+			const step = segmentHiUs > segmentLoUs ? (segmentHiUs - segmentLoUs) / (points.length + 1) : 0;
+			points.forEach((point, i) => {
+				const us = Math.round(segmentLoUs + step * (i + 1));
+				if (point.kind === "model") emitModel(spanIdx, point.gap, point.k, point.ordinal, us);
+				else emitNotable(point.notable, realSpanId(spanIdx), us);
+			});
+			if (nextSpan !== void 0) {
+				emitSpan(nextSpan);
+				segmentLoUs = Math.max(segmentLoUs, endUs(nextSpan));
+			}
+		}
+	};
+	const emitSpan = (spanIdx) => {
+		const span = spans[spanIdx];
+		if (span === void 0) return;
+		const loUs = beginUs(spanIdx);
+		const hiUs = endUs(spanIdx);
+		const beginUuid = `synth-begin-${spanIdx}`;
+		const endUuid = `synth-end-${spanIdx}`;
+		const step = isStepSpan(span);
+		const stepFields = (action) => ({
+			event: "step",
+			action,
+			name: span.name,
+			type: span.type ?? null
+		});
+		push(synth(step ? {
+			...stepFields("begin"),
+			...common(beginUuid, realSpanId(span.parent ?? null), loUs)
+		} : {
+			event: "span_begin",
+			id: span.id,
+			parent_id: realSpanId(span.parent ?? null),
+			name: span.name,
+			type: span.type ?? null,
+			...common(beginUuid, span.id, loUs)
+		}), beginUuid, span.begin);
+		if (!step) ordinals.set(span.id, span.begin);
+		emitStrays(spanIdx, loUs);
+		emitContents(spanIdx, loUs, hiUs);
+		push(synth(step ? {
+			...stepFields("end"),
+			...common(endUuid, realSpanId(span.parent ?? null), hiUs)
+		} : {
+			event: "span_end",
+			id: span.id,
+			...common(endUuid, span.id, hiUs)
+		}), endUuid, span.extent[1]);
+	};
+	const rootLoUs = spans.length > 0 ? beginUs(0) : 0;
+	emitContents(null, rootLoUs, spans.reduce((acc, _, index) => Math.max(acc, endUs(index)), rootLoUs));
+	return {
+		events,
+		ordinals
+	};
+};
+//#endregion
+//#region src/log_data/chunked/rowSpace.ts
+/** Guessed events per run row when a chunk is only estimated. */
+var EST_RUN_LEN = 6;
+var RowSpace = class {
+	events;
+	stats;
+	skel;
+	visible;
+	chunkRows;
+	exact;
+	materializedRows = /* @__PURE__ */ new Map();
+	inflight = /* @__PURE__ */ new Map();
+	prefix = [];
+	version = 0;
+	listeners = /* @__PURE__ */ new Set();
+	/** Merged elided ordinal ranges `[lo, hi]` (collapsed span interiors). */
+	elision = [];
+	constructor(events, stats, skel, collapsed, visible) {
+		this.events = events;
+		this.stats = stats;
+		this.skel = skel;
+		this.visible = visible;
+		const ranges = [];
+		skel.spans.forEach((span, i) => {
+			if (!skel.hasVisibleContents(i, visible)) ranges.push([span.begin, span.extent[1]]);
+			else if (collapsed.has(span.id)) ranges.push([span.begin + 1, span.extent[1]]);
+		});
+		ranges.sort((a, b) => a[0] - b[0]);
+		for (const range of ranges) {
+			const last = this.elision[this.elision.length - 1];
+			if (last && range[0] <= last[1] + 1) last[1] = Math.max(last[1], range[1]);
+			else this.elision.push([range[0], range[1]]);
+		}
+		this.chunkRows = this.stats.map((chunkStats, c) => this.estimateChunk(chunkStats, c));
+		this.exact = this.stats.map((_, c) => this.chunkRows[c] === 0 && this.fullyElided(c));
+		this.recompute();
+	}
+	onChange(fn) {
+		this.listeners.add(fn);
+		return () => {
+			this.listeners.delete(fn);
+		};
+	}
+	get total() {
+		return this.prefix[this.prefix.length - 1] ?? 0;
+	}
+	chunkBounds(c) {
+		return this.events.chunkBounds(c);
+	}
+	elidedOverlap(lo, hi) {
+		let covered = 0;
+		for (const [a, b] of this.elision) {
+			const start = Math.max(lo, a);
+			const end = Math.min(hi - 1, b);
+			if (start <= end) covered += end - start + 1;
+		}
+		return covered;
+	}
+	fullyElided(c) {
+		const [lo, hi] = this.chunkBounds(c);
+		return this.elidedOverlap(lo, hi) >= hi - lo;
+	}
+	estimateChunk(chunkStats, c) {
+		const [lo, hi] = this.chunkBounds(c);
+		const visibleFrac = 1 - this.elidedOverlap(lo, hi) / (hi - lo);
+		if (visibleFrac <= 0) return 0;
+		let typeRows = 0;
+		let runRows = 0;
+		for (const [type, count] of Object.entries(chunkStats.type_counts)) {
+			if (STRUCTURAL_TYPES.has(type) || !this.visible(type)) continue;
+			if (RUN_TYPES.has(type)) runRows += Math.max(1, Math.round(count / EST_RUN_LEN));
+			else typeRows += count;
+		}
+		const spanRows = this.skel.spans.filter((span, i) => span.begin >= lo && span.begin < hi && this.elidedOverlap(span.begin, span.begin + 1) === 0 && this.skel.hasVisibleContents(i, this.visible)).length;
+		return Math.round((typeRows + runRows) * visibleFrac) + spanRows;
+	}
+	recompute() {
+		this.prefix = [0];
+		for (const n of this.chunkRows) this.prefix.push((this.prefix.at(-1) ?? 0) + n);
+		this.version += 1;
+		this.listeners.forEach((fn) => fn());
+	}
+	slotAt(globalIndex) {
+		let lo = 0;
+		let hi = this.chunkRows.length - 1;
+		while (lo < hi) {
+			const mid = lo + hi + 1 >> 1;
+			if (at$1(this.prefix, mid) <= globalIndex) lo = mid;
+			else hi = mid - 1;
+		}
+		const offset = globalIndex - at$1(this.prefix, lo);
+		const row = this.materializedRows.get(lo)?.[offset];
+		if (row !== void 0) return {
+			kind: "row",
+			row,
+			globalIndex
+		};
+		const [clo, chi] = this.chunkBounds(lo);
+		const est = Math.max(at$1(this.chunkRows, lo), 1);
+		const estOrdinal = Math.min(chi - 1, clo + Math.floor((offset + .5) / est * (chi - clo)));
+		return {
+			kind: "placeholder",
+			chunkIdx: lo,
+			estOrdinal,
+			globalIndex
+		};
+	}
+	/**
+	* The ordinal anchor: map an event ordinal to its global row index.
+	*
+	* Two accepted one-row inaccuracies on materialized chunks: an ordinal
+	* covered by a run row that STARTS in the previous chunk anchors one row
+	* late (the containing run row lives in that chunk), and an ordinal past
+	* the chunk's last row (e.g. a trailing span_end) clamps backward to it.
+	*/
+	rowIndexForOrdinal(ordinal) {
+		const c = this.events.chunkIndexOf(Math.min(ordinal, this.events.count - 1));
+		const rows = this.materializedRows.get(c);
+		if (rows) {
+			const i = rows.findIndex((row) => row.ordinal >= ordinal);
+			return at$1(this.prefix, c) + (i === -1 ? Math.max(rows.length - 1, 0) : i);
+		}
+		const [lo, hi] = this.chunkBounds(c);
+		return at$1(this.prefix, c) + Math.floor((ordinal - lo) / (hi - lo) * at$1(this.chunkRows, c));
+	}
+	isMaterialized(chunkIdx) {
+		return this.materializedRows.has(chunkIdx);
+	}
+	/** Decode a chunk's window and correct its row count; idempotent. */
+	materialize(chunkIdx, ctx) {
+		if (this.materializedRows.has(chunkIdx)) return Promise.resolve();
+		let pending = this.inflight.get(chunkIdx);
+		if (!pending) {
+			pending = this.doMaterialize(chunkIdx, ctx).finally(() => this.inflight.delete(chunkIdx));
+			this.inflight.set(chunkIdx, pending);
+		}
+		return pending;
+	}
+	async doMaterialize(chunkIdx, ctx) {
+		const [lo, hi] = this.chunkBounds(chunkIdx);
+		const estimated = at$1(this.chunkRows, chunkIdx);
+		let start = lo;
+		for (const [a, b] of this.elision) if (a <= start && start <= b) start = b + 1;
+		let rows = [];
+		if (start < hi) {
+			const prev = this.stats[chunkIdx - 1];
+			const cur = this.stats[chunkIdx];
+			const headRunContinues = start === lo && prev !== void 0 && cur !== void 0 && RUN_TYPES.has(prev.last.type) && prev.last.type === cur.first.type && (prev.last.span_id ?? null) === (cur.first.span_id ?? null);
+			rows = await decodeRange(ctx, start, hi, headRunContinues);
+		}
+		this.materializedRows.set(chunkIdx, rows);
+		this.chunkRows[chunkIdx] = rows.length;
+		this.exact[chunkIdx] = true;
+		log$4.info(`materialize events chunk ${chunkIdx} [${lo},${hi}) → ${rows.length} rows (estimate was ${estimated}${start > lo ? `, decode from ${start} past elision` : ""})`);
+		this.recompute();
+	}
+	get materializedCount() {
+		return this.materializedRows.size;
+	}
+};
+//#endregion
 //#region src/utils/attachments.ts
 var resolveAttachments = (value, attachments, onFailedResolve) => {
 	const CONTENT_PROTOCOL = "tc://";
@@ -62094,6 +63063,61 @@ var usePassiveEvalSample = (logDir, handle) => useAsyncDataFromQuery({
 	queryKey: sampleQueryKey(logDir, handle),
 	queryFn: skipToken,
 	gcTime: kSampleGcTimeMs
+});
+//#endregion
+//#region src/log_data/chunkedSampleQuery.ts
+var chunkedSampleQueryKey = (logDir, handle) => [
+	"log_data",
+	"chunked-sample",
+	logDir,
+	handle?.logFile ?? null,
+	handle?.id ?? null,
+	handle?.epoch ?? null
+];
+var shellEvalSample = async (chunked) => {
+	const { sequences: _sequences, message_refs: _messageRefs, ...shell } = chunked.shell;
+	return {
+		...shell,
+		messages: [],
+		events: [],
+		attachments: {},
+		metadata: await chunked.readMetadata?.() ?? {}
+	};
+};
+/**
+* Chunked-shape classification + open for a sample, keyed
+* `["log_data", "chunked-sample", ...]`. Settles `null` for monolith
+* samples (classification is a central-directory lookup on the already-open
+* log — no extra fetch); the completed-sample fetch is gated on that
+* settlement so exactly one path acquires the sample.
+*
+* Classification failures also settle `null`: the pre-existing monolith
+* path must stay the sole error surface for old-format samples (its
+* retry/fallback handling is authoritative), so this query only reports
+* errors for samples it has positively classified as chunked — which the
+* monolith path could never serve anyway.
+*/
+var useChunkedSample = (logDir, handle) => useAsyncDataFromQuery({
+	queryKey: chunkedSampleQueryKey(logDir, handle),
+	queryFn: handle ? async () => {
+		let zip;
+		try {
+			zip = await getApi().get_log_zip_access?.(handle.logFile);
+		} catch {
+			return null;
+		}
+		if (!zip || classifySampleShape(zip.entryNames, handle.id, handle.epoch) !== "chunked") return null;
+		const chunked = await openChunkedSample(zip, zip.entryNames, handle.id, handle.epoch);
+		return {
+			chunked,
+			evalSample: await shellEvalSample(chunked)
+		};
+	} : skipToken,
+	gcTime: kSampleGcTimeMs,
+	retry: false,
+	refetchOnWindowFocus: false,
+	refetchOnReconnect: false,
+	structuralSharing: false
 });
 //#endregion
 //#region src/log_data/sampleStream.ts
@@ -62420,7 +63444,7 @@ var settledSampleData = (sample) => ({
 	backfilling: false
 });
 /** The path-selection state machine (exported for tests). */
-var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedSample }) => {
+var deriveSampleData = ({ handle, summaries, summary, chunked, query, running, finalizedSample }) => {
 	if (handle === void 0) return {
 		sample: void 0,
 		status: "ok",
@@ -62464,6 +63488,23 @@ var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedS
 			backfilling: running.data?.backfilling ?? false
 		};
 	}
+	if (chunked.data) return {
+		sample: chunked.data.evalSample,
+		status: "ok",
+		error: void 0,
+		running: kNoRunningEvents,
+		eventsCleared: false,
+		backfilling: false,
+		chunked: chunked.data.chunked
+	};
+	if (chunked.error) return {
+		sample: void 0,
+		status: "error",
+		error: chunked.error,
+		running: kNoRunningEvents,
+		eventsCleared: false,
+		backfilling: false
+	};
 	if (query.data !== void 0) return settledSampleData(query.data);
 	if (query.loading && running.data !== void 0 && running.data.events.length > 0) return {
 		sample: void 0,
@@ -62473,10 +63514,11 @@ var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedS
 		eventsCleared: false,
 		backfilling: false
 	};
+	const loading = chunked.loading || query.loading;
 	return {
 		sample: void 0,
-		status: query.loading ? "loading" : query.error ? "error" : "ok",
-		error: query.loading ? void 0 : query.error,
+		status: loading ? "loading" : query.error ? "error" : "ok",
+		error: loading ? void 0 : query.error,
 		running: kNoRunningEvents,
 		eventsCleared: false,
 		backfilling: false
@@ -62494,13 +63536,16 @@ var deriveSampleData = ({ handle, summaries, summary, query, running, finalizedS
 var useEvalSampleData = (logDir, handle) => {
 	const summaries = useSampleSummaries(logDir, handle?.logFile);
 	const summary = (0, import_react.useMemo)(() => handle === void 0 ? void 0 : summaries.data?.find((s) => sampleIdsEqual(s.id, handle.id) && s.epoch === handle.epoch), [summaries, handle]);
-	const query = useSample(logDir, !(summary?.completed === false) && summary !== void 0 ? handle : void 0, summary);
+	const runningPath = summary?.completed === false;
+	const chunked = useChunkedSample(logDir, !runningPath && summary !== void 0 ? handle : void 0);
+	const query = useSample(logDir, !runningPath && summary !== void 0 && chunked.data === null ? handle : void 0, summary);
 	const running = useRunningSample(logDir, handle, summary);
 	const finalizedSample = usePassiveEvalSample(logDir, handle);
 	return (0, import_react.useMemo)(() => deriveSampleData({
 		handle,
 		summaries,
 		summary,
+		chunked,
 		query,
 		running,
 		finalizedSample
@@ -62508,6 +63553,7 @@ var useEvalSampleData = (logDir, handle) => {
 		handle,
 		summaries,
 		summary,
+		chunked,
 		query,
 		running,
 		finalizedSample
@@ -62524,6 +63570,117 @@ var useEvalSampleData = (logDir, handle) => {
 var usePassiveEvalSampleData = (logDir, handle) => {
 	return useMapAsyncData(usePassiveEvalSample(logDir, handle), settledSampleData);
 };
+//#endregion
+//#region src/log_data/chunkedAttachments.ts
+/**
+* Attachment resolution for chunked samples: event chunks are materialized
+* with their `attachment://<index>` refs substituted before anything
+* downstream (decode walk, renderers) sees them — the UI never sees a ref
+* (design/large-samples.md, "Data-loading architecture"). Resolution is
+* per-chunk: refs are collected from the parsed chunk, the covering
+* attachment chunks fetched, and the existing `resolveAttachments`
+* substitution applied. ModelEvent `input_refs` message ranges are NOT
+* resolved here — they stay lazy (Confounder 1: the last event references
+* essentially the whole conversation).
+*/
+var ATTACHMENT_PROTOCOL = "attachment://";
+var CONTENT_PROTOCOL = "tc://";
+var collectRefs = (value, into) => {
+	if (typeof value === "string") {
+		const ref = value.startsWith(CONTENT_PROTOCOL) ? value.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL) : value;
+		if (ref.startsWith(ATTACHMENT_PROTOCOL)) {
+			const suffix = ref.slice(13);
+			if (/^\d+$/.test(suffix)) into.add(Number(suffix));
+		}
+		return;
+	}
+	if (Array.isArray(value)) {
+		for (const item of value) collectRefs(item, into);
+		return;
+	}
+	if (value !== null && typeof value === "object") for (const item of Object.values(value)) collectRefs(item, into);
+};
+/**
+* Substitute every attachment ref in `items` from the sample's attachments
+* sequence (fetches dedup through the shared chunk-byte store). `label`
+* names the batch in the read log.
+*/
+var withAttachmentsResolved = async (items, chunked, label) => {
+	const refs = /* @__PURE__ */ new Set();
+	collectRefs(items, refs);
+	if (refs.size === 0) return items;
+	log$4.info(`resolve ${refs.size} attachment ref${refs.size === 1 ? "" : "s"} for ${label}`);
+	const attachments = {};
+	await Promise.all([...refs].map(async (index) => {
+		const [content] = await chunked.attachments.getRange(index, index + 1);
+		if (content !== void 0) attachments[String(index)] = content;
+	}));
+	return items.map((item) => resolveAttachments(item, attachments));
+};
+/**
+* Warm the attachment chunks `items` reference without resolving (the
+* parsed-chunk and byte caches make the later `withAttachmentsResolved`
+* pass a cache hit). Lets callers overlap attachment downloads with
+* whatever else they're still fetching.
+*/
+var prefetchAttachments = async (items, chunked) => {
+	const refs = /* @__PURE__ */ new Set();
+	collectRefs(items, refs);
+	await Promise.all([...refs].map((index) => chunked.attachments.getRange(index, index + 1)));
+};
+/**
+* The sample's events reader with attachment refs resolved per chunk.
+* Chunk-level caching means each chunk resolves once.
+*/
+var resolvedEventsReader = (chunked) => chunked.events.withTransform((items, start) => withAttachmentsResolved(items, chunked, `events chunk ${start}`));
+//#endregion
+//#region src/log_data/chunkedMessages.ts
+/**
+* Hydrate a chunked sample's final conversation: the shell's `message_refs`
+* ranges resolved against the messages sequence, attachments substituted —
+* the same material a monolith sample stores inline as `messages`.
+*
+* INTERIM: full hydration is a bridge until the Messages tab pages by
+* index window (design/large-samples.md, access pattern 3 / effort C3).
+* "The final conversation is conversation-sized" does NOT hold under
+* compaction — measured 134,989 messages / 7,961 ranges (~135MB of member
+* fetches) on the mirror-code monster — so this matches the monolith
+* path's memory profile, no better. Windowed replacement is C3; this
+* fetches on-demand (tab open), never at sample open.
+*
+* Attachment chunks are prefetched per message range as ranges arrive, so
+* attachment downloads overlap the remaining message downloads instead of
+* serializing behind the full conversation assembly.
+*/
+var hydrateFinalConversation = async (chunked) => {
+	const refs = chunked.shell.message_refs;
+	const messages = (await Promise.all(refs.map(([start, end]) => chunked.messages.getRange(start, end).then((messages) => {
+		prefetchAttachments(messages, chunked).catch(() => void 0);
+		return messages;
+	})))).flat();
+	log$4.info(`hydrate final conversation: ${messages.length} messages via ${refs.length} range${refs.length === 1 ? "" : "s"}`);
+	return withAttachmentsResolved(messages, chunked, "final conversation");
+};
+/**
+* The final conversation for the Messages tab, hydrated on first use and
+* cached alongside the sample queries.
+*/
+var useChunkedMessages = (logDir, handle, chunked) => useAsyncDataFromQuery({
+	queryKey: [
+		"log_data",
+		"chunked-messages",
+		logDir,
+		handle?.logFile ?? null,
+		handle?.id ?? null,
+		handle?.epoch ?? null
+	],
+	queryFn: chunked && handle ? () => hydrateFinalConversation(chunked) : skipToken,
+	gcTime: kSampleGcTimeMs,
+	retry: false,
+	refetchOnWindowFocus: false,
+	refetchOnReconnect: false,
+	structuralSharing: false
+});
 //#endregion
 //#region src/app/shared/useStableValue.ts
 /**
@@ -67348,6 +68505,10 @@ var openRemoteLogFile = async (api, url, concurrency) => {
 			};
 		},
 		readSample,
+		zipAccess: () => ({
+			entryNames: new Set(remoteZipFile.centralDirectory.keys()),
+			readFile: (name) => remoteZipFile.readFile(name)
+		}),
 		/**
 		* Reads the complete log file.
 		*/
@@ -67721,6 +68882,12 @@ var clientApi = (api, log_file, debug = false) => {
 			});
 		}
 	};
+	const get_log_zip_access = async (log_file) => {
+		if (!isEvalFile(log_file)) return;
+		const remoteLogFile = await remoteEvalFile(log_file, true);
+		if (!remoteLogFile) throw new Error(`Unable to read remote eval file ${log_file}`);
+		return remoteLogFile.zipAccess();
+	};
 	const read_eval_file_log_summary = async (log_file) => {
 		if (api.get_log_summary) return api.get_log_summary(log_file);
 		else return (await openRemoteLogFile(api, encodePathParts(log_file), 5)).readEvalBasicInfo();
@@ -67863,6 +69030,7 @@ var clientApi = (api, log_file, debug = false) => {
 		}),
 		get_log_info: middleware("get_log_info", (log_file) => api.get_log_info(encodePathParts(log_file))),
 		get_log_sample: middleware("get_log_sample", get_log_sample),
+		get_log_zip_access: middleware("get_log_zip_access", get_log_zip_access),
 		open_log_file: middleware("open_log_file", (log_file, log_dir) => {
 			return api.open_log_file(log_file, log_dir);
 		}),
@@ -89131,7 +90299,7 @@ var flatTree = (eventNodes, collapsed, visitors, parentNode) => {
 			const children = flatTree(pendingNode.children, collapsed, visitors, pendingNode);
 			pendingNode.children = children;
 			result.push(pendingNode);
-			if (collapsed === null || collapsed[pendingNode.id] !== true) result.push(...children);
+			if (collapsed === null || collapsed[pendingNode.id] !== true) for (const child of children) result.push(child);
 		}
 		for (const visitor of visitors) if (visitor.flush) {
 			const finalNodes = visitor.flush();
@@ -89140,7 +90308,7 @@ var flatTree = (eventNodes, collapsed, visitors, parentNode) => {
 	} else {
 		result.push(node);
 		const children = flatTree(node.children, collapsed, visitors, node);
-		if (collapsed === null || collapsed[node.id] !== true) result.push(...children);
+		if (collapsed === null || collapsed[node.id] !== true) for (const child of children) result.push(child);
 	}
 	return result;
 };
@@ -94377,27 +95545,31 @@ var collectAllCollapsibleIds = (nodes) => {
 * Handles fixup, treeification, empty-span filtering, source-span attachment
 * (for agent card rendering), and default-collapse computation.
 */
+/**
+* Build an EventNode tree from raw events (pure core of `useEventNodes`).
+*
+* Exposed for headless consumers (tests, non-React derivations) that need
+* the exact production pipeline: retry ordering/grouping, fixups,
+* treeification, empty-span filtering, source-span attachment, and
+* default-collapse computation.
+*/
+var buildEventNodes = (events, running, sourceSpans) => {
+	const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
+	const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0);
+	if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
+	const eventNodes = filterEmptySpans(rawEventTree);
+	return {
+		eventNodes,
+		defaultCollapsedIds: computeDefaultCollapsedIds(eventNodes),
+		retryAttempts
+	};
+};
 var useEventNodes = (events, running, sourceSpans) => {
-	const { eventTree, defaultCollapsedIds, retryAttempts } = (0, import_react.useMemo)(() => {
-		const { events: groupedEvents, attempts: retryAttempts } = groupRetryAttempts(correctRetryTimestamps(events));
-		const rawEventTree = treeifyEvents(fixupEventStream(groupedEvents, !running), 0);
-		if (sourceSpans && sourceSpans.size > 0) attachSourceSpans(rawEventTree, sourceSpans);
-		const eventTree = filterEmptySpans(rawEventTree);
-		return {
-			eventTree,
-			defaultCollapsedIds: computeDefaultCollapsedIds(eventTree),
-			retryAttempts
-		};
-	}, [
+	return (0, import_react.useMemo)(() => buildEventNodes(events, running, sourceSpans), [
 		events,
 		running,
 		sourceSpans
 	]);
-	return {
-		eventNodes: eventTree,
-		defaultCollapsedIds,
-		retryAttempts
-	};
 };
 //#endregion
 //#region ../../packages/inspect-components/src/transcript/hooks/useEventNodeData.ts
@@ -106361,6 +107533,327 @@ var SampleScoresView = ({ sample, className, scrollRef }) => {
 	});
 };
 //#endregion
+//#region src/app/samples/transcript/chunked/ChunkedRowView.tsx
+/** Stable row identity: event uuid when present, else the sequence ordinal. */
+var rowNodeId = (row) => {
+	if (row.kind === "span") return row.span.id;
+	const ev = row.kind === "event" ? row.ev : row.sample;
+	const uuid = "uuid" in ev ? ev.uuid : void 0;
+	return typeof uuid === "string" ? uuid : `ordinal-${row.ordinal}`;
+};
+var eventNode = (ev, id, depth) => new EventNode(id, ev, depth);
+var summarizeChildren = (span) => {
+	const parts = Object.entries(span.children).map(([type, count]) => `${count} ${type} event${count === 1 ? "" : "s"}`);
+	return parts.length > 0 ? parts.join(", ") : "(no events)";
+};
+/**
+* One decoded view row: event rows render through the shared per-event
+* renderers; span rows render from the skeleton span (its begin event body
+* may be unfetched — collapsing a span covering a million events costs
+* nothing); runs render as one merged row.
+*/
+var ChunkedRowView = ({ row, eventCallbacks }) => {
+	const node = (0, import_react.useMemo)(() => row.kind === "event" ? eventNode(row.ev, rowNodeId(row), row.depth) : void 0, [row]);
+	if (row.kind === "span") {
+		const span = row.span;
+		const title = span.type ? `${span.type}: ${span.name}` : span.name;
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+			eventNodeId: span.id,
+			muted: true,
+			childIds: [`${span.id}#contents`],
+			title,
+			subTitle: formatDateTime$1(new Date(span.t[0])),
+			text: summarizeChildren(span),
+			depth: row.depth,
+			eventCallbacks
+		});
+	}
+	if (row.kind === "run") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: rowNodeId(row),
+		muted: true,
+		title: `${row.count} ${row.runType} events`,
+		depth: row.depth
+	});
+	return node ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedEventNode, {
+		node,
+		eventCallbacks
+	}) : null;
+};
+var ChunkedTranscriptPanel_module_default = {
+	layout: "_layout_6xi98_1",
+	swimlanes: "_swimlanes_6xi98_7",
+	outline: "_outline_6xi98_13",
+	list: "_list_6xi98_21",
+	row: "_row_6xi98_27",
+	placeholder: "_placeholder_6xi98_35",
+	shimmer: "_shimmer_6xi98_1"
+};
+//#endregion
+//#region src/app/samples/transcript/chunked/mainViewOutline.ts
+/**
+* The EventNode tree for a selected timeline view's collected events — the
+* exact `TranscriptLayout.eventsForNodes` + `useEventNodes` composition.
+* This is the shape `TranscriptOutline` consumes directly.
+*/
+var outlineViewTree = (selectedEvents, sourceSpans, hiddenTypes) => {
+	const { eventNodes, defaultCollapsedIds } = buildEventNodes(selectedEvents.filter((e) => !hiddenTypes.includes(e.event)), false, sourceSpans);
+	return {
+		eventNodes,
+		defaultCollapsedIds
+	};
+};
+//#endregion
+//#region src/app/samples/transcript/chunked/useChunkedRows.ts
+/**
+* The row-window model for a chunked sample's transcript: a RowSpace
+* (estimate-then-correct row accounting over event chunks) rebuilt when the
+* filter or collapse state changes. Rebuilds are cheap — estimates come
+* from the stats sidecar and re-materialization re-parses from the byte
+* store, not the network.
+*/
+var useChunkedRows = (chunked, collapsedOverrides, defaultCollapsedIds, hiddenTypes) => {
+	const visible = (0, import_react.useMemo)(() => {
+		const hidden = new Set(hiddenTypes);
+		return (type) => !hidden.has(type);
+	}, [hiddenTypes]);
+	const nextCollapsed = (0, import_react.useMemo)(() => {
+		const ids = /* @__PURE__ */ new Set();
+		for (const span of chunked.skeleton.spans) if (collapsedOverrides?.[span.id] ?? defaultCollapsedIds.has(span.id)) ids.add(span.id);
+		return ids;
+	}, [
+		chunked,
+		collapsedOverrides,
+		defaultCollapsedIds
+	]);
+	const [collapsed, setCollapsed] = (0, import_react.useState)(nextCollapsed);
+	if (collapsed !== nextCollapsed && (collapsed.size !== nextCollapsed.size || ![...nextCollapsed].every((id) => collapsed.has(id)))) setCollapsed(nextCollapsed);
+	const events = (0, import_react.useMemo)(() => resolvedEventsReader(chunked), [chunked]);
+	const { rowSpace, ctx } = (0, import_react.useMemo)(() => {
+		return {
+			rowSpace: new RowSpace(events, chunked.stats, chunked.skel, collapsed, visible),
+			ctx: {
+				events,
+				stats: chunked.stats,
+				skel: chunked.skel,
+				isCollapsed: (spanId) => collapsed.has(spanId),
+				visible
+			}
+		};
+	}, [
+		events,
+		chunked,
+		collapsed,
+		visible
+	]);
+	const version = (0, import_react.useSyncExternalStore)((0, import_react.useCallback)((onChange) => rowSpace.onChange(onChange), [rowSpace]), () => rowSpace.version);
+	return (0, import_react.useMemo)(() => ({
+		version,
+		total: rowSpace.total,
+		slotAt: (globalIndex) => rowSpace.slotAt(globalIndex),
+		materialize: (chunkIdx) => {
+			rowSpace.materialize(chunkIdx, ctx).catch((error) => {
+				console.error(`Failed to materialize chunk ${chunkIdx}`, error);
+			});
+		},
+		rowIndexForOrdinal: (ordinal) => rowSpace.rowIndexForOrdinal(ordinal),
+		isCollapsed: (spanId) => collapsed.has(spanId)
+	}), [
+		rowSpace,
+		ctx,
+		version,
+		collapsed
+	]);
+};
+//#endregion
+//#region src/app/samples/transcript/chunked/ChunkedTranscriptPanel.tsx
+/**
+* The transcript for a chunked-shape sample: a row-window list model over
+* the RowSpace (the forked seam named in design/large-samples.md — shared
+* per-event row renderers, second window model) plus the legacy timeline
+* presentation layer (swimlanes + main-view outline) fed by a synthetic
+* event stream reconstructed from the skeleton. Rows materialize as they
+* scroll into view; everything above the data layer is estimate-then-correct
+* with ordinal re-anchoring.
+*
+* Divergence from the legacy panel: swimlane/outline selection scrolls the
+* body to the selected span rather than re-scoping the body to that view —
+* the body renders the raw event tree (main-view body is a flagged spec
+* follow-up).
+*/
+var ChunkedTranscriptPanel = ({ id, scrollRef, offsetTop, chunked }) => {
+	const hiddenTypes = useStore((state) => state.sample.eventFilter.filteredTypes);
+	const collapsedOverrides = useStore((state) => state.sample.collapsedEvents?.[kTranscriptCollapseScope]);
+	const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+	const rows = useChunkedRows(chunked, collapsedOverrides, (0, import_react.useMemo)(() => defaultCollapsedSpanIds(chunked.skeleton), [chunked]), hiddenTypes);
+	const synth = (0, import_react.useMemo)(() => syntheticEventsFromSkeleton(chunked.skeleton), [chunked]);
+	const eventsForTimeline = (0, import_react.useMemo)(() => synth.events.filter((e) => e.event === "anchor" || !hiddenTypes.includes(e.event)), [synth, hiddenTypes]);
+	const timelinesForBranchDetection = useTimelinesArray(eventsForTimeline);
+	const timelineConfig = useTimelineConfig({ branchesPresent: (0, import_react.useMemo)(() => timelinesForBranchDetection.some((tl) => spanHasBranches(tl.root)), [timelinesForBranchDetection]) });
+	const [selectedRow, setSelectedRow] = (0, import_react.useState)(null);
+	const timelineSelection = (0, import_react.useMemo)(() => ({
+		selected: selectedRow,
+		onSelect: (key) => setSelectedRow(key)
+	}), [selectedRow]);
+	const { state: timelineState, swimlanes, minimap, selection, hasTimeline, hasAgentTimeline } = useTranscriptTimeline({
+		events: eventsForTimeline,
+		markerConfig: timelineConfig.markerConfig,
+		timelineOptions: timelineConfig.agentConfig,
+		timelineProps: timelineSelection
+	});
+	const outlineTree = (0, import_react.useMemo)(() => outlineViewTree(selection.events, selection.sourceSpans, hiddenTypes), [
+		selection.events,
+		selection.sourceSpans,
+		hiddenTypes
+	]);
+	const outlineCollapsed = useStore((state) => state.sample.collapsedEvents?.[kTranscriptOutlineCollapseScope]);
+	const setCollapsedEventsStore = useStore((state) => state.sampleActions.setCollapsedEvents);
+	const outlineCollapse = (0, import_react.useMemo)(() => ({
+		collapsed: outlineCollapsed,
+		onCollapse: (nodeId, collapsed) => collapseEvent(kTranscriptOutlineCollapseScope, nodeId, collapsed),
+		onSetCollapsed: (ids) => setCollapsedEventsStore(kTranscriptOutlineCollapseScope, ids)
+	}), [
+		outlineCollapsed,
+		collapseEvent,
+		setCollapsedEventsStore
+	]);
+	const swimlanesDefaultCollapsed = hasTimeline ? !hasAgentTimeline : true;
+	const virtualizer = useVirtualizer({
+		count: rows.total,
+		getScrollElement: () => scrollRef.current,
+		estimateSize: () => 64,
+		overscan: 8,
+		paddingStart: offsetTop,
+		getItemKey: (index) => {
+			const slot = rows.slotAt(index);
+			return slot.kind === "row" ? rowNodeId(slot.row) : `ph-${index}`;
+		}
+	});
+	const items = virtualizer.getVirtualItems();
+	(0, import_react.useEffect)(() => {
+		for (const item of items) {
+			const slot = rows.slotAt(item.index);
+			if (slot.kind === "placeholder") rows.materialize(slot.chunkIdx);
+		}
+	}, [items, rows]);
+	const anchorRef = (0, import_react.useRef)(void 0);
+	const versionRef = (0, import_react.useRef)(rows.version);
+	(0, import_react.useEffect)(() => {
+		if (rows.version !== versionRef.current) {
+			versionRef.current = rows.version;
+			if (anchorRef.current !== void 0) virtualizer.scrollToIndex(rows.rowIndexForOrdinal(anchorRef.current), { align: "start" });
+		}
+	});
+	(0, import_react.useEffect)(() => {
+		const first = items.find((item) => rows.slotAt(item.index).kind === "row");
+		if (first !== void 0) {
+			const slot = rows.slotAt(first.index);
+			if (slot.kind === "row") anchorRef.current = slot.row.ordinal;
+		}
+	}, [items, rows]);
+	const eventCallbacks = (0, import_react.useMemo)(() => ({
+		getCollapsed: (nodeId) => chunked.skel.spanIds.has(nodeId) ? rows.isCollapsed(nodeId) : collapsedOverrides?.[nodeId] ?? false,
+		onCollapse: (nodeId, collapsed) => {
+			collapseEvent(kTranscriptCollapseScope, nodeId, collapsed);
+		}
+	}), [
+		chunked,
+		rows,
+		collapsedOverrides,
+		collapseEvent
+	]);
+	const jumpToOrdinal = (0, import_react.useCallback)((ordinal) => {
+		anchorRef.current = ordinal;
+		virtualizer.scrollToIndex(rows.rowIndexForOrdinal(ordinal), { align: "start" });
+	}, [virtualizer, rows]);
+	const spanBeginByid = (0, import_react.useMemo)(() => new Map(chunked.skeleton.spans.map((span) => [span.id, span.begin])), [chunked]);
+	const handleRowSelect = (0, import_react.useCallback)((key) => {
+		setSelectedRow(key);
+		if (key === null) return;
+		const span = getSelectedSpans(timelineState.rows, key)[0];
+		const begin = span !== void 0 ? spanBeginByid.get(span.id) : void 0;
+		if (begin !== void 0) jumpToOrdinal(begin);
+	}, [
+		timelineState.rows,
+		spanBeginByid,
+		jumpToOrdinal
+	]);
+	const swimlaneNavigation = (0, import_react.useMemo)(() => ({
+		node: timelineState.node,
+		selected: timelineState.selected,
+		select: handleRowSelect,
+		clearSelection: () => setSelectedRow(null)
+	}), [
+		timelineState.node,
+		timelineState.selected,
+		handleRowSelect
+	]);
+	const swimlaneHeader = (0, import_react.useMemo)(() => ({
+		minimap,
+		timelineConfig
+	}), [minimap, timelineConfig]);
+	const [selectedOutlineId, setSelectedOutlineId] = (0, import_react.useState)(null);
+	const navigateToOutlineEvent = (0, import_react.useCallback)((eventId) => {
+		const ordinal = synth.ordinals.get(eventId);
+		if (ordinal !== void 0) jumpToOrdinal(ordinal);
+	}, [synth, jumpToOrdinal]);
+	const [outlineScrollEl, setOutlineScrollEl] = (0, import_react.useState)(null);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		"data-testid": `${id}-chunked`,
+		children: [hasTimeline && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: ChunkedTranscriptPanel_module_default.swimlanes,
+			style: { top: offsetTop ?? 0 },
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TimelineSwimLanes, {
+				layouts: swimlanes.layouts,
+				timeline: swimlaneNavigation,
+				header: swimlaneHeader,
+				defaultCollapsed: swimlanesDefaultCollapsed,
+				regionCounts: swimlanes.regionCounts,
+				highlightedKeys: swimlanes.highlightedKeys
+			})
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: ChunkedTranscriptPanel_module_default.layout,
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				ref: setOutlineScrollEl,
+				className: ChunkedTranscriptPanel_module_default.outline,
+				style: {
+					top: offsetTop ?? 0,
+					maxHeight: "80vh"
+				},
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptOutline, {
+					eventNodes: outlineTree.eventNodes,
+					defaultCollapsedIds: outlineTree.defaultCollapsedIds,
+					scrollRef,
+					outlineScrollEl,
+					agentName: selection.rowName,
+					onNavigateToEvent: navigateToOutlineEvent,
+					collapse: outlineCollapse,
+					selectedOutlineId,
+					setSelectedOutlineId
+				})
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: ChunkedTranscriptPanel_module_default.list,
+				style: { height: virtualizer.getTotalSize() },
+				children: items.map((item) => {
+					const slot = rows.slotAt(item.index);
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						"data-index": item.index,
+						ref: virtualizer.measureElement,
+						className: ChunkedTranscriptPanel_module_default.row,
+						style: { transform: `translateY(${item.start}px)` },
+						children: slot.kind === "row" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							style: { paddingLeft: `${slot.row.depth <= 1 ? slot.row.depth * .7 : (.7 + slot.row.depth - 1) * 1}em` },
+							children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChunkedRowView, {
+								row: slot.row,
+								eventCallbacks
+							})
+						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: ChunkedTranscriptPanel_module_default.placeholder })
+					}, item.key);
+				})
+			})]
+		})]
+	});
+};
+//#endregion
 //#region src/app/samples/transcript/hooks.ts
 var eventTypes = {
 	sample_init: "Sample Init",
@@ -106930,9 +108423,14 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	}, [sample, evalSpec]);
 	const selectedTab = useStore((state) => state.app.tabs.sample);
 	const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
+	const isChunked = sampleData.chunked !== void 0;
 	(0, import_react.useEffect)(() => {
-		if (sample !== void 0 && sample.events.length < 1) setSelectedTab(kSampleMessagesTabId);
-	}, [sample, setSelectedTab]);
+		if (sample !== void 0 && sample.events.length < 1 && !isChunked) setSelectedTab(kSampleMessagesTabId);
+	}, [
+		sample,
+		isChunked,
+		setSelectedTab
+	]);
 	const removeBagsByPrefix = useStore((state) => state.appActions.removeBagsByPrefix);
 	(0, import_react.useEffect)(() => {
 		const snapshotBagPrefixes = [`chat-${baseId}-chat-${id}`, `${baseId}-transcript-display-${id}`];
@@ -106968,6 +108466,10 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 		};
 	}, [clearSampleTab]);
 	const effectiveSelectedTab = sampleTabId || selectedTab;
+	const logDir = useLogDir();
+	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
+	const chunkedMessages = useChunkedMessages(logDir, isChunked && effectiveSelectedTab === kSampleMessagesTabId ? selectedSampleHandle : void 0, sampleData.chunked);
+	const effectiveMessages = isChunked ? chunkedMessages.data ?? [] : sampleMessages;
 	(0, import_react.useEffect)(() => {
 		setTimeout(() => {
 			if (focusOnLoad) scrollRef.current?.focus();
@@ -107011,7 +108513,6 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	const [filterButtonEl, setFilterButtonEl] = (0, import_react.useState)(null);
 	const optionsRef = (0, import_react.useRef)(null);
 	const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
 	const printLogPath = urlLogPath || selectedLogFile;
 	const printSampleId = urlSampleId || selectedSampleHandle?.id?.toString();
 	const printEpoch = urlEpoch || selectedSampleHandle?.epoch?.toString();
@@ -107303,7 +108804,15 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								showing: isShowing,
 								setShowing,
 								positionEl: filterButtonEl
-							}), !sampleEvents || sampleEvents.length === 0 ? sampleData.status === "loading" ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: eventsCleared ? "Transcript events were removed because this sample exceeds the browser's size limit. Use the Messages tab to view the conversation." : "No events to display." }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+							}), sampleData.chunked ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: SampleDisplay_module_default.tabContent,
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChunkedTranscriptPanel, {
+									id: `${baseId}-transcript-display-${id}`,
+									scrollRef,
+									offsetTop: stickyOffsetTop,
+									chunked: sampleData.chunked
+								}, `${baseId}-chunked-transcript-${id}-${sampleData.chunked.shell.id}-${sampleData.chunked.shell.epoch}`)
+							}) : !sampleEvents || sampleEvents.length === 0 ? sampleData.status === "loading" ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, { text: eventsCleared ? "Transcript events were removed because this sample exceeds the browser's size limit. Use the Messages tab to view the conversation." : "No events to display." }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 								className: SampleDisplay_module_default.tabContent,
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TranscriptPanel, {
 									id: `${baseId}-transcript-display-${id}`,
@@ -107338,7 +108847,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								label: railLabel,
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatViewVirtualList, {
 									id: `${baseId}-chat-${id}`,
-									messages: sampleMessages,
+									messages: effectiveMessages,
 									initialMessageId: sampleDetailNavigation.message,
 									offsetTop: stickyOffsetTop,
 									display: chatDisplay,
