@@ -95,6 +95,14 @@ _DEFAULT_EVENTS_TAIL = 20
 # rationale as the events tail.
 _DEFAULT_MESSAGES_TAIL = 20
 
+# Idle seconds on a running sample before the human `sample list` rendering
+# appends the `process anomalies` escalation pointer below the table. "Tens
+# of minutes" per "Trace-log anomalies for stall diagnosis" in
+# design/ctl/control-channel.md: long enough that an ordinarily slow model
+# call rarely trips it, short enough to teach the escalation while the stall
+# still matters.
+_IDLE_POINTER_MIN_SECONDS = 10 * 60
+
 # One source of truth for each retunable config knob's scope. The `ctl config`
 # option help tags, the composed JSON view's per-knob "scope" labels, and the
 # human rendering's [task]/[process] labels all derive from this table, so a
@@ -349,6 +357,27 @@ def _busy_note(busy_pids: list[int]) -> str:
     return f"{_busy_pids_label(busy_pids)} busy — try again shortly"
 
 
+def _anomalies_pointer(pid: int | None = None) -> str:
+    """The stall-site escalation pointer at `inspect ctl process anomalies`.
+
+    Printed wherever the human surface already shows a stall (a long-idle
+    sample listing, a busy-skip note): the verb reads the pid's trace file
+    directly — nothing is asked of the process — so it is the one `ctl`
+    read that works against a busy or hung process. Without ``pid`` the
+    bare verb is suggested (it reads every running process). Stderr / human
+    rendering only: on ``--json`` the hint is omitted (no teaching prose
+    inside envelopes — JSON consumers learn the verb from ``--help``).
+    """
+    if pid is not None:
+        return (
+            f"`inspect ctl process anomalies {pid}` shows the process's "
+            "in-flight actions"
+        )
+    return (
+        "`inspect ctl process anomalies` shows each running process's in-flight actions"
+    )
+
+
 def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
     """Exit non-zero when no task summaries were collected and busy processes remain.
 
@@ -356,7 +385,10 @@ def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
     process didn't answer (any responsive ones reported no tasks yet — a
     control endpoint binds before its first task registers), so the 'nothing
     running' message (and an empty ``--json`` envelope with exit 0) would be
-    a false claim about the busy pids.
+    a false claim about the busy pids. Each busy pid's skip note has already
+    printed the :func:`_anomalies_pointer` escalation (see
+    :func:`_fetch_summaries`), so this terminal message doesn't repeat it —
+    and the envelope message stays hint-free.
     """
     _fail("busy", f"No tasks visible: {_busy_note(busy_pids)}.")
 
@@ -1764,13 +1796,13 @@ def _list_sample_rows(
             )
         except _ServerUnreachable as exc:
             if task is not None:
-                _exit_samples_unreachable(target["eval_id"], exc)
+                _exit_samples_unreachable(target["eval_id"], exc, pid=target.get("pid"))
             # An unscoped read spans whatever evals happen to be running; one
             # process exiting — or staying busy through the retries — between
             # discovery and this read shouldn't fail the invocation (even if
             # it was the only eval).
             hint = (
-                "try again shortly"
+                f"try again shortly, or {_anomalies_pointer(target.get('pid'))}"
                 if isinstance(exc, _ServerBusy)
                 else "it may have just exited"
             )
@@ -1851,6 +1883,7 @@ def _run_sample_list(
         statuses=_parse_statuses(status),
         limit=limit,
         all_samples=all_samples,
+        idle_pointer=True,
     )
 
 
@@ -1894,6 +1927,7 @@ def _run_sample_listing(
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    idle_pointer: bool = False,
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
 
@@ -1906,7 +1940,9 @@ def _run_sample_listing(
     unavailable)" instead, and an empty ``--status``-filtered or
     ``--active-since`` delta listing gets a filter-scoped message (samples
     may exist that simply didn't match). ``statuses`` is the already-parsed
-    ``--status`` member set (``None`` = no filter).
+    ``--status`` member set (``None`` = no filter). ``idle_pointer`` opts the
+    human rendering into the long-idle escalation footer (`sample list` — the
+    listing whose idle column shows a stall; see :func:`_echo_idle_pointer`).
     """
     listing = _list_sample_rows(
         task,
@@ -1963,6 +1999,42 @@ def _run_sample_listing(
             statuses=statuses,
             delta=active_since is not None,
         )
+    if idle_pointer:
+        _echo_idle_pointer(rows, listing.read)
+
+
+def _echo_idle_pointer(rows: list[dict[str, Any]], read: list[dict[str, Any]]) -> None:
+    """Print the stall-escalation footer below a long-idle sample listing.
+
+    The idle column says a running sample has been silent, not why: a single
+    in-flight operation (model call, sandbox exec) emits no transcript event
+    until it returns, so a long idle reads identically whether the call is
+    slow-but-healthy or hung. The trace file is the layer below, and where
+    the table already shows the stall the surface teaches the escalation
+    (see :func:`_anomalies_pointer`) rather than relying on the user knowing
+    the trace subsystem exists. ``read`` (the targets whose samples were
+    fetched) supplies the pid; when the stalled rows span several processes
+    the bare verb is suggested, which reads them all. Human rendering only —
+    the ``--json`` path returns before any table is printed.
+    """
+    now = datetime.now(timezone.utc).timestamp()
+    pid_by_task = {t.get("task_id"): t.get("pid") for t in read}
+    idles: list[float] = []
+    pids: set[Any] = set()
+    for sample in rows:
+        last = sample.get("last_activity_at")
+        if sample.get("status") != "running" or last is None:
+            continue
+        idle = now - float(last)
+        if idle >= _IDLE_POINTER_MIN_SECONDS:
+            idles.append(idle)
+            pids.add(pid_by_task.get(sample.get("task_id")))
+    if not idles:
+        return
+    only = next(iter(pids)) if len(pids) == 1 else None
+    pid = int(only) if only is not None else None
+    click.echo()
+    click.echo(f"idle {_format_duration(max(idles))} — {_anomalies_pointer(pid)}")
 
 
 def _echo_truncation_footer(
@@ -3751,11 +3823,16 @@ def _get_response_with_retry(
             f"no response after {attempts} attempts — the eval's event loop is busy",
             last_timeout=last_timeout,
         )
-    _fail(
-        "busy",
+    message = (
         f"{what}: gave up after {attempts} attempts of "
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
-        "try again shortly.",
+        "try again shortly."
+    )
+    click.echo(message, err=True)
+    click.echo(f"{_anomalies_pointer()}.", err=True)
+    raise _CtlFailure(
+        "busy",
+        message,
         exception=_exception_name(last_timeout) if last_timeout else None,
     )
 
@@ -3861,7 +3938,7 @@ def _fetch_summaries(
             cause = exc.__cause__
             if isinstance(exc, _ServerBusy):
                 busy_pids.append(server.pid)
-                hint = "try again shortly"
+                hint = f"try again shortly, or {_anomalies_pointer(server.pid)}"
             elif (
                 isinstance(cause, httpx.HTTPStatusError)
                 and cause.response.status_code == 404
@@ -4023,8 +4100,15 @@ def _unreachable_detail(exc: _ServerUnreachable) -> str:
     return _error_detail(cause) if isinstance(cause, Exception) else str(exc)
 
 
-def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn:
-    """Echo a samples-read failure for ``eval_id`` and exit non-zero."""
+def _exit_samples_unreachable(
+    eval_id: str, exc: _ServerUnreachable, *, pid: int | None = None
+) -> NoReturn:
+    """Echo a samples-read failure for ``eval_id`` and exit non-zero.
+
+    A busy failure adds the :func:`_anomalies_pointer` escalation (``pid``
+    names the busy process) on stderr only — the envelope message stays
+    hint-free.
+    """
     # the period rides the hint: a non-busy detail is a raw transport error
     # string (multi-line, may end in a URL) that punctuation would corrupt
     hint = "; try again shortly." if isinstance(exc, _ServerBusy) else ""
@@ -4032,6 +4116,8 @@ def _exit_samples_unreachable(eval_id: str, exc: _ServerUnreachable) -> NoReturn
         f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}{hint}"
     )
     click.echo(message, err=True)
+    if isinstance(exc, _ServerBusy):
+        click.echo(f"{_anomalies_pointer(pid)}.", err=True)
     raise _unreachable_failure(message, exc) from exc
 
 

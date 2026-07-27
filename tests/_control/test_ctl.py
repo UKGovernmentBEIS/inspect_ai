@@ -766,6 +766,8 @@ def test_get_with_retry_exhausts_and_exits(
     assert counter["gets"] == _REQUEST_ATTEMPTS
     err = capsys.readouterr().err
     assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
+    # the terminal busy narration teaches the escalation path
+    assert "inspect ctl process anomalies" in err
 
 
 def test_config_read_retries_timeout_then_succeeds(
@@ -874,6 +876,8 @@ def test_fetch_summaries_busy_server_skipped_when_degradable(
     err = capsys.readouterr().err
     assert "Skipping pid 7" in err
     assert "try again shortly" in err
+    # the skip note teaches the escalation that works against a busy process
+    assert "inspect ctl process anomalies 7" in err
 
 
 def test_fetch_summaries_sole_server_rides_full_budget(
@@ -1615,6 +1619,134 @@ def test_sample_list_truncation_footer_with_filters(
     assert result.exit_code == 0, result.output
     assert "showing first 1 matching sample (251 total" in result.output
     assert "--status to filter" in result.output
+
+
+def test_sample_list_long_idle_points_at_process_anomalies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A running sample idle in the tens of minutes teaches the escalation.
+
+    The idle column shows the stall but not why (a single in-flight action
+    emits no transcript event until it returns); the footer points at the
+    trace read that shows the why, naming the hosting pid.
+    """
+    import time
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row(
+                    "s1", status="running", last_activity_at=time.time() - 27 * 60
+                )
+            ]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert "idle 27:0" in result.output
+    assert "`inspect ctl process anomalies 7`" in result.output
+
+
+def test_sample_list_short_idle_no_pointer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An idle below the threshold is normal operation — no escalation noise."""
+    import time
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running", last_activity_at=time.time() - 120)
+            ]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert "process anomalies" not in result.output
+
+
+def test_sample_list_idle_pointer_omitted_on_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The escalation hint is human-only — no prose inside the envelope."""
+    import time
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row(
+                    "s1", status="running", last_activity_at=time.time() - 27 * 60
+                )
+            ]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["s1"]
+    assert "process anomalies" not in result.stdout
+
+
+def test_sample_list_idle_pointer_spans_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stalls across several processes suggest the bare verb, which reads them all."""
+    import time
+
+    stale = time.time() - 30 * 60
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "t1", pid=7),
+            _full_summary("bbb222", "t2", pid=9),
+        ],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running", last_activity_at=stale)
+            ],
+            "eval_bbb222": [
+                _sample_row("s2", status="running", last_activity_at=stale)
+            ],
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert (
+        "`inspect ctl process anomalies` shows each running process's" in result.output
+    )
+
+
+def test_sample_list_scoped_busy_points_at_process_anomalies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scoped busy failure names the verb that works against a busy pid.
+
+    Stderr only: the --json envelope message stays hint-free (agents branch
+    on `kind` and learn the verb from --help).
+    """
+    from inspect_ai._cli.ctl import _ServerBusy
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _patch_samples_unreachable_for(
+        monkeypatch,
+        "eval_aaa111",
+        exc=_ServerBusy("no response after 8 attempts — the eval's event loop is busy"),
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "aaa111"])
+    assert result.exit_code == 1
+    assert "inspect ctl process anomalies 7" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert "anomalies" not in error["message"]
+    assert "inspect ctl process anomalies 7" in result.stderr
 
 
 def test_sample_list_empty_filtered_listing_says_no_match(
@@ -4002,8 +4134,11 @@ def test_json_busy_failure_emits_error_envelope(
     assert error["exception"] == "httpx.ReadTimeout"
     assert error["status"] is None
     assert "gave up" in error["message"]
+    # the escalation pointer is stderr-only prose — never in the envelope
+    assert "anomalies" not in error["message"]
     # the stderr narration is unchanged (it remains the human channel)
     assert "gave up" in result.stderr
+    assert "inspect ctl process anomalies" in result.stderr
 
 
 def test_json_all_busy_emits_busy_envelope(
@@ -4021,6 +4156,7 @@ def test_json_all_busy_emits_busy_envelope(
     error = _error_envelope(result)
     assert error["kind"] == "busy"
     assert "pid 7 busy" in error["message"]
+    assert "anomalies" not in error["message"]  # no teaching prose in envelopes
 
 
 def test_json_not_found_selector_emits_error_envelope(
