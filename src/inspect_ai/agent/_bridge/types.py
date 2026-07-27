@@ -6,6 +6,7 @@ from shortuuid import uuid
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._compaction import (
     Compact,
@@ -91,6 +92,9 @@ class AgentBridge:
             _message_fingerprint(m)
             for m in self._compaction_prefix
             if m.role != "system"
+        ]
+        self._initial_fps_condensed = [
+            _condensed_fingerprint(fp) for fp in self._initial_fps
         ]
         self._tracked_fps: list[_MessageFingerprint] | None = None
         self._tracked_calls = 0
@@ -225,7 +229,9 @@ class AgentBridge:
           are a prefix of it, compared by role + text) always updates the state.
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
-          start with the initial input's non-system messages. A descending
+          start with the initial input's non-system messages (verbatim or as
+          their condensed ``attachment://<hash>`` references — see
+          `_descends_from_initial`). A descending
           thread displaces a tracked non-descending thread when that thread is
           a one-shot call (the opencode title case) or when the descending
           call is longer than the tracked thread (the main loop reclaiming
@@ -320,6 +326,14 @@ class AgentBridge:
     def _descends_from_initial(self, fps: list["_MessageFingerprint"]) -> bool | None:
         """Whether a thread's non-system messages start with the initial input.
 
+        Each initial message matches either verbatim or as its condensed
+        `attachment://<hash>` reference: a long prompt that rides into the
+        scaffold via inspect's transcript condensation crosses the bridge as
+        the placeholder rather than the original text (observed with opencode,
+        whose conversation store round-trips it), and the main loop must still
+        anchor. Only the exact reference to the initial content matches — an
+        attachment reference to other content is not a wildcard.
+
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
         length heuristic).
@@ -327,7 +341,14 @@ class AgentBridge:
         if not self._initial_fps:
             return None
         non_system = [fp for fp in fps if fp.role != "system"]
-        return non_system[: len(self._initial_fps)] == self._initial_fps
+        if len(non_system) < len(self._initial_fps):
+            return False
+        return all(
+            fp == initial or fp == condensed
+            for fp, initial, condensed in zip(
+                non_system, self._initial_fps, self._initial_fps_condensed
+            )
+        )
 
 
 @lru_cache(maxsize=100)
@@ -349,6 +370,19 @@ class _MessageFingerprint(NamedTuple):
 
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
     return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
+
+
+def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:
+    """Fingerprint of the same message condensed to an attachment reference.
+
+    Transcript condensation replaces long text with
+    ``attachment://<mm3-hash-of-text>`` (see `inspect_ai.log._condense`);
+    since the attachment id is the same mm3 hash a fingerprint stores, the
+    condensed form is computable from the fingerprint alone.
+    """
+    return _MessageFingerprint(
+        role=fp.role, text_hash=mm3_hash(f"{ATTACHMENT_PROTOCOL}{fp.text_hash}")
+    )
 
 
 def _extends(prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]) -> bool:

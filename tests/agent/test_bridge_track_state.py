@@ -11,6 +11,7 @@ from typing import Any
 
 from test_helpers.checkpoint import RecordingCheckpointer
 
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.completions import inspect_completions_api_request
@@ -576,6 +577,132 @@ async def test_title_call_then_multi_turn_main_loop() -> None:
 
     assert bridge.state.output.completion == "Castle"
     assert len(bridge.state.messages) == len(turn3) + 1
+
+
+# ---------------------------------------------------------------------------
+# Task prompts condensed to attachment references
+# ---------------------------------------------------------------------------
+
+
+def condensed(text: str) -> str:
+    """The attachment reference a text condenses to (see log/_condense.py)."""
+    return f"attachment://{mm3_hash(text)}"
+
+
+async def test_condensed_user_turn_anchors_descent() -> None:
+    """A main loop whose user turn arrives condensed must still win.
+
+    A long task prompt that rides into the scaffold via inspect's transcript
+    condensation crosses the bridge as an `attachment://<hash>` placeholder
+    rather than the original text (observed with opencode on single-turn
+    GAIA). Descent must still anchor on the initial input: under the length
+    fallback the earlier 3-message title call outranks the 2-message answer
+    call and `state.output` ends up as the session title.
+    """
+    bridge = task_bridge()
+
+    # title call fires first; the scaffold's store holds the condensed turn
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=condensed(TASK)),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    # single-turn answer call: the user turn is the condensed placeholder
+    await track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=condensed(TASK))], "Castle"
+    )
+
+    assert bridge.state.output.completion == "Castle"
+    assert [m.text for m in bridge.state.messages] == [
+        TASK_SYSTEM.text,
+        condensed(TASK),
+        "Castle",
+    ]
+
+
+async def test_condensed_main_loop_keeps_extending() -> None:
+    """After a condensed turn anchors descent the loop tracks normally."""
+    bridge = task_bridge()
+
+    await track(bridge, title_generation_input(), "Doctor Who Series 9 setting")
+
+    turn1: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=condensed(TASK))]
+    out1 = await track(bridge, turn1, "working")
+    assert bridge.state.output.completion == "working"
+
+    turn2 = turn1 + [out1.message, ChatMessageTool(content="tool result")]
+    await track(bridge, turn2, "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert len(bridge.state.messages) == len(turn2) + 1
+
+
+async def test_partially_condensed_multi_message_input_anchors_descent() -> None:
+    """Only long input messages condense; descent matches per message."""
+    part1 = "Analyze the attached data file."
+    part2 = "col_a,col_b\n" + "\n".join(f"{i},{i * 2}" for i in range(100))
+    bridge = AgentBridge(
+        AgentState(
+            messages=[ChatMessageUser(content=part1), ChatMessageUser(content=part2)]
+        )
+    )
+
+    await track(bridge, title_generation_input(), "CSV analysis session")
+
+    # short message crosses verbatim, long one as an attachment reference
+    await track(
+        bridge,
+        [
+            TASK_SYSTEM,
+            ChatMessageUser(content=part1),
+            ChatMessageUser(content=condensed(part2)),
+        ],
+        "The columns sum as expected.",
+    )
+
+    assert bridge.state.output.completion == "The columns sum as expected."
+    assert len(bridge.state.messages) == 4
+
+
+async def test_unrelated_attachment_reference_does_not_anchor_descent() -> None:
+    """Only the initial input's own condensed form matches.
+
+    A side call whose first user turn is an attachment reference to *other*
+    content must not descend: if it did (e.g. if any placeholder were treated
+    as a wildcard) it would take over as the descending thread and the real
+    answer call could no longer displace it.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=condensed(TASK)),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    # side call summarizing an attachment reference to different content
+    await track(
+        bridge,
+        [ChatMessageUser(content=condensed("some tool output blob"))],
+        "summary of the blob",
+    )
+
+    # the real answer call must still displace the (non-descending) title call
+    await track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=condensed(TASK))], "Castle"
+    )
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
 
 
 # ---------------------------------------------------------------------------
