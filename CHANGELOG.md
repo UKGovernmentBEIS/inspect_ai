@@ -17,7 +17,6 @@
 - Anthropic: Support enabling model-generated citations for provided `ContentDocument` inputs.
 - Agent Bridge: Support Anthropic clients that consume responses via `with_raw_response`, which previously failed with `'Message' object has no attribute 'parse'`.
 - Agent Bridge: Side model calls (e.g. opencode's session title generation) can no longer replace the agent's real conversation in the tracked agent state. (meridianlabs-ai/inspect_ai#140)
-- Agent Bridge: Task prompts that cross the bridge as condensed `attachment://` references still anchor the tracked conversation, so a side call can no longer displace the real answer. (meridianlabs-ai/inspect_ai#140)
 - Agent Bridge: Gemini tool results delivered as `functionResponse` parts in model-role turns are now converted to tool messages instead of dropped (fixes 400 "Requests ending with a model turn are not supported").
 - Agent Bridge: Google streaming requests targeting an inspect model now raise the intended streaming-unsupported error instead of being sent to the real Google API.
 - Sandbox: `Sandbox.exec` failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.
