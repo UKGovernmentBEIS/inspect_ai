@@ -187,6 +187,9 @@ async def recover_eval_log_async(
                 yield reconstruct_eval_sample(
                     summary,
                     sample_data,
+                    sample_metadata=buffer.get_sample_metadata(
+                        summary.id, summary.epoch
+                    ),
                     cancelled=is_in_progress,
                     include_events=not no_events,
                 )
@@ -203,13 +206,20 @@ async def recover_eval_log_async(
         stats=_stats,
     )
 
-    # For overwrite mode, move the temp file over the original and
-    # re-read so lazy sample data points to the correct location.
+    # For overwrite mode, move the temp file over the original.
     if final_output is not None:
         fs = filesystem(final_output)
         fs.rm(final_output)
         fs.mv(write_output, final_output)
-        recovered_log = await read_eval_log_async(final_output)
+
+    # Re-read the written log through the async reader before returning. The
+    # log produced by write_recovered_eval_log() carries a LazyList of samples
+    # whose first access calls the sync read_eval_log(), which raises under a
+    # trio async context; reading eagerly here resolves samples to a plain list
+    # so the returned log stays usable end to end under both asyncio and trio
+    # (and, for overwrite mode, also repoints sample data at the final path).
+    final_path = final_output if final_output is not None else write_output
+    recovered_log = await read_eval_log_async(final_path)
 
     # Cleanup buffer DB (only after successful write)
     if cleanup and recovery_data is not None and recovery_data.buffer is not None:
