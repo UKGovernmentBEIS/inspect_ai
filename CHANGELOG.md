@@ -14,6 +14,7 @@
 - OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
 - Google: Added model info for Gemini 3.6 Flash and Gemini 3.5 Flash-Lite (released 2026-07-21).
 - Anthropic: Support for Claude Opus 5 (released 2026-07-24), including model info, computer use, code execution, and disabling thinking via `reasoning_effort="none"`.
+- Anthropic: Support enabling model-generated citations for provided `ContentDocument` inputs.
 - Agent Bridge: Support Anthropic clients that consume responses via `with_raw_response`, which previously failed with `'Message' object has no attribute 'parse'`.
 - Agent Bridge: Side model calls (e.g. opencode's session title generation) can no longer replace the agent's real conversation in the tracked agent state. (meridianlabs-ai/inspect_ai#140)
 - Agent Bridge: Task prompts that cross the bridge as condensed `attachment://` references still anchor the tracked conversation, so a side call can no longer displace the real answer. (meridianlabs-ai/inspect_ai#140)
