@@ -4,11 +4,19 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
+
+import anyio
 
 from inspect_ai._util._async import run_coroutine
-from inspect_ai._util.file import dirname, filesystem
-from inspect_ai.log._file import EvalLogInfo, list_eval_logs, read_eval_log_async
+from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.file import FileInfo, dirname, filesystem
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    log_files_from_ls_async,
+    read_eval_log_async,
+    read_eval_log_headers_async,
+)
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 
@@ -22,6 +30,46 @@ from ._write import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _list_eval_logs_filtered_async(
+    log_dir: str,
+    predicate: Callable[[EvalLog], bool],
+    *,
+    recursive: bool = True,
+) -> list[EvalLogInfo]:
+    """List eval logs in ``log_dir`` matching ``predicate`` without sync I/O.
+
+    Directory listing runs in a worker thread (sync fsspec ``exists``/``ls``).
+    Metadata and header reads use the async log readers so this is safe under
+    both asyncio and trio. Enters ``AsyncFilesystem`` itself so callers need
+    not wrap the await.
+
+    Args:
+        log_dir: Directory to list.
+        predicate: Keep logs whose header satisfies this callable.
+        recursive: Recurse into subdirectories (defaults to True).
+
+    Returns:
+        Matching ``EvalLogInfo`` entries in listing order.
+    """
+
+    def list_files() -> list[FileInfo]:
+        fs = filesystem(log_dir)
+        if not fs.exists(log_dir):
+            return []
+        return fs.ls(log_dir, recursive=recursive)
+
+    files = await anyio.to_thread.run_sync(list_files)
+    if not files:
+        return []
+
+    async with AsyncFilesystem():
+        logs = await log_files_from_ls_async(files)
+        if not logs:
+            return []
+        headers = await read_eval_log_headers_async(logs)
+        return [log for log, header in zip(logs, headers) if predicate(header)]
 
 
 class RecoveryNotAvailable(Exception):
@@ -125,9 +173,9 @@ async def recover_eval_log_async(
     # crashed logs before a successful retry exists.
     output_dir = dirname(write_output)
     task_id = crashed.eval.task_id
-    existing = list_eval_logs(
-        log_dir=output_dir,
-        filter=lambda log_header: (
+    existing = await _list_eval_logs_filtered_async(
+        output_dir,
+        lambda log_header: (
             log_header.status == "success" and log_header.eval.task_id == task_id
         ),
         recursive=False,
@@ -239,9 +287,9 @@ async def _recoverable_eval_logs_async(
 ) -> list[RecoverableEvalLog]:
     log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs") or "./logs"
 
-    crashed_logs = list_eval_logs(
-        log_dir=log_dir,
-        filter=lambda log: log.status == "started",
+    crashed_logs = await _list_eval_logs_filtered_async(
+        log_dir,
+        lambda log: log.status == "started",
     )
 
     result: list[RecoverableEvalLog] = []
