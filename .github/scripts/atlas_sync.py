@@ -205,9 +205,10 @@ def discover() -> None:
             body = (
                 f"Tracking review of external contributor PR by {author} in upstream inspect_ai.\n\n"
                 f"Upstream PR: {url}\n\n"
-                "Labeled `External`; created by the hourly Atlas sync. Stage starts at "
-                "**Review** (the review request is with the reviewer); move it to "
-                "**Contributor** after reviewing."
+                "Labeled `External`; created by the hourly Atlas sync, which also "
+                "requests an automated external review below — its findings land on "
+                "this issue. Stage starts at **Review**; move it to **Contributor** "
+                "after relaying feedback."
             )
             issue = gh_json(
                 "api", f"repos/{FORK}/issues",
@@ -217,7 +218,21 @@ def discover() -> None:
                 "-f", f"assignees[]={REVIEWER}",
             )
             ensure_on_board(issue["node_id"], url)
-            actions.append(f"created proxy #{issue['number']} for upstream #{num} ({author})")
+            # Kick off the automated external review immediately: marvin's
+            # @review comment fires the reviewer's external mode (word-boundary
+            # trigger; External label + upstream URL already in the body), so
+            # findings are waiting on the proxy by the time a human looks.
+            # Isolated try: this is the one write the heal path cannot recover
+            # (dedup skips fully-boarded proxies), and a transient failure here
+            # must not mislabel the successful creation as a failed item.
+            try:
+                comment(issue["number"], "@review")
+                review_note = "review requested"
+            except Exception as e:  # noqa: BLE001
+                review_note = "review request FAILED — trigger @review manually"
+                print(f"::warning::auto-@review failed on proxy #{issue['number']}: {e}")
+            actions.append(
+                f"created proxy #{issue['number']} for upstream #{num} ({author}); {review_note}")
             pending_chips.append(f"#{issue['number']} -> {url}")
         except Exception as e:  # noqa: BLE001 — per-item isolation
             print(f"::warning::discovery failed for upstream #{num}: {e}")
