@@ -8,8 +8,11 @@ functionResponse branch, so the result was silently dropped -> an empty assistan
 with 400 "Requests ending with a model turn are not supported", stalling the agent
 after a single tool call.
 
-The fixture is the VERBATIM inbound `contents` captured from a live gemini-3.6-flash
-Antigravity SDK run (roles: user, model[functionCall call_mcp_tool], model[functionResponse]).
+The fixture is the inbound `contents` captured from a live gemini-3.6-flash
+Antigravity SDK run (roles: user, model[functionCall call_mcp_tool],
+model[functionResponse]), trimmed for the repo: the system prompt is replaced with a
+short stub and the thought-signature blobs are shortened (the tests rely only on the
+turn structure and tool name, and the think-body/thoughtSignature strings still match).
 """
 
 from __future__ import annotations

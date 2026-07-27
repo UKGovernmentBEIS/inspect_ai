@@ -315,26 +315,14 @@ def messages_from_google_contents(
             # BEFORE clearing pending calls; otherwise _extract_model_parts drops them
             # and the request ends on a model turn (Gemini 400 "Requests ending with a
             # model turn are not supported").
-            func_response_parts = [
-                p
-                for p in parts
-                if isinstance(p, dict)
-                and ("functionResponse" in p or "function_response" in p)
-            ]
+            func_response_parts = [p for p in parts if _is_function_response_part(p)]
             if func_response_parts:
                 _, tool_messages = _extract_user_parts(
                     func_response_parts, pending_tool_calls
                 )
                 messages.extend(tool_messages)
 
-            other_parts = [
-                p
-                for p in parts
-                if not (
-                    isinstance(p, dict)
-                    and ("functionResponse" in p or "function_response" in p)
-                )
-            ]
+            other_parts = [p for p in parts if not _is_function_response_part(p)]
             assistant_content, tool_calls = _extract_model_parts(other_parts)
 
             if tool_calls:
@@ -404,6 +392,12 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
+def _is_function_response_part(part: Any) -> bool:
+    return isinstance(part, dict) and (
+        "functionResponse" in part or "function_response" in part
+    )
+
+
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
@@ -431,7 +425,7 @@ def _extract_user_parts(
                     ContentImage(image=f"data:{mime_type};base64,{data}")
                 )
 
-        elif "functionResponse" in part or "function_response" in part:
+        elif _is_function_response_part(part):
             func_response = part.get(
                 "functionResponse", part.get("function_response", {})
             )
