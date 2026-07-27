@@ -343,6 +343,7 @@ def init_anthropic_request_patch() -> None:
     validate_anthropic_client("agent bridge")
 
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
+    from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
     from anthropic._types import Omit, ResponseT
 
@@ -356,6 +357,46 @@ def init_anthropic_request_patch() -> None:
             return headers
 
         return None
+
+    async def finalize_bridge_response(
+        client: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        stream: bool,
+        stream_cls: type[_AsyncStreamT] | None,
+        result: BaseModel,
+    ) -> Any:
+        """Return the bridge result in the shape the Anthropic SDK caller expects.
+
+        Structural twin of `finalize_bridge_response()` in
+        `init_openai_request_patch()` above — see its docstring for the full
+        rationale. The Anthropic SDK uses the same generated client core, so the
+        failure mode is identical: callers using `.with_raw_response` /
+        `.with_streaming_response` expect `request()` to return a response
+        *wrapper* whose `.parse()` yields the `Message`, and crash with
+        `'Message' object has no attribute 'parse'` when handed the parsed
+        model directly.
+
+        Note this pins the bridge to the SDK's private `_process_response()`
+        keyword signature.
+        """
+        raw_response = (request_headers(options) or {}).get(RAW_RESPONSE_HEADER)
+        if not raw_response:
+            return result
+
+        response = httpx.Response(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            content=result.model_dump_json().encode(),
+            request=client._build_request(options),
+        )
+        return await client._process_response(
+            cast_to=cast_to,
+            options=options,
+            response=response,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -387,13 +428,16 @@ def init_anthropic_request_patch() -> None:
                     raise_stream_error()
 
                 is_beta = "beta" in options.url
-                return await inspect_anthropic_api_request(
+                result = await inspect_anthropic_api_request(
                     json_data,
                     filter_bridge_headers(request_headers(options)),
                     config.web_search,
                     config.code_execution,
                     config.bridge,
                     beta=is_beta,
+                )
+                return await finalize_bridge_response(
+                    self, cast_to, options, stream, stream_cls, result
                 )
 
         # otherwise just delegate
@@ -435,9 +479,6 @@ def init_google_request_patch() -> None:
         if config.enabled and ":generateContent" in path:
             model_name = _google_api_model_name(path)
             if model_name and targets_inspect_model({"model": model_name}):
-                if ":streamGenerateContent" in path:
-                    raise_stream_error()
-
                 response = await inspect_google_api_request(
                     cast(dict[str, Any], request_dict),
                     config.web_search,
@@ -455,6 +496,36 @@ def init_google_request_patch() -> None:
         return result
 
     setattr(BaseApiClient, "async_request", patched_async_request)
+
+    # streaming requests use a separate entry point (`async_request_streamed`),
+    # so patch it as well to reject streaming for inspect models (parity with
+    # the OpenAI/Anthropic patches, which see streaming on the same method as
+    # non-streaming via their `stream` argument)
+    original_async_request_streamed = getattr(BaseApiClient, "async_request_streamed")
+    if original_async_request_streamed is None:
+        raise RuntimeError(
+            "Couldn't find 'async_request_streamed' method on BaseApiClient"
+        )
+
+    @wraps(original_async_request_streamed)
+    async def patched_async_request_streamed(
+        self: BaseApiClient,
+        http_method: str,
+        path: str,
+        request_dict: dict[str, object],
+        http_options: Any = None,
+    ) -> Any:
+        config = _patch_config.get()
+        if config.enabled and ":streamGenerateContent" in path:
+            model_name = _google_api_model_name(path)
+            if model_name and targets_inspect_model({"model": model_name}):
+                raise_stream_error()
+
+        return await original_async_request_streamed(
+            self, http_method, path, request_dict, http_options
+        )
+
+    setattr(BaseApiClient, "async_request_streamed", patched_async_request_streamed)
 
 
 def _google_api_model_name(path: str) -> str | None:

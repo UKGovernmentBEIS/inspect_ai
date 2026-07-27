@@ -600,6 +600,14 @@ The directory and socket modes are applied via `chmod` on every server start (id
 
 Cross-cutting details that apply across all phases.
 
+### The "cheap shoveling" invariant (every endpoint, every phase)
+
+The control server runs as a task **on the eval's own event loop** (see the lifecycle section below), so CPU spent in a handler is CPU stolen from the samples the endpoint exists to observe — and a poller retrying against a slow handler queues unbounded further work (client timeouts don't help: uvicorn keeps serving queued requests, and a CPU-bound handler blocks the loop so disconnects aren't noticed). An expensive endpoint is therefore a self-DoS, not just a slow read.
+
+> **Every ctl endpoint must be cheap shoveling of already-materialized data.** No per-request CPU proportional to *payload* sizes (transcripts, message histories, metadata blobs); row-count-proportional work over small cached objects is fine. Anything expensive is computed once at write time (or once-and-memoized on first request), off the request path. Responses are bounded by default (row caps, page limits, truncating projections), with `full`/`all` as explicit opt-outs. Mutations may be expensive once but must be cheap no-ops on retry. Immutable sources (finalized logs, finished attempts) are not re-read per request.
+
+This applies doubly to future push surfaces (SSE): stream serialization also runs on the eval's loop, per subscriber, continuously. See [`endpoint-cost-audit.md`](endpoint-cost-audit.md) for the incident that motivated the invariant, a per-endpoint audit against it, and design guidance for new endpoints.
+
 ### Process keep-alive: `--ctl-server=keep` on `inspect eval` / `inspect eval-set`
 
 Without help from the process lifecycle, LLM-agent workflows have a race condition: the eval process exits the instant the eval body returns, taking its control endpoint and discovery file with it. The agent's next step — read results, compare, decide what to do next — runs against a vanished surface. With many agents this manifests intermittently (sometimes the agent gets to `ctl task list` before teardown, sometimes not) and degrades trust in the surface.
@@ -1015,5 +1023,6 @@ The control channel is one slice of a broader effort to make Inspect a first-cla
 - **Cost / budget visibility.** Agents making scope decisions need to see pre-run estimates and live spend. The control channel exposes live spend (via `EvalState` model usage); pre-run estimates and budget enforcement live in `inspect eval`'s launch surface.
 - **Self-targeting guard hardening.** Open question #8 in this doc — an LLM agent running *inside* an eval shouldn't be able to control its own parent eval. The guard logically belongs in the control channel's bind / authorisation layer, but the broader story (sandbox network egress, capability gating, eval-time vs scaffold-time boundaries) is part of the larger agent-enablement effort.
 - **"Using Inspect from an LLM agent" documentation.** A guide that walks through the full workflow (launch, monitor, manage, inspect, compare, iterate) and points at every relevant CLI command. Lives in `docs/`, not `design/`.
+- **Persisting `ctl config` changes in the eval log.** Retunes were previously in-memory only, leaving the log misdescribing a retuned run. [config-log-persistence.md](config-log-persistence.md) specifies the recording mechanism (`EvalLog.config_updates`; phases 1–2 shipped), and is a prerequisite for the planned per-sample limit knobs so they never ship with an unrecorded window.
 
 Where this doc's design touches one of those surfaces (eg. the `EvalState` model that powers `inspect ctl task list`), we describe what the control channel does and reference the broader work for the surrounding context.
