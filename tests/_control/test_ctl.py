@@ -761,13 +761,14 @@ def test_get_with_retry_exhausts_and_exits(
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
     with pytest.raises(click.exceptions.Exit) as exc_info:
-        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks")
+        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks", pid=7)
     assert exc_info.value.exit_code == 1
     assert counter["gets"] == _REQUEST_ATTEMPTS
     err = capsys.readouterr().err
     assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
-    # the terminal busy narration teaches the escalation path
-    assert "inspect ctl process anomalies" in err
+    # the terminal busy narration teaches the escalation path, scoped to the
+    # target process when the caller knows it
+    assert "inspect ctl process anomalies 7" in err
 
 
 def test_config_read_retries_timeout_then_succeeds(
@@ -2049,7 +2050,8 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
 
     The detail already in hand answers the question; the old server exiting
     — or staying busy through the listing read's retries (_ServerBusy, which
-    adds a "try again shortly" hint) — costs only the summary fields,
+    adds the "try again shortly" + anomalies-escalation hint — no earlier
+    skip note has taught it on this path) — costs only the summary fields,
     surfaced on stderr, with stdout still valid JSON.
     """
     from inspect_ai._cli.ctl import _ServerBusy
@@ -2072,9 +2074,30 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
     assert result.exit_code == 0, result.output
     assert "Could not read the samples listing" in result.stderr
     assert ("try again shortly" in result.stderr) == busy
+    assert ("inspect ctl process anomalies 7" in result.stderr) == busy
     payload = json.loads(result.stdout)
     assert payload["error"] == {"message": "boom"}
     assert "message_count" not in payload
+
+
+def test_sample_show_busy_detail_read_points_at_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The detail read's retry exhaustion scopes the escalation to the pid.
+
+    The resolved target names the hosting process, so the pointer suggests
+    reading that process's trace rather than scanning every running one.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    result = cli_runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1"])
+    assert result.exit_code == 1
+    assert "gave up" in result.stderr
+    assert "inspect ctl process anomalies 7" in result.stderr
 
 
 def test_old_flat_spellings_hidden_from_help() -> None:
@@ -4136,9 +4159,10 @@ def test_json_busy_failure_emits_error_envelope(
     assert "gave up" in error["message"]
     # the escalation pointer is stderr-only prose — never in the envelope
     assert "anomalies" not in error["message"]
-    # the stderr narration is unchanged (it remains the human channel)
+    # the stderr narration is unchanged (it remains the human channel); the
+    # pointer names the pid the read targeted rather than the bare verb
     assert "gave up" in result.stderr
-    assert "inspect ctl process anomalies" in result.stderr
+    assert "inspect ctl process anomalies 7" in result.stderr
 
 
 def test_json_all_busy_emits_busy_envelope(
