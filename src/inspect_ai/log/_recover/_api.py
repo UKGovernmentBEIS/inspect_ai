@@ -38,11 +38,13 @@ async def _list_eval_logs_filtered_async(
     *,
     recursive: bool = True,
 ) -> list[EvalLogInfo]:
-    """List eval logs in ``log_dir`` matching ``predicate`` without sync I/O.
+    """List eval logs in ``log_dir`` matching ``predicate`` (Trio-safe).
 
-    Directory listing runs in a worker thread (sync fsspec ``exists``/``ls``).
-    Metadata and header reads use the async log readers so this is safe under
-    both asyncio and trio. Enters ``AsyncFilesystem`` itself so callers need
+    Sync directory ``exists``/``ls`` run in an AnyIO worker thread so they do
+    not block the event loop. ``EvalLogInfo`` resolution and header reads use
+    only the async readers (``log_files_from_ls_async`` /
+    ``read_eval_log_headers_async``), never sync ``log_files_from_ls`` /
+    ``read_eval_log``. Enters ``AsyncFilesystem`` itself so public callers need
     not wrap the await.
 
     Args:
@@ -51,10 +53,17 @@ async def _list_eval_logs_filtered_async(
         recursive: Recurse into subdirectories (defaults to True).
 
     Returns:
-        Matching ``EvalLogInfo`` entries in listing order.
+        Matching ``EvalLogInfo`` entries in listing order (same descending
+        mtime order as ``list_eval_logs``).
+
+    Raises:
+        Exception: Unexpected filesystem or header-read failures propagate;
+            a missing directory yields ``[]``.
     """
 
     def list_files() -> list[FileInfo]:
+        # Construct the sync filesystem inside the worker so a stateful
+        # wrapper is not shared across threads.
         fs = filesystem(log_dir)
         if not fs.exists(log_dir):
             return []
@@ -69,7 +78,14 @@ async def _list_eval_logs_filtered_async(
         if not logs:
             return []
         headers = await read_eval_log_headers_async(logs)
-        return [log for log, header in zip(logs, headers) if predicate(header)]
+        if len(logs) != len(headers):
+            raise RuntimeError(
+                f"read_eval_log_headers_async returned {len(headers)} headers "
+                f"for {len(logs)} logs (order-preserving contract broken)"
+            )
+        return [
+            log for log, header in zip(logs, headers, strict=True) if predicate(header)
+        ]
 
 
 class RecoveryNotAvailable(Exception):
