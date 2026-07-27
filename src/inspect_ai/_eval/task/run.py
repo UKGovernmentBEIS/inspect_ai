@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Any, Awaitable, Callable, Literal, NamedTuple
+from typing import Any, Awaitable, Callable, Literal, NamedTuple, TypeAlias
 
 import anyio
 from anyio.abc import TaskGroup
@@ -260,6 +260,27 @@ SAMPLE_TOTAL_PROGRESS_UNITS = 1
 # scores; a scoreless success returns None).
 SampleTerminalOutcome = Literal["completed", "errored", "cancelled"]
 
+# One sample run's scores, keyed by scorer name.
+ScoresByScorer: TypeAlias = dict[str, SampleScore]
+
+# Global sample index: position in the seed store when < store_len, else an
+# injected sample (see `get_sample`). A reading aid only — mypy treats it as
+# int, so it doesn't guard against mixing indices with sample ids or epochs.
+SampleIndex: TypeAlias = int
+
+# (sample_index, epoch): how the scheduler keys sample runs.
+SampleIndexEpoch: TypeAlias = tuple[SampleIndex, int]
+
+# (sample_id, epoch): how progress results and the log key a sample run —
+# distinct from the scheduler's `SampleIndexEpoch` keys.
+SampleIdEpoch: TypeAlias = tuple[int | str, int]
+
+# What running one sample yields for results aggregation: scores when the run
+# was scored (even if it errored), an EarlyStop marker, or None (scoreless
+# success, unscored error, operator cancel). Terminal disposition is reported
+# separately via `sample_terminal` — see `SampleTerminalOutcome`.
+SampleRunResult: TypeAlias = ScoresByScorer | EarlyStop | None
+
 
 def _sample_transcript_config(
     logger: TaskLogger | None, sample_id: str | int, epoch: int
@@ -429,7 +450,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # prior entry (the log supersedes by the same key — metrics must agree)
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
-    progress_results: dict[tuple[int | str, int], dict[str, SampleScore]] = {}
+    progress_results: dict[SampleIdEpoch, ScoresByScorer] = {}
     eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
@@ -519,7 +540,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # sample resident.
     store_len = len(sample_store)
     injected_samples: list[Sample | None] = []
-    injected_completed_epochs: dict[int, set[int]] = {}
+    injected_completed_epochs: dict[SampleIndex, set[int]] = {}
 
     def get_sample(sample_index: int) -> Sample:
         if sample_index < store_len:
@@ -720,7 +741,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 async def sample_complete(
                     sample_id: int | str,
                     epoch: int,
-                    sample_score: dict[str, SampleScore],
+                    sample_score: ScoresByScorer,
                 ) -> None:
                     # Capture the result (a requeued sample's fresh score
                     # replaces its prior entry)
@@ -764,7 +785,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     sample_index: int,
                     epoch: int,
                     requeue_prior: EvalSample | None = None,
-                ) -> dict[str, SampleScore] | EarlyStop | None:
+                ) -> SampleRunResult:
                     # check for cached result from previous eval (before
                     # materialization to avoid unnecessary deepcopy + image I/O)
                     sample_id = get_sample(sample_index).id
@@ -950,7 +971,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     feed: SampleSource,
                     enqueuer: SampleEnqueuer,
                     scheduler: SampleScheduler,
-                ) -> dict[tuple[int, int], dict[str, SampleScore] | EarlyStop | None]:
+                ) -> dict[SampleIndexEpoch, SampleRunResult]:
                     """Run the seed samples plus every sample the source adds.
 
                     Spawns through the shared ``SampleScheduler`` — the same
@@ -1370,7 +1391,7 @@ def update_metrics_display_fn(
 ) -> Callable[
     [
         int,
-        list[dict[str, SampleScore]],
+        list[ScoresByScorer],
         list[Scorer] | None,
         list[str] | None,
         ScoreReducer | list[ScoreReducer] | None,
@@ -1382,7 +1403,7 @@ def update_metrics_display_fn(
 
     def compute(
         sample_count: int,
-        sample_scores: list[dict[str, SampleScore]],
+        sample_scores: list[ScoresByScorer],
         scorers: list[Scorer] | None,
         scorer_names: list[str] | None,
         reducers: ScoreReducer | list[ScoreReducer] | None,
@@ -1482,9 +1503,7 @@ async def task_run_sample(
     log_images: bool,
     log_model_api: bool | None,
     sample_error: SampleErrorHandler,
-    sample_complete: Callable[
-        [int | str, int, dict[str, SampleScore]], Awaitable[None]
-    ],
+    sample_complete: Callable[[int | str, int, ScoresByScorer], Awaitable[None]],
     sample_terminal: Callable[[SampleTerminalOutcome], None] | None,
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
@@ -1504,7 +1523,7 @@ async def task_run_sample(
     task_id: str,
     scan_id: str | None = None,
     sample_uuid: str | None = None,
-) -> dict[str, SampleScore] | EarlyStop | None:
+) -> SampleRunResult:
     from inspect_ai.event import Event
     from inspect_ai.hooks._hooks import (
         drain_sample_events,
@@ -1685,7 +1704,7 @@ async def task_run_sample(
             raise_error: BaseException | None = None
             cancelled_error: BaseException | None = None
             operator_cancelled = False
-            results: dict[str, SampleScore] = {}
+            results: ScoresByScorer = {}
             limit: EvalSampleLimit | None = None
             sample_summary: EvalSampleSummary | None = None
             attempt_started = False
@@ -2366,7 +2385,7 @@ def create_eval_sample(
     start_time: float | None,
     sample: Sample,
     state: TaskState,
-    scores: dict[str, SampleScore],
+    scores: ScoresByScorer,
     error: EvalError | None,
     limit: EvalSampleLimit | None,
     error_retries: list[EvalRetryError],

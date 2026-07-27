@@ -35,25 +35,6 @@ def is_callable_coroutine(func_or_cls: Any) -> bool:
 T = TypeVar("T")
 
 
-class Wake:
-    """One-shot wake signal that can be re-armed (set on completion / injection).
-
-    Safe under cooperative scheduling: the only await is on ``wait()``; the
-    re-arm assignment afterwards runs without a yield point, so a concurrent
-    ``set()`` can't be lost between waking and re-arming.
-    """
-
-    def __init__(self) -> None:
-        self._event = anyio.Event()
-
-    def set(self) -> None:
-        self._event.set()
-
-    async def wait(self) -> None:
-        await self._event.wait()
-        self._event = anyio.Event()
-
-
 async def tg_collect(
     funcs: Iterable[Callable[[], Awaitable[T]]], exception_group: bool = False
 ) -> list[T]:
@@ -94,6 +75,25 @@ async def tg_collect(
             raise
         else:
             raise ex.exceptions[0] from None
+
+
+class Wake:
+    """One-shot wake signal that can be re-armed (set on completion / injection).
+
+    Safe under cooperative scheduling: the only await is on ``wait()``; the
+    re-arm assignment afterwards runs without a yield point, so a concurrent
+    ``set()`` can't be lost between waking and re-arming.
+    """
+
+    def __init__(self) -> None:
+        self._event = anyio.Event()
+
+    def set(self) -> None:
+        self._event.set()
+
+    async def wait(self) -> None:
+        await self._event.wait()
+        self._event = anyio.Event()
 
 
 class aexit_shielded_when(contextlib.AbstractAsyncContextManager[Any]):

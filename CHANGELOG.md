@@ -8,7 +8,7 @@
 - Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
 - Control Channel: `inspect ctl config` changes are now recorded in each affected eval log (`EvalLog.config_updates`, with author, timestamp, optional `--reason`, and old → new values); `effective_eval_config()`/`effective_generate_config()` fold them over the launch config.
 - Control Channel: New `inspect ctl task pause|resume` and `inspect ctl process pause|resume` commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with `paused`/`quiesced` reported by `inspect ctl task list`.
-- Control Channel: Added `inspect ctl sample requeue` to re-run one errored/cancelled sample inside the still-running eval, with the final log and counters reflecting the fresh outcome (idempotent, with `--dry-run`).
+- Control Channel: Added `inspect ctl sample requeue` to re-run one errored/cancelled sample inside the still-running eval.
 - Control Channel: Samples resolved via `--action error` now log the error message `Sample errored: interrupted by operator` and report status `error` (previously the raw cancellation message, misreported as `cancelled`).
 - Control Channel: New `inspect ctl process anomalies [PID]` shows a running process's in-flight and anomalous trace actions by reading its trace file directly, so it works against busy, hung, or even exited processes.
 - Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
