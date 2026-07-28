@@ -21,7 +21,6 @@ from inspect_ai._util.registry import (
     RegistryInfo,
     create_registry_object,
     is_registry_object,
-    registry_create,
     registry_info,
     registry_lookup,
     registry_params,
@@ -793,7 +792,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
         elif registry_lookup("scanner", scorer_name) is not None:
             from inspect_scout import Scanner, Transcript, as_scorer
 
-            scanner = registry_create("scanner", scorer_name, **kwargs)
+            scanner = create_registry_object("scanner", scorer_name, kwargs)
             return as_scorer(cast(Scanner[Transcript], scanner))
         else:
             raise ValueError(

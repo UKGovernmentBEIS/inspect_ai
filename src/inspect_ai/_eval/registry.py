@@ -11,7 +11,6 @@ from inspect_ai._util.registry import (
     create_registry_object,
     extract_named_params,
     registry_add,
-    registry_create,
     registry_info,
     registry_lookup,
     registry_name,
@@ -81,7 +80,9 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
     # "kwargs" — ask the signature whether it takes one at all.
     has_var_keyword = any(
         param.kind == inspect.Parameter.VAR_KEYWORD
-        for param in inspect.signature(task).parameters.values()
+        for param in inspect.signature(
+            cast(Callable[..., Any], task)
+        ).parameters.values()
     )
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
@@ -93,7 +94,7 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
     # create_registry_object takes creation args as a dict, so a task arg
     # named `name`/`type` cannot collide with registry_create's own
     # leading parameters on replay.
-    return create_registry_object("task", name, task_args)
+    return cast(Task, create_registry_object("task", name, task_args))
 
 
 @overload
@@ -204,7 +205,7 @@ def task_source_register(
     return task_source
 
 
-def task_source_create(name: str, **kwargs: Any) -> TaskSource:
+def task_source_create(name: str, /, **kwargs: Any) -> TaskSource:
     r"""Create a `TaskSource` based on its registered name.
 
     Args:
@@ -220,9 +221,15 @@ def task_source_create(name: str, **kwargs: Any) -> TaskSource:
         raise PrerequisiteError(f"Task source named '{name}' not found.")
     info = registry_info(source)
     params: list[str] = info.metadata["params"]
+    has_var_keyword = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in inspect.signature(
+            cast(Callable[..., Any], source)
+        ).parameters.values()
+    )
     args: dict[str, Any] = {}
     for param in kwargs.keys():
-        if param in params or "kwargs" in params:
+        if param in params or has_var_keyword:
             args[param] = kwargs[param]
         else:
             logger.warning(f"param '{param}' not used by task source '{name}'")

@@ -253,8 +253,12 @@ def test_task_create_replays_name_kwarg_without_collision():
 
 
 def test_task_create_keeps_args_for_differently_named_var_keyword(caplog):
-    """A factory whose variadic param is not literally `kwargs` must keep
-    replay args instead of warning and dropping them (#4375)."""
+    """A `**extra` factory must keep replay args (#4375).
+
+    task_create's pass-through check used to key on the literal param name
+    `kwargs`, so a factory whose variadic keyword param was named anything
+    else warned and dropped every replayed arg.
+    """
     import logging
 
     from inspect_ai._eval.registry import task_create
@@ -264,7 +268,5 @@ def test_task_create_keeps_args_for_differently_named_var_keyword(caplog):
 
     assert isinstance(instance, Task)
     assert not [
-        record
-        for record in caplog.records
-        if "not used by task" in record.getMessage()
+        record for record in caplog.records if "not used by task" in record.getMessage()
     ]
