@@ -478,6 +478,12 @@ class BedrockAPI(ModelAPI):
             return False
         if self._is_claude_4_x(7):
             return True
+        # claude 5 (e.g. anthropic.claude-opus-5, anthropic.claude-fable-5)
+        # shares the 4.7+ capability set (adaptive-thinking-only, no sampling
+        # params). names with a digit before the trailing -5 (claude-haiku-4-5)
+        # do not match.
+        if re.search(r"claude-[a-zA-Z]+-5", self.model_family()):
+            return True
         # future claude 4 minor not yet recognised
         if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
             recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
