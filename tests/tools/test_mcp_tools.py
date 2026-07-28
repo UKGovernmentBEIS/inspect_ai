@@ -1,4 +1,5 @@
 import contextlib
+import importlib
 import sys
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
@@ -95,14 +96,25 @@ def _make_simulated_mcp_client(
     )
     from mcp.shared.message import SessionMessage
     from mcp.types import (
-        LATEST_PROTOCOL_VERSION,
         Implementation,
         InitializeResult,
-        JSONRPCMessage,
         JSONRPCNotification,
         JSONRPCRequest,
         JSONRPCResponse,
         ServerCapabilities,
+    )
+
+    from inspect_ai.tool._mcp._compat import jsonrpc_message, jsonrpc_message_root
+
+    # mcp 2.x initialize accepts only handshake (pre-"modern") versions and
+    # rejects LATEST_PROTOCOL_VERSION; 1.x has no LATEST_HANDSHAKE_VERSION
+    protocol_version = (
+        getattr(
+            importlib.import_module("mcp.client.session"),
+            "LATEST_HANDSHAKE_VERSION",
+            None,
+        )
+        or importlib.import_module("mcp.types").LATEST_PROTOCOL_VERSION
     )
 
     @contextlib.asynccontextmanager
@@ -119,17 +131,25 @@ def _make_simulated_mcp_client(
             try:
                 async with write_stream_reader:
                     async for message in write_stream_reader:
-                        root = message.message.root
+                        root = jsonrpc_message_root(message.message)
                         if isinstance(root, JSONRPCRequest):
                             if root.method == "initialize":
-                                init = InitializeResult(
-                                    protocolVersion=LATEST_PROTOCOL_VERSION,
-                                    capabilities=ServerCapabilities(),
-                                    serverInfo=Implementation(name="test", version="1"),
+                                # model_validate because keyword construction
+                                # is version-specific (camelCase on 1.x,
+                                # snake_case on 2.x); the camelCase spelling
+                                # validates on both
+                                init = InitializeResult.model_validate(
+                                    {
+                                        "protocolVersion": protocol_version,
+                                        "capabilities": ServerCapabilities(),
+                                        "serverInfo": Implementation(
+                                            name="test", version="1"
+                                        ),
+                                    }
                                 )
                                 await read_stream_writer.send(
                                     SessionMessage(
-                                        message=JSONRPCMessage(
+                                        message=jsonrpc_message(
                                             JSONRPCResponse(
                                                 jsonrpc="2.0",
                                                 id=root.id,
@@ -177,16 +197,16 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
         INTERNAL_ERROR,
         ErrorData,
         JSONRPCError,
-        JSONRPCMessage,
     )
     from mcp.types import Tool as MCPTool
 
+    from inspect_ai.tool._mcp._compat import jsonrpc_message
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
     from inspect_ai.util._anyio import inner_exception
 
     def on_tool_call(root: Any) -> SessionMessage:
         return SessionMessage(
-            message=JSONRPCMessage(
+            message=jsonrpc_message(
                 JSONRPCError(
                     jsonrpc="2.0",
                     id=root.id,
@@ -203,10 +223,12 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
     client = _make_simulated_mcp_client(on_tool_call, unexpected_methods=unexpected)
 
     session = MCPServerLocalSession(client, name="test-timeout", events=False)
-    fake_tool = MCPTool(
-        name="slow_tool",
-        description="A tool that times out",
-        inputSchema={"type": "object", "properties": {}},
+    fake_tool = MCPTool.model_validate(
+        {
+            "name": "slow_tool",
+            "description": "A tool that times out",
+            "inputSchema": {"type": "object", "properties": {}},
+        }
     )
     tool_def = session._tool_def_from_mcp_tool(fake_tool)
 
@@ -265,7 +287,9 @@ async def _drive_sandbox_request(sandbox_module):
     """Send one tools/call request through `sandbox_client` and return the response."""
     from mcp import StdioServerParameters
     from mcp.shared.message import SessionMessage
-    from mcp.types import JSONRPCMessage, JSONRPCRequest
+    from mcp.types import JSONRPCRequest
+
+    from inspect_ai.tool._mcp._compat import jsonrpc_message
 
     server_params = StdioServerParameters(command="fake")
     async with sandbox_module.sandbox_client(server_params) as (
@@ -274,7 +298,7 @@ async def _drive_sandbox_request(sandbox_module):
     ):
         await write_stream.send(
             SessionMessage(
-                message=JSONRPCMessage(
+                message=jsonrpc_message(
                     JSONRPCRequest(jsonrpc="2.0", id=42, method="tools/call", params={})
                 )
             )
@@ -296,13 +320,15 @@ async def test_sandbox_writer_synthesizes_jsonrpc_error_for_non_timeout(monkeypa
     """
     from mcp.types import INTERNAL_ERROR, JSONRPCError
 
+    from inspect_ai.tool._mcp._compat import jsonrpc_message_root
+
     async def _raising_exec_model_request(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError("boom")
 
     sandbox_module = _patch_sandbox_module(monkeypatch, _raising_exec_model_request)
     response_msg = await _drive_sandbox_request(sandbox_module)
 
-    root = response_msg.message.root
+    root = jsonrpc_message_root(response_msg.message)
     assert isinstance(root, JSONRPCError)
     assert root.id == 42
     assert root.error.code == INTERNAL_ERROR
@@ -315,13 +341,15 @@ async def test_sandbox_writer_uses_friendly_message_for_timeout(monkeypatch):
     """TimeoutError gets the friendlier 'timed out' wording the model expects."""
     from mcp.types import INTERNAL_ERROR, JSONRPCError
 
+    from inspect_ai.tool._mcp._compat import jsonrpc_message_root
+
     async def _timeout_exec_model_request(*args: Any, **kwargs: Any) -> Any:
         raise TimeoutError("transport deadline exceeded")
 
     sandbox_module = _patch_sandbox_module(monkeypatch, _timeout_exec_model_request)
     response_msg = await _drive_sandbox_request(sandbox_module)
 
-    root = response_msg.message.root
+    root = jsonrpc_message_root(response_msg.message)
     assert isinstance(root, JSONRPCError)
     assert root.id == 42
     assert root.error.code == INTERNAL_ERROR
@@ -337,9 +365,10 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
     """
     from mcp import StdioServerParameters
     from mcp.shared.message import SessionMessage
-    from mcp.types import JSONRPCMessage, JSONRPCNotification
+    from mcp.types import JSONRPCNotification
 
     from inspect_ai.tool._mcp import _sandbox as sandbox_module
+    from inspect_ai.tool._mcp._compat import jsonrpc_message
 
     class _FakeTransport:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -383,7 +412,7 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
     ):
         await write_stream.send(
             SessionMessage(
-                message=JSONRPCMessage(
+                message=jsonrpc_message(
                     JSONRPCNotification(
                         jsonrpc="2.0", method="notifications/initialized"
                     )

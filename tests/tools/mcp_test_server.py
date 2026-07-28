@@ -1,74 +1,48 @@
 """Self-contained MCP stdio server for testing MCP infrastructure."""
 
-import asyncio
+import importlib
 import sys
-
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
-
-server = Server("test-server")
+from typing import Any
 
 
-@server.list_tools()
-async def list_tools() -> list[Tool]:
-    return [
-        Tool(
-            name="echo",
-            description="Echoes back the input message",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "message": {"type": "string", "description": "Message to echo"}
-                },
-                "required": ["message"],
-            },
-        ),
-        Tool(
-            name="add",
-            description="Adds two numbers",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "x": {"type": "integer", "description": "First number"},
-                    "y": {"type": "integer", "description": "Second number"},
-                },
-                "required": ["x", "y"],
-            },
-        ),
-        Tool(
-            name="get_status",
-            description="Returns a fixed status string",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="get_info",
-            description="Returns a fixed info string",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-    ]
+def create_server(name: str) -> Any:
+    """High-level MCP server for whichever mcp major version is installed.
+
+    mcp 2.0 removed the low-level `Server` decorator API and renamed the
+    high-level `FastMCP` server to `MCPServer` (same `@server.tool()` /
+    `run("stdio")` shape). Resolved dynamically so this module imports (and
+    type-checks) under either version.
+    """
+    try:
+        return importlib.import_module("mcp.server.mcpserver").MCPServer(name)
+    except ImportError:
+        return importlib.import_module("mcp.server.fastmcp").FastMCP(name)
 
 
-@server.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-    if name == "echo":
-        return [TextContent(type="text", text=arguments.get("message", ""))]
-    elif name == "add":
-        result = arguments.get("x", 0) + arguments.get("y", 0)
-        return [TextContent(type="text", text=str(result))]
-    elif name == "get_status":
-        return [TextContent(type="text", text="ok")]
-    elif name == "get_info":
-        return [TextContent(type="text", text="test server v1")]
-    raise ValueError(f"Unknown tool: {name}")
+server = create_server("test-server")
 
 
-async def main() -> None:
-    sys.stderr.write("[STARTUP] Test MCP server starting\n")
-    sys.stderr.flush()
-    async with stdio_server() as (read, write):
-        await server.run(read, write, server.create_initialization_options())
+@server.tool(description="Echoes back the input message")
+async def echo(message: str) -> str:
+    return message
+
+
+@server.tool(description="Adds two numbers")
+async def add(x: int, y: int) -> str:
+    return str(x + y)
+
+
+@server.tool(description="Returns a fixed status string")
+async def get_status() -> str:
+    return "ok"
+
+
+@server.tool(description="Returns a fixed info string")
+async def get_info() -> str:
+    return "test server v1"
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.stderr.write("[STARTUP] Test MCP server starting\n")
+    sys.stderr.flush()
+    server.run("stdio")
