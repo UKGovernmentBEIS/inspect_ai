@@ -308,20 +308,40 @@ def messages_from_google_contents(
             messages.extend(tool_messages)
 
         elif role == "model":
-            assistant_content, tool_calls = _extract_model_parts(parts)
-
-            pending_tool_calls.clear()
-            for tc in tool_calls:
-                if tc.function not in pending_tool_calls:
-                    pending_tool_calls[tc.function] = []
-                pending_tool_calls[tc.function].append(tc.id)
-
-            messages.append(
-                ChatMessageAssistant(
-                    content=assistant_content if assistant_content else "",
-                    tool_calls=tool_calls if tool_calls else None,
+            # localharness (Antigravity SDK) emits tool RESULTS as functionResponse
+            # parts inside a MODEL-role turn (cloudcode dialect), unlike public Gemini
+            # which carries them in a user/function turn. Re-role those into tool
+            # messages (matching the pending tool-call ids from the prior model turn)
+            # BEFORE clearing pending calls; otherwise _extract_model_parts drops them
+            # and the request ends on a model turn (Gemini 400 "Requests ending with a
+            # model turn are not supported").
+            func_response_parts = [p for p in parts if _is_function_response_part(p)]
+            if func_response_parts:
+                _, tool_messages = _extract_user_parts(
+                    func_response_parts, pending_tool_calls
                 )
-            )
+                messages.extend(tool_messages)
+
+            other_parts = [p for p in parts if not _is_function_response_part(p)]
+            assistant_content, tool_calls = _extract_model_parts(other_parts)
+
+            if tool_calls:
+                pending_tool_calls.clear()
+                for tc in tool_calls:
+                    if tc.function not in pending_tool_calls:
+                        pending_tool_calls[tc.function] = []
+                    pending_tool_calls[tc.function].append(tc.id)
+
+            # Only emit an assistant turn when it carries real content or tool calls;
+            # a pure-functionResponse model turn must NOT add an empty assistant (that
+            # empty trailing model turn is exactly what Gemini rejects).
+            if assistant_content or tool_calls:
+                messages.append(
+                    ChatMessageAssistant(
+                        content=assistant_content if assistant_content else "",
+                        tool_calls=tool_calls if tool_calls else None,
+                    )
+                )
 
     return messages
 
@@ -372,6 +392,12 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
+def _is_function_response_part(part: Any) -> bool:
+    return isinstance(part, dict) and (
+        "functionResponse" in part or "function_response" in part
+    )
+
+
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
@@ -399,7 +425,7 @@ def _extract_user_parts(
                     ContentImage(image=f"data:{mime_type};base64,{data}")
                 )
 
-        elif "functionResponse" in part or "function_response" in part:
+        elif _is_function_response_part(part):
             func_response = part.get(
                 "functionResponse", part.get("function_response", {})
             )
