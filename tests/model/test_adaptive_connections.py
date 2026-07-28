@@ -819,7 +819,9 @@ async def test_count_tokens_static_fallback_capped_at_10(monkeypatch) -> None:
     state = _patch_counting_count_tokens(monkeypatch, model, sleep_s=0.05)
 
     cfg = GenerateConfig(max_connections=3)
-    await tg_collect([lambda: model.count_tokens("hello", config=cfg) for _ in range(20)])
+    await tg_collect(
+        [lambda: model.count_tokens("hello", config=cfg) for _ in range(20)]
+    )
 
     # Exact 10 requires all ten to overlap inside one sleep window, which
     # flakes on a loaded CI machine; the cap is the deterministic part.
