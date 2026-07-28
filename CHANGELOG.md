@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Performance: Message preparation for providers that extract tool-result media into user messages now scales linearly with conversation length rather than quadratically.
+- Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
 
 ## 0.3.250 (28 July 2026)
 
