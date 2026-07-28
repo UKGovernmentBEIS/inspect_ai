@@ -2,7 +2,7 @@
 
 Exposes live-eval read / direct / event-subscription operations to
 external clients (the `inspect ctl` CLI, TUIs, agents). See
-``design/control-channel.md`` for the full design.
+``design/ctl/control-channel.md`` for the full design.
 """
 
 # Control-channel API version, for CLI <-> server skew handling. `inspect
@@ -45,4 +45,12 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       client can rely on the server to reject rather than partially apply
 #       an unsupported knob.
 #   4 — retry override knobs (timeout / attempt_timeout / max_retries).
-CONTROL_API_VERSION: int = 4
+#   5 — config-change persistence (EvalLog.config_updates) and the
+#       author/reason provenance params on the config PATCH routes. The
+#       params themselves need no gate per the strict-mutations policy
+#       above, but the CLI sends a *default* author (git identity) the user
+#       never typed — a defaulted param must not 400 every config mutation
+#       against an older server, so the CLI includes it only when the
+#       server advertises >= 5 (an explicit --author/--reason against an
+#       older server hard-errors before sending, like the legacy knob gates).
+CONTROL_API_VERSION: int = 5

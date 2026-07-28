@@ -40,7 +40,7 @@ jobs:
           package_json_file: src/inspect_ai/_view/ts-mono/package.json
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22.x"
           registry-url: "https://registry.npmjs.org"
