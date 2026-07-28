@@ -24,7 +24,10 @@ def edit_score(
         score_name: Name of the score to edit. If the score does not exist,
             a new score will be created with this name.
         edit: The edit to apply to the score. When creating a new score,
-            the 'value' field must be provided (cannot be UNCHANGED).
+            the 'value' field must be provided (cannot be UNCHANGED). A metadata
+            dict on the edit replaces `Score.metadata` rather than merging into
+            it -- carry over any scorer-recorded keys you want to keep (the
+            pre-edit dict remains available via `Score.history`).
         recompute_metrics: Whether to recompute aggregate metrics after editing
         epoch: Epoch number of the sample to edit (required when there are multiple epochs)
 
