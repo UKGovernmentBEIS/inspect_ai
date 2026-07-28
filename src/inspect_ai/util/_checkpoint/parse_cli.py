@@ -11,7 +11,10 @@ Accepted forms (in order of detection):
 - The literal ``"manual"`` → ``trigger=Manual()``.
 - Otherwise → treat as a file path; load YAML/JSON via
   :func:`inspect_ai._util.config.resolve_args` and validate against
-  :class:`_CheckpointConfigModel`.
+  :class:`_CheckpointConfigModel`. Every field — including
+  ``trigger`` — may be omitted to inherit from lower-priority layers,
+  so a file can configure a single concern (e.g. snapshot-strategy
+  selection) without stomping the rest of a task's config.
 
 The CLI's bare ``--checkpoint`` flag is mapped to ``"default"`` by
 Click's ``flag_value``; the merge resolver supplies the concrete
@@ -25,7 +28,7 @@ import re
 from datetime import timedelta
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from inspect_ai._util.config import resolve_args
 
@@ -36,7 +39,14 @@ from ._triggers import (
     TokenInterval,
     TurnInterval,
 )
-from .config import CheckpointConfig
+from .config import (
+    ArchiveSnapshots,
+    CheckpointConfig,
+    ResticSnapshots,
+    SandboxSnapshotConfig,
+    SnapshotRetention,
+    SnapshotStrategyConfig,
+)
 
 _DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd])\s*$", re.IGNORECASE)
 _DURATION_UNITS_S: dict[str, float] = {
@@ -149,28 +159,99 @@ _TriggerModel = Annotated[
 ]
 
 
+class _SnapshotRetentionModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    keep_last: int | None = Field(default=None, ge=1)
+
+
+class _SandboxSnapshotModel(BaseModel):
+    """One sandbox's snapshot config: capture paths + strategy.
+
+    The mapping form of a ``sandbox_paths`` value (the alternative to a
+    bare path list, which gets the default strategy).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    paths: list[str] | None = None
+    """Absolute paths to capture. Omitted = the sandbox default user's
+    home directory; an empty list opts the sandbox out."""
+
+    strategy: Literal["restic-incremental", "archive"] | None = None
+    """Omitted = no opinion — the strategy inherits from a
+    lower-priority layer's selection for this sandbox (matching a bare
+    path-list value), falling back to the default (restic)."""
+
+    retention: _SnapshotRetentionModel | None = None
+    """Mid-run retention (``keep_last: N``); ``archive`` only."""
+
+    @model_validator(mode="after")
+    def _retention_requires_archive(self) -> "_SandboxSnapshotModel":
+        if self.retention is not None and self.strategy != "archive":
+            raise ValueError(
+                "retention is only supported with `strategy: archive` "
+                "(restic-incremental retains all checkpoints)"
+            )
+        return self
+
+    def to_dataclass(self) -> SandboxSnapshotConfig:
+        strategy: SnapshotStrategyConfig | None
+        if self.strategy == "archive":
+            strategy = ArchiveSnapshots(
+                retention=SnapshotRetention(keep_last=self.retention.keep_last)
+                if self.retention is not None
+                else None
+            )
+        elif self.strategy == "restic-incremental":
+            strategy = ResticSnapshots()
+        else:
+            strategy = None
+        return SandboxSnapshotConfig(paths=self.paths, strategy=strategy)
+
+
 class _CheckpointConfigModel(BaseModel):
     """Pydantic mirror of :class:`CheckpointConfig` for YAML/JSON loading.
 
-    Two fields differ from the real dataclass:
+    Fields that differ from the real dataclass:
     - ``trigger`` accepts a discriminated dict (``{"type": "turn", "every": 5}``)
       or the literal ``"manual"``, and translates to a strategy instance.
+    - ``sandbox_paths`` mapping values accept a strategy *name* plus
+      optional retention, and translate to the strategy config dataclasses.
     - All other fields validate directly against their dataclass counterparts.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    trigger: _TriggerModel | Literal["manual"]
+    trigger: _TriggerModel | Literal["manual"] | None = None
+    """``None`` (omitted) = inherit — a config file used purely for
+    other concerns (e.g. strategy selection) need not pin a trigger
+    that would stomp a lower-priority layer's (see ``sandbox_paths``)."""
+
     checkpoints_location: str | None = None
-    sandbox_paths: dict[str, list[str]] = Field(default_factory=dict)
+    sandbox_paths: dict[str, list[str] | _SandboxSnapshotModel] | None = None
+    """``None`` (omitted) = inherit from lower-priority layers — a non-None
+    default would count as "explicitly set" in ``merge_checkpoint_configs``
+    and silently stomp a task-level value (including its strategy
+    selection)."""
+
     max_consecutive_failures: int | None = None
-    retention: Literal["delete", "retain"] = "delete"
+    retention: Literal["delete", "retain"] | None = None
+    """``None`` (omitted) = inherit (see ``sandbox_paths``)."""
 
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(
-            trigger=_trigger_model_to_strategy(self.trigger),
+            trigger=_trigger_model_to_strategy(self.trigger)
+            if self.trigger is not None
+            else None,
             checkpoints_location=self.checkpoints_location,
-            sandbox_paths=self.sandbox_paths,
+            sandbox_paths={
+                name: value.to_dataclass()
+                if isinstance(value, _SandboxSnapshotModel)
+                else value
+                for name, value in self.sandbox_paths.items()
+            }
+            if self.sandbox_paths is not None
+            else None,
             max_consecutive_failures=self.max_consecutive_failures,
             retention=self.retention,
         )

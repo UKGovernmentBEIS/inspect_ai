@@ -15,7 +15,7 @@ filled in with their canonical defaults.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
@@ -39,6 +39,79 @@ MAX_LISTED_FILES = 100
 this is recorded in ``additional_files``."""
 
 
+@dataclass(frozen=True)
+class SnapshotRetention:
+    """Mid-run retention policy for a sandbox snapshot strategy.
+
+    Applied after each committed checkpoint, best-effort. The policy
+    always retains at least the latest committed checkpoint (the hard
+    floor); a strategy may retain more than the policy asks (restic
+    keeps everything).
+    """
+
+    keep_last: int | None = None
+    """Keep the last N committed checkpoints' sandbox snapshot data,
+    reclaiming storage for older ones. ``None`` = keep everything."""
+
+    def __post_init__(self) -> None:
+        if self.keep_last is not None and self.keep_last < 1:
+            raise ValueError(
+                f"SnapshotRetention.keep_last must be >= 1 (the latest "
+                f"committed checkpoint is always retained), got {self.keep_last}"
+            )
+
+
+@dataclass(frozen=True)
+class ResticSnapshots:
+    """Incremental restic-based sandbox snapshots (the default).
+
+    Each checkpoint stores only data changed since the previous one.
+    Best choice when most files are stable across checkpoints. Storage
+    is never reclaimed mid-run (restic retains all snapshots).
+    """
+
+
+@dataclass(frozen=True)
+class ArchiveSnapshots:
+    """One complete compressed tar archive per checkpoint.
+
+    Best choice when the captured data is dominated by large,
+    high-entropy, frequently-rewritten files (training state, database
+    files, encrypted containers), where incremental backup stores
+    roughly the full dataset again at every checkpoint. Combined with
+    ``retention=SnapshotRetention(keep_last=N)``, storage is reclaimed
+    mid-run as older checkpoints are thinned.
+    """
+
+    retention: SnapshotRetention | None = None
+    """Mid-run retention policy. ``None`` = keep every checkpoint's
+    archive for the life of the sample."""
+
+
+SnapshotStrategyConfig = ResticSnapshots | ArchiveSnapshots
+"""Configuration for a sandbox snapshot strategy."""
+
+
+@dataclass(frozen=True)
+class SandboxSnapshotConfig:
+    """Per-sandbox snapshot configuration: what to capture and how.
+
+    Used as a ``sandbox_paths`` value in place of a bare path list when
+    a sandbox needs a non-default snapshot strategy. The ``paths``
+    field carries the same semantics as a bare path-list value
+    (``None`` = the sandbox default user's home directory; an empty
+    list opts the sandbox out entirely).
+    """
+
+    paths: list[str] | None = None
+    """Absolute paths to capture inside the sandbox. ``None`` = the
+    default user's home directory; ``[]`` opts the sandbox out."""
+
+    strategy: SnapshotStrategyConfig | None = None
+    """Snapshot strategy for this sandbox. ``None`` = the default
+    (:class:`ResticSnapshots`)."""
+
+
 @dataclass
 class CheckpointSampleConfig:
     """Checkpoint configuration fields that may be set at the sample layer.
@@ -47,10 +120,16 @@ class CheckpointSampleConfig:
     also accepted at the task and eval layers (where they participate in
     the per-field merge — precedence: eval > sample > task).
 
-    The fields excluded from this base class — ``checkpoints_location``
-    and ``retention`` — are eval-wide concerns that the sample layer must
-    not influence. They live only on the derived :class:`CheckpointConfig`,
-    which is the type used at the task and eval layers.
+    Excluded from the sample layer: ``checkpoints_location``,
+    ``retention``, and snapshot-strategy selection
+    (:class:`SandboxSnapshotConfig` values in ``sandbox_paths``). These
+    are storage-policy concerns that the sample layer must not
+    influence; they live only on :class:`CheckpointConfig`, the type
+    used at the task and eval layers. Keeping strategy selection out of
+    this class also keeps it out of the log schema — ``Sample`` (and
+    with it this class) is recorded in eval logs, so its shape is a
+    public schema commitment in a way the task/eval config surface is
+    not.
     """
 
     trigger: CheckpointTrigger | None = None
@@ -62,8 +141,10 @@ class CheckpointSampleConfig:
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
-    sandbox. ``None`` = inherit; ``{}`` (after merge) = host-only
-    checkpointing (no sandbox repos)."""
+    sandbox (snapshotted with each sandbox's configured strategy).
+    ``None`` = inherit; sandboxes without an entry are captured with
+    the defaults (home directory); an empty path list opts that
+    sandbox out."""
 
     max_consecutive_failures: int | None = None
     """If set, the sample fails after N consecutive failed checkpoint
@@ -72,7 +153,7 @@ class CheckpointSampleConfig:
 
 
 @dataclass
-class CheckpointConfig(CheckpointSampleConfig):
+class CheckpointConfig:
     """User-facing checkpoint configuration for the task and eval layers.
 
     Specify on ``Task(checkpoint=...)`` or ``eval(checkpoint=...)``. All
@@ -80,11 +161,37 @@ class CheckpointConfig(CheckpointSampleConfig):
     config; the layers are combined per-field at sample-run time
     (precedence: eval > sample > task).
 
-    Adds the eval-wide fields (``checkpoints_location``, ``retention``)
-    to the sample-permitted base class. Sample-layer configs use the base
-    :class:`CheckpointSampleConfig` directly — these fields cannot be
-    set per-sample.
+    Shares the sample-permitted fields with
+    :class:`CheckpointSampleConfig` and adds the storage-policy surface:
+    the eval-wide fields (``checkpoints_location``, ``retention``) and
+    snapshot-strategy selection (:class:`SandboxSnapshotConfig` values
+    in ``sandbox_paths``). Deliberately not a subclass: widening
+    ``sandbox_paths`` in a subclass is an unsound (and mypy-rejected)
+    override, and the independent sample class keeps the log schema —
+    which records ``Sample.checkpoint`` — unaffected by the task/eval
+    config surface.
     """
+
+    trigger: CheckpointTrigger | None = None
+    """Checkpoint trigger strategy — any implementer of
+    :class:`CheckpointTrigger` (see :mod:`.triggers`). ``None`` means
+    "inherit from a lower-priority layer"; when no layer sets a
+    trigger, resolution falls back to
+    :data:`DEFAULT_CHECKPOINT_TRIGGER`."""
+
+    sandbox_paths: dict[str, list[str] | SandboxSnapshotConfig] | None = None
+    """Per-sandbox-name capture configuration. Each value is either a
+    list of absolute paths to capture inside the sandbox (snapshotted
+    with the default restic strategy) or a
+    :class:`SandboxSnapshotConfig` that also selects the snapshot
+    strategy. ``None`` = inherit; sandboxes without an entry are
+    captured with the defaults (home directory, restic); an empty path
+    list opts that sandbox out."""
+
+    max_consecutive_failures: int | None = None
+    """If set, the sample fails after N consecutive failed checkpoint
+    attempts. ``None`` = inherit / unlimited tolerance. ``0`` = any
+    failure is fatal."""
 
     checkpoints_location: str | None = None
     """Override the parent directory under which the eval checkpoints
@@ -140,11 +247,24 @@ class ResolvedCheckpointConfig:
 
     trigger: CheckpointTrigger
     sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
+    sandbox_snapshots: dict[str, SandboxSnapshotConfig] = field(default_factory=dict)
     retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
     on_checkpoint: OnCheckpointCallback | None = None
     on_resume: OnResumeCallback | None = None
+
+    def sandbox_strategy_config(self, sandbox_name: str) -> SnapshotStrategyConfig:
+        """Effective snapshot strategy config for one sandbox."""
+        entry = self.sandbox_snapshots.get(sandbox_name)
+        if entry is not None and entry.strategy is not None:
+            return entry.strategy
+        return ResticSnapshots()
+
+    def sandbox_retention_policy(self, sandbox_name: str) -> SnapshotRetention | None:
+        """Mid-run retention policy for one sandbox, if its strategy has one."""
+        strategy = self.sandbox_strategy_config(sandbox_name)
+        return getattr(strategy, "retention", None)
 
 
 def merge_checkpoint_configs(
@@ -161,15 +281,32 @@ def merge_checkpoint_configs(
     wins on per-field conflicts.
 
     The sample layer is typed :class:`CheckpointSampleConfig`, so it can
-    only contribute to fields shared with that base class
-    (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``). The
-    eval-wide fields (``checkpoints_location``, ``retention``) come only
-    from the task or eval layers.
+    only contribute to the fields it shares with the task/eval config
+    (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``), and
+    its ``sandbox_paths`` values are bare path lists (no strategy
+    selection). The storage-policy surface — ``checkpoints_location``,
+    ``retention``, and strategy selection — comes only from the task or
+    eval layers.
 
     For every field, the highest-priority layer with a non-None value
     wins; lower layers supply defaults that higher layers can override.
-    ``sandbox_paths`` is treated as a single value (whole-dict
-    replacement), not key-wise merged.
+    ``sandbox_paths`` carries two concerns that merge differently:
+
+    - **Capture paths** (*what* to snapshot) merge as a single
+      whole-dict value (not key-wise): the highest-priority layer that
+      set ``sandbox_paths`` wins.
+    - **Snapshot-strategy selection** (*how* to snapshot — the
+      ``strategy`` values on :class:`SandboxSnapshotConfig` entries) is
+      storage policy and resolves per-sandbox from the task and eval
+      layers only (eval > task), independently of which layer won the
+      paths dict. A bare path list (and ``strategy=None``) expresses no
+      opinion on strategy, so a sample- or eval-level paths override
+      narrows *what* is captured without silently resetting a
+      task-selected strategy back to the default; a higher layer resets
+      a strategy by setting one explicitly (e.g.
+      ``strategy=ResticSnapshots()``). A sandbox named only by a
+      strategy selection (absent from the winning paths dict) is
+      captured with the default paths under the configured strategy.
 
     The sample layer is **customize-only** — it never enables
     checkpointing. Only the task or eval layer turns it on. When
@@ -190,7 +327,9 @@ def merge_checkpoint_configs(
         return None
 
     trigger: CheckpointTrigger | None = None
-    sandbox_paths: dict[str, list[str]] | None = None
+    # Mapping (not dict) so the sample layer's narrower value type is
+    # assignable (dict is invariant in its value type).
+    winning_paths: Mapping[str, list[str] | SandboxSnapshotConfig] | None = None
     max_consecutive_failures: int | None = None
     for layer in (task, sample, eval_):
         if layer is None:
@@ -198,7 +337,7 @@ def merge_checkpoint_configs(
         if layer.trigger is not None:
             trigger = layer.trigger
         if layer.sandbox_paths is not None:
-            sandbox_paths = layer.sandbox_paths
+            winning_paths = layer.sandbox_paths
         if layer.max_consecutive_failures is not None:
             max_consecutive_failures = layer.max_consecutive_failures
 
@@ -215,9 +354,41 @@ def merge_checkpoint_configs(
     if trigger is None:
         trigger = DEFAULT_CHECKPOINT_TRIGGER
 
+    # Strategy selection resolves per-sandbox from the task/eval layers
+    # only, independently of the whole-dict paths merge above — see the
+    # docstring. Without this, a sample-level bare-path-list entry would
+    # silently revert a task-selected strategy to the default.
+    sandbox_strategies: dict[str, SnapshotStrategyConfig] = {}
+    for layer in (task, eval_):
+        if layer is None or layer.sandbox_paths is None:
+            continue
+        for name, value in layer.sandbox_paths.items():
+            if isinstance(value, SandboxSnapshotConfig) and value.strategy is not None:
+                sandbox_strategies[name] = value.strategy
+
+    resolved_snapshots: dict[str, SandboxSnapshotConfig] = {}
+    for name, value in (winning_paths or {}).items():
+        paths = value.paths if isinstance(value, SandboxSnapshotConfig) else value
+        resolved_snapshots[name] = SandboxSnapshotConfig(
+            paths=paths, strategy=sandbox_strategies.get(name)
+        )
+    for name, strategy in sandbox_strategies.items():
+        if name not in resolved_snapshots:
+            resolved_snapshots[name] = SandboxSnapshotConfig(strategy=strategy)
+    # `sandbox_paths` stays available on the resolved config as the derived
+    # paths-only view: entries with explicit paths appear verbatim (empty
+    # list = opt-out), entries with `paths=None` are omitted so the
+    # auto-home default applies downstream.
+    resolved_paths = {
+        name: cfg.paths
+        for name, cfg in resolved_snapshots.items()
+        if cfg.paths is not None
+    }
+
     return ResolvedCheckpointConfig(
         trigger=trigger,
-        sandbox_paths=sandbox_paths if sandbox_paths is not None else {},
+        sandbox_paths=resolved_paths,
+        sandbox_snapshots=resolved_snapshots,
         retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,

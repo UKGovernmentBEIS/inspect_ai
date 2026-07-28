@@ -91,6 +91,15 @@ async def _read_restic_config(sample_root: str) -> ResticConfig:
     return await _load_model_json(restic_config_path(sample_root), ResticConfig)
 
 
+async def scan_checkpoint_ids(sample_checkpoints_dir: str) -> list[int]:
+    """Return every checkpoint id present as ``ckpt-NNNNN.json``, unsorted.
+
+    Presence-only (no parse validation) — callers that need the commit
+    point use :func:`scan_latest_committed_checkpoint`.
+    """
+    return await _list_checkpoint_ids(sample_checkpoints_dir)
+
+
 async def scan_latest_committed_id(sample_checkpoints_dir: str) -> int | None:
     """Return the highest checkpoint id whose checkpoint file parses cleanly.
 
