@@ -7,8 +7,9 @@ Repro of the production hang: the sandbox carrier exec times out at the OS level
 but its JSON-RPC error never wakes the host-side `ClientSession.call_tool` await,
 so the tool call hangs for hours, ignoring the per-RPC `mcp_timeout`. The fix
 passes `read_timeout_seconds` to `call_tool` so `ClientSession` bounds the wait,
-and translates the resulting HTTP 408 `McpError` into a `ToolError` so the model
-is notified rather than the sample erroring out.
+and translates the resulting request-timeout `McpError` (HTTP 408 on mcp 1.x,
+JSON-RPC -32001 on 2.x) into a `ToolError` so the model is notified rather than
+the sample erroring out.
 """
 
 from datetime import timedelta
@@ -81,8 +82,14 @@ async def _run(timeout):
     # build a ToolDef for a fake tool and call its execute()
     from mcp.types import Tool as MCPTool
 
-    tool = MCPTool(
-        name="grade", description="", inputSchema={"type": "object", "properties": {}}
+    # model_validate because keyword construction with the camelCase alias
+    # (inputSchema=...) fails mypy under mcp 2.x (see test_mcp_tools.py)
+    tool = MCPTool.model_validate(
+        {
+            "name": "grade",
+            "description": "",
+            "inputSchema": {"type": "object", "properties": {}},
+        }
     )
     tool_def = session._tool_def_from_mcp_tool(tool)
     return await tool_def.tool()  # invoke execute()
