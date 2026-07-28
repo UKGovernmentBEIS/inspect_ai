@@ -5334,9 +5334,11 @@ def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
             else ""
         )
         cell = "retrying" + (f" in {remaining}" if remaining else "")
+        # `count` is the attempt that just failed, so say "after attempt N" —
+        # a bare "attempt N" reads as the upcoming attempt (which is N + 1).
         attempt = int(activity.get("count") or 0)
         if attempt > 1:
-            cell += f" (attempt {attempt})"
+            cell += f" (after attempt {attempt})"
         return cell
     return str(activity_type or "")
 

@@ -279,8 +279,10 @@ def test_activity_cell_renders_retry_wait() -> None:
     now = time.time()
     wait = _activity("retry_wait", 10, deadline=now + 45)
     assert _format_activity(wait, now) == "retrying in 0:45"
+    # `count` is the attempt that just failed — rendered as "after attempt N"
+    # so it can't be misread as the upcoming attempt
     later_attempt = _activity("retry_wait", 10, deadline=now + 45, count=3)
-    assert _format_activity(later_attempt, now) == "retrying in 0:45 (attempt 3)"
+    assert _format_activity(later_attempt, now) == "retrying in 0:45 (after attempt 3)"
     # deadline passed (next attempt imminent) → no misleading countdown
     overdue = _activity("retry_wait", 60, deadline=now - 5)
     assert _format_activity(overdue, now) == "retrying"
