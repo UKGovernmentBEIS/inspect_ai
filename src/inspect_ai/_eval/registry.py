@@ -55,7 +55,7 @@ def task_register(
     return task
 
 
-def task_create(name: str, **kwargs: Any) -> Task:
+def task_create(name: str, /, **kwargs: Any) -> Task:
     r"""Create a Task based on its registered name.
 
     Tasks can be a function that returns a Task or a
@@ -76,14 +76,24 @@ def task_create(name: str, **kwargs: Any) -> Task:
         raise PrerequisiteError(f"Task named '{name}' not found.")
     task_info = registry_info(task)
     task_params: list[str] = task_info.metadata["params"]
+    # A factory may name its variadic keyword parameter anything (`**extra`,
+    # `**config`), so the pass-through check cannot key on the literal name
+    # "kwargs" — ask the signature whether it takes one at all.
+    has_var_keyword = any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in inspect.signature(task).parameters.values()
+    )
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
-        if param in task_params or "kwargs" in task_params:
+        if param in task_params or has_var_keyword:
             task_args[param] = kwargs[param]
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    return registry_create("task", name, **task_args)
+    # create_registry_object takes creation args as a dict, so a task arg
+    # named `name`/`type` cannot collide with registry_create's own
+    # leading parameters on replay.
+    return create_registry_object("task", name, task_args)
 
 
 @overload

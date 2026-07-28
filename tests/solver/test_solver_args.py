@@ -223,3 +223,48 @@ def test_var_keyword_name_kwarg_round_trip():
 
     assert registry_params(replayed) == registry_params(original)
     assert registry_params(replayed)["name"] == "demo"
+
+
+@task
+def task_with_var_keyword(base: str = "b", **kwargs):
+    return Task()
+
+
+@task
+def task_with_extra_var_keyword(base: str = "b", **extra):
+    return Task()
+
+
+def test_task_create_replays_name_kwarg_without_collision():
+    """A task arg named `name` must survive the retry-path splat (#4375).
+
+    eval_retry replays via task_create(task_spec, **task_args); with flat
+    capture a `name` key collided with task_create's own leading parameter
+    (TypeError: got multiple values for argument 'name'), one frame before
+    the registry_create collision fixed for solvers. task_create now takes
+    its leading name positionally and instantiates through
+    create_registry_object.
+    """
+    from inspect_ai._eval.registry import task_create
+
+    instance = task_create("task_with_var_keyword", base="b", name="demo")
+
+    assert isinstance(instance, Task)
+
+
+def test_task_create_keeps_args_for_differently_named_var_keyword(caplog):
+    """A factory whose variadic param is not literally `kwargs` must keep
+    replay args instead of warning and dropping them (#4375)."""
+    import logging
+
+    from inspect_ai._eval.registry import task_create
+
+    with caplog.at_level(logging.WARNING):
+        instance = task_create("task_with_extra_var_keyword", base="b", max_tokens=5)
+
+    assert isinstance(instance, Task)
+    assert not [
+        record
+        for record in caplog.records
+        if "not used by task" in record.getMessage()
+    ]
