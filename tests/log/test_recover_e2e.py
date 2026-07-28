@@ -177,7 +177,7 @@ async def test_e2e_recovery_with_recorder_created_eval() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed_summary)
+                buffer.complete_sample(completed_summary, sample_metadata=None)
 
                 # One in-progress sample in buffer (was running when crash happened)
                 in_progress_summary = EvalSampleSummary(
@@ -345,7 +345,7 @@ async def test_e2e_recovery_overwrite() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed)
+                buffer.complete_sample(completed, sample_metadata=None)
                 _simulate_crashed_buffer(buffer)
 
                 # Recover with overwrite — should replace the original file
@@ -447,7 +447,7 @@ async def test_e2e_recovery_overwrite_blocked_by_successful_sibling() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed)
+                buffer.complete_sample(completed, sample_metadata=None)
                 _simulate_crashed_buffer(buffer)
 
                 with pytest.raises(RecoveryNotAvailable, match="successful log"):
@@ -515,7 +515,7 @@ async def test_e2e_recovery_crash_before_first_flush() -> None:
                         started_at=datetime.now(timezone.utc).isoformat(),
                         completed_at=datetime.now(timezone.utc).isoformat(),
                     )
-                    buffer.complete_sample(completed)
+                    buffer.complete_sample(completed, sample_metadata=None)
 
                 _simulate_crashed_buffer(buffer)
 
@@ -588,7 +588,7 @@ async def test_e2e_recovery_duplicate_samples_in_buffer_and_eval() -> None:
                         started_at=datetime.now(timezone.utc).isoformat(),
                         completed_at=datetime.now(timezone.utc).isoformat(),
                     )
-                    buffer.complete_sample(completed)
+                    buffer.complete_sample(completed, sample_metadata=None)
 
                 _simulate_crashed_buffer(buffer)
 
@@ -669,7 +669,7 @@ async def test_e2e_recovery_multiple_flush_batches() -> None:
                         started_at=datetime.now(timezone.utc).isoformat(),
                         completed_at=datetime.now(timezone.utc).isoformat(),
                     )
-                    buffer.complete_sample(completed)
+                    buffer.complete_sample(completed, sample_metadata=None)
 
                 # In-progress at crash
                 started = EvalSampleSummary(
@@ -760,7 +760,7 @@ async def test_e2e_recovery_sample_with_error() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(errored)
+                buffer.complete_sample(errored, sample_metadata=None)
 
                 # Sample 2: normal completed
                 started2 = EvalSampleSummary(
@@ -784,7 +784,7 @@ async def test_e2e_recovery_sample_with_error() -> None:
                     started_at=datetime.now(timezone.utc).isoformat(),
                     completed_at=datetime.now(timezone.utc).isoformat(),
                 )
-                buffer.complete_sample(completed2)
+                buffer.complete_sample(completed2, sample_metadata=None)
 
                 _simulate_crashed_buffer(buffer)
 
@@ -901,7 +901,7 @@ def test_sync_recover_eval_log() -> None:
             started_at=datetime.now(timezone.utc).isoformat(),
             completed_at=datetime.now(timezone.utc).isoformat(),
         )
-        buffer.complete_sample(completed)
+        buffer.complete_sample(completed, sample_metadata=None)
         _simulate_crashed_buffer(buffer)
 
         # Patch resolve_db_dir so recovery finds the buffer DB in our temp dir

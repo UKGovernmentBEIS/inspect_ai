@@ -240,7 +240,7 @@ def hf_dataset(
             dataset = dataset.add_column(index_col, list(range(len(dataset))))
         if shuffle:
             dataset = dataset.shuffle(seed=seed)
-        if limit:
+        if limit is not None:
             dataset = dataset.select(range(limit))
         records = dataset.to_list()
         if recover_ids:
@@ -265,7 +265,7 @@ def hf_dataset(
 
     shuffle_choices_if_requested(memory_dataset, shuffle_choices)
 
-    if materialize_for_ids and limit:
+    if materialize_for_ids and limit is not None:
         memory_dataset = memory_dataset[0:limit]
 
     return memory_dataset

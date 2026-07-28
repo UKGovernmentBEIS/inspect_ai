@@ -187,6 +187,14 @@ def fireworks() -> type[ModelAPI]:
     return FireworksAIAPI
 
 
+@modelapi(name="moonshot")
+def moonshot() -> type[ModelAPI]:
+    validate_openai_client("Moonshot AI API")
+    from .moonshot import MoonshotAPI
+
+    return MoonshotAPI
+
+
 @modelapi(name="sambanova")
 def sambanova() -> type[ModelAPI]:
     validate_openai_client("SambaNova API")
