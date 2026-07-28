@@ -24831,20 +24831,40 @@ li > ul {
   margin: 0.5em 0;
   font-size: clamp(0.3rem, 1.1vw, 0.8rem) !important;
 }
-._row_iq6ks_1 {
+._statusCell_4ypz5_1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Fill the grid cell so the icon centers within the column (the DataGrid
+   * cell is a flex box that would otherwise leave this content-sized box
+   * flush-left). Matches the AG grid, where the block cell filled the width. */
+  width: 100%;
+}
+
+._error_4ypz5_11 {
+  color: var(--bs-danger);
+}
+
+._success_4ypz5_15 {
+  color: var(--bs-success);
+}
+
+._cancelled_4ypz5_19 {
+  color: var(--bs-secondary);
+}
+._row_113da_1 {
   display: flex;
   gap: 16px;
   align-items: center;
 }
 
-._check_iq6ks_7 {
+._marker_113da_7 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--bs-success);
   color: #fff;
   flex: none;
   font-size: 10px;
@@ -24853,7 +24873,27 @@ li > ul {
   z-index: 1;
 }
 
-._copy_iq6ks_23 {
+._marker-success_113da_22 {
+  background: var(--bs-success);
+}
+
+._marker-error_113da_26 {
+  background: var(--bs-danger);
+}
+
+._marker-cancelled_113da_30 {
+  background: var(--bs-secondary);
+}
+
+._marker-limit_113da_34 {
+  background: var(--bs-warning);
+  /* White on Bootstrap's yellow fails contrast, and the theme bridge remaps
+     --bs-warning-text-emphasis to a light grey in dark themes while the amber
+     background never changes — so hardcode the dark emphasis tone. */
+  color: #664d03;
+}
+
+._copy_113da_42 {
   flex: 1;
   display: flex;
   align-items: center;
@@ -24863,14 +24903,29 @@ li > ul {
   border-top: 1px solid var(--bs-border-color);
 }
 
-._success_iq6ks_33 {
+._headline_113da_52 {
   font-weight: 700;
   font-size: 13.5px;
-  color: var(--bs-success-text-emphasis);
   white-space: nowrap;
 }
 
-._detail_iq6ks_40 {
+._headline-success_113da_58 {
+  color: var(--bs-success-text-emphasis);
+}
+
+._headline-error_113da_62 {
+  color: var(--bs-danger-text-emphasis);
+}
+
+._headline-cancelled_113da_66 {
+  color: var(--bs-secondary-color);
+}
+
+._headline-limit_113da_70 {
+  color: var(--bs-warning-text-emphasis);
+}
+
+._detail_113da_74 {
   font-size: 12.5px;
   color: var(--bs-secondary-color);
 }
@@ -25396,27 +25451,6 @@ li > ul {
 
 ._invalidationReason_rr9mf_176 {
   flex-basis: 100%;
-}
-._statusCell_4ypz5_1 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Fill the grid cell so the icon centers within the column (the DataGrid
-   * cell is a flex box that would otherwise leave this content-sized box
-   * flush-left). Matches the AG grid, where the block cell filled the width. */
-  width: 100%;
-}
-
-._error_4ypz5_11 {
-  color: var(--bs-danger);
-}
-
-._success_4ypz5_15 {
-  color: var(--bs-success);
-}
-
-._cancelled_4ypz5_19 {
-  color: var(--bs-secondary);
 }
 ._entry_a2fxh_1 {
   margin-bottom: 1rem;
