@@ -1,3 +1,7 @@
+## Unreleased
+
+- ACP: The transport now exposes `has_client` and `wait_for_client()`, letting agents check for or wait until a fully bound ACP client is attached.
+
 ## 0.3.250 (28 July 2026)
 
 - Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
@@ -41,7 +45,6 @@
 - Bugfix: Fixed a memory leak where the result of any synchronous API call made from a context with no running event loop (e.g. each sample yielded by `read_eval_log_samples()`) was retained in memory forever after the caller released it.
 - Bugfix: Cache traceback rendering so repeated identical errors no longer stall the event loop re-formatting the same traceback. (#4316)
 - Bugfix: Anthropic requests no longer fail with 400 `container_id is required` when a turn mixes code-execution-backed server tools (e.g. web search with dynamic filtering) with client tool calls.
-- ACP: The transport now exposes `has_client` and `wait_for_client()`, letting agents check for or wait until a fully bound ACP client is attached.
 
 ## 0.3.249 (20 July 2026)
 
