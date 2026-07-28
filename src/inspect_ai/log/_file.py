@@ -114,15 +114,21 @@ def list_eval_logs(
 
     """
     # don't mix trio and asyncio (guard only the filter path: it reads log
-    # headers via the trio-incompatible sync read_eval_log, whereas unfiltered
-    # listing is backend-agnostic and is called from async code)
+    # headers via the trio-incompatible sync read_eval_log; unfiltered listing
+    # is called from async code and only reads headers as a best-effort
+    # fallback for non-conforming filenames, which degrades to empty task
+    # fields rather than raising)
     if filter and current_async_backend() == "trio":
         raise RuntimeError(
             "list_eval_logs with a filter cannot be called from a trio async context (please use list_eval_logs_async instead)"
         )
 
     # get the eval logs
-    eval_logs = _ls_eval_logs(log_dir, formats, recursive, descending, fs_options)
+    logger.debug(f"Listing eval logs for {log_dir}")
+    eval_logs = log_files_from_ls(
+        _ls_log_dir(log_dir, recursive, fs_options), formats, descending
+    )
+    logger.debug(f"Listing eval logs for {log_dir} completed")
 
     # apply filter if requested
     if filter:
@@ -135,6 +141,11 @@ def list_eval_logs(
         return eval_logs
 
 
+# NOTE: inspect_ai._view.common defines a same-named `list_eval_logs_async`
+# for the view server: same core listing semantics but no `filter`, plus
+# natively-async S3/remote listings and azure-specific error handling that
+# would be too heavyweight to pull into this module. Keep the two aligned
+# when changing listing behavior.
 async def list_eval_logs_async(
     log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
     formats: list[Literal["eval", "json"]] | None = None,
@@ -146,9 +157,10 @@ async def list_eval_logs_async(
     """List all eval logs in a directory (async).
 
     Async equivalent of `list_eval_logs()`. Prefer this when calling from an
-    async context: the sync version reads log headers for `filter` via
-    `read_eval_log()`, which raises when called from a trio async context. This
-    variant awaits `read_eval_log_async()` instead and so is backend-agnostic.
+    async context: the sync version reads log headers (for `filter`, and as a
+    fallback for non-conforming filenames) via `read_eval_log()`, which is
+    unavailable from a trio async context. This variant reads headers via
+    `read_eval_log_async()` instead and so is backend-agnostic.
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
@@ -166,8 +178,14 @@ async def list_eval_logs_async(
        List of EvalLog Info.
 
     """
-    # get the eval logs
-    eval_logs = _ls_eval_logs(log_dir, formats, recursive, descending, fs_options)
+    # get the eval logs (resolve via the async fan-out so the header fallback
+    # for non-conforming filenames does not hit the sync-only read_eval_log,
+    # which under trio would silently degrade to empty task fields)
+    logger.debug(f"Listing eval logs for {log_dir}")
+    eval_logs = await log_files_from_ls_async(
+        _ls_log_dir(log_dir, recursive, fs_options), formats, descending
+    )
+    logger.debug(f"Listing eval logs for {log_dir} completed")
 
     # apply filter if requested
     if filter:
@@ -181,22 +199,20 @@ async def list_eval_logs_async(
         return eval_logs
 
 
-def _ls_eval_logs(
+def _ls_log_dir(
     log_dir: str,
-    formats: list[Literal["eval", "json"]] | None,
     recursive: bool,
-    descending: bool,
     fs_options: dict[str, Any],
-) -> list[EvalLogInfo]:
-    """Directory listing shared by `list_eval_logs()` and `list_eval_logs_async()`."""
+) -> list[FileInfo]:
+    """Raw directory listing shared by `list_eval_logs()` and `list_eval_logs_async()`.
+
+    Returns an empty list if the directory does not exist. Callers resolve the
+    returned files to `EvalLogInfo` via `log_files_from_ls()` (sync) or
+    `log_files_from_ls_async()` (async).
+    """
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
-        logger.debug(f"Listing eval logs for {log_dir}")
-        eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), formats, descending
-        )
-        logger.debug(f"Listing eval logs for {log_dir} completed")
-        return eval_logs
+        return fs.ls(log_dir, recursive=recursive)
     else:
         return []
 

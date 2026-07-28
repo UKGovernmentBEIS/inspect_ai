@@ -613,6 +613,12 @@ async def list_eval_logs_async(
     Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
     otherwise will fallback to sync implementation.
 
+    Note: distinct from the public `inspect_ai.log.list_eval_logs_async`, which
+    adds `filter` support but always lists via the sync filesystem API. This
+    view-server variant is kept separate for its natively-async S3/remote
+    listings and azure-specific error handling. Keep the two aligned when
+    changing listing behavior.
+
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
       formats (Literal["eval", "json"]): Formats to list (default
