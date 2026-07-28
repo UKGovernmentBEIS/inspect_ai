@@ -364,6 +364,12 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
+    def test_claude_opus_5(self):
+        """Test that Claude Opus 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
     def test_claude_fable_5(self):
         """Test that Claude Fable 5 reports 1MM input tokens."""
         model = get_model("anthropic/claude-fable-5")
