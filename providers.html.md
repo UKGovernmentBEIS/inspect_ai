@@ -6,7 +6,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Perplexity](./providers.html.md#perplexity) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
@@ -502,6 +502,25 @@ export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
 ```
+
+## Moonshot AI
+
+To use the [Moonshot AI](https://platform.moonshot.ai/) provider (Kimi models), install the `openai` package (which the Moonshot AI service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export MOONSHOT_API_KEY=your-moonshot-api-key
+inspect eval arc.py --model moonshot/kimi-k3
+```
+
+Note that Kimi K3 uses fixed sampling (Moonshot recommends omitting sampling parameters), so the `moonshot` provider does not pass `temperature`, `top_p`, or penalty options to K3 models. Similarly, K3’s thinking effort currently only accepts `max`, so other `--reasoning-effort` values are submitted as `max`.
+
+The following environment variables are supported by the Moonshot AI provider
+
+| Variable | Description |
+|----|----|
+| `MOONSHOT_API_KEY` | API key credentials (required). |
+| `MOONSHOT_BASE_URL` | Base URL for requests (optional, defaults to `https://api.moonshot.ai/v1`). |
 
 ## Grok
 

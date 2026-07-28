@@ -194,11 +194,13 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.248 (17 July 2026)</a></li>
-  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.247 (16 July 2026)</a></li>
-  <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.246 (10 July 2026)</a></li>
-  <li><a href="#july-2026-3" id="toc-july-2026-3" class="nav-link" data-scroll-target="#july-2026-3">0.3.245 (08 July 2026)</a></li>
-  <li><a href="#july-2026-4" id="toc-july-2026-4" class="nav-link" data-scroll-target="#july-2026-4">0.3.244 (01 July 2026)</a></li>
+  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.250 (28 July 2026)</a></li>
+  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.249 (20 July 2026)</a></li>
+  <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.248 (17 July 2026)</a></li>
+  <li><a href="#july-2026-3" id="toc-july-2026-3" class="nav-link" data-scroll-target="#july-2026-3">0.3.247 (16 July 2026)</a></li>
+  <li><a href="#july-2026-4" id="toc-july-2026-4" class="nav-link" data-scroll-target="#july-2026-4">0.3.246 (10 July 2026)</a></li>
+  <li><a href="#july-2026-5" id="toc-july-2026-5" class="nav-link" data-scroll-target="#july-2026-5">0.3.245 (08 July 2026)</a></li>
+  <li><a href="#july-2026-6" id="toc-july-2026-6" class="nav-link" data-scroll-target="#july-2026-6">0.3.244 (01 July 2026)</a></li>
   <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.243 (30 June 2026)</a></li>
   <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.242 (29 June 2026)</a></li>
   <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.241 (22 June 2026)</a></li>
@@ -449,7 +451,65 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="july-2026" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026">0.3.248 (17 July 2026)</h2>
+<h2 class="anchored" data-anchor-id="july-2026">0.3.250 (28 July 2026)</h2>
+<ul>
+<li>Sample Sources: Generate a task’s samples dynamically while it runs by passing a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#samplesource">SampleSource</a></span> as the task’s <code>dataset</code> (with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#enqueue_sample">enqueue_sample()</a></span> for imperative additions) — the sample-level mirror of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span>, for RL loops and adaptive evals.</li>
+<li>Eval: Multi-task runs without <code>task_retry_attempts</code> now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).</li>
+<li>Control Channel: New <code>inspect ctl task pause|resume</code> and <code>inspect ctl process pause|resume</code> commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with <code>paused</code>/<code>quiesced</code> reported by <code>inspect ctl task list</code>.</li>
+<li>Control Channel: New <code>inspect ctl sample messages TASK SID [EPOCH]</code> reads a running (or buffered-but-unlogged) sample’s current conversation as a snapshot, with <code>--tail</code>/<code>--all</code>/<code>--full</code>.</li>
+<li>Control Channel: New <code>inspect ctl process anomalies [PID]</code> shows a running process’s in-flight and anomalous trace actions by reading its trace file directly, so it works against busy, hung, or even exited processes.</li>
+<li>Control Channel: <code>inspect ctl config</code> changes are now recorded in each affected eval log (<code>EvalLog.config_updates</code>, with author, timestamp, optional <code>--reason</code>, and old → new values); <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#effective_eval_config">effective_eval_config()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#effective_generate_config">effective_generate_config()</a></span> fold them over the launch config.</li>
+<li>Control Channel: <code>inspect ctl sample events --full</code> now pretty-prints the raw events instead of rendering a mostly-empty summary table.</li>
+<li>Control Channel: The control server now starts under fastapi 0.140.7+, which had silently disabled it by removing an internal helper. (meridianlabs-ai/inspect_ai#163)</li>
+<li>Anthropic: Support for Claude Opus 5 (released 2026-07-24), including model info, computer use, code execution, and disabling thinking via <code>reasoning_effort="none"</code>.</li>
+<li>Anthropic: Support enabling model-generated citations for provided <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#contentdocument">ContentDocument</a></span> inputs.</li>
+<li>Google: Added model info for Gemini 3.6 Flash and Gemini 3.5 Flash-Lite (released 2026-07-21).</li>
+<li>OpenAI Compatible: A length-truncated streaming response (e.g.&nbsp;<code>-M stream=true</code> hitting <code>max_tokens</code>) now degrades gracefully to a <code>max_tokens</code> stop reason instead of raising <code>LengthFinishReasonError</code> and aborting the eval. (#4552)</li>
+<li>OpenRouter: Reasoning history replayed to Gemini models now contains only readable <code>&lt;think&gt;</code> text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)</li>
+<li>Agent Bridge: Support Anthropic clients that consume responses via <code>with_raw_response</code>, which previously failed with <code>'Message' object has no attribute 'parse'</code>.</li>
+<li>Agent Bridge: Side model calls (e.g.&nbsp;opencode’s session title generation) can no longer replace the agent’s real conversation in the tracked agent state. (meridianlabs-ai/inspect_ai#140)</li>
+<li>Agent Bridge: Gemini tool results delivered as <code>functionResponse</code> parts in model-role turns are now converted to tool messages instead of dropped (fixes 400 “Requests ending with a model turn are not supported”).</li>
+<li>Agent Bridge: Google streaming requests targeting an inspect model now raise the intended streaming-unsupported error instead of being sent to the real Google API.</li>
+<li>Sandbox: <code>Sandbox.exec</code> failure errors now include stdout as a fallback when stderr is empty, so commands that report diagnostics on stdout still produce a useful error message.</li>
+<li>Memory tool: Canonicalize <code>/memories</code> paths so equivalent spellings map to one file rather than several, and add an <code>instance</code> parameter to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> for independent per-instance memory stores.</li>
+<li>Approval: Load policy configuration files from <code>file://</code> URIs as well as plain local paths.</li>
+<li>Registry: Add a <code>validation_predicate</code> type for Scout extensions.</li>
+<li>Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)</li>
+<li>Tracing: trace-file reads (<code>inspect trace</code> commands and <code>inspect ctl process anomalies</code>) now skip truncated, corrupt, or unrecognized records — e.g.&nbsp;from a hard-killed process or a newer inspect version — instead of failing entirely.</li>
+<li>Windows: process liveness checks (used by <code>inspect ctl</code> discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.</li>
+<li>Inspect View: Added transcript event navigation — keyboard-driven turn and agent navigation with a focus view for drilling into agent subtrees (#354).</li>
+<li>Inspect View: Added connection limit history display to the Stats tab. (#447)</li>
+<li>Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)</li>
+<li>Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)</li>
+<li>Inspect View: Fixed timeline discarding a solver span containing a single agent span child when it also contains other displayed events. (#443)</li>
+<li>Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)</li>
+<li>Inspect View: Fixed sanitization of state diff HTML, added alt text to images, and cleaned up leaked timers and scroll-to-top behavior (#428).</li>
+<li>Bugfix: Resolve file paths and resources passed to the <code>chain_of_thought</code> solver. (#4631)</li>
+<li>Bugfix: <code>is_data_uri()</code> now recognizes base64 data URIs that carry media-type parameters (e.g.&nbsp;<code>;charset=utf-8</code>) or an empty media type (<code>data:;base64,...</code>), which were previously misclassified as non-data URIs.</li>
+<li>Bugfix: Crash recovery now preserves full sample metadata in resumed logs and score metrics instead of persisting summary-thinned placeholders.</li>
+<li>Bugfix: <code>file_dataset()</code> now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.</li>
+<li>Bugfix: Transcript timelines no longer hide workflow <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> calls with differing system prompts as utility agents; utility classification now requires a tool-calling agent loop.</li>
+<li>Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed <code>limit=0</code> instead of returning all samples.</li>
+<li>Bugfix: Parameterized score reducers (e.g.&nbsp;<code>at_least(2)</code>, <code>pass_at(2)</code>, <code>pass_k(2)</code>) now round-trip through the registry instead of raising <code>LookupError</code> when restored from a log.</li>
+<li>Bugfix: Fixed a memory leak where the result of any synchronous API call made from a context with no running event loop (e.g.&nbsp;each sample yielded by <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_samples">read_eval_log_samples()</a></span>) was retained in memory forever after the caller released it.</li>
+<li>Bugfix: Cache traceback rendering so repeated identical errors no longer stall the event loop re-formatting the same traceback. (#4316)</li>
+<li>Bugfix: Anthropic requests no longer fail with 400 <code>container_id is required</code> when a turn mixes code-execution-backed server tools (e.g.&nbsp;web search with dynamic filtering) with client tool calls.</li>
+</ul>
+</section>
+<section id="july-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-1">0.3.249 (20 July 2026)</h2>
+<ul>
+<li>Model API: New <code>moonshot</code> provider for Moonshot AI Kimi models (e.g.&nbsp;<code>moonshot/kimi-k3</code>), with built-in model info for Kimi K3 and detection of <code>kimi-*</code> model names on hosting providers.</li>
+<li>CloudFlare/Moonshot: Automatically populate empty assistant messages with “(no content)” (these APIs reject replay of assistant messages with empty content).</li>
+<li>CloudFlare/Moonshot: Retry requests that fail with HTTP status 503 (service overloaded) as rate limits, scaling down adaptive concurrency.</li>
+<li>Control Channel: <code>inspect ctl sample list</code> no longer recomputes sample summaries on every request, so polling an eval buffering many large samples (e.g.&nbsp;a retry’s carried transcripts) can no longer stall the eval process.</li>
+<li>Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample’s full pools and every attachment body.</li>
+<li>Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.</li>
+<li>Agent Bridge: Support OpenAI clients that consume responses via <code>with_raw_response</code> (e.g.&nbsp;langchain-openai), which previously failed with <code>'ChatCompletion' object has no attribute 'parse'</code>. (#4341)</li>
+</ul>
+</section>
+<section id="july-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-2">0.3.248 (17 July 2026)</h2>
 <ul>
 <li>Logging: Local eval (<code>.eval</code>) and JSON (<code>.json</code>) log files are now written atomically (temp file + <code>fsync</code> + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)</li>
 <li>Checkpointing: In-sandbox restic artifacts moved from the world-listable <code>/opt/inspect-restic</code> to root-only <code>/root/.cache/inspect</code>, and egress scratch files no longer land in <code>/tmp</code>, so agents no longer see evidence of checkpointing.</li>
@@ -494,15 +554,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Model Roles: <code>resolve_model_roles</code> now copies a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> passed by object (e.g.&nbsp;via <code>eval(model_roles=...)</code>) before stamping its role, so roles supplied through the Python API — not just <code>--model-role</code> — get a distinct instance and are not misattributed. (#4464)</li>
 </ul>
 </section>
-<section id="july-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-1">0.3.247 (16 July 2026)</h2>
+<section id="july-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-3">0.3.247 (16 July 2026)</h2>
 <ul>
 <li>Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (<code>-M use_adc=true</code> or <code>GOOGLE_USE_ADC=true</code>) with automatic token refresh, for deployments reachable without an API key.</li>
 <li>Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.</li>
 </ul>
 </section>
-<section id="july-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-2">0.3.246 (10 July 2026)</h2>
+<section id="july-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-4">0.3.246 (10 July 2026)</h2>
 <ul>
 <li>Grok: Support for Grok 4.5 (model info database entry; accepts <code>reasoning_effort</code> with a documented default of <code>high</code>).</li>
 <li>OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target <code>gpt-5.6</code>.</li>
@@ -521,8 +581,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Model Roles: <code>--model-role</code> roles that share the same model and config now report their token usage separately in <code>role_usage</code> instead of collapsing onto one role. (#4450)</li>
 </ul>
 </section>
-<section id="july-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-3">0.3.245 (08 July 2026)</h2>
+<section id="july-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-5">0.3.245 (08 July 2026)</h2>
 <ul>
 <li>Model API: New <code>openai-api-completions</code> provider for the legacy <code>/v1/completions</code> endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with <code>vllm-completions</code>.</li>
 <li>Model API: <code>openai-api-completions</code> and <code>vllm-completions</code> accept pre-tokenized prompts via <code>ChatMessage.metadata["prompt_token_ids"]</code>.</li>
@@ -559,8 +619,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Link plain HTTP sandbox ports (e.g.&nbsp;80, 8080) as <code>http://</code> instead of <code>https://</code> in the running-samples port-mappings panel.</li>
 </ul>
 </section>
-<section id="july-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-4">0.3.244 (01 July 2026)</h2>
+<section id="july-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-6">0.3.244 (01 July 2026)</h2>
 <ul>
 <li>Anthropic: Various changes related to <a href="https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5">Sonnet 5</a>.</li>
 <li>Bugfix: Elapsed-time displays (e.g.&nbsp;the running-sample clock and timers) no longer render an impossible <code>:60</code> seconds when the elapsed time has a fractional second.</li>

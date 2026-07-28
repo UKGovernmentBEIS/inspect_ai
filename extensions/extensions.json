@@ -187,6 +187,17 @@
     ]
   },
   {
+    "id": "inspect-judge-drift",
+    "name": "Inspect Judge Drift",
+    "url": "https://github.com/avalyset/inspect-judge-drift",
+    "desc": "Judge-drift measurement \u2014 re-grades a stored eval log with two graders over the same samples, so the judge model is the only variable. Grade-parse failures are reported as unscored, never fabricated into verdicts.",
+    "author": "Eirik Botten Nicolaysen",
+    "author_url": "https://github.com/avalyset",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "inspect-swe",
     "name": "Inspect SWE",
     "url": "https://meridianlabs-ai.github.io/inspect_swe/",

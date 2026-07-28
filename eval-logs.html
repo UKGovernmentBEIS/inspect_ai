@@ -606,6 +606,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./sample-source.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Sample Sources</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./tracing.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Tracing</span></a>
   </div>
@@ -1209,37 +1215,51 @@ Important
 <span id="cb28-25"><a href="#cb28-25" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
 <span id="cb28-26"><a href="#cb28-26" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that using <code>edit_score</code> modifies the log loaded into memory but doesn’t modify the written log file. Be sure to use <code>write_eval_log</code> to save the changes to the eval file (or a copy).</p>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Passing <code>metadata</code> to a <code>ScoreEdit</code> <strong>replaces</strong> <code>Score.metadata</code> rather than merging into it. Keys recorded by the scorer (for example a <code>reason</code>, or a model grader’s <code>grading</code> transcript) are no longer part of the current metadata unless the edit repeats them — the pre-edit dict is still available in the score history. Merge explicitly if you want to keep them:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>edit <span class="op">=</span> ScoreEdit(</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>    value<span class="op">=</span><span class="fl">0.95</span>,</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>    metadata<span class="op">=</span>{<span class="op">**</span>(score.metadata <span class="kw">or</span> {}), <span class="st">"edited_by"</span>: <span class="st">"reviewer"</span>},</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</div>
 </section>
 <section id="score-history" class="level3">
 <h3 class="anchored" data-anchor-id="score-history">Score History</h3>
 <p>Each score maintains a complete edit history. The original score and all subsequent edits are preserved:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Access the edit history</span></span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>score <span class="op">=</span> log.samples[<span class="dv">0</span>].scores[<span class="st">"accuracy"</span>]</span>
-<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Original value: </span><span class="sc">{</span>score<span class="sc">.</span>history[<span class="dv">0</span>]<span class="sc">.</span>value<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Current value: </span><span class="sc">{</span>score<span class="sc">.</span>value<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb29-5"><a href="#cb29-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Was edited: </span><span class="sc">{</span><span class="bu">len</span>(score.history) <span class="op">&gt;</span> <span class="dv">1</span><span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb29-6"><a href="#cb29-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of edits: </span><span class="sc">{</span><span class="bu">len</span>(score.history)<span class="sc">}</span><span class="ss">"</span>)</span>
-<span id="cb29-7"><a href="#cb29-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb29-8"><a href="#cb29-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Iterate through all edits</span></span>
-<span id="cb29-9"><a href="#cb29-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, edit <span class="kw">in</span> <span class="bu">enumerate</span>(score.history):</span>
-<span id="cb29-10"><a href="#cb29-10" aria-hidden="true" tabindex="-1"></a>    provenance <span class="op">=</span> edit.provenance</span>
-<span id="cb29-11"><a href="#cb29-11" aria-hidden="true" tabindex="-1"></a>    author <span class="op">=</span> provenance.author <span class="cf">if</span> provenance <span class="cf">else</span> <span class="st">"original"</span></span>
-<span id="cb29-12"><a href="#cb29-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Edit </span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">: value=</span><span class="sc">{</span>edit<span class="sc">.</span>value<span class="sc">}</span><span class="ss">, author=</span><span class="sc">{</span>author<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Access the edit history</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>score <span class="op">=</span> log.samples[<span class="dv">0</span>].scores[<span class="st">"accuracy"</span>]</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Original value: </span><span class="sc">{</span>score<span class="sc">.</span>history[<span class="dv">0</span>]<span class="sc">.</span>value<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Current value: </span><span class="sc">{</span>score<span class="sc">.</span>value<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Was edited: </span><span class="sc">{</span><span class="bu">len</span>(score.history) <span class="op">&gt;</span> <span class="dv">1</span><span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"Number of edits: </span><span class="sc">{</span><span class="bu">len</span>(score.history)<span class="sc">}</span><span class="ss">"</span>)</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Iterate through all edits</span></span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> i, edit <span class="kw">in</span> <span class="bu">enumerate</span>(score.history):</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>    provenance <span class="op">=</span> edit.provenance</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>    author <span class="op">=</span> provenance.author <span class="cf">if</span> provenance <span class="cf">else</span> <span class="st">"original"</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>    <span class="bu">print</span>(<span class="ss">f"Edit </span><span class="sc">{</span>i<span class="sc">}</span><span class="ss">: value=</span><span class="sc">{</span>edit<span class="sc">.</span>value<span class="sc">}</span><span class="ss">, author=</span><span class="sc">{</span>author<span class="sc">}</span><span class="ss">"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="recomputing-metrics" class="level3">
 <h3 class="anchored" data-anchor-id="recomputing-metrics">Recomputing Metrics</h3>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_score">edit_score()</a></span> function automatically recomputes aggregate metrics by default. You can disable this and manually recompute later if you’re making multiple edits:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> recompute_metrics</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Make edits without recomputing metrics each time</span></span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>edit_score(log, sample_id_1, <span class="st">"accuracy"</span>, edit1, recompute_metrics<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>edit_score(log, sample_id_2, <span class="st">"accuracy"</span>, edit2, recompute_metrics<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Recompute metrics once after all edits</span></span>
-<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>recompute_metrics(log)</span>
-<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
-<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> recompute_metrics</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Make edits without recomputing metrics each time</span></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>edit_score(log, sample_id_1, <span class="st">"accuracy"</span>, edit1, recompute_metrics<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a>edit_score(log, sample_id_2, <span class="st">"accuracy"</span>, edit2, recompute_metrics<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Recompute metrics once after all edits</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a>recompute_metrics(log)</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="score-edit-events" class="level3">
 <h3 class="anchored" data-anchor-id="score-edit-events">Score Edit Events</h3>
@@ -1249,28 +1269,28 @@ Important
 <h3 class="anchored" data-anchor-id="tags-metadata-editing">Tags &amp; Metadata Editing</h3>
 <p>You can also edit the tags and metadata associated with a log after evaluation. This is useful for workflows like QA review, categorisation, and filtering—for example, tagging a log as <code>"needs_qa"</code> at eval time, then updating it to <code>"qa_passed"</code> after review.</p>
 <p>Use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#edit_eval_log">edit_eval_log()</a></span> to add or remove tags and set or remove metadata keys:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> (</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>    read_eval_log, write_eval_log, edit_eval_log,</span>
-<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    TagsEdit, MetadataEdit, ProvenanceData,</span>
-<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-6"><a href="#cb31-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the log file</span></span>
-<span id="cb31-7"><a href="#cb31-7" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"my_eval.eval"</span>)</span>
-<span id="cb31-8"><a href="#cb31-8" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-9"><a href="#cb31-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit tags and metadata</span></span>
-<span id="cb31-10"><a href="#cb31-10" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> edit_eval_log(log, [</span>
-<span id="cb31-11"><a href="#cb31-11" aria-hidden="true" tabindex="-1"></a>    TagsEdit(tags_add<span class="op">=</span>[<span class="st">"qa_passed"</span>], tags_remove<span class="op">=</span>[<span class="st">"needs_qa"</span>]),</span>
-<span id="cb31-12"><a href="#cb31-12" aria-hidden="true" tabindex="-1"></a>    MetadataEdit(</span>
-<span id="cb31-13"><a href="#cb31-13" aria-hidden="true" tabindex="-1"></a>        metadata_set<span class="op">=</span>{<span class="st">"reviewer"</span>: <span class="st">"alice"</span>},</span>
-<span id="cb31-14"><a href="#cb31-14" aria-hidden="true" tabindex="-1"></a>        metadata_remove<span class="op">=</span>[<span class="st">"draft_notes"</span>],</span>
-<span id="cb31-15"><a href="#cb31-15" aria-hidden="true" tabindex="-1"></a>    ),</span>
-<span id="cb31-16"><a href="#cb31-16" aria-hidden="true" tabindex="-1"></a>], ProvenanceData(author<span class="op">=</span><span class="st">"alice"</span>, reason<span class="op">=</span><span class="st">"QA complete"</span>))</span>
-<span id="cb31-17"><a href="#cb31-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb31-18"><a href="#cb31-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
-<span id="cb31-19"><a href="#cb31-19" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> (</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>    read_eval_log, write_eval_log, edit_eval_log,</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    TagsEdit, MetadataEdit, ProvenanceData,</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Read the log file</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(<span class="st">"my_eval.eval"</span>)</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit tags and metadata</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> edit_eval_log(log, [</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true" tabindex="-1"></a>    TagsEdit(tags_add<span class="op">=</span>[<span class="st">"qa_passed"</span>], tags_remove<span class="op">=</span>[<span class="st">"needs_qa"</span>]),</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true" tabindex="-1"></a>    MetadataEdit(</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true" tabindex="-1"></a>        metadata_set<span class="op">=</span>{<span class="st">"reviewer"</span>: <span class="st">"alice"</span>},</span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true" tabindex="-1"></a>        metadata_remove<span class="op">=</span>[<span class="st">"draft_notes"</span>],</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true" tabindex="-1"></a>], ProvenanceData(author<span class="op">=</span><span class="st">"alice"</span>, reason<span class="op">=</span><span class="st">"QA complete"</span>))</span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Write back to the log file</span></span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true" tabindex="-1"></a>write_eval_log(log)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>After editing, access the current tags and metadata directly on the log:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a>log.tags        <span class="co"># ["qa_passed", ...]</span></span>
-<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>log.metadata    <span class="co"># {"reviewer": "alice", ...}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>log.tags        <span class="co"># ["qa_passed", ...]</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>log.metadata    <span class="co"># {"reviewer": "alice", ...}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The original eval-time values are always preserved in <code>log.eval.tags</code> and <code>log.eval.metadata</code>. All post-eval edits are recorded in <code>log.log_updates</code> as an append-only edit history with provenance (author and reason), providing a full audit trail.</p>
 <p>No-op edits are automatically filtered—adding a tag that already exists or removing one that doesn’t will not create an edit entry.</p>
 </section>
@@ -1288,15 +1308,15 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <h2 class="anchored" data-anchor-id="sec-hugging-face-storage-buckets">Hugging Face Storage Buckets</h2>
 <p>You can store evaluation logs in <a href="https://huggingface.co/docs/hub/storage-buckets">Hugging Face Storage Buckets</a> using the <code>hf://buckets/&lt;owner&gt;/&lt;bucket&gt;/&lt;path&gt;</code> URI scheme. Storage buckets are useful for durable, shared log storage and are accessed through the <code>huggingface_hub</code> filesystem integration.</p>
 <p>First install the Hugging Face Hub package, then create a bucket and authenticate with Hugging Face:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"huggingface_hub&gt;=1.6.0"</span></span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> auth login</span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> buckets create my-org/inspect-logs <span class="at">--private</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb35"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="st">"huggingface_hub&gt;=1.6.0"</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> auth login</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true" tabindex="-1"></a><span class="ex">hf</span> buckets create my-org/inspect-logs <span class="at">--private</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Then set the log directory to a bucket path:</p>
 <pre class="env"><code>INSPECT_LOG_DIR=hf://buckets/my-org/inspect-logs/runs
 HF_TOKEN=hf_...</code></pre>
 <p>You can then run evaluations and view logs directly from the bucket:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-4</span>
-<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> view <span class="at">--log-dir</span> hf://buckets/my-org/inspect-logs/runs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval popularity.py <span class="at">--model</span> openai/gpt-4</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> view <span class="at">--log-dir</span> hf://buckets/my-org/inspect-logs/runs</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Inspect does not create Hugging Face buckets automatically; create the bucket first and authenticate with an account or token that can write to it. Bucket contents are mutable, so use a unique prefix for shared runs when you want to avoid overwriting prior logs.</p>
 <p>Note that <code>hf://buckets/...</code> is the URI scheme for Hugging Face Storage Buckets. The <code>hf/&lt;org&gt;/&lt;name&gt;</code> output path used by <code>inspect view bundle</code> publishes a static viewer to a Hugging Face Space instead.</p>
 <section id="sec-azure" class="level3">
@@ -1334,8 +1354,8 @@ inspect view  # streams directly from Azure</code></pre>
 <pre><code>{timestamp}_{task}_{id}</code></pre>
 <p>Where <code>timestamp</code> is the time the log was created; <code>task</code> is the name of the task the log corresponds to; and <code>id</code> is a unique task id.</p>
 <p>The <code>{timestamp}</code> part of the log file name is required to ensure that log files appear in sequential order in the filesystem. However, the rest of the filename can be customized using the <code>INSPECT_EVAL_LOG_FILE_PATTERN</code> environment variable, which can include any combination of <code>task</code>, <code>model</code>, and <code>id</code> fields. For example, to include the <code>model</code> in log file names:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb43"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
-<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb44"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>As with other log file oriented environment variables, you may find it convenient to define this in a <code>.env</code> file from the location where you run your evals.</p>
 </section>
 <section id="sec-log-commands" class="level2">
@@ -1378,13 +1398,13 @@ inspect view  # streams directly from Azure</code></pre>
 <section id="listing-logs" class="level3">
 <h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
 <p>You can use the <code>inspect log list</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb44"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb45"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb45"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can use the <code>--retryable</code> option to list only logs that are <a href="./handling-errors.html#eval-retries">retryable</a></p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="reading-logs" class="level3">
 <h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
@@ -1394,30 +1414,30 @@ inspect view  # streams directly from Azure</code></pre>
 <li>Log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</li>
 </ol>
 <p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
-<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb48"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="converting-logs" class="level3">
 <h3 class="anchored" data-anchor-id="converting-logs">Converting Logs</h3>
 <p>You can convert between the two underlying <a href="#sec-log-format">log formats</a> using the <code>inspect log convert</code> command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (<code>--to</code> and <code>--output-dir</code>). For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb48"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb49"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or for an entire directory:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb49"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb50"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the <code>--overwrite</code> flag to force an overwrite.</p>
 <p>Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.</p>
 </section>
 <section id="exporting-run-config" class="level3">
 <h3 class="anchored" data-anchor-id="exporting-run-config">Exporting Run Config</h3>
 <p>The <code>inspect log export-config</code> command reads a log file and writes a YAML (or JSON) file that captures the complete configuration used for that run — task, model, model roles, generation parameters, solver, and eval settings. The output can be passed directly to <code>inspect eval --run-config</code> to reproduce the run:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb50"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log export-config logs/my_run.eval <span class="op">&gt;</span> run.yaml</span>
-<span id="cb50-2"><a href="#cb50-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--run-config</span> run.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log export-config logs/my_run.eval <span class="op">&gt;</span> run.yaml</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--run-config</span> run.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This closes the round-trip: <code>eval → log → export-config → eval</code>. By default output goes to stdout; use <code>--output</code> to write to a file, and <code>--format json</code> for JSON instead of YAML.</p>
 <p>See <a href="./tasks.html#run-config">Run Config File</a> for the full schema that <code>--run-config</code> accepts.</p>
 </section>
 <section id="log-schema" class="level3">
 <h3 class="anchored" data-anchor-id="log-schema">Log Schema</h3>
 <p>Log files are stored in JSON. You can get the JSON schema for the log file format with a call to <code>inspect log schema</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb51"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb52"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="callout callout-style-simple callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">

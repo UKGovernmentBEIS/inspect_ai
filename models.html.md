@@ -6,7 +6,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 |  |  |
 |----|----|
-| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Perplexity](./providers.html.md#perplexity) |
+| Lab APIs | [OpenAI](./providers.html.md#openai), [Anthropic](./providers.html.md#anthropic), [Google](./providers.html.md#google), [Grok](./providers.html.md#grok), [Mistral](./providers.html.md#mistral), [DeepSeek](./providers.html.md#deepseek), [Moonshot AI](./providers.html.md#moonshot-ai), [Perplexity](./providers.html.md#perplexity) |
 | Cloud APIs | [AWS Bedrock](./providers.html.md#aws-bedrock), [AWS SageMaker](./providers.html.md#aws-sagemaker), and [Azure AI](./providers.html.md#azure-ai) |
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
