@@ -135,6 +135,60 @@ def list_eval_logs(
         return eval_logs
 
 
+async def list_eval_logs_async(
+    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
+    formats: list[Literal["eval", "json"]] | None = None,
+    filter: Callable[[EvalLog], bool] | None = None,
+    recursive: bool = True,
+    descending: bool = True,
+    fs_options: dict[str, Any] = {},
+) -> list[EvalLogInfo]:
+    """List all eval logs in a directory (async).
+
+    Async equivalent of `list_eval_logs()`. Prefer this when calling from an
+    async context: the sync version reads log headers for `filter` via
+    `read_eval_log()`, which raises when called from a trio async context. This
+    variant awaits `read_eval_log_async()` instead and so is backend-agnostic.
+
+    Args:
+      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
+      formats (Literal["eval", "json"]): Formats to list (default
+        to listing all formats)
+      filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
+         Note that the EvalLog instance passed to the filter has only
+         the EvalLog header (i.e. does not have the samples or logging output).
+      recursive (bool): List log files recursively (defaults to True).
+      descending (bool): List in descending order.
+      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+          to the filesystem provider (e.g. `S3FileSystem`).
+
+    Returns:
+       List of EvalLog Info.
+
+    """
+    # get the eval logs
+    fs = filesystem(log_dir, fs_options)
+    if fs.exists(log_dir):
+        logger.debug(f"Listing eval logs for {log_dir}")
+        eval_logs = log_files_from_ls(
+            fs.ls(log_dir, recursive=recursive), formats, descending
+        )
+        logger.debug(f"Listing eval logs for {log_dir} completed")
+    else:
+        return []
+
+    # apply filter if requested
+    if filter:
+        filtered: list[EvalLogInfo] = []
+        for log in eval_logs:
+            header = await read_eval_log_async(log.name, header_only=True)
+            if filter(header):
+                filtered.append(log)
+        return filtered
+    else:
+        return eval_logs
+
+
 def write_eval_log(
     log: EvalLog,
     location: str | Path | FileInfo | None = None,

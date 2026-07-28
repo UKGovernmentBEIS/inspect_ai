@@ -20,7 +20,7 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -391,7 +391,7 @@ async def test_recover_from_filestore_end_to_end() -> None:
             assert sample.id == "sample1"
 
             # Verify it can be read back
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
 
@@ -711,7 +711,7 @@ async def test_streaming_recovery_has_events_data() -> None:
                 assert len(summaries_raw) == 1
 
             # Verify the file can be read back and events expand correctly
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             read_model_events = [
@@ -785,7 +785,7 @@ async def test_streaming_recovery_preserves_synced_message_pool() -> None:
             assert model_event["input"] == []
             assert model_event["input_refs"] == [[0, 1]]
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             [read_sample] = read_log.samples
             [read_model_event] = [
@@ -858,7 +858,7 @@ async def test_streaming_recovery_preserves_full_sample_metadata(
                 _db_dir=os.path.join(temp_dir, "empty_db_dir"),
             )
 
-            recovered = read_eval_log(output_path)
+            recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].metadata == final
             assert metric_sample_metadata == [final]
@@ -907,7 +907,7 @@ async def test_streaming_recovery_defaults_missing_init_metadata() -> None:
                 _db_dir=os.path.join(temp_dir, "empty_db_dir"),
             )
 
-            recovered = read_eval_log(output_path)
+            recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].metadata == {}
 
@@ -989,7 +989,7 @@ async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
                 _db_dir=os.path.join(temp_dir, "empty_db_dir"),
             )
 
-            recovered = read_eval_log(output_path)
+            recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].metadata == initial
             assert any(
@@ -1122,7 +1122,9 @@ async def test_streaming_recovery_handles_many_attachments() -> None:
             for i in range(1, num_segments + 1):
                 assert f"{attachment_chunk}-seg-{i}" in values
 
-            read_log = read_eval_log(output_path, resolve_attachments="full")
+            read_log = await read_eval_log_async(
+                output_path, resolve_attachments="full"
+            )
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             first_model_event = next(
@@ -1173,7 +1175,7 @@ async def test_streaming_recovery_sample_id_with_unsafe_chars() -> None:
 
             # The recovery having completed is itself the key assertion.
             # Verify the recovered log is readable and contains the unsafe id
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
             assert read_log.samples[0].id == unsafe_id  # id preserved in manifest
@@ -1267,7 +1269,9 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
             )
 
             # End-to-end resolution must work
-            read_log = read_eval_log(output_path, resolve_attachments="full")
+            read_log = await read_eval_log_async(
+                output_path, resolve_attachments="full"
+            )
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             first_model_event = next(
@@ -1338,7 +1342,7 @@ async def test_streaming_recovery_emits_all_eval_sample_fields() -> None:
             assert raw["limit"] is None
 
             # Read-back round-trip: keyset equals emitted keyset
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             read_keys = set(read_log.samples[0].model_dump(mode="json").keys())
             assert read_keys == set(raw.keys())
@@ -1607,7 +1611,7 @@ async def test_streaming_recovery_dedups_cross_segment_event_ids() -> None:
                 eval_path, output=output_path, cleanup=False, _db_dir=db_dir
             )
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             [read_sample] = read_log.samples
 

@@ -1,6 +1,9 @@
 ## Unreleased
 
 - Bugfix: Resolve file paths and resources passed to the `chain_of_thought` solver. (#4631)
+- Bugfix: Async APIs (`eval_async`, `recover_eval_log_async`, recoverable-log discovery, and accessing `EvalLog.samples` from their results) no longer raise "read_eval_log cannot be called from a trio async context" under a trio event loop.
+- Bugfix: Eval logs containing a `sample_init` event with a null state can now be re-read (the null was previously dropped on write and failed validation on read).
+- Added `list_eval_logs_async()`, an async equivalent of `list_eval_logs()` that is safe to call from any async context (including trio).
 - Bugfix: `is_data_uri()` now recognizes base64 data URIs that carry media-type parameters (e.g. `;charset=utf-8`) or an empty media type (`data:;base64,...`), which were previously misclassified as non-data URIs.
 - Bugfix: Crash recovery now preserves full sample metadata in resumed logs and score metrics instead of persisting summary-thinned placeholders.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.

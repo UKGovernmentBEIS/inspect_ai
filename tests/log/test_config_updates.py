@@ -19,6 +19,7 @@ from inspect_ai.log import (
 )
 from inspect_ai.log._config_update import fill_previous_from_launch
 from inspect_ai.log._edit import ProvenanceData
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder
@@ -221,7 +222,7 @@ async def test_eval_recorder_journals_and_consolidates(tmp_path: Path) -> None:
 
     # the in-progress (crashed-shaped) read reconstructs the header from the
     # journal, config updates included
-    in_progress = read_eval_log(location, header_only=True)
+    in_progress = await read_eval_log_async(location, header_only=True)
     assert in_progress.config_updates is not None
     assert in_progress.config_updates[0].changes[0].name == "max_samples"
     assert in_progress.config_updates[0].scope == "task"
@@ -230,7 +231,7 @@ async def test_eval_recorder_journals_and_consolidates(tmp_path: Path) -> None:
     finished = await recorder.log_finish(log.eval, "success", log.stats, None, None)
     assert finished.config_updates is not None
     assert finished.config_updates[0].changes[0].value == 8
-    final = read_eval_log(location, header_only=True)
+    final = await read_eval_log_async(location, header_only=True)
     assert final.config_updates is not None
     assert final.config_updates[0].changes[0].value == 8
 
@@ -249,7 +250,7 @@ async def test_eval_recorder_multiple_updates_ordered(tmp_path: Path) -> None:
             ),
         )
     await recorder.log_finish(log.eval, "success", log.stats, None, None)
-    read = read_eval_log(location, header_only=True)
+    read = await read_eval_log_async(location, header_only=True)
     assert read.config_updates is not None
     assert [u.changes[0].value for u in read.config_updates] == [8, 16]
 
@@ -267,7 +268,7 @@ async def test_json_recorder_accumulates_updates(tmp_path: Path) -> None:
         ),
     )
     await recorder.log_finish(log.eval, "success", log.stats, None, None)
-    read = read_eval_log(location, header_only=True)
+    read = await read_eval_log_async(location, header_only=True)
     assert read.config_updates is not None
     assert read.config_updates[0].changes[0].name == "max_retries"
 
