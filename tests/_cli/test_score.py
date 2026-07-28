@@ -6,13 +6,13 @@ from test_helpers.utils import skip_if_no_openai
 from inspect_ai._cli import score as score_cli
 from inspect_ai._cli.score import score
 from inspect_ai._eval.score import ScoreAction
+from inspect_ai.log import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._edit import (
     MetadataEdit,
     ProvenanceData,
     TagsEdit,
     edit_eval_log,
 )
-from inspect_ai.log._file import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._recorders import create_recorder_for_location
 
 LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"

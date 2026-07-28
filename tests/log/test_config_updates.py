@@ -15,11 +15,11 @@ from inspect_ai.log import (
     effective_eval_config,
     effective_generate_config,
     read_eval_log,
+    read_eval_log_async,
     write_eval_log,
 )
 from inspect_ai.log._config_update import fill_previous_from_launch
 from inspect_ai.log._edit import ProvenanceData
-from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.log._recorders.eval import EvalRecorder
 from inspect_ai.log._recorders.json import JSONRecorder

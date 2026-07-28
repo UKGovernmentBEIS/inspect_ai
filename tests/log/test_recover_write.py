@@ -10,7 +10,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
