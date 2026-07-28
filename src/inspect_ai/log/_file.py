@@ -189,12 +189,13 @@ async def list_eval_logs_async(
 
     # apply filter if requested
     if filter:
-        filtered: list[EvalLogInfo] = []
-        for log in eval_logs:
-            header = await read_eval_log_async(log.name, header_only=True)
-            if filter(header):
-                filtered.append(log)
-        return filtered
+        headers = await tg_collect(
+            [
+                partial(read_eval_log_async, log.name, header_only=True)
+                for log in eval_logs
+            ]
+        )
+        return [log for log, header in zip(eval_logs, headers) if filter(header)]
     else:
         return eval_logs
 
