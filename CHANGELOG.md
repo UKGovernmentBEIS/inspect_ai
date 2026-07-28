@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Safe JSON serialization now preserves field exclusions when escaping invalid Unicode surrogates.
 - Bugfix: Resolve file paths and resources passed to the `chain_of_thought` solver. (#4631)
 - Bugfix: `is_data_uri()` now recognizes base64 data URIs that carry media-type parameters (e.g. `;charset=utf-8`) or an empty media type (`data:;base64,...`), which were previously misclassified as non-data URIs.
 - Bugfix: Crash recovery now preserves full sample metadata in resumed logs and score metrics instead of persisting summary-thinned placeholders.

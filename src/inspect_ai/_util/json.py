@@ -99,7 +99,11 @@ def to_json_safe(
         if "surrogates not allowed" in str(ex):
             cleaned = clean_utf8_json(normalized)
             return to_json(
-                cleaned, indent=indent, exclude_none=True, fallback=lambda _x: None
+                cleaned,
+                indent=indent,
+                exclude_none=True,
+                fallback=lambda _x: None,
+                exclude=exclude,
             )
         raise
 
