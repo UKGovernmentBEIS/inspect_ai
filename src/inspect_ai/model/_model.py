@@ -2145,8 +2145,8 @@ def tool_result_media_as_user_message(
                 chat_messages.append(
                     ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
                 )
-                pending_content = []
-                tool_call_ids = []
+            pending_content = []
+            tool_call_ids = []
             chat_messages.append(message)
     if pending_content:
         chat_messages.append(
