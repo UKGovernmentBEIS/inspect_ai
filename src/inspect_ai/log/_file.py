@@ -1,12 +1,18 @@
+import asyncio
+import contextlib
+import inspect
 import os
 import re
 from collections.abc import Iterable
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import IO, Any, Callable, Generator, Literal, cast
+from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
 
 import anyio
+import fsspec  # type: ignore
+from fsspec.asyn import AsyncFileSystem  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
 from pydantic import (
     BaseModel,
     Field,
@@ -14,12 +20,13 @@ from pydantic import (
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
+    default_fs_options,
     file,
     filesystem,
 )
@@ -146,9 +153,10 @@ async def list_eval_logs_async(
     """List all eval logs in a directory (async).
 
     Async equivalent of `list_eval_logs()`. Prefer this when calling from an
-    async context: the sync version reads log headers for `filter` via
-    `read_eval_log()`, which raises when called from a trio async context. This
-    variant awaits `read_eval_log_async()` instead and so is backend-agnostic.
+    async context: the listing itself is async for filesystem providers that
+    support it (e.g. s3, gcs, azure) rather than blocking the event loop, and
+    log headers for `filter` are read with `read_eval_log_async()` — the sync
+    version's `read_eval_log()` raises when called from a trio async context.
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
@@ -166,16 +174,9 @@ async def list_eval_logs_async(
        List of EvalLog Info.
 
     """
-    # get the eval logs
-    fs = filesystem(log_dir, fs_options)
-    if fs.exists(log_dir):
-        logger.debug(f"Listing eval logs for {log_dir}")
-        eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), formats, descending
-        )
-        logger.debug(f"Listing eval logs for {log_dir} completed")
-    else:
-        return []
+    eval_logs = await _list_eval_logs_async(
+        log_dir, formats, recursive, descending, fs_options
+    )
 
     # apply filter if requested
     if filter:
@@ -187,6 +188,169 @@ async def list_eval_logs_async(
         return filtered
     else:
         return eval_logs
+
+
+async def _list_eval_logs_async(
+    log_dir: str,
+    formats: list[Literal["eval", "json"]] | None,
+    recursive: bool,
+    descending: bool,
+    fs_options: dict[str, Any],
+) -> list[EvalLogInfo]:
+    # botocore is only needed on the s3 fast path; keep it out of the import
+    # graph of `inspect_ai.log` (which is imported by nearly everything).
+    from botocore.exceptions import ClientError  # type: ignore
+
+    from inspect_ai._view.azure import azure_warning_hint, should_suppress_azure_error
+
+    # async filesystem if we can
+    fs = filesystem(log_dir, fs_options)
+    if fs.is_s3() and not fs_options:
+        # S3: list via the shared async filesystem (one warm aioboto3 client +
+        # connection pool, reused across requests when the view server binds it).
+        # iter_files(detail=True) is a single list_objects_v2 sweep that returns
+        # FileInfo (name/size/mtime) — no separate existence precheck or per-file
+        # stat — and a missing prefix simply yields nothing.
+        try:
+            async with AsyncFilesystem() as afs:
+                logs = [
+                    info
+                    async for info in afs.iter_files(
+                        log_dir, recursive=recursive, detail=True
+                    )
+                ]
+        except ClientError as ex:
+            # a missing bucket is an empty listing (as with the existence
+            # precheck the other branches perform), not an error
+            if ex.response.get("Error", {}).get("Code") in (
+                "NoSuchBucket",
+                "404",
+                "NotFound",
+            ):
+                return []
+            raise
+        # resolve to eval logs (async fan-out so header reads on
+        # non-conforming filenames don't block the event loop)
+        return await log_files_from_ls_async(logs, formats, descending)
+    elif fs.is_async():
+        async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
+            # Attempt existence check with robust handling for Azure-style auth issues.
+            try:
+                exists = await async_fs._exists(log_dir)
+            except Exception as ex:  # noqa: BLE001
+                if should_suppress_azure_error(log_dir, ex):
+                    logger.warning(azure_warning_hint(log_dir, ex))
+                    exists = True
+                else:
+                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
+                    # Re-raise non-auth related issues
+                    raise
+
+            if exists:
+                # prevent caching of listings
+                async_fs.invalidate_cache(log_dir)
+                # list logs
+                if recursive:
+                    if _walk_supports_detail(async_fs):
+                        files = await _walk_with_detail(async_fs, log_dir)
+                    else:
+                        files = await _walk_without_detail(async_fs, log_dir)
+                else:
+                    files = cast(
+                        list[dict[str, Any]],
+                        await async_fs._ls(log_dir, detail=True),
+                    )
+                logs = [fs._file_info(file) for file in files]
+                # resolve to eval logs (async fan-out so header reads on
+                # non-conforming filenames don't block the event loop)
+                return await log_files_from_ls_async(logs, formats, descending)
+            else:
+                return []
+    else:
+        # sync filesystem (e.g. local) — list sync but resolve headers via
+        # the async fan-out so non-conforming filenames don't block the loop
+        # and so trio callers don't hit the sync-only read_eval_log path.
+        if not fs.exists(log_dir):
+            return []
+        logs = fs.ls(log_dir, recursive=recursive)
+        return await log_files_from_ls_async(logs, formats, descending)
+
+
+@contextlib.asynccontextmanager
+async def async_filesystem(
+    location: str, fs_options: dict[str, Any] = {}
+) -> AsyncIterator[AsyncFileSystem]:
+    # determine protocol
+    protocol, _ = split_protocol(location)
+    protocol = protocol or "file"
+
+    # build options
+    options = default_fs_options(location)
+    options.update(fs_options)
+
+    if protocol == "s3":
+        # s3fs is only needed for s3 locations; keep it out of the import graph
+        # of `inspect_ai.log` (which is imported by nearly everything).
+        from s3fs import S3FileSystem  # type: ignore
+
+        options["skip_instance_cache"] = True
+        s3 = S3FileSystem(asynchronous=True, **options)
+        session = await s3.set_session()
+        try:
+            yield s3
+        finally:
+            await session.close()
+    else:
+        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+        yield fsspec.filesystem(protocol, **options)
+
+
+def _walk_supports_detail(fs: AsyncFileSystem) -> bool:
+    walk = getattr(fs, "_walk", None)
+    if walk is None:
+        return False
+    try:
+        signature = inspect.signature(walk)
+    except (TypeError, ValueError):
+        return False
+    parameter = signature.parameters.get("detail")
+    if parameter is None:
+        return False
+    return parameter.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    )
+
+
+async def _walk_with_detail(fs: AsyncFileSystem, log_dir: str) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    async for _, _, filenames in fs._walk(log_dir, detail=True):
+        files.extend(filenames.values())
+    return files
+
+
+async def _walk_without_detail(
+    fs: AsyncFileSystem, log_dir: str
+) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    stack: list[str] = [log_dir]
+    seen: set[str] = set()
+    while stack:
+        current = stack.pop()
+        try:
+            entries = await fs._ls(current, detail=True)
+        except Exception:
+            continue
+        for entry in entries:
+            name = entry.get("name") or entry.get("path")
+            if not name:
+                continue
+            files.append(entry)
+            entry_type = entry.get("type")
+            if (entry_type == "directory" or name.endswith("/")) and name not in seen:
+                seen.add(name)
+                stack.append(name)
+    return files
 
 
 def write_eval_log(

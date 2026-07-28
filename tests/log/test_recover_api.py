@@ -14,7 +14,7 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -178,7 +178,7 @@ async def test_recover_eval_log_end_to_end() -> None:
             assert log.samples is not None
             assert len(log.samples) == 4
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.status == "error"
             assert read_log.samples is not None
             assert len(read_log.samples) == 4
@@ -221,7 +221,7 @@ async def test_recover_eval_log_preserves_completed_sample_metadata() -> None:
                 eval_path, output=output_path, cleanup=False, _db_dir=db_dir
             )
 
-            recovered = read_eval_log(output_path)
+            recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].metadata == final
 
