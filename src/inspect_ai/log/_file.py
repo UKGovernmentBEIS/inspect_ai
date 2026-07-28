@@ -113,16 +113,16 @@ def list_eval_logs(
        List of EvalLog Info.
 
     """
-    # get the eval logs
-    fs = filesystem(log_dir, fs_options)
-    if fs.exists(log_dir):
-        logger.debug(f"Listing eval logs for {log_dir}")
-        eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), formats, descending
+    # don't mix trio and asyncio (guard only the filter path: it reads log
+    # headers via the trio-incompatible sync read_eval_log, whereas unfiltered
+    # listing is backend-agnostic and is called from async code)
+    if filter and current_async_backend() == "trio":
+        raise RuntimeError(
+            "list_eval_logs with a filter cannot be called from a trio async context (please use list_eval_logs_async instead)"
         )
-        logger.debug(f"Listing eval logs for {log_dir} completed")
-    else:
-        return []
+
+    # get the eval logs
+    eval_logs = _ls_eval_logs(log_dir, formats, recursive, descending, fs_options)
 
     # apply filter if requested
     if filter:
@@ -167,15 +167,7 @@ async def list_eval_logs_async(
 
     """
     # get the eval logs
-    fs = filesystem(log_dir, fs_options)
-    if fs.exists(log_dir):
-        logger.debug(f"Listing eval logs for {log_dir}")
-        eval_logs = log_files_from_ls(
-            fs.ls(log_dir, recursive=recursive), formats, descending
-        )
-        logger.debug(f"Listing eval logs for {log_dir} completed")
-    else:
-        return []
+    eval_logs = _ls_eval_logs(log_dir, formats, recursive, descending, fs_options)
 
     # apply filter if requested
     if filter:
@@ -187,6 +179,26 @@ async def list_eval_logs_async(
         return filtered
     else:
         return eval_logs
+
+
+def _ls_eval_logs(
+    log_dir: str,
+    formats: list[Literal["eval", "json"]] | None,
+    recursive: bool,
+    descending: bool,
+    fs_options: dict[str, Any],
+) -> list[EvalLogInfo]:
+    """Directory listing shared by `list_eval_logs()` and `list_eval_logs_async()`."""
+    fs = filesystem(log_dir, fs_options)
+    if fs.exists(log_dir):
+        logger.debug(f"Listing eval logs for {log_dir}")
+        eval_logs = log_files_from_ls(
+            fs.ls(log_dir, recursive=recursive), formats, descending
+        )
+        logger.debug(f"Listing eval logs for {log_dir} completed")
+        return eval_logs
+    else:
+        return []
 
 
 def write_eval_log(
