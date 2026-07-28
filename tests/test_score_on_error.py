@@ -2,14 +2,13 @@ import json
 from pathlib import Path
 
 import anyio
-from test_helpers.utils import failing_solver_deterministic
+from test_helpers.utils import failing_solver_deterministic, identity_solver
 
 from inspect_ai import Task, eval
 from inspect_ai._eval.task.run import PreviousError, eval_log_sample_source
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.log import EvalLog
-from inspect_ai.log._metric import recompute_metrics
+from inspect_ai.log import EvalLog, recompute_metrics
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -118,6 +117,7 @@ def test_completed_samples_independent_of_scorer_order():
                 dataset=MemoryDataset(
                     [Sample(id=i, input="hi", target="ok") for i in range(1, 5)]
                 ),
+                solver=identity_solver(),
                 scorer=scorers,
             ),
             model="mockllm/model",
@@ -149,6 +149,7 @@ def test_recompute_metrics_preserves_completed_samples():
             dataset=MemoryDataset(
                 [Sample(id=i, input="hi", target="ok") for i in range(1, 5)]
             ),
+            solver=identity_solver(),
             scorer=[constant_scorer(), raising_scorer([2, 3])],
         ),
         model="mockllm/model",
