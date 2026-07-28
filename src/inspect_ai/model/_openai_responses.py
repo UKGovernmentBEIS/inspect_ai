@@ -78,6 +78,7 @@ from openai.types.responses.response_input_image_content_param import (
     ResponseInputImageContentParam,
 )
 from openai.types.responses.response_input_item_param import (
+    AdditionalTools,
     ComputerCallOutput,
     FunctionCallOutput,
     Message,
@@ -510,6 +511,18 @@ request. Without this, namespaced tools (e.g. codex's
 which OpenAI's reserved-name validation rejects on models configured for
 encrypted tool use."""
 
+RESPONSES_VERBATIM = "__responses_verbatim__"
+"""``ToolInfo.options`` key under which the agent bridge stashes the ORIGINAL
+responses ``ToolParam`` dict a tool was converted from, so that
+:func:`openai_responses_tools` can re-emit it verbatim on the outgoing request.
+Reconstructing the param from ``ToolInfo`` is lossy: ``ToolParams`` validation
+drops JSON-schema extensions it doesn't model (e.g. the ``encrypted: true``
+property markers on codex's reserved ``collaboration.*`` tools) and normalizes
+fields (e.g. adds ``required: []``). Models that reserve those tool names
+validate the declared schema byte-for-byte and reject the request (400
+\"reserved for use by this model and must match the configured schema\") if it
+drifted."""
+
 
 def openai_responses_tools(
     tools: list[ToolInfo],
@@ -520,12 +533,18 @@ def openai_responses_tools(
     result: list[ToolParam] = []
     namespaces: dict[tuple[str, str], list[FunctionToolParam | CustomToolParam]] = {}
     for tool in tools:
-        param = _tool_param_for_tool_info(tool, model_name, config, is_latest)
+        verbatim = (tool.options or {}).get(RESPONSES_VERBATIM)
+        if isinstance(verbatim, dict):
+            param = cast(ToolParam, verbatim)
+        else:
+            param = _tool_param_for_tool_info(tool, model_name, config, is_latest)
         ns = (tool.options or {}).get(RESPONSES_NAMESPACE)
-        if isinstance(ns, tuple) and len(ns) == 2:
+        # tolerate list (a tuple stashed in options becomes a list after any
+        # JSON round-trip, e.g. eval-log replay)
+        if isinstance(ns, (tuple, list)) and len(ns) == 2:
             # Only function/custom tools may live inside a NamespaceToolParam;
             # the bridge only stashes RESPONSES_NAMESPACE on those, so cast.
-            namespaces.setdefault(ns, []).append(
+            namespaces.setdefault((str(ns[0]), str(ns[1])), []).append(
                 cast(FunctionToolParam | CustomToolParam, param)
             )
         else:
@@ -2071,6 +2090,14 @@ def is_tool_search_output(
     # tolerate items without a "type" key (e.g. simple user messages) since this
     # is scanned over raw input items, some of which omit "type"
     return param.get("type") == "tool_search_output"
+
+
+def is_additional_tools(
+    param: ResponseInputItemParam,
+) -> TypeGuard[AdditionalTools]:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type"
+    return param.get("type") == "additional_tools"
 
 
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
