@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
+- Logging: New `list_eval_logs_async()`, and eval log recovery (`recover_eval_log_async()`, `recoverable_eval_logs_async()`) can now be called from a trio event loop. (#4622)
 
 ## 0.3.250 (28 July 2026)
 
@@ -26,7 +27,6 @@
 - Approval: Load policy configuration files from `file://` URIs as well as plain local paths.
 - Registry: Add a `validation_predicate` type for Scout extensions.
 - Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)
-- Logging: New `list_eval_logs_async()`, and eval log recovery (`recover_eval_log_async()`, `recoverable_eval_logs_async()`) can now be called from a trio event loop. (#4622)
 - Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
 - Inspect View: Added transcript event navigation — keyboard-driven turn and agent navigation with a focus view for drilling into agent subtrees (#354).
