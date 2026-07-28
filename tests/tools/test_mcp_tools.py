@@ -1,5 +1,7 @@
 import contextlib
 import importlib
+import socket
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
@@ -485,6 +487,61 @@ async def test_mcp_connection_refcount():
     async with mcp_connection(server):
         tools_reopen = await server.tools()
         assert len(tools_reopen) > 0
+
+
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port: int = s.getsockname()[1]
+        return port
+
+
+@skip_if_no_mcp_package
+async def test_mcp_server_http_roundtrip():
+    """Round trip through the streamable-HTTP compat shim against a live server.
+
+    Exercises the installed major's branch of `_compat.streamablehttp_client`;
+    the 2.x branch resolves `create_mcp_http_client` / `streamable_http_client`
+    / `httpx2` dynamically (invisible to mypy), so only a live connection can
+    catch a wrong name or module location.
+    """
+    from inspect_ai.tool import mcp_server_http
+
+    port = _free_port()
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            MCP_TEST_SERVER,
+            "--transport",
+            "streamable-http",
+            "--port",
+            str(port),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        with anyio.fail_after(30):
+            while True:
+                try:
+                    socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                    break
+                except OSError:
+                    assert process.poll() is None, "MCP HTTP server exited early"
+                    await anyio.sleep(0.1)
+
+        server = mcp_server_http(url=f"http://127.0.0.1:{port}/mcp")
+        async with mcp_connection(server):
+            tools = await server.tools()
+            tool_names = {ToolDef(t).name for t in tools}
+            assert "echo" in tool_names
+            echo_tool = next(t for t in tools if ToolDef(t).name == "echo")
+            result = await echo_tool(message="hello")
+            assert isinstance(result, list)
+            assert result[0].text == "hello"
+    finally:
+        process.terminate()
+        process.wait(timeout=10)
 
 
 # to run this test:

@@ -1,5 +1,6 @@
-"""Self-contained MCP stdio server for testing MCP infrastructure."""
+"""Self-contained MCP server (stdio or streamable-http) for testing MCP infrastructure."""
 
+import argparse
 import importlib
 import sys
 from typing import Any
@@ -42,7 +43,30 @@ async def get_info() -> str:
     return "test server v1"
 
 
+def run_streamable_http(server: Any, port: int) -> None:
+    """Serve on streamable-http at http://127.0.0.1:{port}/mcp.
+
+    mcp 1.x FastMCP takes host/port via its settings object; 2.x MCPServer
+    takes them as run() kwargs (its settings no longer carry network config).
+    """
+    if hasattr(server.settings, "port"):
+        server.settings.host = "127.0.0.1"
+        server.settings.port = port
+        server.run("streamable-http")
+    else:
+        server.run("streamable-http", host="127.0.0.1", port=port)
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--transport", choices=["stdio", "streamable-http"], default="stdio"
+    )
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
     sys.stderr.write("[STARTUP] Test MCP server starting\n")
     sys.stderr.flush()
-    server.run("stdio")
+    if args.transport == "streamable-http":
+        run_streamable_http(server, args.port)
+    else:
+        server.run("stdio")

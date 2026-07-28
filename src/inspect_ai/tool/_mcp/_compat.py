@@ -51,11 +51,16 @@ McpError: type[Any] = getattr(
     "MCPError" if MCP_V2 else "McpError",
 )
 
-# Error codes carried by the McpError that `ClientSession` raises when a
+# Error code carried by the McpError that `ClientSession` raises when a
 # `read_timeout_seconds` deadline expires while awaiting a response: mcp 1.x
 # uses HTTP 408 (httpx.codes.REQUEST_TIMEOUT), mcp 2.x uses JSON-RPC -32001
-# (REQUEST_TIMEOUT). Both are accepted regardless of installed version.
-MCP_READ_TIMEOUT_CODES = (408, -32001)
+# (REQUEST_TIMEOUT). Gated on the installed major — which determines the only
+# code the client itself can raise — so a *server-originated* error that
+# happens to use the other code (e.g. -32001 sits in JSON-RPC's
+# implementation-defined server-error range, which real servers use) still
+# flows through the error mapper with its own message rather than being
+# misreported as a client read timeout.
+MCP_READ_TIMEOUT_CODES = (-32001,) if MCP_V2 else (408,)
 
 
 def read_timeout_arg(seconds: float | None) -> Any:
