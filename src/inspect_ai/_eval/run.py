@@ -24,6 +24,7 @@ from typing_extensions import Unpack
 from inspect_ai._control.eval_state import mark_eval_retry_pending
 from inspect_ai._control.pause import (
     add_dispatch_waker,
+    note_dispatch_models,
     remove_dispatch_waker,
     task_dispatch_paused,
     wake_pause_waiters,
@@ -613,6 +614,9 @@ async def run_task_retry_attempts(
     def note_models(options: list[TaskRunOptions]) -> None:
         for t in options:
             model_counts.setdefault(t.model, 0)
+        # let the model pause directives validate against tasks that haven't
+        # started yet (which have no EvalState to check)
+        note_dispatch_models([str(t.model) for t in options])
 
     # pending tasks: initial tasks keep their original order and injected tasks
     # are appended in arrival order, so results sort stably. A retry re-queues
@@ -650,11 +654,16 @@ async def run_task_retry_attempts(
         # pause latch — covering both not-yet-started tasks and queued retry
         # attempts of a paused task), pick the least-used one (keeps as many
         # different models running concurrently as possible); None when
-        # every pending task is paused
+        # every pending task is paused. The model name rides along because a
+        # not-yet-started task has no EvalState for the model latch to
+        # resolve against — this check is what holds a latched model's
+        # undispatched eval-set tasks.
         candidates = [
             p
             for p in pending
-            if not task_dispatch_paused(p.options.logger.eval.task_id)
+            if not task_dispatch_paused(
+                p.options.logger.eval.task_id, model=str(p.options.model)
+            )
         ]
         if not candidates:
             return None

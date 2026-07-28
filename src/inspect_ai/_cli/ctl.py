@@ -1253,6 +1253,79 @@ def process_anomalies_command(
 
 
 # ---------------------------------------------------------------------------
+# model group
+# ---------------------------------------------------------------------------
+
+
+@ctl_command.group("model", cls=_NounGroup)
+def model_group() -> None:
+    """Operate on the models of running evals.
+
+    MODEL is the exact model name as `inspect ctl task list` shows it
+    (e.g. openai/gpt-5-nano). One latch per model: pausing holds every
+    task whose primary model matches — including eval-set tasks that
+    haven't started yet — while other models' work continues.
+    """
+
+
+assert isinstance(model_group, _NounGroup)
+model_group.hint = lambda token: (
+    f"No such command '{token}'. To pause or resume one model's dispatch: "
+    f"`inspect ctl model pause {token}` / `inspect ctl model resume {token}`."
+)
+
+
+@model_group.command("pause")
+@click.argument("model")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be paused without doing it.",
+)
+@_json_option("the mutation result envelope")
+def model_pause_command(
+    model: str, pid: int | None, dry_run: bool, as_json: bool
+) -> None:
+    """Pause one model's dispatch (stop starting its tasks' work; in-flight finishes).
+
+    Holds every task whose *primary* model is MODEL: no new samples or
+    retry attempts start, and the eval-set scheduler does not start its
+    not-yet-started tasks — which `inspect ctl task pause` cannot reach.
+    Everything else keeps running, and in-flight samples (including other
+    tasks' role/grader calls to this model) finish naturally. MODEL is the
+    exact name shown by `inspect ctl task list`; an unknown name is an
+    error. PID is required when several processes run. Idempotent;
+    resume with `inspect ctl model resume`.
+    """
+    _run_model_pause_resume(model, pid, verb="pause", dry_run=dry_run, as_json=as_json)
+
+
+@model_group.command("resume")
+@click.argument("model")
+@click.argument("pid", required=False, type=int)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be resumed without doing it.",
+)
+@_json_option("the mutation result envelope")
+def model_resume_command(
+    model: str, pid: int | None, dry_run: bool, as_json: bool
+) -> None:
+    """Resume a paused model (the inverse of `inspect ctl model pause`).
+
+    The model's held tasks dispatch again exactly as they would have before
+    the pause. Task-level and process-level pauses are deliberately left in
+    place (independent latches). Idempotent and last-write-wins. PID is
+    required when several processes run.
+    """
+    _run_model_pause_resume(model, pid, verb="resume", dry_run=dry_run, as_json=as_json)
+
+
+# ---------------------------------------------------------------------------
 # hidden deprecated aliases (the old flat spellings)
 # ---------------------------------------------------------------------------
 #
@@ -2551,6 +2624,36 @@ _PAUSE_ROUTE_MISSING = (
     "endpoints; restart the eval to pick up the current version."
 )
 
+_MODEL_PAUSE_ROUTE_MISSING = (
+    "This process is running an older inspect without the model pause/resume "
+    "endpoints; restart the eval to pick up the current version."
+)
+
+
+def _paused_sources(value: Any) -> list[str]:
+    """Normalize a ``paused`` field to its list of holding latches.
+
+    Current servers send the source list (``["task", "process", "model"]``
+    in any combination); pre-model-latch servers (<= 0.3.250) sent a single
+    string with ``"both"`` for task+process. ``None``/empty means not
+    paused.
+    """
+    if not value:
+        return []
+    if isinstance(value, str):
+        return ["task", "process"] if value == "both" else [value]
+    return [str(v) for v in value]
+
+
+def _still_held_note(held: list[str]) -> str:
+    """Point at the broader latch(es) still holding a task after `task resume`."""
+    latches = []
+    if "process" in held:
+        latches.append("the process is paused (`inspect ctl process resume`)")
+    if "model" in held:
+        latches.append("its model is paused (`inspect ctl model resume`)")
+    return f"Note: {' and '.join(latches)} — samples stay held until resumed."
+
 
 @_envelope_failures
 def _run_task_pause_resume(
@@ -2631,24 +2734,20 @@ def _run_task_pause_resume(
             click.echo("Would resume — queued samples would dispatch again.")
         else:
             click.echo("Resume requested — queued samples will dispatch again.")
-            # independent latches: a task resume does not clear a process
-            # pause, so say when the task is still held
-            if result.get("paused") == "process":
-                click.echo(
-                    "Note: the process is paused — samples stay held until "
-                    "`inspect ctl process resume`."
-                )
+            # independent latches: a task resume does not clear a process or
+            # model pause, so say when the task is still held
+            held = _paused_sources(result.get("paused"))
+            if "process" in held or "model" in held:
+                click.echo(_still_held_note(held))
     else:
         reason = str(result.get("reason") or "already in that state")
         click.echo(f"Nothing to do: {reason}.")
         # "task is not paused" is technically right for a task held only by
-        # the process latch, but the operator wants it moving — point at the
-        # latch that actually holds it
-        if verb == "resume" and result.get("paused") in ("process", "both"):
-            click.echo(
-                "Note: the process is paused — samples stay held until "
-                "`inspect ctl process resume`."
-            )
+        # the process or model latch, but the operator wants it moving —
+        # point at the latch that actually holds it
+        held = _paused_sources(result.get("paused"))
+        if verb == "resume" and ("process" in held or "model" in held):
+            click.echo(_still_held_note(held))
 
 
 @_envelope_failures
@@ -2708,6 +2807,89 @@ def _run_process_pause_resume(
     else:
         reason = str(result.get("reason") or "already in that state")
         click.echo(f"Nothing to do: {reason} (pid {target.pid}).")
+
+
+@_envelope_failures
+def _run_model_pause_resume(
+    model: str,
+    pid: int | None,
+    *,
+    verb: Literal["pause", "resume"],
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Pause or resume one model's dispatch (``POST /models/pause|resume``).
+
+    The process selector matches keep/release (sole-process default, PID to
+    disambiguate); MODEL is an exact model name, validated *server-side*
+    against the models the process could dispatch — a client-side resolve
+    against the task summaries would wrongly reject a model whose tasks are
+    all still queued (not-yet-started eval-set tasks have no summary row),
+    which is precisely the model latch's reason to exist.
+    """
+    target = _resolve_target_server(pid)
+    params: dict[str, Any] = {"model": model}
+    if dry_run:
+        params["dry_run"] = True
+    result = _request_json(
+        str(target.socket_path),
+        f"/models/{verb}",
+        params=params,
+        what=f"{verb} of model {model} (pid {target.pid})",
+        not_found=(
+            f"Model '{model}' not found in pid {target.pid} (pass the exact "
+            "model name as shown by `inspect ctl task list`)."
+        ),
+        not_found_missing_route=_MODEL_PAUSE_ROUTE_MISSING,
+        mutate="post",
+        retry_mutation=True,
+    )
+
+    if as_json:
+        click.echo(
+            json_lib.dumps(
+                _mutation_envelope(
+                    {"model": model, "pid": target.pid}, result, dry_run=dry_run
+                ),
+                indent=2,
+            )
+        )
+        return
+
+    if result.get("changed"):
+        if verb == "pause":
+            # `tasks`/`dispatched` count only registered tasks — the latch
+            # additionally holds this model's not-yet-started eval-set
+            # tasks, which have no row to count
+            tasks = int(result.get("tasks", 0) or 0)
+            dispatched = int(result.get("dispatched", 0) or 0)
+            held = (
+                f"{tasks} running task{'' if tasks == 1 else 's'}, "
+                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
+                f"{'would' if dry_run else 'will'} finish naturally"
+            )
+            if dry_run:
+                click.echo(
+                    f"Would pause {model} — {held}; no new samples, retry "
+                    "attempts, or eval-set tasks of this model would start."
+                )
+            else:
+                click.echo(
+                    f"Pause requested for {model} — {held}; no new samples, "
+                    "retry attempts, or eval-set tasks of this model will "
+                    "start (other models keep running). Resume with "
+                    "`inspect ctl model resume`."
+                )
+        elif dry_run:
+            click.echo(f"Would resume {model} — its held work would dispatch again.")
+        else:
+            click.echo(
+                f"Resume requested for {model} — its held work dispatches "
+                "again (task- and process-level pauses, if any, stay in place)."
+            )
+    else:
+        reason = str(result.get("reason") or "already in that state")
+        click.echo(f"Nothing to do: {reason} ({model}).")
 
 
 @_envelope_failures
@@ -5021,11 +5203,11 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
 
 
 def _format_paused(summary: dict[str, Any]) -> str:
-    """The task's paused cell: the holding latch, plus quiesced when idle."""
-    paused = summary.get("paused")
+    """The task's paused cell: the holding latch(es), plus quiesced when idle."""
+    paused = "+".join(_paused_sources(summary.get("paused")))
     if not paused:
         return ""
-    return f"{paused} (quiesced)" if summary.get("quiesced") else str(paused)
+    return f"{paused} (quiesced)" if summary.get("quiesced") else paused
 
 
 def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
@@ -5054,16 +5236,31 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     if paused:
         quiesced = sum(1 for s in paused if s.get("quiesced"))
         detail = f" ({quiesced} quiesced)" if quiesced else ""
+        resumes = ["`inspect ctl task resume`"]
+        if any("model" in _paused_sources(s.get("paused")) for s in paused):
+            resumes.append("`inspect ctl model resume`")
+        resumes.append("`inspect ctl process resume`")
         click.echo(
             f"paused: {len(paused)}/{len(summaries)} task"
             f"{'' if len(summaries) == 1 else 's'}{detail}  ·  resume with "
-            "`inspect ctl task resume` / `inspect ctl process resume`"
+            f"{' / '.join(resumes)}"
         )
         if any(not s.get("keep_alive") for s in paused):
             click.echo(
                 "note: a paused run never finishes — it will not exit until "
                 "resumed (or cancelled), despite keep-alive being off."
             )
+    # latched models whose tasks are all still queued have no paused row
+    # above (an unstarted task has no summary) — surface them from the
+    # process-level stamp so the latch can't hold work invisibly
+    paused_models = sorted(
+        {m for s in summaries for m in (s.get("paused_models") or [])}
+    )
+    if paused_models:
+        click.echo(
+            f"paused models: {', '.join(paused_models)}  ·  resume with "
+            "`inspect ctl model resume`"
+        )
 
 
 def _task_header(target: dict[str, Any]) -> str:

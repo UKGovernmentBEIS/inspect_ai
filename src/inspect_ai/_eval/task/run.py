@@ -593,6 +593,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 task_id=logger.eval.task_id,
                 escape=lambda: task_cancel is not None
                 and task_cancel.cancel_type is not None,
+                model=str(model),
             )
 
             # must run immediately before register_eval (see its docstring):

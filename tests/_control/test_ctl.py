@@ -592,6 +592,54 @@ def test_footer_silent_when_nothing_paused(
     assert "paused" not in out
 
 
+def test_footer_reports_model_paused_sources(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    summaries: list[dict[str, Any]] = [
+        {
+            "keep_alive": True,
+            "paused": ["model"],
+            "quiesced": False,
+            "paused_models": ["mockllm/model"],
+        },
+        {"keep_alive": True, "paused": None, "paused_models": ["mockllm/model"]},
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 1/2 tasks" in out
+    assert "inspect ctl model resume" in out
+    assert "paused models: mockllm/model" in out
+
+
+def test_footer_reports_latched_model_with_no_paused_rows(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A latched model whose tasks are all still queued has no paused row.
+
+    An unstarted task has no summary, so the per-row `paused` sources can't
+    surface the latch — the process-level `paused_models` stamp is what
+    keeps it from holding work invisibly.
+    """
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": True, "paused": None, "paused_models": ["mockllm/model"]}
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused models: mockllm/model" in out
+    assert "inspect ctl model resume" in out
+
+
+def test_format_paused_renders_source_lists() -> None:
+    from inspect_ai._cli.ctl import _format_paused
+
+    assert _format_paused({"paused": ["task", "model"]}) == "task+model"
+    assert _format_paused({"paused": ["model"], "quiesced": True}) == "model (quiesced)"
+    # legacy servers (<= 0.3.250) send a string, with "both" for task+process
+    assert _format_paused({"paused": "both"}) == "task+process"
+    assert _format_paused({"paused": "task"}) == "task"
+    assert _format_paused({"paused": None}) == ""
+
+
 class _FakeServer:
     def __init__(self, pid: int) -> None:
         self.pid = pid
@@ -3626,6 +3674,129 @@ def test_process_pause_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
     assert result.exit_code == 0, result.output
     assert "Nothing to do" in result.output
     assert "already paused" in result.output
+
+
+def test_model_pause_json_mutation_envelope(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "model": "openai/gpt-5",
+            "paused": True,
+            "changed": True,
+            "tasks": 1,
+            "dispatched": 2,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["model", "pause", "openai/gpt-5", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/models/pause"]
+    # the model rides as a query param — model names contain `/`, which a
+    # path segment can't carry
+    assert spy.params == [{"model": "openai/gpt-5"}]
+    payload = json.loads(result.stdout)
+    assert payload["target"] == {"model": "openai/gpt-5", "pid": 7}
+    assert payload["applied"] is True and payload["dry_run"] is False
+    assert payload["detail"]["tasks"] == 1
+
+
+def test_model_resume_pid_is_positional(monkeypatch: pytest.MonkeyPatch) -> None:
+    posted: list[str] = []
+
+    def record(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        posted.append(str(socket_path))
+        return {"ok": True, "model": "m/x", "paused": False, "changed": True}
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_DiscServer(7), _DiscServer(8)],
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
+    result = cli_runner().invoke(ctl_command, ["model", "resume", "m/x", "8"])
+    assert result.exit_code == 0, result.output
+    assert posted == ["/tmp/8.sock"]
+
+
+def test_model_pause_multiple_processes_requires_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers",
+        lambda: [_DiscServer(7), _DiscServer(8)],
+    )
+    result = cli_runner().invoke(ctl_command, ["model", "pause", "m/x"])
+    assert result.exit_code == 1
+    assert "Pass a PID" in result.stderr
+
+
+def test_model_pause_dry_run_rides_query_param(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    # `paused` is the actual latch state, still False under a dry-run pause
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "model": "m/x",
+            "paused": False,
+            "changed": True,
+            "dry_run": True,
+            "tasks": 0,
+            "dispatched": 0,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["model", "pause", "m/x", "--dry-run", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"model": "m/x", "dry_run": True}]
+    payload = json.loads(result.stdout)
+    assert payload["applied"] is False and payload["dry_run"] is True
+
+
+def test_model_pause_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.list_discovered_servers", lambda: [_DiscServer(7)]
+    )
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._request_json",
+        lambda *a, **k: {
+            "ok": True,
+            "model": "m/x",
+            "paused": True,
+            "changed": False,
+            "reason": "model already paused",
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["model", "pause", "m/x"])
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do" in result.output
+    assert "already paused" in result.output
+
+
+def test_task_resume_notes_model_latch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A task resume that leaves the task held by its model points at the latch."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "paused": ["model"],
+            "changed": True,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert "model is paused" in result.output
+    assert "inspect ctl model resume" in result.output
 
 
 def test_sample_cancel_defaults_epoch_for_single_epoch_task(
