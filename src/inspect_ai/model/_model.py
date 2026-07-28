@@ -946,13 +946,10 @@ class Model:
         ) -> int:
             return await self.api.count_tokens(input, config)
 
-        from inspect_ai.log._samples import clear_active_sample_retry_wait
+        from inspect_ai.log._samples import cleared_retry_wait
 
-        try:
+        with cleared_retry_wait():
             return await _count_tokens(input, config)
-        finally:
-            # the retry loop's backoff record must not outlive the call
-            clear_active_sample_retry_wait()
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -1032,14 +1029,11 @@ class Model:
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 return await self.api.compact(messages, tools, config, instructions)
 
-            from inspect_ai.log._samples import clear_active_sample_retry_wait
+            from inspect_ai.log._samples import cleared_retry_wait
 
             # Call compact with retry handling
-            try:
+            with cleared_retry_wait():
                 compacted_messages, usage = await _compact(input)
-            finally:
-                # the retry loop's backoff record must not outlive the call
-                clear_active_sample_retry_wait()
 
             # Record and check usage
             if usage:
@@ -1065,7 +1059,7 @@ class Model:
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
         from inspect_ai.log._samples import (
-            clear_active_sample_retry_wait,
+            cleared_retry_wait,
             track_active_model_event,
         )
 
@@ -1351,12 +1345,8 @@ class Model:
         # call the model (this will do retries, etc., so report waiting time
         # as elapsed time - actual time for successful model call)
         time_start = time.monotonic()
-        try:
+        with cleared_retry_wait():
             model_output, event = await generate()
-        finally:
-            # the retry loop's backoff record must not outlive the call it
-            # describes (success or final failure — nothing later clears it)
-            clear_active_sample_retry_wait()
         total_time = time.monotonic() - time_start
 
         # record any model fallback against the active sample (here in the

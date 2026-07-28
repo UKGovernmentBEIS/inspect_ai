@@ -647,6 +647,23 @@ def clear_active_sample_retry_wait() -> None:
         active.retry_wait = None
 
 
+@contextlib.contextmanager
+def cleared_retry_wait() -> Iterator[None]:
+    """Clear this coroutine's retry-wait record when the enclosed call resolves.
+
+    Wrap the await of a tenacity-decorated model call built with
+    ``report_retry_wait=True`` (the retry loop's before-sleep callback
+    stamps the record; see :func:`report_active_sample_retry_wait`). The
+    backoff record must not outlive the call it describes — success, final
+    failure, or cancellation during the backoff sleep itself; nothing later
+    clears it.
+    """
+    try:
+        yield
+    finally:
+        clear_active_sample_retry_wait()
+
+
 _sample_active: ContextVar[ActiveSample | None] = ContextVar(
     "_sample_active", default=None
 )
