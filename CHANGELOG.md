@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Control Channel: Sample listings for finished and reused evals now read the log once and serve later requests from memory, instead of re-reading it (possibly from S3) on every poll. (meridianlabs-ai/inspect_ai#154)
+- Control Channel: Sample listings for finished and reused evals now read the log once and serve later requests from memory, instead of re-reading it (possibly from S3) on every poll.
 
 ## 0.3.250 (28 July 2026)
 
