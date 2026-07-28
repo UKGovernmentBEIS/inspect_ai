@@ -1,6 +1,6 @@
 # In-Flight Generate Progress
 
-> **Status: proposed.** Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture and documents this gap twice (the Phase 1 `GET /evals/<id>/samples` caveat, and §"Trace-log anomalies for stall diagnosis"); this doc owns closing it. Originating issue: meridianlabs-ai/inspect_ai#158.
+> **Status: layer 1 implemented** (activity indicator, including the `retry_wait` type per Open question 4); **layers 2–3 proposed.** Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture and documented this gap twice (the Phase 1 `GET /evals/<id>/samples` caveat, and §"Trace-log anomalies for stall diagnosis"); this doc owns closing it. Originating issue: meridianlabs-ai/inspect_ai#158.
 
 ## Problem
 
@@ -80,7 +80,7 @@ recO3hvCWRGiG0odN  4      running  7:13  7:12  generating 7:12       0       1  
 
 **`sample show`** includes the same activity detail (it reuses `_active_sample_summary` for running samples already). **`sample events`** starts rendering the `pending` flag the endpoint already sends but the CLI ignores: a pending model event's summary reads `model · generating 2:31` (plus `· 1.2k tok streamed` with layer 2) instead of an empty completion — so the transcript tail also stops implying "nothing happening".
 
-When this ships, update the three places that document the blind spot: the Phase 1 caveat in `control-channel.md`, `docs/control-channel.qmd`'s `sample list` section, and the comment in `_active_sample_summary`.
+Shipped alongside layer 1: the three places that documented the blind spot — the Phase 1 caveat in `control-channel.md`, `docs/control-channel.qmd`'s `sample list` section, and the comment in `_active_sample_summary` — now describe the activity indicator (with layers 2–3 noted as the remaining streamed-progress work). Two implementation notes beyond the spec above: the retry-wait record lives on `ActiveSample` as a single slot (concurrent generates overwrite last-writer-wins; a per-context ownership guard keeps one call's clear from dropping a sibling's live wait, and clears also run when the retried call resolves — `Model.generate` / `count_tokens` / `compact` — since no next attempt appends after a final failure), and stamping is gated off for batch admin-op retry loops, whose worker task inherits an arbitrary sample's context.
 
 ### Layer 2 — the progress channel
 

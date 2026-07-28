@@ -199,6 +199,175 @@ def test_idle_column_hidden_when_nothing_running(
     assert "idle" not in capsys.readouterr().out.splitlines()[0]
 
 
+def _activity(a_type: str, started_ago: float, **extra: Any) -> dict[str, Any]:
+    import time
+
+    return {
+        "type": a_type,
+        "count": 1,
+        "started_at": time.time() - started_ago,
+        "detail": "openai/gpt-5-nano",
+        "retries": None,
+        "deadline": None,
+        "tokens": None,
+        "last_progress_at": None,
+        **extra,
+    }
+
+
+def test_activity_column_shown_and_rendered_for_generating(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [
+        {**_sample(1, "running", {}), "activity": _activity("model", 432)},
+        {**_sample(2, "completed", {})},  # no activity → blank cell
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "activity" in lines[0]
+    running_row = next(ln for ln in lines if ln.startswith("1 "))
+    # ~432s elapsed (prefix match tolerates the second ticking over mid-test)
+    assert "generating 7:1" in running_row
+    completed_row = next(ln for ln in lines if ln.startswith("2 "))
+    assert "generating" not in completed_row
+
+
+def test_activity_column_hidden_when_no_activity(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # a running sample with nothing pending (activity null) keeps the
+    # common case uncluttered — the column only appears when informative
+    samples = [{**_sample(1, "running", {}), "activity": None}]
+    _print_samples_table(samples)
+    assert "activity" not in capsys.readouterr().out.splitlines()[0]
+
+
+def test_activity_cell_renders_tool_and_multi_tool() -> None:
+    import time
+
+    from inspect_ai._cli.ctl import _format_activity
+
+    # sample `now` after building so elapsed rounds to the intended value
+    bash = _activity("tool", 41, detail="bash")
+    tools = _activity("tool", 70, detail="bash", count=2)
+    now = time.time()
+    assert _format_activity(bash, now) == "bash 0:41"
+    assert _format_activity(tools, now) == "2 tools 1:10"
+
+
+def test_activity_cell_renders_retries_and_tokens() -> None:
+    import time
+
+    from inspect_ai._cli.ctl import _format_activity
+
+    # sample `now` after building so elapsed rounds to the intended value
+    retried = _activity("model", 151, retries=2)
+    one_retry = _activity("model", 151, retries=1)
+    streamed = _activity("model", 151, tokens=1234)
+    now = time.time()
+    assert _format_activity(retried, now) == "generating 2:31 (2 retries)"
+    assert _format_activity(one_retry, now) == "generating 2:31 (1 retry)"
+    # layer-2 streamed tokens render when a newer server reports them
+    assert _format_activity(streamed, now) == "generating 2:31 · 1.2k tok"
+
+
+def test_activity_cell_renders_retry_wait() -> None:
+    import time
+
+    from inspect_ai._cli.ctl import _format_activity
+
+    now = time.time()
+    wait = _activity("retry_wait", 10, deadline=now + 45)
+    assert _format_activity(wait, now) == "retrying in 0:45"
+    later_attempt = _activity("retry_wait", 10, deadline=now + 45, count=3)
+    assert _format_activity(later_attempt, now) == "retrying in 0:45 (attempt 3)"
+    # deadline passed (next attempt imminent) → no misleading countdown
+    overdue = _activity("retry_wait", 60, deadline=now - 5)
+    assert _format_activity(overdue, now) == "retrying"
+
+
+def test_activity_cell_degrades_for_unknown_type_and_null() -> None:
+    import time
+
+    from inspect_ai._cli.ctl import _format_activity
+
+    now = time.time()
+    assert _format_activity(None, now) == ""
+    # a future activity type from a newer server shows its name, not blank
+    assert _format_activity(_activity("compacting", 5), now).startswith("compacting")
+
+
+def test_sample_detail_includes_activity(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import time
+
+    from inspect_ai._cli.ctl import _print_sample_detail
+
+    detail = {
+        "sample_id": "recABC",
+        "epoch": 1,
+        "status": "running",
+        "activity": {
+            "type": "model",
+            "count": 1,
+            "started_at": time.time() - 151,
+            "detail": "openai/gpt-5-nano",
+            "retries": None,
+            "deadline": None,
+            "tokens": None,
+            "last_progress_at": None,
+        },
+        "error": None,
+        "error_retries": [],
+    }
+    _print_sample_detail(detail, show_traceback=False)
+    header = capsys.readouterr().out.splitlines()[0]
+    # ~151s elapsed (prefix match tolerates the second ticking over mid-test)
+    assert "generating 2:3" in header
+
+
+def test_event_summary_renders_pending_model_and_tool() -> None:
+    import time
+
+    from inspect_ai._cli.ctl import _event_summary
+
+    started = time.time() - 151
+    pending_model = {
+        "event": "model",
+        "model": "openai/gpt-5-nano",
+        "pending": True,
+        "timestamp": started,
+        # the pending event's placeholder output must not leak into the
+        # summary as a finished-looking row
+        "tokens": 0,
+        "stop_reason": "stop",
+    }
+    # prefix matches tolerate the second ticking over mid-test (~151s elapsed)
+    assert _event_summary(pending_model).startswith(
+        "openai/gpt-5-nano · generating 2:3"
+    )
+
+    pending_tool = {
+        "event": "tool",
+        "function": "bash",
+        "arguments": "ls /data",
+        "pending": True,
+        "timestamp": started,
+    }
+    assert _event_summary(pending_tool).startswith("bash(ls /data) · running 2:3")
+
+    completed_model = {
+        "event": "model",
+        "model": "openai/gpt-5-nano",
+        "pending": None,
+        "timestamp": started,
+        "tokens": 1840,
+        "stop_reason": "stop",
+    }
+    assert _event_summary(completed_model) == "openai/gpt-5-nano · 1840 tok · stop"
+
+
 def test_turns_column_always_shown(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
