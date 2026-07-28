@@ -1,6 +1,7 @@
 import contextlib
 import hashlib
 import logging
+import os
 import threading
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -35,6 +36,12 @@ from inspect_ai._control.server import (
 )
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
+from inspect_ai._eval.handoff import (
+    LaunchHandoff,
+    emit_launch_handoff,
+    launch_handoff_emitted,
+    reset_launch_handoff_emitted,
+)
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import eval_plan_agent_name, resolve_plan
 from inspect_ai._eval.task.scan import Scanners, scan_already_clean
@@ -356,7 +363,7 @@ def eval_set(
     # via tenacity, each with its own short-lived control server —
     # the keep-alive park would need to live OUTSIDE any single
     # eval() call, which is exactly the multi-loop bridging problem
-    # we deliberately avoid (see design/control-channel.md "Server
+    # we deliberately avoid (see design/ctl/control-channel.md "Server
     # lifecycle aligned with eval()"). Refuse the combination
     # explicitly rather than silently giving a broken keep-alive
     # experience.
@@ -365,6 +372,9 @@ def eval_set(
     # needed here as well as in eval_async because the all-reused short-circuit
     # parks without ever calling eval()
     reset_keep_alive()
+    # likewise clear a prior run's launch-handoff emission, so this run's
+    # park correctly detects whether *this* run emitted a handoff
+    reset_launch_handoff_emitted()
     if ctl.keep_alive and retry_immediate is False:
         raise PrerequisiteError(
             "--ctl-server=keep is incompatible with retry_immediate=False "
@@ -755,7 +765,7 @@ def eval_set(
         # ctl process keep` during the run also parks; intent reflects the last-write
         # of any keep / release received during the run.
         if keep_alive_intent():
-            run_coroutine(_keep_alive_park(eval_set_id))
+            run_coroutine(_keep_alive_park(eval_set_id, log_dir))
 
         # return status + results
         return success, results
@@ -889,7 +899,7 @@ def _deferred_sample_stats(log_entry: Log, total: int) -> "DeferredStatsProvider
     return provider
 
 
-async def _keep_alive_park(eval_set_id: str) -> None:
+async def _keep_alive_park(eval_set_id: str, log_dir: str) -> None:
     """Park the eval-set process after the run completes (display closed).
 
     Runs on a fresh loop once ``eval()`` (and its task display) has exited
@@ -911,6 +921,23 @@ async def _keep_alive_park(eval_set_id: str) -> None:
             # Bind failed: nothing to park on (can't be released via
             # `inspect ctl process release`), so don't linger.
             return
+        # A set whose tasks were all reused ran no eval, so nothing emitted
+        # the launch handoff — yet this park just bound a control surface a
+        # `--json` / `--detach` consumer is waiting to hear about. Emit it
+        # here (run_id None: no run happened), only when the run itself
+        # emitted none, so keep-alive runs still see exactly one `launch`.
+        if not launch_handoff_emitted():
+            emit_launch_handoff(
+                LaunchHandoff(
+                    run_id=None,
+                    pid=os.getpid(),
+                    log_dir=log_dir,
+                    control_socket=str(ctl_server.socket_path)
+                    if ctl_server.socket_path is not None
+                    else None,
+                    eval_set_id=eval_set_id,
+                )
+            )
         rich.get_console().print(
             "Eval-set finished. Keeping process alive — press Ctrl+C or run "
             "`inspect ctl process release` to let it exit.",
