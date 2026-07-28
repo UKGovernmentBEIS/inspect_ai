@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Models: `Model.count_tokens()` now runs under its own per-model semaphore capped at 10 concurrent calls (previously unbounded), so callers fanning out many token counts can't starve the provider connection pool; the count path keeps its existing retry behavior.
+- Models: bounded `count_tokens()` concurrency (adaptive, like `generate()`) so large token-count fan-outs no longer overwhelm the provider connection pool.
 - Bugfix: Resolve file paths and resources passed to the `chain_of_thought` solver. (#4631)
 - Bugfix: `is_data_uri()` now recognizes base64 data URIs that carry media-type parameters (e.g. `;charset=utf-8`) or an empty media type (`data:;base64,...`), which were previously misclassified as non-data URIs.
 - Bugfix: Crash recovery now preserves full sample metadata in resumed logs and score metrics instead of persisting summary-thinned placeholders.
