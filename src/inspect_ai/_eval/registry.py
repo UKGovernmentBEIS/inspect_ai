@@ -54,6 +54,21 @@ def task_register(
     return task
 
 
+def _has_var_keyword(factory: object) -> bool:
+    """Whether a registered factory declares a variadic keyword parameter.
+
+    A factory may name its variadic keyword parameter anything (`**extra`,
+    `**config`), so pass-through checks cannot key on the literal name
+    "kwargs" — ask the signature whether it takes one at all.
+    """
+    return any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in inspect.signature(
+            cast(Callable[..., Any], factory)
+        ).parameters.values()
+    )
+
+
 def task_create(name: str, /, **kwargs: Any) -> Task:
     r"""Create a Task based on its registered name.
 
@@ -75,15 +90,7 @@ def task_create(name: str, /, **kwargs: Any) -> Task:
         raise PrerequisiteError(f"Task named '{name}' not found.")
     task_info = registry_info(task)
     task_params: list[str] = task_info.metadata["params"]
-    # A factory may name its variadic keyword parameter anything (`**extra`,
-    # `**config`), so the pass-through check cannot key on the literal name
-    # "kwargs" — ask the signature whether it takes one at all.
-    has_var_keyword = any(
-        param.kind == inspect.Parameter.VAR_KEYWORD
-        for param in inspect.signature(
-            cast(Callable[..., Any], task)
-        ).parameters.values()
-    )
+    has_var_keyword = _has_var_keyword(task)
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
         if param in task_params or has_var_keyword:
@@ -221,12 +228,7 @@ def task_source_create(name: str, /, **kwargs: Any) -> TaskSource:
         raise PrerequisiteError(f"Task source named '{name}' not found.")
     info = registry_info(source)
     params: list[str] = info.metadata["params"]
-    has_var_keyword = any(
-        param.kind == inspect.Parameter.VAR_KEYWORD
-        for param in inspect.signature(
-            cast(Callable[..., Any], source)
-        ).parameters.values()
-    )
+    has_var_keyword = _has_var_keyword(source)
     args: dict[str, Any] = {}
     for param in kwargs.keys():
         if param in params or has_var_keyword:

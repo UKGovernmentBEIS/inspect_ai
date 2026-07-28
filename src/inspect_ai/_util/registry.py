@@ -159,6 +159,10 @@ def extract_named_params(
         None,
     )
 
+    # limitation: flattening last means a **kwargs key that shares its name with
+    # a positional-only parameter (e.g. `def f(x, /, **kw)` called as `f(1, x=2)`)
+    # overwrites that parameter's captured value. Such a signature could never
+    # replay from a kwargs dict anyway, so we accept the lossy capture.
     for param, value in bound_params.arguments.items():
         if param == var_keyword and isinstance(value, dict):
             for kwarg_name, kwarg_value in value.items():
