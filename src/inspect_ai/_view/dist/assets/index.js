@@ -12146,7 +12146,7 @@ var walkers = {
 };
 //#endregion
 //#region ../../node_modules/.pnpm/arquero@8.0.3/node_modules/arquero/src/expression/ast/util.js
-function is$2(type, node) {
+function is$1(type, node) {
 	return node && node.type === type;
 }
 //#endregion
@@ -17337,9 +17337,9 @@ var visitors = {
 	},
 	MemberExpression(node, ctx, parent) {
 		const { object, property } = node;
-		if (!is$2("Identifier", object)) return;
+		if (!is$1("Identifier", object)) return;
 		const { name } = object;
-		if (isMath(node) && is$2("Identifier", property) && Object.hasOwn(constants, property.name)) {
+		if (isMath(node) && is$1("Identifier", property) && Object.hasOwn(constants, property.name)) {
 			updateConstantNode(node, property.name);
 			return;
 		}
@@ -17355,7 +17355,7 @@ function spliceMember(node, index, ctx, check, parent) {
 	const { property, computed } = node;
 	let name;
 	if (!computed) name = property.name;
-	else if (is$2("Literal", property)) name = property.value;
+	else if (is$1("Literal", property)) name = property.value;
 	else try {
 		walk(property, ctx, visitors, node);
 		name = ctx.param(property);
@@ -17399,17 +17399,17 @@ function parseOperator(ctx, def, name, args) {
 	};
 }
 function functionName(node) {
-	return is$2("Identifier", node) ? node.name : !is$2("MemberExpression", node) ? null : isMath(node) ? rewriteMath(node.property.name) : node.property.name;
+	return is$1("Identifier", node) ? node.name : !is$1("MemberExpression", node) ? null : isMath(node) ? rewriteMath(node.property.name) : node.property.name;
 }
 function isMath(node) {
-	return is$2("Identifier", node.object) && node.object.name === "Math";
+	return is$1("Identifier", node.object) && node.object.name === "Math";
 }
 function rewriteMath(name) {
 	return name === "max" ? "greatest" : name === "min" ? "least" : name;
 }
 function handleIdentifier(node, ctx, parent) {
 	const { name } = node;
-	if (is$2("MemberExpression", parent) && parent.property === node) {} else if (is$2("Property", parent) && parent.key === node) {} else if (ctx.paramsRef.has(name)) updateParameterNode(node, ctx.paramsRef.get(name));
+	if (is$1("MemberExpression", parent) && parent.property === node) {} else if (is$1("Property", parent) && parent.key === node) {} else if (ctx.paramsRef.has(name)) updateParameterNode(node, ctx.paramsRef.get(name));
 	else if (ctx.columnRef.has(name)) updateColumnNode(node, name, ctx, parent);
 	else if (Object.hasOwn(ctx.params, name)) updateParameterNode(node, name);
 	else if (Object.hasOwn(constants, name)) updateConstantNode(node, name);
@@ -17455,9 +17455,9 @@ function updateFunctionNode(node, name, ctx) {
 	};
 }
 function handleDeclaration(node, ctx) {
-	if (is$2("Identifier", node)) ctx.scope.add(node.name);
-	else if (is$2("ArrayPattern", node)) node.elements.forEach((elm) => handleDeclaration(elm, ctx));
-	else if (is$2("ObjectPattern", node)) node.properties.forEach((prop) => handleDeclaration(prop.value, ctx));
+	if (is$1("Identifier", node)) ctx.scope.add(node.name);
+	else if (is$1("ArrayPattern", node)) node.elements.forEach((elm) => handleDeclaration(elm, ctx));
+	else if (is$1("ObjectPattern", node)) node.properties.forEach((prop) => handleDeclaration(prop.value, ctx));
 	else ctx.error(node.id, ERROR_DECLARATION);
 }
 //#endregion
@@ -26074,7 +26074,7 @@ function useDebouncedCallback(callback, delay) {
 	return debouncedFn;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/subscribable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/subscribable.js
 var Subscribable = class {
 	constructor() {
 		this.listeners = /* @__PURE__ */ new Set();
@@ -26095,7 +26095,7 @@ var Subscribable = class {
 	onUnsubscribe() {}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/focusManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/focusManager.js
 var FocusManager = class extends Subscribable {
 	#focused;
 	#cleanup;
@@ -26148,7 +26148,7 @@ var FocusManager = class extends Subscribable {
 };
 var focusManager = new FocusManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/timeoutManager.js
 var defaultTimeoutProvider = {
 	setTimeout: (callback, delay) => setTimeout(callback, delay),
 	clearTimeout: (timeoutId) => clearTimeout(timeoutId),
@@ -26179,7 +26179,7 @@ function systemSetTimeoutZero(callback) {
 	setTimeout(callback, 0);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/utils.js
 var isServer = typeof window === "undefined" || "Deno" in globalThis;
 function noop() {}
 function functionalUpdate$1(updater, input) {
@@ -26238,7 +26238,15 @@ function hashKey(queryKey) {
 function partialMatchKey(a, b) {
 	if (a === b) return true;
 	if (typeof a !== typeof b) return false;
-	if (a && b && typeof a === "object" && typeof b === "object") return Object.keys(b).every((key) => partialMatchKey(a[key], b[key]));
+	if (a && b && typeof a === "object" && typeof b === "object") {
+		if (Array.isArray(a) && Array.isArray(b)) {
+			for (let i = 0; i < b.length; i++) if (!partialMatchKey(a[i], b[i])) return false;
+			return true;
+		}
+		const bKeys = Object.keys(b);
+		for (const key of bKeys) if (!partialMatchKey(a[key], b[key])) return false;
+		return true;
+	}
 	return false;
 }
 var hasOwn = Object.prototype.hasOwnProperty;
@@ -26340,7 +26348,7 @@ function addConsumeAwareSignal(object, getSignal, onCancelled) {
 	return object;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/environmentManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/environmentManager.js
 var environmentManager = /* @__PURE__ */ (() => {
 	let isServerFn = () => isServer;
 	return {
@@ -26359,7 +26367,7 @@ var environmentManager = /* @__PURE__ */ (() => {
 	};
 })();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/thenable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/thenable.js
 function pendingThenable() {
 	let resolve;
 	let reject;
@@ -26391,7 +26399,7 @@ function pendingThenable() {
 	return thenable;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/notifyManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/notifyManager.js
 var defaultScheduler = systemSetTimeoutZero;
 function createNotifyManager() {
 	let queue = [];
@@ -26464,7 +26472,7 @@ function createNotifyManager() {
 }
 var notifyManager = createNotifyManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/onlineManager.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/onlineManager.js
 var OnlineManager = class extends Subscribable {
 	#online = true;
 	#cleanup;
@@ -26512,7 +26520,7 @@ var OnlineManager = class extends Subscribable {
 };
 var onlineManager = new OnlineManager();
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/retryer.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/retryer.js
 function defaultRetryDelay(failureCount) {
 	return Math.min(1e3 * 2 ** failureCount, 3e4);
 }
@@ -26618,7 +26626,7 @@ function createRetryer(config) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/removable.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/removable.js
 var Removable = class {
 	#gcTimeout;
 	destroy() {
@@ -26641,7 +26649,7 @@ var Removable = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/infiniteQueryBehavior.js
 function infiniteQueryBehavior(pages) {
 	return { onFetch: (context, query) => {
 		const options = context.options;
@@ -26720,7 +26728,7 @@ function getPreviousPageParam(options, { pages, pageParams }) {
 	return pages.length > 0 ? options.getPreviousPageParam?.(pages[0], pages, pageParams[0], pageParams) : void 0;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/query.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/query.js
 var Query = class extends Removable {
 	#queryType;
 	#initialState;
@@ -27092,7 +27100,7 @@ function getDefaultState$1(options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/queryObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/queryObserver.js
 var QueryObserver = class extends Subscribable {
 	constructor(client, options) {
 		super();
@@ -27436,7 +27444,7 @@ function shouldAssignObserverCurrentProperties(observer, optimisticResult) {
 	return false;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/mutation.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/mutation.js
 var Mutation = class extends Removable {
 	#client;
 	#observers;
@@ -27650,7 +27658,7 @@ function getDefaultState() {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/mutationCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/mutationCache.js
 var MutationCache = class extends Subscribable {
 	constructor(config = {}) {
 		super();
@@ -27757,7 +27765,7 @@ function scopeFor(mutation) {
 	return mutation.options.scope?.id;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/mutationObserver.js
 var MutationObserver$1 = class extends Subscribable {
 	#client;
 	#currentResult = void 0;
@@ -27861,7 +27869,7 @@ var MutationObserver$1 = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/queryCache.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/queryCache.js
 var QueryCache = class extends Subscribable {
 	constructor(config = {}) {
 		super();
@@ -27953,7 +27961,7 @@ var QueryCache = class extends Subscribable {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.2/node_modules/@tanstack/query-core/build/modern/queryClient.js
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.3/node_modules/@tanstack/query-core/build/modern/queryClient.js
 var QueryClient = class {
 	#queryCache;
 	#mutationCache;
@@ -28194,7 +28202,7 @@ var QueryClient = class {
 	}
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/QueryClientProvider.js
 var import_jsx_runtime = require_jsx_runtime();
 var QueryClientContext = import_react.createContext(void 0);
 var useQueryClient = (queryClient) => {
@@ -28216,12 +28224,12 @@ var QueryClientProvider = ({ client, children }) => {
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/IsRestoringProvider.js
 var IsRestoringContext = import_react.createContext(false);
 var useIsRestoring = () => import_react.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/QueryErrorResetBoundary.js
 function createValue() {
 	let isReset = false;
 	return {
@@ -28239,7 +28247,7 @@ function createValue() {
 var QueryErrorResetBoundaryContext = import_react.createContext(createValue());
 var useQueryErrorResetBoundary = () => import_react.useContext(QueryErrorResetBoundaryContext);
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/errorBoundaryUtils.js
 var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
 	const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
 	if (options.suspense || options.experimental_prefetchInRender || throwOnError) {
@@ -28255,7 +28263,7 @@ var getHasError = ({ result, errorResetBoundary, throwOnError, query, suspense }
 	return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/suspense.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/suspense.js
 var ensureSuspenseTimers = (defaultedOptions) => {
 	if (defaultedOptions.suspense) {
 		const MIN_SUSPENSE_TIME_MS = 1e3;
@@ -28271,7 +28279,7 @@ var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observ
 	errorResetBoundary.clearReset();
 });
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/useBaseQuery.js
 function useBaseQuery(options, Observer, queryClient) {
 	const isRestoring = useIsRestoring();
 	const errorResetBoundary = useQueryErrorResetBoundary();
@@ -28311,12 +28319,12 @@ function useBaseQuery(options, Observer, queryClient) {
 	return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/useQuery.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/useQuery.js
 function useQuery(options, queryClient) {
 	return useBaseQuery(options, QueryObserver, queryClient);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.2_react@19.2.7/node_modules/@tanstack/react-query/build/modern/useMutation.js
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.3_react@19.2.7/node_modules/@tanstack/react-query/build/modern/useMutation.js
 function useMutation(options, queryClient) {
 	const client = useQueryClient(queryClient);
 	const [observer] = import_react.useState(() => new MutationObserver$1(client, options));
@@ -35185,6 +35193,7 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 		const element = elementRef.current;
 		if (!element || !scrollable) return;
 		log$6.debug(`Restore Scroll Hook`, elementKey);
+		let pollTimer;
 		const savedPosition = scrollPositionRef.current;
 		if (savedPosition !== void 0) {
 			log$6.debug(`Restoring scroll position`, savedPosition);
@@ -35207,14 +35216,15 @@ function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollab
 						return;
 					}
 					attempts++;
-					setTimeout(pollForRender, 100);
+					pollTimer = setTimeout(pollForRender, 100);
 				};
-				setTimeout(pollForRender, 100);
+				pollTimer = setTimeout(pollForRender, 100);
 			}
 		}
 		if (element.addEventListener) element.addEventListener("scroll", handleScroll);
 		else log$6.warn("Element has no way to add event listener", element);
 		return () => {
+			if (pollTimer !== void 0) clearTimeout(pollTimer);
 			if (element.removeEventListener) element.removeEventListener("scroll", handleScroll);
 			else log$6.warn("Element has no way to remove event listener", element);
 		};
@@ -35295,7 +35305,7 @@ function useRafThrottle(callback) {
 	const callbackRef = (0, import_react.useRef)(callback);
 	(0, import_react.useEffect)(() => {
 		callbackRef.current = callback;
-	}, [callback]);
+	});
 	const throttledCallback = (0, import_react.useCallback)((...args) => {
 		if (rafRef.current) return;
 		rafRef.current = requestAnimationFrame(() => {
@@ -60184,6 +60194,7 @@ var MoreToggle = ({ collapsed, border, onToggle, style, position }) => {
 		className: clsx(ExpandablePanel_module_default.moreToggle, border ? ExpandablePanel_module_default.bordered : void 0, position === "block-left" ? ExpandablePanel_module_default.blockLeft : void 0),
 		style,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+			type: "button",
 			className: clsx("btn", ExpandablePanel_module_default.moreToggleButton, "text-size-smallest"),
 			onClick: onToggle,
 			children: [text, "..."]
@@ -60288,17 +60299,20 @@ var LightboxCarousel = ({ id, slides }) => {
 				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 					className: clsx(LightboxCarousel_module_default.lightboxButtonCloseWrapper),
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
 						className: LightboxCarousel_module_default.lightboxButtonClose,
 						onClick: closeLightbox,
 						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.close })
 					})
 				}),
 				slides.length > 1 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
 					className: clsx(LightboxCarousel_module_default.lightboxPreviewButton, "prev"),
 					onClick: showPrev,
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.previous })
 				}) : "",
 				slides.length > 1 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
 					className: clsx(LightboxCarousel_module_default.lightboxPreviewButton, "next"),
 					onClick: showNext,
 					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.next })
@@ -62696,7 +62710,13 @@ var openChunkedSample = async (source, entryNames, id, epoch, byteBudget) => {
 	let uuidOrdinals;
 	const uuidToOrdinal = async (uuid) => {
 		if (!entryNames.has(uuidsEntry)) return;
-		uuidOrdinals ??= readJson(source, uuidsEntry).then((uuids) => new Map(uuids.flatMap((u, ordinal) => u === null ? [] : [[u, ordinal]])));
+		if (!uuidOrdinals) {
+			const pending = readJson(source, uuidsEntry).then((uuids) => new Map(uuids.flatMap((u, ordinal) => u === null ? [] : [[u, ordinal]])));
+			pending.catch(() => {
+				if (uuidOrdinals === pending) uuidOrdinals = void 0;
+			});
+			uuidOrdinals = pending;
+		}
 		return (await uuidOrdinals).get(uuid);
 	};
 	const metadataEntry = metadataEntryName(id, epoch);
@@ -63549,7 +63569,7 @@ var hydrateFullSample = async (chunked) => {
 		chunked.attachments.getRange(0, Number.MAX_SAFE_INTEGER),
 		chunked.readMetadata?.() ?? Promise.resolve({})
 	]);
-	const { message_refs, ...shell } = chunked.shell;
+	const { message_refs, sequences: _sequences, ...shell } = chunked.shell;
 	return resolveSample$1({
 		...shell,
 		messages: message_refs.flatMap(([start, end]) => messages.slice(start, end)),
@@ -63622,7 +63642,7 @@ var chunkedSampleQueryKey = (logDir, handle) => [
 	handle?.epoch ?? null
 ];
 var shellEvalSample = async (chunked) => {
-	const { message_refs: _messageRefs, ...shell } = chunked.shell;
+	const { message_refs: _messageRefs, sequences: _sequences, ...shell } = chunked.shell;
 	return {
 		...shell,
 		messages: [],
@@ -64312,7 +64332,7 @@ var useScoreSchema = (logDir, scopeDir) => {
 	return useStableValue(useMapAsyncData(useLogs(logDir), (0, import_react.useCallback)((rows) => computeScorerMap(rows, scopeDir), [scopeDir])), asyncScorerMapsEqual);
 };
 //#endregion
-//#region ../../node_modules/.pnpm/immer@11.1.11/node_modules/immer/dist/immer.mjs
+//#region ../../node_modules/.pnpm/immer@11.1.15/node_modules/immer/dist/immer.mjs
 var NOTHING = Symbol.for("immer-nothing");
 var DRAFTABLE = Symbol.for("immer-draftable");
 var DRAFT_STATE = Symbol.for("immer-state");
@@ -64365,7 +64385,7 @@ var set = (thing, propOrOldValue, value, type = getArchtype(thing)) => {
 	else if (type === 3) thing.add(value);
 	else thing[propOrOldValue] = value;
 };
-function is$1(x, y) {
+function is(x, y) {
 	if (x === y) return x !== 0 || 1 / x === 1 / y;
 	else return x !== x && y !== y;
 }
@@ -64633,21 +64653,6 @@ function createProxyProxy(base, parent) {
 var objectTraps = {
 	get(state, prop) {
 		if (prop === DRAFT_STATE) return state;
-		if (prop === "constructor" || prop === "__proto__") {
-			const value2 = latest(state)[prop];
-			return new Proxy(value2 || {}, {
-				get: (target, key) => {
-					if (key === "__proto__" || key === "prototype") return Object.freeze(/* @__PURE__ */ Object.create(null));
-					return Reflect.get(target, key);
-				},
-				set: () => {
-					return true;
-				},
-				apply: (target, thisArg, args) => {
-					return Reflect.apply(target, thisArg, args);
-				}
-			});
-		}
 		let arrayPlugin = state.scope_.arrayMethodsPlugin_;
 		const isArrayWithStringProp = state.type_ === 1 && typeof prop === "string";
 		if (isArrayWithStringProp) {
@@ -64658,7 +64663,7 @@ var objectTraps = {
 		const value = source[prop];
 		if (state.finalized_ || !isDraftable(value)) return value;
 		if (isArrayWithStringProp && state.operationMethod && arrayPlugin?.isMutatingArrayMethod(state.operationMethod) && isArrayIndex$1(prop)) return value;
-		if (value === peek(state.base_, prop)) {
+		if (value === peek(state.base_, prop) || isRelocatedBaseRef(state, prop, value)) {
 			prepareCopy(state);
 			const childKey = state.type_ === 1 ? +prop : prop;
 			const childDraft = createProxy(state.scope_, value, state, childKey);
@@ -64667,14 +64672,12 @@ var objectTraps = {
 		return value;
 	},
 	has(state, prop) {
-		if (prop === "constructor" || prop === "__proto__" || prop === "prototype") return false;
 		return prop in latest(state);
 	},
 	ownKeys(state) {
 		return Reflect.ownKeys(latest(state));
 	},
 	set(state, prop, value) {
-		if (prop === "constructor" || prop === "__proto__" || prop === "prototype") return true;
 		const desc = getDescriptorFromProto(latest(state), prop);
 		if (desc?.set) {
 			desc.set.call(state.draft_, value);
@@ -64688,7 +64691,7 @@ var objectTraps = {
 				state.assigned_.set(prop, false);
 				return true;
 			}
-			if (is$1(value, current2) && (value !== void 0 || has(state.base_, prop, state.type_))) return true;
+			if (is(value, current2) && (value !== void 0 || has(state.base_, prop, state.type_))) return true;
 			prepareCopy(state);
 			markChanged(state);
 		}
@@ -64746,6 +64749,10 @@ arrayTraps.set = function(state, prop, value) {
 function peek(draft, prop) {
 	const state = draft[DRAFT_STATE];
 	return (state ? latest(state) : draft)[prop];
+}
+function isRelocatedBaseRef(state, prop, value) {
+	if (state.type_ !== 1 || !state.allIndicesReassigned_ || state.assigned_?.get(prop) || !isDraftable(value) || value[DRAFT_STATE]) return false;
+	return state.baseRefs_.has(value);
 }
 function readPropFromProto(state, source, prop) {
 	const desc = getDescriptorFromProto(source, prop);
@@ -65197,7 +65204,7 @@ false);
 }
 var produce = new Immer2().produce;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.11_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/vanilla.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/vanilla.mjs
 var createStoreImpl = (createState) => {
 	let state;
 	const listeners = /* @__PURE__ */ new Set();
@@ -65226,7 +65233,7 @@ var createStoreImpl = (createState) => {
 };
 var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.11_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/react.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/react.mjs
 var identity = (arg) => arg;
 function useStore$1(api, selector = identity) {
 	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
@@ -65241,7 +65248,7 @@ var createImpl = (createState) => {
 };
 var create = ((createState) => createState ? createImpl(createState) : createImpl);
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.11_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware.mjs
 var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
 var trackedConnections = /* @__PURE__ */ new Map();
 var getTrackedConnectionState = (name) => {
@@ -65576,7 +65583,7 @@ var persistImpl = (config, baseOptions) => (set, get, api) => {
 };
 var persist = persistImpl;
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.11_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware/immer.mjs
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware/immer.mjs
 var immerImpl = (initializer) => (set, get, store) => {
 	store.setState = (updater, replace, ...args) => {
 		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
@@ -67031,7 +67038,10 @@ var contentRenderers = (icons, renderObject, externalRenderers) => {
 				return typeof entry.value === "string" && isRenderableImageSource(entry.value);
 			},
 			render: (_id, entry, _options) => {
-				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", { src: entry.value }) };
+				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					src: entry.value,
+					alt: "Attachment"
+				}) };
 			}
 		},
 		Object: {
@@ -67122,6 +67132,7 @@ var MetaDataGrid = ({ id, entries, className, references, style, maxRows, option
 			isCollapsible && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: MetadataGrid_module_default.toggleContainer,
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
 					className: clsx(MetadataGrid_module_default.toggleButton, "text-size-smallest"),
 					onClick: () => setExpanded((prev) => !prev),
 					children: [expanded ? "less" : `${scalars.length - visibleScalars.length} more`, "..."]
@@ -67160,39 +67171,39 @@ var entryRecords = (entries) => {
 	else return entries;
 };
 //#endregion
-//#region ../../node_modules/.pnpm/react-virtuoso@4.18.10_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-virtuoso/dist/index.mjs
+//#region ../../node_modules/.pnpm/react-virtuoso@4.18.11_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-virtuoso/dist/index.mjs
 var we = 0;
 var Pt = 1;
 var Xt = 2;
-var Pn = 4;
-function mn(t) {
+var Vn = 4;
+function fn(t) {
 	return () => t;
 }
-function vo(t) {
+function Io(t) {
 	t();
 }
 function re(t, e) {
 	return (n) => t(e(n));
 }
-function pn(t, e) {
+function mn(t, e) {
 	return () => t(e);
 }
-function To(t, e) {
+function So(t, e) {
 	return (n) => t(e, n);
 }
-function Ne(t) {
+function _e(t) {
 	return t !== void 0;
 }
-function Co(...t) {
+function xo(...t) {
 	return () => {
-		t.map(vo);
+		t.map(Io);
 	};
 }
 function Jt() {}
 function ye(t, e) {
 	return e(t), t;
 }
-function wo(t, e) {
+function vo(t, e) {
 	return e(t);
 }
 function rt(...t) {
@@ -67204,14 +67215,14 @@ function Y(t, e) {
 function M(t, e) {
 	t(we, e);
 }
-function De(t) {
+function Ne(t) {
 	t(Xt);
 }
 function it(t) {
-	return t(Pn);
+	return t(Vn);
 }
 function z(t, e) {
-	return Y(t, To(e, we));
+	return Y(t, So(e, we));
 }
 function yt(t, e) {
 	const n = t(Pt, (o) => {
@@ -67219,7 +67230,7 @@ function yt(t, e) {
 	});
 	return n;
 }
-function hn(t) {
+function pn(t) {
 	let e, n;
 	return (o) => (r) => {
 		e = r, n && clearTimeout(n), n = setTimeout(() => {
@@ -67227,10 +67238,10 @@ function hn(t) {
 		}, t);
 	};
 }
-function Gn(t, e) {
+function Wn(t, e) {
 	return t === e;
 }
-function nt(t = Gn) {
+function nt(t = Wn) {
 	let e;
 	return (n) => (o) => {
 		t(e, o) || (e = o, n(o));
@@ -67250,11 +67261,11 @@ function Bt(t) {
 	};
 }
 function x$1(t, ...e) {
-	const n = yo(...e);
+	const n = To(...e);
 	return ((o, r) => {
 		switch (o) {
 			case Xt:
-				De(t);
+				Ne(t);
 				return;
 			case Pt: return Y(t, n(r));
 		}
@@ -67295,10 +67306,10 @@ function $(...t) {
 		n === r ? l() : o = l;
 	};
 }
-function yo(...t) {
-	return (e) => t.reduceRight(wo, e);
+function To(...t) {
+	return (e) => t.reduceRight(vo, e);
 }
-function bo(t) {
+function Co(t) {
 	let e, n;
 	const o = () => e?.();
 	return function(r, s) {
@@ -67321,7 +67332,7 @@ function T(t) {
 			case Pt:
 				r(e);
 				break;
-			case Pn: return e;
+			case Vn: return e;
 		}
 		return n(o, r);
 	});
@@ -67351,18 +67362,18 @@ function U() {
 function Tt(t) {
 	return ye(U(), (e) => z(t, e));
 }
-var Ro = { singleton: !0 };
-function j(t, e = [], n = Ro) {
+var wo = { singleton: !0 };
+function j(t, e = [], n = wo) {
 	const { singleton: o } = n;
 	return {
 		constructor: t,
 		dependencies: e,
-		id: Ho(),
+		id: yo(),
 		singleton: o
 	};
 }
-var Ho = () => /* @__PURE__ */ Symbol("id");
-function Eo(t) {
+var yo = () => /* @__PURE__ */ Symbol("id");
+function bo(t) {
 	const e = /* @__PURE__ */ new Map(), n = ({ constructor: o, dependencies: r, id: s, singleton: i }) => {
 		if (i && e.has(s)) return e.get(s);
 		const l = o(r.map((c) => n(c)));
@@ -67382,20 +67393,20 @@ function at(...t) {
 	}), function(s, i) {
 		switch (s) {
 			case Xt:
-				De(e);
+				Ne(e);
 				return;
 			case Pt: return o === r && i(n), Y(e, i);
 		}
 	};
 }
-function W(t, e = Gn) {
+function W(t, e = Wn) {
 	return x$1(t, nt(e));
 }
 function Fe(...t) {
 	return function(e, n) {
 		switch (e) {
 			case Xt: return;
-			case Pt: return Co(...t.map((o) => Y(o, n)));
+			case Pt: return xo(...t.map((o) => Y(o, n)));
 		}
 	};
 }
@@ -67409,46 +67420,39 @@ var ft = {
 	/** Error messages for failures (default level) */
 	ERROR: 3
 };
-var Bo = {
+var Ro = {
 	[ft.DEBUG]: "debug",
 	[ft.ERROR]: "error",
 	[ft.INFO]: "log",
 	[ft.WARN]: "warn"
 };
-var Oo = () => typeof globalThis > "u" ? window : globalThis;
+var Ho = () => typeof globalThis > "u" ? window : globalThis;
 var Gt = j(() => {
 	const t = T(ft.ERROR);
 	return {
 		log: T((n, o, r = ft.INFO) => {
-			r >= (Oo().VIRTUOSO_LOG_LEVEL ?? it(t)) && console[Bo[r]]("%creact-virtuoso: %c%s %o", "color: #0253b3; font-weight: bold", "color: initial", n, o);
+			r >= (Ho().VIRTUOSO_LOG_LEVEL ?? it(t)) && console[Ro[r]]("%creact-virtuoso: %c%s %o", "color: #0253b3; font-weight: bold", "color: initial", n, o);
 		}),
 		logLevel: t
 	};
 }, [], { singleton: !0 });
-var Ve = /* @__PURE__ */ new WeakMap();
-function An(t) {
+function Eo(t) {
 	return "self" in t ? t.document.documentElement : t;
 }
-function Lo(t) {
-	const e = An(t), n = Ve.get(e);
-	if (n !== void 0) return n;
-	const o = e.ownerDocument.defaultView.getComputedStyle(e).direction === "rtl";
-	return Ve.set(e, o), o;
+function Pn(t) {
+	const e = Eo(t);
+	return e.ownerDocument.defaultView.getComputedStyle(e).direction === "rtl";
 }
-function gn(t) {
-	Ve.delete(An(t));
+function _t(t, e) {
+	return Pn(t) ? -e : e;
 }
-function Mn(t, e) {
-	return Lo(t) ? -e : e;
+function hn(t, e) {
+	return Pn(t) ? -e : e;
 }
-var _t = Mn;
-function In(t, e) {
-	return Mn(t, e);
+function kt(t, e, n) {
+	return De(t, e, n).callbackRef;
 }
-function Lt(t, e, n) {
-	return $e(t, e, n).callbackRef;
-}
-function $e(t, e, n) {
+function De(t, e, n) {
 	const o = import_react.useRef(null);
 	let r = (i) => {};
 	const s = import_react.useMemo(() => typeof ResizeObserver < "u" ? new ResizeObserver((i) => {
@@ -67465,9 +67469,9 @@ function $e(t, e, n) {
 		ref: o
 	};
 }
-function _n(t, e, n, o, r, s, i, l, c) {
-	return $e(import_react.useCallback((m) => {
-		const v = ko(m.children, e, l ? "offsetWidth" : "offsetHeight", r);
+function Gn(t, e, n, o, r, s, i, l, c) {
+	return De(import_react.useCallback((m) => {
+		const v = Bo(m.children, e, l ? "offsetWidth" : "offsetHeight", r);
 		let p = m.parentElement;
 		for (; p.dataset.virtuosoScroller === void 0;) p = p.parentElement;
 		const I = p.lastElementChild?.dataset.viewportType === "window";
@@ -67478,7 +67482,7 @@ function _n(t, e, n, o, r, s, i, l, c) {
 			scrollHeight: R,
 			scrollTop: Math.max(f, 0),
 			viewportHeight: h
-		}), s?.(l ? Sn("column-gap", getComputedStyle(m).columnGap, r) : Sn("row-gap", getComputedStyle(m).rowGap, r)), v !== null && t(v);
+		}), s?.(l ? gn("column-gap", getComputedStyle(m).columnGap, r) : gn("row-gap", getComputedStyle(m).rowGap, r)), v !== null && t(v);
 	}, [
 		t,
 		e,
@@ -67489,7 +67493,7 @@ function _n(t, e, n, o, r, s, i, l, c) {
 		l
 	]), n, c);
 }
-function ko(t, e, n, o) {
+function Bo(t, e, n, o) {
 	const r = t.length;
 	if (r === 0) return null;
 	const s = [];
@@ -67507,10 +67511,10 @@ function ko(t, e, n, o) {
 	}
 	return s;
 }
-function Sn(t, e, n) {
+function gn(t, e, n) {
 	return e !== "normal" && e?.endsWith("px") !== !0 && n(`${t} was not resolved to pixel value correctly`, e, ft.WARN), e === "normal" ? 0 : parseInt(e ?? "0", 10);
 }
-function Ue(t, e, n) {
+function $e(t, e, n) {
 	const o = import_react.useRef(null), r = import_react.useCallback((c) => {
 		if (!c?.offsetParent) return;
 		const d = c.getBoundingClientRect(), m = d.width;
@@ -67528,7 +67532,7 @@ function Ue(t, e, n) {
 			visibleHeight: p,
 			visibleWidth: m
 		}, t(o.current);
-	}, [t, e]), { callbackRef: s, ref: i } = $e(r, !0, n), l = import_react.useCallback(() => {
+	}, [t, e]), { callbackRef: s, ref: i } = De(r, !0, n), l = import_react.useCallback(() => {
 		r(i.current);
 	}, [r, i]);
 	return import_react.useEffect(() => {
@@ -67573,7 +67577,7 @@ var It = j(() => {
 	};
 }, [], { singleton: !0 });
 var se = { lvl: 0 };
-function Nn(t, e) {
+function An(t, e) {
 	const n = t.length;
 	if (n === 0) return [];
 	let { index: o, value: r } = e(t[0]);
@@ -67608,10 +67612,10 @@ function Rt(t, e, n = "k") {
 	return Rt(t.l, e, n);
 }
 function vt(t, e, n) {
-	return J(t) ? Un(e, n, 1) : e === t.k ? dt(t, {
+	return J(t) ? Nn(e, n, 1) : e === t.k ? dt(t, {
 		k: e,
 		v: n
-	}) : e < t.k ? xn(dt(t, { l: vt(t.l, e, n) })) : xn(dt(t, { r: vt(t.r, e, n) }));
+	}) : e < t.k ? In(dt(t, { l: vt(t.l, e, n) })) : In(dt(t, { r: vt(t.r, e, n) }));
 }
 function Yt() {
 	return se;
@@ -67619,22 +67623,22 @@ function Yt() {
 function Zt(t, e, n) {
 	if (J(t)) return [];
 	const o = Rt(t, e)[0];
-	return zo(Pe(t, o, n));
+	return Oo(We(t, o, n));
 }
-function We(t, e) {
+function Ve(t, e) {
 	if (J(t)) return se;
 	const { k: n, l: o, r } = t;
 	if (e === n) {
 		if (J(o)) return r;
 		if (J(r)) return o;
-		const [s, i] = $n(o);
+		const [s, i] = _n(o);
 		return xe(dt(t, {
 			k: s,
-			l: Dn(o),
+			l: Mn(o),
 			v: i
 		}));
 	}
-	return e < n ? xe(dt(t, { l: We(o, e) })) : xe(dt(t, { r: We(r, e) }));
+	return e < n ? xe(dt(t, { l: Ve(o, e) })) : xe(dt(t, { r: Ve(r, e) }));
 }
 function Nt(t) {
 	return J(t) ? [] : [
@@ -67646,20 +67650,20 @@ function Nt(t) {
 		...Nt(t.r)
 	];
 }
-function Pe(t, e, n) {
+function We(t, e, n) {
 	if (J(t)) return [];
 	const { k: o, l: r, r: s, v: i } = t;
 	let l = [];
-	return o > e && (l = l.concat(Pe(r, e, n))), o >= e && o <= n && l.push({
+	return o > e && (l = l.concat(We(r, e, n))), o >= e && o <= n && l.push({
 		k: o,
 		v: i
-	}), o <= n && (l = l.concat(Pe(s, e, n))), l;
+	}), o <= n && (l = l.concat(We(s, e, n))), l;
 }
 function xe(t) {
 	const { l: e, lvl: n, r: o } = t;
 	if (o.lvl >= n - 1 && e.lvl >= n - 1) return t;
 	if (n > o.lvl + 1) {
-		if (Be(e)) return Kn(dt(t, { lvl: n - 1 }));
+		if (Be(e)) return Dn(dt(t, { lvl: n - 1 }));
 		if (!J(e) && !J(e.r)) return dt(e.r, {
 			l: dt(e, { r: e.r.l }),
 			lvl: n,
@@ -67670,7 +67674,7 @@ function xe(t) {
 		});
 		throw new Error("Unexpected empty nodes");
 	}
-	if (Be(t)) return Ge(dt(t, { lvl: n - 1 }));
+	if (Be(t)) return Pe(dt(t, { lvl: n - 1 }));
 	if (!J(o) && !J(o.l)) {
 		const r = o.l, s = Be(r) ? o.lvl - 1 : o.lvl;
 		return dt(r, {
@@ -67679,7 +67683,7 @@ function xe(t) {
 				r: r.l
 			}),
 			lvl: r.lvl + 1,
-			r: Ge(dt(o, {
+			r: Pe(dt(o, {
 				l: r.r,
 				lvl: s
 			}))
@@ -67688,18 +67692,18 @@ function xe(t) {
 	throw new Error("Unexpected empty nodes");
 }
 function dt(t, e) {
-	return Un(e.k === void 0 ? t.k : e.k, e.v === void 0 ? t.v : e.v, e.lvl === void 0 ? t.lvl : e.lvl, e.l === void 0 ? t.l : e.l, e.r === void 0 ? t.r : e.r);
+	return Nn(e.k === void 0 ? t.k : e.k, e.v === void 0 ? t.v : e.v, e.lvl === void 0 ? t.lvl : e.lvl, e.l === void 0 ? t.l : e.l, e.r === void 0 ? t.r : e.r);
 }
-function Dn(t) {
-	return J(t.r) ? t.l : xe(dt(t, { r: Dn(t.r) }));
+function Mn(t) {
+	return J(t.r) ? t.l : xe(dt(t, { r: Mn(t.r) }));
 }
 function Be(t) {
 	return J(t) || t.lvl > t.r.lvl;
 }
-function $n(t) {
-	return J(t.r) ? [t.k, t.v] : $n(t.r);
+function _n(t) {
+	return J(t.r) ? [t.k, t.v] : _n(t.r);
 }
-function Un(t, e, n, o = se, r = se) {
+function Nn(t, e, n, o = se, r = se) {
 	return {
 		k: t,
 		l: o,
@@ -67708,34 +67712,34 @@ function Un(t, e, n, o = se, r = se) {
 		v: e
 	};
 }
-function xn(t) {
-	return Ge(Kn(t));
+function In(t) {
+	return Pe(Dn(t));
 }
-function Kn(t) {
+function Dn(t) {
 	const { l: e } = t;
 	return !J(e) && e.lvl === t.lvl ? dt(e, { r: dt(t, { l: e.r }) }) : t;
 }
-function Ge(t) {
+function Pe(t) {
 	const { lvl: e, r: n } = t;
 	return !J(n) && !J(n.r) && n.lvl === e && n.r.lvl === e ? dt(n, {
 		l: dt(t, { r: n.l }),
 		lvl: e + 1
 	}) : t;
 }
-function zo(t) {
-	return Nn(t, ({ k: e, v: n }) => ({
+function Oo(t) {
+	return An(t, ({ k: e, v: n }) => ({
 		index: e,
 		value: n
 	}));
 }
-function jn(t, e) {
+function $n(t, e) {
 	return !!(t && t.startIndex === e.startIndex && t.endIndex === e.endIndex);
 }
 function le(t, e) {
 	return !!(t && t[0] === e[0] && t[1] === e[1]);
 }
-var Ke = j(() => ({ recalcInProgress: T(!1) }), [], { singleton: !0 });
-function qn(t, e, n) {
+var Ue = j(() => ({ recalcInProgress: T(!1) }), [], { singleton: !0 });
+function Un(t, e, n) {
 	return t[Te(t, e, n)];
 }
 function Te(t, e, n, o = 0) {
@@ -67753,7 +67757,7 @@ function Te(t, e, n, o = 0) {
 	}
 	throw new Error(`Failed binary finding record in array - ${t.join(",")}, searched for ${e}`);
 }
-function Fo(t, e, n, o) {
+function ko(t, e, n, o) {
 	const r = Te(t, e, o), s = Te(t, n, o, r);
 	return t.slice(r, s + 1);
 }
@@ -67763,10 +67767,10 @@ function Ht(t, e) {
 function be(t) {
 	return !J(t.groupOffsetTree);
 }
-function je({ index: t }, e) {
+function Ke({ index: t }, e) {
 	return e === t ? 0 : e < t ? -1 : 1;
 }
-function Vo() {
+function Lo() {
 	return {
 		groupIndices: [],
 		groupOffsetTree: Yt(),
@@ -67777,7 +67781,7 @@ function Vo() {
 		sizeTree: Yt()
 	};
 }
-function Wo(t, e) {
+function zo(t, e) {
 	let n = J(t) ? 0 : Infinity;
 	for (const o of e) {
 		const { endIndex: r, size: s, startIndex: i } = o;
@@ -67786,48 +67790,48 @@ function Wo(t, e) {
 			continue;
 		}
 		const l = Zt(t, i - 1, r + 1);
-		if (l.some(Do(o))) continue;
+		if (l.some(Mo(o))) continue;
 		let c = !1, d = !1;
-		for (const { end: m, start: v, value: p } of l) c ? (r >= v || s === p) && (t = We(t, v)) : (d = p !== s, c = !0), m > r && r >= v && p !== s && (t = vt(t, r + 1, p));
+		for (const { end: m, start: v, value: p } of l) c ? (r >= v || s === p) && (t = Ve(t, v)) : (d = p !== s, c = !0), m > r && r >= v && p !== s && (t = vt(t, r + 1, p));
 		d && (t = vt(t, i, s));
 	}
 	return [t, n];
 }
-function Po(t) {
+function Fo(t) {
 	return t.groupIndex !== void 0;
 }
-function Go({ offset: t }, e) {
+function Vo({ offset: t }, e) {
 	return e === t ? 0 : e < t ? -1 : 1;
 }
 function ce(t, e, n) {
 	if (e.length === 0) return 0;
-	const { index: o, offset: r, size: s } = qn(e, t, je), i = t - o, l = s * i + (i - 1) * n + r;
+	const { index: o, offset: r, size: s } = Un(e, t, Ke), i = t - o, l = s * i + (i - 1) * n + r;
 	return l > 0 ? l + n : l;
 }
-function Yn(t, e) {
+function Kn(t, e) {
 	if (!be(e)) return t;
 	let n = 0;
 	for (; e.groupIndices[n] <= t + n;) n++;
 	return t + n;
 }
-function Zn(t, e, n) {
-	if (Po(t)) return e.groupIndices[t.groupIndex] + 1;
-	let r = Yn(t.index === "LAST" ? n : t.index, e);
+function jn(t, e, n) {
+	if (Fo(t)) return e.groupIndices[t.groupIndex] + 1;
+	let r = Kn(t.index === "LAST" ? n : t.index, e);
 	return r = Math.max(0, Math.min(n, r)), r;
 }
-function Ao(t, e, n, o = 0) {
-	return o > 0 && (e = Math.max(e, qn(t, o, je).offset)), Nn(Fo(t, e, n, Go), No);
+function Wo(t, e, n, o = 0) {
+	return o > 0 && (e = Math.max(e, Un(t, o, Ke).offset)), An(ko(t, e, n, Vo), Ao);
 }
-function Mo(t, [e, n, o, r]) {
+function Po(t, [e, n, o, r]) {
 	e.length > 0 && o("received item sizes", e, ft.DEBUG);
 	const s = t.sizeTree;
 	let i = s, l = 0;
 	if (n.length > 0 && J(s) && e.length === 2) {
 		const p = e[0].size, I = e[1].size;
 		i = n.reduce((w, R) => vt(vt(w, R, p), R + 1, I), i);
-	} else [i, l] = Wo(i, e);
+	} else [i, l] = zo(i, e);
 	if (i === s) return t;
-	const { lastIndex: c, lastOffset: d, lastSize: m, offsetTree: v } = Ae(t.offsetTree, l, i, r);
+	const { lastIndex: c, lastOffset: d, lastSize: m, offsetTree: v } = Ge(t.offsetTree, l, i, r);
 	return {
 		groupIndices: n,
 		groupOffsetTree: n.reduce((p, I) => vt(p, I, ce(I, v, r)), Yt()),
@@ -67838,7 +67842,7 @@ function Mo(t, [e, n, o, r]) {
 		sizeTree: i
 	};
 }
-function _o(t) {
+function Go(t) {
 	return Nt(t).map(({ k: e, v: n }, o, r) => {
 		const s = r[o + 1];
 		return {
@@ -67848,16 +67852,16 @@ function _o(t) {
 		};
 	});
 }
-function vn(t, e) {
+function Sn(t, e) {
 	let n = 0, o = 0;
 	for (; n < t;) n += e[o + 1] - e[o] - 1, o++;
 	return o - (n === t ? 0 : 1);
 }
-function Ae(t, e, n, o) {
+function Ge(t, e, n, o) {
 	let r = t, s = 0, i = 0, l = 0, c = 0;
 	if (e === 0) r = [];
 	else {
-		c = Te(r, e - 1, je), l = r[c].offset;
+		c = Te(r, e - 1, Ke), l = r[c].offset;
 		const m = Rt(n, e - 1);
 		s = m[0], i = m[1], r.length && r[c].size === Rt(n, e)[1] && (c -= 1), r = r.slice(0, c + 1);
 	}
@@ -67876,22 +67880,22 @@ function Ae(t, e, n, o) {
 		offsetTree: r
 	};
 }
-function No(t) {
+function Ao(t) {
 	return {
 		index: t.index,
 		value: t
 	};
 }
-function Do(t) {
+function Mo(t) {
 	const { endIndex: e, size: n, startIndex: o } = t;
 	return (r) => r.start === o && (r.end === e || r.end === Infinity) && r.value === n;
 }
-var $o = {
+var _o = {
 	offsetHeight: "height",
 	offsetWidth: "width"
 };
-var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
-	const n = U(), o = U(), r = ht(o, 0), s = U(), i = U(), l = T(0), c = T([]), d = T(void 0), m = T(void 0), v = T(void 0), p = T(void 0), I = T((u, g) => Ht(u, $o[g])), w = T(void 0), R = T(0), h = Vo(), f = ht(x$1(n, $(c, t, R), Ot(Mo, h), nt()), h), a = ht(x$1(c, nt(), Ot((u, g) => ({
+var Lt = j(([{ log: t }, { recalcInProgress: e }]) => {
+	const n = U(), o = U(), r = ht(o, 0), s = U(), i = U(), l = T(0), c = T([]), d = T(void 0), m = T(void 0), v = T(void 0), p = T(void 0), I = T((u, g) => Ht(u, _o[g])), w = T(void 0), R = T(0), h = Lo(), f = ht(x$1(n, $(c, t, R), Ot(Po, h), nt()), h), a = ht(x$1(c, nt(), Ot((u, g) => ({
 		current: g,
 		prev: u.current
 	}), {
@@ -67899,11 +67903,11 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 		prev: []
 	}), B(({ prev: u }) => u)), []);
 	z(x$1(c, P((u) => u.length > 0), $(f, R), B(([u, g, C]) => {
-		const k = u.reduce((O, V, N) => vt(O, V, ce(V, g.offsetTree, C) || N), Yt());
+		const L = u.reduce((O, V, N) => vt(O, V, ce(V, g.offsetTree, C) || N), Yt());
 		return {
 			...g,
 			groupIndices: u,
-			groupOffsetTree: k
+			groupOffsetTree: L
 		};
 	})), f), z(x$1(o, $(f), P(([u, { lastIndex: g }]) => u < g), B(([u, { lastIndex: g, lastSize: C }]) => [{
 		endIndex: g,
@@ -67928,35 +67932,35 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 		}];
 	})), n), z(x$1(p, P((u) => u !== void 0 && u.length > 0 && J(it(f).sizeTree)), B((u) => {
 		const g = [];
-		let C = u[0], k = 0;
+		let C = u[0], L = 0;
 		for (let O = 1; O < u.length; O++) {
 			const V = u[O];
 			V !== C && (g.push({
 				endIndex: O - 1,
 				size: C,
-				startIndex: k
-			}), C = V, k = O);
+				startIndex: L
+			}), C = V, L = O);
 		}
 		return g.push({
 			endIndex: u.length - 1,
 			size: C,
-			startIndex: k
+			startIndex: L
 		}), g;
 	})), n), z(x$1(c, $(v, m), P(([, u, g]) => u !== void 0 && g !== void 0), B(([u, g, C]) => {
-		const k = [];
+		const L = [];
 		for (let O = 0; O < u.length; O++) {
 			const V = u[O], N = u[O + 1];
-			k.push({
+			L.push({
 				startIndex: V,
 				endIndex: V,
 				size: g
-			}), N !== void 0 && k.push({
+			}), N !== void 0 && L.push({
 				startIndex: V + 1,
 				endIndex: N - 1,
 				size: C
 			});
 		}
-		return k;
+		return L;
 	})), n);
 	const H = Tt(x$1(n, $(f), Ot(({ sizes: u }, [g, C]) => ({
 		changed: C !== u,
@@ -67973,27 +67977,27 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 		prev: 0
 	}), B((u) => u.diff)), (u) => {
 		const { groupIndices: g } = it(f);
-		if (u > 0) M(e, !0), M(s, u + vn(u, g));
+		if (u > 0) M(e, !0), M(s, u + Sn(u, g));
 		else if (u < 0) {
 			const C = it(a);
-			C.length > 0 && (u -= vn(-u, C)), M(i, u);
+			C.length > 0 && (u -= Sn(-u, C)), M(i, u);
 		}
 	}), Y(x$1(l, $(t)), ([u, g]) => {
 		u < 0 && g("`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value", { firstItemIndex: l }, ft.ERROR);
 	});
 	const y = Tt(s);
 	z(x$1(s, $(f), B(([u, g]) => {
-		const C = g.groupIndices.length > 0, k = [], O = g.lastSize;
+		const C = g.groupIndices.length > 0, L = [], O = g.lastSize;
 		if (C) {
 			const V = ie$2(g.sizeTree, 0);
 			let N = 0, Z = 0;
 			for (; N < u;) {
 				const q = g.groupIndices[Z], Q = g.groupIndices.length === Z + 1 ? Infinity : g.groupIndices[Z + 1] - q - 1;
-				k.push({
+				L.push({
 					endIndex: q,
 					size: V,
 					startIndex: q
-				}), k.push({
+				}), L.push({
 					endIndex: q + 1 + Q - 1,
 					size: O,
 					startIndex: q + 1
@@ -68014,7 +68018,7 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 			}, {
 				prevIndex: u,
 				prevSize: 0,
-				ranges: k
+				ranges: L
 			}).ranges;
 		}
 		return Nt(g.sizeTree).reduce((V, { k: N, v: Z }) => ({
@@ -68031,7 +68035,7 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 			ranges: []
 		}).ranges;
 	})), n);
-	const L = Tt(x$1(i, $(f, R), B(([u, { offsetTree: g }, C]) => {
+	const k = Tt(x$1(i, $(f, R), B(([u, { offsetTree: g }, C]) => {
 		return ce(-u, g, C);
 	})));
 	return z(x$1(i, $(f, R), B(([u, g, C]) => {
@@ -68054,14 +68058,14 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 			return {
 				...g,
 				sizeTree: V,
-				...Ae(g.offsetTree, 0, V, C)
+				...Ge(g.offsetTree, 0, V, C)
 			};
 		}
 		const O = Nt(g.sizeTree).reduce((V, { k: N, v: Z }) => vt(V, Math.max(0, N + u), Z), Yt());
 		return {
 			...g,
 			sizeTree: O,
-			...Ae(g.offsetTree, 0, O, C)
+			...Ge(g.offsetTree, 0, O, C)
 		};
 	})), f), {
 		beforeUnshiftWith: y,
@@ -68076,7 +68080,7 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 		itemSize: I,
 		listRefresh: H,
 		shiftWith: i,
-		shiftWithOffset: L,
+		shiftWithOffset: k,
 		sizeRanges: n,
 		sizes: f,
 		statefulTotalCount: r,
@@ -68084,20 +68088,20 @@ var kt = j(([{ log: t }, { recalcInProgress: e }]) => {
 		trackItemSizes: S,
 		unshiftWith: s
 	};
-}, rt(Gt, Ke), { singleton: !0 });
-function Uo(t) {
+}, rt(Gt, Ue), { singleton: !0 });
+function No(t) {
 	return t.reduce((e, n) => (e.groupIndices.push(e.totalCount), e.totalCount += n + 1, e), {
 		groupIndices: [],
 		totalCount: 0
 	});
 }
-var Xn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, scrollTop: r }]) => {
-	const s = U(), i = U(), l = Tt(x$1(s, B(Uo)));
+var qn = j(([{ groupIndices: t, sizes: e, totalCount: n }, { headerHeight: o, scrollTop: r }]) => {
+	const s = U(), i = U(), l = Tt(x$1(s, B(No)));
 	return z(x$1(l, B((c) => c.totalCount)), n), z(x$1(l, B((c) => c.groupIndices)), t), z(x$1(at(r, e, o), P(([c, d]) => be(d)), B(([c, d, m]) => Rt(d.groupOffsetTree, Math.max(c - m, 0), "v")[0]), nt(), B((c) => [c])), i), {
 		groupCounts: s,
 		topItemsIndexes: i
 	};
-}, rt(kt, It));
+}, rt(Lt, It));
 var At = j(([{ log: t }]) => {
 	const e = T(!1), n = Tt(x$1(e, P((o) => o), nt()));
 	return Y(e, (o) => {
@@ -68107,10 +68111,10 @@ var At = j(([{ log: t }]) => {
 		propsReady: e
 	};
 }, rt(Gt), { singleton: !0 });
-var Ko = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
-function Jn(t) {
+var Do = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
+function Yn(t) {
 	const e = typeof t == "number" ? { index: t } : { ...t };
-	return e.align || (e.align = "start"), (!e.behavior || !Ko) && (e.behavior = "auto"), e.offset === void 0 && (e.offset = 0), e;
+	return e.align || (e.align = "start"), (!e.behavior || !Do) && (e.behavior = "auto"), e.offset === void 0 && (e.offset = 0), e;
 }
 var fe = j(([{ gap: t, listRefresh: e, sizes: n, totalCount: o }, { fixedFooterHeight: r, fixedHeaderHeight: s, footerHeight: i, headerHeight: l, scrollingInProgress: c, scrollTo: d, smoothScrollTargetReached: m, viewportHeight: v }, { log: p }]) => {
 	const I = U(), w = U(), R = T(0);
@@ -68118,10 +68122,10 @@ var fe = j(([{ gap: t, listRefresh: e, sizes: n, totalCount: o }, { fixedFooterH
 	function S() {
 		h !== null && (h(), h = null), a !== null && (a(), a = null), f && (clearTimeout(f), f = null), M(c, !1);
 	}
-	return z(x$1(I, $(n, v, o, R, l, i, p), $(t, s, r), B(([[H, y, L, u, g, C, k, O], V, N, Z]) => {
-		const F = Jn(H), { align: mt, behavior: q, offset: Q } = F, gt = u - 1, lt = Zn(F, y, gt);
+	return z(x$1(I, $(n, v, o, R, l, i, p), $(t, s, r), B(([[H, y, k, u, g, C, L, O], V, N, Z]) => {
+		const F = Yn(H), { align: mt, behavior: q, offset: Q } = F, gt = u - 1, lt = jn(F, y, gt);
 		let St = ce(lt, y.offsetTree, V) + C;
-		mt === "end" ? (St += N + Rt(y.sizeTree, lt)[1] - L + Z, lt === gt && (St += k)) : mt === "center" ? St += (N + Rt(y.sizeTree, lt)[1] - L + Z) / 2 : St -= g, Q !== void 0 && Q !== 0 && (St += Q);
+		mt === "end" ? (St += N + Rt(y.sizeTree, lt)[1] - k + Z, lt === gt && (St += L)) : mt === "center" ? St += (N + Rt(y.sizeTree, lt)[1] - k + Z) / 2 : St -= g, Q !== void 0 && Q !== 0 && (St += Q);
 		const Ft = (pt) => {
 			S(), pt ? (O("retrying to scroll to", { location: H }, ft.DEBUG), M(I, H)) : (M(w, !0), O("list did not change, scroll successful", {}, ft.DEBUG));
 		};
@@ -68132,7 +68136,7 @@ var fe = j(([{ gap: t, listRefresh: e, sizes: n, totalCount: o }, { fixedFooterH
 			}), h = yt(m, () => {
 				Ft(pt);
 			});
-		} else h = yt(x$1(e, jo(150)), Ft);
+		} else h = yt(x$1(e, $o(150)), Ft);
 		return f = setTimeout(() => {
 			S();
 		}, 1200), M(c, !0), O("scrolling from index to", {
@@ -68148,8 +68152,8 @@ var fe = j(([{ gap: t, listRefresh: e, sizes: n, totalCount: o }, { fixedFooterH
 		scrollToIndex: I,
 		topListHeight: R
 	};
-}, rt(kt, It, Gt), { singleton: !0 });
-function jo(t) {
+}, rt(Lt, It, Gt), { singleton: !0 });
+function $o(t) {
 	return (e) => {
 		const n = setTimeout(() => {
 			e(!1);
@@ -68159,29 +68163,29 @@ function jo(t) {
 		};
 	};
 }
-function qe(t, e) {
+function je(t, e) {
 	t === 0 ? e() : requestAnimationFrame(() => {
-		qe(t - 1, e);
+		je(t - 1, e);
 	});
 }
-function Ye(t, e) {
+function qe(t, e) {
 	if (t === void 0) return 0;
 	const n = e - 1, o = typeof t == "number" ? t : t.index === "LAST" ? n : t.index;
 	return Math.max(0, Math.min(o, n));
 }
-function Me(t) {
+function Ae(t) {
 	return t === void 0 ? !0 : typeof t == "number" ? t === 0 : t.index === 0 && (t.align === void 0 || t.align === "start") && (t.offset === void 0 || t.offset === 0);
 }
 var me = j(([{ defaultItemSize: t, listRefresh: e, sizes: n }, { scrollTop: o }, { scrollTargetReached: r, scrollToIndex: s }, { didMount: i }]) => {
 	const l = T(!0), c = T(0), d = T(!0);
-	return z(x$1(i, $(c), P(([m, v]) => !Me(v)), Bt(!1)), l), z(x$1(i, $(c), P(([m, v]) => !Me(v)), Bt(!1)), d), Y(x$1(at(e, i), $(l, n, t, d), P(([[, m], v, { sizeTree: p }, I, w]) => m && (!J(p) || Ne(I)) && !v && !w), $(c)), ([, m]) => {
+	return z(x$1(i, $(c), P(([m, v]) => !Ae(v)), Bt(!1)), l), z(x$1(i, $(c), P(([m, v]) => !Ae(v)), Bt(!1)), d), Y(x$1(at(e, i), $(l, n, t, d), P(([[, m], v, { sizeTree: p }, I, w]) => m && (!J(p) || _e(I)) && !v && !w), $(c)), ([, m]) => {
 		if (m === void 0) {
 			M(l, !0), M(d, !0);
 			return;
 		}
 		yt(r, () => {
 			M(d, !0);
-		}), qe(4, () => {
+		}), je(4, () => {
 			yt(o, () => {
 				M(l, !0);
 			}), M(s, m);
@@ -68191,14 +68195,14 @@ var me = j(([{ defaultItemSize: t, listRefresh: e, sizes: n }, { scrollTop: o },
 		initialTopMostItemIndex: c,
 		scrolledToInitialItem: l
 	};
-}, rt(kt, It, fe, At), { singleton: !0 });
-function Qn(t, e) {
+}, rt(Lt, It, fe, At), { singleton: !0 });
+function Zn(t, e) {
 	return Math.abs(t - e) < 1.01;
 }
 var ue = "up";
 var ne = "down";
-var qo = "none";
-var Yo = {
+var Uo = "none";
+var Ko = {
 	atBottom: !1,
 	notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
 	state: {
@@ -68208,12 +68212,12 @@ var Yo = {
 		viewportHeight: 0
 	}
 };
-var Zo = 0;
+var jo = 0;
 var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r, viewportHeight: s }]) => {
-	const i = T(!1), l = T(!0), c = U(), d = U(), m = T(4), v = T(Zo), p = ht(x$1(Fe(x$1(W(r), Ut(1), Bt(!0)), x$1(W(r), Ut(1), Bt(!1), hn(100))), nt()), !1), I = ht(x$1(Fe(x$1(n, Bt(!0)), x$1(n, Bt(!1), hn(200))), nt()), !1);
+	const i = T(!1), l = T(!0), c = U(), d = U(), m = T(4), v = T(jo), p = ht(x$1(Fe(x$1(W(r), Ut(1), Bt(!0)), x$1(W(r), Ut(1), Bt(!1), pn(100))), nt()), !1), I = ht(x$1(Fe(x$1(n, Bt(!0)), x$1(n, Bt(!1), pn(200))), nt()), !1);
 	z(x$1(at(W(r), W(v)), B(([a, S]) => a <= S), nt()), l), z(x$1(l, zt(50)), d);
-	const w = Tt(x$1(at(o, W(s), W(e), W(t), W(m)), Ot((a, [{ scrollHeight: S, scrollTop: H }, y, L, u, g]) => {
-		const C = H + y - S > -g, k = {
+	const w = Tt(x$1(at(o, W(s), W(e), W(t), W(m)), Ot((a, [{ scrollHeight: S, scrollTop: H }, y, k, u, g]) => {
+		const C = H + y - S > -g, L = {
 			scrollHeight: S,
 			scrollTop: H,
 			viewportHeight: y
@@ -68224,19 +68228,19 @@ var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerSta
 				atBottom: !0,
 				atBottomBecause: V,
 				scrollTopDelta: N,
-				state: k
+				state: L
 			};
 		}
 		let O;
-		return k.scrollHeight > a.state.scrollHeight ? O = "SIZE_INCREASED" : y < a.state.viewportHeight ? O = "VIEWPORT_HEIGHT_DECREASING" : H < a.state.scrollTop ? O = "SCROLLING_UPWARDS" : O = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
+		return L.scrollHeight > a.state.scrollHeight ? O = "SIZE_INCREASED" : y < a.state.viewportHeight ? O = "VIEWPORT_HEIGHT_DECREASING" : H < a.state.scrollTop ? O = "SCROLLING_UPWARDS" : O = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
 			atBottom: !1,
 			notAtBottomBecause: O,
-			state: k
+			state: L
 		};
-	}, Yo), nt((a, S) => a !== void 0 && a.atBottom === S.atBottom))), R = ht(x$1(o, Ot((a, { scrollHeight: S, scrollTop: H, viewportHeight: y }) => {
-		if (!Qn(a.scrollHeight, S)) {
-			const L = S - (H + y) < 1;
-			return a.scrollTop !== H && L ? {
+	}, Ko), nt((a, S) => a !== void 0 && a.atBottom === S.atBottom))), R = ht(x$1(o, Ot((a, { scrollHeight: S, scrollTop: H, viewportHeight: y }) => {
+		if (!Zn(a.scrollHeight, S)) {
+			const k = S - (H + y) < 1;
+			return a.scrollTop !== H && k ? {
 				changed: !0,
 				jump: a.scrollTop - H,
 				scrollHeight: S,
@@ -68271,7 +68275,7 @@ var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerSta
 	}, {
 		direction: ne,
 		prevScrollTop: 0
-	}), B((a) => a.direction)), h), z(x$1(o, zt(50), Bt(qo)), h);
+	}), B((a) => a.direction)), h), z(x$1(o, zt(50), Bt(Uo)), h);
 	const f = T(0);
 	return z(x$1(p, P((a) => !a), Bt(0)), f), z(x$1(r, zt(100), $(p), P(([a, S]) => S), Ot(([a, S], [H]) => [S, H], [0, 0]), B(([a, S]) => S - a)), f), {
 		atBottomState: w,
@@ -68289,14 +68293,14 @@ var pe = j(([{ footerHeight: t, headerHeight: e, scrollBy: n, scrollContainerSta
 }, rt(It));
 var ae = "top";
 var de = "bottom";
-var Tn = "none";
-function Cn(t, e, n) {
+var xn = "none";
+function vn(t, e, n) {
 	return typeof t == "number" ? n === ue && e === ae || n === ne && e === de ? t : 0 : n === ue ? e === ae ? t.main : t.reverse : e === de ? t.main : t.reverse;
 }
-function wn(t, e) {
+function Tn(t, e) {
 	return typeof t == "number" ? t : t[e] ?? 0;
 }
-var Ze = j(([{ deviation: t, fixedHeaderHeight: e, headerHeight: n, scrollTop: o, viewportHeight: r }]) => {
+var Ye = j(([{ deviation: t, fixedHeaderHeight: e, headerHeight: n, scrollTop: o, viewportHeight: r }]) => {
 	const s = U(), i = T(0), l = T(0), c = T(0);
 	return {
 		increaseViewportBy: l,
@@ -68304,16 +68308,16 @@ var Ze = j(([{ deviation: t, fixedHeaderHeight: e, headerHeight: n, scrollTop: o
 		overscan: c,
 		topListHeight: i,
 		visibleRange: ht(x$1(at(W(o), W(r), W(n), W(s, le), W(c), W(i), W(e), W(t), W(l)), B(([m, v, p, [I, w], R, h, f, a, S]) => {
-			const H = m - a, y = h + f, L = Math.max(p - H, 0);
-			let u = Tn;
-			const g = wn(S, ae), C = wn(S, de);
-			return I -= a, I += p + f, w += p + f, w -= a, I > m + y - g && (u = ue), w < m - L + v + C && (u = ne), u !== Tn ? [Math.max(H - p - Cn(R, ae, u) - g, 0), H - L - f + v + Cn(R, de, u) + C] : null;
+			const H = m - a, y = h + f, k = Math.max(p - H, 0);
+			let u = xn;
+			const g = Tn(S, ae), C = Tn(S, de);
+			return I -= a, I += p + f, w += p + f, w -= a, I > m + y - g && (u = ue), w < m - k + v + C && (u = ne), u !== xn ? [Math.max(H - p - vn(R, ae, u) - g, 0), H - k - f + v + vn(R, de, u) + C] : null;
 		}), P((m) => m !== null), nt(le)), [0, 0])
 	};
 }, rt(It), { singleton: !0 });
-function Xo(t, e, n) {
+function qo(t, e, n) {
 	if (be(e)) {
-		const o = Yn(t, e);
+		const o = Kn(t, e);
 		return [{
 			index: Rt(e.groupOffsetTree, o)[0],
 			offset: 0,
@@ -68355,22 +68359,22 @@ function ve(t, e, n, o, r, s) {
 	return {
 		bottom: m,
 		firstItemIndex: s,
-		items: yn(t, r, s),
+		items: Cn(t, r, s),
 		offsetBottom: w,
 		offsetTop: d,
 		top: I,
-		topItems: yn(e, r, s),
+		topItems: Cn(e, r, s),
 		topListHeight: e.reduce((R, h) => h.size + R, 0),
 		totalCount: n
 	};
 }
-function to(t, e, n, o, r, s) {
+function Xn(t, e, n, o, r, s) {
 	let i = 0;
 	if (n.groupIndices.length > 0) for (const m of n.groupIndices) {
 		if (m - i >= t) break;
 		i++;
 	}
-	const l = t + i, c = Ye(e, l);
+	const l = t + i, c = qe(e, l);
 	return ve(Array.from({ length: l }).map((m, v) => ({
 		data: s[v + c],
 		index: v + c,
@@ -68378,7 +68382,7 @@ function to(t, e, n, o, r, s) {
 		size: 0
 	})), [], l, r, n, o);
 }
-function yn(t, e, n) {
+function Cn(t, e, n) {
 	if (t.length === 0) return [];
 	if (!be(e)) return t.map((d) => ({
 		...d,
@@ -68406,17 +68410,17 @@ function yn(t, e, n) {
 	}
 	return s;
 }
-function bn(t, e) {
+function wn(t, e) {
 	return t === void 0 ? 0 : typeof t == "number" ? t : t[e] ?? 0;
 }
 var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s, { listBoundary: i, topListHeight: l, visibleRange: c }, { initialTopMostItemIndex: d, scrolledToInitialItem: m }, { topListHeight: v }, p, { didMount: I }, { recalcInProgress: w }]) => {
 	const R = T([]), h = T(0), f = U(), a = T(0);
 	z(s.topItemsIndexes, R);
-	const S = ht(x$1(at(I, w, W(c, le), W(r), W(o), W(d), m, W(R), W(e), W(n), W(a), t), P(([u, g, , C, , , , , , , , k]) => {
-		const O = k !== void 0 && k.length !== C;
+	const S = ht(x$1(at(I, w, W(c, le), W(r), W(o), W(d), m, W(R), W(e), W(n), W(a), t), P(([u, g, , C, , , , , , , , L]) => {
+		const O = L !== void 0 && L.length !== C;
 		return u && !g && !O;
-	}), B(([, , [u, g], C, k, O, V, N, Z, F, mt, q]) => {
-		const Q = k, { offsetTree: gt, sizeTree: lt } = Q, St = it(h);
+	}), B(([, , [u, g], C, L, O, V, N, Z, F, mt, q]) => {
+		const Q = L, { offsetTree: gt, sizeTree: lt } = Q, St = it(h);
 		if (C === 0) return {
 			...Oe,
 			totalCount: C
@@ -68424,8 +68428,8 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 		if (u === 0 && g === 0) return St === 0 ? {
 			...Oe,
 			totalCount: C
-		} : to(St, O, k, Z, F, q || []);
-		if (J(lt)) return St > 0 ? null : ve(Xo(Ye(O, C), Q, q), [], C, F, Q, Z);
+		} : Xn(St, O, L, Z, F, q || []);
+		if (J(lt)) return St > 0 ? null : ve(qo(qe(O, C), Q, q), [], C, F, Q, Z);
 		const Ft = [];
 		if (N.length > 0) {
 			const D = N[0], K = N[N.length - 1];
@@ -68441,7 +68445,7 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 			}
 		}
 		if (!V) return ve([], Ft, C, F, Q, Z);
-		const pt = N.length > 0 ? N[N.length - 1] + 1 : 0, jt = Ao(gt, u, g, pt);
+		const pt = N.length > 0 ? N[N.length - 1] + 1 : 0, jt = Wo(gt, u, g, pt);
 		if (jt.length === 0) return null;
 		const Qt = C - 1, Et = ye([], (D) => {
 			for (const K of jt) {
@@ -68462,7 +68466,7 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 					size: ct
 				}), tt += ct + F;
 			}
-		}), te = bn(mt, ae), b = bn(mt, de);
+		}), te = wn(mt, ae), b = wn(mt, de);
 		if (Et.length > 0 && (te > 0 || b > 0)) {
 			const D = Et[0], K = Et[Et.length - 1];
 			if (te > 0 && D.index > pt) {
@@ -68495,7 +68499,7 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 		}
 		return ve(Et, Ft, C, F, Q, Z);
 	}), P((u) => u !== null), nt()), Oe);
-	z(x$1(t, P(Ne), B((u) => u?.length)), r), z(x$1(S, B((u) => u.topListHeight)), v), z(v, l), z(x$1(S, B((u) => [u.top, u.bottom])), i), z(x$1(S, B((u) => u.items)), f);
+	z(x$1(t, P(_e), B((u) => u?.length)), r), z(x$1(S, B((u) => u.topListHeight)), v), z(v, l), z(x$1(S, B((u) => [u.top, u.bottom])), i), z(x$1(S, B((u) => u.items)), f);
 	const H = Tt(x$1(S, P(({ items: u }) => u.length > 0), $(r, t), P(([{ items: u }, g]) => u[u.length - 1].originalIndex === g - 1), B(([, u, g]) => [u - 1, g]), nt(le), B(([u]) => u))), y = Tt(x$1(S, zt(200), P(({ items: u, topItems: g }) => u.length > 0 && u[0].originalIndex === g.length), B(({ items: u }) => u[0].index), nt()));
 	return {
 		endReached: H,
@@ -68511,28 +68515,28 @@ var Kt = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o, totalCount: r }, s,
 				endIndex: u[C].index,
 				startIndex: u[g].index
 			};
-		}), nt(jn))),
+		}), nt($n))),
 		startReached: y,
 		topItemsIndexes: R,
 		...p
 	};
-}, rt(kt, Xn, Ze, me, fe, pe, At, Ke), { singleton: !0 });
-var eo = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
+}, rt(Lt, qn, Ye, me, fe, pe, At, Ue), { singleton: !0 });
+var Jn = j(([{ fixedFooterHeight: t, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r }]) => {
 	const s = U(), i = ht(x$1(at(n, t, o, e, r), B(([l, c, d, m, v]) => l + c + d + m + v.offsetBottom + v.bottom)), 0);
 	return z(W(i), s), {
 		totalListHeight: i,
 		totalListHeightChanged: s
 	};
 }, rt(It, Kt), { singleton: !0 });
-var Jo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
+var Yo = j(([{ viewportHeight: t }, { totalListHeight: e }]) => {
 	const n = T(!1);
 	return {
 		alignToBottom: n,
 		paddingTopAddition: ht(x$1(at(n, t, e), P(([r]) => r), B(([, r, s]) => Math.max(0, r - s)), zt(0), nt()), 0)
 	};
-}, rt(It, eo), { singleton: !0 });
-var no = j(() => ({ context: T(null) }));
-var Qo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
+}, rt(It, Jn), { singleton: !0 });
+var Qn = j(() => ({ context: T(null) }));
+var Zo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, ...r }, viewportBottom: s, viewportTop: i }) => e < i ? {
 	...r,
 	align: n ?? "start",
 	...o === void 0 ? {} : { behavior: o }
@@ -68541,24 +68545,24 @@ var Qo = ({ itemBottom: t, itemTop: e, locationParams: { align: n, behavior: o, 
 	align: n ?? "end",
 	...o === void 0 ? {} : { behavior: o }
 } : null;
-var oo = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
+var to = j(([{ gap: t, sizes: e, totalCount: n }, { fixedFooterHeight: o, fixedHeaderHeight: r, headerHeight: s, scrollingInProgress: i, scrollTop: l, viewportHeight: c }, { scrollToIndex: d }]) => {
 	const m = U();
 	return z(x$1(m, $(e, c, n, s, r, o, l), $(t), B(([[v, p, I, w, R, h, f, a], S]) => {
-		const { calculateViewLocation: H = Qo, done: y, ...L } = v, u = Zn(v, p, w - 1), g = ce(u, p.offsetTree, S) + R + h, C = g + Rt(p.sizeTree, u)[1], k = a + h, V = H({
+		const { calculateViewLocation: H = Zo, done: y, ...k } = v, u = jn(v, p, w - 1), g = ce(u, p.offsetTree, S) + R + h, C = g + Rt(p.sizeTree, u)[1], L = a + h, V = H({
 			itemBottom: C,
 			itemTop: g,
-			locationParams: L,
+			locationParams: k,
 			viewportBottom: a + I - f,
-			viewportTop: k
+			viewportTop: L
 		});
 		return V === null ? y?.() : y && yt(x$1(i, P((N) => !N), Ut(it(i) ? 1 : 2)), y), V;
 	}), P((v) => v !== null)), d), { scrollIntoView: m };
-}, rt(kt, It, fe, Kt, Gt), { singleton: !0 });
-function Rn(t) {
+}, rt(Lt, It, fe, Kt, Gt), { singleton: !0 });
+function yn(t) {
 	return t === !1 ? !1 : t === "smooth" ? "smooth" : "auto";
 }
-var tr = (t, e) => typeof t == "function" ? Rn(t(e)) : e && Rn(t);
-var er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
+var Xo = (t, e) => typeof t == "function" ? yn(t(e)) : e && yn(t);
+var Jo = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atBottomState: r, isAtBottom: s }, { scrollToIndex: i }, { scrolledToInitialItem: l }, { didMount: c, propsReady: d }, { log: m }, { scrollingInProgress: v }, { context: p }, { scrollIntoView: I }]) => {
 	const w = T(!1), R = U();
 	let h = null;
 	function f(y) {
@@ -68568,29 +68572,29 @@ var er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atB
 			index: "LAST"
 		});
 	}
-	Y(x$1(at(x$1(W(e), Ut(1)), c), $(W(w), s, l, v), B(([[y, L], u, g, C, k]) => {
-		let O = L && C, V = "auto";
-		return O && (V = tr(u, g || k), O = O && V !== !1), {
+	Y(x$1(at(x$1(W(e), Ut(1)), c), $(W(w), s, l, v), B(([[y, k], u, g, C, L]) => {
+		let O = k && C, V = "auto";
+		return O && (V = Xo(u, g || L), O = O && V !== !1), {
 			followOutputBehavior: V,
 			shouldFollow: O,
 			totalCount: y
 		};
-	}), P(({ shouldFollow: y }) => y)), ({ followOutputBehavior: y, totalCount: L }) => {
+	}), P(({ shouldFollow: y }) => y)), ({ followOutputBehavior: y, totalCount: k }) => {
 		h !== null && (h(), h = null), it(n) === void 0 ? h = yt(t, () => {
-			it(m)("following output to ", { totalCount: L }, ft.DEBUG), f(y), h = null;
+			it(m)("following output to ", { totalCount: k }, ft.DEBUG), f(y), h = null;
 		}) : requestAnimationFrame(() => {
-			it(m)("following output to ", { totalCount: L }, ft.DEBUG), f(y);
+			it(m)("following output to ", { totalCount: k }, ft.DEBUG), f(y);
 		});
 	});
 	function a(y) {
-		const L = yt(r, (u) => {
+		const k = yt(r, (u) => {
 			y && !u.atBottom && u.notAtBottomBecause === "SIZE_INCREASED" && h === null && (it(m)("scrolling to bottom due to increased size", {}, ft.DEBUG), f("auto"));
 		});
-		setTimeout(L, 100);
+		setTimeout(k, 100);
 	}
-	Y(x$1(at(W(w), e, d), P(([y, , L]) => y !== !1 && L), Ot(({ value: y }, [, L]) => ({
-		refreshed: y === L,
-		value: L
+	Y(x$1(at(W(w), e, d), P(([y, , k]) => y !== !1 && k), Ot(({ value: y }, [, k]) => ({
+		refreshed: y === k,
+		value: k
 	}), {
 		refreshed: !1,
 		value: 0
@@ -68598,12 +68602,12 @@ var er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atB
 		it(l) && a(y !== !1);
 	}), Y(R, () => {
 		a(it(w) !== !1);
-	}), Y(at(W(w), r), ([y, L]) => {
-		y !== !1 && !L.atBottom && L.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && f("auto");
+	}), Y(at(W(w), r), ([y, k]) => {
+		y !== !1 && !k.atBottom && k.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && f("auto");
 	});
 	const S = T(null), H = U();
-	return z(Fe(x$1(W(o), B((y) => y?.length ?? 0)), x$1(W(e))), H), Y(x$1(at(x$1(H, Ut(1)), c), $(W(S), l, v, p), B(([[y, L], u, g, C, k]) => L && g && u?.({
-		context: k,
+	return z(Fe(x$1(W(o), B((y) => y?.length ?? 0)), x$1(W(e))), H), Y(x$1(at(x$1(H, Ut(1)), c), $(W(S), l, v, p), B(([[y, k], u, g, C, L]) => k && g && u?.({
+		context: L,
 		totalCount: y,
 		scrollingInProgress: C
 	})), P((y) => !!y), zt(0)), (y) => {
@@ -68617,9 +68621,9 @@ var er = j(([{ listRefresh: t, totalCount: e, fixedItemSize: n, data: o }, { atB
 		followOutput: w,
 		scrollIntoViewOnChange: S
 	};
-}, rt(kt, pe, fe, me, At, Gt, It, no, oo));
-var nr = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x$1(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => to(c, d, m, v, p, I))), i), {}), rt(kt, me, Kt, At), { singleton: !0 });
-var or = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
+}, rt(Lt, pe, fe, me, At, Gt, It, Qn, to));
+var Qo = j(([{ data: t, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r }, { initialItemCount: s, listState: i }, { didMount: l }]) => (z(x$1(l, $(s), P(([, c]) => c !== 0), $(r, o, e, n, t), B(([[, c], d, m, v, p, I = []]) => Xn(c, d, m, v, p, I))), i), {}), rt(Lt, me, Kt, At), { singleton: !0 });
+var tr = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
 	const o = T(0);
 	return Y(x$1(t, $(o), P(([, r]) => r !== 0), B(([, r]) => ({ top: r }))), (r) => {
 		yt(x$1(n, Ut(1), P((s) => s.items.length > 1)), () => {
@@ -68629,7 +68633,7 @@ var or = j(([{ didMount: t }, { scrollTo: e }, { listState: n }]) => {
 		});
 	}), { initialScrollTop: o };
 }, rt(At, It, Kt), { singleton: !0 });
-var ro = j(([{ scrollVelocity: t }]) => {
+var eo = j(([{ scrollVelocity: t }]) => {
 	const e = T(!1), n = U(), o = T(!1);
 	return z(x$1(t, $(o, e, n), P(([r, s]) => s !== !1 && s !== void 0), B(([r, s, i, l]) => {
 		const { enter: c, exit: d } = s;
@@ -68646,7 +68650,7 @@ var ro = j(([{ scrollVelocity: t }]) => {
 		scrollVelocity: t
 	};
 }, rt(pe), { singleton: !0 });
-var Xe = j(([{ scrollContainerState: t, scrollTo: e }]) => {
+var Ze = j(([{ scrollContainerState: t, scrollTo: e }]) => {
 	const n = U(), o = U(), r = U(), s = T(!1), i = T(void 0);
 	return z(x$1(at(n, o), B(([{ scrollTop: l, viewportHeight: c }, { offsetTop: d, listHeight: m }]) => ({
 		scrollHeight: m,
@@ -68663,37 +68667,37 @@ var Xe = j(([{ scrollContainerState: t, scrollTo: e }]) => {
 		windowViewportRect: o
 	};
 }, rt(It));
-var rr = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
+var er = j(([{ sizeRanges: t, sizes: e }, { headerHeight: n, scrollTop: o }, { initialTopMostItemIndex: r }, { didMount: s }, { useWindowScroll: i, windowScrollContainerState: l, windowViewportRect: c }]) => {
 	const d = U(), m = T(void 0), v = T(null), p = T(null);
 	return z(l, v), z(c, p), Y(x$1(d, $(e, o, i, v, p, n)), ([I, w, R, h, f, a, S]) => {
-		const H = _o(w.sizeTree);
+		const H = Go(w.sizeTree);
 		h && f !== null && a !== null && (R = f.scrollTop - a.offsetTop), R -= S, I({
 			ranges: H,
 			scrollTop: R
 		});
-	}), z(x$1(m, P(Ne), B(sr)), r), z(x$1(s, $(m), P(([, I]) => I !== void 0), nt(), B(([, I]) => I.ranges)), t), {
+	}), z(x$1(m, P(_e), B(nr)), r), z(x$1(s, $(m), P(([, I]) => I !== void 0), nt(), B(([, I]) => I.ranges)), t), {
 		getState: d,
 		restoreStateFrom: m
 	};
-}, rt(kt, It, me, At, Xe));
-function sr(t) {
+}, rt(Lt, It, me, At, Ze));
+function nr(t) {
 	return {
 		align: "start",
 		index: 0,
 		offset: t.scrollTop
 	};
 }
-var ir = j(([{ topItemsIndexes: t }]) => {
+var or = j(([{ topItemsIndexes: t }]) => {
 	const e = T(0);
 	return z(x$1(e, P((n) => n >= 0), B((n) => Array.from({ length: n }).map((o, r) => r))), t), { topItemCount: e };
 }, rt(Kt));
-function so(t) {
+function no(t) {
 	let e = !1, n;
 	return (() => (e || (e = !0, n = t()), n));
 }
-var lr = so(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent));
-var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, L, { topItemCount: u }, { groupCounts: g }, C]) => {
-	const { listState: k, minOverscanItemCount: O, topItemsIndexes: V, rangeChanged: N, ...Z } = H;
+var rr = no(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent));
+var oo = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o, fixedGroupSize: r, gap: s, groupIndices: i, heightEstimates: l, itemSize: c, sizeRanges: d, sizes: m, statefulTotalCount: v, totalCount: p, trackItemSizes: I }, { initialItemFinalLocationReached: w, initialTopMostItemIndex: R, scrolledToInitialItem: h }, f, a, S, H, { scrollToIndex: y }, k, { topItemCount: u }, { groupCounts: g }, C]) => {
+	const { listState: L, minOverscanItemCount: O, topItemsIndexes: V, rangeChanged: N, ...Z } = H;
 	return z(N, C.scrollSeekRangeChanged), z(x$1(C.windowViewportRect, B((F) => F.visibleHeight)), f.viewportHeight), {
 		data: t,
 		defaultItemHeight: e,
@@ -68713,7 +68717,7 @@ var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o,
 		...S,
 		groupIndices: i,
 		itemSize: c,
-		listState: k,
+		listState: L,
 		minOverscanItemCount: O,
 		scrollToIndex: y,
 		statefulTotalCount: v,
@@ -68725,12 +68729,12 @@ var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o,
 		sizes: m,
 		...a
 	};
-}, rt(kt, me, It, rr, er, Kt, fe, j(([{ deviation: t, scrollBy: e, scrollingInProgress: n, scrollTop: o }, { isAtBottom: r, isScrolling: s, lastJumpDueToItemResize: i, scrollDirection: l }, { listState: c }, { beforeUnshiftWith: d, gap: m, shiftWithOffset: v, sizes: p }, { log: I }, { recalcInProgress: w }]) => {
-	const R = Tt(x$1(c, $(i), Ot(([, f, a, S], [{ bottom: H, items: y, offsetBottom: L, totalCount: u }, g]) => {
-		const C = H + L;
-		let k = 0;
-		return a === u && f.length > 0 && y.length > 0 && (y[0].originalIndex === 0 && f[0].originalIndex === 0 || (k = C - S, k !== 0 && (k += g))), [
-			k,
+}, rt(Lt, me, It, er, Jo, Kt, fe, j(([{ deviation: t, scrollBy: e, scrollingInProgress: n, scrollTop: o }, { isAtBottom: r, isScrolling: s, lastJumpDueToItemResize: i, scrollDirection: l }, { listState: c }, { beforeUnshiftWith: d, gap: m, shiftWithOffset: v, sizes: p }, { log: I }, { recalcInProgress: w }]) => {
+	const R = Tt(x$1(c, $(i), Ot(([, f, a, S], [{ bottom: H, items: y, offsetBottom: k, totalCount: u }, g]) => {
+		const C = H + k;
+		let L = 0;
+		return a === u && f.length > 0 && y.length > 0 && (y[0].originalIndex === 0 && f[0].originalIndex === 0 || (L = C - S, L !== 0 && (L += g))), [
+			L,
 			y,
 			u,
 			C
@@ -68751,19 +68755,19 @@ var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o,
 		}));
 	}
 	return Y(x$1(R, $(t, s)), ([f, a, S]) => {
-		S && lr() ? M(t, a - f) : h(-f);
+		S && rr() ? M(t, a - f) : h(-f);
 	}), Y(x$1(at(ht(s, !1), t, w), P(([f, a, S]) => !f && !S && a !== 0), B(([f, a]) => a), zt(1)), h), z(x$1(v, B((f) => ({ top: -f }))), e), Y(x$1(d, $(p, m), B(([f, { groupIndices: a, lastSize: S, sizeTree: H }, y]) => {
-		function L(O) {
+		function k(O) {
 			return O * (S + y);
 		}
-		if (a.length === 0) return L(f);
+		if (a.length === 0) return k(f);
 		let u = 0;
 		const g = ie$2(H, 0);
-		let C = 0, k = 0;
+		let C = 0, L = 0;
 		for (; C < f;) {
 			C++, u += g;
-			let O = a.length === k + 1 ? Infinity : a[k + 1] - a[k] - 1;
-			C + O > f && (u -= g, O = f - C + 1), C += O, u += L(O), k++;
+			let O = a.length === L + 1 ? Infinity : a[L + 1] - a[L] - 1;
+			C + O > f && (u -= g, O = f - C + 1), C += O, u += k(O), L++;
 		}
 		return u;
 	})), (f) => {
@@ -68773,7 +68777,7 @@ var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o,
 			});
 		});
 	}), { deviation: t };
-}, rt(It, pe, Kt, kt, Gt, Ke)), ir, Xn, j(([t, e, n, o, r, s, i, l, c, d, m]) => ({
+}, rt(It, pe, Kt, Lt, Gt, Ue)), or, qn, j(([t, e, n, o, r, s, i, l, c, d, m]) => ({
 	...t,
 	...e,
 	...n,
@@ -68785,8 +68789,8 @@ var io = j(([{ data: t, defaultItemSize: e, firstItemIndex: n, fixedItemSize: o,
 	...c,
 	...d,
 	...m
-}), rt(Ze, nr, At, ro, eo, or, Jo, Xe, oo, Gt, no))));
-function ar(t, e) {
+}), rt(Ye, Qo, At, eo, Jn, tr, Yo, Ze, to, Gt, Qn))));
+function lr(t, e) {
 	const n = {}, o = {};
 	let r = 0;
 	const s = t.length;
@@ -68795,7 +68799,7 @@ function ar(t, e) {
 	return n;
 }
 var Ie = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
-function Je(t, e, n) {
+function Xe(t, e, n) {
 	const o = Object.keys(e.required || {}), r = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i = Object.keys(e.events || {}), l = import_react.createContext({});
 	function c(f, a) {
 		f.propsReady !== void 0 && M(f.propsReady, !1);
@@ -68816,29 +68820,29 @@ function Je(t, e, n) {
 		}, a), {});
 	}
 	function m(f) {
-		return i.reduce((a, S) => (a[S] = bo(f[e.events[S]]), a), {});
+		return i.reduce((a, S) => (a[S] = Co(f[e.events[S]]), a), {});
 	}
 	const v = import_react.forwardRef(function(a, S) {
-		const { children: H, ...y } = a, [L] = import_react.useState(() => ye(Eo(t), (C) => {
+		const { children: H, ...y } = a, [k] = import_react.useState(() => ye(bo(t), (C) => {
 			c(C, y);
-		})), [u] = import_react.useState(pn(m, L));
+		})), [u] = import_react.useState(mn(m, k));
 		Ie(() => {
 			for (const C of i) C in y && Y(u[C], y[C]);
 			return () => {
-				Object.values(u).map(De);
+				Object.values(u).map(Ne);
 			};
 		}, [
 			y,
 			u,
-			L
+			k
 		]), Ie(() => {
-			c(L, y);
-		}), import_react.useImperativeHandle(S, mn(d(L)));
+			c(k, y);
+		}), import_react.useImperativeHandle(S, fn(d(k)));
 		const g = n;
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(l.Provider, {
-			value: L,
+			value: k,
 			children: n === void 0 ? H : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(g, {
-				...ar([
+				...lr([
 					...o,
 					...r,
 					...i
@@ -68855,9 +68859,9 @@ function Je(t, e, n) {
 		const S = import_react.useContext(l)[f], H = import_react.useCallback((y) => Y(S, y), [S]);
 		return import_react.useSyncExternalStore(H, () => it(S), () => it(S));
 	}, w = (f) => {
-		const S = import_react.useContext(l)[f], [H, y] = import_react.useState(pn(it, S));
-		return Ie(() => Y(S, (L) => {
-			L !== H && y(mn(L));
+		const S = import_react.useContext(l)[f], [H, y] = import_react.useState(mn(it, S));
+		return Ie(() => Y(S, (k) => {
+			k !== H && y(fn(k));
 		}), [S, H]), H;
 	};
 	return {
@@ -68871,27 +68875,27 @@ function Je(t, e, n) {
 	};
 }
 var Re = import_react.createContext(void 0);
-var lo = import_react.createContext(void 0);
-var Le = "-webkit-sticky";
-var Hn = "sticky";
-var Qe = so(() => {
-	if (typeof document > "u") return Hn;
+var ro = import_react.createContext(void 0);
+var ke = "-webkit-sticky";
+var bn = "sticky";
+var Je = no(() => {
+	if (typeof document > "u") return bn;
 	const t = document.createElement("div");
-	return t.style.position = Le, t.style.position === Le ? Le : Hn;
+	return t.style.position = ke, t.style.position === ke ? ke : bn;
 });
-var co = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
-function ke(t) {
+var so = typeof document > "u" ? import_react.useEffect : import_react.useLayoutEffect;
+function Le(t) {
 	return "self" in t;
 }
-function dr(t) {
+function cr(t) {
 	return "body" in t;
 }
-function uo(t, e, n, o = Jt, r, s) {
+function io(t, e, n, o = Jt, r, s) {
 	const i = import_react.useRef(null), l = import_react.useRef(null), c = import_react.useRef(null), d = import_react.useCallback((p) => {
 		let I, w, R;
 		const h = p.target;
-		if (dr(h) || ke(h)) {
-			const a = ke(h) ? h : h.defaultView;
+		if (cr(h) || Le(h)) {
+			const a = Le(h) ? h : h.defaultView;
 			R = s === !0 ? _t(a, a.scrollX) : a.scrollY, I = s === !0 ? a.document.documentElement.scrollWidth : a.document.documentElement.scrollHeight, w = s === !0 ? a.innerWidth : a.innerHeight;
 		} else R = s === !0 ? _t(h, h.scrollLeft) : h.scrollTop, I = s === !0 ? h.scrollWidth : h.scrollHeight, w = s === !0 ? h.offsetWidth : h.offsetHeight;
 		const f = () => {
@@ -68909,11 +68913,11 @@ function uo(t, e, n, o = Jt, r, s) {
 	]);
 	import_react.useEffect(() => {
 		const p = r ?? i.current;
-		return gn(p), o(r ?? i.current), d({
+		return o(r ?? i.current), d({
 			suppressFlushSync: !0,
 			target: p
 		}), p.addEventListener("scroll", d, { passive: !0 }), () => {
-			gn(p), o(null), p.removeEventListener("scroll", d);
+			o(null), p.removeEventListener("scroll", d);
 		};
 	}, [
 		i,
@@ -68927,14 +68931,14 @@ function uo(t, e, n, o = Jt, r, s) {
 		if (!I || (s === !0 ? "offsetWidth" in I && I.offsetWidth === 0 : "offsetHeight" in I && I.offsetHeight === 0)) return;
 		const w = p.behavior === "smooth";
 		let R, h, f;
-		ke(I) ? (h = Math.max(Ht(I.document.documentElement, s === !0 ? "width" : "height"), s === !0 ? I.document.documentElement.scrollWidth : I.document.documentElement.scrollHeight), R = s === !0 ? I.innerWidth : I.innerHeight, f = s === !0 ? _t(I, I.scrollX) : I.scrollY) : (h = I[s === !0 ? "scrollWidth" : "scrollHeight"], R = Ht(I, s === !0 ? "width" : "height"), f = s === !0 ? _t(I, I.scrollLeft) : I.scrollTop);
+		Le(I) ? (h = Math.max(Ht(I.document.documentElement, s === !0 ? "width" : "height"), s === !0 ? I.document.documentElement.scrollWidth : I.document.documentElement.scrollHeight), R = s === !0 ? I.innerWidth : I.innerHeight, f = s === !0 ? _t(I, I.scrollX) : I.scrollY) : (h = I[s === !0 ? "scrollWidth" : "scrollHeight"], R = Ht(I, s === !0 ? "width" : "height"), f = s === !0 ? _t(I, I.scrollLeft) : I.scrollTop);
 		const a = h - R;
 		if (p.top === void 0) {
 			I.scrollTo(p);
 			return;
 		}
 		const S = Math.ceil(Math.max(Math.min(a, p.top), 0));
-		if (p.top = S, Qn(R, h) || S === f) {
+		if (p.top = S, Zn(R, h) || S === f) {
 			t({
 				scrollHeight: h,
 				scrollTop: f,
@@ -68946,13 +68950,13 @@ function uo(t, e, n, o = Jt, r, s) {
 			c.current = null, l.current = null, e(!0);
 		}, 1e3)) : l.current = null, s === !0 && (p = {
 			...p.behavior === void 0 ? {} : { behavior: p.behavior },
-			left: In(I, S)
+			left: hn(I, S)
 		}), I.scrollTo(p);
 	}
 	function v(p) {
 		s === !0 && (p = {
 			...p.behavior === void 0 ? {} : { behavior: p.behavior },
-			...p.top === void 0 ? {} : { left: In(i.current, p.top) }
+			...p.top === void 0 ? {} : { left: hn(i.current, p.top) }
 		}), i.current.scrollBy(p);
 	}
 	return {
@@ -68961,14 +68965,14 @@ function uo(t, e, n, o = Jt, r, s) {
 		scrollToCallback: m
 	};
 }
-function tn(t) {
+function Qe(t) {
 	return t;
 }
-var mr = /* @__PURE__ */ j(([t, e]) => ({
+var ar = /* @__PURE__ */ j(([t, e]) => ({
 	...t,
 	...e
-}), rt(io, /* @__PURE__ */ j(() => {
-	const t = T((l) => `Item ${l}`), e = T((l) => `Group ${l}`), n = T({}), o = T(tn), r = T("div"), s = T(Jt), i = (l, c = null) => ht(x$1(n, B((d) => d[l]), nt()), c);
+}), rt(oo, /* @__PURE__ */ j(() => {
+	const t = T((l) => `Item ${l}`), e = T((l) => `Group ${l}`), n = T({}), o = T(Qe), r = T("div"), s = T(Jt), i = (l, c = null) => ht(x$1(n, B((d) => d[l]), nt()), c);
 	return {
 		components: n,
 		computeItemKey: o,
@@ -68987,24 +68991,24 @@ var mr = /* @__PURE__ */ j(([t, e]) => ({
 		TopItemListComponent: i("TopItemList")
 	};
 })));
-var pr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } });
-var hr = {
+var dr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { height: t } });
+var fr = {
 	overflowAnchor: "none",
-	position: Qe(),
+	position: Je(),
 	zIndex: 1
 };
-var ao = { overflowAnchor: "none" };
-var gr = {
-	...ao,
+var lo = { overflowAnchor: "none" };
+var mr = {
+	...lo,
 	display: "inline-block",
 	height: "100%"
 };
-var En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
-	const n = A("listState"), o = Ct("sizeRanges"), r = A("useWindowScroll"), s = A("customScrollParent"), i = Ct("windowScrollContainerState"), l = Ct("scrollContainerState"), c = s || r ? i : l, d = A("itemContent"), m = A("context"), v = A("groupContent"), p = A("trackItemSizes"), I = A("itemSize"), w = A("log"), R = Ct("gap"), h = A("horizontalDirection"), { callbackRef: f } = _n(o, I, p, e ? Jt : c, w, R, s, h, A("skipAnimationFrameInResizeObserver")), [a, S] = import_react.useState(0);
-	rn("deviation", (F) => {
+var Rn = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
+	const n = A("listState"), o = Ct("sizeRanges"), r = A("useWindowScroll"), s = A("customScrollParent"), i = Ct("windowScrollContainerState"), l = Ct("scrollContainerState"), c = s || r ? i : l, d = A("itemContent"), m = A("context"), v = A("groupContent"), p = A("trackItemSizes"), I = A("itemSize"), w = A("log"), R = Ct("gap"), h = A("horizontalDirection"), { callbackRef: f } = Gn(o, I, p, e ? Jt : c, w, R, s, h, A("skipAnimationFrameInResizeObserver")), [a, S] = import_react.useState(0);
+	on("deviation", (F) => {
 		a !== F && S(F);
 	});
-	const H = A("EmptyPlaceholder"), y = A("ScrollSeekPlaceholder") ?? pr, L = A("ListComponent"), u = A("ItemComponent"), g = A("GroupComponent"), C = A("computeItemKey"), k = A("isSeeking"), O = A("groupIndices").length > 0, V = A("alignToBottom"), N = A("initialItemFinalLocationReached"), Z = e ? {} : {
+	const H = A("EmptyPlaceholder"), y = A("ScrollSeekPlaceholder") ?? dr, k = A("ListComponent"), u = A("ItemComponent"), g = A("GroupComponent"), C = A("computeItemKey"), L = A("isSeeking"), O = A("groupIndices").length > 0, V = A("alignToBottom"), N = A("initialItemFinalLocationReached"), Z = e ? {} : {
 		boxSizing: "border-box",
 		...h ? {
 			display: "inline-block",
@@ -69020,14 +69024,14 @@ var En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
 		},
 		...N ? {} : { visibility: "hidden" }
 	};
-	return !e && n.totalCount === 0 && H !== null && H !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(H, { ...ot(H, m) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(L, {
-		...ot(L, m),
+	return !e && n.totalCount === 0 && H !== null && H !== void 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(H, { ...ot(H, m) }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(k, {
+		...ot(k, m),
 		"data-testid": e ? "virtuoso-top-item-list" : "virtuoso-item-list",
 		ref: f,
 		style: Z,
 		children: (e ? n.topItems : n.items).map((F) => {
 			const mt = F.originalIndex, q = C(mt + n.firstItemIndex, F.data, m);
-			return k ? /* @__PURE__ */ (0, import_react.createElement)(y, {
+			return L ? /* @__PURE__ */ (0, import_react.createElement)(y, {
 				...ot(y, m),
 				height: F.size,
 				index: F.index,
@@ -69040,28 +69044,28 @@ var En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
 				"data-item-index": F.index,
 				"data-known-size": F.size,
 				key: q,
-				style: hr
+				style: fr
 			}, v(F.index, m)) : /* @__PURE__ */ (0, import_react.createElement)(u, {
 				...ot(u, m),
-				...fo(u, F.data),
+				...co(u, F.data),
 				"data-index": mt,
 				"data-item-group-index": F.groupIndex,
 				"data-item-index": F.index,
 				"data-known-size": F.size,
 				key: q,
-				style: h ? gr : ao
+				style: h ? mr : lo
 			}, O ? d(F.index, F.groupIndex, F.data, m) : d(F.index, F.data, m));
 		})
 	});
 });
-var Ir = {
+var pr = {
 	height: "100%",
 	outline: "none",
 	overflowY: "auto",
 	position: "relative",
 	WebkitOverflowScrolling: "touch"
 };
-var Sr = {
+var hr = {
 	outline: "none",
 	overflowX: "auto",
 	position: "relative"
@@ -69076,13 +69080,13 @@ var He = (t) => ({
 		flexDirection: "column"
 	} : void 0
 });
-var en = (t, e, n = 0) => ({
+var tn = (t, e, n = 0) => ({
 	...He(t),
 	position: e ? "relative" : "absolute",
 	top: e ? -n : 0
 });
-var xr = {
-	position: Qe(),
+var gr = {
+	position: Je(),
 	top: 0,
 	width: "100%",
 	zIndex: 1
@@ -69090,11 +69094,11 @@ var xr = {
 function ot(t, e) {
 	if (typeof t != "string") return { context: e };
 }
-function fo(t, e) {
+function co(t, e) {
 	return { item: typeof t == "string" ? void 0 : e };
 }
-var vr = /* @__PURE__ */ import_react.memo(function() {
-	const e = A("HeaderComponent"), n = Ct("headerHeight"), o = A("HeaderFooterTag"), r = Lt(import_react.useMemo(() => (i) => {
+var Ir = /* @__PURE__ */ import_react.memo(function() {
+	const e = A("HeaderComponent"), n = Ct("headerHeight"), o = A("HeaderFooterTag"), r = kt(import_react.useMemo(() => (i) => {
 		n(Ht(i, "height"));
 	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
 	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
@@ -69102,8 +69106,8 @@ var vr = /* @__PURE__ */ import_react.memo(function() {
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
 	}) : null;
 });
-var Tr = /* @__PURE__ */ import_react.memo(function() {
-	const e = A("FooterComponent"), n = Ct("footerHeight"), o = A("HeaderFooterTag"), r = Lt(import_react.useMemo(() => (i) => {
+var Sr = /* @__PURE__ */ import_react.memo(function() {
+	const e = A("FooterComponent"), n = Ct("footerHeight"), o = A("HeaderFooterTag"), r = kt(import_react.useMemo(() => (i) => {
 		n(Ht(i, "height"));
 	}, [n]), !0, A("skipAnimationFrameInResizeObserver")), s = A("context");
 	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
@@ -69111,15 +69115,15 @@ var Tr = /* @__PURE__ */ import_react.memo(function() {
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
 	}) : null;
 });
-function nn({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
+function en({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
 	return import_react.memo(function({ children: s, style: i, context: l, ...c }) {
-		const d = n("scrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("scrollerRef"), I = e("horizontalDirection") || !1, { scrollByCallback: w, scrollerRef: R, scrollToCallback: h } = uo(d, v, m, p, void 0, I);
+		const d = n("scrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("scrollerRef"), I = e("horizontalDirection") || !1, { scrollByCallback: w, scrollerRef: R, scrollToCallback: h } = io(d, v, m, p, void 0, I);
 		return t("scrollTo", h), t("scrollBy", w), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
 			"data-testid": "virtuoso-scroller",
 			"data-virtuoso-scroller": !0,
 			ref: R,
 			style: {
-				...I ? Sr : Ir,
+				...I ? hr : pr,
 				...i
 			},
 			tabIndex: 0,
@@ -69129,10 +69133,10 @@ function nn({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
 		});
 	});
 }
-function on({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
+function nn({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
 	return import_react.memo(function({ children: s, style: i, context: l, ...c }) {
-		const d = n("windowScrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("totalListHeight"), I = e("deviation"), w = e("customScrollParent"), R = import_react.useRef(null), { scrollByCallback: f, scrollerRef: a, scrollToCallback: S } = uo(d, v, m, e("scrollerRef"), w);
-		return co(() => (a.current = w ?? R.current?.ownerDocument.defaultView, () => {
+		const d = n("windowScrollContainerState"), m = e("ScrollerComponent"), v = n("smoothScrollTargetReached"), p = e("totalListHeight"), I = e("deviation"), w = e("customScrollParent"), R = import_react.useRef(null), { scrollByCallback: f, scrollerRef: a, scrollToCallback: S } = io(d, v, m, e("scrollerRef"), w);
+		return so(() => (a.current = w ?? R.current?.ownerDocument.defaultView, () => {
 			a.current = null;
 		}), [a, w]), t("windowScrollTo", S), t("scrollBy", f), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(m, {
 			ref: R,
@@ -69148,8 +69152,8 @@ function on({ useEmitter: t, useEmitterValue: e, usePublisher: n }) {
 		});
 	});
 }
-var Cr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = Ct("viewportHeight"), o = Ct("fixedItemHeight"), r = A("alignToBottom"), s = A("horizontalDirection"), l = Lt(import_react.useMemo(() => re(n, (c) => Ht(c, s ? "width" : "height")), [n, s]), !0, A("skipAnimationFrameInResizeObserver"));
+var xr = ({ children: t }) => {
+	const e = import_react.useContext(Re), n = Ct("viewportHeight"), o = Ct("fixedItemHeight"), r = A("alignToBottom"), s = A("horizontalDirection"), l = kt(import_react.useMemo(() => re(n, (c) => Ht(c, s ? "width" : "height")), [n, s]), !0, A("skipAnimationFrameInResizeObserver"));
 	return import_react.useEffect(() => {
 		e && (n(e.viewportHeight), o(e.itemHeight));
 	}, [
@@ -69162,8 +69166,8 @@ var Cr = ({ children: t }) => {
 		style: He(r),
 		children: t
 	});
-}, wr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = Ct("windowViewportRect"), o = Ct("fixedItemHeight"), r = A("customScrollParent"), s = A("useWindowScroll"), i = A("topListHeight"), l = Ue(n, r, A("skipAnimationFrameInResizeObserver")), c = A("alignToBottom");
+}, vr = ({ children: t }) => {
+	const e = import_react.useContext(Re), n = Ct("windowViewportRect"), o = Ct("fixedItemHeight"), r = A("customScrollParent"), s = A("useWindowScroll"), i = A("topListHeight"), l = $e(n, r, A("skipAnimationFrameInResizeObserver")), c = A("alignToBottom");
 	return import_react.useEffect(() => {
 		e && (o(e.itemHeight), n({
 			listHeight: 0,
@@ -69178,20 +69182,20 @@ var Cr = ({ children: t }) => {
 	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		"data-viewport-type": "window",
 		ref: l,
-		style: en(c, s, i),
+		style: tn(c, s, i),
 		children: t
 	});
-}, yr = ({ children: t }) => {
+}, Tr = ({ children: t }) => {
 	const e = A("TopItemListComponent") ?? "div", n = A("headerHeight");
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, {
 		style: {
-			...xr,
+			...gr,
 			marginTop: `${n}px`
 		},
 		...ot(e, A("context")),
 		children: t
 	});
-}, { Component: mo, useEmitter: rn, useEmitterValue: A, usePublisher: Ct } = /* @__PURE__ */ Je(mr, {
+}, { Component: uo, useEmitter: on, useEmitterValue: A, usePublisher: Ct } = /* @__PURE__ */ Xe(ar, {
 	optional: {
 		restoreStateFrom: "restoreStateFrom",
 		context: "context",
@@ -69250,31 +69254,31 @@ var Cr = ({ children: t }) => {
 	}
 }, /* @__PURE__ */ import_react.memo(function(e) {
 	const n = A("useWindowScroll"), o = A("topItemsIndexes").length > 0, r = A("customScrollParent"), s = A("context");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? Hr : Rr, {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? yr : wr, {
 		...e,
 		context: s,
-		children: [o && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(yr, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, { showTopList: !0 }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? wr : Cr, { children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(vr, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tr, {})
+		children: [o && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Tr, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Rn, { showTopList: !0 }) }), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(r || n ? vr : xr, { children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ir, {}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Rn, {}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sr, {})
 		] })]
 	});
-})), Rr = /* @__PURE__ */ nn({
-	useEmitter: rn,
+})), wr = /* @__PURE__ */ en({
+	useEmitter: on,
 	useEmitterValue: A,
 	usePublisher: Ct
-}), Hr = /* @__PURE__ */ on({
-	useEmitter: rn,
+}), yr = /* @__PURE__ */ nn({
+	useEmitter: on,
 	useEmitterValue: A,
 	usePublisher: Ct
-}), rs = mo, Br = /* @__PURE__ */ j(([t, e]) => ({
+}), es = uo, Rr = /* @__PURE__ */ j(([t, e]) => ({
 	...t,
 	...e
-}), rt(io, /* @__PURE__ */ j(() => {
+}), rt(oo, /* @__PURE__ */ j(() => {
 	const t = T((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", { children: ["Item $", d] })), e = T(null), n = T((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("td", {
 		colSpan: 1e3,
 		children: ["Group ", d]
-	})), o = T(null), r = T(null), s = T({}), i = T(tn), l = T(Jt), c = (d, m = null) => ht(x$1(s, B((v) => v[d]), nt()), m);
+	})), o = T(null), r = T(null), s = T({}), i = T(Qe), l = T(Jt), c = (d, m = null) => ht(x$1(s, B((v) => v[d]), nt()), m);
 	return {
 		components: s,
 		computeItemKey: i,
@@ -69295,16 +69299,16 @@ var Cr = ({ children: t }) => {
 		TableRowComponent: c("TableRow", "tr"),
 		GroupComponent: c("Group", "tr")
 	};
-}))), Or = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: { height: t } }) }), Lr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: {
+}))), Hr = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: { height: t } }) }), Er = ({ height: t }) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("tr", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("td", { style: {
 	border: 0,
 	height: t,
 	padding: 0
-} }) }), kr = { overflowAnchor: "none" }, Bn = {
-	position: Qe(),
+} }) }), Br = { overflowAnchor: "none" }, Hn = {
+	position: Je(),
 	zIndex: 2,
 	overflowAnchor: "none"
-}, On = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
-	const n = _("listState"), o = _("computeItemKey"), r = _("firstItemIndex"), s = _("context"), i = _("isSeeking"), l = _("fixedHeaderHeight"), c = _("groupIndices").length > 0, d = _("itemContent"), m = _("groupContent"), v = _("ScrollSeekPlaceholder") ?? Or, p = _("GroupComponent"), I = _("TableRowComponent"), w = (e ? n.topItems : []).reduce((h, f, a) => (a === 0 ? h.push(f.size) : h.push(h[a - 1] + f.size), h), []);
+}, En = /* @__PURE__ */ import_react.memo(function({ showTopList: e = !1 }) {
+	const n = _("listState"), o = _("computeItemKey"), r = _("firstItemIndex"), s = _("context"), i = _("isSeeking"), l = _("fixedHeaderHeight"), c = _("groupIndices").length > 0, d = _("itemContent"), m = _("groupContent"), v = _("ScrollSeekPlaceholder") ?? Hr, p = _("GroupComponent"), I = _("TableRowComponent"), w = (e ? n.topItems : []).reduce((h, f, a) => (a === 0 ? h.push(f.size) : h.push(h[a - 1] + f.size), h), []);
 	return (e ? n.topItems : n.items).map((h) => {
 		const f = h.originalIndex, a = o(f + r, h.data, s), S = e ? f === 0 ? 0 : w[f - 1] : 0;
 		return i ? /* @__PURE__ */ (0, import_react.createElement)(v, {
@@ -69320,34 +69324,34 @@ var Cr = ({ children: t }) => {
 			"data-known-size": h.size,
 			key: a,
 			style: {
-				...Bn,
+				...Hn,
 				top: l
 			}
 		}, m(h.index, s)) : /* @__PURE__ */ (0, import_react.createElement)(I, {
 			...ot(I, s),
-			...fo(I, h.data),
+			...co(I, h.data),
 			"data-index": f,
 			"data-item-index": h.index,
 			"data-known-size": h.size,
 			"data-item-group-index": h.groupIndex,
 			key: a,
 			style: e ? {
-				...Bn,
+				...Hn,
 				top: l + S
-			} : kr
+			} : Br
 		}, c ? d(h.index, h.groupIndex, h.data, s) : d(h.index, h.data, s));
 	});
-}), zr = /* @__PURE__ */ import_react.memo(function() {
-	const e = _("listState"), n = _("topItemsIndexes").length > 0, o = bt("sizeRanges"), r = _("useWindowScroll"), s = _("customScrollParent"), i = bt("windowScrollContainerState"), l = bt("scrollContainerState"), c = s || r ? i : l, d = _("trackItemSizes"), { callbackRef: p, ref: I } = _n(o, _("itemSize"), d, c, _("log"), void 0, s, !1, _("skipAnimationFrameInResizeObserver")), [w, R] = import_react.useState(0);
-	sn("deviation", (O) => {
+}), Or = /* @__PURE__ */ import_react.memo(function() {
+	const e = _("listState"), n = _("topItemsIndexes").length > 0, o = bt("sizeRanges"), r = _("useWindowScroll"), s = _("customScrollParent"), i = bt("windowScrollContainerState"), l = bt("scrollContainerState"), c = s || r ? i : l, d = _("trackItemSizes"), { callbackRef: p, ref: I } = Gn(o, _("itemSize"), d, c, _("log"), void 0, s, !1, _("skipAnimationFrameInResizeObserver")), [w, R] = import_react.useState(0);
+	rn("deviation", (O) => {
 		w !== O && (I.current.style.marginTop = `${O}px`, R(O));
 	});
-	const h = _("EmptyPlaceholder"), f = _("FillerRow") ?? Lr, a = _("TableBodyComponent"), S = _("paddingTopAddition"), H = _("statefulTotalCount"), y = _("context");
+	const h = _("EmptyPlaceholder"), f = _("FillerRow") ?? Er, a = _("TableBodyComponent"), S = _("paddingTopAddition"), H = _("statefulTotalCount"), y = _("context");
 	if (H === 0 && h !== null && h !== void 0) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(h, { ...ot(h, y) });
-	const L = (n ? e.topItems : []).reduce((O, V) => O + V.size, 0), u = e.offsetTop + S + w - L, g = e.offsetBottom, C = u > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
+	const k = (n ? e.topItems : []).reduce((O, V) => O + V.size, 0), u = e.offsetTop + S + w - k, g = e.offsetBottom, C = u > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
 		context: y,
 		height: u
-	}, "padding-top") : null, k = g > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
+	}, "padding-top") : null, L = g > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(f, {
 		context: y,
 		height: g
 	}, "padding-bottom") : null;
@@ -69357,13 +69361,13 @@ var Cr = ({ children: t }) => {
 		...ot(a, y),
 		children: [
 			C,
-			n && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(On, { showTopList: !0 }),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(On, {}),
-			k
+			n && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, { showTopList: !0 }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(En, {}),
+			L
 		]
 	});
-}), Fr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = bt("viewportHeight"), o = bt("fixedItemHeight"), r = Lt(import_react.useMemo(() => re(n, (s) => Ht(s, "height")), [n]), !0, _("skipAnimationFrameInResizeObserver"));
+}), kr = ({ children: t }) => {
+	const e = import_react.useContext(Re), n = bt("viewportHeight"), o = bt("fixedItemHeight"), r = kt(import_react.useMemo(() => re(n, (s) => Ht(s, "height")), [n]), !0, _("skipAnimationFrameInResizeObserver"));
 	return import_react.useEffect(() => {
 		e && (n(e.viewportHeight), o(e.itemHeight));
 	}, [
@@ -69376,8 +69380,8 @@ var Cr = ({ children: t }) => {
 		style: He(!1),
 		children: t
 	});
-}, Vr = ({ children: t }) => {
-	const e = import_react.useContext(Re), n = bt("windowViewportRect"), o = bt("fixedItemHeight"), r = _("customScrollParent"), s = _("useWindowScroll"), i = Ue(n, r, _("skipAnimationFrameInResizeObserver"));
+}, Lr = ({ children: t }) => {
+	const e = import_react.useContext(Re), n = bt("windowViewportRect"), o = bt("fixedItemHeight"), r = _("customScrollParent"), s = _("useWindowScroll"), i = $e(n, r, _("skipAnimationFrameInResizeObserver"));
 	return import_react.useEffect(() => {
 		e && (o(e.itemHeight), n({
 			listHeight: 0,
@@ -69392,10 +69396,10 @@ var Cr = ({ children: t }) => {
 	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		"data-viewport-type": "window",
 		ref: i,
-		style: en(!1, s),
+		style: tn(!1, s),
 		children: t
 	});
-}, { Component: po, useEmitter: sn, useEmitterValue: _, usePublisher: bt } = /* @__PURE__ */ Je(Br, {
+}, { Component: ao, useEmitter: rn, useEmitterValue: _, usePublisher: bt } = /* @__PURE__ */ Xe(Rr, {
 	optional: {
 		restoreStateFrom: "restoreStateFrom",
 		context: "context",
@@ -69449,7 +69453,7 @@ var Cr = ({ children: t }) => {
 		groupIndices: "groupIndices"
 	}
 }, /* @__PURE__ */ import_react.memo(function(e) {
-	const n = _("useWindowScroll"), o = _("customScrollParent"), r = bt("fixedHeaderHeight"), s = bt("fixedFooterHeight"), i = _("fixedHeaderContent"), l = _("fixedFooterContent"), c = _("context"), d = Lt(import_react.useMemo(() => re(r, (a) => Ht(a, "height")), [r]), !0, _("skipAnimationFrameInResizeObserver")), m = Lt(import_react.useMemo(() => re(s, (a) => Ht(a, "height")), [s]), !0, _("skipAnimationFrameInResizeObserver")), v = o || n ? Gr : Pr, p = o || n ? Vr : Fr, I = _("TableComponent"), w = _("TableHeadComponent"), R = _("TableFooterComponent"), h = i ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(w, {
+	const n = _("useWindowScroll"), o = _("customScrollParent"), r = bt("fixedHeaderHeight"), s = bt("fixedFooterHeight"), i = _("fixedHeaderContent"), l = _("fixedFooterContent"), c = _("context"), d = kt(import_react.useMemo(() => re(r, (a) => Ht(a, "height")), [r]), !0, _("skipAnimationFrameInResizeObserver")), m = kt(import_react.useMemo(() => re(s, (a) => Ht(a, "height")), [s]), !0, _("skipAnimationFrameInResizeObserver")), v = o || n ? Vr : Fr, p = o || n ? Lr : kr, I = _("TableComponent"), w = _("TableHeadComponent"), R = _("TableFooterComponent"), h = i ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(w, {
 		ref: d,
 		style: {
 			position: "sticky",
@@ -69479,20 +69483,20 @@ var Cr = ({ children: t }) => {
 			...ot(I, c),
 			children: [
 				h,
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(zr, {}, "TableBody"),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Or, {}, "TableBody"),
 				f
 			]
 		}) })
 	});
-})), Pr = /* @__PURE__ */ nn({
-	useEmitter: sn,
+})), Fr = /* @__PURE__ */ en({
+	useEmitter: rn,
 	useEmitterValue: _,
 	usePublisher: bt
-}), Gr = /* @__PURE__ */ on({
-	useEmitter: sn,
+}), Vr = /* @__PURE__ */ nn({
+	useEmitter: rn,
 	useEmitterValue: _,
 	usePublisher: bt
-}), Ln = {
+}), Bn = {
 	bottom: 0,
 	itemHeight: 0,
 	items: [],
@@ -69500,7 +69504,7 @@ var Cr = ({ children: t }) => {
 	offsetBottom: 0,
 	offsetTop: 0,
 	top: 0
-}, Ar = {
+}, Wr = {
 	bottom: 0,
 	itemHeight: 0,
 	items: [{ index: 0 }],
@@ -69508,96 +69512,96 @@ var Cr = ({ children: t }) => {
 	offsetBottom: 0,
 	offsetTop: 0,
 	top: 0
-}, { ceil: kn, floor: Ce, max: oe, min: ze, round: zn } = Math;
-function Fn(t, e, n) {
+}, { ceil: On, floor: Ce, max: oe, min: ze, round: kn } = Math;
+function Ln(t, e, n) {
 	return Array.from({ length: e - t + 1 }).map((o, r) => ({
 		data: n === null ? null : n[r + t],
 		index: r + t
 	}));
 }
-function Mr(t) {
+function Pr(t) {
 	return {
-		...Ar,
+		...Wr,
 		items: t
 	};
 }
 function Se(t, e) {
 	return t !== void 0 && t.width === e.width && t.height === e.height;
 }
-function _r(t, e) {
+function Gr(t, e) {
 	return t !== void 0 && t.column === e.column && t.row === e.row;
 }
-var Nr = /* @__PURE__ */ j(([{ increaseViewportBy: t, listBoundary: e, overscan: n, visibleRange: o }, { footerHeight: r, headerHeight: s, scrollBy: i, scrollContainerState: l, scrollTo: c, scrollTop: d, smoothScrollTargetReached: m, viewportHeight: v }, p, I, { didMount: w, propsReady: R }, { customScrollParent: h, useWindowScroll: f, windowScrollContainerState: a, windowScrollTo: S, windowViewportRect: H }, y]) => {
-	const L = T(0), u = T(0), g = T(Ln), C = T({
+var Ar = /* @__PURE__ */ j(([{ increaseViewportBy: t, listBoundary: e, overscan: n, visibleRange: o }, { footerHeight: r, headerHeight: s, scrollBy: i, scrollContainerState: l, scrollTo: c, scrollTop: d, smoothScrollTargetReached: m, viewportHeight: v }, p, I, { didMount: w, propsReady: R }, { customScrollParent: h, useWindowScroll: f, windowScrollContainerState: a, windowScrollTo: S, windowViewportRect: H }, y]) => {
+	const k = T(0), u = T(0), g = T(Bn), C = T({
 		height: 0,
 		width: 0
-	}), k = T({
+	}), L = T({
 		height: 0,
 		width: 0
 	}), O = U(), V = U(), N = T(0), Z = T(null), F = T({
 		column: 0,
 		row: 0
 	}), mt = U(), q = U(), Q = T(!1), gt = T(0), lt = T(!0), St = T(!1), Ft = T(!1);
-	Y(x$1(w, $(gt), P(([b, D]) => !Me(D))), () => {
+	Y(x$1(w, $(gt), P(([b, D]) => !Ae(D))), () => {
 		M(lt, !1);
-	}), Y(x$1(at(w, lt, k, C, gt, St), P(([b, D, K, st, , tt]) => b && !D && K.height !== 0 && st.height !== 0 && !tt)), ([, , , , b]) => {
+	}), Y(x$1(at(w, lt, L, C, gt, St), P(([b, D, K, st, , tt]) => b && !D && K.height !== 0 && st.height !== 0 && !tt)), ([, , , , b]) => {
 		if (b === void 0) {
 			M(lt, !0);
 			return;
 		}
-		M(St, !0), qe(1, () => {
+		M(St, !0), je(1, () => {
 			M(O, b);
 		}), yt(x$1(d), () => {
 			M(e, [0, 0]), M(lt, !0);
 		});
 	}), z(x$1(q, P((b) => b != null && b.scrollTop > 0), Bt(0)), u), Y(x$1(w, $(q), P(([, b]) => b != null)), ([, b]) => {
-		b && (M(C, b.viewport), M(k, b.item), M(F, b.gap), b.scrollTop > 0 && (M(Q, !0), yt(x$1(d, Ut(1)), (D) => {
+		b && (M(C, b.viewport), M(L, b.item), M(F, b.gap), b.scrollTop > 0 && (M(Q, !0), yt(x$1(d, Ut(1)), (D) => {
 			M(Q, !1);
 		}), M(c, { top: b.scrollTop })));
-	}), z(x$1(C, B(({ height: b }) => b)), v), z(x$1(at(W(C, Se), W(k, Se), W(F, (b, D) => b !== void 0 && b.column === D.column && b.row === D.row), W(d)), B(([b, D, K, st]) => ({
+	}), z(x$1(C, B(({ height: b }) => b)), v), z(x$1(at(W(C, Se), W(L, Se), W(F, (b, D) => b !== void 0 && b.column === D.column && b.row === D.row), W(d)), B(([b, D, K, st]) => ({
 		gap: K,
 		item: D,
 		scrollTop: st,
 		viewport: b
-	}))), mt), z(x$1(at(W(L), o, W(F, _r), W(k, Se), W(C, Se), W(Z), W(u), W(Q), W(lt), W(gt)), P(([, , , , , , , b]) => !b), B(([b, [D, K], st, tt, X, ct, xt, , ut, Vt]) => {
-		const { column: Wt, row: ee } = st, { height: he, width: Ee } = tt, { width: ln } = X;
-		if (xt === 0 && (b === 0 || ln === 0)) return Ln;
+	}))), mt), z(x$1(at(W(k), o, W(F, Gr), W(L, Se), W(C, Se), W(Z), W(u), W(Q), W(lt), W(gt)), P(([, , , , , , , b]) => !b), B(([b, [D, K], st, tt, X, ct, xt, , ut, Vt]) => {
+		const { column: Wt, row: ee } = st, { height: he, width: Ee } = tt, { width: sn } = X;
+		if (xt === 0 && (b === 0 || sn === 0)) return Bn;
 		if (Ee === 0) {
-			const fn = Ye(Vt, b);
-			return Mr(Fn(fn, fn + Math.max(xt - 1, 0), ct));
+			const dn = qe(Vt, b);
+			return Pr(Ln(dn, dn + Math.max(xt - 1, 0), ct));
 		}
-		const ge = ho(ln, Ee, Wt);
+		const ge = fo(sn, Ee, Wt);
 		let qt, Mt;
-		ut ? D === 0 && K === 0 && xt > 0 ? (qt = 0, Mt = xt - 1) : (qt = ge * Ce((D + ee) / (he + ee)), Mt = ge * kn((K + ee) / (he + ee)) - 1, Mt = ze(b - 1, oe(Mt, ge - 1)), qt = ze(Mt, oe(0, qt))) : (qt = 0, Mt = -1);
-		const cn = Fn(qt, Mt, ct), { bottom: un, top: an } = Vn(X, st, tt, cn), dn = kn(b / ge);
+		ut ? D === 0 && K === 0 && xt > 0 ? (qt = 0, Mt = xt - 1) : (qt = ge * Ce((D + ee) / (he + ee)), Mt = ge * On((K + ee) / (he + ee)) - 1, Mt = ze(b - 1, oe(Mt, ge - 1)), qt = ze(Mt, oe(0, qt))) : (qt = 0, Mt = -1);
+		const ln = Ln(qt, Mt, ct), { bottom: cn, top: un } = zn(X, st, tt, ln), an = On(b / ge);
 		return {
-			bottom: un,
+			bottom: cn,
 			itemHeight: he,
-			items: cn,
+			items: ln,
 			itemWidth: Ee,
-			offsetBottom: dn * he + (dn - 1) * ee - un,
-			offsetTop: an,
-			top: an
+			offsetBottom: an * he + (an - 1) * ee - cn,
+			offsetTop: un,
+			top: un
 		};
-	})), g), z(x$1(Z, P((b) => b !== null), B((b) => b.length)), L), z(x$1(at(C, k, g, F), P(([b, D, { items: K }]) => K.length > 0 && D.height !== 0 && b.height !== 0), B(([b, D, { items: K }, st]) => {
-		const { bottom: tt, top: X } = Vn(b, st, D, K);
+	})), g), z(x$1(Z, P((b) => b !== null), B((b) => b.length)), k), z(x$1(at(C, L, g, F), P(([b, D, { items: K }]) => K.length > 0 && D.height !== 0 && b.height !== 0), B(([b, D, { items: K }, st]) => {
+		const { bottom: tt, top: X } = zn(b, st, D, K);
 		return [X, tt];
 	}), nt(le)), e);
 	const pt = T(!1);
 	z(x$1(d, $(pt), B(([b, D]) => D || b !== 0)), pt);
-	const jt = Tt(x$1(at(g, L), P(([{ items: b }]) => b.length > 0), $(pt), P(([[b, D], K]) => {
+	const jt = Tt(x$1(at(g, k), P(([{ items: b }]) => b.length > 0), $(pt), P(([[b, D], K]) => {
 		const tt = b.items[b.items.length - 1].index === D - 1;
 		return (K || b.bottom > 0 && b.itemHeight > 0 && b.offsetBottom === 0 && b.items.length === D) && tt;
 	}), B(([[, b]]) => b - 1), nt())), Qt = Tt(x$1(W(g), P(({ items: b }) => b.length > 0 && b[0].index === 0), Bt(0), nt())), Et = Tt(x$1(W(g), $(Q), P(([{ items: b }, D]) => b.length > 0 && !D), B(([{ items: b }]) => ({
 		endIndex: b[b.length - 1].index,
 		startIndex: b[0].index
-	})), nt(jn), zt(0)));
-	z(Et, I.scrollSeekRangeChanged), z(x$1(O, $(C, k, L, F), B(([b, D, K, st, tt]) => {
-		const X = Jn(b), { align: ct, behavior: xt, offset: ut } = X;
+	})), nt($n), zt(0)));
+	z(Et, I.scrollSeekRangeChanged), z(x$1(O, $(C, L, k, F), B(([b, D, K, st, tt]) => {
+		const X = Yn(b), { align: ct, behavior: xt, offset: ut } = X;
 		let Vt = X.index;
 		Vt === "LAST" && (Vt = st - 1), Vt = oe(0, Vt, ze(st - 1, Vt));
-		let Wt = _e(D, tt, K, Vt);
-		return ct === "end" ? Wt = zn(Wt - D.height + K.height) : ct === "center" && (Wt = zn(Wt - D.height / 2 + K.height / 2)), ut !== void 0 && ut !== 0 && (Wt += ut), {
+		let Wt = Me(D, tt, K, Vt);
+		return ct === "end" ? Wt = kn(Wt - D.height + K.height) : ct === "center" && (Wt = kn(Wt - D.height / 2 + K.height / 2)), ut !== void 0 && ut !== 0 && (Wt += ut), {
 			behavior: xt,
 			top: Wt
 		};
@@ -69615,7 +69619,7 @@ var Nr = /* @__PURE__ */ j(([{ increaseViewportBy: t, listBoundary: e, overscan:
 		headerHeight: s,
 		increaseViewportBy: t,
 		initialItemCount: u,
-		itemDimensions: k,
+		itemDimensions: L,
 		overscan: n,
 		restoreStateFrom: q,
 		scrollBy: i,
@@ -69625,7 +69629,7 @@ var Nr = /* @__PURE__ */ j(([{ increaseViewportBy: t, listBoundary: e, overscan:
 		scrollToIndex: O,
 		scrollTop: d,
 		smoothScrollTargetReached: m,
-		totalCount: L,
+		totalCount: k,
 		useWindowScroll: f,
 		viewportDimensions: C,
 		windowScrollContainerState: a,
@@ -69645,31 +69649,31 @@ var Nr = /* @__PURE__ */ j(([{ increaseViewportBy: t, listBoundary: e, overscan:
 		stateRestoreInProgress: Q,
 		...y
 	};
-}, rt(Ze, It, pe, ro, At, Xe, Gt));
-function ho(t, e, n) {
+}, rt(Ye, It, pe, eo, At, Ze, Gt));
+function fo(t, e, n) {
 	return oe(1, Ce((t + n) / (Ce(e) + n)));
 }
-function Vn(t, e, n, o) {
+function zn(t, e, n, o) {
 	const { height: r } = n;
 	if (r === void 0 || o.length === 0) return {
 		bottom: 0,
 		top: 0
 	};
-	const s = _e(t, e, n, o[0].index);
+	const s = Me(t, e, n, o[0].index);
 	return {
-		bottom: _e(t, e, n, o[o.length - 1].index) + r,
+		bottom: Me(t, e, n, o[o.length - 1].index) + r,
 		top: s
 	};
 }
-function _e(t, e, n, o) {
-	const s = Ce(o / ho(t.width, n.width, e.column)), i = s * n.height + oe(0, s - 1) * e.row;
+function Me(t, e, n, o) {
+	const s = Ce(o / fo(t.width, n.width, e.column)), i = s * n.height + oe(0, s - 1) * e.row;
 	return i > 0 ? i + e.row : i;
 }
-var $r = /* @__PURE__ */ j(([t, e]) => ({
+var _r = /* @__PURE__ */ j(([t, e]) => ({
 	...t,
 	...e
-}), rt(Nr, /* @__PURE__ */ j(() => {
-	const t = T((v) => `Item ${v}`), e = T({}), n = T(null), o = T("virtuoso-grid-item"), r = T("virtuoso-grid-list"), s = T(tn), i = T("div"), l = T(Jt), c = (v, p = null) => ht(x$1(e, B((I) => I[v]), nt()), p), d = T(!1), m = T(!1);
+}), rt(Ar, /* @__PURE__ */ j(() => {
+	const t = T((v) => `Item ${v}`), e = T({}), n = T(null), o = T("virtuoso-grid-item"), r = T("virtuoso-grid-list"), s = T(Qe), i = T("div"), l = T(Jt), c = (v, p = null) => ht(x$1(e, B((I) => I[v]), nt()), p), d = T(!1), m = T(!1);
 	return z(W(m), d), {
 		components: e,
 		computeItemKey: s,
@@ -69688,21 +69692,21 @@ var $r = /* @__PURE__ */ j(([t, e]) => ({
 		scrollerRef: l,
 		ScrollSeekPlaceholder: c("ScrollSeekPlaceholder", "div")
 	};
-}))), Ur = /* @__PURE__ */ import_react.memo(function() {
-	const e = et$1("gridState"), n = et$1("listClassName"), o = et$1("itemClassName"), r = et$1("itemContent"), s = et$1("computeItemKey"), i = et$1("isSeeking"), l = wt("scrollHeight"), c = et$1("ItemComponent"), d = et$1("ListComponent"), m = et$1("ScrollSeekPlaceholder"), v = et$1("context"), p = wt("itemDimensions"), I = wt("gap"), w = et$1("log"), R = et$1("stateRestoreInProgress"), h = wt("reportReadyState"), f = Lt(import_react.useMemo(() => (a) => {
+}))), Nr = /* @__PURE__ */ import_react.memo(function() {
+	const e = et$1("gridState"), n = et$1("listClassName"), o = et$1("itemClassName"), r = et$1("itemContent"), s = et$1("computeItemKey"), i = et$1("isSeeking"), l = wt("scrollHeight"), c = et$1("ItemComponent"), d = et$1("ListComponent"), m = et$1("ScrollSeekPlaceholder"), v = et$1("context"), p = wt("itemDimensions"), I = wt("gap"), w = et$1("log"), R = et$1("stateRestoreInProgress"), h = wt("reportReadyState"), f = kt(import_react.useMemo(() => (a) => {
 		const S = a.parentElement.parentElement.scrollHeight;
 		l(S);
 		const H = a.firstChild;
 		if (H !== null) {
-			const { height: y, width: L } = H.getBoundingClientRect();
+			const { height: y, width: k } = H.getBoundingClientRect();
 			p({
 				height: y,
-				width: L
+				width: k
 			});
 		}
 		I({
-			column: Wn("column-gap", getComputedStyle(a).columnGap, w),
-			row: Wn("row-gap", getComputedStyle(a).rowGap, w)
+			column: Fn("column-gap", getComputedStyle(a).columnGap, w),
+			row: Fn("row-gap", getComputedStyle(a).rowGap, w)
 		});
 	}, [
 		l,
@@ -69710,7 +69714,7 @@ var $r = /* @__PURE__ */ j(([t, e]) => ({
 		I,
 		w
 	]), !0, !1);
-	return co(() => {
+	return so(() => {
 		e.itemHeight > 0 && e.itemWidth > 0 && h(!0);
 	}, [e]), R ? null : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(d, {
 		className: n,
@@ -69736,24 +69740,24 @@ var $r = /* @__PURE__ */ j(([t, e]) => ({
 			}, r(a.index, a.data, v));
 		})
 	});
-}), Kr = import_react.memo(function() {
-	const e = et$1("HeaderComponent"), n = wt("headerHeight"), o = et$1("headerFooterTag"), r = Lt(import_react.useMemo(() => (i) => {
+}), Dr = import_react.memo(function() {
+	const e = et$1("HeaderComponent"), n = wt("headerHeight"), o = et$1("headerFooterTag"), r = kt(import_react.useMemo(() => (i) => {
 		n(Ht(i, "height"));
 	}, [n]), !0, !1), s = et$1("context");
 	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
 		ref: r,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
 	}) : null;
-}), jr = import_react.memo(function() {
-	const e = et$1("FooterComponent"), n = wt("footerHeight"), o = et$1("headerFooterTag"), r = Lt(import_react.useMemo(() => (i) => {
+}), $r = import_react.memo(function() {
+	const e = et$1("FooterComponent"), n = wt("footerHeight"), o = et$1("headerFooterTag"), r = kt(import_react.useMemo(() => (i) => {
 		n(Ht(i, "height"));
 	}, [n]), !0, !1), s = et$1("context");
 	return e != null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(o, {
 		ref: r,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(e, { ...ot(e, s) })
 	}) : null;
-}), qr = ({ children: t }) => {
-	const e = import_react.useContext(lo), n = wt("itemDimensions"), o = wt("viewportDimensions"), r = Lt(import_react.useMemo(() => (s) => {
+}), Ur = ({ children: t }) => {
+	const e = import_react.useContext(ro), n = wt("itemDimensions"), o = wt("viewportDimensions"), r = kt(import_react.useMemo(() => (s) => {
 		o(s.getBoundingClientRect());
 	}, [o]), !0, !1);
 	return import_react.useEffect(() => {
@@ -69773,8 +69777,8 @@ var $r = /* @__PURE__ */ j(([t, e]) => ({
 		style: He(!1),
 		children: t
 	});
-}, Yr = ({ children: t }) => {
-	const e = import_react.useContext(lo), n = wt("windowViewportRect"), o = wt("itemDimensions"), r = et$1("customScrollParent"), s = et$1("useWindowScroll"), i = Ue(n, r, !1);
+}, Kr = ({ children: t }) => {
+	const e = import_react.useContext(ro), n = wt("windowViewportRect"), o = wt("itemDimensions"), r = et$1("customScrollParent"), s = et$1("useWindowScroll"), i = $e(n, r, !1);
 	return import_react.useEffect(() => {
 		e && (o({
 			height: e.itemHeight,
@@ -69791,10 +69795,10 @@ var $r = /* @__PURE__ */ j(([t, e]) => ({
 		o
 	]), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		ref: i,
-		style: en(!1, s),
+		style: tn(!1, s),
 		children: t
 	});
-}, { Component: Xr, useEmitter: go, useEmitterValue: et$1, usePublisher: wt } = /* @__PURE__ */ Je($r, {
+}, { Component: qr, useEmitter: mo, useEmitterValue: et$1, usePublisher: wt } = /* @__PURE__ */ Xe(_r, {
 	optional: {
 		context: "context",
 		totalCount: "totalCount",
@@ -69832,26 +69836,26 @@ var $r = /* @__PURE__ */ j(([t, e]) => ({
 		readyStateChanged: "readyStateChanged"
 	}
 }, /* @__PURE__ */ import_react.memo(function({ ...e }) {
-	const n = et$1("useWindowScroll"), o = et$1("customScrollParent"), r = o || n ? Qr : Jr, s = o || n ? Yr : qr, i = et$1("context");
+	const n = et$1("useWindowScroll"), o = et$1("customScrollParent"), r = o || n ? Zr : Yr, s = o || n ? Kr : Ur, i = et$1("context");
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(r, {
 		...e,
 		...ot(r, i),
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(s, { children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Kr, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Ur, {}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(jr, {})
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Dr, {}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Nr, {}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)($r, {})
 		] })
 	});
-})), Jr = /* @__PURE__ */ nn({
-	useEmitter: go,
+})), Yr = /* @__PURE__ */ en({
+	useEmitter: mo,
 	useEmitterValue: et$1,
 	usePublisher: wt
-}), Qr = /* @__PURE__ */ on({
-	useEmitter: go,
+}), Zr = /* @__PURE__ */ nn({
+	useEmitter: mo,
 	useEmitterValue: et$1,
 	usePublisher: wt
 });
-function Wn(t, e, n) {
+function Fn(t, e, n) {
 	return e !== "normal" && e?.endsWith("px") !== !0 && n(`${t} was not resolved to pixel value correctly`, e, ft.WARN), e === "normal" ? 0 : parseInt(e ?? "0", 10);
 }
 //#endregion
@@ -70100,7 +70104,7 @@ var RecordTree = ({ id, record, className, scrollRef, defaultExpandLevel = 1, pr
 		tabIndex: 0,
 		children: items.map((_, index) => renderRow(index))
 	});
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(rs, {
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(es, {
 		ref: listHandle,
 		customScrollParent: scrollRef?.current ? scrollRef.current : void 0,
 		id,
@@ -72378,7 +72382,8 @@ var ToolOutput = ({ output, className, onDownloadFile }) => {
 		}, key));
 		else if (out.type === "image") if (isRenderableImageSource(out.image)) outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 			className: clsx(ToolOutput_module_default.toolImage),
-			src: out.image
+			src: out.image,
+			alt: "Tool output"
 		}, key));
 		else outputs.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)(MediaReference, { source: out.image }, key));
 		else if (out.type === "reasoning") {
@@ -72498,6 +72503,7 @@ var messageRenderers = {
 		const c = content;
 		if (isRenderableImageSource(c.image)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 			src: c.image,
+			alt: "Message attachment",
 			className: MessageContent_module_default.contentImage
 		}, key);
 		else return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MediaReference, { source: c.image }, key);
@@ -72737,6 +72743,7 @@ var AnnotatedScreenshot = ({ src, annotation }) => {
 		children: [
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
 				src,
+				alt: "Annotated screenshot",
 				className: AnnotatedScreenshot_module_default.screenshot,
 				onLoad: (e) => setNaturalSize({
 					width: e.currentTarget.naturalWidth,
@@ -73561,7 +73568,7 @@ var ChatView = ({ id, messages, className, display, labels, linking, tools, refe
 	});
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.5/node_modules/@tanstack/virtual-core/dist/esm/lazy-measurements.js
 function createLazyMeasurementsView(count, flat, getItemKey) {
 	const cache = new Array(count);
 	return new Proxy(cache, { get(target, prop, receiver) {
@@ -73591,7 +73598,7 @@ function createLazyMeasurementsView(count, flat, getItemKey) {
 	} });
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/utils.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.5/node_modules/@tanstack/virtual-core/dist/esm/utils.js
 function memo$8(getDeps, fn, opts) {
 	let deps = opts.initialDeps ?? [];
 	let result;
@@ -73623,7 +73630,7 @@ var debounce = (targetWindow, fn, ms) => {
 	};
 };
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.4/node_modules/@tanstack/virtual-core/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+virtual-core@3.17.5/node_modules/@tanstack/virtual-core/dist/esm/index.js
 var _isIOSResult;
 var isIOSWebKit = () => {
 	if (_isIOSResult !== void 0) return _isIOSResult;
@@ -73882,7 +73889,7 @@ var Virtualizer = class {
 				if (idx < count) {
 					const anchorItem = newMeasurements[idx];
 					if (anchorItem) {
-						const newOffset = anchorItem.start + anchorOffset;
+						const newOffset = Math.max(0, anchorItem.start + anchorOffset);
 						if (newOffset !== this.scrollOffset) {
 							anchorDelta = newOffset - this.scrollOffset;
 							this.scrollOffset = newOffset;
@@ -74029,6 +74036,10 @@ var Virtualizer = class {
 			const cur = this.getScrollOffset();
 			const max = this.getMaxScrollOffset();
 			if (cur < 0 || cur > max) return;
+			if (this._iosDeferredAdjustment < 0 && cur >= max - 1) {
+				this._iosDeferredAdjustment = 0;
+				return;
+			}
 			const delta = this._iosDeferredAdjustment;
 			this._iosDeferredAdjustment = 0;
 			this._scrollToOffset(cur, {
@@ -74381,6 +74392,7 @@ var Virtualizer = class {
 			return [this.getOffsetForAlignment(toOffset, align, item.size), align];
 		};
 		this.scrollToOffset = (toOffset, { align = "start", behavior = "auto" } = {}) => {
+			this._iosDeferredAdjustment = 0;
 			const offset = this.getOffsetForAlignment(toOffset, align);
 			const now = this.now();
 			this.scrollState = {
@@ -74398,6 +74410,7 @@ var Virtualizer = class {
 			this.scheduleScrollReconcile();
 		};
 		this.scrollToIndex = (index, { align: initialAlign = "auto", behavior = "auto" } = {}) => {
+			this._iosDeferredAdjustment = 0;
 			index = Math.max(0, Math.min(index, this.options.count - 1));
 			const offsetInfo = this.getOffsetForIndex(index, initialAlign);
 			if (!offsetInfo) return;
@@ -74506,6 +74519,7 @@ var Virtualizer = class {
 			});
 			if (this.scrollOffset !== null) {
 				this.scrollOffset += this.scrollAdjustments;
+				if (this.scrollOffset < 0) this.scrollOffset = 0;
 				this.scrollAdjustments = 0;
 			}
 		}
@@ -74623,7 +74637,7 @@ function calculateRangeImpl(measurements, outerSize, scrollOffset, lanes, flat) 
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.6_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/@tanstack/react-virtual/dist/esm/index.js
+//#region ../../node_modules/.pnpm/@tanstack+react-virtual@3.14.7_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/@tanstack/react-virtual/dist/esm/index.js
 var useIsomorphicLayoutEffect = typeof document !== "undefined" ? import_react.useLayoutEffect : import_react.useEffect;
 function useVirtualizerBase({ useFlushSync = true, directDomUpdates = false, directDomUpdatesMode = "transform", ...options }) {
 	const rerender = import_react.useReducer((x) => x + 1, 0)[1];
@@ -75498,8 +75512,9 @@ var ChatItem = ({ children, ...props }) => {
 };
 var chatComponents = { Item: ChatItem };
 var kChatScrollPaddingStart = -15;
-var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ id, messages, initialMessageId, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
+var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ id, messages, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
 	const listHandle = (0, import_react.useRef)(null);
+	const [navOwned] = (0, import_react.useState)(() => !!initialMessageId);
 	(0, import_react.useEffect)(() => {
 		onNativeFindChanged?.(false);
 	}, [onNativeFindChanged]);
@@ -75584,6 +75599,8 @@ var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ 
 		initialIndex: initialMessageIndex,
 		scrollPaddingStart: kChatScrollPaddingStart,
 		live: running,
+		navOwned,
+		followRequested,
 		scrollToTopOnFinish,
 		components: chatComponents,
 		smoothScroll: false,
@@ -78946,7 +78963,7 @@ function format(delta, left) {
 */
 var StateDiffView = ({ before, after, className }) => {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		dangerouslySetInnerHTML: { __html: unescapeNewlines(format(diff$1(sanitizeKeys(before), sanitizeKeys(after))) || "Unable to render differences") },
+		dangerouslySetInnerHTML: { __html: sanitizeRenderedHtml(unescapeNewlines(format(diff$1(sanitizeKeys(before), sanitizeKeys(after))) || "Unable to render differences")) },
 		className: clsx(className)
 	});
 };
@@ -84517,8 +84534,13 @@ function useTranscriptTimeline(options) {
 		branchMappings
 	]);
 	const { selectedEvents, sourceSpans, branchScrollTarget } = (0, import_react.useMemo)(() => {
-		const parsed = parseSelection(state.selected);
-		const spans = getSelectedSpans(state.rows, state.selected);
+		let selection = state.selected;
+		let spans = getSelectedSpans(state.rows, selection);
+		if (spans.length === 0 && state.rows.length > 0) {
+			selection = state.rows[0].key;
+			spans = getSelectedSpans(state.rows, selection);
+		}
+		const parsed = parseSelection(selection);
 		if (spans.length === 0) return {
 			selectedEvents: events,
 			sourceSpans: emptySourceSpans,
@@ -84538,7 +84560,7 @@ function useTranscriptTimeline(options) {
 			includeUtility,
 			regionIndex: parsed?.regionIndex ?? null,
 			showBranches,
-			branchPrefix: getBranchPrefix(state.rows, state.selected)
+			branchPrefix: getBranchPrefix(state.rows, selection)
 		});
 		return {
 			selectedEvents: collected.events,
@@ -85378,6 +85400,7 @@ var TimelineSwimLanes = ({ layouts, timeline, header, isSticky, onMarkerNavigate
 				})
 			}),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
 				className: TimelineSwimLanes_module_default.collapseToggle,
 				onClick: toggleCollapsed,
 				title: isCollapsed ? "Expand swimlanes" : "Collapse swimlanes",
@@ -85533,6 +85556,7 @@ var HeaderRow = ({ node, minimap, scrubberProgress, onScrub, onScrollToTop, brea
 				children: "/"
 			})] }),
 			views && views.stack.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+				type: "button",
 				className: TimelineSwimLanes_module_default.viewStackBack,
 				onClick: views.pop,
 				title: "Back to branch overview",
@@ -85554,6 +85578,7 @@ var HeaderRow = ({ node, minimap, scrubberProgress, onScrub, onScrollToTop, brea
 							className: TimelineSwimLanes_module_default.breadcrumbCurrent,
 							children: segment.label
 						}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+							type: "button",
 							className: TimelineSwimLanes_module_default.breadcrumbLink,
 							onClick: () => onBreadcrumbSelect?.(segment.key),
 							children: segment.label
@@ -85561,6 +85586,7 @@ var HeaderRow = ({ node, minimap, scrubberProgress, onScrub, onScrollToTop, brea
 					}, segment.key);
 				})
 			}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
 				className: TimelineSwimLanes_module_default.breadcrumbCurrent,
 				onClick: onScrollToTop,
 				children: rootDisplay
@@ -87029,7 +87055,7 @@ var TranscriptOutline = ({ eventNodes, defaultCollapsedIds, running, backfilling
 		children: [agentName && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: clsx(TranscriptOutline_module_default.rootHeader, "text-size-smaller", "text-style-secondary"),
 			children: agentName
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(rs, {
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(es, {
 			ref: listHandle,
 			customScrollParent: outlineScrollEl ?? void 0,
 			id,
@@ -94117,6 +94143,7 @@ var TreeNode$2 = (0, import_react.memo)(({ name, value, defaultExpanded = false 
 		className: ZustandDevtoolsPanel_module_default.row,
 		children: [
 			expandable ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
 				className: ZustandDevtoolsPanel_module_default.caret,
 				onClick: toggle,
 				"aria-label": expanded ? `Collapse ${name}` : `Expand ${name}`,
@@ -94132,6 +94159,7 @@ var TreeNode$2 = (0, import_react.memo)(({ name, value, defaultExpanded = false 
 				children: previewOf(value)
 			}, flashKey),
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
 				className: ZustandDevtoolsPanel_module_default.copy,
 				onClick: copy,
 				"aria-label": `Copy ${name}`,
@@ -94150,6 +94178,7 @@ var TreeNode$2 = (0, import_react.memo)(({ name, value, defaultExpanded = false 
 				value: entry.value
 			}, entry.key)),
 			entries.length > limit && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+				type: "button",
 				className: ZustandDevtoolsPanel_module_default.showMore,
 				onClick: () => setLimit((l) => l + CHUNK_SIZE),
 				children: [
@@ -98503,6 +98532,7 @@ var ViewerOptionsPopover = ({ showing, positionEl, setShowing }) => {
 				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 					className: clsx(),
 					children: [" ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
 						onClick: handleClearDatabase,
 						disabled: isClearing,
 						className: clsx("btn", "btn-tools", "text-size-smallest", ViewerOptionsPopover_module_default.clearButton),
@@ -102432,6 +102462,7 @@ var ColumnFilterEditor = ({ columnId, filterType, operatorOptions, condition, se
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 				className: ColumnFilterEditor_module_default.filterRow,
 				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
 					className: clsx("btn", "btn-outline-primary", ColumnFilterEditor_module_default.filterButton, "text-size-small"),
 					onClick: onCommit,
 					children: "Apply"
@@ -105185,28 +105216,87 @@ var RetryEventsView = ({ retry, listId, scrollRef }) => {
 		})
 	});
 };
+var status_module_default = {
+	statusCell: "_statusCell_4ypz5_1",
+	error: "_error_4ypz5_11",
+	success: "_success_4ypz5_15",
+	cancelled: "_cancelled_4ypz5_19"
+};
+//#endregion
+//#region src/app/samples/status/status.tsx
+var deriveSampleStatus = (completed, error) => {
+	if (error) return errorType(error) === "CancelledError" ? "cancelled" : "error";
+	return completed === false ? "running" : "ok";
+};
+var isCancelled = (sample) => {
+	if ("error" in sample && sample.error) {
+		if (typeof sample.error === "string") return errorType(sample.error) === "CancelledError";
+		return errorType(sample.error.message) === "CancelledError";
+	}
+	return false;
+};
+/** Sortable string value for status columns.
+*  Prefix gives desired sort order (started → error → cancelled → success);
+*  error rows additionally include the error type for sub-sorting. */
+var kDefaultSampleSortValue = "3:ok";
+var statusSortValue = (status, error) => {
+	switch (status) {
+		case "running": return "0:running";
+		case "error": return `1:error:${errorType(error)}`;
+		case "cancelled": return "2:cancelled";
+		default: return kDefaultSampleSortValue;
+	}
+};
+var SampleStatusIcon = ({ status }) => {
+	if (status === "running") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: status_module_default.statusCell,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, { subtle: false })
+	});
+	const icon = status === "error" ? ApplicationIcons.error : status === "cancelled" ? ApplicationIcons.cancelled : ApplicationIcons.success;
+	const colorClass = status === "error" ? status_module_default.error : status === "cancelled" ? status_module_default.cancelled : status_module_default.success;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: status_module_default.statusCell,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon, colorClass) })
+	});
+};
 var RetryTerminalAnchor_module_default = {
-	row: "_row_iq6ks_1",
-	check: "_check_iq6ks_7",
-	copy: "_copy_iq6ks_23",
-	success: "_success_iq6ks_33",
-	detail: "_detail_iq6ks_40"
+	row: "_row_113da_1",
+	marker: "_marker_113da_7",
+	"marker-success": "_marker-success_113da_22",
+	"marker-error": "_marker-error_113da_26",
+	"marker-cancelled": "_marker-cancelled_113da_30",
+	"marker-limit": "_marker-limit_113da_34",
+	copy: "_copy_113da_42",
+	headline: "_headline_113da_52",
+	"headline-success": "_headline-success_113da_58",
+	"headline-error": "_headline-error_113da_62",
+	"headline-cancelled": "_headline-cancelled_113da_66",
+	"headline-limit": "_headline-limit_113da_70",
+	detail: "_detail_113da_74"
 };
 //#endregion
 //#region src/app/samples/retry-display/RetryTerminalAnchor.tsx
-var RetryTerminalAnchor = ({ retryCount }) => {
+var deriveOutcome = (error, limit) => {
+	const status = deriveSampleStatus(true, error?.message);
+	if (status === "error" || status === "cancelled") return status;
+	return limit ? "limit" : "success";
+};
+var RetryTerminalAnchor = ({ retryCount, error, limit }) => {
+	const outcome = deriveOutcome(error, limit);
 	const retriesLabel = retryCount === 1 ? "1 retry" : `${retryCount} retries`;
+	const headline = outcome === "error" ? "This run failed" : outcome === "cancelled" ? "This run was cancelled" : outcome === "limit" ? `This run hit its ${limit?.type} limit` : "This run succeeded";
+	const icon = outcome === "error" ? "bi bi-x" : outcome === "cancelled" ? "bi bi-dash" : outcome === "limit" ? "bi bi-exclamation" : "bi bi-check";
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 		className: RetryTerminalAnchor_module_default.row,
 		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			className: RetryTerminalAnchor_module_default.check,
+			className: clsx(RetryTerminalAnchor_module_default.marker, RetryTerminalAnchor_module_default[`marker-${outcome}`]),
 			"aria-hidden": "true",
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-check" })
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icon })
 		}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
 			className: RetryTerminalAnchor_module_default.copy,
 			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: RetryTerminalAnchor_module_default.success,
-				children: "This run succeeded"
+				className: clsx(RetryTerminalAnchor_module_default.headline, RetryTerminalAnchor_module_default[`headline-${outcome}`]),
+				children: headline
 			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
 				className: RetryTerminalAnchor_module_default.detail,
 				children: `after ${retriesLabel} — the sample you're viewing`
@@ -105226,7 +105316,7 @@ var SampleRetriedErrors_module_default = {
 };
 //#endregion
 //#region src/app/samples/SampleRetriedErrors.tsx
-var SampleRetriedErrors = ({ id, retries, scrollRef }) => {
+var SampleRetriedErrors = ({ id, retries, error, limit, scrollRef }) => {
 	const [expandedIndex, setExpandedIndex] = (0, import_react.useState)(retries.length - 1);
 	const onToggleOpen = (index) => {
 		setExpandedIndex((cur) => cur === index ? null : index);
@@ -105257,7 +105347,11 @@ var SampleRetriedErrors = ({ id, retries, scrollRef }) => {
 						listId: `sample-error-retries-${id}-${index}`,
 						scrollRef
 					})]
-				}, index)), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RetryTerminalAnchor, { retryCount: retries.length })]
+				}, index)), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RetryTerminalAnchor, {
+					retryCount: retries.length,
+					error,
+					limit
+				})]
 			})]
 		})]
 	});
@@ -106300,49 +106394,6 @@ var SampleSummaryView_module_default = {
 	invalidationTitle: "_invalidationTitle_rr9mf_163",
 	invalidationDetails: "_invalidationDetails_rr9mf_168",
 	invalidationReason: "_invalidationReason_rr9mf_176"
-};
-var status_module_default = {
-	statusCell: "_statusCell_4ypz5_1",
-	error: "_error_4ypz5_11",
-	success: "_success_4ypz5_15",
-	cancelled: "_cancelled_4ypz5_19"
-};
-//#endregion
-//#region src/app/samples/status/status.tsx
-var deriveSampleStatus = (completed, error) => {
-	if (error) return errorType(error) === "CancelledError" ? "cancelled" : "error";
-	return completed === false ? "running" : "ok";
-};
-var isCancelled = (sample) => {
-	if ("error" in sample && sample.error) {
-		if (typeof sample.error === "string") return errorType(sample.error) === "CancelledError";
-		return errorType(sample.error.message) === "CancelledError";
-	}
-	return false;
-};
-/** Sortable string value for status columns.
-*  Prefix gives desired sort order (started → error → cancelled → success);
-*  error rows additionally include the error type for sub-sorting. */
-var kDefaultSampleSortValue = "3:ok";
-var statusSortValue = (status, error) => {
-	switch (status) {
-		case "running": return "0:running";
-		case "error": return `1:error:${errorType(error)}`;
-		case "cancelled": return "2:cancelled";
-		default: return kDefaultSampleSortValue;
-	}
-};
-var SampleStatusIcon = ({ status }) => {
-	if (status === "running") return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: status_module_default.statusCell,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PulsingDots, { subtle: false })
-	});
-	const icon = status === "error" ? ApplicationIcons.error : status === "cancelled" ? ApplicationIcons.cancelled : ApplicationIcons.success;
-	const colorClass = status === "error" ? status_module_default.error : status === "cancelled" ? status_module_default.cancelled : status_module_default.success;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: status_module_default.statusCell,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon, colorClass) })
-	});
 };
 //#endregion
 //#region src/app/samples/SampleSummaryView.tsx
@@ -110406,9 +110457,9 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	const chunkedMessages = useChunkedMessages(logDir, isChunked && effectiveSelectedTab === kSampleMessagesTabId ? selectedSampleHandle : void 0, sampleData.chunked);
 	const effectiveMessages = isChunked ? chunkedMessages.data ?? [] : sampleMessages;
 	(0, import_react.useEffect)(() => {
-		setTimeout(() => {
-			if (focusOnLoad) scrollRef.current?.focus();
-		}, 10);
+		if (!focusOnLoad) return;
+		const id = setTimeout(() => scrollRef.current?.focus(), 10);
+		return () => clearTimeout(id);
 	}, [focusOnLoad, scrollRef]);
 	const sampleUrlBuilder = useSampleUrlBuilder();
 	const onSelectedTab = (0, import_react.useCallback)((e) => {
@@ -110788,6 +110839,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 									id: chatListId,
 									messages: effectiveMessages,
 									initialMessageId: sampleDetailNavigation.message,
+									followRequested: sampleDetailNavigation.follow,
 									display: chatDisplay,
 									labels: messagesSearchLabels,
 									linking: chatLinking,
@@ -110864,6 +110916,8 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(SampleRetriedErrors, {
 									id: sample.uuid || String(sample.id),
 									retries: sample.error_retries,
+									error: sample.error,
+									limit: sample.limit,
 									scrollRef
 								}, sample.uuid || String(sample.id))
 							})
@@ -111350,6 +111404,7 @@ var MessageBand = ({ id, message, type, scope = "eval" }) => {
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: ApplicationIcons.logging[type] }),
 			message,
 			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
 				className: clsx("btn", "message-band-btn", type),
 				title: "Close",
 				onClick: handleClick,
@@ -112175,6 +112230,7 @@ var InfoTab = ({ evalSpec, evalPlan, evalResults, evalStatus, metadata, sampleCo
 var DownloadButton = ({ label, fileName, fileContents }) => {
 	const api = getApi();
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+		type: "button",
 		className: "btn btn-outline-primary download-button",
 		onClick: () => {
 			api.download_file(fileName, fileContents);
@@ -137007,6 +137063,7 @@ var LinkButton_module_default = {
 */
 var LinkButton = ({ id, text, icon, className, onClick }) => {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+		type: "button",
 		id,
 		onClick,
 		className: clsx(className, LinkButton_module_default.button, "text-size-smaller"),
