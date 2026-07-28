@@ -10,7 +10,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -103,7 +103,7 @@ async def test_write_recovered_eval_log_basic() -> None:
             assert log.status == "error"
             assert log.error is not None
 
-            read_log = read_eval_log(output)
+            read_log = await read_eval_log_async(output)
             assert read_log.status == "error"
             assert read_log.samples is not None
             assert len(read_log.samples) == 3  # 2 flushed + 1 buffer
@@ -141,7 +141,7 @@ async def test_write_recovered_eval_log_mixed_scored() -> None:
             unscored = [_make_sample(2, scored=False)]
             await write_recovered_eval_log(crashed, iter(unscored), output)
 
-            read_log = read_eval_log(output)
+            read_log = await read_eval_log_async(output)
             assert read_log.samples is not None
             scored_samples = [s for s in read_log.samples if s.scores]
             unscored_samples = [s for s in read_log.samples if not s.scores]
@@ -165,5 +165,5 @@ async def test_write_recovered_eval_log_empty() -> None:
             log = await write_recovered_eval_log(crashed, iter([]), output)
 
             assert log.status == "error"
-            read_log = read_eval_log(output)
+            read_log = await read_eval_log_async(output)
             assert read_log.status == "error"
