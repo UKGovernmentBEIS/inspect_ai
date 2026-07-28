@@ -10,6 +10,7 @@
 - Control Channel: `inspect ctl config` changes are now recorded in each affected eval log (`EvalLog.config_updates`, with author, timestamp, optional `--reason`, and old → new values); `effective_eval_config()`/`effective_generate_config()` fold them over the launch config.
 - Control Channel: New `inspect ctl task pause|resume` and `inspect ctl process pause|resume` commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with `paused`/`quiesced` reported by `inspect ctl task list`.
 - Control Channel: New `inspect ctl process anomalies [PID]` shows a running process's in-flight and anomalous trace actions by reading its trace file directly, so it works against busy, hung, or even exited processes.
+- Control Channel: The control server now starts under fastapi 0.140.7+, which had silently disabled it by removing an internal helper. (meridianlabs-ai/inspect_ai#163)
 - Sample Sources: Generate a task's samples dynamically while it runs by passing a `SampleSource` as the task's `dataset` (with `enqueue_sample()` for imperative additions) — the sample-level mirror of `TaskSource`, for RL loops and adaptive evals.
 - OpenAI Compatible: A length-truncated streaming response (e.g. `-M stream=true` hitting `max_tokens`) now degrades gracefully to a `max_tokens` stop reason instead of raising `LengthFinishReasonError` and aborting the eval. (#4552)
 - OpenRouter: Reasoning history replayed to Gemini models now contains only readable `<think>` text, rather than HTML-escaped signature JSON and encrypted payloads. (#4320)
@@ -31,6 +32,7 @@
 - Bugfix: JSON, CSV, and Hugging Face dataset loaders now return an empty dataset when passed `limit=0` instead of returning all samples.
 - Bugfix: Parameterized score reducers (e.g. `at_least(2)`, `pass_at(2)`, `pass_k(2)`) now round-trip through the registry instead of raising `LookupError` when restored from a log.
 - Bugfix: Fixed a memory leak where the result of any synchronous API call made from a context with no running event loop (e.g. each sample yielded by `read_eval_log_samples()`) was retained in memory forever after the caller released it.
+- Bugfix: Cache traceback rendering so repeated identical errors no longer stall the event loop re-formatting the same traceback. (#4316)
 - Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
 - Inspect View: Fixed timeline discarding a solver span containing a single agent span child when it also contains other displayed events. (#443)
 - Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)
