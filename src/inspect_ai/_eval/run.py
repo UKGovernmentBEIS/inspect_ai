@@ -24,6 +24,7 @@ from typing_extensions import Unpack
 from inspect_ai._control.eval_state import mark_eval_retry_pending
 from inspect_ai._control.pause import (
     add_dispatch_waker,
+    dispatch_model_name,
     note_dispatch_models,
     remove_dispatch_waker,
     task_dispatch_paused,
@@ -615,8 +616,10 @@ async def run_task_retry_attempts(
         for t in options:
             model_counts.setdefault(t.model, 0)
         # let the model pause directives validate against tasks that haven't
-        # started yet (which have no EvalState to check)
-        note_dispatch_models([str(t.model) for t in options])
+        # started yet (which have no EvalState to check). dispatch_model_name
+        # (not str(t.model)) for the same mid-run-rename reason model_counts
+        # keys by identity above
+        note_dispatch_models([dispatch_model_name(t.model) for t in options])
 
     # pending tasks: initial tasks keep their original order and injected tasks
     # are appended in arrival order, so results sort stably. A retry re-queues
@@ -662,7 +665,8 @@ async def run_task_retry_attempts(
             p
             for p in pending
             if not task_dispatch_paused(
-                p.options.logger.eval.task_id, model=str(p.options.model)
+                p.options.logger.eval.task_id,
+                model=dispatch_model_name(p.options.model),
             )
         ]
         if not candidates:

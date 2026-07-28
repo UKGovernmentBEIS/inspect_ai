@@ -23,6 +23,7 @@ from inspect_ai._control.eval_state import (
 )
 from inspect_ai._control.pause import (
     PauseGatedSemaphore,
+    dispatch_model_name,
     model_paused,
     note_dispatch_models,
     pause_model,
@@ -41,6 +42,7 @@ from inspect_ai._control.pause import (
     wake_pause_waiters,
 )
 from inspect_ai.hooks import Hooks, TaskEnd, hooks
+from inspect_ai.model import get_model
 
 
 @pytest.fixture(autouse=True)
@@ -382,6 +384,35 @@ async def test_reset_clears_model_gates() -> None:
     reset_task_pause_gates()
     assert not model_paused("mockllm/model")
     assert paused_models() == []
+
+
+async def test_dispatch_model_name_survives_rename() -> None:
+    """The latch keys on a name snapshot, not the live str(model).
+
+    A provider may rewrite its model name on first use (vLLM resolves a
+    ``base:adapter`` LoRA spec to ``base``); because the latch's name is
+    consulted at several different times (enqueue, task start, live at each
+    scheduler pick), a live read would fragment the latch across the rename.
+    """
+    model = get_model("mockllm/model", memoize=False)
+    name = dispatch_model_name(model)
+    assert name == "mockllm/model"
+    note_dispatch_models([name])
+    await pause_model(name)
+
+    # provider rewrites its model name on first server resolution
+    model.api.model_name = "renamed"
+    assert str(model) == "mockllm/renamed"
+
+    # every latch surface still keys on the snapshot name
+    assert dispatch_model_name(model) == "mockllm/model"
+    assert model_paused(dispatch_model_name(model))
+    resumed = await resume_model("mockllm/model")
+    assert resumed is not None and resumed["changed"] is True
+
+    # the snapshot resets with the gates: a fresh run re-reads str(model)
+    reset_task_pause_gates()
+    assert dispatch_model_name(model) == "mockllm/renamed"
     # the dispatch-model registration resets too — the name is a run-scoped
     # key, exactly like the task ids
     assert await pause_model("mockllm/model") is None

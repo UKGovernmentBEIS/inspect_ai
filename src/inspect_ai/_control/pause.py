@@ -15,8 +15,9 @@ Three independent latches, all checked at every dispatch point:
   ``inspect_ai.util._concurrency`` and reset at the same run boundary, so a
   pause survives in-run retry attempts of the same task.
 - **Model gates** (:func:`pause_model` / :func:`resume_model`) live in a
-  registry keyed by the task's *primary* model name (``str(model)``, the
-  name ``GET /tasks`` reports; role/grader models deliberately don't match)
+  registry keyed by the task's *primary* model name (the
+  :func:`dispatch_model_name` snapshot, the name ``GET /tasks`` reports;
+  role/grader models deliberately don't match)
   and reset with the task gates. One latch holds every task of that model —
   including not-yet-started eval-set tasks, which task-level pause
   structurally cannot reach — without fanning out over task pauses.
@@ -46,12 +47,13 @@ from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Literal, NamedTuple
 
 import anyio
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
+    from inspect_ai.model import Model
 
 logger = getLogger(__name__)
 
@@ -141,13 +143,19 @@ class PauseGate:
 # (directive or dispatch hook) touches a task first.
 _task_gates: dict[str, PauseGate] = {}
 
-# Model pause gates, keyed by the task's primary model name (str(model) —
-# the value register_eval stores and GET /tasks reports). One gate holds
-# every dispatch point of that model's tasks, including not-yet-started
-# eval-set tasks (which have no EvalState yet — the scheduler passes the
-# model name alongside the task id). Reset with the task gates: the same
-# run boundary, the same legacy batch-mode caveat.
+# Model pause gates, keyed by the task's primary model name (the
+# dispatch_model_name snapshot — the value register_eval stores and
+# GET /tasks reports). One gate holds every dispatch point of that model's
+# tasks, including not-yet-started eval-set tasks (which have no EvalState
+# yet — the scheduler passes the model name alongside the task id). Reset
+# with the task gates: the same run boundary, the same legacy batch-mode
+# caveat.
 _model_gates: dict[str, PauseGate] = {}
+
+# First-seen str(model) per Model object (identity-keyed, like the
+# dispatcher's model_counts — see dispatch_model_name). Reset with the task
+# gates.
+_dispatch_model_names: dict["Model", str] = {}
 
 # Primary model names of every task handed to the run dispatcher
 # (run_task_retry_attempts registers them via note_dispatch_models),
@@ -317,6 +325,28 @@ async def wait_task_dispatch(
         return
 
 
+def dispatch_model_name(model: "Model") -> str:
+    """The stable model name the model pause latch keys on.
+
+    ``str(model)`` isn't stable: a provider may rewrite its model name on
+    first use (vLLM resolves a ``base:adapter`` LoRA spec to ``base`` on the
+    first generate — the same hazard that makes the run dispatcher key its
+    balancing counts by ``Model`` identity). The latch's name is captured at
+    several different times (dispatcher enqueue, task start, live at every
+    scheduler pick), so a mid-run rename would fragment it — neither the old
+    nor the new name would hold every dispatch point. Snapshotting
+    ``str(model)`` at first sight per ``Model`` object (one object serves all
+    of a model's tasks) keeps every surface — gate keys, dispatch checks,
+    ``GET /tasks`` — agreed on one name for the whole run. Reset with the
+    task gates.
+    """
+    name = _dispatch_model_names.get(model)
+    if name is None:
+        name = str(model)
+        _dispatch_model_names[model] = name
+    return name
+
+
 def note_dispatch_models(models: list[str]) -> None:
     """Record the primary model names of tasks handed to the run dispatcher.
 
@@ -378,6 +408,7 @@ def reset_task_pause_gates() -> None:
     _task_gates.clear()
     _model_gates.clear()
     _dispatch_models.clear()
+    _dispatch_model_names.clear()
     _dispatch_counts.clear()
 
 
@@ -528,8 +559,13 @@ def _known_model(model: str) -> bool:
     return any(state.model == model for state in get_eval_states())
 
 
-def _model_task_stats(model: str) -> tuple[int, int]:
-    """(unfinished tasks of ``model``, their dispatched-sample sum).
+class ModelTaskStats(NamedTuple):
+    tasks: int
+    dispatched: int
+
+
+def _model_task_stats(model: str) -> ModelTaskStats:
+    """Unfinished tasks of ``model`` and their dispatched-sample sum.
 
     Counts only *registered* tasks (latest attempt per task_id, same fold as
     the listing): a not-yet-started eval-set task has no ``EvalState``, so
@@ -547,7 +583,10 @@ def _model_task_stats(model: str) -> tuple[int, int]:
         for state in latest_by_task.values()
         if state.model == model and (state.completed_at is None or state.retry_pending)
     ]
-    return len(tasks), sum(task_dispatched_count(s.task_id) for s in tasks)
+    return ModelTaskStats(
+        tasks=len(tasks),
+        dispatched=sum(task_dispatched_count(s.task_id) for s in tasks),
+    )
 
 
 async def pause_model(model: str, *, dry_run: bool = False) -> dict[str, Any] | None:
@@ -598,7 +637,7 @@ async def resume_model(model: str, *, dry_run: bool = False) -> dict[str, Any] |
 
 
 def _model_result(model: str, *, dry_run: bool) -> dict[str, Any]:
-    tasks, dispatched = _model_task_stats(model)
+    stats = _model_task_stats(model)
     return {
         "ok": True,
         "model": model,
@@ -607,8 +646,8 @@ def _model_result(model: str, *, dry_run: bool) -> dict[str, Any]:
         # registered, unfinished tasks of this model — not-yet-started
         # eval-set tasks aren't registered, so the latch can hold more than
         # this counts (see _model_task_stats)
-        "tasks": tasks,
-        "dispatched": dispatched,
+        "tasks": stats.tasks,
+        "dispatched": stats.dispatched,
     }
 
 
