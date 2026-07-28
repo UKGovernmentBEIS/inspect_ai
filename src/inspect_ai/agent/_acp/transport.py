@@ -269,6 +269,12 @@ class AcpTransport(Protocol):
         A client is considered bound only after transcript replay and
         post-bind setup have completed. The no-op transport always returns
         ``False``.
+
+        Scoped to the agent-loop lifetime (like :attr:`is_interactive`):
+        after the agent loop exits, the client registries are cleared while
+        scoring runs, so this returns ``False`` during the scoring window
+        even though a client may still be connected and receiving score
+        events. ``False`` there does not mean no client ever attached.
         """
         ...
 

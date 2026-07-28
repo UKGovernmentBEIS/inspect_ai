@@ -38,6 +38,7 @@
 - Inspect View: Added transcript event navigation — keyboard-driven turn and agent navigation with a focus view for drilling into agent subtrees (#354).
 - Inspect View: Fixed sanitization of state diff HTML, added alt text to images, and cleaned up leaked timers and scroll-to-top behavior (#428).
 - Bugfix: Anthropic requests no longer fail with 400 `container_id is required` when a turn mixes code-execution-backed server tools (e.g. web search with dynamic filtering) with client tool calls.
+- ACP: The transport now exposes `has_client` and `wait_for_client()`, letting agents check for or wait until a fully bound ACP client is attached.
 
 ## 0.3.249 (20 July 2026)
 

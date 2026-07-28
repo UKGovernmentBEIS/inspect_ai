@@ -980,31 +980,25 @@ class LiveAcpTransport:
     async def wait_for_client(self) -> None:
         """Wait until an ACP connection has completed binding.
 
-        The waiter is registered and client presence is then checked again
-        without an intervening await, closing the subscribe/check race. A
-        transport that closes first wakes the waiter and raises rather than
-        leaving it parked indefinitely.
+        Loops so that a wake which finds neither a bound client nor a
+        closed transport re-parks on a fresh event rather than raising —
+        a client can attach (waking the waiter) and detach again before
+        the waiter task is scheduled, and only actual transport closure
+        should raise. No re-check is needed between registering the
+        waiter and awaiting it: there is no checkpoint in between, so
+        state cannot change (single event-loop thread).
         """
-        if self.has_client:
-            return
-        if self._finalized or self._agent_completed:
-            raise RuntimeError("ACP transport closed before a client attached")
-
-        ready = anyio.Event()
-        self._client_waiters.append(ready)
-        try:
+        while True:
             if self.has_client:
                 return
             if self._finalized or self._agent_completed:
                 raise RuntimeError("ACP transport closed before a client attached")
-            await ready.wait()
-            if not self.has_client:
-                raise RuntimeError("ACP transport closed before a client attached")
-        finally:
+            ready = anyio.Event()
+            self._client_waiters.append(ready)
             try:
+                await ready.wait()
+            finally:
                 self._client_waiters.remove(ready)
-            except ValueError:
-                pass
 
     def _wake_client_waiters(self) -> None:
         """Wake all current client-presence waiters."""
