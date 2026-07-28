@@ -32,7 +32,7 @@ So **paused = the run stops consuming from its queues** — the sample queue (sa
 
 ## CLI surface
 
-Two scopes, following the noun groups and selector conventions of `control-channel.md`:
+Three scopes, following the noun groups and selector conventions of `control-channel.md`:
 
 ```
 inspect ctl task pause TASK [--dry-run]        # pause one task (sample dispatch + its retries)
@@ -47,7 +47,7 @@ inspect ctl process resume [PID] [--dry-run]   # resume the whole run
 - **`process pause` / `process resume`** answer the eval-set question. An eval-set is one process (single `eval()` call under the default `retry_immediate=True`), so "pause the eval-set" is a process-scoped intent: no new tasks start, no task retries start, and no samples dispatch in any task. This is not a fan-out over task pauses (which the CLI conventions reject) — it is one process-scoped latch, like keep-alive, that all dispatch points check. When the `ctl eval-set` noun group eventually lands, an `eval-set pause` spelling can alias to this; the semantics are already right.
 - **`model pause` / `model resume`** hold one model's dispatch while the rest of the run continues — see "Model-scoped latch" below. `MODEL` is an exact model name (validated server-side); the process selector matches `keep` / `release` (sole-process default, `PID` to disambiguate).
 - Task-, model-, and process-level pause are **independent latches**: a sample dispatches only when its task's gate, its model's gate, and the process latch are all open. Resuming one scope does not clear another — resuming the run after an incident should not silently un-pause a task (or model) an operator paused for its own reasons. The task-list output labels which latches hold a paused task.
-- Both verbs are idempotent (pausing a paused or finished task reports `changed: false`), last-write-wins (pause → resume → pause holds), and `--dry-run`-able, per the phase-3 directive conventions. All carry `--json` with the uniform mutation envelope (`{target, applied, dry_run, detail}`).
+- All verbs are idempotent (pausing a paused or finished task reports `changed: false`), last-write-wins (pause → resume → pause holds), and `--dry-run`-able, per the phase-3 directive conventions. All carry `--json` with the uniform mutation envelope (`{target, applied, dry_run, detail}`).
 
 Naming: `pause` / `resume` over `suspend` / `stop` / `hold`. `resume` is the natural inverse and reads correctly in every scope; `stop` collides with cancel semantics; `suspend` implies the in-flight freezing this design rejects. One caution documented in help text: `process resume` resumes a *paused* run; `process release` releases a *keep-alive park* — different states, and a paused run is not parked (its eval body hasn't returned).
 
