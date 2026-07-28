@@ -200,3 +200,30 @@ def test_reserved_name_var_keyword_args_do_not_collide():
 
         # replay drives the capture path again (registry_create -> registry_tag)
         assert solver_from_spec(as_solver_spec(slv)) is not None
+
+
+@solver
+def solver_explicit_type(base: str = "base", type: str = "x"):
+    """Solver with an explicit parameter named ``type``."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return await generate(state)
+
+    return solve
+
+
+def test_explicit_param_named_type_round_trip():
+    """An explicit `type` parameter must survive capture AND replay (#4374).
+
+    Unlike a ``**kwargs`` key, an explicit parameter is captured flat at the
+    top level of args_passed, so replay really does feed it back into the
+    registry instantiation path — where it used to collide with
+    registry_create's own leading `type` parameter. Replay goes through
+    create_registry_object (args as a dict), which has no such parameters.
+    """
+    original = solver_explicit_type(base="hello", type="y")
+
+    replayed = solver_from_spec(as_solver_spec(original))
+
+    assert registry_params(replayed) == registry_params(original)
+    assert registry_params(replayed)["type"] == "y"

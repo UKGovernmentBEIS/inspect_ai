@@ -20,9 +20,9 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     is_registry_object,
     registry_add,
-    registry_create,
     registry_info,
     registry_name,
     registry_params,
@@ -337,7 +337,7 @@ def metric_register(
     return metric
 
 
-def metric_create(name: str, **kwargs: Any) -> Metric:
+def metric_create(name: str, /, **kwargs: Any) -> Metric:
     r"""Create a Metric based on its registered name.
 
     Metrics can be functions that return a Metric or classes
@@ -350,7 +350,8 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
     Returns:
         Metric with registry info attribute
     """
-    return registry_create("metric", name, **kwargs)
+    # See solver_create for why this goes through create_registry_object.
+    return cast(Metric, create_registry_object("metric", name, kwargs))
 
 
 def to_metric_specs(

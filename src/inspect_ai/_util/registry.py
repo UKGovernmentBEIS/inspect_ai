@@ -141,8 +141,9 @@ def registry_tag(
 def extract_named_params(
     type: Callable[..., Any], apply_defaults: bool, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
-    # `type` and `apply_defaults` are positional-only so a creation keyword
-    # argument named `type` lands in `**kwargs` rather than colliding here.
+    # positional-only for the same collision reason documented on
+    # registry_tag: a creation keyword argument named `type` must land in
+    # **kwargs rather than in these leading parameters.
     named_params: dict[str, Any] = {}
 
     if apply_defaults:

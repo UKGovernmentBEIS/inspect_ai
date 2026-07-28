@@ -13,6 +13,7 @@ from typing import (
     Literal,
     Sequence,
     Tuple,
+    cast,
 )
 
 if TYPE_CHECKING:
@@ -27,8 +28,8 @@ from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
+    create_registry_object,
     has_registry_params,
-    registry_create,
     registry_lookup,
     registry_params,
     registry_unqualified_name,
@@ -517,7 +518,11 @@ def metrics_from_log_header(
 
 
 def metric_from_log(metric: EvalMetricDefinition) -> Metric:
-    return registry_create("metric", metric.name, **(metric.options or {}))
+    # args as a dict so a metric option named `name`/`type` cannot collide
+    # with registry_create's leading parameters (see solver_create).
+    return cast(
+        Metric, create_registry_object("metric", metric.name, metric.options or {})
+    )
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:

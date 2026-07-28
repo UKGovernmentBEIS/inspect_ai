@@ -15,9 +15,9 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     is_registry_object,
     registry_add,
-    registry_create,
     registry_info,
     registry_name,
     registry_params,
@@ -113,7 +113,7 @@ def scorer_register(
     return scorer
 
 
-def scorer_create(name: str, **kwargs: Any) -> Scorer:
+def scorer_create(name: str, /, **kwargs: Any) -> Scorer:
     r"""Create a Scorer based on its registered name.
 
     Args:
@@ -123,7 +123,8 @@ def scorer_create(name: str, **kwargs: Any) -> Scorer:
     Returns:
         Scorer with registry info attribute
     """
-    return registry_create("scorer", name, **kwargs)
+    # See solver_create for why this goes through create_registry_object.
+    return cast(Scorer, create_registry_object("scorer", name, kwargs))
 
 
 def scorer(
