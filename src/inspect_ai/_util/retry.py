@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
 if TYPE_CHECKING:
@@ -80,8 +81,38 @@ def _retry_exception(retry_state: RetryCallState) -> BaseException | None:
     return ex
 
 
+def _response_status_code(response: object) -> int | None:
+    """HTTP status from an exception's `response`, object- or mapping-shaped.
+
+    The AWS providers raise `botocore.exceptions.ClientError`, whose `response` is
+    a mapping rather than an httpx/requests object, so the attribute probe misses
+    it: Bedrock's status sits under `ResponseMetadata.HTTPStatusCode`, while
+    SageMaker classifies retries on a top-level `OriginalStatusCode` (see
+    `sagemaker.should_retry`), which therefore takes precedence.
+    """
+    status = getattr(response, "status_code", None)
+    if isinstance(status, int):
+        return status
+
+    if not isinstance(response, Mapping):
+        return None
+
+    original = response.get("OriginalStatusCode")
+    if isinstance(original, int):
+        # SageMaker reports a container timeout as 0, which is not an HTTP status
+        # — surface it as unknown rather than passing it off as one.
+        return original if original != 0 else None
+
+    metadata = response.get("ResponseMetadata")
+    if isinstance(metadata, Mapping):
+        http_status = metadata.get("HTTPStatusCode")
+        if isinstance(http_status, int):
+            return http_status
+    return None
+
+
 def _status_code(ex: BaseException) -> int | None:
-    """HTTP status from a provider exception: status_code → response.status_code → code.
+    """HTTP status from a provider exception: status_code → response → code.
 
     `code` is accepted only when it's an int (google-genai `APIError.code`);
     OpenAI/Anthropic `code` is a string error slug (e.g. "rate_limit_exceeded")
@@ -89,7 +120,7 @@ def _status_code(ex: BaseException) -> int | None:
     """
     for value in (
         getattr(ex, "status_code", None),
-        getattr(getattr(ex, "response", None), "status_code", None),
+        _response_status_code(getattr(ex, "response", None)),
         getattr(ex, "code", None),
     ):
         if isinstance(value, int):

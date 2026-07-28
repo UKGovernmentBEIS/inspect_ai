@@ -69,6 +69,37 @@ class _OpenAIError(Exception):
         self.code = code
 
 
+def _bedrock_error(status: int) -> Exception:
+    """Bedrock ClientError: status only under ResponseMetadata.HTTPStatusCode."""
+    from botocore.exceptions import ClientError
+
+    return ClientError(
+        error_response={
+            "Error": {"Code": "ThrottlingException", "Message": "x"},
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        },
+        operation_name="Converse",
+    )
+
+
+def _sagemaker_error(original_status: int) -> Exception:
+    """SageMaker ClientError: classified on the top-level OriginalStatusCode.
+
+    A ModelError is delivered as HTTP 424 regardless, so the envelope status is
+    also present and must lose to OriginalStatusCode.
+    """
+    from botocore.exceptions import ClientError
+
+    return ClientError(
+        error_response={
+            "Error": {"Code": "ModelError", "Message": "x"},
+            "OriginalStatusCode": original_status,  # type: ignore[typeddict-unknown-key]
+            "ResponseMetadata": {"HTTPStatusCode": 424},
+        },
+        operation_name="InvokeEndpoint",
+    )
+
+
 def _make_retry_error(cause: BaseException) -> RetryError:
     """A tenacity RetryError wrapping `cause` in __cause__, as chatapi produces."""
     err = RetryError(MagicMock())
@@ -125,6 +156,15 @@ class TestRetryErrorSummary:
         state = _make_retry_state(_make_retry_error(_httpx_status_error(503)))
         assert retry_error_summary(state) == " [HTTPStatusError 503]"
 
+    def test_bedrock_client_error(self) -> None:
+        state = _make_retry_state(_bedrock_error(429))
+        assert retry_error_summary(state) == " [ClientError 429]"
+
+    def test_sagemaker_container_timeout_omits_status(self) -> None:
+        # 0 is not an HTTP status, so the summary carries the type alone
+        state = _make_retry_state(_sagemaker_error(0))
+        assert retry_error_summary(state) == " [ClientError]"
+
     def test_no_outcome(self) -> None:
         assert retry_error_summary(_make_retry_state(None)) == ""
 
@@ -162,6 +202,29 @@ class TestRetryErrorTypeStatus:
         # tenacity RetryError reports the cause's type and status, not the wrapper
         state = _make_retry_state(_make_retry_error(_httpx_status_error(503)))
         assert retry_error_type_status(state) == ("HTTPStatusError", 503)
+
+    def test_bedrock_response_metadata_status(self) -> None:
+        # botocore `response` is a mapping, so the attribute probe alone misses it
+        assert retry_error_type_status(_make_retry_state(_bedrock_error(429))) == (
+            "ClientError",
+            429,
+        )
+
+    def test_sagemaker_original_status_code_wins(self) -> None:
+        # OriginalStatusCode is what should_retry classifies on, so it beats the
+        # generic 424 envelope status in ResponseMetadata
+        assert retry_error_type_status(_make_retry_state(_sagemaker_error(503))) == (
+            "ClientError",
+            503,
+        )
+
+    def test_sagemaker_container_timeout_is_unknown(self) -> None:
+        # OriginalStatusCode 0 means container timeout, not an HTTP status — it
+        # must not be reported as one, nor fall back to the 424 envelope status
+        assert retry_error_type_status(_make_retry_state(_sagemaker_error(0))) == (
+            "ClientError",
+            None,
+        )
 
     def test_no_outcome(self) -> None:
         assert retry_error_type_status(_make_retry_state(None)) == (None, None)
