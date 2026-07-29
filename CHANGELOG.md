@@ -2,7 +2,7 @@
 
 - Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on `ModelRetry`, so hooks can distinguish e.g. timeouts from 429s and 5xxs.
 - Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
-- Agent Bridge: Fix `sandbox_agent_bridge()` swallowing a `message_limit`/`token_limit`/`cost_limit` hit during model generation into a normal-looking provider-error response instead of ending the sample. `working_limit` was unaffected (it's enforced by an independent background watchdog); only limits checked inside `Model.generate()` were silently disguised as a retryable API error handed back to the scaffold.
+- Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
 
 ## 0.3.250 (28 July 2026)
 

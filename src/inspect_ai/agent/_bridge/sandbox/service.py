@@ -33,14 +33,8 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `LimitExceededError` is deliberately excluded: a message/token/cost limit
-    hit during generation must end the sample, not look like a retryable API
-    error. Re-raising lets it reach the generic sandbox-service dispatch loop
-    (`util/_sandbox/service.py`), which already recognizes it and interrupts
-    the sample -- the same mechanism `working_limit` uses independently.
-    Previously this was swallowed here, so a sandboxed bridge's message/token/
-    cost limit hits during generation never actually ended the sample; they
-    surfaced as a generic-looking provider error instead.
+    `LimitExceededError` is deliberately excluded so message/token/cost limit
+    hit during generation properly end the sample.
     """
 
     async def generate_forwarding_errors(
