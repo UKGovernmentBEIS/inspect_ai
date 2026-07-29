@@ -96,11 +96,13 @@ from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     RESPONSES_NAMESPACE,
+    RESPONSES_VERBATIM,
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
     assistant_internal,
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
+    is_additional_tools,
     is_assistant_message_param,
     is_code_interpreter_tool_param,
     is_computer_call_output,
@@ -214,7 +216,26 @@ async def inspect_responses_api_request_impl(
     parallel_tool_calls = json_data.get("parallel_tool_calls", True)
 
     # validate computer use compatibility
-    responses_tools: list[ToolParam] = json_data.get("tools", [])
+    responses_tools: list[ToolParam] = list(json_data.get("tools", []))
+
+    # some CLI agents (e.g. codex >= 0.144) declare their tools via
+    # `additional_tools` input items rather than (or in addition to) the
+    # request's top-level `tools` array. Merge those declarations into the
+    # tool list so the generate() call carries real tools -- otherwise the
+    # model receives no tools at all and cannot emit structured tool calls.
+    input: str | list[ResponseInputItemParam] = json_data["input"]
+    declared_tool_keys = {
+        (tool.get("type"), tool.get("name")) for tool in responses_tools
+    }
+    if isinstance(input, list):
+        for item in input:
+            if isinstance(item, dict) and is_additional_tools(item):
+                for declared in item.get("tools", []) or []:
+                    key = (declared.get("type"), declared.get("name"))
+                    if key not in declared_tool_keys:
+                        declared_tool_keys.add(key)
+                        responses_tools.append(declared)
+
     has_computer_use = any(is_computer_tool_param(tool) for tool in responses_tools)
     if has_computer_use and not is_openai:
         raise RuntimeError(
@@ -244,8 +265,7 @@ async def inspect_responses_api_request_impl(
     )
     tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
 
-    # convert to inspect messages (input may be a plain string or a list of items)
-    input: str | list[ResponseInputItemParam] = json_data["input"]
+    # convert inspect messages (input was read above, before tool merging)
 
     # deferred namespace tools (e.g. codex multi_agent) are not declared in the
     # top-level `tools` array; they are discovered via tool_search and appear as
@@ -428,10 +448,15 @@ def tool_from_responses_tool(
     code_execution_providers: CodeExecutionProviders,
 ) -> ToolInfo | Tool | None:
     if is_function_tool_param(tool_param):
+        # stash the original param so the OpenAI Responses provider can re-emit
+        # it verbatim: ToolParams validation is lossy (drops schema extensions
+        # like `encrypted: true`, normalizes `required`) and models with
+        # reserved tool schemas (e.g. codex collaboration tools) reject drift.
         return ToolInfo(
             name=tool_param["name"],
             description=tool_param["description"] or tool_param["name"],
             parameters=ToolParams.model_validate(tool_param["parameters"]),
+            options={RESPONSES_VERBATIM: dict(tool_param)},
         )
     elif is_custom_tool_param(tool_param):
         return ToolInfo(
@@ -441,7 +466,10 @@ def tool_from_responses_tool(
                 properties={"input": JSONSchema(type="string", description="Input.")},
                 required=["input"],
             ),
-            options={"custom_format": tool_param["format"]},
+            options={
+                "custom_format": tool_param["format"],
+                RESPONSES_VERBATIM: dict(tool_param),
+            },
         )
     elif is_web_search_tool_param(tool_param):
         return web_search(
@@ -957,6 +985,16 @@ def messages_from_responses_input(
                     content=to_json_str_safe(item.get("tools", [])),
                 )
             )
+        elif is_additional_tools(item):
+            # developer-declared tool availability (e.g. codex CLI declaring
+            # its tools via input items for newer OpenAI models, see
+            # https://github.com/UKGovernmentBEIS/inspect_ai/issues/4490).
+            # These declarations are merged into the generate() call's real
+            # tool list by inspect_responses_api_request_impl, so nothing is
+            # added to message history. (Rendering them as text is actively
+            # harmful: some model backends fail on tool-declaration text and
+            # the model cannot call text-declared tools anyway.)
+            pass
         else:
             # ImageGenerationCall
             # ResponseCodeInterpreterToolCallParam
