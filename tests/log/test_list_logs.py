@@ -21,6 +21,24 @@ def test_list_logs():
     assert all(file not in names for file in ignored_files)
 
 
+async def test_list_logs_async_matches_sync():
+    sync_names = sorted(
+        log.name for log in list_eval_logs(log_dir, formats=["eval", "json"])
+    )
+    async_names = sorted(
+        log.name
+        for log in await list_eval_logs_async(log_dir, formats=["eval", "json"])
+    )
+
+    assert async_names == sync_names
+
+
+async def test_list_logs_async_missing_dir(tmp_path: Path):
+    logs = await list_eval_logs_async(str(tmp_path / "does-not-exist"))
+
+    assert logs == []
+
+
 async def _check_list_logs_async_filter() -> None:
     logs = await list_eval_logs_async(
         log_dir, formats=["eval", "json"], filter=lambda log: True
@@ -33,6 +51,14 @@ async def _check_list_logs_async_filter() -> None:
 
 async def test_list_logs_async_filter():
     await _check_list_logs_async_filter()
+
+
+async def test_list_logs_async_filter_excludes_all():
+    logs = await list_eval_logs_async(
+        log_dir, formats=["eval", "json"], filter=lambda log: False
+    )
+
+    assert logs == []
 
 
 async def _check_list_logs_async_header_fallback() -> None:

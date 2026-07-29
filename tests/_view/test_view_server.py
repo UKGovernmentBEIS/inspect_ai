@@ -33,11 +33,11 @@ from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
     get_direct_url,
     get_log_bytes,
-    list_eval_logs_async,
     read_eval_set_info_async,
     stream_log_bytes,
 )
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
+from inspect_ai.log import list_eval_logs_async
 from inspect_ai.model._generate_config import GenerateConfig
 
 FRONTEND_REQUEST_HEADERS = {
@@ -1062,7 +1062,7 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from inspect_ai._util.file import FileInfo
-    from inspect_ai._view import common
+    from inspect_ai.log import _file as log_file
 
     filesystem_calls: list[tuple[str, dict[str, Any]]] = []
     async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
@@ -1115,9 +1115,9 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise AssertionError("AsyncFilesystem fast path should not be used")
 
-    monkeypatch.setattr(common, "filesystem", fake_filesystem)
-    monkeypatch.setattr(common, "async_filesystem", fake_async_filesystem)
-    monkeypatch.setattr(common, "AsyncFilesystem", UnexpectedAsyncFilesystem)
+    monkeypatch.setattr(log_file, "filesystem", fake_filesystem)
+    monkeypatch.setattr(log_file, "async_filesystem", fake_async_filesystem)
+    monkeypatch.setattr(log_file, "AsyncFilesystem", UnexpectedAsyncFilesystem)
 
     logs = await list_eval_logs_async(
         "s3://bucket/logs", recursive=False, fs_options={"anon": True}
