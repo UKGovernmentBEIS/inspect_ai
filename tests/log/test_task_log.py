@@ -173,9 +173,14 @@ class _FlushBufferDB:
     def __init__(self) -> None:
         self.removed: list[tuple[str | int, int]] = []
         self.removed_samples = anyio.Event()
+        self.completed_metadata: list[dict[str, Any] | None] = []
 
-    def complete_sample(self, summary: EvalSampleSummary) -> None:
-        pass
+    def complete_sample(
+        self,
+        summary: EvalSampleSummary,
+        sample_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.completed_metadata.append(sample_metadata)
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
         self.removed.extend(samples)
@@ -248,6 +253,20 @@ async def test_task_logger_flushes_pending_samples_at_threshold() -> None:
     assert recorder.flush_count == 1
     assert logger.flush_pending == []
     assert buffer_db.removed == [("sample", 1), ("sample-2", 1)]
+
+
+@pytest.mark.anyio
+async def test_task_logger_forwards_full_metadata_to_buffer() -> None:
+    recorder = _FlushRecorder()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(buffer_db=buffer_db, recorder=recorder)
+    metadata = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+
+    await logger.complete_sample(
+        _sample().model_copy(update={"metadata": metadata}), flush=False
+    )
+
+    assert buffer_db.completed_metadata == [metadata]
 
 
 @pytest.mark.parametrize(
