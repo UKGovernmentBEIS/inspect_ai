@@ -9,6 +9,8 @@
 - Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
 - MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
 - MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
+- Smaller downloads: the wheel no longer includes the accidentally-bundled log viewer TypeScript source, and the sdist no longer includes tests, docs, or lockfiles.
+- Bugfix: OpenAI: A tool call with an oversized arguments string no longer poisons the conversation, which previously failed every subsequent request with a 400 "string too long" error. (#4682)
 
 ## 0.3.251 (29 July 2026)
 
