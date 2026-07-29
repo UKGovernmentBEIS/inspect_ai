@@ -1,21 +1,9 @@
 # Qualified contributors — see CONTRIBUTING.md ("Becoming a qualified
-# contributor"). PRs from these accounts skip the new-contributor gate and are
-# labeled `qualified` for review priority.
-#
-# Entries are immutable numeric account ids, not logins: logins are
-# recyclable after rename or deletion (so a login could be squatted), and
-# ids keep the roster itself out of casual browsing. Look up an id with
-# `gh api users/<login> --jq .id`; verify one with `gh api user/<id>`.
+# contributor").
 #
 # STRICT FORMAT (parsed by .github/scripts/pr_gate.py, not a YAML library):
 #   - exactly one top-level key: `users:`
 #   - entries are `  - <numeric account id>` — one per line, nothing else
-#
-# Changes to this file are ordinary PRs — trust changes get reviewed. Don't
-# name the account in the diff or PR description; the reviewing maintainer
-# verifies the id out-of-band (`gh api user/<id>`).
-# Bar for individuals: sustained ~75%+ merge rate + responsive engagement.
-
 users:
   - 70594
   - 245131
