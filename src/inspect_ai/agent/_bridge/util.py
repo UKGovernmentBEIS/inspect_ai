@@ -7,6 +7,7 @@ from typing import Iterator, Sequence, cast
 from typing_extensions import TypeIs
 
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai.agent._bridge.approval import apply_bridge_tool_approval
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
@@ -308,6 +309,10 @@ async def bridge_generate(
         ):
             refusals += 1
         else:
+            # gate the tool calls the scaffold is about to run on the active
+            # approval policy. bridged scaffolds run their own tools, so this
+            # is the only point at which approval can be applied to them.
+            await apply_bridge_tool_approval(output, input_messages, tools)
             return output, c_message
 
 
