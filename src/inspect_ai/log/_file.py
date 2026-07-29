@@ -167,8 +167,8 @@ async def list_eval_logs_async(
     Async equivalent of `list_eval_logs()`. Prefer this when calling from an
     async context: the listing itself is async for filesystem providers that
     support it (e.g. s3, gcs, azure) rather than blocking the event loop
-    (except non-s3 remote listings under trio, which fall back to fsspec's
-    sync API), and log headers (for `filter`, and as a fallback for
+    (except remote listings under trio other than plain S3, which fall back
+    to fsspec's sync API), and log headers (for `filter`, and as a fallback for
     non-conforming filenames) are read with `read_eval_log_async()` — the
     sync version's `read_eval_log()` raises when called from a trio async
     context.
