@@ -25,7 +25,6 @@ from inspect_ai.agent._bridge.sandbox.service import _forward_provider_errors
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._model import ModelAPI, ModelGenerateError
 from inspect_ai.model._registry import modelapi
-from inspect_ai.util._limit import LimitExceededError
 
 
 class _ProviderError(Exception):
@@ -170,16 +169,6 @@ async def test_forward_provider_errors_reraises_terminate_sample_error() -> None
         raise TerminateSampleError("approver requested termination")
 
     with pytest.raises(TerminateSampleError):
-        await _forward_provider_errors(boom)({})
-
-
-async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
-    """A limit hit during generation must end the sample, not look like an API error."""
-
-    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
-        raise LimitExceededError("message", value=2, limit=1)
-
-    with pytest.raises(LimitExceededError):
         await _forward_provider_errors(boom)({})
 
 

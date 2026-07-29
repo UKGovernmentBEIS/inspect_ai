@@ -2,7 +2,7 @@
 
 - Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on `ModelRetry`, so hooks can distinguish e.g. timeouts from 429s and 5xxs.
 - Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
-- Agent Bridge: Apply active approval policies to a bridged scaffold's tool calls, so `--approval` now takes effect for `claude_code`, `codex`, and other bridged agents. A rejection discards the turn and resamples with the rejection appended as a tool result; `terminate` ends the sample — including for `sandbox_agent_bridge()`, which previously also forwarded limit errors during generation to the scaffold as provider errors instead of ending the sample. (#4662)
+- Agent Bridge: Apply active approval policies to a bridged scaffold's tool calls, so `--approval` now takes effect for `claude_code`, `codex`, and other bridged agents. A rejection discards the turn and resamples with the rejection appended as a tool result; `terminate` ends the sample. (#4662)
 
 ## 0.3.250 (28 July 2026)
 
