@@ -236,7 +236,7 @@ Approval policies also apply to [bridged agents](agent-bridge.qmd) (`claude_code
 
 This has some consequences worth understanding:
 
--   **A rejected tool call is removed from the reply** and the reason is appended to it as text. The scaffold therefore never runs the call, and the model is told why. If the rejected call was the only one in the turn, the reply becomes a plain assistant message, which most scaffolds treat as the end of their turn.
+-   **A rejected tool call is never sent to the scaffold.** The bridge can only shape the model's reply, not fabricate a tool result the scaffold would otherwise have to produce, so there's no way to hand the scaffold a rejected call it could ever resolve. Instead, the whole turn is discarded and the model is asked again, with the rejection appended to the conversation as an ordinary tool-result message — the same shape a native rejection takes. This happens internally to the retry loop; the scaffold never sees the rejected attempt, only the eventual accepted reply. If any call in a turn is rejected, approved siblings in that same turn are discarded too and retried along with it (a scaffold can only receive one coherent reply, so a turn can't be partially resampled) — each gets its own tool result explaining why (the real rejection reason, or that a sibling was rejected). This retry has no dedicated cap: it's an ordinary `generate()` call each time, so it's bounded only by the sample's own limits (`message_limit`, `token_limit`, `time_limit`, `cost_limit`) — the same as a native agentic loop that keeps getting the same tool call rejected.
 
 -   **Policies must cover the scaffold's whole toolset.** As elsewhere in approval mode, a tool call that no policy matches is rejected. Scaffolds bring a large toolset with names of their own (`Bash`, `Edit`, `shell`, …), and a policy that only covers a few of them will reject every other tool outright. The scaffold's full toolset is visible in the incoming request (each bridged tool call carries the name the scaffold gave it, and the request's declared tools appear on the corresponding `ModelEvent`), so it's practical to enumerate all of them explicitly rather than reach for a catch-all:
 
@@ -261,7 +261,9 @@ This has some consequences worth understanding:
 
 -   **Scaffold-native permission settings are independent.** A scaffold's own allow/deny configuration still applies; approval policies are an additional gate, useful when you want one set of rules (or a model-based monitor) across several scaffolds.
 
-Approvals of bridged tool calls are recorded as `ApprovalEvent`s in the transcript, as they are for ordinary tool calls.
+-   **`modify` doesn't rewrite the transcript.** The scaffold receives the substituted call (so that's what actually runs), but the transcript's `ModelEvent` still shows exactly what the model asked for — matching how a native `modify` leaves the recorded `ToolEvent` showing the original call, with the substitution itself visible on the `ApprovalEvent`.
+
+Approvals of bridged tool calls — including every resample attempt from a rejection — are recorded as `ApprovalEvent`s in the transcript, as they are for ordinary tool calls.
 
 
 ## Tool Views

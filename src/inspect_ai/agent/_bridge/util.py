@@ -7,7 +7,7 @@ from typing import Iterator, Sequence, cast
 from typing_extensions import TypeIs
 
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai.agent._bridge.approval import apply_bridge_tool_approval
+from inspect_ai.agent._bridge.approval import resolve_bridge_tool_approvals
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
@@ -229,6 +229,15 @@ async def bridge_generate(
     Refusals (stop_reason="content_filter") from either the filter or model will trigger
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
+
+    A rejected tool call (see `resolve_bridge_tool_approvals`) also retries
+    generation, but rather than resetting to the original input, appends the
+    rejected turn and its rejection to the conversation so the model can see
+    what happened and try something else — same as it would for a rejected
+    tool call outside the bridge. Unlike refusals, this isn't bounded by a
+    retry count: it's a real generate() call each time, so it's bounded by
+    the sample's own limits (message/token/time/cost), same as an ordinary
+    agentic loop that keeps retrying a rejected tool call.
     """
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
     # claude_code re-emits an operator message as a plain user message). Done
@@ -252,8 +261,9 @@ async def bridge_generate(
 
     refusals = 0
     while True:
-        # Reset to original inputs for each retry
-        input_messages = original_input
+        # Reset generation params for each retry; input_messages is reset
+        # separately below, only for a content_filter refusal (an approval
+        # rejection instead appends to it -- see the loop's tail).
         tools = original_tools
         tool_choice = original_tool_choice
         config = original_config
@@ -308,12 +318,20 @@ async def bridge_generate(
             and refusals < bridge.retry_refusals
         ):
             refusals += 1
-        else:
-            # gate the tool calls the scaffold is about to run on the active
-            # approval policy. bridged scaffolds run their own tools, so this
-            # is the only point at which approval can be applied to them.
-            await apply_bridge_tool_approval(output, input_messages, tools)
-            return output, c_message
+            input_messages = original_input
+            continue
+
+        # gate the tool calls the scaffold is about to run on the active
+        # approval policy. bridged scaffolds run their own tools, so this
+        # is the only point at which approval can be applied to them.
+        output, continuation = await resolve_bridge_tool_approvals(
+            output, input_messages, tools
+        )
+        if continuation is not None:
+            input_messages = input_messages + continuation
+            continue
+
+        return output, c_message
 
 
 def resolve_generate_config(

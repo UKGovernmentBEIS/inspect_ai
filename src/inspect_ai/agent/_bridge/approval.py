@@ -7,87 +7,95 @@ and monitor-style approvers) silently has no effect on a bridged eval.
 
 `bridge_generate()` is the single chokepoint where the scaffold's intended tool
 calls exist as Inspect `ToolCall`s *before* the scaffold acts on them, so that
-is where we gate them.
-
-Rejection semantics
--------------------
-The bridge is a model endpoint: it can only shape the assistant reply, and
-cannot fabricate the tool results (those belong to the scaffold). So a rejected
-call is *removed* from the reply — the scaffold never sees it and therefore
-never runs it — and the reason is appended to the reply as text so the model
-learns why. Approved siblings are left in place, meaning a partially-rejected
-turn continues naturally; a fully-rejected turn becomes a text-only reply,
-which most scaffolds treat as end-of-turn.
+is where approval is applied.
 """
 
 from typing import Sequence
 
-from inspect_ai._util.content import ContentText
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.approval._approval import Approval
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
-from inspect_ai.tool._tool_call import ToolCall, ToolCallViewer
+from inspect_ai.tool._tool_call import ToolCall, ToolCallError, ToolCallViewer
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import ToolInfo
 
 
-async def apply_bridge_tool_approval(
+async def resolve_bridge_tool_approvals(
     output: ModelOutput,
     history: list[ChatMessage],
     tools: Sequence[ToolInfo | Tool],
-) -> None:
-    """Apply active approval policies to the tool calls in a bridged reply.
+) -> tuple[ModelOutput, list[ChatMessage] | None]:
+    """Apply active approval policies to a bridged reply's tool calls.
 
-    Modifies `output` in place: `modify` decisions replace the call the scaffold
-    will run, rejected calls are dropped and explained in the reply text, and
-    `terminate` raises `TerminateSampleError`.
+    Returns `(output, None)` when the turn can proceed as-is: no tool call
+    was rejected. `modify` substitutions are applied to a *copy* of `output`,
+    so the transcript's `ModelEvent` (which shares the original object) still
+    shows exactly what the model asked for — matching how a native `modify`
+    leaves the recorded `ToolEvent` showing the original call, with the
+    substitution visible separately via the `ApprovalEvent`.
 
-    Args:
-        output: Model output whose tool calls the scaffold is about to run.
-        history: Conversation the output was generated from (approver context).
-        tools: Tools available for this generation, used to resolve tool call
-            viewers. Scaffold-native tools arrive as `ToolInfo` and so have no
-            viewer — those fall back to the default rendering.
+    Returns `(output, continuation)` when any call was rejected. The bridge
+    can only shape the reply, not fabricate a scaffold-executed result, so
+    there's no way to hand the scaffold a rejected call it could ever resolve
+    — the whole turn is discarded instead. `continuation` is the rejected
+    assistant message plus one tool-result message per call (the real
+    decision for whichever call(s) were rejected; a "turn discarded" note for
+    any approved siblings), for the caller to append to the conversation and
+    regenerate — the same shape a native rejection becomes (a tool result the
+    model sees on its next turn), just kept internal to the retry loop since
+    it can never reach the scaffold. Bounded only by the sample's own limits
+    (message/token/time/cost), the same as an ordinary agentic loop that keeps
+    retrying a rejected tool call.
+
+    `terminate` raises `TerminateSampleError` directly, ending the sample.
     """
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
 
     message = output.message
     if not have_tool_approval() or not message.tool_calls:
-        return
+        return output, None
 
     viewers = _tool_call_viewers(tools)
-    approved: list[ToolCall] = []
-    rejections: list[str] = []
+    decisions: list[tuple[ToolCall, bool, Approval | None]] = []
     for call in message.tool_calls:
-        ok, approval = await apply_tool_approval(
+        approved, approval = await apply_tool_approval(
             message.text, call, viewers.get(call.function), history
         )
-        if ok:
-            approved.append(
-                approval.modified if approval and approval.modified else call
-            )
-        elif approval and approval.decision == "terminate":
+        if approval and approval.decision == "terminate":
             raise TerminateSampleError("Tool call approver requested termination.")
-        else:
-            rejections.append(_rejection_message(call, approval))
+        decisions.append((call, approved, approval))
 
-    # write back the surviving calls (picking up any `modify` substitutions)
-    message.tool_calls = approved
-    if not rejections:
-        return
+    if all(approved for _, approved, _ in decisions):
+        if any(approval and approval.modified for _, _, approval in decisions):
+            output = output.model_copy(deep=True)
+            output.message.tool_calls = [
+                approval.modified if approval and approval.modified else call
+                for call, _, approval in decisions
+            ]
+        return output, None
 
-    if isinstance(message.content, str):
-        message.content = "\n\n".join([message.content, *rejections]).lstrip()
+    results = [
+        _rejection_result(call, approved, approval)
+        for call, approved, approval in decisions
+    ]
+    return output, [message, *results]
+
+
+def _rejection_result(
+    call: ToolCall, approved: bool, approval: Approval | None
+) -> ChatMessageTool:
+    if approved:
+        explanation = "Not executed: a sibling tool call in this turn was rejected."
     else:
-        message.content = message.content + [
-            ContentText(text=text) for text in rejections
-        ]
-
-    # a reply with no remaining tool calls is a plain assistant turn
-    if not approved:
-        output.choices[0].stop_reason = "stop"
+        explanation = (approval.explanation if approval else None) or "Not approved."
+    return ChatMessageTool(
+        tool_call_id=call.id,
+        function=call.function,
+        content="",
+        error=ToolCallError("approval", explanation),
+    )
 
 
 def _tool_call_viewers(
@@ -102,8 +110,3 @@ def _tool_call_viewers(
         if tool_def.viewer is not None:
             viewers[tool_def.name] = tool_def.viewer
     return viewers
-
-
-def _rejection_message(call: ToolCall, approval: Approval | None) -> str:
-    explanation = (approval.explanation if approval else None) or "Not approved."
-    return f"The call to the `{call.function}` tool was rejected: {explanation}"
