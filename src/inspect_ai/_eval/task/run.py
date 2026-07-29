@@ -1121,6 +1121,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     metrics=task.metrics,
                     scorer_names=scorer_names,
                     early_stopping=stopping_summary,
+                    # see eval_results() for why this isn't len(scores)
+                    completed_samples=(
+                        logger.samples_completed if log_samples else None
+                    ),
                 )
 
             # collect eval data
@@ -1169,6 +1173,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         scorers=scorers,
                         metrics=task.metrics,
                         scorer_names=scorer_names,
+                        # see eval_results() for why this isn't len(scores)
+                        completed_samples=(
+                            logger.samples_completed if log_samples else None
+                        ),
                     )
 
                 if task_cancel and task_cancel.cancel_type in ("abort", "retry"):
