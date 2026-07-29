@@ -302,6 +302,9 @@ async def score_async(
     with display_manager().progress(total=total_samples) as p:
         scorer_names: list[str] | None = None
         scores: list[dict[str, SampleScore] | None] = [None] * total_samples
+        # tally the per-sample error state as we go so an overwrite can restate
+        # completed_samples exactly rather than falling back to len(scores)
+        sample_completed: list[bool] = [False] * total_samples
 
         async def _score_sample(idx_sample: int) -> None:
             nonlocal scorer_names
@@ -323,6 +326,7 @@ async def score_async(
 
             assert sample.scores is not None
             scores[idx_sample] = sample_score
+            sample_completed[idx_sample] = sample.error is None
             if scorer_names is None:
                 scorer_names = names
             p.update(1)
@@ -362,6 +366,7 @@ async def score_async(
             scorer_names,
             early_stopping=log.results.early_stopping if log.results else None,
             metadata=log.results.metadata if log.results else None,
+            completed_samples=sum(sample_completed),
         )
 
         # Update log.eval.scorers to reflect the scorers actually applied so
