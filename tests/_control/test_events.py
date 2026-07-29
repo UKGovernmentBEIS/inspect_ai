@@ -151,6 +151,89 @@ async def test_retry_on_error_cursor_does_not_skip_fresh_transcript(
     assert [e["source"] for e in resumed["events"]] == ["retry"]
 
 
+# --- tail seeding ----------------------------------------------------------
+
+
+def _span_begin(i: int) -> Event:
+    from inspect_ai.event._span import SpanBeginEvent
+
+    return SpanBeginEvent(id=f"span-{i}", name=f"span{i}")
+
+
+async def test_tail_counts_matched_events_not_raw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tail seed returns the last N events *matching the filter*.
+
+    A live transcript is dominated by structural events (state / store /
+    span), so slicing the raw sequence by ``tail`` could render a single
+    high-signal event (plus a cursor) even though more matches sat just below
+    the raw window — a near-empty default page for exactly the "what is this
+    sample doing?" read (issue #162).
+    """
+    import inspect_ai.log._samples as samples_mod
+
+    # two high-signal events buried under a pile of trailing structural ones:
+    # a raw-event tail of 5 contains zero matches
+    events: list[Event] = [
+        _info_at("first", _now()),
+        _info_at("second", _now()),
+        *[_span_begin(i) for i in range(10)],
+    ]
+    sample = _fake_running_sample(sample_uuid="u1", events=events, error_retries=[])
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [sample])
+
+    page = await sample_events("e1", "1", 1, tail=5)
+    assert page is not None
+    assert [e["source"] for e in page["events"]] == ["first", "second"]
+    # the cursor still advances past everything scanned (raw offset)
+    assert decode_cursor(page["next"]) == ("u1:0", len(events))
+
+
+async def test_tail_keeps_only_most_recent_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With more matches than ``tail``, the page is the most recent ones."""
+    import inspect_ai.log._samples as samples_mod
+
+    # matches interleaved with structural events
+    events: list[Event] = []
+    for i in range(6):
+        events.append(_info_at(f"m{i}", _now()))
+        events.append(_span_begin(i))
+    sample = _fake_running_sample(sample_uuid="u1", events=events, error_retries=[])
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [sample])
+
+    page = await sample_events("e1", "1", 1, tail=2)
+    assert page is not None
+    assert [e["source"] for e in page["events"]] == ["m4", "m5"]
+
+
+async def test_tail_scan_is_page_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The matched-tail scan reaches back at most ``limit`` events.
+
+    A match sitting below the trailing ``limit``-sized window stays out of the
+    page — the tail seed keeps the same per-page scan bound as every other
+    read rather than walking the whole backlog hunting for matches.
+    """
+    import inspect_ai.log._samples as samples_mod
+
+    events: list[Event] = [
+        _info_at("early", _now()),
+        *[_span_begin(i) for i in range(10)],
+    ]
+    sample = _fake_running_sample(sample_uuid="u1", events=events, error_retries=[])
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [sample])
+
+    page = await sample_events("e1", "1", 1, tail=5, limit=10)
+    assert page is not None
+    assert page["events"] == []  # the only match sits below the scan window
+    # `next` still lands at the end of the scanned window
+    assert decode_cursor(page["next"]) == ("u1:0", len(events))
+
+
 # --- type filter ----------------------------------------------------------
 
 

@@ -86,7 +86,9 @@ if TYPE_CHECKING:
 # Events shown on an unseeded `sample events` read (no --cursor / --tail /
 # --since-time / --until / --from-start): a recent tail rather than the full
 # backlog — the first call must never be empty or a context-flooding dump
-# (see the agent output contract in design/ctl/control-channel.md).
+# (see the agent output contract in design/ctl/control-channel.md). The
+# server counts the tail in *matched* events (post --type filter), so this
+# is 20 high-signal events by default, not 20 raw transcript entries.
 _DEFAULT_EVENTS_TAIL = 20
 
 # Messages shown on an unseeded `sample messages` read (no --tail / --all): a
@@ -730,7 +732,8 @@ def sample_show_command(
     type=int,
     default=None,
     help=(
-        "Start this many events from the end (when --cursor is not given). "
+        "Show the last N events matching the --type/time filters (when "
+        "--cursor is not given), scanning back at most --limit events. "
         f"Default: {_DEFAULT_EVENTS_TAIL}, applied only to a fully unseeded "
         "read (no --cursor, no --from-start, and no --since-time/--until window)."
     ),
