@@ -1409,6 +1409,15 @@ class Model:
                 report_http_retry()
                 return True
 
+            # anyio asyncio-backend race: SocketStream.aclose() calls
+            # transport.abort() after connection_lost already ran (nulling
+            # transport._loop). Fires during response close, i.e. after the
+            # request completed — pure cleanup noise, so retry regardless of
+            # provider. See https://github.com/meridianlabs-ai/inspect_ai/issues/177
+            if isinstance(ex, AttributeError) and "call_soon" in str(ex):
+                report_http_retry()
+                return True
+
             # check standard should_retry() method — may return bool or RetryDecision
             decision = self.api.should_retry(ex)
             if isinstance(decision, RetryDecision):
