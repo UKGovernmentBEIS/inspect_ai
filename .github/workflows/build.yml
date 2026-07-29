@@ -109,18 +109,30 @@ jobs:
       pull-requests: read
     outputs:
       code: ${{ steps.filter.outputs.code }}
-      sandbox_tools: ${{ steps.filter.outputs.sandbox_tools }}
-      docs: ${{ steps.filter.outputs.docs }}
+      sandbox_tools: ${{ steps.areas.outputs.sandbox_tools }}
+      docs: ${{ steps.areas.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
+      # 'every' is required for the negations to bite: the default 'some'
+      # quantifier matches a file against ANY pattern, and '**' matches
+      # everything, so `code` was unconditionally true and the docs-only
+      # skip never triggered. The quantifier applies to every filter in a
+      # step, so the union-of-positive-patterns filters live in their own
+      # step below (under 'every' their disjoint patterns could never all
+      # match one file).
       - uses: dorny/paths-filter@v4
         id: filter
         with:
+          predicate-quantifier: every
           filters: |
             code:
               - '**'
               - '!docs/**'
               - '!**/*.md'
+      - uses: dorny/paths-filter@v4
+        id: areas
+        with:
+          filters: |
             sandbox_tools:
               - 'src/inspect_sandbox_tools/**'
             docs:
@@ -135,7 +147,7 @@ jobs:
   # is pure conversion: no code execution, no API keys.
   docs:
     needs: changes
-    if: needs.changes.outputs.docs == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -166,7 +178,9 @@ jobs:
 
   test:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    # On workflow_dispatch there is no base to diff against (paths-filter
+    # sees only the last commit), so manual runs always do the full build.
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -211,7 +225,7 @@ jobs:
   # Docker or a built binary (unlike the slow-tool-tests-* jobs below).
   sandbox-tools-unit:
     needs: changes
-    if: needs.changes.outputs.sandbox_tools == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.sandbox_tools == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
