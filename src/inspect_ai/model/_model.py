@@ -1417,6 +1417,7 @@ class Model:
             # rewords the message: interpreter-raised AttributeError carries
             # name="call_soon", obj=None for this race, without matching
             # call_soon failures on non-None receivers.
+            # See https://github.com/agronholm/anyio/issues/1250
             # See https://github.com/meridianlabs-ai/inspect_ai/issues/177
             if isinstance(ex, AttributeError) and (
                 "'NoneType' object has no attribute 'call_soon'" in str(ex)
