@@ -208,6 +208,47 @@ def test_var_keyword_args_round_trip_is_idempotent():
     assert registry_params(replayed) == registry_params(original)
 
 
+def test_reserved_name_var_keyword_args_do_not_collide():
+    """A ``**kwargs`` key named like registry_tag's positional params must not collide.
+
+    A key named `type`, `o`, or `info` raised `TypeError: got multiple values for
+    argument ...` at capture time before those parameters were made positional-only.
+    """
+    for key in ("type", "o", "info"):
+        slv = solver_with_kwargs(base="hello", **{key: "demo"})
+        assert slv is not None
+
+        # replay drives the capture path again (create_registry_object -> registry_tag)
+        assert solver_from_spec(as_solver_spec(slv)) is not None
+
+
+@solver
+def solver_explicit_type(base: str = "base", type: str = "x"):
+    """Solver with an explicit parameter named ``type``."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return await generate(state)
+
+    return solve
+
+
+def test_explicit_param_named_type_round_trip():
+    """An explicit `type` parameter must survive capture AND replay (#4504).
+
+    Unlike a ``**kwargs`` key, an explicit parameter is captured flat at the
+    top level of args_passed, so replay really does feed it back into the
+    registry instantiation path — where it used to collide with
+    registry_create's own leading `type` parameter. Replay goes through
+    create_registry_object (args as a dict), which has no such parameters.
+    """
+    original = solver_explicit_type(base="hello", type="y")
+
+    replayed = solver_from_spec(as_solver_spec(original))
+
+    assert registry_params(replayed) == registry_params(original)
+    assert registry_params(replayed)["type"] == "y"
+
+
 def test_var_keyword_name_kwarg_round_trip():
     """A **kwargs key named `name` must round-trip (#4375).
 
