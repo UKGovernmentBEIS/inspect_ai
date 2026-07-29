@@ -47,6 +47,7 @@ changes; respect the open-PR limit (4 per account without write access).
 - **Naming**: Use snake_case for variables, functions, methods; PascalCase for classes
 - **Docstrings**: Google-style docstrings required for public APIs
 - **Comments at call sites**: Don't describe what a function does at the call site — the function's name and docstring already document that, and the comment will drift if the function evolves. Document rationale in the function's docstring instead. A call-site comment is appropriate only when the *reason this caller specifically invokes it* isn't obvious from surrounding context (eg. an unusual ordering constraint, a workaround for a known bug in this code path). When in doubt, write the docstring and leave the call site uncommented.
+- **Comment length**: Sometimes comments in the code are useful to explain the rationale or context of a particular set of code. When this is necessary, be concise. Preserve the important concept and information but don't be pedantic or overly verbose. Especially avoid just replaying a commit description, PR description, or text used elsewhere into a comment.
 - **Error Handling**: Use appropriate exception types; include context in error messages
 - **Testing**: Write tests with pytest; maintain high coverage. See "Testing Async Code" below for async test conventions. Prefer adding tests to an existing test file covering the same area (e.g. eval-level behavior → `tests/test_eval.py`) rather than creating a new file; only add a new file when no existing one is a reasonable fit.
 
@@ -99,7 +100,12 @@ Opening a PR from an organization fork to its upstream via the GitHub API/CLI ne
 gh api repos/UKGovernmentBEIS/inspect_ai/pulls -X POST \
   -f title="<title>" -f base="main" \
   -f head="<branch>" -f head_repo="meridianlabs-ai/inspect_ai" \
+  -F maintainer_can_modify=true \
   -F body=@<body.md>
 ```
+
+Always pass `maintainer_can_modify=true` — upstream maintainers need push
+access to the PR branch ("Allow edits by maintainers"). `gh pr create` enables
+this by default, but the raw API defaults it to false.
 
 Once the upstream PR is open it's the system of record: close the corresponding org-fork PR, with a close comment linking to the upstream PR.
