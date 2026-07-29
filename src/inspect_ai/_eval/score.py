@@ -28,7 +28,6 @@ from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     has_registry_params,
-    registry_create,
     registry_lookup,
     registry_params,
     registry_unqualified_name,
@@ -54,7 +53,7 @@ from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
-from inspect_ai.scorer._metric import SampleScore, Score
+from inspect_ai.scorer._metric import SampleScore, Score, metric_create
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
     ScoreReducers,
@@ -522,7 +521,7 @@ def metrics_from_log_header(
 
 
 def metric_from_log(metric: EvalMetricDefinition) -> Metric:
-    return registry_create("metric", metric.name, **(metric.options or {}))
+    return metric_create(metric.name, **(metric.options or {}))
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:
