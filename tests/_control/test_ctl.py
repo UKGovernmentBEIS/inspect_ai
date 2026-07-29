@@ -552,7 +552,10 @@ def test_footer_reports_paused_tasks(capsys: pytest.CaptureFixture[str]) -> None
     _print_keep_alive_footer(summaries)
     out = capsys.readouterr().out
     assert "paused: 1/2 tasks (1 quiesced)" in out
-    assert "inspect ctl process resume" in out
+    # held only by the task latch → advertise only the command that resumes it
+    assert "inspect ctl task resume" in out
+    assert "inspect ctl model resume" not in out
+    assert "inspect ctl process resume" not in out
     # keep-alive on → the run parks rather than exiting, no contradiction
     assert "never finishes" not in out
 
@@ -607,7 +610,10 @@ def test_footer_reports_model_paused_sources(
     _print_keep_alive_footer(summaries)
     out = capsys.readouterr().out
     assert "paused: 1/2 tasks" in out
+    # held only by the model latch → advertise only the command that resumes it
     assert "inspect ctl model resume" in out
+    assert "inspect ctl task resume" not in out
+    assert "inspect ctl process resume" not in out
     assert "paused models: mockllm/model" in out
 
 
@@ -627,6 +633,26 @@ def test_footer_reports_latched_model_with_no_paused_rows(
     out = capsys.readouterr().out
     assert "paused models: mockllm/model" in out
     assert "inspect ctl model resume" in out
+
+
+def test_footer_reports_each_holding_latch_when_mixed(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Two tasks held by different latches → advertise both resume commands.
+
+    The footer's resume hints are the union of the latches actually holding a
+    paused task, in fixed task → model → process order.
+    """
+    summaries: list[dict[str, Any]] = [
+        {"keep_alive": True, "paused": ["task"]},
+        {"keep_alive": True, "paused": ["model"], "paused_models": ["mockllm/model"]},
+    ]
+    _print_keep_alive_footer(summaries)
+    out = capsys.readouterr().out
+    assert "paused: 2/2 tasks" in out
+    assert "inspect ctl task resume" in out
+    assert "inspect ctl model resume" in out
+    assert "inspect ctl process resume" not in out
 
 
 def test_format_paused_renders_source_lists() -> None:

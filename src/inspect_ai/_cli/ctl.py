@@ -5236,10 +5236,16 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     if paused:
         quiesced = sum(1 for s in paused if s.get("quiesced"))
         detail = f" ({quiesced} quiesced)" if quiesced else ""
-        resumes = ["`inspect ctl task resume`"]
-        if any("model" in _paused_sources(s.get("paused")) for s in paused):
-            resumes.append("`inspect ctl model resume`")
-        resumes.append("`inspect ctl process resume`")
+        # only the latches actually holding a paused task can resume it — a
+        # task held solely by the model latch isn't freed by `task resume` or
+        # `process resume`, so don't advertise them. Fixed order: task, model,
+        # process.
+        held = {src for s in paused for src in _paused_sources(s.get("paused"))}
+        resumes = [
+            f"`inspect ctl {latch} resume`"
+            for latch in ("task", "model", "process")
+            if latch in held
+        ]
         click.echo(
             f"paused: {len(paused)}/{len(summaries)} task"
             f"{'' if len(summaries) == 1 else 's'}{detail}  ·  resume with "
