@@ -3,6 +3,7 @@ import os
 import re
 from asyncio.subprocess import Process as AsyncIOProcess
 
+from ..._util.process_tree import terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
 from ..._util.user_switch import get_home_dir, make_preexec
@@ -102,16 +103,7 @@ class Process:
         # Clean up the timeout handler
         self._send_data_event.cancel()
 
-        # Ensure the process is terminated
-        try:
-            self._process.terminate()
-            await asyncio.wait_for(self._process.wait(), timeout=timeout)
-        except (TimeoutError, asyncio.TimeoutError):
-            self._process.kill()
-            await self._process.wait()
-        except ProcessLookupError:
-            # the process has already ended
-            pass
+        await terminate_process_tree(self._process, timeout=timeout)
 
         self._pty.cleanup()
 
