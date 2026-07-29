@@ -381,36 +381,50 @@ def test_recover_async_paths_trio() -> None:
     ``RuntimeError`` inside a trio async context. Runs via
     ``anyio.run(backend="trio")`` so the trio path is exercised on regular CI,
     which has no ``--runtrio`` leg (see the NOTE above the trio tests in
-    test_eval_log.py). The sync ``recoverable_eval_logs()`` wrapper is
-    intentionally *not* covered here, since it still raises under trio through
-    ``run_coroutine()``.
+    test_eval_log.py). Deliberately runs without a caller-provided
+    ``AsyncFilesystem`` — the public API must be self-contained, entering one
+    itself wherever it needs async file access.
     """
 
     async def check() -> None:
-        async with AsyncFilesystem():
-            with tempfile.TemporaryDirectory() as temp_dir:
-                eval_path = os.path.join(temp_dir, "test.eval")
-                db_dir = os.path.join(temp_dir, "bufferdb")
-                output_path = os.path.join(temp_dir, "test-recovered.eval")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
 
-                flushed = [_make_sample(1), _make_sample(2)]
-                _write_crashed_eval(eval_path, samples=flushed)
-                _create_buffer_db(
-                    eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
-                )
+            flushed = [_make_sample(1), _make_sample(2)]
+            _write_crashed_eval(eval_path, samples=flushed)
+            _create_buffer_db(
+                eval_path, completed_ids=[3], in_progress_ids=[4], db_dir=db_dir
+            )
 
-                # Async discovery helper must resolve the crashed log under trio.
-                recoverable = await _recoverable_eval_logs_async(
-                    log_dir=temp_dir, _db_dir=db_dir
-                )
-                assert len(recoverable) == 1
-                assert "test.eval" in recoverable[0].log.name
+            # Async discovery helper must resolve the crashed log under trio.
+            recoverable = await _recoverable_eval_logs_async(
+                log_dir=temp_dir, _db_dir=db_dir
+            )
+            assert len(recoverable) == 1
+            assert "test.eval" in recoverable[0].log.name
 
-                # Async recovery must combine flushed + buffered samples under trio.
-                log = await recover_eval_log_async(
-                    eval_path, output=output_path, cleanup=False, _db_dir=db_dir
-                )
-                assert log.samples is not None
-                assert len(log.samples) == 4
+            # Async recovery must combine flushed + buffered samples under trio.
+            log = await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+            assert log.samples is not None
+            assert len(log.samples) == 4
+
+    anyio.run(check, backend="trio")
+
+
+def test_sync_recoverable_eval_logs_raises_under_trio() -> None:
+    """Sync discovery is still trio-prohibited (the run_coroutine guard)."""
+    import warnings
+
+    async def check() -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with warnings.catch_warnings():
+                # run_coroutine raises before awaiting the coroutine it was given.
+                warnings.simplefilter("ignore", RuntimeWarning)
+                with pytest.raises(RuntimeError, match="run_coroutine"):
+                    recoverable_eval_logs(log_dir=temp_dir)
 
     anyio.run(check, backend="trio")
