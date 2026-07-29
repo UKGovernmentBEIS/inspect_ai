@@ -12,14 +12,16 @@ Your path depends on your history with the project:
 
 - **Established contributors**: anyone with at least one merged non-trivial
   PR in this repository (trivial documentation fixes don't count toward this)
-  — may open PRs directly, subject to a limit of 4 open PRs at a time. PRs
-  inactive for 60 days are closed with an invitation to reopen.
+  — may open PRs directly, subject to a limit of 4 open PRs at a time.
 - **New contributors**: if you haven't had a PR merged here yet, start from an
   issue a maintainer has labeled `accepted` before writing code. PRs from new
   contributors that aren't linked to an accepted issue are closed
   automatically, with a comment explaining the available paths.
   **Exception:** trivial documentation fixes (typos, broken links) are always
   welcome directly.
+
+Whatever your tier, a non-draft PR inactive for 60 days is closed with an
+invitation to reopen.
 
 **Why:** like most open-source projects, we now receive a large volume of
 unrequested, often agent-generated PRs. Reviewing a PR is time-consuming;

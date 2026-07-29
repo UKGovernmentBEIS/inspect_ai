@@ -1,9 +1,10 @@
-# Stale policy for external PRs (CONTRIBUTING.md "Established contributors"):
-# warn after 60 days of inactivity, close 7 days later with a reopen invite.
+# Stale policy for PRs (see CONTRIBUTING.md): applies to every non-draft PR
+# regardless of contributor tier — warn after 60 days of inactivity, close 7
+# days later with a reopen invite. PRs created before start-date are
+# grandfathered — the policy only applies going forward; the pre-existing
+# open queue is dispositioned by hand.
 # Issues are exempt entirely (days-before-issue-stale: -1) — issue backlog
 # policy is the weekly triage session's job, not a bot's.
-# Qualified-tier PRs are shielded via the `qualified` label (the gate applies
-# it on open); maintainers apply it by hand to shield/endorse any other PR.
 name: Stale PRs
 
 on:
@@ -22,10 +23,10 @@ jobs:
       - uses: actions/stale@v9
         with:
           days-before-issue-stale: -1
+          start-date: "2026-07-29T00:00:00Z"
           days-before-pr-stale: 60
           days-before-pr-close: 7
           stale-pr-label: stale
-          exempt-pr-labels: qualified
           exempt-draft-pr: true
           stale-pr-message: >-
             This PR has been inactive for 60 days. It will be closed in 7 days
