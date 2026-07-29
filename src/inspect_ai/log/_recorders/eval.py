@@ -29,7 +29,7 @@ import anyio
 from pydantic import BaseModel, Field, JsonValue
 from typing_extensions import override
 
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -1006,6 +1006,13 @@ class ZipLogFile:
         async with self._lock:
             try:
                 self._temp_file.seek(0)
+                # Under trio, read the full log eagerly from the temp file
+                # bytes: LazyList materialization goes through the sync
+                # read_eval_log(), which raises in a trio async context.
+                if not header_only and current_async_backend() == "trio":
+                    return _read_log_from_bytes(
+                        self._temp_file, self._file, header_only=False
+                    )
                 # Always read header only from temp file (fast path)
                 eval_log = _read_log_from_bytes(
                     self._temp_file, self._file, header_only=True
