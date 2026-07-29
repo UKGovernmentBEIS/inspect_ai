@@ -1,9 +1,11 @@
 from os.path import dirname, join
 from pathlib import Path
+from typing import Any
 
 import anyio
 import pytest
 
+from inspect_ai._util.file import filesystem
 from inspect_ai.log import list_eval_logs, list_eval_logs_async
 
 file = Path(__file__)
@@ -100,3 +102,21 @@ def test_list_logs_async_filter_trio():
 
 def test_list_logs_async_header_fallback_trio():
     anyio.run(_check_list_logs_async_header_fallback, backend="trio")
+
+
+def test_list_logs_async_remote_fs_trio(monkeypatch: pytest.MonkeyPatch):
+    # remote (async) filesystems must be listed via the backend-agnostic sync
+    # fallback under trio (fsspec's asynchronous=True mode is asyncio-only) —
+    # simulate one by marking the local filesystem async
+    def remote_style_filesystem(path: str, fs_options: dict[str, Any] = {}) -> Any:
+        fs = filesystem(path, fs_options)
+        monkeypatch.setattr(fs, "is_async", lambda: True)
+        return fs
+
+    monkeypatch.setattr("inspect_ai.log._file.filesystem", remote_style_filesystem)
+
+    async def check() -> None:
+        logs = await list_eval_logs_async(log_dir, formats=["eval", "json"])
+        assert len(logs) == 3
+
+    anyio.run(check, backend="trio")

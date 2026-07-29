@@ -11,6 +11,7 @@ from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
 
 import anyio.to_thread
 import fsspec  # type: ignore
+from botocore.exceptions import ClientError
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
 from pydantic import (
@@ -21,6 +22,7 @@ from pydantic import (
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
+from inspect_ai._util.azure import azure_warning_hint, should_suppress_azure_error
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -164,10 +166,12 @@ async def list_eval_logs_async(
 
     Async equivalent of `list_eval_logs()`. Prefer this when calling from an
     async context: the listing itself is async for filesystem providers that
-    support it (e.g. s3, gcs, azure) rather than blocking the event loop, and
-    log headers (for `filter`, and as a fallback for non-conforming filenames)
-    are read with `read_eval_log_async()` — the sync version's
-    `read_eval_log()` raises when called from a trio async context.
+    support it (e.g. s3, gcs, azure) rather than blocking the event loop
+    (except non-s3 remote listings under trio, which fall back to fsspec's
+    sync API), and log headers (for `filter`, and as a fallback for
+    non-conforming filenames) are read with `read_eval_log_async()` — the
+    sync version's `read_eval_log()` raises when called from a trio async
+    context.
 
     Args:
       log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
@@ -213,12 +217,6 @@ async def _list_eval_logs_async(
     descending: bool,
     fs_options: dict[str, Any],
 ) -> list[EvalLogInfo]:
-    # botocore is only needed on the s3 fast path; keep it out of the import
-    # graph of `inspect_ai.log` (which is imported by nearly everything).
-    from botocore.exceptions import ClientError  # type: ignore
-
-    from inspect_ai._view.azure import azure_warning_hint, should_suppress_azure_error
-
     # async filesystem if we can
     fs = filesystem(log_dir, fs_options)
     if fs.is_s3() and not fs_options:
@@ -247,6 +245,24 @@ async def _list_eval_logs_async(
             raise
         # resolve to eval logs (async fan-out so header reads on
         # non-conforming filenames don't block the event loop)
+        return await log_files_from_ls_async(logs, formats, descending)
+    elif fs.is_async() and current_async_backend() != "asyncio":
+        # fsspec's asynchronous=True mode requires a running asyncio loop, so
+        # under trio list via fsspec's sync API instead, which drives its own
+        # background event-loop thread and is backend-agnostic. Called
+        # directly rather than via to_thread: remote-fsspec sync calls must
+        # not run in our threadpool (see the fsspec warning in AGENTS.md).
+        try:
+            exists = fs.exists(log_dir)
+        except Exception as ex:  # noqa: BLE001
+            if should_suppress_azure_error(log_dir, ex):
+                logger.warning(azure_warning_hint(log_dir, ex))
+                exists = True
+            else:
+                raise
+        if not exists:
+            return []
+        logs = fs.ls(log_dir, recursive=recursive)
         return await log_files_from_ls_async(logs, formats, descending)
     elif fs.is_async():
         async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:

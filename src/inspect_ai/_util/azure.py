@@ -4,6 +4,12 @@ from urllib.parse import urlparse
 
 AZURE_SCHEMES = {"az", "abfs", "abfss"}
 
+_AZURE_AUTH_KEYWORDS = (
+    "authenticate",
+    "noauthenticationinformation",
+    "authenticationfailed",
+)
+
 
 def apply_azure_fs_options(options: dict[str, Any]) -> None:
     """Inject Azure credentials for fsspec filesystem options on demand."""
@@ -75,3 +81,22 @@ def is_azure_path(path: str) -> bool:
     """Return True if the URI/path uses an Azure-backed scheme."""
     scheme = urlparse(path).scheme.lower()
     return scheme in AZURE_SCHEMES
+
+
+def should_suppress_azure_error(path: str, error: Exception) -> bool:
+    """Return True if an Azure auth issue should be downgraded to a warning."""
+    if not is_azure_path(path):
+        return False
+    lowered = str(error).lower()
+    return any(keyword in lowered for keyword in _AZURE_AUTH_KEYWORDS)
+
+
+def azure_warning_hint(path: str, error: Exception) -> str:
+    """Diagnostic guidance for Azure listing/authentication issues."""
+    return (
+        "Azure storage authentication failed while probing "
+        f"'{path}'. Suppressed stack trace. Guidance: (a) run 'az login' or ensure role "
+        "assignment (Storage Blob Data Reader/Contributor); (b) if using SAS set "
+        "AZURE_STORAGE_SAS_TOKEN (and AZURE_STORAGE_ACCOUNT_NAME if needed); (c) if using account "
+        f"key, set AZURE_STORAGE_ACCOUNT_KEY. Original error: {error}"
+    )
