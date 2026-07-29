@@ -1,5 +1,10 @@
 # changelog – Inspect
 
+## 0.3.251 (29 July 2026)
+
+- Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on [ModelRetry](./reference/inspect_ai.hooks.html.md#modelretry), so hooks can distinguish e.g. timeouts from 429s and 5xxs.
+- Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool’s original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex’s `collaboration.*`. (#4556)
+
 ## 0.3.250 (28 July 2026)
 
 - Sample Sources: Generate a task’s samples dynamically while it runs by passing a [SampleSource](./reference/inspect_ai.html.md#samplesource) as the task’s `dataset` (with [enqueue_sample()](./reference/inspect_ai.html.md#enqueue_sample) for imperative additions) — the sample-level mirror of [TaskSource](./reference/inspect_ai.html.md#tasksource), for RL loops and adaptive evals.

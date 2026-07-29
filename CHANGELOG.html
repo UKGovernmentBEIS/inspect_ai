@@ -194,13 +194,14 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.250 (28 July 2026)</a></li>
-  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.249 (20 July 2026)</a></li>
-  <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.248 (17 July 2026)</a></li>
-  <li><a href="#july-2026-3" id="toc-july-2026-3" class="nav-link" data-scroll-target="#july-2026-3">0.3.247 (16 July 2026)</a></li>
-  <li><a href="#july-2026-4" id="toc-july-2026-4" class="nav-link" data-scroll-target="#july-2026-4">0.3.246 (10 July 2026)</a></li>
-  <li><a href="#july-2026-5" id="toc-july-2026-5" class="nav-link" data-scroll-target="#july-2026-5">0.3.245 (08 July 2026)</a></li>
-  <li><a href="#july-2026-6" id="toc-july-2026-6" class="nav-link" data-scroll-target="#july-2026-6">0.3.244 (01 July 2026)</a></li>
+  <li><a href="#july-2026" id="toc-july-2026" class="nav-link active" data-scroll-target="#july-2026">0.3.251 (29 July 2026)</a></li>
+  <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.250 (28 July 2026)</a></li>
+  <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.249 (20 July 2026)</a></li>
+  <li><a href="#july-2026-3" id="toc-july-2026-3" class="nav-link" data-scroll-target="#july-2026-3">0.3.248 (17 July 2026)</a></li>
+  <li><a href="#july-2026-4" id="toc-july-2026-4" class="nav-link" data-scroll-target="#july-2026-4">0.3.247 (16 July 2026)</a></li>
+  <li><a href="#july-2026-5" id="toc-july-2026-5" class="nav-link" data-scroll-target="#july-2026-5">0.3.246 (10 July 2026)</a></li>
+  <li><a href="#july-2026-6" id="toc-july-2026-6" class="nav-link" data-scroll-target="#july-2026-6">0.3.245 (08 July 2026)</a></li>
+  <li><a href="#july-2026-7" id="toc-july-2026-7" class="nav-link" data-scroll-target="#july-2026-7">0.3.244 (01 July 2026)</a></li>
   <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.243 (30 June 2026)</a></li>
   <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.242 (29 June 2026)</a></li>
   <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.241 (22 June 2026)</a></li>
@@ -451,7 +452,14 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="july-2026" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026">0.3.250 (28 July 2026)</h2>
+<h2 class="anchored" data-anchor-id="july-2026">0.3.251 (29 July 2026)</h2>
+<ul>
+<li>Hooks: <code>on_model_retry</code> now reports the retry cause via <code>exception_type</code> and <code>status_code</code> on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#modelretry">ModelRetry</a></span>, so hooks can distinguish e.g.&nbsp;timeouts from 429s and 5xxs.</li>
+<li>Agent Bridge: Forward Codex <code>additional_tools</code> declarations (used by newer OpenAI models to declare tools via input items rather than the top-level <code>tools</code> array) through the bridge as real tools, preserving each tool’s original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex’s <code>collaboration.*</code>. (#4556)</li>
+</ul>
+</section>
+<section id="july-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-1">0.3.250 (28 July 2026)</h2>
 <ul>
 <li>Sample Sources: Generate a task’s samples dynamically while it runs by passing a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#samplesource">SampleSource</a></span> as the task’s <code>dataset</code> (with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#enqueue_sample">enqueue_sample()</a></span> for imperative additions) — the sample-level mirror of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#tasksource">TaskSource</a></span>, for RL loops and adaptive evals.</li>
 <li>Eval: Multi-task runs without <code>task_retry_attempts</code> now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).</li>
@@ -496,8 +504,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Anthropic requests no longer fail with 400 <code>container_id is required</code> when a turn mixes code-execution-backed server tools (e.g.&nbsp;web search with dynamic filtering) with client tool calls.</li>
 </ul>
 </section>
-<section id="july-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-1">0.3.249 (20 July 2026)</h2>
+<section id="july-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-2">0.3.249 (20 July 2026)</h2>
 <ul>
 <li>Model API: New <code>moonshot</code> provider for Moonshot AI Kimi models (e.g.&nbsp;<code>moonshot/kimi-k3</code>), with built-in model info for Kimi K3 and detection of <code>kimi-*</code> model names on hosting providers.</li>
 <li>CloudFlare/Moonshot: Automatically populate empty assistant messages with “(no content)” (these APIs reject replay of assistant messages with empty content).</li>
@@ -508,8 +516,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Agent Bridge: Support OpenAI clients that consume responses via <code>with_raw_response</code> (e.g.&nbsp;langchain-openai), which previously failed with <code>'ChatCompletion' object has no attribute 'parse'</code>. (#4341)</li>
 </ul>
 </section>
-<section id="july-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-2">0.3.248 (17 July 2026)</h2>
+<section id="july-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-3">0.3.248 (17 July 2026)</h2>
 <ul>
 <li>Logging: Local eval (<code>.eval</code>) and JSON (<code>.json</code>) log files are now written atomically (temp file + <code>fsync</code> + rename), preventing corruption from interrupted writes such as disk-full or process crash. (#2949)</li>
 <li>Checkpointing: In-sandbox restic artifacts moved from the world-listable <code>/opt/inspect-restic</code> to root-only <code>/root/.cache/inspect</code>, and egress scratch files no longer land in <code>/tmp</code>, so agents no longer see evidence of checkpointing.</li>
@@ -554,15 +562,15 @@ ul.task-list li input[type="checkbox"] {
 <li>Model Roles: <code>resolve_model_roles</code> now copies a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> passed by object (e.g.&nbsp;via <code>eval(model_roles=...)</code>) before stamping its role, so roles supplied through the Python API — not just <code>--model-role</code> — get a distinct instance and are not misattributed. (#4464)</li>
 </ul>
 </section>
-<section id="july-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-3">0.3.247 (16 July 2026)</h2>
+<section id="july-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-4">0.3.247 (16 July 2026)</h2>
 <ul>
 <li>Google: The Gemini Developer API endpoint now supports OAuth/ADC authentication (<code>-M use_adc=true</code> or <code>GOOGLE_USE_ADC=true</code>) with automatic token refresh, for deployments reachable without an API key.</li>
 <li>Google: Unknown (predeployment) model names are now treated as the latest Gemini model for context window (compaction) and capability detection.</li>
 </ul>
 </section>
-<section id="july-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-4">0.3.246 (10 July 2026)</h2>
+<section id="july-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-5">0.3.246 (10 July 2026)</h2>
 <ul>
 <li>Grok: Support for Grok 4.5 (model info database entry; accepts <code>reasoning_effort</code> with a documented default of <code>high</code>).</li>
 <li>OpenAI: Support for GPT-5.6 (Sol, Terra, and Luna) — model info database entries and codename frontier aliasing now target <code>gpt-5.6</code>.</li>
@@ -581,8 +589,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Model Roles: <code>--model-role</code> roles that share the same model and config now report their token usage separately in <code>role_usage</code> instead of collapsing onto one role. (#4450)</li>
 </ul>
 </section>
-<section id="july-2026-5" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-5">0.3.245 (08 July 2026)</h2>
+<section id="july-2026-6" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-6">0.3.245 (08 July 2026)</h2>
 <ul>
 <li>Model API: New <code>openai-api-completions</code> provider for the legacy <code>/v1/completions</code> endpoint of any OpenAI-compatible server (raw prompts, no chat template); shares its implementation with <code>vllm-completions</code>.</li>
 <li>Model API: <code>openai-api-completions</code> and <code>vllm-completions</code> accept pre-tokenized prompts via <code>ChatMessage.metadata["prompt_token_ids"]</code>.</li>
@@ -619,8 +627,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Link plain HTTP sandbox ports (e.g.&nbsp;80, 8080) as <code>http://</code> instead of <code>https://</code> in the running-samples port-mappings panel.</li>
 </ul>
 </section>
-<section id="july-2026-6" class="level2">
-<h2 class="anchored" data-anchor-id="july-2026-6">0.3.244 (01 July 2026)</h2>
+<section id="july-2026-7" class="level2">
+<h2 class="anchored" data-anchor-id="july-2026-7">0.3.244 (01 July 2026)</h2>
 <ul>
 <li>Anthropic: Various changes related to <a href="https://platform.claude.com/docs/en/about-claude/models/whats-new-sonnet-5">Sonnet 5</a>.</li>
 <li>Bugfix: Elapsed-time displays (e.g.&nbsp;the running-sample clock and timers) no longer render an impossible <code>:60</code> seconds when the elapsed time has a fractional second.</li>
