@@ -1,4 +1,4 @@
-"""Deterministic PR gate for the contribution policy (no AI anywhere).
+"""Deterministic PR gate for the contribution policy.
 
 Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
   1. author_association is OWNER / MEMBER / COLLABORATOR         (qualified)
