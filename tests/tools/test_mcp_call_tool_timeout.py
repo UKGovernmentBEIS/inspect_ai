@@ -7,9 +7,12 @@ Repro of the production hang: the sandbox carrier exec times out at the OS level
 but its JSON-RPC error never wakes the host-side `ClientSession.call_tool` await,
 so the tool call hangs for hours, ignoring the per-RPC `mcp_timeout`. The fix
 passes `read_timeout_seconds` to `call_tool` so `ClientSession` bounds the wait,
-and translates the resulting HTTP 408 `McpError` into a `ToolError` so the model
-is notified rather than the sample erroring out.
+and translates the resulting request-timeout `McpError` (HTTP 408 on mcp 1.x,
+JSON-RPC -32001 on 2.x) into a `ToolError` so the model is notified rather than
+the sample erroring out.
 """
+
+from datetime import timedelta
 
 import anyio
 import httpx
@@ -17,15 +20,31 @@ import pytest
 
 pytest.importorskip("mcp")  # mcp is a dev-only dependency
 
-from mcp.shared.exceptions import McpError  # noqa: E402
-
 from inspect_ai.tool import ToolError  # noqa: E402
+from inspect_ai.tool._mcp._compat import MCP_V2, McpError  # noqa: E402
 from inspect_ai.tool._mcp._local import (  # noqa: E402
     MCPServerLocal,
     MCPServerLocalSession,
     create_server_sandbox,
 )
 from inspect_ai.tool._mcp._sandbox import DEFAULT_SANDBOX_TIMEOUT  # noqa: E402
+
+
+def _read_timeout_error() -> Exception:
+    """The error mcp raises when read_timeout_seconds expires.
+
+    mcp 1.x raises McpError(ErrorData(code=408)) (httpx.codes.REQUEST_TIMEOUT);
+    mcp 2.x raises MCPError(code=-32001) (JSON-RPC REQUEST_TIMEOUT).
+    """
+    message = "Timed out while waiting for response to CallToolRequest."
+    if MCP_V2:
+        return McpError(-32001, message)
+    else:
+        from mcp.types import ErrorData
+
+        return McpError(
+            ErrorData(code=int(httpx.codes.REQUEST_TIMEOUT), message=message)
+        )
 
 
 class _NeverRespondsSession:
@@ -37,22 +56,20 @@ class _NeverRespondsSession:
 
     async def call_tool(self, name, arguments=None, *, read_timeout_seconds=None, **kw):
         # Faithfully model mcp.ClientSession: bound the wait with the supplied
-        # read timeout and, on expiry, raise an McpError carrying HTTP 408
-        # (REQUEST_TIMEOUT) — exactly as mcp's send_request does.
+        # read timeout (timedelta on mcp 1.x, float on 2.x) and, on expiry,
+        # raise the same request-timeout error mcp's send_request raises.
         if read_timeout_seconds is None:
             await anyio.sleep_forever()  # the OLD behaviour: hang forever
+        seconds = (
+            read_timeout_seconds.total_seconds()
+            if isinstance(read_timeout_seconds, timedelta)
+            else read_timeout_seconds
+        )
         try:
-            with anyio.fail_after(read_timeout_seconds.total_seconds()):
+            with anyio.fail_after(seconds):
                 await anyio.sleep_forever()
         except TimeoutError as ex:
-            from mcp.types import ErrorData
-
-            raise McpError(
-                ErrorData(
-                    code=int(httpx.codes.REQUEST_TIMEOUT),
-                    message="Timed out while waiting for response to CallToolRequest.",
-                )
-            ) from ex
+            raise _read_timeout_error() from ex
 
 
 async def _run(timeout):
@@ -65,8 +82,14 @@ async def _run(timeout):
     # build a ToolDef for a fake tool and call its execute()
     from mcp.types import Tool as MCPTool
 
-    tool = MCPTool(
-        name="grade", description="", inputSchema={"type": "object", "properties": {}}
+    # model_validate because keyword construction with the camelCase alias
+    # (inputSchema=...) fails mypy under mcp 2.x (see test_mcp_tools.py)
+    tool = MCPTool.model_validate(
+        {
+            "name": "grade",
+            "description": "",
+            "inputSchema": {"type": "object", "properties": {}},
+        }
     )
     tool_def = session._tool_def_from_mcp_tool(tool)
     return await tool_def.tool()  # invoke execute()
