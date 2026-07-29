@@ -74,7 +74,13 @@ class ScoreEdit(BaseModel):
     """New explanation for the score, or UNCHANGED to keep current explanation."""
 
     metadata: dict[str, Any] | Literal["UNCHANGED"] = "UNCHANGED"
-    """New metadata for the score, or UNCHANGED to keep current metadata."""
+    """New metadata for the score, or UNCHANGED to keep current metadata.
+
+    A metadata dict *replaces* `Score.metadata` rather than merging into it, so
+    keys recorded by the scorer (e.g. `reason`, or a model grader's `grading`
+    transcript) are no longer part of the current metadata unless the edit
+    repeats them. The pre-edit dict remains available via `Score.history`.
+    """
 
     provenance: ProvenanceData | None = None
     """Provenance data for this edit. None indicates this is the original score."""
