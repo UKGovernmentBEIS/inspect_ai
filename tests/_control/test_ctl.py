@@ -792,11 +792,14 @@ def test_get_with_retry_exhausts_and_exits(
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
     with pytest.raises(click.exceptions.Exit) as exc_info:
-        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks")
+        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks", pid=7)
     assert exc_info.value.exit_code == 1
     assert counter["gets"] == _REQUEST_ATTEMPTS
     err = capsys.readouterr().err
     assert f"gave up after {_REQUEST_ATTEMPTS} attempts" in err
+    # the terminal busy narration teaches the escalation path, scoped to the
+    # target process when the caller knows it
+    assert "inspect ctl process anomalies 7" in err
 
 
 def test_config_read_retries_timeout_then_succeeds(
@@ -905,6 +908,8 @@ def test_fetch_summaries_busy_server_skipped_when_degradable(
     err = capsys.readouterr().err
     assert "Skipping pid 7" in err
     assert "try again shortly" in err
+    # the skip note teaches the escalation that works against a busy process
+    assert "inspect ctl process anomalies 7" in err
 
 
 def test_fetch_summaries_sole_server_rides_full_budget(
@@ -1677,6 +1682,168 @@ def test_sample_list_truncation_footer_with_filters(
     assert "--status to filter" in result.output
 
 
+def test_sample_list_long_idle_points_at_process_anomalies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A running sample idle in the tens of minutes teaches the escalation.
+
+    The idle column shows the stall but not why (a single in-flight action
+    emits no transcript event until it returns); the footer points at the
+    trace read that shows the why, naming the hosting pid.
+    """
+    import time
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row(
+                    "s1", status="running", last_activity_at=time.time() - 27 * 60
+                )
+            ]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert "idle 27:0" in result.output
+    assert "`inspect ctl process anomalies 7`" in result.output
+
+
+def test_sample_list_short_idle_no_pointer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An idle below the threshold is normal operation — no escalation noise."""
+    import time
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running", last_activity_at=time.time() - 120)
+            ]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert "process anomalies" not in result.output
+
+
+def test_sample_list_idle_pointer_omitted_on_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The escalation hint is human-only — no prose inside the envelope."""
+    import time
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row(
+                    "s1", status="running", last_activity_at=time.time() - 27 * 60
+                )
+            ]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert [r["sample_id"] for r in payload["samples"]] == ["s1"]
+    assert "process anomalies" not in result.stdout
+
+
+def test_sample_list_idle_pointer_spans_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stalls across several processes suggest the bare verb, which reads them all."""
+    import time
+
+    stale = time.time() - 30 * 60
+    _patch_surface(
+        monkeypatch,
+        [
+            _full_summary("aaa111", "t1", pid=7),
+            _full_summary("bbb222", "t2", pid=9),
+        ],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="running", last_activity_at=stale)
+            ],
+            "eval_bbb222": [
+                _sample_row("s2", status="running", last_activity_at=stale)
+            ],
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert (
+        "`inspect ctl process anomalies` shows each running process's" in result.output
+    )
+
+
+def test_sample_list_idle_pointer_duplicate_task_id_degrades(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task_id read from several processes degrades to the bare verb.
+
+    The duplicate-id corner: an old kept-alive attempt shares its task_id
+    with the newer process retrying it, and rows carry only the task_id —
+    the footer must suggest the verb that reads every process rather than
+    risk naming the attempt that has nothing in flight.
+    """
+    import time
+
+    stale = time.time() - 30 * 60
+    newer = _full_summary("aaa111", "t1", pid=9)
+    newer["eval_id"] = "eval_new"
+    older = _full_summary("aaa111", "t1", pid=7)
+    older["eval_id"] = "eval_old"
+    _patch_surface(
+        monkeypatch,
+        [newer, older],  # discovery is newest-first
+        samples_by_eval={
+            "eval_new": [_sample_row("s1", status="running", last_activity_at=stale)],
+            "eval_old": [
+                _sample_row("s1", status="error", error="boom", last_activity_at=stale)
+            ],
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list"])
+    assert result.exit_code == 0, result.output
+    assert (
+        "`inspect ctl process anomalies` shows each running process's" in result.output
+    )
+
+
+def test_sample_list_scoped_busy_points_at_process_anomalies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The scoped busy failure names the verb that works against a busy pid.
+
+    Stderr only: the --json envelope message stays hint-free (agents branch
+    on `kind` and learn the verb from --help).
+    """
+    from inspect_ai._cli.ctl import _ServerBusy
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _patch_samples_unreachable_for(
+        monkeypatch,
+        "eval_aaa111",
+        exc=_ServerBusy("no response after 8 attempts — the eval's event loop is busy"),
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "aaa111"])
+    assert result.exit_code == 1
+    assert "inspect ctl process anomalies 7" in result.stderr
+
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    assert result.exit_code == 1
+    error = _error_envelope(result)
+    assert "anomalies" not in error["message"]
+    assert "inspect ctl process anomalies 7" in result.stderr
+
+
 def test_sample_list_empty_filtered_listing_says_no_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1977,7 +2144,8 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
 
     The detail already in hand answers the question; the old server exiting
     — or staying busy through the listing read's retries (_ServerBusy, which
-    adds a "try again shortly" hint) — costs only the summary fields,
+    adds the "try again shortly" + anomalies-escalation hint — no earlier
+    skip note has taught it on this path) — costs only the summary fields,
     surfaced on stderr, with stdout still valid JSON.
     """
     from inspect_ai._cli.ctl import _ServerBusy
@@ -2000,9 +2168,50 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
     assert result.exit_code == 0, result.output
     assert "Could not read the samples listing" in result.stderr
     assert ("try again shortly" in result.stderr) == busy
+    assert ("inspect ctl process anomalies 7" in result.stderr) == busy
     payload = json.loads(result.stdout)
     assert payload["error"] == {"message": "boom"}
     assert "message_count" not in payload
+
+
+def test_sample_show_busy_detail_read_points_at_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The detail read's retry exhaustion scopes the escalation to the pid.
+
+    The resolved target names the hosting process, so the pointer suggests
+    reading that process's trace rather than scanning every running one.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    result = cli_runner().invoke(ctl_command, ["sample", "show", "aaa111", "s1"])
+    assert result.exit_code == 1
+    assert "gave up" in result.stderr
+    assert "inspect ctl process anomalies 7" in result.stderr
+
+
+def test_config_busy_read_points_at_pid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A directive's retry exhaustion scopes the escalation to the resolved pid.
+
+    The `_DirectiveScope` commands (config here) resolve one target process,
+    so the pointer names it rather than suggesting a scan of every process.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
+    result = cli_runner().invoke(ctl_command, ["config"])
+    assert result.exit_code == 1
+    assert "gave up" in result.stderr
+    assert "inspect ctl process anomalies 7" in result.stderr
 
 
 def test_old_flat_spellings_hidden_from_help() -> None:
@@ -3223,6 +3432,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
 
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
+        pid=7,
         task_id="t1",
         task="tn",
         header="h",
@@ -3267,6 +3477,7 @@ def test_compose_config_process_scope_dry_run() -> None:
 
     scope = _DirectiveScope(
         socket_path="/tmp/7.sock",
+        pid=7,
         task_id=None,
         task=None,
         header="process · 2 tasks",
@@ -3845,6 +4056,7 @@ def test_resolve_scope_siblings_counts_active_only() -> None:
     scope = _resolve_scope([], summaries, "aaa111")
     assert scope is not None
     assert scope.siblings == 1  # the completed sibling is excluded
+    assert scope.pid == 7  # carried for the busy-escalation pointer
 
 
 def test_keep_alias_accepts_positional_pid(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4062,8 +4274,12 @@ def test_json_busy_failure_emits_error_envelope(
     assert error["exception"] == "httpx.ReadTimeout"
     assert error["status"] is None
     assert "gave up" in error["message"]
-    # the stderr narration is unchanged (it remains the human channel)
+    # the escalation pointer is stderr-only prose — never in the envelope
+    assert "anomalies" not in error["message"]
+    # the stderr narration is unchanged (it remains the human channel); the
+    # pointer names the pid the read targeted rather than the bare verb
     assert "gave up" in result.stderr
+    assert "inspect ctl process anomalies 7" in result.stderr
 
 
 def test_json_all_busy_emits_busy_envelope(
@@ -4081,6 +4297,7 @@ def test_json_all_busy_emits_busy_envelope(
     error = _error_envelope(result)
     assert error["kind"] == "busy"
     assert "pid 7 busy" in error["message"]
+    assert "anomalies" not in error["message"]  # no teaching prose in envelopes
 
 
 def test_json_not_found_selector_emits_error_envelope(
