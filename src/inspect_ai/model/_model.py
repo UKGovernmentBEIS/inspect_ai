@@ -934,12 +934,12 @@ class Model:
         """
         config = self._resolve_config(config)
 
-        # retry handler for token counting (429/timeouts retried with the
-        # same backoff and adaptive-controller signaling as `generate`).
-        # No per-model concurrency cap: count_tokens is O(delta) under the
-        # compaction baseline mechanism, max_samples already provides the
-        # structural ceiling, retries handle rate limits, and provider
-        # count_tokens envelopes are wider than generate envelopes.
+        # Retry handler for token counting (429/timeouts retried with the
+        # same backoff as `generate`). Count-token calls still need a
+        # concurrency bound -- a caller can fan out many counts inside one
+        # sample -- but token counting hits a different provider rate-limit
+        # bucket than inference, so it gets its own pool rather than sharing
+        # the generate() connection limiter.
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -957,7 +957,50 @@ class Model:
         ) -> int:
             return await self.api.count_tokens(input, config)
 
-        return await _count_tokens(input, config)
+        model_name = ModelName(self)
+        key = f"ModelCountTokens({_connection_pool_key(self.api)})"
+
+        from inspect_ai.util._concurrency import (
+            AdaptiveConcurrencyController,
+            _active_controller,
+            _request_had_retry,
+            adaptive_active,
+            resolve_adaptive,
+        )
+
+        # Adaptive path mirrors `_connection_concurrency`: the count pool gets
+        # its own controller (kept distinct from generate's by the key above)
+        # that shrinks on count-endpoint 429s and grows past the static cap
+        # when the endpoint allows, so the bound learns the endpoint's real
+        # capacity instead of a fixed number that re-creates queueing.
+        if adaptive_active(
+            config.adaptive_connections, config.max_connections, config.batch
+        ):
+            adaptive = resolve_adaptive(config.adaptive_connections)
+            async with concurrency(
+                f"{model_name}_count_tokens",
+                adaptive.start,
+                key,
+                adaptive=adaptive,
+                visible=False,
+            ) as sem:
+                assert isinstance(sem, AdaptiveConcurrencyController)
+                token_c = _active_controller.set(sem)
+                token_r = _request_had_retry.set(False)
+                try:
+                    result = await _count_tokens(input, config)
+                    # counts are never cached, so a retry-free call always
+                    # exercised the endpoint and counts as a clean success
+                    if not _request_had_retry.get():
+                        sem.notify_success()
+                    return result
+                finally:
+                    _active_controller.reset(token_c)
+                    _request_had_retry.reset(token_r)
+
+        # static fallback (explicit max_connections or batch mode)
+        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
+            return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
