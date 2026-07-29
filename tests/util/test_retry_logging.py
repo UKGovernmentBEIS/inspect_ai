@@ -1,7 +1,7 @@
 """Tests for retry log enrichment helpers."""
 
 import logging
-from typing import Iterator
+from typing import Any, Iterator, cast
 from unittest.mock import MagicMock, patch
 
 import anyio
@@ -74,10 +74,13 @@ def _bedrock_error(status: int) -> Exception:
     from botocore.exceptions import ClientError
 
     return ClientError(
-        error_response={
-            "Error": {"Code": "ThrottlingException", "Message": "x"},
-            "ResponseMetadata": {"HTTPStatusCode": status},
-        },
+        error_response=cast(
+            Any,
+            {
+                "Error": {"Code": "ThrottlingException", "Message": "x"},
+                "ResponseMetadata": {"HTTPStatusCode": status},
+            },
+        ),
         operation_name="Converse",
     )
 
@@ -91,11 +94,14 @@ def _sagemaker_error(original_status: int) -> Exception:
     from botocore.exceptions import ClientError
 
     return ClientError(
-        error_response={
-            "Error": {"Code": "ModelError", "Message": "x"},
-            "OriginalStatusCode": original_status,  # type: ignore[typeddict-unknown-key]
-            "ResponseMetadata": {"HTTPStatusCode": 424},
-        },
+        error_response=cast(
+            Any,
+            {
+                "Error": {"Code": "ModelError", "Message": "x"},
+                "OriginalStatusCode": original_status,
+                "ResponseMetadata": {"HTTPStatusCode": 424},
+            },
+        ),
         operation_name="InvokeEndpoint",
     )
 
