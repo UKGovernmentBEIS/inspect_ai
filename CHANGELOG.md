@@ -1,6 +1,11 @@
 ## Unreleased
 
 - OpenRouter: Surface the provider-reported per-request cost (summing `cost` and, for BYOK routes, `cost_details.upstream_inference_cost`) as `ModelUsage.total_cost`, taking precedence over Inspect's local per-token estimate; a `cost_limit` may now be used with OpenRouter models even when they have no static pricing entry (enforced at runtime from the reported cost).
+- Bugfix: Async APIs (`eval_async`, `recover_eval_log_async`, recoverable-log discovery, and accessing `EvalLog.samples` from their results) no longer raise "read_eval_log cannot be called from a trio async context" under a trio event loop.
+- Bugfix: Filestore sample buffer directories are now cleaned up after evals run under a trio event loop (cleanup previously failed with a warning).
+- Bugfix: Eval logs containing a `sample_init` event with a null state can now be re-read (the null was previously dropped on write and failed validation on read).
+- Added `list_eval_logs_async()`, an async equivalent of `list_eval_logs()` that is safe to call from any async context (including trio); calling `list_eval_logs()` with a `filter` under trio now raises an error directing to it.
+- Bugfix: The `google` web search provider now returns results in search rank order rather than page-fetch completion order.
 - ACP: The transport now exposes `has_client` and `wait_for_client()`, letting agents check for or wait until a fully bound ACP client is attached.
 - Bugfix: `EvalResults.completed_samples` now counts samples that completed without error rather than scored samples, so score-on-error samples no longer inflate it. (#4602)
 - Bugfix: Solvers, tasks, scorers, and metrics that declare `**kwargs` now survive replay from logs (e.g. `eval_retry`, `inspect score`), including keyword arguments named `name`. (#4375)
@@ -13,6 +18,7 @@
 - Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
 - MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
 - MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
+- Performance: Message preparation for providers that extract tool-result media into user messages now scales linearly with conversation length rather than quadratically.
 - Smaller downloads: the wheel no longer includes the accidentally-bundled log viewer TypeScript source, and the sdist no longer includes tests, docs, or lockfiles.
 - Bugfix: OpenAI: A tool call with an oversized arguments string no longer poisons the conversation, which previously failed every subsequent request with a 400 "string too long" error. (#4682)
 
