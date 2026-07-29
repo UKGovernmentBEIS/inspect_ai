@@ -2,14 +2,13 @@
 # contributor"). PRs from these accounts skip the new-contributor gate and are
 # labeled `qualified` for review priority.
 #
-# Entries are immutable numeric account ids, not logins: logins and org slugs
-# are recyclable after rename or deletion (so a login could be squatted), and
+# Entries are immutable numeric account ids, not logins: logins are
+# recyclable after rename or deletion (so a login could be squatted), and
 # ids keep the roster itself out of casual browsing. Look up an id with
-# `gh api users/<login> --jq .id` or `gh api orgs/<slug> --jq .id`; verify one
-# with `gh api user/<id>`.
+# `gh api users/<login> --jq .id`; verify one with `gh api user/<id>`.
 #
 # STRICT FORMAT (parsed by .github/scripts/pr_gate.py, not a YAML library):
-#   - exactly two top-level keys: `users:` and `orgs:`
+#   - exactly one top-level key: `users:`
 #   - entries are `  - <numeric account id>` — one per line, nothing else
 #
 # Changes to this file are ordinary PRs — trust changes get reviewed. Don't
@@ -61,5 +60,3 @@ users:
   - 275704596
   - 275718223
   - 283953929
-
-orgs: []

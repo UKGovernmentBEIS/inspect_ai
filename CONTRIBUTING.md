@@ -6,9 +6,9 @@ Thanks for your interest in contributing to Inspect! We regularly accept contrib
 
 Your path depends on your history with the project:
 
-- **Qualified contributors**: maintainers, members of partner organizations, and
-  individuals recorded (by account id) in
-  [`.github/qualified.yml`](.github/qualified.yml) — may open PRs directly.
+- **Qualified contributors**: maintainers and individuals recorded (by
+  account id) in [`.github/qualified.yml`](.github/qualified.yml) — may open
+  PRs directly.
 
 - **Established contributors**: anyone with at least one merged non-trivial
   PR in this repository (trivial documentation fixes don't count toward this)

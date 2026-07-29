@@ -24,8 +24,6 @@ def make_ctx(**overrides):
         "files": [{"filename": "src/inspect_ai/x.py", "additions": 40, "deletions": 3}],
         "linked_issue_labels": [],  # flattened labels across all closing issues
         "qualified_users": {111222},  # account ids from .github/qualified.yml
-        "qualified_orgs": set(),  # org account ids from .github/qualified.yml
-        "is_public_org_member": False,  # fetch layer resolves org ids to slugs
         "has_prior_nontrivial_merge": False,
     }
     ctx.update(overrides)
@@ -36,16 +34,9 @@ def make_ctx(**overrides):
 
 
 def test_parse_qualified():
-    text = "# comment\n\nusers:\n  - 111222\n  - 333444\n\norgs: []\n"
-    users, orgs = pr_gate.parse_qualified(text)
+    text = "# comment\n\nusers:\n  - 111222\n  - 333444\n"
+    users = pr_gate.parse_qualified(text)
     assert users == {111222, 333444}
-    assert orgs == set()
-
-
-def test_parse_qualified_with_orgs():
-    text = "users:\n  - 111222\norgs:\n  - 555666\n"
-    users, orgs = pr_gate.parse_qualified(text)
-    assert orgs == {555666}
 
 
 def test_parse_qualified_non_numeric_entry_raises():
@@ -101,11 +92,6 @@ def test_listed_account_id_passes():
 def test_unlisted_account_id_fails():
     v = pr_gate.decide(make_ctx(author_id=31337))
     assert v.verdict == "close"
-
-
-def test_public_org_member_passes_as_qualified():
-    v = pr_gate.decide(make_ctx(qualified_orgs={555666}, is_public_org_member=True))
-    assert v.verdict == "pass" and v.tier == "qualified"
 
 
 def test_qualified_label_passes():

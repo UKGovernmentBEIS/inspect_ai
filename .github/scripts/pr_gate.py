@@ -2,8 +2,7 @@
 
 Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
   1. author_association is OWNER / MEMBER / COLLABORATOR         (qualified)
-  2. author's account id is in .github/qualified.yml, or the
-     author is a public member of a listed org                    (qualified)
+  2. author's account id is in .github/qualified.yml              (qualified)
   3. PR carries the `qualified` label (maintainer endorsement)    (qualified)
   4. trivial docs carve-out: every changed file is docs and the
      total diff is < 25 lines                                     (trivial)
@@ -51,35 +50,32 @@ class Verdict(NamedTuple):
 # ---------------------------------------------------------------- pure logic
 
 
-def parse_qualified(text: str) -> tuple[set[int], set[int]]:
+def parse_qualified(text: str) -> set[int]:
     """Parse .github/qualified.yml (strict line format; see that file's header).
 
-    Returns ({user account ids}, {org account ids}). Entries are immutable
-    numeric account ids — logins and org slugs are recyclable after rename or
-    deletion, ids are not, and ids keep the roster out of casual browsing.
-    Raises ValueError on a non-numeric entry so a malformed list fails the
-    workflow loudly (fail-open for the PR, visible red X for maintainers)
-    instead of silently granting or denying trust.
+    Returns the set of user account ids. Entries are immutable numeric
+    account ids — logins are recyclable after rename or deletion, ids are
+    not, and ids keep the roster out of casual browsing. Raises ValueError
+    on a non-numeric entry so a malformed list fails the workflow loudly
+    (fail-open for the PR, visible red X for maintainers) instead of
+    silently granting or denying trust.
     """
     users: set[int] = set()
-    orgs: set[int] = set()
-    current: set[int] | None = None
+    in_users = False
     for raw in text.splitlines():
         stripped = raw.strip()
         if not stripped or stripped.startswith("#"):
             continue
         if stripped.startswith("users:"):
-            current = users
-        elif stripped.startswith("orgs:"):
-            current = orgs
-        elif stripped.startswith("- ") and current is not None:
+            in_users = True
+        elif stripped.startswith("- ") and in_users:
             entry = stripped[2:].strip()
             if not entry.isdigit():
                 raise ValueError(
                     f"qualified.yml entry must be a numeric account id: {entry!r}"
                 )
-            current.add(int(entry))
-    return users, orgs
+            users.add(int(entry))
+    return users
 
 
 def is_docs_file(filename: str) -> bool:
@@ -104,8 +100,6 @@ def decide(ctx: dict) -> Verdict:
         return Verdict(
             "pass", "qualified", "account id listed in .github/qualified.yml"
         )
-    if ctx["qualified_orgs"] and ctx["is_public_org_member"]:
-        return Verdict("pass", "qualified", "public member of a listed org")
     if "qualified" in ctx["pr_labels"]:
         return Verdict("pass", "qualified", "maintainer applied `qualified`")
     if is_trivial(ctx["files"]):
@@ -184,26 +178,7 @@ def fetch_ctx(
     ]
 
     with open(".github/qualified.yml", encoding="utf-8") as f:
-        qualified_users, qualified_orgs = parse_qualified(f.read())
-
-    is_public_org_member = False
-    for org_id in qualified_orgs:
-        # resolve the immutable org id to its current slug (ids survive
-        # renames; slugs are recyclable, so the id is the source of truth)
-        try:
-            account = gh_json(f"user/{org_id}")
-        except subprocess.CalledProcessError:
-            continue  # account gone
-        if account["type"] != "Organization":
-            continue
-        rc = subprocess.run(
-            ["gh", "api", f"orgs/{account['login']}/public_members/{author}"],
-            capture_output=True,
-            text=True,
-        ).returncode
-        if rc == 0:
-            is_public_org_member = True
-            break
+        qualified_users = parse_qualified(f.read())
 
     # linked closing issues + their labels (GraphQL closingIssuesReferences)
     query = """
@@ -247,8 +222,6 @@ def fetch_ctx(
             "files": files,
             "linked_issue_labels": linked_issue_labels,
             "qualified_users": qualified_users,
-            "qualified_orgs": qualified_orgs,
-            "is_public_org_member": is_public_org_member,
             "has_prior_nontrivial_merge": False,
         }
     )
@@ -279,8 +252,6 @@ def fetch_ctx(
         "files": files,
         "linked_issue_labels": linked_issue_labels,
         "qualified_users": qualified_users,
-        "qualified_orgs": qualified_orgs,
-        "is_public_org_member": is_public_org_member,
         "has_prior_nontrivial_merge": has_prior,
     }
 
