@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.251 (29 July 2026)
 
 - MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
 - MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
