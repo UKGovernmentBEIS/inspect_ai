@@ -52,6 +52,19 @@ def test_model_unrelated_attribute_error_does_not_retry() -> None:
     assert model.should_retry(ex) is False
 
 
+def test_model_call_soon_on_non_none_object_does_not_retry() -> None:
+    """A deterministic bug mentioning call_soon (wrong-typed receiver) must not retry.
+
+    The race always nulls transport._loop, so its message names NoneType;
+    anything else is a real bug that should fail fast rather than retry forever.
+    """
+    from inspect_ai.model import get_model
+
+    model = get_model("mockllm/model")
+    ex = AttributeError("'Foo' object has no attribute 'call_soon'")
+    assert model.should_retry(ex) is False
+
+
 # ---------- Default ModelAPI base ----------
 
 
