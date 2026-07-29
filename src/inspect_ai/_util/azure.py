@@ -4,12 +4,6 @@ from urllib.parse import urlparse
 
 AZURE_SCHEMES = {"az", "abfs", "abfss"}
 
-_AZURE_AUTH_KEYWORDS = (
-    "authenticate",
-    "noauthenticationinformation",
-    "authenticationfailed",
-)
-
 
 def apply_azure_fs_options(options: dict[str, Any]) -> None:
     """Inject Azure credentials for fsspec filesystem options on demand."""
@@ -85,10 +79,9 @@ def is_azure_path(path: str) -> bool:
 
 def should_suppress_azure_error(path: str, error: Exception) -> bool:
     """Return True if an Azure auth issue should be downgraded to a warning."""
-    if not is_azure_path(path):
-        return False
-    lowered = str(error).lower()
-    return any(keyword in lowered for keyword in _AZURE_AUTH_KEYWORDS)
+    return is_azure_path(path) and (
+        is_azure_auth_error(error) or "authenticate" in str(error).lower()
+    )
 
 
 def azure_warning_hint(path: str, error: Exception) -> str:

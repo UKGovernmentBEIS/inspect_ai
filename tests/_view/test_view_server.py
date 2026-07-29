@@ -1061,11 +1061,13 @@ async def test_read_eval_set_info_async_raises_non_auth_errors(
 async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from inspect_ai._util._async import current_async_backend
     from inspect_ai._util.file import FileInfo
     from inspect_ai.log import _file as log_file
 
     filesystem_calls: list[tuple[str, dict[str, Any]]] = []
     async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    sync_ls_calls: list[tuple[str, bool]] = []
 
     class FakeFileSystem:
         def is_s3(self) -> bool:
@@ -1073,6 +1075,21 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
 
         def is_async(self) -> bool:
             return True
+
+        def exists(self, path: str) -> bool:
+            return True
+
+        def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
+            sync_ls_calls.append((path, recursive))
+            return [
+                FileInfo(
+                    name=f"{path}/2026-01-01T00-00-00_task_id.eval",
+                    type="file",
+                    size=123,
+                    mtime=1710000000.0,
+                    etag=None,
+                )
+            ]
 
         def _file_info(self, info: dict[str, Any]) -> FileInfo:
             return FileInfo(
@@ -1124,7 +1141,14 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     )
 
     assert filesystem_calls == [("s3://bucket/logs", {"anon": True})]
-    assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    if current_async_backend() == "asyncio":
+        assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+        assert sync_ls_calls == []
+    else:
+        # under trio the fsspec asynchronous=True path is unavailable, so the
+        # listing falls back to fsspec's backend-agnostic sync API
+        assert async_filesystem_calls == []
+        assert sync_ls_calls == [("s3://bucket/logs", False)]
     assert len(logs) == 1
     assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
     assert logs[0].task == "task"
