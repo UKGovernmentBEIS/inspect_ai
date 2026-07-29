@@ -1,6 +1,17 @@
 ## Unreleased
 
 - OpenRouter: Surface the provider-reported per-request cost (summing `cost` and, for BYOK routes, `cost_details.upstream_inference_cost`) as `ModelUsage.total_cost`, taking precedence over Inspect's local per-token estimate; a `cost_limit` may now be used with OpenRouter models even when they have no static pricing entry (enforced at runtime from the reported cost).
+- Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
+- Inspect View: Fixed timeline discarding a solver span containing a single agent span child when it also contains other displayed events. (#443)
+- Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)
+- Inspect View: Added connection limit history display to the Stats tab. (#447)
+- Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)
+- Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
+- MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
+- MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
+
+## 0.3.251 (29 July 2026)
+
 - Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on `ModelRetry`, so hooks can distinguish e.g. timeouts from 429s and 5xxs.
 - Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
 
