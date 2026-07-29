@@ -117,6 +117,25 @@ def test_metric_create() -> None:
     metric_create_assert("accuracy4", correct="C")
 
 
+@metric
+def kwargs_metric(**kwargs: Any) -> Metric:
+    def metric(scores: list[SampleScore]) -> int | float:
+        return 1
+
+    return metric
+
+
+def test_metric_create_replays_name_kwarg_without_collision() -> None:
+    """A `**kwargs` key named `name` must survive metric replay from a log (#4375).
+
+    Flat capture records such a key at the top level of the log's metric
+    options, so replaying it must not collide with metric_create's own
+    `name` parameter.
+    """
+    metric = metric_create("kwargs_metric", name="demo")
+    assert metric([]) == 1
+
+
 def test_inspect_metrics() -> None:
     registry_assert(accuracy, f"{PKG_NAME}/accuracy")
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
