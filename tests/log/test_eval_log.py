@@ -17,6 +17,7 @@ from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai.dataset import Sample
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
@@ -253,6 +254,22 @@ def test_can_round_trip_serialize_tool_event_with_document_result():
 
     serialized = original.model_dump_json()
     deserialized = ToolEvent.model_validate_json(serialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_sample_init_event_with_none_state():
+    # the eval recorder writes events with exclude_none=True, so a None state
+    # is omitted from the written JSON and must not fail validation on read
+    original = SampleInitEvent(
+        sample=Sample(input="input"),
+        state=None,
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    serialized = original.model_dump_json(exclude_none=True)
+    assert '"state"' not in serialized
+    deserialized = SampleInitEvent.model_validate_json(serialized)
 
     assert original == deserialized
 
