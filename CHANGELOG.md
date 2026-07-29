@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Solvers, tasks, scorers, and metrics that declare `**kwargs` now survive replay from logs (e.g. `eval_retry`, `inspect score`), including keyword arguments named `name`. (#4375)
 - Models: bounded `count_tokens()` concurrency (adaptive, like `generate()`) so large token-count fan-outs no longer overwhelm the provider connection pool.
 - Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
 - Inspect View: Fixed timeline discarding a solver span containing a single agent span child when it also contains other displayed events. (#443)
