@@ -194,8 +194,22 @@ MESSAGE_PHASE = "message_phase"
 REASONING_ENCRYPTED_CONTENT = "reasoning_encrypted_content"
 
 # maximum length the OpenAI Responses API accepts for a function_call
-# `arguments` string on input (it imposes no such limit on output)
+# `arguments` string on input (it imposes no such limit on output). the API
+# limit is denominated in characters; we truncate by UTF-8 bytes, which is
+# never fewer than characters, so the result always satisfies the limit
 _MAX_FUNCTION_CALL_ARGUMENTS = 1_048_576
+
+
+def _limit_function_call_arguments(arguments: str) -> str:
+    """Middle-truncate `arguments` to fit the Responses API input limit.
+
+    OpenAI rejects input `arguments` strings longer than
+    _MAX_FUNCTION_CALL_ARGUMENTS, so sending an oversized string verbatim
+    would 400 every subsequent request. Strings within the limit are
+    returned unchanged.
+    """
+    truncated = truncate_string_to_bytes(arguments, _MAX_FUNCTION_CALL_ARGUMENTS)
+    return truncated.output if truncated is not None else arguments
 
 
 class ResponsesModelInfo(Protocol):
@@ -863,14 +877,9 @@ def _process_response_output_items(
                         ResponseFunctionToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
-                    # OpenAI rejects input `arguments` strings longer than
-                    # _MAX_FUNCTION_CALL_ARGUMENTS, so replaying an oversized
-                    # string verbatim would 400 every subsequent request
-                    truncated_arguments = truncate_string_to_bytes(
-                        output.arguments, _MAX_FUNCTION_CALL_ARGUMENTS
+                    param["arguments"] = _limit_function_call_arguments(
+                        output.arguments
                     )
-                    if truncated_arguments is not None:
-                        param["arguments"] = truncated_arguments.output
                     assistant_internal().tool_calls[output.call_id] = param
 
                 call_name, call_arguments = _responses_call_to_inspect(
@@ -1605,7 +1614,7 @@ def _tool_call_items_from_assistant_message(
                 type="function_call",
                 call_id=call.id,
                 name=name,
-                arguments=arguments,
+                arguments=_limit_function_call_arguments(arguments),
             )
 
             # append the param

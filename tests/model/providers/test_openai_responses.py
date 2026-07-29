@@ -199,6 +199,38 @@ def test_tool_call_arguments_within_limit_cached_verbatim():
     assert assistant_internal().tool_calls["call_1"]["arguments"] == raw_arguments
 
 
+def test_oversized_tool_call_arguments_truncated_on_cache_miss():
+    """Valid-but-oversized arguments are truncated in the cache-miss fallback.
+
+    When a tool call isn't in the assistant_internal replay cache (e.g. a
+    message history constructed outside this sample), its arguments are
+    re-serialized from the parsed dict — which for valid oversized JSON
+    regenerates the oversized string.
+    """
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _MAX_FUNCTION_CALL_ARGUMENTS,
+        _tool_call_items_from_assistant_message,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+
+    message = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(
+                id="call_1",
+                function="bash",
+                arguments={"command": "x" * 2_000_000},
+            )
+        ],
+    )
+    items = _tool_call_items_from_assistant_message(message)
+
+    assert len(items[0]["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+
 def test_non_consecutive_reasoning_blocks_filtering():
     """Test that non-consecutive ContentReasoning blocks are both kept."""
     message = ChatMessageAssistant(
