@@ -1138,7 +1138,7 @@ async def _eval_async_inner(
                 await wait_for_shutdown_async(_ctl_server)
 
         # cleanup sample buffers if required
-        cleanup_sample_buffers(log_dir)
+        await cleanup_sample_buffers(log_dir)
 
         try:
             await emit_run_end(eval_set_id, run_id, logs)
