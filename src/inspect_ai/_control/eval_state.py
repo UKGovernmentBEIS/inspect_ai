@@ -683,19 +683,12 @@ def detach_eval_live(eval_id: str) -> None:
 def invalidate_log_sample_summaries(eval_id: str) -> None:
     """Drop an eval's memoized on-disk sample summaries.
 
-    Called by the eval-set retry sweep (``latest_completed_task_eval_logs``
-    with ``cleanup_older=True``) right after it deletes a superseded
-    attempt's log file, so the memo can't outlive the log it was read from:
-    later listing reads re-attempt the on-disk read and degrade to an empty
-    listing on ``FileNotFoundError`` (which is never memoized) — exactly the
-    pre-memo per-request behavior. Keyed by ``eval_id`` (the deleted log's
-    header carries it) rather than by matching ``log_location`` strings,
-    which differ in form between fsspec listings and registration
-    (``file://`` prefixes). No stale-memo race with an in-flight listing
-    read: requests are served either on the eval's loop (running only inside
-    an ``eval()`` call) or by the keep-alive park's own server, while sweeps
-    run between ``eval()`` calls and before the park — never concurrently
-    with a request. No-ops if the eval isn't registered.
+    Call after deleting (or rewriting) the log the memo was read from, so
+    the memo can't outlive it — later listing reads re-attempt the on-disk
+    read. Keyed by ``eval_id`` (the log's header carries it) rather than by
+    matching ``log_location`` strings, which differ in form between fsspec
+    listings and registration (``file://`` prefixes). No-ops if the eval
+    isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)

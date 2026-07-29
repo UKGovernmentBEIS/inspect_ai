@@ -386,7 +386,11 @@ finding 1 remains open.
    superseded attempt's *own* log data, valid until the file goes), and
    legacy batch-retry sweeps logs without any detach ever firing. A
    `FileNotFoundError` read is never memoized, preserving the `[]`
-   degradation.
+   degradation. No stale-memo race with an in-flight listing read:
+   requests are served either on the eval's loop (running only inside an
+   `eval()` call) or by the keep-alive park's own server, while sweeps run
+   between `eval()` calls and before the park — never concurrently with a
+   request.
 
 4. **Error detail on the fallback path does two log reads per request**
    (`state.py` `sample_error_detail`): the excluded-field sample scan plus a
