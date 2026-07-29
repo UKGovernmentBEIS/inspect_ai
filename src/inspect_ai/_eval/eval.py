@@ -11,7 +11,7 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.eval_state import reset_run_registries
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -20,6 +20,7 @@ from inspect_ai._control.server import (
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
+from inspect_ai._eval.handoff import LaunchHandoff, emit_launch_handoff
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -959,7 +960,7 @@ async def _eval_async_inner(
         # live-eval read / direct / event-subscription operations to
         # `inspect ctl` CLI clients, TUIs, and agents. Bind failures are
         # logged and swallowed — eval correctness never depends on the
-        # control channel coming up. See design/control-channel.md
+        # control channel coming up. See design/ctl/control-channel.md
         # "Implementation notes".
         #
         ctl = resolve_ctl_server(ctl_server)
@@ -993,6 +994,20 @@ async def _eval_async_inner(
             control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
+            # emitted here — after the control-server bind, before any task
+            # work — so a listener that has seen the handoff can rely on the
+            # control surface existing (or being definitively absent)
+            emit_launch_handoff(
+                LaunchHandoff(
+                    run_id=run_id,
+                    pid=os.getpid(),
+                    log_dir=log_dir,
+                    control_socket=str(_ctl_server.socket_path)
+                    if _ctl_server is not None and _ctl_server.socket_path is not None
+                    else None,
+                    eval_set_id=eval_set_id,
+                )
+            )
             with scan_cm:
                 # The one place eval_run is invoked for a batch of tasks. The
                 # initial tasks run as the first loop iteration below; tasks
@@ -1140,12 +1155,13 @@ async def _eval_async_inner(
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
-        # Clear the process-level EvalState registry at the run boundary
-        # (after any keep-alive park) — but only for a standalone eval.
-        # When nested in an eval-set (eval_set_id set) the eval-set owns
-        # this, clearing after its own park.
+        # Clear the process-level EvalState registry and the retry-loop
+        # config overrides at the run boundary (after any keep-alive park) —
+        # but only for a standalone eval. When nested in an eval-set
+        # (eval_set_id set) the eval-set owns this, clearing after its own
+        # park.
         if eval_set_id is None:
-            clear_all_eval_states()
+            reset_run_registries()
 
     # return logs
     return logs

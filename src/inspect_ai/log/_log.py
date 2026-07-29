@@ -25,6 +25,7 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
+from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
@@ -42,7 +43,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 from inspect_ai.viewer import ViewerConfig
 
-from ..event._event import Event
+from ..event._event import DiscriminatedEvent
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
@@ -387,7 +388,7 @@ class EvalRetryError(BaseModel):
     traceback_ansi: str
     """Error traceback with ANSI color codes."""
 
-    events: list[Event] | None = Field(default=None)
+    events: list[DiscriminatedEvent] | None = Field(default=None)
     """Events prior to error (goes back to last ModelEvent)."""
 
 
@@ -470,7 +471,7 @@ class EvalSample(BaseModel):
         # create the model
         return model_cls.model_validate(data)
 
-    events: list[Event] = Field(default_factory=list)
+    events: list[DiscriminatedEvent] = Field(default_factory=list)
     """Events that occurred during sample execution."""
 
     timelines: list[Timeline] | None = Field(default=None)
@@ -656,7 +657,7 @@ class EvalSample(BaseModel):
 
 
 class EvalEvents(BaseModel):
-    events: list[Event] = Field(default_factory=list)
+    events: list[DiscriminatedEvent] = Field(default_factory=list)
     """List of events."""
 
     content: dict[str, str] = Field(default_factory=dict)
@@ -1152,6 +1153,9 @@ class EvalLog(BaseModel):
 
     log_updates: list[LogUpdate] | None = Field(default=None)
     """Post-eval edits to tags and metadata."""
+
+    config_updates: list[ConfigUpdate] | None = Field(default=None)
+    """Mid-run configuration changes applied via the control channel (`inspect ctl config`)."""
 
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""

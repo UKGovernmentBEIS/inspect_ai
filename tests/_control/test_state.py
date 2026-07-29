@@ -7,8 +7,13 @@ cancellation error. Those cancellations must not render as ``error`` — a
 sample that will be retried is ``pending``; one that won't is ``cancelled``.
 """
 
+from typing import TYPE_CHECKING, cast
+
 from inspect_ai._control.state import _summary_from_eval_sample_summary
 from inspect_ai.log import EvalSampleSummary
+
+if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import LiveEvalData
 
 # How a cancelled sample's error is stored (eval_error -> repr of the backend
 # cancellation exception); see EvalSample.summary().
@@ -140,6 +145,62 @@ def test_terminal_summary_token_limit_none_when_unlimited() -> None:
     assert row["token_limit_usage"] is None
     assert row["token_limit_total"] is None
     assert row["token_limit_type"] is None
+
+
+# --- errors-filtered listing ----------------------------------------------
+#
+# `sample_filter="errors"` is the eval-set triage read behind `ctl sample
+# errors`: it must return only errored/retried samples and must NOT
+# synthesize the pending dataset × epochs grid (which can never carry errors
+# and dominates the response on large evals).
+
+
+class _FakeLive:
+    """Minimal LiveEvalData stand-in serving canned sample summaries."""
+
+    def __init__(self, summaries: list[EvalSampleSummary]) -> None:
+        self._summaries = summaries
+
+    async def sample_summaries(self) -> list[EvalSampleSummary]:
+        return self._summaries
+
+
+async def test_errors_filter_filters_and_skips_pending_grid(monkeypatch) -> None:
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import current_sample_summaries
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    completed = [
+        EvalSampleSummary(
+            id="ok", epoch=1, input="i", target="t", completed=True, retries=0
+        ),
+        EvalSampleSummary(id="bad", epoch=1, input="i", target="t", error=_GENUINE),
+        EvalSampleSummary(
+            id="retried", epoch=1, input="i", target="t", completed=True, retries=2
+        ),
+    ]
+    try:
+        register_eval(
+            "e-errs",
+            6,
+            live=cast("LiveEvalData", _FakeLive(completed)),
+            sample_ids=["ok", "bad", "retried"],
+            epochs=2,
+        )
+
+        rows = await current_sample_summaries("e-errs", sample_filter="errors")
+        assert {(r["sample_id"], r["status"]) for r in rows} == {
+            ("bad", "error"),
+            ("retried", "completed"),
+        }
+        assert all(r["status"] != "pending" for r in rows)
+
+        # the unfiltered read still builds the full grid (3 ids × 2 epochs)
+        full = await current_sample_summaries("e-errs")
+        assert len(full) == 6
+        assert sum(1 for r in full if r["status"] == "pending") == 3
+    finally:
+        clear_all_eval_states()
 
 
 def test_running_summary_reports_token_limit_and_turns(monkeypatch) -> None:

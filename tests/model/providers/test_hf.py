@@ -254,7 +254,9 @@ def test_hf_auto_model_class_selects_alternate_loader(monkeypatch) -> None:
     AutoModelForCausalLM and must be loaded with e.g.
     AutoModelForImageTextToText.
     """
-    import transformers  # type: ignore
+    # unused-ignore is listed because the ignore is environment-dependent:
+    # it fires only when transformers is not installed.
+    import transformers  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
     from inspect_ai.model._providers.hf import HuggingFaceAPI
 

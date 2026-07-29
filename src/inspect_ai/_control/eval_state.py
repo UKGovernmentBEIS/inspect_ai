@@ -47,6 +47,8 @@ logger = getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from inspect_ai._display.core.display import TaskCancel
+    from inspect_ai.log._config_update import ConfigUpdate
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -96,6 +98,14 @@ if TYPE_CHECKING:
             self, log_buffer: int | None = None, log_shared: int | None = None
         ) -> "BufferConfig":
             """Read (both args ``None``) or update the sample-buffer parameters."""
+            ...
+
+        def log_config_update(self, update: ConfigUpdate) -> Awaitable[bool]:
+            """Record a mid-run config change into the log.
+
+            ``False`` means the logger *declined* because its log has already
+            finished (its record is complete — not a failure; failures raise).
+            """
             ...
 
     # Async accessor for a reused eval's summaries-derived stats, resolved
@@ -208,6 +218,15 @@ class EvalState:
     attempt the logger was bound to (after which reads fall back to
     :attr:`log_location` until the retry sweep removes that log)."""
 
+    task_cancel: "TaskCancel | None" = None
+    """The running attempt's cancel handle — the same ``TaskCancel`` the
+    in-process task display's cancel dialog drives. The control channel's
+    task-cancel directive fires it with ``"abort"`` (see
+    :mod:`inspect_ai._control.cancel`). ``None`` for reused/synthetic evals
+    (nothing is running, so there is nothing to cancel); each retry attempt
+    registers its own handle, and :func:`latest_eval_for_task` resolves the
+    current one."""
+
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
     (:class:`DeferredSampleStats`). Resolved once — on the first
@@ -236,7 +255,19 @@ class EvalState:
     """Unix timestamp when this eval's last sample finished (i.e. when
     ``completed + errored`` first reached ``total``). ``None`` while the
     eval is still running. Used by the control endpoint to surface
-    completion to agents without forcing them to derive it from counters."""
+    completion to agents without forcing them to derive it from counters.
+    For a :attr:`dynamic` eval this is only stamped by :func:`finalize_eval`
+    (the task's finish point) — counters reaching ``total`` doesn't mean
+    done when the source can still add samples."""
+
+    dynamic: bool = False
+    """Whether this eval's planned sample set can grow while it runs (a
+    ``SampleSource``-driven task). While set, ``terminal >= total`` is not
+    proof of completion — the task may be idle awaiting its source (or have
+    an empty seed, ``total == 0``, at registration) — so the provisional
+    ``completed_at`` stamp is suppressed and consumers (task cancel, status
+    listings) correctly see the eval as running. Cleared by
+    :func:`finalize_eval`, the task's single true finish point."""
 
     started_at: float | None = None
     """Earliest observed sample-start time, tracked as a running minimum.
@@ -259,6 +290,18 @@ class EvalState:
     Set from ``TaskCancel.can_retry`` at registration. Lets the control
     endpoint render a cancelled sample as ``pending`` (a retry will re-run
     it) rather than ``cancelled`` (terminal — no retry coming)."""
+
+    retry_pending: bool = False
+    """Whether this attempt finished with an error and a retry has been queued.
+
+    Stamped by :func:`mark_eval_retry_pending` at the eval-set's retry
+    decision point, so directives that would otherwise read a stamped
+    :attr:`completed_at` as "task finished" (eg. task cancel) can answer
+    honestly during the window between attempts — the retry registers its
+    own :class:`EvalState` only when it actually starts, and until then
+    this errored attempt is the task's latest. Never cleared: once the
+    retry starts, :func:`latest_eval_for_task` resolves to its fresh
+    state and this one is no longer consulted."""
 
     total_tokens: int = 0
     """Cumulative model tokens used by this eval's terminal samples.
@@ -328,6 +371,8 @@ def register_eval(
     epochs: int = 1,
     run_id: str | None = None,
     will_retry: bool = False,
+    task_cancel: "TaskCancel | None" = None,
+    dynamic: bool = False,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
@@ -348,16 +393,23 @@ def register_eval(
             solver=solver or "",
             log_location=log_location,
             live=live,
-            sample_ids=sample_ids or [],
+            # copy: a SampleSource-driven task appends to its planned-ids list
+            # as samples are injected; the state's list must grow only via
+            # record_samples_added, not by aliasing the caller's list
+            sample_ids=list(sample_ids or []),
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
+            task_cancel=task_cancel,
+            dynamic=dynamic,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
         # already finished — no sample will ever run to fire a terminal counter
         # and stamp ``completed_at`` via record_sample_*, so do it now. A no-op
-        # for the normal ``total > 0`` case (not yet finished at registration).
+        # for the normal ``total > 0`` case (not yet finished at registration)
+        # and for a dynamic eval (an empty seed just means the source hasn't
+        # produced yet — finalize_eval stamps it when the task truly ends).
         _maybe_mark_finished(state)
         return state
 
@@ -524,6 +576,26 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def record_samples_added(
+    eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
+) -> None:
+    """Grow a running eval's planned totals when samples are added dynamically.
+
+    Called by ``task_run`` when a ``SampleSource`` injects samples mid-run:
+    ``total`` is the number of additional planned runs (samples × epochs) and
+    ``sample_ids`` the injected ids (so the per-sample listing can surface them
+    as pending). The eval is :attr:`EvalState.dynamic`, so no provisional
+    finish stamp needs clearing here — ``completed_at`` stays ``None`` until
+    :func:`finalize_eval`. No-ops if unregistered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.total += total
+            if sample_ids:
+                state.sample_ids.extend(sample_ids)
+
+
 def latest_eval_for_task(task_id: str) -> "EvalState | None":
     """The last-registered attempt of ``task_id``, or ``None`` if untracked.
 
@@ -544,6 +616,22 @@ def latest_eval_for_task(task_id: str) -> "EvalState | None":
             if state.task_id == task_id:
                 latest = state
         return latest
+
+
+def mark_eval_retry_pending(eval_id: str) -> None:
+    """Record that a retry of this (errored, finished) attempt has been queued.
+
+    Called by the eval-set runner at the point it decides to re-queue a
+    failed task — after the attempt's ``finalize_eval`` (which stamped
+    ``completed_at``) and before the retry attempt starts (which registers
+    a fresh :class:`EvalState`). See :attr:`EvalState.retry_pending` for
+    why the window between those two events needs the flag. No-ops if the
+    eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.retry_pending = True
 
 
 def detach_eval_live(eval_id: str) -> None:
@@ -593,6 +681,9 @@ def finalize_eval(eval_id: str) -> None:
             shortfall = state.total - state.terminal
             if shortfall > 0:
                 state.cancelled += shortfall
+            # the task has truly finished — no source can add samples now, so
+            # the dynamic suppression of the finish stamp no longer applies
+            state.dynamic = False
             _maybe_mark_finished(state)
 
 
@@ -602,12 +693,15 @@ def _maybe_mark_finished(state: EvalState) -> None:
     Fires the first time the terminal sum (``completed + errored +
     cancelled``) reaches ``total``; later updates are no-ops so a late
     counter update from a teardown race doesn't overwrite the original
-    finish time. Also drops
+    finish time. Suppressed for a :attr:`EvalState.dynamic` eval — its
+    counters reaching ``total`` doesn't mean done (the source may add more
+    samples); ``finalize_eval`` clears the flag at the task's true finish
+    point. Also drops
     ``sample_ids`` — a finished eval has no pending samples, so the
     planned-id list is dead weight (it's retained on the state until the
     run boundary clears it). Caller must hold the registry lock.
     """
-    if state.completed_at is None and state.is_finished:
+    if state.completed_at is None and not state.dynamic and state.is_finished:
         state.completed_at = time.time()
         state.sample_ids = []
 
@@ -633,3 +727,28 @@ def clear_all_eval_states() -> None:
     """
     with _lock:
         _eval_states.clear()
+
+
+def reset_run_registries() -> None:
+    """Reset the process-scoped control-channel registries at a run boundary.
+
+    The single reset call for the outermost run boundary (``eval`` /
+    ``eval_set``, after any keep-alive park). Both boundaries call this one
+    helper so a future process-scoped registry can't get its reset added at
+    one boundary and leak stale state through the other — add new resets
+    here, not at the call sites.
+    """
+    from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.pause import (
+        reset_process_pause,
+        reset_task_pause_gates,
+    )
+    from inspect_ai.model._generate_overrides import (
+        reset_generate_config_overrides,
+    )
+
+    clear_all_eval_states()
+    reset_generate_config_overrides()
+    reset_process_config_updates()
+    reset_task_pause_gates()
+    reset_process_pause()

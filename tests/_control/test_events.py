@@ -172,6 +172,14 @@ def test_filter_glob_includes_everything() -> None:
     assert len(_filter(events, frozenset({"*"}), None, None)) == 2
 
 
+def test_filter_all_includes_everything() -> None:
+    # `all` is the shell-safe synonym for `*` — same allow-everything filter,
+    # including as one member of a comma list
+    events: list[Event] = [_info_at("a", _now()), _error_event("boom")]
+    assert len(_filter(events, frozenset({"all"}), None, None)) == 2
+    assert len(_filter(events, frozenset({"model", "all"}), None, None)) == 2
+
+
 def test_filter_time_window() -> None:
     t0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
     early = _info_at("early", t0)
@@ -191,6 +199,22 @@ def test_project_compact_error() -> None:
     assert out["error"] == "boom"
     assert isinstance(out["timestamp"], float)
     assert "uuid" in out and "span_id" in out
+
+
+def test_project_compact_info_carries_data() -> None:
+    # transcript().info(...) content must be visible without --full: the
+    # compact projection carries the (truncated, text-form) data payload.
+    out = _project(InfoEvent(source="my-solver", data="phase 1 complete"), full=False)
+    assert out["event"] == "info"
+    assert out["source"] == "my-solver"
+    assert out["data"] == "phase 1 complete"
+    # non-string data is serialized to text
+    out = _project(InfoEvent(data={"step": 2}), full=False)
+    assert out["source"] is None
+    assert out["data"] == '{"step": 2}'
+    # long payloads are truncated, not dumped whole
+    out = _project(InfoEvent(data="x" * 1000), full=False)
+    assert len(out["data"]) <= 256
 
 
 def test_project_full_is_raw_dump() -> None:
