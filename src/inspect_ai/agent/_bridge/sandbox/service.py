@@ -8,6 +8,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
@@ -31,6 +32,15 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     `PROVIDER_ERROR_KEY` so the sandbox service RPC delivers it via the `result`
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
+
+    `LimitExceededError` is deliberately excluded: a message/token/cost limit
+    hit during generation must end the sample, not look like a retryable API
+    error. Re-raising lets it reach the generic sandbox-service dispatch loop
+    (`util/_sandbox/service.py`), which already recognizes it and interrupts
+    the sample -- the same mechanism `working_limit` uses independently.
+    Previously this was swallowed here, so a sandboxed bridge's message/token/
+    cost limit hits during generation never actually ended the sample; they
+    surfaced as a generic-looking provider error instead.
     """
 
     async def generate_forwarding_errors(
@@ -38,6 +48,8 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     ) -> dict[str, JsonValue]:
         try:
             return await generate(json_data)
+        except LimitExceededError:
+            raise
         except Exception as ex:
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
