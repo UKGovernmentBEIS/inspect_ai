@@ -430,7 +430,7 @@ def _service_with_dirs(
 
 
 def _make_active_sample() -> ActiveSample:
-    """Bare-bones `ActiveSample`, for tests of the dispatch loop's `sample_active()` hooks."""
+    """Bare-bones `ActiveSample` for dispatch-loop tests."""
     return ActiveSample(
         task="t",
         log_location="mem://test",
@@ -566,12 +566,7 @@ async def test_handle_request_valid_call_uses_argv() -> None:
 
 
 async def test_handle_request_limit_exceeded_interrupts_active_sample() -> None:
-    """A method raising `LimitExceededError` cancels the active sample's task group.
-
-    This is the mechanism that lets code running outside the sample's own call
-    stack (an RPC method dispatched from a sandboxed client, e.g. the agent
-    bridge model proxy) signal a limit hit back to the eval runner.
-    """
+    """A method raising `LimitExceededError` cancels the active sample's task group."""
     from unittest.mock import MagicMock
 
     from inspect_ai.log._samples import _sample_active as samples_var
@@ -604,14 +599,10 @@ async def test_handle_request_limit_exceeded_interrupts_active_sample() -> None:
 
 
 async def test_handle_request_terminate_sample_error_interrupts_active_sample() -> None:
-    """A method raising `TerminateSampleError` also interrupts the active sample.
+    """A method raising `TerminateSampleError` interrupts the active sample.
 
-    This is what makes tool-approval `terminate` decisions on a *sandboxed*
-    agent-bridge model request (`agent/_bridge/sandbox/service.py`) actually end
-    the sample, rather than merely returning an RPC error string the scaffold
-    could act on as if it were a retryable API failure. `interrupt("score")`
-    mirrors the in-process bridge path, where the same error is scored rather
-    than treated as a genuine failure.
+    `interrupt("score")` mirrors the in-process bridge path, where the same
+    error is scored rather than treated as a failure.
     """
     from unittest.mock import MagicMock
 

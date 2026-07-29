@@ -231,13 +231,9 @@ async def bridge_generate(
     each retry to ensure clean state.
 
     A rejected tool call (see `resolve_bridge_tool_approvals`) also retries
-    generation, but rather than resetting to the original input, appends the
-    rejected turn and its rejection to the conversation so the model can see
-    what happened and try something else — same as it would for a rejected
-    tool call outside the bridge. Unlike refusals, this isn't bounded by a
-    retry count: it's a real generate() call each time, so it's bounded by
-    the sample's own limits (message/token/time/cost), same as an ordinary
-    agentic loop that keeps retrying a rejected tool call.
+    generation, appending the rejected turn and its rejection to the
+    conversation rather than resetting it. Unlike refusals there is no retry
+    cap: resampling is bounded by the sample's own limits.
     """
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
     # claude_code re-emits an operator message as a plain user message). Done
@@ -261,9 +257,8 @@ async def bridge_generate(
 
     refusals = 0
     while True:
-        # Reset generation params for each retry; input_messages is reset
-        # separately below, only for a content_filter refusal (an approval
-        # rejection instead appends to it -- see the loop's tail).
+        # Reset generation params for each retry (input_messages is reset
+        # per retry cause below)
         tools = original_tools
         tool_choice = original_tool_choice
         config = original_config
@@ -321,9 +316,7 @@ async def bridge_generate(
             input_messages = original_input
             continue
 
-        # gate the tool calls the scaffold is about to run on the active
-        # approval policy. bridged scaffolds run their own tools, so this
-        # is the only point at which approval can be applied to them.
+        # apply approval policies before the scaffold runs the tool calls
         output, continuation = await resolve_bridge_tool_approvals(
             output, input_messages, tools
         )

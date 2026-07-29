@@ -1,13 +1,9 @@
 """Tool approval for bridged agents.
 
 Bridged scaffolds (claude_code, codex, …) execute their own tool calls, so they
-never reach `execute_tools()` — the one place Inspect normally applies approval
-policies. Without a gate here, `--approval` (and therefore human intervention
-and monitor-style approvers) silently has no effect on a bridged eval.
-
-`bridge_generate()` is the single chokepoint where the scaffold's intended tool
-calls exist as Inspect `ToolCall`s *before* the scaffold acts on them, so that
-is where approval is applied.
+never reach `execute_tools()`, where approval policies are normally applied.
+Approval is therefore applied in `bridge_generate()`, to the tool calls in the
+model's reply, before the scaffold acts on them.
 """
 
 from typing import Sequence
@@ -29,27 +25,18 @@ async def resolve_bridge_tool_approvals(
 ) -> tuple[ModelOutput, list[ChatMessage] | None]:
     """Apply active approval policies to a bridged reply's tool calls.
 
-    Returns `(output, None)` when the turn can proceed as-is: no tool call
-    was rejected. `modify` substitutions are applied to a *copy* of `output`,
-    so the transcript's `ModelEvent` (which shares the original object) still
-    shows exactly what the model asked for — matching how a native `modify`
-    leaves the recorded `ToolEvent` showing the original call, with the
-    substitution visible separately via the `ApprovalEvent`.
+    Returns `(output, None)` when no call was rejected. `modify` substitutions
+    are applied to a copy of `output`, so the transcript's `ModelEvent` (which
+    shares the original object) still shows what the model asked for — as with
+    native `modify`, the substitution is visible only on the `ApprovalEvent`.
 
-    Returns `(output, continuation)` when any call was rejected. The bridge
-    can only shape the reply, not fabricate a scaffold-executed result, so
-    there's no way to hand the scaffold a rejected call it could ever resolve
-    — the whole turn is discarded instead. `continuation` is the rejected
-    assistant message plus one tool-result message per call (the real
-    decision for whichever call(s) were rejected; a "turn discarded" note for
-    any approved siblings), for the caller to append to the conversation and
-    regenerate — the same shape a native rejection becomes (a tool result the
-    model sees on its next turn), just kept internal to the retry loop since
-    it can never reach the scaffold. Bounded only by the sample's own limits
-    (message/token/time/cost), the same as an ordinary agentic loop that keeps
-    retrying a rejected tool call.
+    Returns `(output, continuation)` when any call was rejected. The scaffold
+    can't be handed a rejected call (it could never resolve it), so the whole
+    turn is discarded: `continuation` is the assistant message plus one
+    tool-result message per call (rejection reason, or a "sibling rejected"
+    note), for the caller to append to the conversation and regenerate.
 
-    `terminate` raises `TerminateSampleError` directly, ending the sample.
+    `terminate` raises `TerminateSampleError`.
     """
     from inspect_ai.approval._apply import apply_tool_approval, have_tool_approval
 

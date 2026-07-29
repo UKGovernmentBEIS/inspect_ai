@@ -483,16 +483,9 @@ class SandboxService:
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
                 except TerminateSampleError as ex:
-                    # a method executed for a sandboxed client (e.g. the agent
-                    # bridge model proxy) asked to terminate the sample. This
-                    # RPC dispatch loop runs outside the sample's own call
-                    # stack, so raising alone wouldn't reach the
-                    # `except TerminateSampleError` in the eval runner --
-                    # `interrupt("score")` is the supported way to request
-                    # that cancellation from here, mirroring `limit_exceeded`
-                    # above. Score (not error/cancel) matches the in-process
-                    # bridge path, where the same error is scored rather than
-                    # failed.
+                    # this dispatch loop runs outside the sample's call stack,
+                    # so interrupt the sample directly (mirroring limit_exceeded
+                    # above); "score" matches the in-process bridge path
                     active = sample_active()
                     if active is not None:
                         active.interrupt("score")

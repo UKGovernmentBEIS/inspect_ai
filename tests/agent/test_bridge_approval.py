@@ -1,14 +1,4 @@
-"""Tool approval for bridged agents (see `agent/_bridge/approval.py`).
-
-A bridged scaffold runs its own tool calls, so Inspect never gets to hand it a
-tool result the way native approval does. `reject` therefore discards the
-whole rejected turn and asks the model again, with the rejection appended to
-the conversation as an ordinary tool-result message -- the same shape a
-native rejection takes, just never sent to the scaffold. These tests pin:
-the resample behaviour, that the scaffold never sees a rejected call, and
-that the transcript's `ModelEvent`s always show exactly what the model
-generated (never a retroactively edited version).
-"""
+"""Tool approval for bridged agents (see `agent/_bridge/approval.py`)."""
 
 from typing import cast
 
@@ -77,10 +67,7 @@ async def generate_through_bridge(
 ) -> tuple[ModelOutput, list[ModelEvent]]:
     """Run `bridge_generate` under `policies`, serving `outputs` to successive attempts.
 
-    More than one `model.generate()` call happens only if a rejection
-    resamples. Returns the final result plus every `ModelEvent` recorded along
-    the way, in call order -- one per attempt, each showing exactly what that
-    attempt produced.
+    Returns the final result plus every `ModelEvent` recorded, one per attempt.
     """
     init_transcript(Transcript())
     model = get_model(MODEL, custom_outputs=outputs)
@@ -133,12 +120,6 @@ async def test_approve_leaves_tool_calls_alone() -> None:
 
 
 async def test_reject_resamples_and_returns_only_the_accepted_attempt() -> None:
-    """A rejected call is never returned; the model gets a second try.
-
-    The safety property is unaffected by which attempt eventually succeeds --
-    only the final, accepted output is ever handed back to the caller
-    (and so to the scaffold).
-    """
     output, events = await generate_through_bridge(
         [tool_call_output(bash_call()), ModelOutput.from_content(MODEL, "giving up")],
         auto_policy("reject"),
@@ -146,19 +127,14 @@ async def test_reject_resamples_and_returns_only_the_accepted_attempt() -> None:
 
     assert output.message.text == "giving up"
     assert not output.message.tool_calls
-    # both attempts really happened and are both in the transcript, untouched
+    # both attempts are in the transcript, untouched
     assert len(events) == 2
     assert events[0].output.message.tool_calls == [bash_call()]
     assert events[1].output.message.text == "giving up"
 
 
 async def test_rejected_attempt_reaches_the_model_as_a_tool_result() -> None:
-    """The resampled generate() call sees the rejected turn as a real tool result.
-
-    Same shape as a native rejection (the model's own tool_use, followed by a
-    tool-result carrying the approver's explanation) -- it just never reaches
-    the scaffold, only the model's own next generate() call.
-    """
+    """The resampled generate() sees the rejected turn as an ordinary tool result."""
     _, events = await generate_through_bridge(
         [tool_call_output(bash_call()), ModelOutput.from_content(MODEL, "ok")],
         auto_policy("reject"),
@@ -174,12 +150,7 @@ async def test_rejected_attempt_reaches_the_model_as_a_tool_result() -> None:
 
 
 async def test_reject_discards_whole_turn_including_approved_siblings() -> None:
-    """Any rejection in a turn discards the *entire* turn, not just that call.
-
-    The scaffold can only receive one coherent reply, so a turn can't be
-    partially resampled -- an approved sibling is retried along with the
-    rejected call, and told why in its own tool result.
-    """
+    """An approved sibling is retried too, with its own explanatory tool result."""
     output, events = await generate_through_bridge(
         [
             tool_call_output(
@@ -204,12 +175,7 @@ async def test_reject_discards_whole_turn_including_approved_siblings() -> None:
 
 
 async def test_unmatched_tool_is_rejected() -> None:
-    """A policy that doesn't cover a tool rejects it (standard policy behaviour).
-
-    Worth pinning for bridges specifically: a scaffold brings a large, largely
-    undeclared toolset, so a policy that enumerates only some tools silently
-    denies the rest.
-    """
+    """A policy that doesn't cover a tool rejects it (standard policy behaviour)."""
     output, events = await generate_through_bridge(
         [tool_call_output(bash_call()), ModelOutput.from_content(MODEL, "ok")],
         auto_policy("approve", tools="read"),
@@ -241,13 +207,7 @@ def modifier() -> Approver:
 async def test_modify_returns_the_substitution_without_touching_the_transcript() -> (
     None
 ):
-    """`modify` is faithful to native semantics: the transcript is never rewritten.
-
-    The scaffold-facing result carries the substitution (so that's what
-    actually runs), but the `ModelEvent` still shows exactly what the model
-    asked for -- matching how a native `modify` leaves the recorded
-    `ToolEvent` alone and records the substitution only on the `ApprovalEvent`.
-    """
+    """The scaffold gets the substituted call; the `ModelEvent` keeps the original."""
     output, events = await generate_through_bridge(
         [tool_call_output(bash_call(cmd="rm -rf /"))],
         [ApprovalPolicy(approver=modifier(), tools="*")],
@@ -267,7 +227,7 @@ async def test_terminate_raises() -> None:
 
 
 async def test_approval_event_recorded_per_attempt() -> None:
-    """Every approver decision -- across every resample attempt -- lands in the transcript."""
+    """Approver decisions land in the transcript as `ApprovalEvent`s."""
     await generate_through_bridge(
         [tool_call_output(bash_call()), ModelOutput.from_content(MODEL, "ok")],
         auto_policy("reject"),
@@ -290,12 +250,7 @@ async def test_text_only_reply_is_untouched() -> None:
 
 
 async def test_reject_resampling_is_bounded_by_message_limit() -> None:
-    """No bespoke retry cap -- resampling is bounded by the sample's own limits.
-
-    Each resample is an ordinary generate() call, so it's bounded the same
-    way a native agentic loop that keeps getting the same tool call rejected
-    would be.
-    """
+    """No bespoke retry cap -- resampling is bounded by the sample's own limits."""
     always_rejected = [tool_call_output(bash_call(id=str(i))) for i in range(10)]
 
     with message_limit(2):
@@ -306,8 +261,7 @@ async def test_reject_resampling_is_bounded_by_message_limit() -> None:
 async def anthropic_bridge_reply(policies: list[ApprovalPolicy]) -> Message:
     """Serve one Anthropic-dialect bridge request under `policies`."""
     init_transcript(Transcript())
-    # alias the requested model to our mock instance, since the handler resolves
-    # the model by name from the request body
+    # the handler resolves the model by name, so alias it to our mock instance
     model = get_model(
         MODEL,
         custom_outputs=[
@@ -344,12 +298,7 @@ async def anthropic_bridge_reply(policies: list[ApprovalPolicy]) -> Message:
 
 
 async def test_rejected_call_absent_from_scaffold_response() -> None:
-    """The safety property, end to end: no `tool_use` block ever reaches the scaffold.
-
-    Goes through the real Anthropic-dialect handler (what claude_code talks to)
-    rather than `bridge_generate` alone, since dropping the Inspect `ToolCall`
-    only matters if it also drops the block the scaffold would act on.
-    """
+    """End to end through the Anthropic-dialect handler: no `tool_use` block reaches the scaffold."""
     message = await anthropic_bridge_reply(auto_policy("reject"))
 
     assert [block.type for block in message.content] == ["text"]

@@ -174,12 +174,7 @@ async def test_forward_provider_errors_reraises_terminate_sample_error() -> None
 
 
 async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:
-    """A message/token/cost limit hit during generation must end the sample.
-
-    Previously swallowed into a normal-looking provider-error response, which
-    meant a sandboxed bridge's limit hits during model generation silently
-    never terminated the sample.
-    """
+    """A limit hit during generation must end the sample, not look like an API error."""
 
     async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
         raise LimitExceededError("message", value=2, limit=1)

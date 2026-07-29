@@ -34,11 +34,9 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `TerminateSampleError` and `LimitExceededError` are deliberately excluded:
-    neither should be handed back to the scaffold as a retryable API error.
-    Re-raising lets them reach the generic sandbox-service dispatch loop
-    (`util/_sandbox/service.py`), which recognizes both and interrupts the
-    sample.
+    `TerminateSampleError` and `LimitExceededError` are re-raised rather than
+    forwarded: they should end the sample (via the sandbox-service dispatch
+    loop), not reach the scaffold as a retryable API error.
     """
 
     async def generate_forwarding_errors(
