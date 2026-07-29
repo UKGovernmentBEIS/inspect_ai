@@ -145,6 +145,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -191,6 +192,10 @@ logger = getLogger(__name__)
 MESSAGE_ID = "message_id"
 MESSAGE_PHASE = "message_phase"
 REASONING_ENCRYPTED_CONTENT = "reasoning_encrypted_content"
+
+# maximum length the OpenAI Responses API accepts for a function_call
+# `arguments` string on input (it imposes no such limit on output)
+_MAX_FUNCTION_CALL_ARGUMENTS = 1_048_576
 
 
 class ResponsesModelInfo(Protocol):
@@ -854,10 +859,19 @@ def _process_response_output_items(
             case ResponseFunctionToolCall():
                 has_tool_calls = True
                 if output.id is not None:
-                    assistant_internal().tool_calls[output.call_id] = cast(
+                    param = cast(
                         ResponseFunctionToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
+                    # OpenAI rejects input `arguments` strings longer than
+                    # _MAX_FUNCTION_CALL_ARGUMENTS, so replaying an oversized
+                    # string verbatim would 400 every subsequent request
+                    truncated_arguments = truncate_string_to_bytes(
+                        output.arguments, _MAX_FUNCTION_CALL_ARGUMENTS
+                    )
+                    if truncated_arguments is not None:
+                        param["arguments"] = truncated_arguments.output
+                    assistant_internal().tool_calls[output.call_id] = param
 
                 call_name, call_arguments = _responses_call_to_inspect(
                     output.name, output.arguments, tools
