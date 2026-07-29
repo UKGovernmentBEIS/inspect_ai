@@ -5,6 +5,7 @@ in solver_args while only capturing explicitly passed arguments in solver_args_p
 """
 
 from inspect_ai import Task, eval, eval_retry, task
+from inspect_ai._eval.loader import as_solver_spec, solver_from_spec
 from inspect_ai._util.registry import registry_params
 from inspect_ai.agent import agent
 from inspect_ai.agent._as_solver import as_solver
@@ -175,3 +176,97 @@ def test_callable_param_serialization_explicit():
     # Callable should be serialized to its name
     assert log.eval.solver_args["fn"] == "another_function"
     assert log.eval.solver_args_passed["fn"] == "another_function"
+
+
+@solver
+def solver_with_kwargs(base: str = "base", **kwargs):
+    """Solver with a **kwargs parameter, for testing VAR_KEYWORD round-trips."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return await generate(state)
+
+    return solve
+
+
+def test_var_keyword_args_captured_flat():
+    """**kwargs captured under their own names, not nested by param name (#4374)."""
+    slv = solver_with_kwargs(base="hello", max_tokens=123, temperature=0.5)
+
+    assert registry_params(slv) == {
+        "base": "hello",
+        "max_tokens": 123,
+        "temperature": 0.5,
+    }
+
+
+def test_var_keyword_args_round_trip_is_idempotent():
+    """Reconstructing from a spec must not deepen **kwargs nesting (#4374)."""
+    original = solver_with_kwargs(base="hello", max_tokens=123)
+
+    replayed = solver_from_spec(as_solver_spec(original))
+
+    assert registry_params(replayed) == registry_params(original)
+
+
+def test_var_keyword_name_kwarg_round_trip():
+    """A **kwargs key named `name` must round-trip (#4375).
+
+    Flattening (#4374) records such a key at the top level of args_passed, so
+    replaying via registry_create("solver", solver_name, **args_passed) would
+    bind it to registry_create's own positional `name` and raise TypeError: got
+    multiple values for argument 'name'. Replay goes through create_registry_object
+    (args as a dict) to avoid that collision.
+    """
+    original = solver_with_kwargs(base="hello", name="demo", max_tokens=123)
+
+    replayed = solver_from_spec(as_solver_spec(original))
+
+    assert registry_params(replayed) == registry_params(original)
+    assert registry_params(replayed)["name"] == "demo"
+
+
+@task
+def task_with_var_keyword(base: str = "b", **kwargs):
+    return Task()
+
+
+@task
+def task_with_extra_var_keyword(base: str = "b", **extra):
+    return Task()
+
+
+def test_task_create_replays_name_kwarg_without_collision():
+    """A task arg named `name` must survive the retry-path splat (#4375).
+
+    eval_retry replays via task_create(task_spec, **task_args); with flat
+    capture a `name` key collided with task_create's own leading parameter
+    (TypeError: got multiple values for argument 'name'), one frame before
+    the registry_create collision fixed for solvers. task_create now takes
+    its leading name positionally and instantiates through
+    create_registry_object.
+    """
+    from inspect_ai._eval.registry import task_create
+
+    instance = task_create("task_with_var_keyword", base="b", name="demo")
+
+    assert isinstance(instance, Task)
+
+
+def test_task_create_keeps_args_for_differently_named_var_keyword(caplog):
+    """A `**extra` factory must keep replay args (#4375).
+
+    task_create's pass-through check used to key on the literal param name
+    `kwargs`, so a factory whose variadic keyword param was named anything
+    else warned and dropped every replayed arg.
+    """
+    import logging
+
+    from inspect_ai._eval.registry import task_create
+
+    with caplog.at_level(logging.WARNING):
+        instance = task_create("task_with_extra_var_keyword", base="b", max_tokens=5)
+
+    assert isinstance(instance, Task)
+    assert not [
+        record for record in caplog.records if "not used by task" in record.getMessage()
+    ]
