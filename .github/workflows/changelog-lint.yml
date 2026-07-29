@@ -31,7 +31,7 @@ jobs:
     name: entries-under-unreleased
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The pull_request checkout is the merge commit; depth 2 brings in
           # both parents so HEAD^1 (the base branch tip) is available to diff.

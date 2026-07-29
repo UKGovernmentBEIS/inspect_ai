@@ -107,6 +107,7 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
+    /,
     *args: Any,
     **kwargs: Any,
 ) -> None:
@@ -116,6 +117,11 @@ def registry_tag(
     add the object to the registry (call registry_add() to both
     tag and add an object to the registry). Call registry_info()
     on a tagged/registered object to retrieve its info
+
+    `type`, `o` and `info` are positional-only so that a creation keyword
+    argument sharing one of those names (e.g. a `@solver` that takes a
+    `type` **kwarg) lands in `**kwargs` instead of colliding with the
+    parameter and raising `TypeError: got multiple values for argument`.
 
     Args:
         type (T): type of object being tagged
@@ -133,19 +139,44 @@ def registry_tag(
 
 
 def extract_named_params(
-    type: Callable[..., Any], apply_defaults: bool, *args: Any, **kwargs: Any
+    type: Callable[..., Any], apply_defaults: bool, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
-    # bind arguments to params
+    # positional-only for the same collision reason documented on
+    # registry_tag: a creation keyword argument named `type` must land in
+    # **kwargs rather than in these leading parameters.
     named_params: dict[str, Any] = {}
 
+    sig = inspect.signature(type)
     if apply_defaults:
-        bound_params = inspect.signature(type).bind_partial(*args, **kwargs)
+        bound_params = sig.bind_partial(*args, **kwargs)
         bound_params.apply_defaults()
     else:
-        bound_params = inspect.signature(type).bind(*args, **kwargs)
+        bound_params = sig.bind(*args, **kwargs)
 
+    # arguments passed through a **kwargs (VAR_KEYWORD) parameter are collected
+    # by inspect under the variadic parameter's own name (e.g. {"kwargs": {...}}).
+    # Record them under their original keyword names instead, so that capturing
+    # and then replaying a spec is idempotent rather than nesting the kwargs one
+    # level deeper on every round-trip (#4374).
+    var_keyword = next(
+        (
+            name
+            for name, param in sig.parameters.items()
+            if param.kind == inspect.Parameter.VAR_KEYWORD
+        ),
+        None,
+    )
+
+    # limitation: flattening last means a **kwargs key that shares its name with
+    # a positional-only parameter (e.g. `def f(x, /, **kw)` called as `f(1, x=2)`)
+    # overwrites that parameter's captured value. Such a signature could never
+    # replay from a kwargs dict anyway, so we accept the lossy capture.
     for param, value in bound_params.arguments.items():
-        named_params[param] = registry_value(value)
+        if param == var_keyword and isinstance(value, dict):
+            for kwarg_name, kwarg_value in value.items():
+                named_params[kwarg_name] = registry_value(kwarg_value)
+        else:
+            named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
