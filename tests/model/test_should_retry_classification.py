@@ -38,9 +38,7 @@ def test_model_anyio_transport_close_race_classifies_as_retryable() -> None:
     httpx response close — after the request completed successfully.
     """
     from inspect_ai.model import get_model
-    from inspect_ai.util._concurrency import init_concurrency
 
-    init_concurrency()
     model = get_model("mockllm/model")
     ex = AttributeError("'NoneType' object has no attribute 'call_soon'")
     assert model.should_retry(ex) is True
@@ -48,9 +46,7 @@ def test_model_anyio_transport_close_race_classifies_as_retryable() -> None:
 
 def test_model_unrelated_attribute_error_does_not_retry() -> None:
     from inspect_ai.model import get_model
-    from inspect_ai.util._concurrency import init_concurrency
 
-    init_concurrency()
     model = get_model("mockllm/model")
     ex = AttributeError("'NoneType' object has no attribute 'read'")
     assert model.should_retry(ex) is False
