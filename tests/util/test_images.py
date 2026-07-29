@@ -5,6 +5,7 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
 )
 
@@ -62,3 +63,8 @@ def test_mistral_images():
 @skip_if_no_grok
 def test_grok_images():
     check_images("grok/grok-imagine-image")
+
+
+@skip_if_no_moonshot
+def test_moonshot_images():
+    check_images("moonshot/kimi-k3")

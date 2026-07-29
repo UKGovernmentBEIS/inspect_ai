@@ -192,7 +192,7 @@ def test_thin_metadata_drops_huge_values_without_serializing():
     assert result["huge_list"] == "Key removed from summary (> 1k)"
 
 
-def test_thin_metadata_handles_self_referential_values():
+def test_thin_metadata_handles_self_referential_values() -> None:
     # serializing a cycle raises; the structural bound proves it oversize
     # (every container visit adds size) so it is dropped instead
     cycle: list = []
@@ -203,7 +203,7 @@ def test_thin_metadata_handles_self_referential_values():
     assert result["cycle"] == "Key removed from summary (> 1k)"
 
 
-def test_thin_metadata_keeps_small_opaque_objects():
+def test_thin_metadata_keeps_small_opaque_objects() -> None:
     """Objects the size walk can't see through fall to the exact check."""
 
     class Meta(BaseModel):

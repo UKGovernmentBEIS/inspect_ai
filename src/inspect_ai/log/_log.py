@@ -25,6 +25,7 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
+from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
@@ -1152,6 +1153,9 @@ class EvalLog(BaseModel):
 
     log_updates: list[LogUpdate] | None = Field(default=None)
     """Post-eval edits to tags and metadata."""
+
+    config_updates: list[ConfigUpdate] | None = Field(default=None)
+    """Mid-run configuration changes applied via the control channel (`inspect ctl config`)."""
 
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
