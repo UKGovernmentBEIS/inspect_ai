@@ -92,6 +92,20 @@ Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless th
 
 ### Opening an upstream PR from an org fork
 
+Please open upstream PRs from a personal fork rather than an organization
+fork, and leave "Allow edits by maintainers" enabled when creating the PR
+(it's on by default in the GitHub UI and `gh pr create`). That setting gives
+upstream maintainers push access to the PR branch, and they need it: upstream
+`main` requires PR branches to be up to date before merging, so every push to
+`main` blocks open PRs until their branches are updated. With maintainer
+edits enabled, a maintainer can update the branch (or push small fixes) and
+merge on their own schedule. GitHub does not support maintainer edits on
+organization-owned forks, so a PR from an org fork can only be kept mergeable
+by its author — it will sit approved but unmergeable whenever `main` moves
+until the author syncs the branch again.
+
+If you must open from an org fork, the following applies.
+
 Before opening the PR, sync the branch with upstream `main` (`git fetch origin main && git merge origin/main`, resolving any conflicts) and push. Otherwise the PR can open with conflicts against its base, and CHANGELOG entries in particular almost always conflict.
 
 Opening a PR from an organization fork to its upstream via the GitHub API/CLI needs an explicit `head_repo` — without it GitHub can't resolve the org fork as the PR head and rejects it with `{"field":"head","code":"invalid"}` (an org fork requires `head_repo`; a personal fork resolves without it). `gh pr create` has no `--head-repo` flag ([cli/cli#6462](https://github.com/cli/cli/issues/6462)), so use `gh api` — e.g. from the `meridianlabs-ai/inspect_ai` fork to upstream `UKGovernmentBEIS/inspect_ai`:
@@ -100,12 +114,7 @@ Opening a PR from an organization fork to its upstream via the GitHub API/CLI ne
 gh api repos/UKGovernmentBEIS/inspect_ai/pulls -X POST \
   -f title="<title>" -f base="main" \
   -f head="<branch>" -f head_repo="meridianlabs-ai/inspect_ai" \
-  -F maintainer_can_modify=true \
   -F body=@<body.md>
 ```
-
-Always pass `maintainer_can_modify=true` — upstream maintainers need push
-access to the PR branch ("Allow edits by maintainers"). `gh pr create` enables
-this by default, but the raw API defaults it to false.
 
 Once the upstream PR is open it's the system of record: close the corresponding org-fork PR, with a close comment linking to the upstream PR.
