@@ -6,6 +6,8 @@
 - Inspect View: Added connection limit history display to the Stats tab. (#447)
 - Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)
 - Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
+- MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
+- MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
 
 ## 0.3.251 (29 July 2026)
 
