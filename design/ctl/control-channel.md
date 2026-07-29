@@ -123,7 +123,7 @@ All live-eval management commands live under a single `inspect ctl` subcommand r
 
 #### CLI command hierarchy: noun groups
 
-> **Status: implemented** (for the shipped surface — the planned verbs land with their phases). Docs, help, and this doc use only the noun spellings; the original flat names survive as hidden, deprecation-noted aliases per the Migration section below (except `sample`, whose name is claimed by the group).
+> **Status: implemented** (for the shipped surface — the planned verbs land with their phases). Docs, help, and this doc use only the noun spellings; the original flat names survived as hidden, deprecation-noted aliases for a transition window per the Migration section below (except `sample`, whose name is claimed by the group) and have since been removed — the noun spellings are now the only forms.
 
 The `ctl` surface originally shipped **flat**: ten verbs, heading for ~17 once the remaining phase-3 directives, phase-4 `--follow`, and the eval-set surface landed. Two problems were already visible at ten:
 
@@ -169,7 +169,7 @@ In the sketch, `[]` marks an optional argument. What an omitted selector *means*
 - **Symmetric verbs across nouns.** `list` / `show` / `cancel` mean the same thing wherever they appear, so a consumer who has learned one group can predict the others.
 - **Implied `list` on the bare noun — and only there.** `ctl task` ≡ `ctl task list`, `ctl sample` ≡ `ctl sample list` (git precedent: bare `git branch` / `git tag` / `git remote` list). This recovers the brevity the reorg costs on the hottest reads (`ctl task` is shorter than today's `ctl tasks`) without hurting discovery — `--help` is handled before the default fires, so `ctl task --help` still shows the verbs. The boundary is strict: the default **never** fires once a positional argument is present. Selectors are arbitrary strings, so `ctl sample my-task` implying `list` would make a task named `errors` or `cancel` unaddressable — and adding a new verb later would silently change the meaning of existing invocations. With the bare-only rule the failure mode is a clean "no such command" and the fix (spell `list`) is obvious. The `list` options (`--json`, `--active-since`, ...) are mirrored onto the group so `ctl task --json` works — without that, agents (who always want `--json`) would have to spell `list` anyway and the default would serve humans only. Applies to all three groups: `process list` shipped with the reorg (its sibling verbs take a `PID` selector, so pids must be enumerable in-group), so bare `ctl process` lists processes. Mild tension with the no-alias rule, accepted: this is a default, not a second name — the explicit `list` form stays canonical in docs and examples.
 - **`task`, not `eval`, as the headline noun.** The CLI deliberately targets tasks (task-id prefix / task name — stable across retries; resolved open question #7), and the limits directive already settled on `/tasks/<task-id>/…` for the same reason. An `eval` noun would re-import the attempt-vs-task confusion the selectors were designed to avoid — and `inspect ctl eval` reads badly against the top-level `inspect eval`. `eval` stays an HTTP-API concept (attempt-scoped resources under `/evals/<id>/…`), resolved client-side as today.
-- **No permanent aliases.** Consistent with the "no `inspect control` alias" stance above: two names for one command is documentation drift and grep friction. The flat spellings survive only as hidden, deprecation-noted, time-boxed shims (see Migration) — never as a documented second form.
+- **No permanent aliases.** Consistent with the "no `inspect control` alias" stance above: two names for one command is documentation drift and grep friction. The flat spellings survived only as hidden, deprecation-noted, time-boxed shims (see Migration) — never as a documented second form — and were removed once the window closed.
 
 **Selector conventions.**
 
@@ -202,20 +202,20 @@ The read/write asymmetry — reads widen when unscoped, mutations refuse to — 
 
 Known accepted edge in the busy handling: the sole-server rule counts *discovered* servers, so a sibling that is discovered but instantly unreachable (version-skewed `/tasks`, exited after discovery) demotes the one live server to the degraded budget. The failure is honest and actionable ("pid N busy — try again shortly"), and closing it needs an escalation re-read whose complexity isn't warranted — the durable fix is server-side (answer reads off the eval loop — issue #48).
 
-**Mapping (flat → noun), as implemented.** The "original" column is what shipped before the reorganization and survives as the hidden aliases; "status" is each command's state at the time of the reorg.
+**Mapping (flat → noun), as implemented.** The "original" column is what shipped before the reorganization; each flat spelling survived as a hidden alias for a transition window and is marked "alias removed" now that the window has closed. "Status" is otherwise each command's state at the time of the reorg.
 
 | Original (flat) | Status | Current | Notes |
 |---|---|---|---|
-| `ctl tasks` | shipped | `ctl task list` | keep-alive footer unchanged |
-| `ctl samples [TASK]` | shipped | `ctl sample list [TASK]` | keeps `--active-since`; no `TASK` now spans all tasks (was: sole task, or error) |
-| `ctl sample TASK SID [EPOCH]` | shipped | `ctl sample show TASK SID [EPOCH]` | `show` frees `sample` to be the group; scope grows from error detail to a full sample summary (see agent output contract) |
-| `ctl errors [TASK]` | shipped | `ctl sample errors [TASK]` | output is sample rows → sample group; no `TASK` now spans all tasks. Alt: fold into `sample list --errors` |
-| `ctl events TASK SID [EPOCH]` | shipped | `ctl sample events TASK SID [EPOCH]` | cursor flag renamed `--since` → `--cursor`; other flags unchanged; phase-4 `-f/--follow` lands here |
-| `ctl flush [TASK]` | shipped | `ctl task log-flush [TASK]` | renamed: the object is the task's *log* — bare `flush` under a task noun misreads ("flush the task"?). Acts on the live attempt's recorder, but task keying already fits (see "task-keyed read aliases") |
-| `ctl buffer [TASK] [...]` | shipped | absorbed into `ctl config` | `--log-buffer` / `--log-shared` are launch flags being retuned — that's exactly what `config` is |
-| `ctl limits [TASK] [...]` | shipped | `ctl config [TASK] [...]` | top-level, not nested under a resource noun; scope is per-knob and labeled in output — see "Scope is a property of the knob" |
-| `ctl keep [--pid]` | shipped | `ctl process keep [PID]` | pid becomes an optional positional; defaults to the sole running process |
-| `ctl release [--pid]` | shipped | `ctl process release [PID]` | same |
+| `ctl tasks` | alias removed | `ctl task list` | keep-alive footer unchanged |
+| `ctl samples [TASK]` | alias removed | `ctl sample list [TASK]` | keeps `--active-since`; no `TASK` now spans all tasks (was: sole task, or error) |
+| `ctl sample TASK SID [EPOCH]` | shipped (never aliased) | `ctl sample show TASK SID [EPOCH]` | `show` frees `sample` to be the group; scope grows from error detail to a full sample summary (see agent output contract) |
+| `ctl errors [TASK]` | alias removed | `ctl sample errors [TASK]` | output is sample rows → sample group; no `TASK` now spans all tasks. Alt: fold into `sample list --errors` |
+| `ctl events TASK SID [EPOCH]` | alias removed | `ctl sample events TASK SID [EPOCH]` | cursor flag renamed `--since` → `--cursor`; other flags unchanged; phase-4 `-f/--follow` lands here |
+| `ctl flush [TASK]` | alias removed | `ctl task log-flush [TASK]` | renamed: the object is the task's *log* — bare `flush` under a task noun misreads ("flush the task"?). Acts on the live attempt's recorder, but task keying already fits (see "task-keyed read aliases") |
+| `ctl buffer [TASK] [...]` | alias removed | absorbed into `ctl config` | `--log-buffer` / `--log-shared` are launch flags being retuned — that's exactly what `config` is |
+| `ctl limits [TASK] [...]` | alias removed | `ctl config [TASK] [...]` | top-level, not nested under a resource noun; scope is per-knob and labeled in output — see "Scope is a property of the knob" |
+| `ctl keep [--pid]` | alias removed | `ctl process keep [PID]` | pid becomes an optional positional; defaults to the sole running process |
+| `ctl release [--pid]` | alias removed | `ctl process release [PID]` | same |
 | `ctl add SPEC [...]` | planned | `ctl task add SPEC [...]` | |
 | `ctl cancel <id> [--force]` | **shipped** (as noun form only) | `ctl task cancel TASK` | selector settles on task, per the limits precedent; shipped with abort semantics — see "Cancel a task / a sample" |
 | `ctl drain <id>` | planned | `ctl task drain TASK` | |
@@ -234,13 +234,15 @@ For the agent-discoverability goal, the win is *structured* help, not shorter he
 
 Costs, honestly stated: the hot reads get one word longer (`ctl tasks` → `ctl task list`); discovery takes two help invocations instead of one; and it renames a shipped surface. On raw count alone the flat list would survive — seventeen one-liners still fit a help screen — so the case rests on the scope signal and the dissolved near-collisions/compounds, which are real at ten commands already.
 
-**Migration (implemented).** The reorg landed immediately rather than waiting: the `ctl` surface was weeks old and pre-announcement, phase 3 was mid-flight (so half the planned verbs would otherwise have shipped flat and then moved), and every release the flat names survived as the canonical form would have raised the cost of the rename. The noun surface is canonical from day one — help, docs, and this doc's examples show only the new spellings. The old flat commands remain as **hidden aliases** (click `hidden=True`) for a transition window, with three deliberate properties:
+**Migration (implemented; aliases since removed).** The reorg landed immediately rather than waiting: the `ctl` surface was weeks old and pre-announcement, phase 3 was mid-flight (so half the planned verbs would otherwise have shipped flat and then moved), and every release the flat names survived as the canonical form would have raised the cost of the rename. The noun surface is canonical from day one — help, docs, and this doc's examples show only the new spellings. The old flat commands remained as **hidden aliases** (click `hidden=True`) for a transition window, with three deliberate properties:
 
 - **Except `sample`, which breaks immediately** — the name is claimed by the group, so the old `ctl sample TASK SID [EPOCH]` invocation can't coexist with `ctl sample <verb>`. A fallback ("first token not a known verb → treat as the old form") is rejected for the same reason the implied-`list` default never fires past a positional: selector capture, and verbs added later silently changing the meaning of old invocations. Ironically the command that motivated the reorg (the `samples`/`sample` near-collision) is the one that must break at once; its error message should point at `sample show`. The other nine flat commands (`tasks`, `samples`, `errors`, `events`, `keep`, `release`, `flush`, `buffer`, `limits`) collide with nothing and alias cleanly.
 - **Aliases preserve spellings, not output.** Each alias is a thin delegation to the new implementation — new behavior (unscoped reads widen), new JSON (the `{as_of, ...}` envelopes, unconditional `task_id`, `--since` → `--cursor`). A script parsing the old bare-array output breaks even through the alias; preserving the old shapes would mean maintaining two surfaces in lockstep, which is exactly the drift cost the no-alias principle exists to avoid. The aliases buy muscle-memory continuity for humans and command-spelling continuity for scripts — no more, and that's stated up front.
-- **Deprecation-noted and time-boxed.** Each alias prints a one-line pointer to **stderr** (stderr so `--json` stdout stays parseable) — e.g. "`inspect ctl tasks` is now `inspect ctl task list`" — and is removed after a stated window (say two releases). Hidden means agents reading `--help` never discover the old names, so new consumers learn only the new surface; the stderr note teaches old consumers the new spelling on every use.
+- **Deprecation-noted and time-boxed.** Each alias printed a one-line pointer to **stderr** (stderr so `--json` stdout stays parseable) — e.g. "`inspect ctl tasks` is now `inspect ctl task list`" — and was removed after a stated window (say two releases). Hidden means agents reading `--help` never discover the old names, so new consumers learn only the new surface; the stderr note taught old consumers the new spelling on every use.
 
-The agent-output-contract items that break shipped `--json` shapes ride the same release — one migration, not two.
+The agent-output-contract items that break shipped `--json` shapes rode the same release — one migration, not two.
+
+The window closed after a couple of releases and the aliases were removed: the flat spellings now fail as unknown commands, and the mapping table above records each replacement.
 
 ### 4. TUI in a separate process from the eval
 

@@ -1,9 +1,9 @@
 """Unit tests for the `inspect ctl` CLI.
 
 Covers target resolution (id + name matching), the noun-group command
-surface (implied `list`, strict verb boundary, hidden aliases), the agent
-output contract (envelopes, unconditional task_id, mutation results,
-cursor validation), and rendering helpers.
+surface (implied `list`, strict verb boundary), the agent output contract
+(envelopes, unconditional task_id, mutation results, cursor validation),
+and rendering helpers.
 """
 
 import json
@@ -1945,34 +1945,6 @@ def test_sample_show_old_server_fallback_unreachable_degrades(
     assert "message_count" not in payload
 
 
-def test_old_flat_spellings_hidden_from_help() -> None:
-    result = cli_runner().invoke(ctl_command, ["--help"])
-    for old in (
-        "tasks",
-        "samples",
-        "errors",
-        "events",
-        "keep",
-        "release",
-        "flush",
-        "buffer",
-        "limits",
-    ):
-        assert f"\n  {old} " not in result.output, old
-
-
-def test_tasks_alias_delegates_with_deprecation_note(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The hidden alias runs the new implementation (new JSON) + stderr note."""
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    result = cli_runner().invoke(ctl_command, ["tasks", "--json"])
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)  # note on stderr keeps stdout parseable
-    assert payload["tasks"][0]["task_id"] == "aaa111"
-    assert "is now `inspect ctl task list`" in result.stderr
-
-
 def _stub_limits(
     monkeypatch: pytest.MonkeyPatch,
     buffer: dict[str, Any] | None = None,
@@ -1997,18 +1969,6 @@ def _stub_limits(
         )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
-
-
-def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(ctl_command, ["limits", "--json"])
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["knobs"]["max_samples"]["scope"] == "task"
-    assert "is now `inspect ctl config`" in result.stderr
 
 
 def test_config_view_tolerates_missing_buffer(
@@ -3750,8 +3710,8 @@ def test_print_config_process_scope_shows_buffer_placeholder(
 ) -> None:
     """The process-level view points at the per-task buffer knobs.
 
-    Mirrors the max_samples placeholder, so `ctl config` (and the deprecated
-    `ctl buffer` alias) in a multi-task process never silently omits them.
+    Mirrors the max_samples placeholder, so `ctl config` in a multi-task
+    process never silently omits them.
     """
     from inspect_ai._cli.ctl import _print_config
 
@@ -3785,25 +3745,6 @@ def test_resolve_scope_siblings_counts_active_only() -> None:
     scope = _resolve_scope([], summaries, "aaa111")
     assert scope is not None
     assert scope.siblings == 1  # the completed sibling is excluded
-
-
-def test_keep_alias_accepts_positional_pid(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The shared ambiguity error teaches `... keep <pid>`; the alias obeys."""
-    posted: list[str] = []
-
-    def record(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
-        posted.append(str(socket_path))
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
-        lambda: [_DiscServer(7), _DiscServer(8)],
-    )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
-    result = cli_runner().invoke(ctl_command, ["keep", "8"])
-    assert result.exit_code == 0, result.output
-    assert posted == ["/tmp/8.sock"]
-    assert "is now `inspect ctl process keep`" in result.stderr
 
 
 def test_sample_list_unscoped_skips_busy_eval(
