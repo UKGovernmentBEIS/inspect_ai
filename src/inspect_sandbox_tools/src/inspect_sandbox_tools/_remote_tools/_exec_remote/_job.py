@@ -1,10 +1,10 @@
 import asyncio
 import os
-import signal
 from asyncio.subprocess import Process as AsyncIOProcess
 from typing import Literal, NamedTuple
 
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.process_tree import terminate_process_tree
 from inspect_sandbox_tools._util.user_switch import (
     get_home_dir,
     is_current_user,
@@ -177,9 +177,8 @@ class Job:
     async def kill(self, ack_seq: int, timeout: int = 5) -> OutputChunk:
         """Terminate the process and return any remaining buffered output.
 
-        Since the subprocess was started with start_new_session=True, it is the
-        leader of its own process group. We use os.killpg() to send signals to
-        the entire group, ensuring child processes are also terminated.
+        The full process tree is discovered and terminated so descendants that
+        create their own process groups are also cleaned up.
         """
         if self._state != "running":
             self._acked_buffer.push(("", ""))
@@ -187,20 +186,7 @@ class Job:
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
         self._state = "killed"
-        pgid = self._process.pid
-        assert pgid is not None, "Process was created without a pid"
-
-        # Try graceful termination first (SIGTERM to process group)
-        try:
-            os.killpg(pgid, signal.SIGTERM)
-            await asyncio.wait_for(self._process.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
-            # Force kill if graceful termination times out (SIGKILL to process group)
-            os.killpg(pgid, signal.SIGKILL)
-            await self._process.wait()
-        except ProcessLookupError:
-            # Process already exited
-            pass
+        await terminate_process_tree(self._process, timeout=timeout, process_group=True)
 
         await self._wait_for_readers()
 

@@ -14,7 +14,11 @@ from pydantic import BaseModel
 from inspect_sandbox_tools._agent_bridge.proxy import run_model_proxy_server
 from inspect_sandbox_tools._cli.server import main as server_main
 from inspect_sandbox_tools._util.common_types import JSONRPCResponseJSON
-from inspect_sandbox_tools._util.constants import SERVER_DIR, SOCKET_PATH
+from inspect_sandbox_tools._util.constants import (
+    SERVER_DIR,
+    SHUTDOWN_STATUS_PATH,
+    SOCKET_PATH,
+)
 from inspect_sandbox_tools._util.json_rpc_chunking import (
     JSON_RPC_RESPONSE_CHUNK_METHOD,
     chunk_json_rpc_response_if_needed,
@@ -23,6 +27,8 @@ from inspect_sandbox_tools._util.json_rpc_chunking import (
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
 from inspect_sandbox_tools._util.user_switch import get_home_dir, switch_user
+
+_SHUTDOWN_STATUS_TIMEOUT = 45
 
 
 class JSONRPCIncoming(BaseModel):
@@ -48,6 +54,8 @@ def main() -> None:
             asyncio.run(_exec(args.request))
         case "start-server":
             start_server()
+        case "stop-server":
+            stop_server()
         case "server":
             server_main()
         case "model_proxy":
@@ -58,6 +66,49 @@ def start_server() -> None:
     """Start the sandbox tools server and validate it is responsive."""
     _ensure_server_is_running()
     healthcheck()
+
+
+def stop_server() -> None:
+    """Stop this server directory's sandbox-tools server if it is running."""
+    asyncio.run(_stop_server())
+
+
+async def _stop_server() -> None:
+    if not _can_connect_to_socket():
+        SOCKET_PATH.unlink(missing_ok=True)
+        SHUTDOWN_STATUS_PATH.unlink(missing_ok=True)
+        return
+
+    SHUTDOWN_STATUS_PATH.unlink(missing_ok=True)
+    response = json.loads(
+        await asyncio.wait_for(
+            json_rpc_unix_call(
+                str(SOCKET_PATH),
+                '{"jsonrpc":"2.0","method":"sandbox_tools_shutdown","id":668}',
+            ),
+            timeout=5,
+        )
+    )
+    if "error" in response:
+        raise RuntimeError(f"Server shutdown failed: {response['error']}")
+
+    deadline = time.monotonic() + _SHUTDOWN_STATUS_TIMEOUT
+    while time.monotonic() < deadline:
+        if SHUTDOWN_STATUS_PATH.exists():
+            status = json.loads(SHUTDOWN_STATUS_PATH.read_text())
+            SOCKET_PATH.unlink(missing_ok=True)
+            errors = status.get("errors", [])
+            if errors:
+                raise RuntimeError(
+                    "Sandbox-tools server cleanup failed: " + "; ".join(errors)
+                )
+            return
+        await asyncio.sleep(0.05)
+
+    raise RuntimeError(
+        "Sandbox-tools server cleanup did not complete within "
+        f"{_SHUTDOWN_STATUS_TIMEOUT} seconds"
+    )
 
 
 def healthcheck():
@@ -125,6 +176,7 @@ def _ensure_server_is_running() -> None:
     # it here avoids a window where a concurrent caller could connect to a
     # half-started socket and falsely conclude the server is ready.
     SOCKET_PATH.unlink(missing_ok=True)
+    SHUTDOWN_STATUS_PATH.unlink(missing_ok=True)
 
     SERVER_DIR.mkdir(exist_ok=True)
     stdout_log = open(_SERVER_STDOUT_LOG, "a")
@@ -206,6 +258,7 @@ def _parse_args() -> argparse.Namespace:
     exec_parser = subparsers.add_parser("exec")
     exec_parser.add_argument(dest="request", type=str, nargs="?")
     subparsers.add_parser("start-server")
+    subparsers.add_parser("stop-server")
     subparsers.add_parser("server")
     subparsers.add_parser("healthcheck")
     subparsers.add_parser("model_proxy")

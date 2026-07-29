@@ -156,6 +156,7 @@ async def test_create_wires_readline_limit_into_subprocess(
         *args: object, **kwargs: object
     ) -> _FakeProcess:
         captured["limit"] = kwargs.get("limit")
+        captured["start_new_session"] = kwargs.get("start_new_session")
         return _FakeProcess(asyncio.StreamReader())
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
@@ -163,5 +164,6 @@ async def test_create_wires_readline_limit_into_subprocess(
     session = await MCPServerSession.create(StdioServerParameters(command="true"))
     try:
         assert captured["limit"] == mcp_server_session._READLINE_LIMIT
+        assert captured["start_new_session"] is True
     finally:
         await session.terminate()

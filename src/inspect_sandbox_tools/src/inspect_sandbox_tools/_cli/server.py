@@ -1,13 +1,37 @@
 #!/usr/bin/env python3
+import asyncio
+import json
 import os
+import signal
 import socket
 import sys
 
 from aiohttp.web import Application, Request, Response, run_app
-from jsonrpcserver import async_dispatch
+from jsonrpcserver import Success, async_dispatch, method
 
-from inspect_sandbox_tools._util.constants import SERVER_DIR, SOCKET_PATH
+from inspect_sandbox_tools._remote_tools._bash_session.json_rpc_methods import (
+    controller as bash_session_controller,
+)
+from inspect_sandbox_tools._remote_tools._exec_remote.json_rpc_methods import (
+    controller as exec_remote_controller,
+)
+from inspect_sandbox_tools._remote_tools._mcp.json_rpc_methods import (
+    shutdown as shutdown_mcp_sessions,
+)
+from inspect_sandbox_tools._util.constants import (
+    SERVER_DIR,
+    SERVER_DIR_ENV,
+    SHUTDOWN_STATUS_PATH,
+    SOCKET_PATH,
+)
 from inspect_sandbox_tools._util.load_tools import load_tools
+
+_shutdown_errors: list[str] = []
+_shutdown_complete = False
+_HTTP_SHUTDOWN_TIMEOUT = 5
+_SHUTDOWN_STATUS_TMP_PATH = SHUTDOWN_STATUS_PATH.with_name(
+    f"{SHUTDOWN_STATUS_PATH.name}.tmp"
+)
 
 # When running as a PyInstaller bundle, the bootloader prepends the bundle's
 # lib directory to LD_LIBRARY_PATH so the daemon's native dependencies can be
@@ -41,7 +65,47 @@ if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         del os.environ[_key]
 
 
-def main():
+@method
+async def sandbox_tools_shutdown() -> object:
+    """Request graceful shutdown after the JSON-RPC response is sent."""
+    asyncio.get_running_loop().call_later(0.05, os.kill, os.getpid(), signal.SIGTERM)
+    return Success(None)
+
+
+async def _cleanup_remote_resources(_app: Application) -> None:
+    global _shutdown_complete
+
+    cleanups = (
+        ("exec_remote", exec_remote_controller.shutdown),
+        ("bash_session", bash_session_controller.shutdown),
+        ("mcp", shutdown_mcp_sessions),
+    )
+    results = await asyncio.gather(
+        *(cleanup() for _, cleanup in cleanups), return_exceptions=True
+    )
+    for (name, _), result in zip(cleanups, results, strict=True):
+        if isinstance(result, Exception):
+            error = f"{name}: {result}"
+            _shutdown_errors.append(error)
+            print(f"Failed to clean up {name} resources: {result}", file=sys.stderr)
+    _shutdown_complete = True
+
+
+def _write_shutdown_status() -> None:
+    _SHUTDOWN_STATUS_TMP_PATH.write_text(
+        json.dumps({"errors": _shutdown_errors}) + "\n"
+    )
+    _SHUTDOWN_STATUS_TMP_PATH.replace(SHUTDOWN_STATUS_PATH)
+
+
+def main() -> None:
+    global _shutdown_complete
+
+    _shutdown_errors.clear()
+    _shutdown_complete = False
+    # The server directory is already resolved at import time. Do not expose the
+    # internal location to user commands spawned by remote tools.
+    os.environ.pop(SERVER_DIR_ENV, None)
     load_tools("inspect_sandbox_tools._remote_tools")
 
     # Create server directory with permissions based on privilege level.
@@ -52,6 +116,8 @@ def main():
 
     # Remove stale socket file
     SOCKET_PATH.unlink(missing_ok=True)
+    SHUTDOWN_STATUS_PATH.unlink(missing_ok=True)
+    _SHUTDOWN_STATUS_TMP_PATH.unlink(missing_ok=True)
 
     async def handle_request(request: Request) -> Response:
         return Response(
@@ -61,6 +127,7 @@ def main():
 
     app = Application()
     app.router.add_post("/", handle_request)
+    app.on_cleanup.append(_cleanup_remote_resources)
 
     # When non-root, use permissive umask so any user can connect to the socket.
     # When root, directory permissions (0o700) already block unauthorized access.
@@ -71,7 +138,12 @@ def main():
     finally:
         os.umask(old_umask)
 
-    run_app(app, sock=sock)
+    try:
+        run_app(app, sock=sock, shutdown_timeout=_HTTP_SHUTDOWN_TIMEOUT)
+    finally:
+        SOCKET_PATH.unlink(missing_ok=True)
+        if _shutdown_complete:
+            _write_shutdown_status()
 
 
 if __name__ == "__main__":

@@ -31,3 +31,7 @@ class Session:
         )
         self._process = new_process
         return "shell restarted successfully"
+
+    async def terminate(self, timeout: int = 30) -> None:
+        """Terminate this session's shell process."""
+        await self._process.terminate(timeout=timeout)
