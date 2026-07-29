@@ -218,7 +218,7 @@ def test_reserved_name_var_keyword_args_do_not_collide():
         slv = solver_with_kwargs(base="hello", **{key: "demo"})
         assert slv is not None
 
-        # replay drives the capture path again (registry_create -> registry_tag)
+        # replay drives the capture path again (create_registry_object -> registry_tag)
         assert solver_from_spec(as_solver_spec(slv)) is not None
 
 
@@ -233,7 +233,7 @@ def solver_explicit_type(base: str = "base", type: str = "x"):
 
 
 def test_explicit_param_named_type_round_trip():
-    """An explicit `type` parameter must survive capture AND replay (#4374).
+    """An explicit `type` parameter must survive capture AND replay (#4504).
 
     Unlike a ``**kwargs`` key, an explicit parameter is captured flat at the
     top level of args_passed, so replay really does feed it back into the
