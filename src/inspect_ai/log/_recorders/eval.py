@@ -563,13 +563,11 @@ async def _read_member_json_excluding(
     exclude_fields: set[str],
 ) -> dict[str, Any]:
     """Parse a zip member's JSON, skipping excluded top-level fields via ijson streaming."""
-    # The default yajl2_c backend's parse_async is asyncio-only and crashes
-    # under trio; _get_ijson_backend() falls back to the pure-Python backend
-    # there. Exception classes and ObjectBuilder are backend-agnostic. Imported
-    # locally to keep the module-level import line untouched.
-    from inspect_ai._util.json import _get_ijson_backend
+    # get_ijson_backend() falls back to the pure-Python backend under trio
+    # (yajl2_c's parse_async is asyncio-only).
+    from inspect_ai._util.json import get_ijson_backend
 
-    ijson = _get_ijson_backend()
+    ijson = get_ijson_backend()
     from ijson import IncompleteJSONError, ObjectBuilder  # type: ignore[import-untyped]
     from ijson.backends.python import (  # type: ignore[import-untyped]
         UnexpectedSymbol,

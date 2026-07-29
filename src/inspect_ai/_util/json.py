@@ -48,7 +48,7 @@ def is_ijson_nan_inf_error(
     )
 
 
-def _get_ijson_backend() -> Any:
+def get_ijson_backend() -> Any:
     """Return an ijson module compatible with the current async backend.
 
     The default yajl2_c C backend implements ``parse_async`` with
