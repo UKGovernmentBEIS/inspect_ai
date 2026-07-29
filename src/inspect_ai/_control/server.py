@@ -82,7 +82,11 @@ from inspect_ai._util.discovery import (
     write_discovery_file,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
+from inspect_ai._util.sockets import (
+    lock_socket_file,
+    peer_uid,
+    prepare_socket_path,
+)
 
 if TYPE_CHECKING:
     from fastapi.responses import JSONResponse
@@ -205,6 +209,83 @@ def reset_keep_alive() -> None:
     """Clear the keep-alive intent (called at the outermost run boundary)."""
     global _keep_alive
     _keep_alive = False
+
+
+# ---------------------------------------------------------------------------
+# Peer credential check
+# ---------------------------------------------------------------------------
+
+
+def _peer_checked_http_protocol() -> "type[asyncio.Protocol] | None":
+    """Uvicorn HTTP protocol class enforcing a peer-UID check on AF_UNIX.
+
+    The SO_PEERCRED / LOCAL_PEERCRED hardening from the security model
+    (design/control-channel.md): a connection whose peer UID differs from
+    this process's effective UID is dropped before a byte of HTTP is parsed.
+    Connection-level rather than per-request because the credential is a
+    property of the connection, and app-wide rather than write-only because
+    the read endpoints share the same trust model as the mutations.
+
+    The check needs the accepted socket, which the ASGI scope doesn't carry
+    for AF_UNIX — hence a protocol subclass (asyncio hands the accepted
+    transport to ``connection_made``) rather than a FastAPI dependency.
+
+    Fails open: when the peer credential cannot be determined (a platform
+    without the API — eg. Windows AF_UNIX — or a failed ``getsockopt``) the
+    connection is allowed. The check is defence-in-depth on top of the
+    0700/0600 filesystem permissions; failing closed would brick the whole
+    control surface on platforms without the API. Returns ``None`` (use
+    uvicorn's stock protocol) when the process has no UID at all (Windows).
+    """
+    if not hasattr(os, "geteuid"):
+        return None
+    own_uid = os.geteuid()
+
+    # Lazy like the other uvicorn imports — only start() pays the cost.
+    from uvicorn.protocols.http.auto import AutoHTTPProtocol
+
+    class PeerCheckedHTTPProtocol(AutoHTTPProtocol):  # type: ignore[misc,valid-type]
+        """AutoHTTPProtocol that drops connections from other UIDs.
+
+        A rejected connection never reaches the base protocol:
+        ``connection_made`` isn't chained (so it never enters uvicorn's
+        connection set) and the remaining callbacks no-op, since the
+        event loop may still deliver buffered data / EOF / close events
+        between the abort and the actual close.
+        """
+
+        _peer_rejected = False
+
+        def connection_made(self, transport: asyncio.BaseTransport) -> None:
+            sock = transport.get_extra_info("socket")
+            uid = peer_uid(sock) if sock is not None else None
+            if uid is not None and uid != own_uid:
+                self._peer_rejected = True
+                logger.warning(
+                    "Control connection rejected: peer uid %d does not "
+                    "match server uid %d",
+                    uid,
+                    own_uid,
+                )
+                cast(asyncio.WriteTransport, transport).abort()
+                return
+            super().connection_made(transport)
+
+        def data_received(self, data: bytes) -> None:
+            if not self._peer_rejected:
+                super().data_received(data)
+
+        def eof_received(self) -> bool | None:
+            if self._peer_rejected:
+                return False
+            result: bool | None = super().eof_received()
+            return result
+
+        def connection_lost(self, exc: Exception | None) -> None:
+            if not self._peer_rejected:
+                super().connection_lost(exc)
+
+    return PeerCheckedHTTPProtocol
 
 
 # ---------------------------------------------------------------------------
@@ -946,12 +1027,14 @@ class ControlServer:
         lock_socket_file(socket_path)
 
         app = self._build_app()
+        http_protocol = _peer_checked_http_protocol()
         config = uvicorn.Config(
             app,
             log_config=None,
             log_level="warning",
             access_log=False,
             timeout_keep_alive=5,
+            http=http_protocol if http_protocol is not None else "auto",
         )
         server = uvicorn.Server(config)
         # Suppress uvicorn's signal handler installation — we're an
