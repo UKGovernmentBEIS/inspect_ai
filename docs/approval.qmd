@@ -234,7 +234,7 @@ See the documentation on [Approver Extensions](extensions-approvers.qmd#sec-exte
 
 Approval policies also apply to [bridged agents](agent-bridge.qmd). Note that:
 
--   **Behavior under reject is somewhat different** This is by necessity, since the briged process (not inspect) impliments the tool action and controls the transcript history. If a tool call is rejected, we append a rejection message to the existing input and resample from the model. When an approved tool call is generated, we return only the agent output that was approved (removing the intervening rejection messages). This is not ideal -- since e.g. the reasoning of the final (approved) message may be responding to a rejection that is no longer in the conversation history. You can avoid this by having approval policies that only accept/modify/terminate for bridged agents.
+-   **Behavior under reject is somewhat different** This is by necessity, since the bridged process (not inspect) implements the tool action and controls the transcript history. If a tool call is rejected, we append a rejection message to the existing input and resample from the model. When an approved tool call is generated, we return only the agent output that was approved (removing the intervening rejection messages). This is not ideal -- since e.g. the reasoning of the final (approved) message may be responding to a rejection that is no longer in the conversation history. You can avoid this by having approval policies that only accept/modify/terminate for bridged agents.
 
 -   **Tool names are the scaffold's, not Inspect's.** A `bash` rule does not match a scaffold's native `Bash` tool.
 
