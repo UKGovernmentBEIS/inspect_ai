@@ -123,7 +123,9 @@ def scorer_create(name: str, /, **kwargs: Any) -> Scorer:
     Returns:
         Scorer with registry info attribute
     """
-    # See solver_create for why this goes through create_registry_object.
+    # name is positional-only and creation args are passed as a dict so that
+    # a scorer factory kwarg named `name` (replayed from a log) can't collide
+    # with our own or registry_create's `name` parameter.
     return cast(Scorer, create_registry_object("scorer", name, kwargs))
 
 

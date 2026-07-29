@@ -546,6 +546,10 @@ class LiveAcpTransport:
         self._transcript_capture = _TranscriptCapture()
         self._turn_cancel = _TurnCancelMachinery()
         self._clients = _SessionClientRegistries()
+        # One-shot events for callers parked in ``wait_for_client``. Every
+        # bound ACP connection registers in the approver registry, so its
+        # ready set is also the authoritative general client-presence set.
+        self._client_waiters: list[anyio.Event] = []
         # When True, the live router drops events emitted inside
         # sub-agents (depth>0). Standard ACP semantic for editor clients.
         # Disabled by consumers (debugging tooling, raw-stream TUIs) that
@@ -824,6 +828,7 @@ class LiveAcpTransport:
         if bound:
             # Split-phase: park the session for the scoring window.
             self._agent_completed = True
+            self._wake_client_waiters()
             # The interrupt coordinator and approver-client registry only
             # make sense while the agent loop is running; drop their
             # subscribers / clients so a late listener can't fire into a
@@ -846,6 +851,8 @@ class LiveAcpTransport:
         #    sample's lifetime (the registration-driven ``on_complete``
         #    hook also never fired, so ``active_sample().__aexit__``
         #    can't finalize us either).
+        self._finalized = True
+        self._wake_client_waiters()
         if self._router is not None:
             with acp_guard("ACP session: router detach failed"):
                 self._router.detach()
@@ -883,6 +890,7 @@ class LiveAcpTransport:
         if self._finalized:
             return
         self._finalized = True
+        self._wake_client_waiters()
         if self._router is not None:
             with acp_guard("ACP session: router detach failed"):
                 self._router.detach()
@@ -958,6 +966,44 @@ class LiveAcpTransport:
         unknown or already-detached stream — silently does nothing.
         """
         self._pubsub.detach(stream)
+
+    @property
+    def has_client(self) -> bool:
+        """Whether at least one ACP connection has completed binding.
+
+        Connections are promoted from pending to ready only after transcript
+        replay and post-bind setup complete, so half-bound clients are not
+        reported here.
+        """
+        return self._clients.approvers.has_clients()
+
+    async def wait_for_client(self) -> None:
+        """Wait until an ACP connection has completed binding.
+
+        Loops so that a wake which finds neither a bound client nor a
+        closed transport re-parks on a fresh event rather than raising —
+        a client can attach (waking the waiter) and detach again before
+        the waiter task is scheduled, and only actual transport closure
+        should raise. No re-check is needed between registering the
+        waiter and awaiting it: there is no checkpoint in between, so
+        state cannot change (single event-loop thread).
+        """
+        while True:
+            if self.has_client:
+                return
+            if self._finalized or self._agent_completed:
+                raise RuntimeError("ACP transport closed before a client attached")
+            ready = anyio.Event()
+            self._client_waiters.append(ready)
+            try:
+                await ready.wait()
+            finally:
+                self._client_waiters.remove(ready)
+
+    def _wake_client_waiters(self) -> None:
+        """Wake all current client-presence waiters."""
+        for waiter in self._client_waiters:
+            waiter.set()
 
     def publish(self, update: AcpUpdate) -> None:
         """Fan ``update`` out non-blockingly to all attached subscribers."""
@@ -1163,6 +1209,7 @@ class LiveAcpTransport:
             "parked approval shim may miss this attach"
         ):
             self._clients.approvers.notify_attach(client)
+            self._wake_client_waiters()
 
     def mark_active_session_client(self, client: object) -> None:
         """Promote ``client`` as active driver across every registry it belongs to.

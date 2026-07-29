@@ -641,9 +641,9 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
             elif registry_lookup("solver", solver_name) is not None:
-                # same dict-arg treatment as the agent branch below: a solver
-                # factory arg named `name`/`type` must not collide with
-                # registry_create's leading parameters on replay.
+                # create via create_registry_object (args as a dict) so a solver
+                # factory with its own `name` parameter doesn't collide with
+                # registry_create's positional `name` argument on replay.
                 return cast(
                     Solver,
                     create_registry_object("solver", solver_name, spec.args_passed),
@@ -714,6 +714,9 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
             # create decorator based solvers using the registry
             if any(solver[0] == solver_name for solver in solver_decorators):
+                # create via create_registry_object (args as a dict) so a solver
+                # factory with its own `name` parameter doesn't collide with
+                # registry_create's positional `name` argument on replay.
                 return cast(
                     Solver,
                     create_registry_object("solver", solver_name, spec.args_passed),
@@ -789,10 +792,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
         elif registry_lookup("scanner", scorer_name) is not None:
             from inspect_scout import Scanner, Transcript, as_scorer
 
-            scanner = cast(
-                Scanner[Transcript],
-                create_registry_object("scanner", scorer_name, kwargs),
-            )
+            scanner = create_registry_object("scanner", scorer_name, kwargs)
             return as_scorer(cast(Scanner[Transcript], scanner))
         else:
             raise ValueError(
