@@ -234,6 +234,7 @@ def test_model_serialization():
         "document": "/path/to/report.pdf",
         "filename": "report.pdf",
         "mime_type": "application/pdf",
+        "citations": False,
     }
 
 
