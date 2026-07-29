@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
+- Inspect View: Fixed timeline discarding a solver span containing a single agent span child when it also contains other displayed events. (#443)
+- Inspect View: Timeline now requires a tool-calling loop for utility-agent classification and surfaces the hidden event count. (#425)
+- Inspect View: Added connection limit history display to the Stats tab. (#447)
+- Inspect View: Fixed viewer to show the Action tab first for annotated browser actions. (#429)
+- Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
 - Bugfix: OpenAI: A tool call with an oversized arguments string no longer poisons the conversation, which previously failed every subsequent request with a 400 "string too long" error. (#4682)
 
 ## 0.3.251 (29 July 2026)
