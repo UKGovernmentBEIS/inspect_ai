@@ -129,9 +129,7 @@ that isn't a judgment of you or your work.
 
 Qualified status is earned through a sustained record. As a rule of thumb, being added to the qualified list requires several
 months of PRs that mostly merge (~75%+) as well as responsive engagement in review.
-Maintainers periodically add such contributors to
-[`.github/qualified.yml`](.github/qualified.yml). You can also ask, but the record
-has to be there.
+Maintainers periodically add such contributors to our list of qualified contributors.
 
 ## Thanks so much!
 
