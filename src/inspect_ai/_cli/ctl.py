@@ -5202,10 +5202,19 @@ def _message_summary(m: dict[str, Any]) -> str:
 
 
 def _event_summary(e: dict[str, Any]) -> str:
-    """One-line summary for an event row (best-effort over compact fields)."""
+    """One-line summary for an event row (best-effort over compact fields).
+
+    A pending (in-flight) event renders its live state — ``generating M:SS``
+    for a model call, ``running M:SS`` for a tool call — instead of the
+    completion fields, whose placeholder values (zero tokens, a default stop
+    reason) would read as "finished with nothing".
+    """
     t = e.get("event")
     if t == "model":
         bits = [str(e.get("model") or "")]
+        if e.get("pending"):
+            bits.append(_format_pending("generating", e.get("timestamp")))
+            return _truncate(" · ".join(b for b in bits if b), 80)
         if e.get("tokens") is not None:
             bits.append(f"{e['tokens']} tok")
         if e.get("stop_reason"):
@@ -5217,7 +5226,9 @@ def _event_summary(e: dict[str, Any]) -> str:
         return _truncate(" · ".join(b for b in bits if b), 80)
     if t == "tool":
         s = f"{e.get('function') or '?'}({_truncate(str(e.get('arguments') or ''), 30)})"
-        if e.get("error"):
+        if e.get("pending"):
+            s += f" · {_format_pending('running', e.get('timestamp'))}"
+        elif e.get("error"):
             s += f" → error: {e['error']}"
         elif e.get("result"):
             s += f" → {_truncate(str(e['result']), 40)}"
@@ -5261,6 +5272,11 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         f"epoch {detail.get('epoch')}",
         detail.get("status") or "",
     ]
+    activity = _format_activity(
+        detail.get("activity"), datetime.now(timezone.utc).timestamp()
+    )
+    if activity:
+        parts.append(activity)
     if detail.get("total_time") is not None:
         parts.append(_format_duration(detail.get("total_time")))
     if detail.get("total_tokens"):
@@ -5299,6 +5315,16 @@ def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None
         tb = error.get("traceback_ansi") or error.get("traceback") or ""
         for line in tb.rstrip("\n").splitlines():
             click.echo(f"    {line}")
+
+
+def _format_pending(verb: str, timestamp: Any) -> str:
+    """In-flight marker for a pending event's summary: ``generating M:SS``."""
+    elapsed = (
+        _format_duration(datetime.now(timezone.utc).timestamp() - timestamp)
+        if isinstance(timestamp, (int, float))
+        else ""
+    )
+    return f"{verb} {elapsed}".rstrip()
 
 
 def _truncate(text: str, width: int) -> str:
@@ -5489,6 +5515,11 @@ def _print_samples_table(
     - ``idle`` — when some sample is running: time since its last transcript
       event (``now - last_activity_at``). A high idle time on a long-running
       sample is the cheap "is it stalled?" cue. Blank for non-running rows.
+    - ``activity`` — when some running sample has an in-flight operation:
+      what it is doing right now and for how long (``generating 7:12``,
+      ``bash 0:41``, ``retrying in 0:45``), so a long model call reads as
+      busy rather than stalled (see :func:`_format_activity`). Blank for
+      rows with nothing pending.
     - ``limit usage`` / ``limit total`` — when some sample has a token limit
       configured. ``limit usage`` is the metered value for that limit
       (respecting its type — ``all``/``output``/formula) and ``limit total``
@@ -5498,6 +5529,7 @@ def _print_samples_table(
     scorers = sorted({name for s in samples for name in (s.get("scores") or {})})
     score_col = scorers[0] if len(scorers) == 1 else None
     any_running = any(s.get("status") == "running" for s in samples)
+    any_activity = any(s.get("activity") for s in samples)
     any_token_limit = any(s.get("token_limit_total") is not None for s in samples)
     now = datetime.now(timezone.utc).timestamp()
 
@@ -5531,6 +5563,12 @@ def _print_samples_table(
                 else ""
             )
             cells.insert(1, idle)  # after time, before tokens
+        if any_activity:
+            # after idle (a running row always shows idle when it shows
+            # activity — the server only sets activity on running rows)
+            cells.insert(
+                2 if any_running else 1, _format_activity(s.get("activity"), now)
+            )
         if any_token_limit:
             usage = s.get("token_limit_usage")
             total = s.get("token_limit_total")
@@ -5549,6 +5587,8 @@ def _print_samples_table(
     headers.append("time")
     if any_running:
         headers.append("idle")
+    if any_activity:
+        headers.append("activity")
     headers.extend(["tokens", "messages", "turns"])
     if any_token_limit:
         headers.extend(["limit usage", "limit total"])
@@ -5637,6 +5677,65 @@ def _format_duration(seconds: float | None) -> str:
     if hours:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
+
+
+def _format_activity(activity: dict[str, Any] | None, now: float) -> str:
+    """One-cell rendering of a running sample's in-flight operation.
+
+    ``generating 7:12`` (with ``(N retries)`` for in-call provider retries
+    and ``· 1.2k tok`` when streamed progress is reported), ``bash 0:41`` /
+    ``2 tools 1:10`` for pending tool calls, and ``retrying in 0:45`` for a
+    generate retry backoff (time until the next attempt; bare ``retrying``
+    once the deadline passes). Elapsed is client-computed from
+    ``started_at``, matching the idle column's convention. Empty for a
+    null/absent activity; an unknown type from a newer server renders as
+    its name rather than blank.
+    """
+    if not activity:
+        return ""
+    started = activity.get("started_at")
+    elapsed = (
+        _format_duration(now - started) if isinstance(started, (int, float)) else ""
+    )
+    activity_type = activity.get("type")
+    if activity_type == "model":
+        cell = "generating" + (f" {elapsed}" if elapsed else "")
+        retries = activity.get("retries")
+        if retries:
+            suffix = "retry" if retries == 1 else "retries"
+            cell += f" ({retries} {suffix})"
+        tokens = activity.get("tokens")
+        if tokens is not None:
+            cell += f" · {_format_tokens(int(tokens))} tok"
+        return cell
+    if activity_type == "tool":
+        count = int(activity.get("count") or 1)
+        label = f"{count} tools" if count > 1 else str(activity.get("detail") or "tool")
+        return label + (f" {elapsed}" if elapsed else "")
+    if activity_type == "retry_wait":
+        deadline = activity.get("deadline")
+        remaining = (
+            _format_duration(deadline - now)
+            if isinstance(deadline, (int, float))
+            else ""
+        )
+        cell = "retrying" + (f" in {remaining}" if remaining else "")
+        # `count` is the attempt that just failed, so say "after attempt N" —
+        # a bare "attempt N" reads as the upcoming attempt (which is N + 1).
+        attempt = int(activity.get("count") or 0)
+        if attempt > 1:
+            cell += f" (after attempt {attempt})"
+        return cell
+    return str(activity_type or "")
+
+
+def _format_tokens(tokens: int) -> str:
+    """Compact token count: ``850``, ``1.2k``, ``3.4M``."""
+    if tokens >= 1_000_000:
+        return f"{tokens / 1_000_000:.1f}M"
+    if tokens >= 1000:
+        return f"{tokens / 1000:.1f}k"
+    return str(tokens)
 
 
 def _format_score(value: Any) -> str:
