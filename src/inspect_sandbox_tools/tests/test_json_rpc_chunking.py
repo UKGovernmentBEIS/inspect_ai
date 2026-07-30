@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import stat
+from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 import inspect_sandbox_tools._util.json_rpc_chunking as chunking
@@ -104,6 +105,50 @@ def test_json_rpc_response_chunking_leaves_small_response_unwrapped() -> None:
             {"jsonrpc": "2.0", "method": "small", "id": 1}, response, 1024
         )
         == response
+    )
+
+
+def test_json_rpc_response_chunks_use_private_uid_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = json.dumps({"jsonrpc": "2.0", "id": 1, "result": "x" * 2000})
+    first_response = chunk_json_rpc_response_if_needed({"id": 1}, response, 512)
+    chunk = _chunk_metadata(first_response)
+    user_dir = chunking._CHUNK_DIR / str(os.getuid())
+    chunk_path = user_dir / f"{chunk['handle']}.jsonrpc"
+
+    assert stat.S_IMODE(user_dir.stat().st_mode) == 0o700
+    assert chunk_path.is_file()
+
+    monkeypatch.setattr(chunking.os, "getuid", lambda: 0)
+    root_continuation = handle_json_rpc_response_chunk_request(
+        {
+            "id": 2,
+            "params": {"handle": chunk["handle"], "offset": chunk["next_offset"]},
+        },
+        512,
+    )
+
+    assert _chunk_metadata(root_continuation)["offset"] == chunk["next_offset"]
+    handle_json_rpc_response_chunk_request(
+        {"id": 3, "params": {"handle": chunk["handle"], "release": True}},
+        512,
+    )
+
+
+def test_frozen_chunk_dir_uses_hidden_sibling_of_tools_dir(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(chunking.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(
+        chunking.sys,
+        "executable",
+        "/var/tmp/.da7be258e003d428/inspect-sandbox-tools",
+    )
+
+    assert (
+        chunking._default_chunk_dir()
+        == Path("/var/tmp/.da7be258e003d428-json-rpc-chunks").resolve()
     )
 
 
