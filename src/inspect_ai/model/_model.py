@@ -960,6 +960,7 @@ class Model:
         model_name = ModelName(self)
         key = f"ModelCountTokens({_connection_pool_key(self.api)})"
 
+        from inspect_ai.log._samples import cleared_retry_wait
         from inspect_ai.util._concurrency import (
             AdaptiveConcurrencyController,
             _active_controller,
@@ -988,7 +989,8 @@ class Model:
                 token_c = _active_controller.set(sem)
                 token_r = _request_had_retry.set(False)
                 try:
-                    result = await _count_tokens(input, config)
+                    with cleared_retry_wait():
+                        result = await _count_tokens(input, config)
                     # counts are never cached, so a retry-free call always
                     # exercised the endpoint and counts as a clean success
                     if not _request_had_retry.get():
@@ -1000,7 +1002,8 @@ class Model:
 
         # static fallback (explicit max_connections or batch mode)
         async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
-            return await _count_tokens(input, config)
+            with cleared_retry_wait():
+                return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -1080,8 +1083,11 @@ class Model:
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 return await self.api.compact(messages, tools, config, instructions)
 
+            from inspect_ai.log._samples import cleared_retry_wait
+
             # Call compact with retry handling
-            compacted_messages, usage = await _compact(input)
+            with cleared_retry_wait():
+                compacted_messages, usage = await _compact(input)
 
             # Record and check usage
             if usage:
@@ -1106,7 +1112,10 @@ class Model:
         )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
-        from inspect_ai.log._samples import track_active_model_event
+        from inspect_ai.log._samples import (
+            cleared_retry_wait,
+            track_active_model_event,
+        )
 
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
@@ -1390,7 +1399,8 @@ class Model:
         # call the model (this will do retries, etc., so report waiting time
         # as elapsed time - actual time for successful model call)
         time_start = time.monotonic()
-        model_output, event = await generate()
+        with cleared_retry_wait():
+            model_output, event = await generate()
         total_time = time.monotonic() - time_start
 
         # record any model fallback against the active sample (here in the
