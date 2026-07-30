@@ -32,6 +32,7 @@ from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log_headers,
     read_eval_log_sample,
+    read_eval_log_samples,
     write_eval_log,
 )
 from inspect_ai.log._log import EvalLog, EvalSample
@@ -404,6 +405,67 @@ def test_read_bytes_format(format):
     assert log2.samples
 
 
+def test_rewrite_eval_zip_dedupes_duplicate_members():
+    """A header rewrite keeps one entry per duplicate member name.
+
+    A requeued sample's fresh record supersedes the prior one as a duplicate
+    zip member (last entry wins on read); the rewrite must copy only that
+    winning entry — not double it — and must not emit zipfile's
+    duplicate-name warning.
+    """
+    import warnings
+    from zipfile import ZipFile
+
+    from inspect_ai.log._recorders.eval import _rewrite_eval_zip_with_new_header
+
+    file_path = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log = read_eval_log(file_path)
+    with open(file_path, "rb") as f:
+        buf = io.BytesIO(f.read())
+
+    member = "samples/1_epoch_1.json"
+    superseding = b'{"superseding": true}'
+    with warnings.catch_warnings(), ZipFile(buf, "a") as zf:
+        warnings.filterwarnings("ignore", message="Duplicate name:")
+        zf.writestr(member, superseding)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Duplicate name:")
+        rewritten = _rewrite_eval_zip_with_new_header(buf.getvalue(), log)
+
+    with ZipFile(io.BytesIO(rewritten)) as result:
+        assert result.namelist().count(member) == 1
+        assert result.read(member) == superseding
+
+
+def test_read_eval_log_samples_with_duplicate_members(tmp_path):
+    """`read_eval_log_samples` yields the superseding record, once.
+
+    A requeued sample's fresh record is appended as a duplicate zip member
+    (last entry wins on name-based reads); the per-(id, epoch) generator must
+    yield exactly one sample per key, carrying the fresh record.
+    """
+    import shutil
+    import warnings
+    from zipfile import ZipFile
+
+    src = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log_file = str(tmp_path / "requeued.eval")
+    shutil.copy(src, log_file)
+
+    fresh = read_eval_log_sample(src, id=1, epoch=1)
+    fresh.metadata = {**(fresh.metadata or {}), "requeued": True}
+    with warnings.catch_warnings(), ZipFile(log_file, "a") as zf:
+        warnings.filterwarnings("ignore", message="Duplicate name:")
+        zf.writestr("samples/1_epoch_1.json", fresh.model_dump_json(exclude_none=True))
+
+    samples = list(read_eval_log_samples(log_file))
+    assert len(samples) == 1
+    assert samples[0].id == 1 and samples[0].epoch == 1
+    assert samples[0].metadata is not None
+    assert samples[0].metadata["requeued"] is True
+
+
 @pytest.mark.parametrize("format", ["json", "eval"])
 def test_read_bytes_format_detection(format):
     file_path = os.path.join("tests", "log", "test_eval_log", f"log_formats.{format}")
@@ -504,6 +566,31 @@ def test_read_eval_log_full_trio():
     async def main() -> None:
         async with AsyncFilesystem():
             log = await read_eval_log_async(eval_log_file)
+
+        assert log.eval is not None
+        assert log.samples is not None
+        assert len(log.samples) > 0
+
+    anyio.run(main, backend="trio")
+
+
+def test_read_eval_log_exclude_fields_trio():
+    """Reading a .eval log with exclude_fields works under the Trio backend.
+
+    exclude_fields routes through ijson's streaming parse_async, whose default
+    yajl2_c backend is asyncio-only and raises "trio.run received unrecognized
+    yield message None" under trio. This pins the pure-Python fallback.
+    """
+    import anyio
+
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.log._file import read_eval_log_async
+
+    eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+
+    async def main() -> None:
+        async with AsyncFilesystem():
+            log = await read_eval_log_async(eval_log_file, exclude_fields={"messages"})
 
         assert log.eval is not None
         assert log.samples is not None

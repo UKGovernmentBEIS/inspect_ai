@@ -9,7 +9,9 @@ Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
   5. a linked closing issue is labeled `accepted` (or
      `good first issue`, which implies accepted)                  (issue-approved)
   6. author has a prior merged non-trivial PR in this repo        (established)
-Otherwise: comment + close (DRY_RUN: label + "would close" comment only).
+Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
+PRs created before POLICY_START are never gated — the policy applies going
+forward; the pre-existing queue is dispositioned by hand.
 
 Qualified-tier passes are labeled `qualified` (review-priority marker); a
 maintainer applying `qualified` by hand therefore both prioritizes a PR and
@@ -22,7 +24,7 @@ title/body through a shell.
 
 Environment: GH_TOKEN, GH_REPO ("owner/name"), PR_NUMBER, PR_AUTHOR,
 PR_AUTHOR_ID (numeric — matched against qualified.yml), PR_AUTHOR_ASSOC,
-DRY_RUN ("true"/"false").
+PR_CREATED_AT (ISO 8601), DRY_RUN ("true"/"false").
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ from typing import Any, NamedTuple
 
 TEAM_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIVIAL_MAX_LINES = 25
+POLICY_START = "2026-07-29T00:00:00Z"  # PRs created before this are never gated
 PRIOR_MERGE_SEARCH_CAP = 30  # merged PRs by author to consider
 PRIOR_MERGE_FILECHECK_CAP = 10  # of those, how many to file-inspect
 COMMENT_MARKER = "<!-- inspect-pr-gate -->"
@@ -112,13 +115,17 @@ def decide(ctx: dict) -> Verdict:
     return Verdict("close", "new", "no prior merged PR and no accepted linked issue")
 
 
-def close_comment(dry_run: bool) -> str:
+def is_grandfathered(created_at: str) -> bool:
+    """PRs created before the policy landed are never gated.
+
+    ISO-8601 UTC timestamps (GitHub's format) compare correctly as strings.
+    """
+    return created_at < POLICY_START
+
+
+def close_comment() -> str:
     """The two-door close message. Machine-readable block first (vLLM pattern)."""
-    headline = (
-        "**[dry run] This PR would have been closed by the contribution gate.**"
-        if dry_run
-        else "**Thanks for your interest in Inspect — closing this PR under our contribution policy.**"
-    )
+    headline = "**Thanks for your interest in Inspect — closing this PR under our contribution policy.**"
     return f"""{COMMENT_MARKER}
 {headline}
 
@@ -273,6 +280,11 @@ def main() -> int:
         print("bot author — gate does not apply")
         return 0
 
+    created_at = os.environ["PR_CREATED_AT"]
+    if is_grandfathered(created_at):
+        print(f"created {created_at}, before policy start — grandfathered")
+        return 0
+
     ctx = fetch_ctx(repo, pr_number, author, author_id, assoc)
     v = decide(ctx)
     print(f"verdict={v.verdict} tier={v.tier} reason={v.reason} dry_run={dry_run}")
@@ -287,12 +299,6 @@ def main() -> int:
             )
         return 0
 
-    if already_commented(repo, pr_number):
-        print("gate comment already present — not repeating")
-        return 0
-
-    body = close_comment(dry_run)
-    gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
     if dry_run:
         gh(
             "api",
@@ -300,15 +306,22 @@ def main() -> int:
             "-f",
             "labels[]=gate-dry-run",
         )
-    else:
-        gh(
-            "api",
-            "-X",
-            "PATCH",
-            f"repos/{repo}/pulls/{pr_number}",
-            "-f",
-            "state=closed",
-        )
+        return 0
+
+    if already_commented(repo, pr_number):
+        print("gate comment already present — not repeating")
+        return 0
+
+    body = close_comment()
+    gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
+    gh(
+        "api",
+        "-X",
+        "PATCH",
+        f"repos/{repo}/pulls/{pr_number}",
+        "-f",
+        "state=closed",
+    )
     return 0
 
 
