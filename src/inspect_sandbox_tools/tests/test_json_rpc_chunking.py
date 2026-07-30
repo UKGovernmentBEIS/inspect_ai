@@ -245,3 +245,46 @@ def _reassemble(
 def _chunk_metadata(response: str) -> dict[str, Any]:
     payload = cast(dict[str, Any], json.loads(response))
     return cast(dict[str, Any], payload[JSON_RPC_RESPONSE_CHUNK_FIELD])
+
+
+def test_chunk_dir_accepts_agent_owned_dir_when_running_as_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tool call exec'd with `user=` can be the first to create the chunk dir.
+
+    A later tool call running as root must still work; otherwise a single
+    agent-user exec permanently breaks every subsequent root tool call.
+    """
+    chunking._CHUNK_DIR.mkdir(mode=0o1733)
+    stat_values = list(chunking._CHUNK_DIR.lstat())
+    stat_values[0] = stat.S_IFDIR | 0o1733
+    stat_values[4] = 1000  # created by an earlier exec running as the agent user
+    agent_owned = os.stat_result(stat_values)
+    path_type = type(chunking._CHUNK_DIR)
+
+    monkeypatch.setattr(path_type, "lstat", lambda _self: agent_owned)
+    monkeypatch.setattr(chunking.os, "getuid", lambda: 0)
+
+    chunking.ensure_json_rpc_response_chunk_dir()
+
+
+def test_small_response_unaffected_by_unusable_chunk_dir(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unusable chunk path must not break non-chunked requests.
+
+    The chunk dir lives at a well-known path in a world-writable location, so
+    sandbox code can pre-create it (e.g. as a plain file). Small responses
+    never touch the chunk dir and must keep working regardless of its state.
+    """
+    pytest.importorskip("jsonrpcserver")
+    chunking._CHUNK_DIR.touch()
+
+    response = _exec_cli(
+        {"jsonrpc": "2.0", "method": "version", "id": 1},
+        capsys,
+    )
+
+    payload = json.loads(response)
+    assert payload["id"] == 1
+    assert "result" in payload
