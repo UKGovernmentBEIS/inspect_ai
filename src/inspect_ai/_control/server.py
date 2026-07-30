@@ -23,7 +23,8 @@ plus ``POST /release`` / ``POST /keep`` for keep-alive control
 and the first phase-3 directives: the config/log-flush mutations,
 ``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``, and
 the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
-process-scoped ``POST /pause`` / ``POST /resume``).
+process-scoped ``POST /pause`` / ``POST /resume``, and model-scoped
+``POST /models/pause`` / ``…/resume``).
 The remaining directives (drain / requeue / add-task) and SSE push land
 with the rest of phases 3-4.
 """
@@ -64,9 +65,12 @@ from inspect_ai._control.limits import (
 )
 from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.pause import (
+    pause_model,
     pause_process,
     pause_task,
+    paused_models,
     process_paused,
+    resume_model,
     resume_process,
     resume_task,
 )
@@ -477,11 +481,15 @@ class ControlServer:
             # the launch flag) so `inspect ctl task list` can report it.
             keep_alive = keep_alive_intent()
             # the process pause latch is likewise process-level (each row also
-            # carries a per-task `paused` scope — see _build_summary)
+            # carries a per-task `paused` source list — see _build_summary),
+            # as is the set of latched models — stamped even when none of a
+            # latched model's tasks has registered yet
             paused = process_paused()
+            models_paused = paused_models()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
                 summary["process_paused"] = paused
+                summary["paused_models"] = models_paused
                 # Advertise the control-API version so HTTP consumers can
                 # gate version-dependent requests (the CLI reads it from the
                 # discovery file, which also covers the pre-registration
@@ -984,6 +992,45 @@ class ControlServer:
         @app.post("/resume")
         async def process_resume(dry_run: bool = False) -> Any:
             return await resume_process(dry_run=dry_run)
+
+        # Pause / resume dispatch for one model (the third latch — see
+        # design/ctl/pause-resume.md "Model-scoped latch"): samples, queued
+        # retry attempts, and not-yet-started eval-set tasks of tasks whose
+        # *primary* model matches all hold, while other models' work
+        # continues. `model` is a query param (not a path segment): model
+        # names contain `/`. Exact-name match against the models this
+        # process could dispatch — an unknown name 404s (a typo'd incident
+        # lever must fail loudly, not latch nothing). Idempotent,
+        # last-write-wins, `dry_run=true` reports without acting.
+        @app.post("/models/pause")
+        async def model_pause(model: str | None = None, dry_run: bool = False) -> Any:
+            if not model:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "model is required"},
+                )
+            result = await pause_model(model, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"model {model} not found in this process"},
+                )
+            return result
+
+        @app.post("/models/resume")
+        async def model_resume(model: str | None = None, dry_run: bool = False) -> Any:
+            if not model:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "model is required"},
+                )
+            result = await resume_model(model, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"model {model} not found in this process"},
+                )
+            return result
 
         return app
 
