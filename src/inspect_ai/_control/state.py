@@ -314,8 +314,10 @@ async def current_sample_summaries(
     ``total_time``, ``total_tokens``, ``message_count``,
     ``last_activity_at`` (unix ts of the sample's most recent event — for a
     running sample, ``now - last_activity_at`` is its idle time, a cheap
-    stall signal), ``events`` (live transcript event count; ``None`` for
-    terminal / pending samples), ``scores`` (``{scorer: value}``, empty
+    stall signal), ``activity`` (the running sample's in-flight operation —
+    see :func:`_sample_activity`; ``None`` on non-running rows and when
+    nothing is pending), ``events`` (live transcript event count; ``None``
+    for terminal / pending samples), ``scores`` (``{scorer: value}``, empty
     until scored), ``error``, ``retries``, ``limit``.
 
     ``sample_filter="errors"`` restricts the result to samples that carry an
@@ -475,6 +477,7 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "token_limit_total": None,
         "token_limit_type": None,
         "last_activity_at": None,
+        "activity": None,
         "events": None,
         "scores": {},
         "error": None,
@@ -811,8 +814,10 @@ def _summary_from_eval_sample_summary(
         "token_limit_total": summary.token_limit,
         "token_limit_type": summary.token_limit_type,
         # A terminal sample's last activity is its completion; `events` is a
-        # live-only progress counter (the on-disk summary doesn't carry it).
+        # live-only progress counter (the on-disk summary doesn't carry it)
+        # and `activity` a live-only in-flight indicator.
         "last_activity_at": _iso_to_timestamp(summary.completed_at),
+        "activity": None,
         "events": None,
         "scores": {name: score.value for name, score in (summary.scores or {}).items()},
         "error": error,
@@ -847,6 +852,11 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     # tell "stalled" from "working" without diffing successive polls — the
     # per-turn token/message counters don't move *within* an in-flight
     # model call, but these advance on every model / tool / store event.
+    # Neither moves *during* one long model call (the pending ModelEvent is
+    # appended at call start and updated in place on return), which is what
+    # `activity` exists to disambiguate: it names the in-flight operation so
+    # a sample mid-generate doesn't read as silently idle
+    # (design/ctl/generate-progress.md).
     last_event = s.transcript.history.last_event
     last_activity_at = (
         last_event.timestamp.timestamp() if last_event is not None else s.started
@@ -865,11 +875,95 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "token_limit_total": s.token_limit,
         "token_limit_type": s.token_limit_type,
         "last_activity_at": last_activity_at,
+        "activity": _sample_activity(s) if status == "running" else None,
         "events": s.transcript.history.event_count,
         "scores": {},  # running samples aren't scored yet
         "error": None,
         "retries": s.retries or None,
         "limit": None,
+    }
+
+
+def _sample_activity(s: "ActiveSample") -> dict[str, Any] | None:
+    """The running sample's in-flight operation, or ``None`` when nothing is.
+
+    Reads the transcript's ``pending_events`` sidecar — O(in-flight ops),
+    never an event scan (the samples handler shares the eval's event loop;
+    see the cost-audit note in design/ctl/generate-progress.md) — and
+    classifies as the TUI does (``SampleToolbar.sync_sample``): any pending
+    ``ToolEvent`` → tool activity (the earliest one leads, even when a
+    nested model call is also pending); else a pending ``ModelEvent`` →
+    model activity; else a generate retry backoff recorded on the sample
+    (no pending event exists during the wait) → ``retry_wait``.
+
+    The shape is stable across types so ``jq`` consumers see every key:
+    ``type`` / ``count`` / ``started_at`` / ``detail`` always carry values
+    (``count`` is the concurrent pending ops of the type — for
+    ``retry_wait``, the failed attempt number; ``detail`` the model name or
+    tool function); ``retries`` is the pending model call's in-call
+    (provider-SDK) retries; ``deadline`` is when a ``retry_wait`` elapses;
+    ``tokens`` / ``last_progress_at`` are reserved for the layer-2 progress
+    channel and ``None`` until it ships.
+    """
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.event._tool import ToolEvent
+
+    first_model: ModelEvent | None = None
+    model_count = 0
+    first_tool: ToolEvent | None = None
+    tool_count = 0
+    for ev in s.transcript.pending_events:
+        if isinstance(ev, ModelEvent):
+            if first_model is None:
+                first_model = ev
+            model_count += 1
+        elif isinstance(ev, ToolEvent):
+            if first_tool is None:
+                first_tool = ev
+            tool_count += 1
+
+    if first_tool is not None:
+        return _activity(
+            "tool", tool_count, first_tool.timestamp.timestamp(), first_tool.function
+        )
+    if first_model is not None:
+        return _activity(
+            "model",
+            model_count,
+            first_model.timestamp.timestamp(),
+            first_model.model,
+            retries=first_model.retries or None,
+        )
+    retry_wait = s.retry_wait
+    if retry_wait is not None:
+        return _activity(
+            "retry_wait",
+            retry_wait.attempt,
+            retry_wait.started_at,
+            retry_wait.model,
+            deadline=retry_wait.deadline,
+        )
+    return None
+
+
+def _activity(
+    type: str,
+    count: int,
+    started_at: float,
+    detail: str,
+    *,
+    retries: int | None = None,
+    deadline: float | None = None,
+) -> dict[str, Any]:
+    return {
+        "type": type,
+        "count": count,
+        "started_at": started_at,
+        "detail": detail,
+        "retries": retries,
+        "deadline": deadline,
+        "tokens": None,
+        "last_progress_at": None,
     }
 
 
