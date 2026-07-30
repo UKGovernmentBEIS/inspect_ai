@@ -70,6 +70,43 @@ def test_strict_tools_default_true() -> None:
     assert tools[0]["function"]["strict"] is True
 
 
+def _stream_usage_api(
+    stream_include_usage: bool | None = None,
+) -> OpenAICompatibleAPI:
+    return OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream_include_usage=stream_include_usage,
+    )
+
+
+def test_stream_include_usage_defaults_to_true() -> None:
+    assert _stream_usage_api().stream_include_usage is True
+
+
+def test_stream_options_request_usage_by_default() -> None:
+    request = _stream_usage_api().apply_stream_usage_options({})
+
+    assert request["stream_options"] == {"include_usage": True}
+
+
+def test_stream_options_omitted_when_disabled() -> None:
+    request = _stream_usage_api(stream_include_usage=False).apply_stream_usage_options(
+        {}
+    )
+
+    assert "stream_options" not in request
+
+
+def test_stream_options_preserve_caller_supplied_values() -> None:
+    request = _stream_usage_api().apply_stream_usage_options(
+        {"stream_options": {"include_usage": False}}
+    )
+
+    assert request["stream_options"]["include_usage"] is False
+
+
 async def test_responses_phase_model_arg(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test responses_phase is an openai-api model arg, not an SDK arg."""
     captured: dict[str, Any] = {}
