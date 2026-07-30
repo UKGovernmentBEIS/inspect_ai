@@ -8,7 +8,11 @@ from typing import Iterator
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import dirname, filesystem
-from inspect_ai.log._file import EvalLogInfo, list_eval_logs, read_eval_log_async
+from inspect_ai.log._file import (
+    EvalLogInfo,
+    list_eval_logs_async,
+    read_eval_log_async,
+)
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 
@@ -125,7 +129,7 @@ async def recover_eval_log_async(
     # crashed logs before a successful retry exists.
     output_dir = dirname(write_output)
     task_id = crashed.eval.task_id
-    existing = list_eval_logs(
+    existing = await list_eval_logs_async(
         log_dir=output_dir,
         filter=lambda log_header: (
             log_header.status == "success" and log_header.eval.task_id == task_id
@@ -183,6 +187,9 @@ async def recover_eval_log_async(
                 yield reconstruct_eval_sample(
                     summary,
                     sample_data,
+                    sample_metadata=buffer.get_sample_metadata(
+                        summary.id, summary.epoch
+                    ),
                     cancelled=is_in_progress,
                     include_events=not no_events,
                 )
@@ -239,7 +246,7 @@ async def _recoverable_eval_logs_async(
 ) -> list[RecoverableEvalLog]:
     log_dir = log_dir or os.environ.get("INSPECT_LOG_DIR", "./logs") or "./logs"
 
-    crashed_logs = list_eval_logs(
+    crashed_logs = await list_eval_logs_async(
         log_dir=log_dir,
         filter=lambda log: log.status == "started",
     )

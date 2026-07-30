@@ -28,6 +28,7 @@ from ._edit import (
 from ._file import (
     EvalLogInfo,
     list_eval_logs,
+    list_eval_logs_async,
     read_eval_log,
     read_eval_log_async,
     read_eval_log_sample,
@@ -109,6 +110,7 @@ __all__ = [
     "transcript",
     "convert_eval_logs",
     "list_eval_logs",
+    "list_eval_logs_async",
     "read_eval_log",
     "read_eval_log_async",
     "read_eval_log_sample",

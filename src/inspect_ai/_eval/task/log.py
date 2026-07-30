@@ -506,7 +506,9 @@ class TaskLogger:
 
     async def _finalize_sample(self, sample: EvalSample, *, flush: bool) -> None:
         if self._buffer_db is not None:
-            self._buffer_db.complete_sample(sample.summary())
+            self._buffer_db.complete_sample(
+                sample.summary(), sample_metadata=sample.metadata
+            )
 
         if flush:
             async with self._flush_pending_lock:
