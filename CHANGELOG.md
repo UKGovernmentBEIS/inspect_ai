@@ -8,6 +8,8 @@
 - Control Channel: `inspect ctl sample events --tail` (including the default first page) now counts events matching the `--type` filter, so default reads show a useful recent window instead of a near-empty page. (meridianlabs-ai/inspect_ai#162)
 - Control Channel: Where the CLI already shows a stall — a long-idle running sample in `inspect ctl sample list`, or a busy-skipped process — it now points at `inspect ctl process anomalies` as the escalation.
 - Control Channel: `inspect eval` now prints a one-line pointer to `inspect ctl` monitoring at launch, eval/ctl help text cross-links the two surfaces, and `inspect ctl task list` flags errored samples.
+- Registry: @task, @solver, and @agent decorators now retain their return annotation on Python 3.14 even when re-wrapped by user decorators, so registry_create() and signature introspection keep working. (#4554)
+- Registry: registry_create() can now create @scorer and @tool objects whose decorated function omits its return annotation (previously this silently failed). (#4554)
 - Bugfix: Async APIs (`eval_async`, `recover_eval_log_async`, recoverable-log discovery, and accessing `EvalLog.samples` from their results) no longer raise "read_eval_log cannot be called from a trio async context" under a trio event loop.
 - Bugfix: Filestore sample buffer directories are now cleaned up after evals run under a trio event loop (cleanup previously failed with a warning).
 - Bugfix: Eval logs containing a `sample_init` event with a null state can now be re-read (the null was previously dropped on write and failed validation on read).
@@ -65,8 +67,6 @@
 - Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)
 - Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
-- Registry: @task, @solver, and @agent decorators now retain their return annotation on Python 3.14 even when re-wrapped by user decorators, so registry_create() and signature introspection keep working. (#4554)
-- Registry: registry_create() can now create @scorer and @tool objects whose decorated function omits its return annotation (previously this silently failed). (#4554)
 - Inspect View: Added transcript event navigation — keyboard-driven turn and agent navigation with a focus view for drilling into agent subtrees (#354).
 - Inspect View: Added connection limit history display to the Stats tab. (#447)
 - Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
