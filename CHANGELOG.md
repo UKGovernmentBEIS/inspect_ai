@@ -65,6 +65,8 @@
 - Logging: Realtime streaming sample writes now normalize unserializable store values the same way as the standard log write path, instead of raising during serialization. (#4120)
 - Tracing: trace-file reads (`inspect trace` commands and `inspect ctl process anomalies`) now skip truncated, corrupt, or unrecognized records — e.g. from a hard-killed process or a newer inspect version — instead of failing entirely.
 - Windows: process liveness checks (used by `inspect ctl` discovery and pid targeting) no longer risk sending a console Ctrl+C to the probed process or misreporting live processes as dead.
+- Registry: @task, @solver, and @agent decorators now retain their return annotation on Python 3.14 even when re-wrapped by user decorators, so registry_create() and signature introspection keep working. (#4554)
+- Registry: registry_create() can now create @scorer and @tool objects whose decorated function omits its return annotation (previously this silently failed). (#4554)
 - Inspect View: Added transcript event navigation — keyboard-driven turn and agent navigation with a focus view for drilling into agent subtrees (#354).
 - Inspect View: Added connection limit history display to the Stats tab. (#447)
 - Inspect View: Improved log parsing performance; added real-payload benchmarks. (#384)
@@ -92,8 +94,6 @@
 - Control Channel: paged event reads served from the realtime sample buffer now load only the message/call pool entries and attachments the page references, instead of the sample's full pools and every attachment body.
 - Logging: Building a sample summary no longer serializes large structured metadata values just to exclude them, avoiding stalls when sample metadata embeds large data.
 - Agent Bridge: Support OpenAI clients that consume responses via `with_raw_response` (e.g. langchain-openai), which previously failed with `'ChatCompletion' object has no attribute 'parse'`. (#4341)
-- Registry: `@task`, `@solver`, and `@agent` decorators now retain their return annotation on Python 3.14, so decorators that wrap them no longer break `eval()`. (#4554)
-- Registry: `@scorer` and `@tool` decorators now restore their return annotation, so looking them up by name works even when the decorated function omits its return annotation. (#4554)
 
 ## 0.3.248 (17 July 2026)
 
