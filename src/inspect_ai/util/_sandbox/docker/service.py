@@ -76,31 +76,38 @@ class Duration:
         return self.nanoseconds / 1_000_000_000
 
 
+DURATION_UNITS = {
+    "ns": 1,
+    "us": 1_000,
+    "µs": 1_000,  # U+00B5 micro sign
+    "μs": 1_000,  # U+03BC Greek letter mu (both accepted by Go's ParseDuration)
+    "ms": 1_000_000,
+    "s": 1_000_000_000,
+    "m": 60_000_000_000,
+    "h": 3_600_000_000_000,
+}
+
+# longest first so that "ms" isn't matched as "m"
+DURATION_UNIT = "|".join(sorted(DURATION_UNITS, key=len, reverse=True))
+
+# a number (Go's ParseDuration permits a decimal point) followed by a unit
+DURATION_COMPONENT = rf"(\d+(?:\.\d+)?|\.\d+)({DURATION_UNIT})"
+DURATION = re.compile(f"(?:{DURATION_COMPONENT})+")
+
+
 def parse_duration(duration_str: str) -> Duration:
-    """Parse a Docker compose style duration string."""
+    """Parse a Docker compose style duration string (e.g. "1h30m", "1.5s")."""
     if not duration_str:
         return Duration(0)
 
-    units = {
-        "ns": 1,
-        "us": 1_000,
-        "ms": 1_000_000,
-        "s": 1_000_000_000,
-        "m": 60_000_000_000,
-        "h": 3_600_000_000_000,
-    }
-
-    duration_str = "".join(duration_str.split())
-    pattern = re.compile(r"(\d+)([a-z]+)")
-    matches = pattern.findall(duration_str)
-
-    if not matches:
+    # fullmatch first, so that unparseable text is an error rather than
+    # being silently skipped over
+    stripped = "".join(duration_str.split())
+    if not DURATION.fullmatch(stripped):
         raise ValueError(f"Invalid duration format: {duration_str}")
 
-    total_nanoseconds = 0
-    for number, unit in matches:
-        if unit not in units:
-            raise ValueError(f"Invalid unit: {unit}")
-        total_nanoseconds += int(number) * units[unit]
-
-    return Duration(total_nanoseconds)
+    total_nanoseconds = sum(
+        float(number) * DURATION_UNITS[unit]
+        for number, unit in re.findall(DURATION_COMPONENT, stripped)
+    )
+    return Duration(round(total_nanoseconds))

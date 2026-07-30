@@ -31,6 +31,18 @@ def test_parse_duration_milliseconds():
     assert parse_duration("1s500ms").seconds == 1.5
 
 
+def test_parse_duration_microseconds():
+    assert parse_duration("500us").seconds == 0.0005
+    assert parse_duration("500µs").seconds == 0.0005
+
+
+def test_parse_duration_fractional():
+    assert parse_duration("5.0s").seconds == 5.0
+    assert parse_duration("1.5s").seconds == 1.5
+    assert parse_duration(".5s").seconds == 0.5
+    assert parse_duration("1.5m30.5s").seconds == 120.5
+
+
 def test_parse_duration_empty():
     assert parse_duration("").seconds == 0.0
 
@@ -40,6 +52,14 @@ def test_parse_duration_invalid():
         parse_duration("invalid")
     with pytest.raises(ValueError):
         parse_duration("30x")  # invalid unit
+    with pytest.raises(ValueError):
+        parse_duration("30")  # missing unit
+    with pytest.raises(ValueError):
+        parse_duration("30s bogus")  # trailing garbage
+    with pytest.raises(ValueError):
+        parse_duration("1.2.3s")  # malformed number
+    with pytest.raises(ValueError):
+        parse_duration("   ")  # whitespace only
 
 
 # Service Healthcheck Time Tests

@@ -34,6 +34,7 @@
 - Control Channel: `inspect ctl task list` now suggests only the resume commands for latches actually holding a paused task, instead of always listing all three.
 - Bugfix: `text_editor()` paths containing a null byte now return a tool error to the model instead of crashing the tool. (#4659)
 - Bugfix: Docker sandbox startup no longer times out during a healthcheck's `start_period`, so services with a long startup grace period now start reliably. (#4698)
+- Bugfix: Fractional healthcheck durations (e.g. `1.5s`) in Docker compose files now produce the correct startup timeout instead of a silently wrong one. (#4698)
 
 ## 0.3.251 (29 July 2026)
 
