@@ -373,7 +373,10 @@ async def _walk_without_detail(
         current = stack.pop()
         try:
             entries = await fs._ls(current, detail=True)
-        except Exception:
+        except OSError:
+            # match fsspec walk's on_error="omit" (used by _walk_with_detail
+            # and the sync fs.ls path): skip unlistable directories, but let
+            # non-OSError failures (e.g. auth errors) propagate
             continue
         for entry in entries:
             name = entry.get("name") or entry.get("path")

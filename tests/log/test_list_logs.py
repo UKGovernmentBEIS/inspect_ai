@@ -1,12 +1,13 @@
 from os.path import dirname, join
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import anyio
 import pytest
 
 from inspect_ai._util.file import filesystem
 from inspect_ai.log import list_eval_logs, list_eval_logs_async
+from inspect_ai.log._file import _walk_without_detail
 
 file = Path(__file__)
 
@@ -81,6 +82,37 @@ async def test_list_logs_unfiltered_in_async_context():
     # unfiltered sync listing is backend-agnostic (the trio guard is filter-only)
     logs = list_eval_logs(log_dir, formats=["eval", "json"])
     assert len(logs) == 3
+
+
+async def test_walk_without_detail_error_handling():
+    # unlistable directories are skipped (fsspec walk's on_error="omit"
+    # semantics), while non-OSError failures propagate
+    class FakeFS:
+        async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
+            if path == "root":
+                return [
+                    {"name": "root/a.eval", "type": "file"},
+                    {"name": "root/ok", "type": "directory"},
+                    {"name": "root/denied", "type": "directory"},
+                ]
+            elif path == "root/ok":
+                return [{"name": "root/ok/b.eval", "type": "file"}]
+            elif path == "root/denied":
+                raise PermissionError("access denied")
+            else:
+                raise ValueError(f"unexpected path {path}")
+
+    files = await _walk_without_detail(cast(Any, FakeFS()), "root")
+    names = {file["name"] for file in files}
+    assert "root/a.eval" in names
+    assert "root/ok/b.eval" in names
+
+    class FailingFS:
+        async def _ls(self, path: str, detail: bool = True) -> list[dict[str, Any]]:
+            raise ValueError("auth failure")
+
+    with pytest.raises(ValueError, match="auth failure"):
+        await _walk_without_detail(cast(Any, FailingFS()), "root")
 
 
 # NOTE: The trio tests below use anyio.run(backend="trio") directly so the
