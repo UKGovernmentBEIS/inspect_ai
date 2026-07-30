@@ -17,6 +17,7 @@ from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai.dataset import Sample
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sandbox import SandboxEvent
 from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
@@ -253,6 +254,22 @@ def test_can_round_trip_serialize_tool_event_with_document_result():
 
     serialized = original.model_dump_json()
     deserialized = ToolEvent.model_validate_json(serialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_sample_init_event_with_none_state():
+    # the eval recorder writes events with exclude_none=True, so a None state
+    # is omitted from the written JSON and must not fail validation on read
+    original = SampleInitEvent(
+        sample=Sample(input="input"),
+        state=None,
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    serialized = original.model_dump_json(exclude_none=True)
+    assert '"state"' not in serialized
+    deserialized = SampleInitEvent.model_validate_json(serialized)
 
     assert original == deserialized
 
@@ -1114,3 +1131,61 @@ def test_eval_sample_timeline_round_trip():
         # event should be an Event object, not a string
         assert not isinstance(te.event, str)
         assert te.event.uuid is not None
+
+
+async def test_eval_recorder_log_sample_write_through(tmp_path) -> None:
+    # write_through parks the full sample (events included) in the temp-file
+    # zip immediately, retaining only an event-less copy for pre-flush
+    # control-channel reads — nothing stays in the flush buffer
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import EvalRecorder
+
+    spec = EvalSpec(
+        created=datetime.now(timezone.utc).isoformat(),
+        task="write_through_test",
+        model="mockllm/model",
+        dataset=EvalDataset(name="test", samples=1),
+        config=EvalConfig(),
+    )
+    recorder = EvalRecorder(str(tmp_path))
+    location = await recorder.log_init(spec, clean=True)
+    await recorder.log_start(spec, EvalPlan())
+
+    sample = EvalSample(
+        id=1,
+        epoch=1,
+        input="input",
+        target="target",
+        events=[InfoEvent(data="hello")],
+    )
+    await recorder.log_sample(spec, sample, write_through=True)
+
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+    assert zip_log._samples == []
+    assert zip_log._streaming_samples[(1, 1)].events == []
+
+    # summary journalled immediately, exactly once
+    summaries = await recorder.sample_summaries(spec)
+    assert summaries is not None
+    assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]
+
+    # pre-flush reads serve the retained event-less copy
+    buffered = await recorder.buffered_sample(spec, 1, 1)
+    assert buffered is not None
+    assert buffered.events == []
+
+    # a flush drops the retained copy and lands the full sample on disk
+    await recorder.flush(spec)
+    assert await recorder.buffered_sample(spec, 1, 1) is None
+    read_back = await EvalRecorder.read_log_sample(location, 1, 1)
+    assert [e.data for e in read_back.events if isinstance(e, InfoEvent)] == ["hello"]
+
+    # summary still reported exactly once after the flush
+    summaries = await recorder.sample_summaries(spec)
+    assert summaries is not None
+    assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]

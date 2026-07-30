@@ -107,6 +107,7 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
+    /,
     *args: Any,
     **kwargs: Any,
 ) -> None:
@@ -116,6 +117,11 @@ def registry_tag(
     add the object to the registry (call registry_add() to both
     tag and add an object to the registry). Call registry_info()
     on a tagged/registered object to retrieve its info
+
+    `type`, `o` and `info` are positional-only so that a creation keyword
+    argument sharing one of those names (e.g. a `@solver` that takes a
+    `type` **kwarg) lands in `**kwargs` instead of colliding with the
+    parameter and raising `TypeError: got multiple values for argument`.
 
     Args:
         type (T): type of object being tagged
@@ -133,9 +139,11 @@ def registry_tag(
 
 
 def extract_named_params(
-    type: Callable[..., Any], apply_defaults: bool, *args: Any, **kwargs: Any
+    type: Callable[..., Any], apply_defaults: bool, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
-    # bind arguments to params
+    # positional-only for the same collision reason documented on
+    # registry_tag: a creation keyword argument named `type` must land in
+    # **kwargs rather than in these leading parameters.
     named_params: dict[str, Any] = {}
 
     sig = inspect.signature(type)
