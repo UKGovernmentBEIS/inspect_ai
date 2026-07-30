@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import anyio
@@ -446,6 +447,103 @@ def test_score_resolution_sweep_preserves_cancelled_sample() -> None:
         # cancelled semantics, not the sweep's score resolution
         assert sample.error is not None
         assert not sample.scores
+
+
+def test_interrupt_in_retry_drain_window_resolves_cancelled() -> None:
+    """An interrupt in an errored sample's pre-retry drain window abandons it.
+
+    A sample that just errored with sample-level retries remaining still looks
+    in flight (`started` set, `completed` unset, no interrupt) while it drains
+    its transcript events before recursing into the retry, so a task-cancel
+    sweep interrupts it there — but the interrupt only stamps
+    `interrupt_action` (the sample's task group has already exited, so the
+    cancel-scope fire is a no-op). The retry must be suppressed and the sample
+    resolved as the same interrupt a moment later (at the retry recursion's
+    queue check) would resolve it: counted cancelled (not errored), absent
+    from the log, its buffered events removed.
+    """
+    from inspect_ai._control.cancel import cancel_task as ctl_cancel_task
+    from inspect_ai._control.eval_state import (
+        get_eval_states,
+        record_sample_cancelled,
+        record_sample_errored,
+    )
+    from inspect_ai._eval.task.log import TaskLogger
+
+    attempts = 0
+    sweep_results: list[dict[str, Any]] = []
+    recorded: list[str] = []
+    removed: list[tuple[str | int, int]] = []
+
+    @solver(name="drain_window_error_solver")
+    def drain_window_error_solver():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            nonlocal attempts
+            attempts += 1
+            raise RuntimeError("boom")
+
+        return solve
+
+    async def cleanup(state: TaskState) -> None:
+        # runs in the errored attempt's drain window — after the sample's
+        # task group has exited, before the retry decision — where the
+        # sweep still sees the sample as in flight and interrupts it
+        result = ctl_cancel_task(get_eval_states()[0].task_id, action="score")
+        if result is not None:
+            sweep_results.append(result)
+
+    def recording_cancelled(eval_id: str, **kwargs: Any) -> None:
+        recorded.append("cancelled")
+        record_sample_cancelled(eval_id, **kwargs)
+
+    def recording_errored(eval_id: str, **kwargs: Any) -> None:
+        recorded.append("errored")
+        record_sample_errored(eval_id, **kwargs)
+
+    original_remove = TaskLogger.remove_sample
+
+    def recording_remove(self: TaskLogger, id: str | int, epoch: int) -> None:
+        removed.append((id, epoch))
+        original_remove(self, id, epoch)
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        with (
+            patch(
+                "inspect_ai._eval.task.run.record_sample_cancelled",
+                recording_cancelled,
+            ),
+            patch(
+                "inspect_ai._eval.task.run.record_sample_errored",
+                recording_errored,
+            ),
+            patch.object(TaskLogger, "remove_sample", recording_remove),
+        ):
+            logs = inspect_eval(
+                Task(
+                    dataset=[Sample(id=1, input="x", target="y")],
+                    solver=[drain_window_error_solver()],
+                    scorer=includes(),
+                    cleanup=cleanup,
+                    name="task_drain_window_interrupt",
+                ),
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_on_error=3,
+            )
+
+        # the sweep saw the sample as in flight and applied
+        assert len(sweep_results) == 1
+        assert sweep_results[0]["ok"] is True and sweep_results[0]["in_flight"] == 1
+        # the retry was suppressed
+        assert attempts == 1
+        # counted cancelled — never errored — and its buffered events removed
+        assert recorded == ["cancelled"]
+        assert removed == [(1, 1)]
+        # abandoned: the eval completes with the sample absent from the log
+        assert len(logs) == 1
+        log = logs[0]
+        assert log.status == "success"
+        assert not log.samples
 
 
 def test_external_interrupt_with_pending_resolution_logs_cancelled(

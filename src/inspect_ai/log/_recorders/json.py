@@ -113,7 +113,12 @@ class JSONRecorder(FileRecorder):
         log.data.plan = plan
 
     @override
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        # write_through is ignored: the .json format holds the whole log in
+        # memory for its lifetime by design, so there is no cheaper local
+        # tier to write into (no regression, no benefit).
         log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
