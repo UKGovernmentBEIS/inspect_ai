@@ -18,9 +18,9 @@ from typing_extensions import Unpack
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     extract_named_params,
     registry_add,
-    registry_create,
     registry_name,
     registry_tag,
 )
@@ -128,7 +128,7 @@ def solver_register(solver: Callable[P, Solver], name: str = "") -> Callable[P, 
     return solver
 
 
-def solver_create(name: str, **kwargs: Any) -> Solver:
+def solver_create(name: str, /, **kwargs: Any) -> Solver:
     r"""Create a Solver based on its registered name.
 
     Args:
@@ -138,7 +138,10 @@ def solver_create(name: str, **kwargs: Any) -> Solver:
     Returns:
         Solver with registry info attribute
     """
-    return registry_create("solver", name, **kwargs)
+    # create_registry_object takes creation args as a dict, so a solver arg
+    # named `name`/`type` cannot collide with registry_create's own leading
+    # parameters on replay.
+    return cast(Solver, create_registry_object("solver", name, kwargs))
 
 
 SolverType: TypeAlias = Solver | Agent

@@ -224,6 +224,22 @@ def test_model_retry_hook(mock_hooks: MockHooks) -> None:
     # no active sample in this context, so eval/sample ids are None
     assert retry.sample_id is None
     assert retry.eval_id is None
+    # cause not provided, so it defaults to None
+    assert retry.exception_type is None
+    assert retry.status_code is None
+
+
+def test_model_retry_hook_carries_cause(mock_hooks: MockHooks) -> None:
+    import anyio
+
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    anyio.run(emit_model_retry, "mockllm/model", 1, 0.5, "RateLimitError", 429)
+
+    assert len(mock_hooks.model_retry_events) == 1
+    retry = mock_hooks.model_retry_events[0]
+    assert retry.exception_type == "RateLimitError"
+    assert retry.status_code == 429
 
 
 def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
