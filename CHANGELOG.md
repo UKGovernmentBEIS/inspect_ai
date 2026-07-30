@@ -36,12 +36,12 @@
 - Control Channel: `inspect ctl task list` now suggests only the resume commands for latches actually holding a paused task, instead of always listing all three.
 - Bugfix: `text_editor()` paths containing a null byte now return a tool error to the model instead of crashing the tool. (#4659)
 - Bugfix: Anthropic: `count_tokens()` now sends `extra_headers` from the generate config (including any `anthropic-beta` values), matching `generate()`. (#4606)
+- Bugfix: Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
 
 ## 0.3.251 (29 July 2026)
 
 - Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on `ModelRetry`, so hooks can distinguish e.g. timeouts from 429s and 5xxs.
 - Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
-- Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
 
 ## 0.3.250 (28 July 2026)
 
