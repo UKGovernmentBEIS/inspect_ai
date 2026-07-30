@@ -4363,6 +4363,93 @@ def test_sample_cancel_rejects_unknown_action() -> None:
     assert "explode" in result.stderr
 
 
+def test_sample_requeue_defaults_epoch_for_single_epoch_task(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/requeue"]
+    assert spy.params == [{"sample_id": "s1", "epoch": 1}]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["sample_id"] == "s1"
+    assert payload["target"]["epoch"] == 1
+    assert payload["applied"] is True
+
+
+def test_sample_requeue_requires_epoch_when_multi_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A defaulted epoch on a multi-epoch task resolves to a different sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert result.exit_code == 1
+    assert "pass EPOCH explicitly" in result.stderr
+    assert spy.paths == []  # nothing was sent
+
+    # ...and an explicit epoch goes through
+    ok = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1", "2"])
+    assert ok.exit_code == 0, ok.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 2}]
+
+
+def test_sample_requeue_dry_run_and_human_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": True,
+            "dry_run": True,
+            "resume_from_checkpoint": True,
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--dry-run"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [{"sample_id": "s1", "epoch": 1, "dry_run": True}]
+    assert "Would requeue" in result.stdout
+    assert "resume from its checkpoint" in result.stdout
+
+
+def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "sample_id": "s1",
+            "epoch": 1,
+            "changed": False,
+            "status": "queued",
+            "reason": "a re-run is already pending",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert result.exit_code == 0, result.output
+    assert "Nothing to do" in result.stdout
+    assert "a re-run is already pending" in result.stdout
+
+
 def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     summary = _full_summary("aaa111", "t1")
     summary["epochs"] = 1

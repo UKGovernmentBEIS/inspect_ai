@@ -12,7 +12,7 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
   ``drain`` are planned.
 - ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
   ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``,
-  ``messages``, ``cancel``; ``requeue`` is planned.
+  ``messages``, ``cancel``, ``requeue``.
 - ``config`` — a top-level *command* (not a group): view / retune launch
   configuration mid-flight (concurrency limits, log buffering). Scope is a
   property of each knob (task vs process), labeled in the output.
@@ -575,7 +575,6 @@ def sample_group(ctx: click.Context, /, **mirrored: Any) -> None:
     """Operate on samples of running evals (bare `sample` lists them).
 
     An omitted TASK on `list` / `errors` reads across all running tasks.
-    `requeue` is planned but not yet available.
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(sample_list_command, **mirrored)
@@ -941,6 +940,51 @@ def sample_cancel_command(
         sample_id,
         epoch,
         action=cast("SampleCancelAction", action),
+        dry_run=dry_run,
+        as_json=as_json,
+    )
+
+
+@sample_group.command("requeue")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=None)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Report what would be re-run without doing it.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the mutation result envelope).",
+)
+def sample_requeue_command(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    """Re-run one errored/cancelled sample inside the live run.
+
+    The sample goes to the back of the sample queue and re-runs under the
+    task's normal machinery (prior errors ride along as retry history, and a
+    checkpointed sample resumes from its checkpoint); the run's final log
+    and counters reflect the fresh outcome. Idempotent — requeuing a sample
+    whose re-run is already pending, queued, or running is a clean no-op.
+    Requeuing a completed sample is an error (re-running or re-scoring a
+    success is out of scope). EPOCH defaults to 1 but is required whenever
+    the task runs more than one epoch (a defaulted epoch would silently
+    requeue a different attempt).
+    """
+    _run_sample_requeue(
+        task,
+        sample_id,
+        epoch,
         dry_run=dry_run,
         as_json=as_json,
     )
@@ -2998,16 +3042,29 @@ def _run_model_pause_resume(
         click.echo(f"Nothing to do: {reason} ({model}).")
 
 
-@_envelope_failures
-def _run_sample_cancel(
+def _run_sample_mutation(
     task: str,
     sample_id: str,
     epoch: int | None,
     *,
-    action: SampleCancelAction,
+    verb: str,
+    extra_params: dict[str, Any],
+    route_missing: str,
     dry_run: bool,
     as_json: bool,
+    changed_message: Callable[[str, dict[str, Any]], str],
+    noop_message: Callable[[str, dict[str, Any]], str],
 ) -> None:
+    """Shared scaffold for the per-sample mutation verbs (cancel, requeue).
+
+    Fetches summaries, resolves the target eval, applies the required-EPOCH
+    gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders either the
+    uniform ``--json`` mutation envelope or the task header plus a message
+    line. Only the verb, extra request params, missing-route text, and the
+    applied/no-op message lines differ per mutation; each message callback
+    receives the rendered ``sample <id> (epoch <n>)`` label and the server's
+    response.
+    """
     fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
     if not summaries:
@@ -3029,7 +3086,7 @@ def _run_sample_cancel(
             _fail(
                 "ambiguous",
                 f"Task '{target.get('task') or '?'}' runs {epochs} epochs — "
-                "pass EPOCH explicitly (a defaulted epoch would cancel the "
+                f"pass EPOCH explicitly (a defaulted epoch would {verb} the "
                 "epoch-1 attempt).",
             )
         epoch = 1
@@ -3037,20 +3094,20 @@ def _run_sample_cancel(
     params: dict[str, Any] = {
         "sample_id": sample_id,
         "epoch": epoch,
-        "action": action,
+        **extra_params,
     }
     if dry_run:
         params["dry_run"] = True
     result = _request_json(
         str(target["socket_path"]),
-        f"/evals/{target['eval_id']}/sample/cancel",
+        f"/evals/{target['eval_id']}/sample/{verb}",
         params=params,
-        what=f"cancel of sample {sample_id}",
+        what=f"{verb} of sample {sample_id}",
         not_found=(
             f"Sample '{sample_id}' (epoch {epoch}) not found in task "
             f"'{target.get('task') or '?'}'."
         ),
-        not_found_missing_route=_CANCEL_ROUTE_MISSING,
+        not_found_missing_route=route_missing,
         mutate="post",
         retry_mutation=True,
         pid=target.get("pid"),
@@ -3076,19 +3133,91 @@ def _run_sample_cancel(
     click.echo()
     label = f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
     if result.get("changed"):
+        click.echo(changed_message(label, result))
+    else:
+        click.echo(noop_message(label, result))
+
+
+@_envelope_failures
+def _run_sample_cancel(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    *,
+    action: SampleCancelAction,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    def changed_message(label: str, result: dict[str, Any]) -> str:
         outcome = {
             "score": "scored on the work done so far",
             "error": "marked as errored",
             "cancel": "recorded as cancelled",
         }[action]
         if dry_run:
-            click.echo(f"Would cancel {label} — it would be {outcome}.")
-        else:
-            click.echo(f"Cancel requested for {label} — it will be {outcome}.")
-    else:
+            return f"Would cancel {label} — it would be {outcome}."
+        return f"Cancel requested for {label} — it will be {outcome}."
+
+    def noop_message(label: str, result: dict[str, Any]) -> str:
         status = result.get("status")
         suffix = f" (status: {status})" if status else ""
-        click.echo(f"Nothing to do — {label} has already finished{suffix}.")
+        return f"Nothing to do — {label} has already finished{suffix}."
+
+    _run_sample_mutation(
+        task,
+        sample_id,
+        epoch,
+        verb="cancel",
+        extra_params={"action": action},
+        route_missing=_CANCEL_ROUTE_MISSING,
+        dry_run=dry_run,
+        as_json=as_json,
+        changed_message=changed_message,
+        noop_message=noop_message,
+    )
+
+
+_REQUEUE_ROUTE_MISSING = (
+    "This process is running an older inspect without the requeue "
+    "endpoint; restart the eval to pick up the current version."
+)
+
+
+@_envelope_failures
+def _run_sample_requeue(
+    task: str,
+    sample_id: str,
+    epoch: int | None,
+    *,
+    dry_run: bool,
+    as_json: bool,
+) -> None:
+    def changed_message(label: str, result: dict[str, Any]) -> str:
+        resume = (
+            "resume from its checkpoint"
+            if result.get("resume_from_checkpoint")
+            else "re-run from the back of the sample queue"
+        )
+        if dry_run:
+            return f"Would requeue {label} — it would {resume}."
+        return f"Requeue accepted for {label} — it will {resume}."
+
+    def noop_message(label: str, result: dict[str, Any]) -> str:
+        reason = str(result.get("reason") or "already in that state")
+        return f"Nothing to do — {reason}."
+
+    _run_sample_mutation(
+        task,
+        sample_id,
+        epoch,
+        verb="requeue",
+        extra_params={},
+        route_missing=_REQUEUE_ROUTE_MISSING,
+        dry_run=dry_run,
+        as_json=as_json,
+        changed_message=changed_message,
+        noop_message=noop_message,
+    )
 
 
 @_envelope_failures
