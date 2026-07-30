@@ -54,13 +54,28 @@ First assess where things stand, then enter at the matching step:
 Resumption relies on the PR cross-links (step 3) to find the paired PR, and
 any monitors/watches from a previous session are gone — re-arm them.
 
+**Finding the paired ts-mono branch:** the submodule sits on a detached HEAD,
+so the work branch isn't announced. The authoritative probes work whatever
+the branch is named: `git -C <submodule> branch -a --contains HEAD` lists
+every branch containing the gitlink commit, and the PR cross-links (step 3)
+name the ts-mono PR's head branch. Branches are *usually* named the same as
+this repo's branch (step 1's convention), which makes a good first guess —
+but never a requirement. If nothing but `main`-ish refs contain HEAD, there's
+no branch yet — that's the fresh-start case (step 1). Before committing in
+the submodule, `git checkout <branch>` — a commit made on the detached HEAD
+lands on no branch. A local branch may also lag its remote; trust
+`origin/<branch>`, not the local ref.
+
 ### 1. Start submodule work from current main
 
 In the submodule, `git fetch origin` and branch from `origin/main` — NOT the
 local `main` ref, which lags arbitrarily far behind (submodules live on
 detached HEADs; nothing routinely updates their local branches, and `fetch`
 moves only `origin/main`). You must be current with ts-mono `origin/main`
-before merging anyway, so get current before making changes.
+before merging anyway, so get current before making changes. Name the new
+branch after this repo's branch — a convention that makes the pairing obvious
+at a glance (discovery doesn't depend on it; see "Finding the paired ts-mono
+branch" above).
 
 ### 2. Make the change / regenerate
 
