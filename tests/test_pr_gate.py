@@ -136,11 +136,21 @@ def test_linked_issue_without_accepted_fails():
 
 
 def test_close_comment_has_marker_and_both_doors():
-    body = pr_gate.close_comment(dry_run=False)
+    body = pr_gate.close_comment()
     assert pr_gate.COMMENT_MARKER in body
     assert "issue" in body and "extension" in body
 
 
-def test_dry_run_comment_says_would_close():
-    body = pr_gate.close_comment(dry_run=True)
-    assert "would have been closed" in body
+# --- grandfathering ---
+
+
+def test_pr_created_before_policy_is_grandfathered():
+    assert pr_gate.is_grandfathered("2026-07-28T06:43:25Z")
+
+
+def test_pr_created_after_policy_is_not_grandfathered():
+    assert not pr_gate.is_grandfathered("2026-07-30T00:00:00Z")
+
+
+def test_pr_created_at_policy_start_is_not_grandfathered():
+    assert not pr_gate.is_grandfathered(pr_gate.POLICY_START)
