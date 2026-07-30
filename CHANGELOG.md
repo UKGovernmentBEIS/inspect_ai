@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Control Channel: Paginating or polling a finished sample's events or messages no longer re-parses the whole sample per request (resolved terminal sources are briefly cached).
 - Control Channel: A cancel arriving just after a sample errored with retries remaining now resolves the sample as cancelled, instead of counting it errored without logging it.
 - Control Channel: The control server now rejects socket connections from other users (SO_PEERCRED / LOCAL_PEERCRED peer-UID check), as defence-in-depth alongside the socket file permissions.
 - Control Channel: `inspect ctl sample events --tail` (including the default first page) now counts events matching the `--type` filter, so default reads show a useful recent window instead of a near-empty page. (meridianlabs-ai/inspect_ai#162)
