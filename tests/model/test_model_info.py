@@ -273,7 +273,7 @@ class TestModelInfoFields:
 class TestModelDataConsistency:
     """Consistency checks across the model data YAML files."""
 
-    def test_colliding_lookup_keys_agree_across_files(self):
+    def test_colliding_lookup_keys_agree_across_files(self) -> None:
         """Entries in different files that collide on a lookup key must agree.
 
         Cross-file duplicates exist (e.g. moonshotai.yml's `moonshotai/kimi-k2.5`
@@ -361,6 +361,12 @@ class TestGetModelInputTokens:
     def test_claude_opus_4_6(self):
         """Test that Claude Opus 4.6 reports 1MM input tokens."""
         model = get_model("anthropic/claude-opus-4-6")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_opus_5(self):
+        """Test that Claude Opus 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 

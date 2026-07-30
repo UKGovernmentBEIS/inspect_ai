@@ -29,7 +29,7 @@ import anyio
 from pydantic import BaseModel, Field, JsonValue
 from typing_extensions import override
 
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -40,12 +40,13 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
-from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
+from inspect_ai._util.json import is_ijson_nan_inf_error, jsonable_dict, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
 from .._condense import ATTACHMENT_PROTOCOL, condense_sample
+from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
     EvalLog,
@@ -84,6 +85,7 @@ class LogResults(BaseModel):
 
 JOURNAL_DIR = "_journal"
 SUMMARY_DIR = "summaries"
+CONFIG_UPDATES_DIR = "config_updates"
 SAMPLES_DIR = "samples"
 
 START_JSON = "start.json"
@@ -133,15 +135,27 @@ class EvalRecorder(FileRecorder):
                 reader = AsyncZipReader(fs, location)
                 log_start = await _read_start_async(reader)
                 summaries, summary_counter = await _read_all_summaries_async(reader)
+                (
+                    config_updates,
+                    config_update_counter,
+                ) = await _read_config_updates_async(reader)
         else:
             log_start = None
             summary_counter = 0
             summaries = []
+            config_updates = []
+            config_update_counter = 0
 
         # create zip wrapper
         zip_file = location or self._log_file_path(eval)
         zip_log_file = ZipLogFile(file=zip_file)
-        await zip_log_file.init(log_start, summary_counter, summaries)
+        await zip_log_file.init(
+            log_start,
+            summary_counter,
+            summaries,
+            config_update_counter,
+            config_updates,
+        )
 
         # track zip
         self.data[self._log_file_key(eval)] = zip_log_file
@@ -156,9 +170,14 @@ class EvalRecorder(FileRecorder):
         await log.start(start)
 
     @override
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
         log = self.data[self._log_file_key(eval)]
-        await log.buffer_sample(sample)
+        if write_through:
+            await log.buffer_sample_write_through(sample)
+        else:
+            await log.buffer_sample(sample)
 
     @override
     async def log_sample_streaming(
@@ -184,6 +203,19 @@ class EvalRecorder(FileRecorder):
         return await log.buffered_sample(id, epoch)
 
     @override
+    async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.record_config_update(update)
+        # push the journal entry out to the destination log now rather than
+        # waiting for the sample-flush cadence — updates are rare (a handful
+        # per run) and the record should survive a crash from this point on.
+        # Skip when start.json hasn't been written yet (an inherited snapshot
+        # recorded at logger init): a zip without start.json isn't readable
+        # as an in-progress log, and log_start's own flush follows shortly.
+        if log.log_start is not None:
+            await log.flush(fsync=False)
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
@@ -206,6 +238,7 @@ class EvalRecorder(FileRecorder):
         header_only: bool = False,
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
+        config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
         # get the key and log
         key = self._log_file_key(eval)
@@ -231,10 +264,19 @@ class EvalRecorder(FileRecorder):
         if log_start is None:
             raise RuntimeError("Log not properly initialised")
 
+        # consolidate config updates: a caller-supplied list (a full-log
+        # rewrite / stream copy, whose in-memory log is authoritative and may
+        # equal what log_init seeded from the existing file) wins outright —
+        # merging would duplicate; otherwise the mid-run journaled ones
+        all_config_updates = (
+            config_updates if config_updates is not None else log.config_updates
+        )
+
         eval_header = EvalLog(
             version=log_start.version,
             invalidated=invalidated,
             log_updates=log_updates,
+            config_updates=all_config_updates or None,
             eval=log_start.eval,
             plan=log_start.plan,
             results=log_results.results,
@@ -495,6 +537,7 @@ def _eval_log_header(log: EvalLog) -> EvalLog:
         version=log.version,
         invalidated=log.invalidated,
         log_updates=log.log_updates,
+        config_updates=log.config_updates,
         eval=log.eval,
         plan=log.plan,
         results=log.results,
@@ -601,6 +644,7 @@ async def _write_eval_log_with_recorder(
         log.error,
         invalidated=log.invalidated,
         log_updates=log.log_updates,
+        config_updates=log.config_updates,
     )
 
 
@@ -741,6 +785,8 @@ class ZipLogFile:
         self._streaming_samples: dict[tuple[str | int, int], EvalSample] = {}
         self._summary_counter = 0
         self._summaries: list[EvalSampleSummary] = []
+        self._config_update_counter = 0
+        self._config_updates: list[ConfigUpdate] = []
         self._log_start: LogStart | None = None
 
     async def init(
@@ -748,16 +794,42 @@ class ZipLogFile:
         log_start: LogStart | None,
         summary_counter: int,
         summaries: list[EvalSampleSummary],
+        config_update_counter: int = 0,
+        config_updates: list[ConfigUpdate] | None = None,
     ) -> None:
         async with self._lock:
             self._open()
             self._summary_counter = summary_counter
             self._summaries = summaries
+            self._config_update_counter = config_update_counter
+            self._config_updates = config_updates or []
             self._log_start = log_start
 
     @property
     def log_start(self) -> LogStart | None:
         return self._log_start
+
+    @property
+    def config_updates(self) -> list[ConfigUpdate]:
+        return self._config_updates
+
+    async def record_config_update(self, update: ConfigUpdate) -> None:
+        """Journal a mid-run config change (one file per update).
+
+        Follows the summaries journal pattern (`_journal/config_updates/{n}.json`):
+        there is no header.json mid-run and zip members are immutable, so
+        appending journal files is the format's native mid-run write. The
+        accumulated list is consolidated into the header at `log_finish`.
+        """
+        async with self._lock:
+            self._config_update_counter += 1
+            self._zip_writestr(
+                _journal_config_update_path(
+                    _journal_config_update_file(self._config_update_counter)
+                ),
+                update,
+            )
+            self._config_updates.append(update)
 
     async def start(self, start: LogStart) -> None:
         async with self._lock:
@@ -769,6 +841,48 @@ class ZipLogFile:
         async with self._lock:
             self._samples.append(buffered)
 
+    async def buffer_sample_write_through(self, sample: EvalSample) -> None:
+        """Write a completed sample straight into the temp-file zip.
+
+        The bulk re-log counterpart to :meth:`buffer_sample` (used for a
+        retry's reused completed samples): the full sample — events included —
+        goes into the temp zip immediately, so it lands on local disk instead
+        of staying resident in ``_samples`` until the next flush (anything in
+        the temp zip reaches the destination on any later flush, which copies
+        the whole file). Mirrors :meth:`buffer_sample_streaming`: only an
+        event-less copy is retained in ``_streaming_samples`` (cleared by
+        ``flush`` once the sample is on-disk-readable) so control-channel
+        reads of error detail / scores keep working pre-flush — event reads
+        are unavailable until the next flush — and the summary is journalled
+        immediately with the same replace-by-``(id, epoch)`` dedupe. Nothing
+        is appended to ``_samples``.
+        """
+        async with self._lock:
+            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
+
+            self._streaming_samples[(sample.id, sample.epoch)] = sample.model_copy(
+                update={"events": [], "events_data": None}
+            )
+
+            self._journal_summary(sample)
+
+    def _journal_summary(self, sample: EvalSample) -> None:
+        """Journal the sample's summary and merge it into ``_summaries``.
+
+        Replaces any existing summary for the same ``(id, epoch)`` (e.g. when
+        re-logging completed samples after log_init with clean=False during
+        eval_retry / score --overwrite). Caller must hold ``self._lock``.
+        """
+        self._summary_counter += 1
+        summary = sample.summary()
+        summary_file = _journal_summary_file(self._summary_counter)
+        summary_path = _journal_summary_path(summary_file)
+        self._zip_writestr(summary_path, [summary])
+        self._summaries = [
+            s for s in self._summaries if (s.id, s.epoch) != (summary.id, summary.epoch)
+        ]
+        self._summaries.append(summary)
+
     async def buffer_sample_streaming(
         self, sample: EvalSample, history: "SampleHistory"
     ) -> None:
@@ -778,10 +892,13 @@ class ZipLogFile:
             attachments = _sample_history_attachments(
                 sample, history, events, events_data
             )
-            sample_data = sample.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude={"events", "events_data", "attachments"},
+            sample_data: dict[str, Any] = jsonable_dict(
+                sample.model_dump(
+                    mode="python",
+                    exclude_none=True,
+                    exclude={"events", "events_data", "attachments"},
+                    fallback=lambda _x: None,
+                )
             )
             sample_data.update(
                 {
@@ -799,17 +916,7 @@ class ZipLogFile:
             # Cleared in ``flush`` once the sample lands on disk.
             self._streaming_samples[(sample.id, sample.epoch)] = sample
 
-            self._summary_counter += 1
-            summary = sample.summary()
-            summary_file = _journal_summary_file(self._summary_counter)
-            summary_path = _journal_summary_path(summary_file)
-            self._zip_writestr(summary_path, [summary])
-            self._summaries = [
-                s
-                for s in self._summaries
-                if (s.id, s.epoch) != (summary.id, summary.epoch)
-            ]
-            self._summaries.append(summary)
+            self._journal_summary(sample)
 
     async def write_buffered_samples(self) -> None:
         async with self._lock:
@@ -859,10 +966,11 @@ class ZipLogFile:
         completion paths during the window before a sample is flushed to disk:
 
         - ``_samples`` — buffered whole samples (with events) awaiting a flush
-          (the reused-on-retry path).
-        - ``_streaming_samples`` — the streaming path's event-less samples
-          (their events live in the buffer database, so this carries error
-          detail / scores but not events).
+          (the default :meth:`buffer_sample` path).
+        - ``_streaming_samples`` — event-less samples from the streaming and
+          write-through paths (their events live in the buffer database and
+          the temp zip respectively, so this carries error detail / scores
+          but not events).
 
         Returns ``None`` once flushed (the on-disk log takes over) or for a
         recorder that doesn't buffer; callers fall back to the on-disk log.
@@ -936,6 +1044,13 @@ class ZipLogFile:
         async with self._lock:
             try:
                 self._temp_file.seek(0)
+                # Under trio, read the full log eagerly from the temp file
+                # bytes: LazyList materialization goes through the sync
+                # read_eval_log(), which raises in a trio async context.
+                if not header_only and current_async_backend() == "trio":
+                    return _read_log_from_bytes(
+                        self._temp_file, self._file, header_only=False
+                    )
                 # Always read header only from temp file (fast path)
                 eval_log = _read_log_from_bytes(
                     self._temp_file, self._file, header_only=True
@@ -1127,10 +1242,21 @@ async def _read_header_async(
     else:
         data = await _read_member_json(reader, _journal_path(START_JSON))
         start = LogStart.model_validate(data, context=get_deserializing_context())
+        # an in-progress/crashed log has no consolidated header — read any
+        # journaled config updates so the header still reports mid-run retunes
+        config_updates: list[ConfigUpdate] = []
+        for name in _sorted_config_update_entries(entry_names):
+            update_data = await _read_member_json(reader, name)
+            config_updates.append(
+                ConfigUpdate.model_validate(
+                    update_data, context=get_deserializing_context()
+                )
+            )
         return EvalLog(
             version=start.version,
             eval=start.eval,
             plan=start.plan,
+            config_updates=config_updates or None,
             location=location,
         )
 
@@ -1213,8 +1339,21 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
             start = LogStart.model_validate(
                 json.load(f), context=get_deserializing_context()
             )
+        # see the equivalent journal read in _read_header_async
+        config_updates: list[ConfigUpdate] = []
+        for name in _sorted_config_update_entries(set(zip.namelist())):
+            with zip.open(name, "r") as f:
+                config_updates.append(
+                    ConfigUpdate.model_validate(
+                        json.load(f), context=get_deserializing_context()
+                    )
+                )
         return EvalLog(
-            version=start.version, eval=start.eval, plan=start.plan, location=location
+            version=start.version,
+            eval=start.eval,
+            plan=start.plan,
+            config_updates=config_updates or None,
+            location=location,
         )
 
 
@@ -1235,6 +1374,64 @@ def _journal_summary_path(file: str | None = None) -> str:
 
 def _journal_summary_file(index: int) -> str:
     return f"{index}.json"
+
+
+def _journal_config_update_path(file: str | None = None) -> str:
+    if file is None:
+        return _journal_path(CONFIG_UPDATES_DIR)
+    else:
+        return f"{_journal_path(CONFIG_UPDATES_DIR)}/{file}"
+
+
+def _journal_config_update_file(index: int) -> str:
+    return f"{index}.json"
+
+
+def _sorted_config_update_entries(entry_names: set[str]) -> list[str]:
+    """Journal config-update entries in write order (by their integer index)."""
+    prefix = _journal_config_update_path() + "/"
+    entries = [
+        name
+        for name in entry_names
+        if name.startswith(prefix) and name.endswith(".json")
+    ]
+    return sorted(entries, key=lambda name: int(name.split("/")[-1].split(".")[0]))
+
+
+async def _read_config_updates_async(
+    reader: AsyncZipReader,
+) -> tuple[list[ConfigUpdate], int]:
+    """Journaled config updates (and the max journal index) from an existing log.
+
+    Used by `log_init` when re-initializing over an existing log (e.g.
+    `score --overwrite`) so mid-run retunes recorded by the original run
+    aren't dropped by the rebuild. Journal members persist in finished logs
+    (zip appends never remove them), so reading the journal covers finished
+    and in-progress logs alike; a log produced by a full rewrite has no
+    journal members and its updates live only in `header.json`, so that is
+    the fallback.
+    """
+    cd = await reader.entries()
+    entry_names = {e.filename for e in cd.entries}
+    entries = _sorted_config_update_entries(entry_names)
+    if entries:
+        updates = []
+        for name in entries:
+            data = await _read_member_json(reader, name)
+            updates.append(
+                ConfigUpdate.model_validate(data, context=get_deserializing_context())
+            )
+        counter = int(entries[-1].split("/")[-1].split(".")[0])
+        return updates, counter
+    elif HEADER_JSON in entry_names:
+        data = await _read_member_json(reader, HEADER_JSON)
+        raw_updates = data.get("config_updates") or []
+        return [
+            ConfigUpdate.model_validate(u, context=get_deserializing_context())
+            for u in raw_updates
+        ], 0
+    else:
+        return [], 0
 
 
 T = TypeVar("T")
