@@ -210,6 +210,7 @@ async def test_requeue_cancelled_sample_accepted(
 
     result = await requeue_sample("e1", "s1", 1)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is True and result["status"] == "cancelled"
     # a cancellation is not a genuine error, so it doesn't grow the attempt
     # count (the seeding skips it) — the re-run is still attempt 1's redo
@@ -242,6 +243,7 @@ async def test_requeue_running_sample_is_noop(
 
     result = await requeue_sample("e1", "s1", 1)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is False and result["status"] == "running"
     assert handle.accepts == []
 
@@ -252,6 +254,7 @@ async def test_requeue_queued_sample_is_noop(monkeypatch: pytest.MonkeyPatch) ->
 
     result = await requeue_sample("e1", "s1", 1)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is False and result["status"] == "queued"
     assert handle.accepts == []
 
@@ -264,6 +267,7 @@ async def test_requeue_never_started_sample_is_noop(
 
     result = await requeue_sample("e1", "s2", 1)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is False and result["status"] == "pending"
     assert handle.accepts == []
 
@@ -289,6 +293,7 @@ async def test_requeue_pending_requeue_is_noop(
 
     result = await requeue_sample("e1", "s1", 1)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is False and result["status"] == "queued"
     assert "already pending" in result["reason"]
     assert handle.accepts == []
@@ -308,6 +313,7 @@ async def test_requeue_running_rerun_reports_running(
 
     result = await requeue_sample("e1", "s1", 1)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is False and result["status"] == "running"
     assert handle.accepts == []
 
@@ -384,6 +390,7 @@ async def test_requeue_dry_run_does_not_accept(
 
     result = await requeue_sample("e1", "s1", 1, dry_run=True)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is True and result["dry_run"] is True
     assert result["resume_from_checkpoint"] is True
     assert handle.accepts == []
@@ -405,6 +412,7 @@ async def test_requeue_accept_race_lands_on_pending_set(
 
     result = await requeue_sample("e1", "s1", 1)
     assert result is not None
+    assert result["ok"] is True
     assert result["changed"] is False and "already pending" in result["reason"]
 
 
@@ -1225,6 +1233,7 @@ async def test_requeue_end_to_end() -> None:
 
         first = await requeue_sample(eval_id, "flaky", 1)
         assert first is not None
+        assert first["ok"] is True
         assert first["changed"] is True and first["status"] == "error"
         assert first["attempt"] == 2
 
@@ -1235,7 +1244,8 @@ async def test_requeue_end_to_end() -> None:
         # an immediate repeat is the idempotent no-op (the re-run is held
         # open by the solver's park, so it cannot have gone terminal)
         second = await requeue_sample(eval_id, "flaky", 1)
-        assert second is not None and second["changed"] is False
+        assert second is not None and second["ok"] is True
+        assert second["changed"] is False
 
         _E2E_RELEASE.set()
 
@@ -1337,7 +1347,7 @@ async def test_requeue_second_requeue_with_buffered_records() -> None:
 
         first = await requeue_sample(eval_id, "flaky", 1)
         assert first is not None
-        assert first.get("ok") is True and first["changed"] is True
+        assert first["ok"] is True and first["changed"] is True
         assert first["attempt"] == 2
 
         # the re-run fails again; its record supersedes the prior in the
@@ -1345,7 +1355,7 @@ async def test_requeue_second_requeue_with_buffered_records() -> None:
         await wait_for_errored()
         second = await requeue_sample(eval_id, "flaky", 1)
         assert second is not None
-        assert second.get("ok") is True, f"second requeue rejected: {second}"
+        assert second["ok"] is True, f"second requeue rejected: {second}"
         assert second["changed"] is True
         assert second["attempt"] == 3
 
@@ -1451,7 +1461,7 @@ async def test_requeue_after_operator_errored_sample() -> None:
 
         result = await requeue_sample(eval_id, "victim", 1)
         assert result is not None
-        assert result.get("ok") is True and result["changed"] is True
+        assert result["ok"] is True and result["changed"] is True
         assert result["status"] == "error"
         assert result["attempt"] == 2
 
@@ -1555,7 +1565,7 @@ async def test_requeue_dynamic_injected_sample() -> None:
 
         result = await requeue_sample(eval_id, "flaky", 1)
         assert result is not None
-        assert result.get("ok") is True and result["changed"] is True
+        assert result["ok"] is True and result["changed"] is True
         assert result["status"] == "error"
         assert result["attempt"] == 2
 
@@ -1663,7 +1673,7 @@ async def test_requeue_dynamic_while_awaiting_source() -> None:
 
         result = await requeue_sample(eval_id, "flaky", 1)
         assert result is not None
-        assert result.get("ok") is True and result["changed"] is True
+        assert result["ok"] is True and result["changed"] is True
 
         # the re-run completes while the source is still parked
         with anyio.fail_after(60):

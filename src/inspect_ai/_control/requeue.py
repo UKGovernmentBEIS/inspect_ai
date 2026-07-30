@@ -9,16 +9,19 @@ this resolver implements, including the decision table.
 
 Shaped like :mod:`inspect_ai._control.cancel` and runs on the eval's own
 loop. Results: ``None`` means the target isn't in this process (the route
-404s); ``{"ok": False, "error": ...}`` is a rejection (the route maps it to
-a 409); otherwise the result carries ``changed`` — ``False`` is the
-idempotent already-scheduled no-op (requeue pending / already queued or
-running / never started), so a retrying agent gets a clean answer rather
-than a double-queued sample.
+404s); :class:`RequeueRejected` is a rejection (the route maps it to a 409);
+otherwise the result carries ``changed`` — :class:`RequeueScheduled`
+(``False``) is the idempotent already-scheduled no-op (requeue pending /
+already queued or running / never started), so a retrying agent gets a clean
+answer rather than a double-queued sample, and :class:`RequeueAccepted`
+(``True``) is the accepted requeue.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
+
+from typing_extensions import TypedDict
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
@@ -33,9 +36,54 @@ _FANOUT_DRAINED = (
 )
 
 
+class RequeueRejected(TypedDict):
+    """A rejection from the decision table (the route maps it to a 409)."""
+
+    ok: Literal[False]
+    error: str
+
+
+class RequeueScheduled(TypedDict):
+    """The idempotent no-op: this sample's (re-)run is already coming.
+
+    ``status`` reports where it stands — ``queued`` (requeue pending or
+    waiting for a slot), ``running``, or ``pending`` (planned, never
+    started).
+    """
+
+    ok: Literal[True]
+    sample_id: str | int
+    epoch: int
+    dry_run: bool
+    changed: Literal[False]
+    status: Literal["queued", "running", "pending"]
+    reason: str
+
+
+class RequeueAccepted(TypedDict):
+    """An accepted requeue (or, under ``dry_run``, what would be re-run).
+
+    ``status`` is the prior terminal outcome the re-run supersedes.
+    """
+
+    ok: Literal[True]
+    sample_id: str | int
+    epoch: int
+    dry_run: bool
+    changed: Literal[True]
+    status: Literal["error", "cancelled"]
+    prior_error: str
+    retries: int
+    attempt: int
+    resume_from_checkpoint: bool
+
+
+RequeueResult = RequeueRejected | RequeueScheduled | RequeueAccepted
+
+
 async def requeue_sample(
     eval_id: str, sample_id: str, epoch: int, *, dry_run: bool = False
-) -> dict[str, Any] | None:
+) -> RequeueResult | None:
     """Requeue one errored/cancelled sample (``POST /evals/<id>/sample/requeue``).
 
     The task-level checks run before the sample-status ones — necessarily,
@@ -77,13 +125,6 @@ async def requeue_sample(
     if handle is None or not handle.open:
         return _reject(_FANOUT_DRAINED)
 
-    base: dict[str, Any] = {
-        "ok": True,
-        "sample_id": sample_id,
-        "epoch": epoch,
-        "dry_run": dry_run,
-    }
-
     # already scheduled or in progress: the desired end state — "this sample
     # runs (again) to a fresh outcome" — is already coming. The active check
     # runs first: a pending-requeue key stays set until the re-run goes
@@ -91,22 +132,25 @@ async def requeue_sample(
     # whether it is queued or running.
     active = find_active_sample(eval_id, sample_id, epoch)
     if active is not None and active.completed is None:
-        status = "running" if active.started is not None else "queued"
-        return {
-            **base,
-            "sample_id": active.sample.id,
-            "changed": False,
-            "status": status,
-            "reason": f"sample is already {status}",
-        }
+        status: Literal["queued", "running"] = (
+            "running" if active.started is not None else "queued"
+        )
+        # report the dataset-typed id (int vs str); a dataset sample id is
+        # assigned by resolution, so None can't occur here — but the field
+        # allows it, and the query-param string is the right fallback
+        resolved_id = active.sample.id if active.sample.id is not None else sample_id
+        return _scheduled(
+            resolved_id, epoch, dry_run, status, f"sample is already {status}"
+        )
 
     if handle.is_pending(sample_id, epoch):
-        return {
-            **base,
-            "changed": False,
-            "status": "queued",
-            "reason": "a requeue of this sample is already pending",
-        }
+        return _scheduled(
+            sample_id,
+            epoch,
+            dry_run,
+            "queued",
+            "a requeue of this sample is already pending",
+        )
 
     # terminal read: the live recorder, then the on-disk log — the full
     # sample, since its events seed the re-run's retry history
@@ -115,12 +159,9 @@ async def requeue_sample(
         # planned but never started will run without help; an unknown
         # (sample_id, epoch) is a 404
         if _is_planned(state, sample_id, epoch):
-            return {
-                **base,
-                "changed": False,
-                "status": "pending",
-                "reason": "sample has not started yet",
-            }
+            return _scheduled(
+                sample_id, epoch, dry_run, "pending", "sample has not started yet"
+            )
         return None
 
     if prior.error is None:
@@ -135,9 +176,12 @@ async def requeue_sample(
         "cancelled" if is_cancellation_message(prior.error.message) else "error"
     )
     retries = len(prior.error_retries or [])
-    detail: dict[str, Any] = {
-        **base,
+    detail: RequeueAccepted = {
+        "ok": True,
         "sample_id": prior.id,
+        "epoch": epoch,
+        "dry_run": dry_run,
+        "changed": True,
         "status": prior_status,
         "prior_error": prior.error.message,
         "retries": retries,
@@ -148,7 +192,7 @@ async def requeue_sample(
         "resume_from_checkpoint": await handle.checkpoint_available(prior.id, epoch),
     }
     if dry_run:
-        return {**detail, "changed": True}
+        return detail
 
     # Re-check the task-level gates synchronously before accepting: the
     # awaits above (`_full_sample`, `checkpoint_available`) can span the last
@@ -163,12 +207,13 @@ async def requeue_sample(
 
     outcome = handle.accept(prior, prior_status)
     if outcome == "already_pending":
-        return {
-            **base,
-            "changed": False,
-            "status": "queued",
-            "reason": "a requeue of this sample is already pending",
-        }
+        return _scheduled(
+            sample_id,
+            epoch,
+            dry_run,
+            "queued",
+            "a requeue of this sample is already pending",
+        )
     if outcome == "stale":
         return _reject(
             "the sample's state changed while this request was resolving "
@@ -180,14 +225,32 @@ async def requeue_sample(
         return _reject(_FANOUT_DRAINED)
     if outcome == "unknown":
         return None
-    return {**detail, "changed": True}
+    return detail
 
 
-def _reject(error: str) -> dict[str, Any]:
+def _reject(error: str) -> RequeueRejected:
     return {"ok": False, "error": error}
 
 
-def _task_level_reject(state: "EvalState") -> dict[str, Any] | None:
+def _scheduled(
+    sample_id: str | int,
+    epoch: int,
+    dry_run: bool,
+    status: Literal["queued", "running", "pending"],
+    reason: str,
+) -> RequeueScheduled:
+    return {
+        "ok": True,
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "dry_run": dry_run,
+        "changed": False,
+        "status": status,
+        "reason": reason,
+    }
+
+
+def _task_level_reject(state: "EvalState") -> RequeueRejected | None:
     """The task-level rejection rows (finished / between attempts / cancelling).
 
     Checked before the sample-status rows, and again — synchronously — right

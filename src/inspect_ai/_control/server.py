@@ -732,7 +732,7 @@ class ControlServer:
                     status_code=404,
                     content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
                 )
-            if result.get("ok") is False:
+            if result["ok"] is False:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 

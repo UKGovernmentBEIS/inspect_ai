@@ -31,6 +31,7 @@ from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log_headers,
     read_eval_log_sample,
+    read_eval_log_samples,
     write_eval_log,
 )
 from inspect_ai.log._log import EvalLog, EvalSample
@@ -418,6 +419,34 @@ def test_rewrite_eval_zip_dedupes_duplicate_members():
     with ZipFile(io.BytesIO(rewritten)) as result:
         assert result.namelist().count(member) == 1
         assert result.read(member) == superseding
+
+
+def test_read_eval_log_samples_with_duplicate_members(tmp_path):
+    """`read_eval_log_samples` yields the superseding record, once.
+
+    A requeued sample's fresh record is appended as a duplicate zip member
+    (last entry wins on name-based reads); the per-(id, epoch) generator must
+    yield exactly one sample per key, carrying the fresh record.
+    """
+    import shutil
+    import warnings
+    from zipfile import ZipFile
+
+    src = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    log_file = str(tmp_path / "requeued.eval")
+    shutil.copy(src, log_file)
+
+    fresh = read_eval_log_sample(src, id=1, epoch=1)
+    fresh.metadata = {**(fresh.metadata or {}), "requeued": True}
+    with warnings.catch_warnings(), ZipFile(log_file, "a") as zf:
+        warnings.filterwarnings("ignore", message="Duplicate name:")
+        zf.writestr("samples/1_epoch_1.json", fresh.model_dump_json(exclude_none=True))
+
+    samples = list(read_eval_log_samples(log_file))
+    assert len(samples) == 1
+    assert samples[0].id == 1 and samples[0].epoch == 1
+    assert samples[0].metadata is not None
+    assert samples[0].metadata["requeued"] is True
 
 
 @pytest.mark.parametrize("format", ["json", "eval"])
