@@ -348,7 +348,24 @@ async def current_sample_summaries(
     # completed records (which supersede any now-finished running entry).
     for summary in _sample_summaries_from_active(eval_id):
         _merge(summary)
-    for summary in await _completed_sample_summaries(eval_id):
+    completed = await _completed_sample_summaries(eval_id)
+    # A terminal record whose (id, epoch) has a requeue pending is
+    # superseded-in-waiting: the re-run is scheduled but may have no
+    # ActiveSample yet (parked behind the sample semaphore) — render it
+    # `queued` so it surfaces in the head sort tiers instead of hiding as
+    # a terminal row, and never let it supersede the re-run's live row.
+    # Snapshot the pending keys *after* the summaries await (matching
+    # sample_error_detail): a re-run going terminal during that await clears
+    # its key on the same loop and its fresh record is in `completed` — a
+    # pre-await snapshot would render that finished sample as a phantom
+    # `queued` row for one response.
+    requeue_pending = _pending_requeue_keys(eval_id)
+    for summary in completed:
+        key = (summary["sample_id"], summary["epoch"])
+        if (str(summary["sample_id"]), summary["epoch"]) in requeue_pending:
+            if key not in by_key:
+                by_key[key] = _requeued_summary(summary)
+            continue
         _merge(summary)
 
     # Pending: planned samples not yet running or done. No live source
@@ -460,6 +477,51 @@ def _add_pending_samples(
             key = (sample_id, epoch)
             if key not in by_key:
                 by_key[key] = _pending_summary(sample_id, epoch)
+
+
+def _pending_requeue_keys(eval_id: str) -> frozenset[tuple[str, int]]:
+    """The eval's requeue-pending ``(sample_id, epoch)`` keys (str-keyed).
+
+    Non-empty only while a requeue directive has been accepted and its
+    re-run hasn't reached a terminal outcome (see ``design/ctl/sample-requeue.md``).
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or state.sample_requeue is None:
+        return frozenset()
+    return state.sample_requeue.pending_keys()
+
+
+def _requeued_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    """A requeue-pending terminal record, rendered as the scheduled re-run.
+
+    Keeps the row's identity but clears the terminal fields: the prior
+    outcome has been re-opened, and the fresh run hasn't started.
+    ``retries`` counts what the re-run will seed — the prior retries plus
+    the terminal error when genuine (a ``status == "error"`` row; a
+    cancellation isn't seeded) — so the count doesn't dip when the re-run's
+    ``ActiveSample`` takes over the row. ``last_activity_at`` keeps the
+    prior completion time so an ``active_since`` delta still surfaces the
+    row.
+    """
+    return {
+        **summary,
+        "status": "queued",
+        "retries": (summary["retries"] or 0)
+        + (1 if summary["status"] == "error" else 0),
+        "started_at": None,
+        "completed_at": None,
+        "total_time": None,
+        "total_tokens": 0,
+        "message_count": None,
+        "turn_count": None,
+        "token_limit_usage": None,
+        "events": None,
+        "scores": {},
+        "error": None,
+        "limit": None,
+    }
 
 
 def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
@@ -661,6 +723,29 @@ async def sample_error_detail(
         ),
         None,
     )
+
+    # A pending requeue re-opens the terminal outcome: mirror the listing's
+    # rendering (the scheduled re-run — `queued`, terminal fields cleared)
+    # and echo the requeue in the error history the way the re-run will seed
+    # it: prior retries plus the terminal error when genuine (a cancellation
+    # isn't seeded — see `_seed_error_retries`). Same rule as the listing,
+    # so the two views can't drift during the pending window.
+    if (str(sample.id), sample.epoch) in _pending_requeue_keys(eval_id):
+        seeded = list(sample.error_retries or [])
+        if sample.error is not None and not is_cancellation_message(
+            sample.error.message
+        ):
+            seeded.append(sample.error)
+        return {
+            **(_requeued_summary(row) if row is not None else {}),
+            "sample_id": sample.id,
+            "epoch": sample.epoch,
+            "status": "queued",
+            "retries": len(seeded),
+            "error": None,
+            "error_retries": [_error_dict(e) for e in seeded],
+            "scores": {},
+        }
 
     # status/error apply the listing's classification
     # (_summary_from_eval_sample_summary reads the same error message), so the
