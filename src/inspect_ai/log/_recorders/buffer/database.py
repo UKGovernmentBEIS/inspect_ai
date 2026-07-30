@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlite3 import Connection, OperationalError
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Iterable,
     Iterator,
@@ -63,6 +64,7 @@ from ..._condense import (
 from ..._log import EvalSampleSummary
 from ..types import SampleEvent
 from .filestore import (
+    SAMPLE_METADATA_IN_SUMMARY,
     Manifest,
     SampleBufferFilestore,
     SampleManifest,
@@ -80,6 +82,7 @@ from .types import (
     SampleBuffer,
     SampleData,
     Samples,
+    parse_sample_metadata,
 )
 
 logger = getLogger(__name__)
@@ -107,6 +110,8 @@ class SampleBufferDatabase(SampleBuffer):
         id TEXT,
         epoch INTEGER,
         data TEXT, -- JSON containing all other sample fields
+        sample_metadata TEXT, -- full sample metadata (summaries are intentionally thinned)
+        sample_metadata_hash TEXT, -- sidecar lookup key or exact-summary marker
         PRIMARY KEY (id, epoch)
     );
 
@@ -334,14 +339,41 @@ class SampleBufferDatabase(SampleBuffer):
             # Insert all rows
             conn.execute(sql, values)
 
-    def complete_sample(self, summary: EvalSampleSummary) -> None:
+    def complete_sample(
+        self,
+        summary: EvalSampleSummary,
+        *,
+        sample_metadata: dict[str, Any] | None,
+    ) -> None:
+        metadata_json = (
+            to_json_str_safe(sample_metadata) if sample_metadata is not None else None
+        )
+        metadata_hash = (
+            SAMPLE_METADATA_IN_SUMMARY
+            if sample_metadata is not None and sample_metadata == summary.metadata
+            else (
+                hashlib.sha256(metadata_json.encode("utf-8")).hexdigest()
+                if metadata_json is not None
+                else None
+            )
+        )
         with self._get_connection(write=True) as conn:
             summary = self._condense_sample(conn, summary)
             conn.execute(
                 """
-                UPDATE samples SET data = ? WHERE id = ? and epoch = ?
+                UPDATE samples
+                SET data = ?,
+                    sample_metadata = COALESCE(?, sample_metadata),
+                    sample_metadata_hash = COALESCE(?, sample_metadata_hash)
+                WHERE id = ? and epoch = ?
             """,
-                (to_json_str_safe(summary), str(summary.id), summary.epoch),
+                (
+                    to_json_str_safe(summary),
+                    metadata_json,
+                    metadata_hash,
+                    str(summary.id),
+                    summary.epoch,
+                ),
             )
 
             key = (str(summary.id), summary.epoch)
@@ -565,6 +597,47 @@ class SampleBufferDatabase(SampleBuffer):
                         self._get_call_pool(conn, id, epoch, after_call_pool_id)
                     ),
                 )
+        except FileNotFoundError:
+            return None
+
+    @override
+    def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        metadata_json = self._get_sample_metadata_json(id, epoch)
+        if metadata_json is None:
+            return None
+        return parse_sample_metadata(metadata_json, id=id, epoch=epoch)
+
+    def _get_sample_metadata_json(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_metadata_value(id, epoch, "sample_metadata")
+
+    def _get_sample_metadata_hash(self, id: str | int, epoch: int) -> str | None:
+        return self._get_sample_metadata_value(id, epoch, "sample_metadata_hash")
+
+    def _get_sample_metadata_value(
+        self,
+        id: str | int,
+        epoch: int,
+        column: Literal["sample_metadata", "sample_metadata_hash"],
+    ) -> str | None:
+        if not self.db_path.exists():
+            return None
+
+        try:
+            with self._get_connection() as conn:
+                try:
+                    row = conn.execute(
+                        f"SELECT {column} FROM samples WHERE id = ? AND epoch = ?",
+                        (str(id), epoch),
+                    ).fetchone()
+                except OperationalError as ex:
+                    # Older buffers may lack either metadata column. Recovery
+                    # can fall back to sample_init; sync can derive the hash.
+                    if "no such column" in str(ex).lower():
+                        return None
+                    raise
+                if row is None or row[column] is None:
+                    return None
+                return str(row[column])
         except FileNotFoundError:
             return None
 
@@ -1671,18 +1744,22 @@ def sync_to_filestore(
     for sample in samples.samples:
         # lookup sample segments in the existing manifest
         # Copy before appending the next segment below.
-        segments = list(
-            next(
-                (
-                    s.segments
-                    for s in manifest.samples
-                    if s.summary.id == sample.id and s.summary.epoch == sample.epoch
-                ),
-                [],
-            )
+        existing = next(
+            (
+                s
+                for s in manifest.samples
+                if s.summary.id == sample.id and s.summary.epoch == sample.epoch
+            ),
+            None,
         )
         # add to manifests
-        sample_manifests.append(SampleManifest(summary=sample, segments=segments))
+        sample_manifests.append(
+            SampleManifest(
+                summary=sample,
+                segments=list(existing.segments) if existing is not None else [],
+                metadata_hash=existing.metadata_hash if existing is not None else None,
+            )
+        )
 
     # draft of new manifest has the new sample list and the existing segments
     manifest.metrics = samples.metrics
@@ -1707,6 +1784,29 @@ def sync_to_filestore(
     segment_files: list[SegmentFile] = []
     segment_by_id = {seg.id: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
+        metadata_hash = db._get_sample_metadata_hash(
+            manifest_sample.summary.id, manifest_sample.summary.epoch
+        )
+        if metadata_hash == SAMPLE_METADATA_IN_SUMMARY:
+            manifest_sample.metadata_hash = SAMPLE_METADATA_IN_SUMMARY
+        elif (
+            metadata_hash is not None and metadata_hash != manifest_sample.metadata_hash
+        ):
+            metadata_json = db._get_sample_metadata_json(
+                manifest_sample.summary.id, manifest_sample.summary.epoch
+            )
+            if metadata_json is not None:
+                metadata_hash = hashlib.sha256(
+                    metadata_json.encode("utf-8")
+                ).hexdigest()
+                filestore.write_sample_metadata(
+                    manifest_sample.summary.id,
+                    manifest_sample.summary.epoch,
+                    metadata_hash,
+                    metadata_json.encode("utf-8"),
+                )
+                manifest_sample.metadata_hash = metadata_hash
+
         # take the max of last_*_id across all of this sample's segments, not
         # just the latest: each segment's last_*_id is 0 if no items of that
         # type were added there, so the latest alone can regress the cursor.
