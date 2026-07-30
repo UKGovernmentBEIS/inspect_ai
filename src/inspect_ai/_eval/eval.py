@@ -12,6 +12,7 @@ import anyio
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
+from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -805,6 +806,14 @@ async def _eval_async_inner(
             )
 
         resolve_model_costs(resolved_tasks, cost_limit)
+
+        # make every resolved task's model addressable by the model pause
+        # directives up-front: with parallel == 1 the run loop below hands
+        # the dispatcher one sequence group at a time, so the dispatcher's
+        # own registration would lag behind the run. This is also the first
+        # dispatch_model_name call, so the latch's name snapshots are taken
+        # here — before any generate can rewrite a provider's model name
+        note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])
 
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:

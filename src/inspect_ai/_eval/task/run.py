@@ -22,7 +22,7 @@ from inspect_ai._control.eval_state import (
     record_samples_added,
     register_eval,
 )
-from inspect_ai._control.pause import PauseGatedSemaphore
+from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
 from inspect_ai._display import (
     TaskCancelled,
     TaskError,
@@ -588,11 +588,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # reach the queue-exit abandon check); scan reuse below keeps the
             # raw semaphore — reused samples aren't new work for the gate to
             # hold
+            # dispatch_model_name, not str(model): the snapshot keeps the
+            # gate's key stable if the provider rewrites its model name
+            # mid-run (and register_eval below must store the same name)
+            pause_model_name = dispatch_model_name(model)
             gated_sample_semaphore = PauseGatedSemaphore(
                 sample_semaphore,
                 task_id=logger.eval.task_id,
                 escape=lambda: task_cancel is not None
                 and task_cancel.cancel_type is not None,
+                model=pause_model_name,
             )
 
             # must run immediately before register_eval (see its docstring):
@@ -610,7 +615,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 total_samples,
                 task=logger.eval.task,
                 task_id=logger.eval.task_id,
-                model=str(model),
+                model=pause_model_name,
                 solver=profile.agent,
                 log_location=logger.location,
                 live=logger,
