@@ -68,7 +68,22 @@ def test_service_with_custom_values() -> None:
             "retries": 5,
         },
     }
-    assert service_healthcheck_time(service) == 40.0
+    assert service_healthcheck_time(service) == 50.0
+
+
+def test_service_with_long_start_period() -> None:
+    # the grace period dominates the retry budget: a service that becomes
+    # healthy at t=200s must not be timed out (see #4698)
+    service: ComposeService = {
+        "image": "nginx",
+        "healthcheck": {
+            "start_period": "300s",
+            "interval": "5s",
+            "timeout": "30s",
+            "retries": 3,
+        },
+    }
+    assert service_healthcheck_time(service) == 405.0
 
 
 def test_service_with_partial_custom_values() -> None:
@@ -79,7 +94,7 @@ def test_service_with_partial_custom_values() -> None:
             "timeout": "3s",
         },
     }
-    assert service_healthcheck_time(service) == 99.0
+    assert service_healthcheck_time(service) == 109.0
 
 
 # Total Healthcheck Time Tests
@@ -119,7 +134,7 @@ def test_total_time_multiple_services() -> None:
             },
         },
     }
-    assert services_healthcheck_time(services) == 45.0
+    assert services_healthcheck_time(services) == 75.0
 
 
 def test_total_time_mixed_services() -> None:
@@ -137,4 +152,4 @@ def test_total_time_mixed_services() -> None:
             "image": "postgres",
         },
     }
-    assert services_healthcheck_time(services) == 40.0
+    assert services_healthcheck_time(services) == 50.0

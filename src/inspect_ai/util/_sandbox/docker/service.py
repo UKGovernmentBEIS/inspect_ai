@@ -40,9 +40,13 @@ def service_healthcheck_time(service: ComposeService) -> int:
     Calculate the maximum time a single service's healthcheck could take.
 
     The total time is:
-    (retries * (interval + timeout))
+    start_period + (retries * (interval + timeout))
+
+    Failing probes don't count against `retries` until the start period has
+    elapsed, so the retry budget is additional to (not inclusive of) it.
 
     Default values (from Docker documentation):
+    - start_period: 0s
     - retries: 3
     - interval: 30s
     - timeout: 30s
@@ -52,12 +56,13 @@ def service_healthcheck_time(service: ComposeService) -> int:
         return 0
 
     # Parse duration strings with defaults
+    start_period = parse_duration(healthcheck.get("start_period", "0s"))
     retries = healthcheck.get("retries", 3)
     interval = parse_duration(healthcheck.get("interval", "30s"))
     timeout = parse_duration(healthcheck.get("timeout", "30s"))
 
     # Calculate total time in seconds
-    total_time = retries * (interval.seconds + timeout.seconds)
+    total_time = start_period.seconds + retries * (interval.seconds + timeout.seconds)
 
     return int(total_time)
 
