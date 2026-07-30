@@ -49,27 +49,38 @@ def ensure_json_rpc_response_chunk_dir() -> None:
     except FileExistsError:
         pass
 
-    chunk_dir_stat = _CHUNK_DIR.lstat()
-    if stat.S_ISLNK(chunk_dir_stat.st_mode) or not stat.S_ISDIR(chunk_dir_stat.st_mode):
+    # A `user=`-scoped exec may have created this directory, so the entry can be
+    # owned - and replaced - by a sandbox user. Inspect and modify it through a
+    # descriptor: a path-based check leaves a window to swap in a symlink, and
+    # chmod on a path follows it. O_DIRECTORY|O_NOFOLLOW also subsumes the
+    # is-it-really-a-directory check.
+    try:
+        dir_fd = os.open(_CHUNK_DIR, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError as ex:
         raise RuntimeError(
             f"JSON-RPC response chunk path is not a directory: {_CHUNK_DIR}"
-        )
-    current_uid = os.getuid()
-    if chunk_dir_stat.st_uid not in (0, current_uid) and current_uid != 0:
-        raise RuntimeError(
-            f"JSON-RPC response chunk directory has unexpected owner: {_CHUNK_DIR}"
-        )
+        ) from ex
 
-    # Private per-identity subdirectories hold response files. The sticky bit
-    # and absent read bit prevent deletion and enumeration of another
-    # identity's entries.
-    required_mode = 0o1733
-    if chunk_dir_stat.st_uid == current_uid or current_uid == 0:
-        _CHUNK_DIR.chmod(required_mode)
-    elif stat.S_IMODE(chunk_dir_stat.st_mode) != required_mode:
-        raise RuntimeError(
-            f"JSON-RPC response chunk directory has unsafe permissions: {_CHUNK_DIR}"
-        )
+    try:
+        chunk_dir_stat = os.fstat(dir_fd)
+        current_uid = os.getuid()
+        if chunk_dir_stat.st_uid not in (0, current_uid) and current_uid != 0:
+            raise RuntimeError(
+                f"JSON-RPC response chunk directory has unexpected owner: {_CHUNK_DIR}"
+            )
+
+        # Private per-identity subdirectories hold response files. The sticky bit
+        # and absent read bit prevent deletion and enumeration of another
+        # identity's entries.
+        required_mode = 0o1733
+        if chunk_dir_stat.st_uid == current_uid or current_uid == 0:
+            os.fchmod(dir_fd, required_mode)
+        elif stat.S_IMODE(chunk_dir_stat.st_mode) != required_mode:
+            raise RuntimeError(
+                f"JSON-RPC response chunk directory has unsafe permissions: {_CHUNK_DIR}"
+            )
+    finally:
+        os.close(dir_fd)
 
 
 def _current_user_chunk_dir() -> Path:

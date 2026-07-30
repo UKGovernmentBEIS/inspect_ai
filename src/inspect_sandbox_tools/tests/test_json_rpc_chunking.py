@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import stat
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
@@ -37,15 +38,14 @@ def test_chunk_dir_accepts_secure_root_owner(
     stat_values[0] = stat.S_IFDIR | 0o1733
     stat_values[4] = 0
     root_owned = os.stat_result(stat_values)
-    path_type = type(chunking._CHUNK_DIR)
 
-    monkeypatch.setattr(path_type, "lstat", lambda _self: root_owned)
+    monkeypatch.setattr(chunking.os, "fstat", lambda _fd: root_owned)
     monkeypatch.setattr(chunking.os, "getuid", lambda: 1000)
 
-    def unexpected_chmod(_self, _mode: int) -> None:
+    def unexpected_chmod(_fd: int, _mode: int) -> None:
         raise AssertionError("a non-owner must not chmod the shared directory")
 
-    monkeypatch.setattr(path_type, "chmod", unexpected_chmod)
+    monkeypatch.setattr(chunking.os, "fchmod", unexpected_chmod)
 
     chunking.ensure_json_rpc_response_chunk_dir()
 
@@ -305,12 +305,40 @@ def test_chunk_dir_accepts_agent_owned_dir_when_running_as_root(
     stat_values[0] = stat.S_IFDIR | 0o1733
     stat_values[4] = 1000  # created by an earlier exec running as the agent user
     agent_owned = os.stat_result(stat_values)
-    path_type = type(chunking._CHUNK_DIR)
 
-    monkeypatch.setattr(path_type, "lstat", lambda _self: agent_owned)
+    monkeypatch.setattr(chunking.os, "fstat", lambda _fd: agent_owned)
     monkeypatch.setattr(chunking.os, "getuid", lambda: 0)
 
     chunking.ensure_json_rpc_response_chunk_dir()
+
+
+def test_chunk_dir_chmod_does_not_follow_a_swapped_symlink(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Root must not chmod through a symlink planted at the chunk dir path.
+
+    Tolerating an agent-owned chunk dir means the agent uid owns that entry and
+    can replace it between root's ownership check and the chmod that follows.
+    Patched `lstat` stands in for winning that race: it reports the directory as
+    it was before the swap, while the path on disk is already a symlink.
+    """
+    victim = tmp_path / "victim"
+    victim.mkdir(mode=0o700)
+    chunking._CHUNK_DIR.symlink_to(victim, target_is_directory=True)
+
+    stat_values = list(victim.lstat())
+    stat_values[0] = stat.S_IFDIR | 0o1733
+    stat_values[4] = 1000  # created by an earlier exec running as the agent user
+    pre_swap = os.stat_result(stat_values)
+
+    monkeypatch.setattr(type(chunking._CHUNK_DIR), "lstat", lambda _self: pre_swap)
+    monkeypatch.setattr(chunking.os, "getuid", lambda: 0)
+
+    # Refusing the swapped path is a fine outcome; widening the target is not.
+    with suppress(RuntimeError, OSError):
+        chunking.ensure_json_rpc_response_chunk_dir()
+
+    assert stat.S_IMODE(victim.stat().st_mode) == 0o700
 
 
 def test_small_response_unaffected_by_unusable_chunk_dir(
