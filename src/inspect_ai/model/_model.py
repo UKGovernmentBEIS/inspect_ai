@@ -923,12 +923,12 @@ class Model:
         """
         config = self._resolve_config(config)
 
-        # retry handler for token counting (429/timeouts retried with the
-        # same backoff and adaptive-controller signaling as `generate`).
-        # No per-model concurrency cap: count_tokens is O(delta) under the
-        # compaction baseline mechanism, max_samples already provides the
-        # structural ceiling, retries handle rate limits, and provider
-        # count_tokens envelopes are wider than generate envelopes.
+        # Retry handler for token counting (429/timeouts retried with the
+        # same backoff as `generate`). Count-token calls still need a
+        # concurrency bound -- a caller can fan out many counts inside one
+        # sample -- but token counting hits a different provider rate-limit
+        # bucket than inference, so it gets its own pool rather than sharing
+        # the generate() connection limiter.
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -946,7 +946,53 @@ class Model:
         ) -> int:
             return await self.api.count_tokens(input, config)
 
-        return await _count_tokens(input, config)
+        model_name = ModelName(self)
+        key = f"ModelCountTokens({_connection_pool_key(self.api)})"
+
+        from inspect_ai.log._samples import cleared_retry_wait
+        from inspect_ai.util._concurrency import (
+            AdaptiveConcurrencyController,
+            _active_controller,
+            _request_had_retry,
+            adaptive_active,
+            resolve_adaptive,
+        )
+
+        # Adaptive path mirrors `_connection_concurrency`: the count pool gets
+        # its own controller (kept distinct from generate's by the key above)
+        # that shrinks on count-endpoint 429s and grows past the static cap
+        # when the endpoint allows, so the bound learns the endpoint's real
+        # capacity instead of a fixed number that re-creates queueing.
+        if adaptive_active(
+            config.adaptive_connections, config.max_connections, config.batch
+        ):
+            adaptive = resolve_adaptive(config.adaptive_connections)
+            async with concurrency(
+                f"{model_name}_count_tokens",
+                adaptive.start,
+                key,
+                adaptive=adaptive,
+                visible=False,
+            ) as sem:
+                assert isinstance(sem, AdaptiveConcurrencyController)
+                token_c = _active_controller.set(sem)
+                token_r = _request_had_retry.set(False)
+                try:
+                    with cleared_retry_wait():
+                        result = await _count_tokens(input, config)
+                    # counts are never cached, so a retry-free call always
+                    # exercised the endpoint and counts as a clean success
+                    if not _request_had_retry.get():
+                        sem.notify_success()
+                    return result
+                finally:
+                    _active_controller.reset(token_c)
+                    _request_had_retry.reset(token_r)
+
+        # static fallback (explicit max_connections or batch mode)
+        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
+            with cleared_retry_wait():
+                return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -1026,8 +1072,11 @@ class Model:
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 return await self.api.compact(messages, tools, config, instructions)
 
+            from inspect_ai.log._samples import cleared_retry_wait
+
             # Call compact with retry handling
-            compacted_messages, usage = await _compact(input)
+            with cleared_retry_wait():
+                compacted_messages, usage = await _compact(input)
 
             # Record and check usage
             if usage:
@@ -1052,7 +1101,10 @@ class Model:
         )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
-        from inspect_ai.log._samples import track_active_model_event
+        from inspect_ai.log._samples import (
+            cleared_retry_wait,
+            track_active_model_event,
+        )
 
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
@@ -1336,7 +1388,8 @@ class Model:
         # call the model (this will do retries, etc., so report waiting time
         # as elapsed time - actual time for successful model call)
         time_start = time.monotonic()
-        model_output, event = await generate()
+        with cleared_retry_wait():
+            model_output, event = await generate()
         total_time = time.monotonic() - time_start
 
         # record any model fallback against the active sample (here in the
@@ -1406,6 +1459,23 @@ class Model:
             # count toward adaptive scale-up, but the controller doesn't
             # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
+                report_http_retry()
+                return True
+
+            # anyio asyncio-backend race: SocketStream.aclose() calls
+            # transport.abort() after connection_lost already ran (nulling
+            # transport._loop). Fires during response close, i.e. after the
+            # request completed — pure cleanup noise, so retry regardless of
+            # provider. The name/obj check keeps this working if CPython
+            # rewords the message: interpreter-raised AttributeError carries
+            # name="call_soon", obj=None for this race, without matching
+            # call_soon failures on non-None receivers.
+            # See https://github.com/agronholm/anyio/issues/1250
+            # See https://github.com/meridianlabs-ai/inspect_ai/issues/177
+            if isinstance(ex, AttributeError) and (
+                "'NoneType' object has no attribute 'call_soon'" in str(ex)
+                or (ex.name == "call_soon" and ex.obj is None)
+            ):
                 report_http_retry()
                 return True
 
@@ -2103,7 +2173,6 @@ MEDIA_PLACEHOLDERS: dict[type, str] = {
     ContentDocument: "Document content is included below.",
 }
 
-MediaAccumulator: TypeAlias = tuple[list[ChatMessage], list[Content], list[str]]
 MediaContentAccumulator: TypeAlias = tuple[list[Content], list[Content]]
 
 
@@ -2116,13 +2185,44 @@ def tool_result_media_as_user_message(
     Tool responses will have matching media replaced with placeholder text,
     and the extracted content will appear in a new user message.
     """
-    message_reducer = _make_message_reducer(extract_types)
-    chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        message_reducer,
-        messages,
-        (list[ChatMessage](), list[Content](), list[str]()),
-    )
-    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
+    content_reducer = _make_content_reducer(extract_types)
+    chat_messages: list[ChatMessage] = []
+    pending_content: list[Content] = []
+    tool_call_ids: list[str] = []
+    for message in messages:
+        if (
+            isinstance(message, ChatMessageTool)
+            and isinstance(message.content, list)
+            and any(isinstance(c, extract_types) for c in message.content)
+        ):
+            new_user_message_content, edited_tool_message_content = functools.reduce(
+                content_reducer,
+                message.content,
+                (list[Content](), list[Content]()),
+            )
+            chat_messages.append(
+                ChatMessageTool(
+                    content=edited_tool_message_content,
+                    tool_call_id=message.tool_call_id,
+                    function=message.function,
+                )
+            )
+            pending_content.extend(new_user_message_content)
+            if message.tool_call_id:
+                tool_call_ids.append(message.tool_call_id)
+        else:
+            if pending_content:
+                chat_messages.append(
+                    ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+                )
+            pending_content = []
+            tool_call_ids = []
+            chat_messages.append(message)
+    if pending_content:
+        chat_messages.append(
+            ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+        )
+    return chat_messages
 
 
 def _make_content_reducer(
@@ -2142,61 +2242,6 @@ def _make_content_reducer(
         return new_user_message_content, edited_tool_message_content + [content]
 
     return reducer
-
-
-def _make_message_reducer(
-    extract_types: tuple[type, ...],
-) -> Callable[[MediaAccumulator, ChatMessage], MediaAccumulator]:
-    """Return a message-level reducer that extracts the given media types."""
-    content_reducer = _make_content_reducer(extract_types)
-
-    def reducer(accum: MediaAccumulator, message: ChatMessage) -> MediaAccumulator:
-        messages, pending_content, tool_call_ids = accum
-        if (
-            isinstance(message, ChatMessageTool)
-            and isinstance(message.content, list)
-            and any(isinstance(c, extract_types) for c in message.content)
-        ):
-            new_user_message_content, edited_tool_message_content = functools.reduce(
-                content_reducer,
-                message.content,
-                (list[Content](), list[Content]()),
-            )
-
-            return (
-                messages
-                + [
-                    ChatMessageTool(
-                        content=edited_tool_message_content,
-                        tool_call_id=message.tool_call_id,
-                        function=message.function,
-                    )
-                ],
-                pending_content + new_user_message_content,
-                tool_call_ids
-                + ([message.tool_call_id] if message.tool_call_id else []),
-            )
-
-        else:
-            return (
-                maybe_adding_user_message(messages, pending_content, tool_call_ids)
-                + [message],
-                [],
-                [],
-            )
-
-    return reducer
-
-
-def maybe_adding_user_message(
-    messages: list[ChatMessage], content: list[Content], tool_call_ids: list[str]
-) -> list[ChatMessage]:
-    """If content is empty, return messages, otherwise, create a new ChatMessageUser with it and return a new messages list with that message added."""
-    return (
-        messages + [ChatMessageUser(content=content, tool_call_id=tool_call_ids)]
-        if content
-        else messages
-    )
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
