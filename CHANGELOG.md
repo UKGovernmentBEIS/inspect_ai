@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
 - Control Channel: `inspect ctl sample list`/`show` now report a running sample's in-flight activity (`generating 7:12`, `bash 0:41`, `retrying in 0:45`), and `sample events` renders pending events, so long model calls and retry backoffs no longer read as silent idle.
 - Retry: Samples reused from a prior attempt no longer stay resident in memory awaiting a flush, and are written to the new attempt's log (readable by `inspect ctl` and viewers) as soon as the reuse sweep completes.
 - Control Channel: Paginating or polling a finished sample's events or messages no longer re-parses the whole sample per request (resolved terminal sources are briefly cached).
@@ -38,7 +39,6 @@
 
 - Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on `ModelRetry`, so hooks can distinguish e.g. timeouts from 429s and 5xxs.
 - Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
-- Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
 
 ## 0.3.250 (28 July 2026)
 
