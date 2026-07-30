@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Control Channel: A cancel arriving just after a sample errored with retries remaining now resolves the sample as cancelled, instead of counting it errored without logging it.
 - Control Channel: The control server now rejects socket connections from other users (SO_PEERCRED / LOCAL_PEERCRED peer-UID check), as defence-in-depth alongside the socket file permissions.
 - Control Channel: `inspect ctl sample events --tail` (including the default first page) now counts events matching the `--type` filter, so default reads show a useful recent window instead of a near-empty page. (meridianlabs-ai/inspect_ai#162)
 - Control Channel: Where the CLI already shows a stall — a long-idle running sample in `inspect ctl sample list`, or a busy-skipped process — it now points at `inspect ctl process anomalies` as the escalation.
