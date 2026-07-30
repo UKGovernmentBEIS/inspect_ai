@@ -788,10 +788,15 @@ def clear_all_eval_states() -> None:
 
     Called at the outermost run boundary (``eval`` / ``eval_set``) — after
     any keep-alive park — to clear the registry in one shot, since evals
-    are no longer unregistered individually.
+    are no longer unregistered individually. The terminal-source caches
+    (events / messages) are cleared in the same shot: every cached source
+    was derived from a registered eval, so none may outlive the registry.
     """
+    from inspect_ai._control.terminal_cache import clear_terminal_source_caches
+
     with _lock:
         _eval_states.clear()
+    clear_terminal_source_caches()
 
 
 def reset_run_registries() -> None:

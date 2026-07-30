@@ -14,7 +14,7 @@ from test_helpers.buffer import simulate_crashed_buffer_db
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -133,7 +133,7 @@ def _create_buffer_db(
             started_at=datetime.now(timezone.utc).isoformat(),
             completed_at=datetime.now(timezone.utc).isoformat(),
         )
-        buffer.complete_sample(completed)
+        buffer.complete_sample(completed, sample_metadata=None)
 
     for id in in_progress_ids:
         started = EvalSampleSummary(
@@ -177,10 +177,52 @@ async def test_recover_eval_log_end_to_end() -> None:
             assert log.samples is not None
             assert len(log.samples) == 4
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.status == "error"
             assert read_log.samples is not None
             assert len(read_log.samples) == 4
+
+
+async def test_recover_eval_log_preserves_completed_sample_metadata() -> None:
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = os.path.join(temp_dir, "bufferdb")
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+            _write_crashed_eval(eval_path)
+
+            initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+            final = {
+                "world": {
+                    **initial["world"],
+                    "solver-added": {"active": False},
+                }
+            }
+            summary = EvalSampleSummary(
+                id=1,
+                epoch=1,
+                input="input 1",
+                target="target 1",
+                metadata=initial,
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            )
+            assert summary.metadata["world"] == "Key removed from summary (> 1k)"
+
+            buffer = SampleBufferDatabase(eval_path, create=True, db_dir=Path(db_dir))
+            buffer.start_sample(summary)
+            buffer.log_events(
+                [SampleEvent(id=1, epoch=1, event=_make_model_event("output 1"))]
+            )
+            buffer.complete_sample(summary, sample_metadata=final)
+            simulate_crashed_buffer_db(buffer)
+
+            await recover_eval_log_async(
+                eval_path, output=output_path, cleanup=False, _db_dir=db_dir
+            )
+
+            recovered = await read_eval_log_async(output_path)
+            assert recovered.samples is not None
+            assert recovered.samples[0].metadata == final
 
 
 async def test_recover_eval_log_no_buffer_db() -> None:

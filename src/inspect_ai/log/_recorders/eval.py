@@ -30,7 +30,7 @@ import anyio
 from pydantic import BaseModel, Field, JsonValue
 from typing_extensions import override
 
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import current_async_backend, tg_collect
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
@@ -171,9 +171,14 @@ class EvalRecorder(FileRecorder):
         await log.start(start)
 
     @override
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
         log = self.data[self._log_file_key(eval)]
-        await log.buffer_sample(sample)
+        if write_through:
+            await log.buffer_sample_write_through(sample)
+        else:
+            await log.buffer_sample(sample)
 
     @override
     async def log_sample_streaming(
@@ -569,8 +574,12 @@ async def _read_member_json_excluding(
     exclude_fields: set[str],
 ) -> dict[str, Any]:
     """Parse a zip member's JSON, skipping excluded top-level fields via ijson streaming."""
-    import ijson  # type: ignore
-    from ijson import IncompleteJSONError, ObjectBuilder
+    # get_ijson_backend() falls back to the pure-Python backend under trio
+    # (yajl2_c's parse_async is asyncio-only).
+    from inspect_ai._util.json import get_ijson_backend
+
+    ijson = get_ijson_backend()
+    from ijson import IncompleteJSONError, ObjectBuilder  # type: ignore[import-untyped]
     from ijson.backends.python import (  # type: ignore[import-untyped]
         UnexpectedSymbol,
     )
@@ -854,6 +863,48 @@ class ZipLogFile:
             self._streaming_samples.pop(key, None)
             self._samples.append(buffered)
 
+    async def buffer_sample_write_through(self, sample: EvalSample) -> None:
+        """Write a completed sample straight into the temp-file zip.
+
+        The bulk re-log counterpart to :meth:`buffer_sample` (used for a
+        retry's reused completed samples): the full sample — events included —
+        goes into the temp zip immediately, so it lands on local disk instead
+        of staying resident in ``_samples`` until the next flush (anything in
+        the temp zip reaches the destination on any later flush, which copies
+        the whole file). Mirrors :meth:`buffer_sample_streaming`: only an
+        event-less copy is retained in ``_streaming_samples`` (cleared by
+        ``flush`` once the sample is on-disk-readable) so control-channel
+        reads of error detail / scores keep working pre-flush — event reads
+        are unavailable until the next flush — and the summary is journalled
+        immediately with the same replace-by-``(id, epoch)`` dedupe. Nothing
+        is appended to ``_samples``.
+        """
+        async with self._lock:
+            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
+
+            self._streaming_samples[(sample.id, sample.epoch)] = sample.model_copy(
+                update={"events": [], "events_data": None}
+            )
+
+            self._journal_summary(sample)
+
+    def _journal_summary(self, sample: EvalSample) -> None:
+        """Journal the sample's summary and merge it into ``_summaries``.
+
+        Replaces any existing summary for the same ``(id, epoch)`` (e.g. when
+        re-logging completed samples after log_init with clean=False during
+        eval_retry / score --overwrite). Caller must hold ``self._lock``.
+        """
+        self._summary_counter += 1
+        summary = sample.summary()
+        summary_file = _journal_summary_file(self._summary_counter)
+        summary_path = _journal_summary_path(summary_file)
+        self._zip_writestr(summary_path, [summary])
+        self._summaries = [
+            s for s in self._summaries if (s.id, s.epoch) != (summary.id, summary.epoch)
+        ]
+        self._summaries.append(summary)
+
     async def buffer_sample_streaming(
         self, sample: EvalSample, history: "SampleHistory"
     ) -> None:
@@ -897,17 +948,7 @@ class ZipLogFile:
             # Cleared in ``flush`` once the sample lands on disk.
             self._streaming_samples[(sample.id, sample.epoch)] = sample
 
-            self._summary_counter += 1
-            summary = sample.summary()
-            summary_file = _journal_summary_file(self._summary_counter)
-            summary_path = _journal_summary_path(summary_file)
-            self._zip_writestr(summary_path, [summary])
-            self._summaries = [
-                s
-                for s in self._summaries
-                if (s.id, s.epoch) != (summary.id, summary.epoch)
-            ]
-            self._summaries.append(summary)
+            self._journal_summary(sample)
 
     async def write_buffered_samples(self) -> None:
         async with self._lock:
@@ -964,10 +1005,11 @@ class ZipLogFile:
         completion paths during the window before a sample is flushed to disk:
 
         - ``_samples`` — buffered whole samples (with events) awaiting a flush
-          (the reused-on-retry path).
-        - ``_streaming_samples`` — the streaming path's event-less samples
-          (their events live in the buffer database, so this carries error
-          detail / scores but not events).
+          (the default :meth:`buffer_sample` path).
+        - ``_streaming_samples`` — event-less samples from the streaming and
+          write-through paths (their events live in the buffer database and
+          the temp zip respectively, so this carries error detail / scores
+          but not events).
 
         Returns ``None`` once flushed (the on-disk log takes over) or for a
         recorder that doesn't buffer; callers fall back to the on-disk log.
@@ -1041,6 +1083,13 @@ class ZipLogFile:
         async with self._lock:
             try:
                 self._temp_file.seek(0)
+                # Under trio, read the full log eagerly from the temp file
+                # bytes: LazyList materialization goes through the sync
+                # read_eval_log(), which raises in a trio async context.
+                if not header_only and current_async_backend() == "trio":
+                    return _read_log_from_bytes(
+                        self._temp_file, self._file, header_only=False
+                    )
                 # Always read header only from temp file (fast path)
                 eval_log = _read_log_from_bytes(
                     self._temp_file, self._file, header_only=True
