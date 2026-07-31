@@ -4,9 +4,9 @@ from typing import Any, Awaitable, Callable, TypeVar, cast
 
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     is_registry_object,
     registry_add,
-    registry_create,
     registry_info,
     registry_name,
     registry_tag,
@@ -224,7 +224,7 @@ def plan_register(
     return plan
 
 
-def plan_create(name: str, **kwargs: Any) -> Plan:
+def plan_create(name: str, /, **kwargs: Any) -> Plan:
     r"""Create a Plan based on its registered name.
 
     Args:
@@ -234,4 +234,7 @@ def plan_create(name: str, **kwargs: Any) -> Plan:
     Returns:
         Plan with registry info attribute
     """
-    return registry_create("plan", name, **kwargs)
+    # create_registry_object takes creation args as a dict, so a plan arg
+    # named `name`/`type` cannot collide with registry_create's own leading
+    # parameters.
+    return cast(Plan, create_registry_object("plan", name, kwargs))

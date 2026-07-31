@@ -22,9 +22,9 @@ def running_tasks(log_dir: str) -> list[str]:
         return SampleBufferFilestore.running_tasks(log_dir) or []
 
 
-def cleanup_sample_buffers(log_dir: str) -> None:
+async def cleanup_sample_buffers(log_dir: str) -> None:
     try:
         cleanup_sample_buffer_databases()
-        cleanup_sample_buffer_filestores(log_dir)
+        await cleanup_sample_buffer_filestores(log_dir)
     except Exception as ex:
         logger.warning(f"Unexpected error cleaning up sample buffers: {ex}")
