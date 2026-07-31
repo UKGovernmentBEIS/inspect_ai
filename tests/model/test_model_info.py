@@ -87,6 +87,30 @@ class TestGetModelInfo:
         assert info.organization == "Moonshot AI"
         assert info.context_length == 1048576
 
+    def test_known_deepseek_v4_model(self):
+        """Test lookup of a known DeepSeek V4 model."""
+        info = get_model_info("deepseek/deepseek-v4-pro")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.context_length == 1048576
+        assert info.output_tokens == 393216
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
+    def test_deepseek_v4_flash_snapshot(self):
+        """Test lookup of a DeepSeek V4 Flash versioned snapshot."""
+        info = get_model_info("deepseek/DeepSeek-V4-Flash-0731")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.snapshot == "0731"
+
+    def test_deepseek_org_detection_on_hosting_provider(self):
+        """Test deepseek-* org detection for hosting providers (e.g. azureai)."""
+        info = get_model_info("azureai/deepseek-v4-flash")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.context_length == 1048576
+
     def test_unknown_model_returns_none(self):
         """Test that unknown models return None."""
         info = get_model_info("unknown-provider/unknown-model-xyz")

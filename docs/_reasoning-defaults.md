@@ -9,6 +9,8 @@
 | anthropic/claude-sonnet-4-6 | adaptive |
 | anthropic/claude-sonnet-5 | high |
 | deepseek/deepseek-reasoner | no effort scale |
+| deepseek/deepseek-v4-flash | high |
+| deepseek/deepseek-v4-pro | high |
 | google/gemini-3-flash-preview | medium |
 | google/gemini-3-pro | high |
 | google/gemini-3.1-flash-lite-preview | medium |
