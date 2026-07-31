@@ -18,6 +18,27 @@ The `inspect eval-set` command and `eval_set()` function and provide several fac
 
 Below we'll cover the various tools and techniques available for creating eval sets.
 
+::: {.callout-tip appearance="simple"}
+#### Agent Skill Available
+
+Want your coding agent to run eval sets and watch them for you? The `babysitting-evals` skill teaches it to launch evals, monitor progress, and catch stalls and errors early.
+
+Claude Code:
+
+``` default
+/plugin marketplace add meridianlabs-ai/inspect-skills
+/plugin install inspect-skills@meridian
+```
+
+Other agents:
+
+``` bash
+npx skills add meridianlabs-ai/inspect-skills --skill babysitting-evals
+```
+
+See the [inspect-skills README](https://github.com/meridianlabs-ai/inspect-skills#install) for all supported agents and options.
+:::
+
 ## Running Eval Sets
 
 Run a set of evaluations using the `inspect eval-set` command or `eval_set()` function. For example:
