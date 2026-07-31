@@ -373,3 +373,100 @@ def test_eval_retry_token_usage_multi_retry():
     assert log3.status == "success"
     tokens3 = get_tokens(log3)
     assert tokens3 > tokens2
+
+
+async def _log_with_clean_sample(
+    log_dir: str, sample_id: int, exclude: object = None
+) -> str | None:
+    """Path of a .eval log in `log_dir` holding a clean copy of `sample_id`."""
+    from inspect_ai.log._file import read_eval_log_sample_async
+
+    for name in os.listdir(log_dir):
+        if not name.endswith(".eval"):
+            continue
+        location = os.path.join(log_dir, name)
+        if exclude == location:
+            continue
+        try:
+            sample = await read_eval_log_sample_async(location, sample_id, 1)
+        except Exception:
+            continue
+        if sample.error is None:
+            return location
+    return None
+
+
+@solver
+def _reuse_flush_probe_solver(log_dir: str, probe_dir: str):
+    # cross-attempt state lives in probe_dir marker files: eval_retry
+    # re-imports the task's source file, so module globals don't survive
+    # into the retry attempt
+    import anyio
+
+    failed_marker = os.path.join(probe_dir, "failed")
+    first_log_marker = os.path.join(probe_dir, "first_log")
+    flushed_marker = os.path.join(probe_dir, "reused_flushed_during_live")
+
+    async def solve(state: TaskState, generate):
+        if state.sample_id == 1:
+            return state
+        if not os.path.exists(failed_marker):
+            # first attempt: fail only once sample 1 is flushed to the log,
+            # so the retry deterministically has a completed sample to reuse
+            with anyio.fail_after(30):
+                while (first_log := await _log_with_clean_sample(log_dir, 1)) is None:
+                    await anyio.sleep(0.1)
+            with open(first_log_marker, "w") as f:
+                f.write(first_log)
+            open(failed_marker, "w").close()
+            raise ValueError("first attempt fails")
+        # retry attempt: while this live sample runs (it completes nothing, so
+        # no threshold/stale-timer flush ever triggers), the reuse-sweep settle
+        # flush must land the reused sample in the new destination log
+        with open(first_log_marker) as f:
+            first_log = f.read()
+        with anyio.move_on_after(30):
+            while await _log_with_clean_sample(log_dir, 1, exclude=first_log) is None:
+                await anyio.sleep(0.1)
+            open(flushed_marker, "w").close()
+        return state
+
+    return solve
+
+
+@task
+def _reuse_flush_probe_task(log_dir: str, probe_dir: str) -> Task:
+    return Task(
+        dataset=[
+            Sample(input="Say hello", target="hello"),
+            Sample(input="Say hello again", target="hello"),
+        ],
+        solver=[_reuse_flush_probe_solver(log_dir, probe_dir)],
+    )
+
+
+def test_eval_retry_flushes_reused_samples_during_live_run(tmp_path: Path):
+    # design/retry-reused-sample-flush.md: a retry re-logs prior completed
+    # samples with flush=False; one deterministic flush when the reuse sweep
+    # settles must make them durable/readable in the new attempt's log without
+    # waiting for a live-sample completion (which the probe withholds)
+    log_dir = str(tmp_path / "logs")
+    probe_dir = str(tmp_path / "probe")
+    os.makedirs(log_dir)
+    os.makedirs(probe_dir)
+
+    log = eval(
+        _reuse_flush_probe_task(log_dir, probe_dir),
+        model="mockllm/model",
+        log_dir=log_dir,
+    )[0]
+    assert log.status == "error"
+
+    retryable = retryable_eval_logs(list_eval_logs(log_dir))
+    assert len(retryable) == 1
+    retry_log = eval_retry(retryable, log_dir=log_dir)[0]
+
+    assert os.path.exists(os.path.join(probe_dir, "reused_flushed_during_live"))
+    assert retry_log.status == "success"
+    assert retry_log.samples is not None
+    assert {(s.id, s.epoch) for s in retry_log.samples} == {(1, 1), (2, 1)}

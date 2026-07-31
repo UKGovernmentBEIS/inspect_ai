@@ -15,6 +15,7 @@ Layout (per sample)::
     samples/{id}_epoch_{epoch}/messages/{start}.json
     samples/{id}_epoch_{epoch}/events/{start}.json
     samples/{id}_epoch_{epoch}/events/stats.json
+    samples/{id}_epoch_{epoch}/events/uuids.json
     samples/{id}_epoch_{epoch}/calls/{start}.json
     samples/{id}_epoch_{epoch}/attachments/{start}.json
 
@@ -23,8 +24,11 @@ carry no range semantics (every range that appears in the data is
 half-open ``[start, end_exclusive)``, and a name like ``0-50`` invites
 inclusive misreading). Chunks are contiguous and complete, so the chunk
 holding index ``i`` is the one with the greatest start <= ``i``; a
-chunk's extent is the next chunk's start (the last chunk's end is the
-sequence count, from the shell's ``sequences`` boundaries). Chunk size
+chunk's extent is the next chunk's start (the last chunk's end — the
+sequence count — is learned by parsing it; for events it is also the
+sum of the stats sidecar's per-chunk type counts). The central
+directory's entry names are the only persisted record of the chunk
+layout. Chunk size
 is writer policy, not format: messages/events/calls chunk by item count,
 attachments chunk by target byte size (contents vary from ~100B to MBs).
 
@@ -52,6 +56,7 @@ SHELL_JSON = "sample.json"
 METADATA_JSON = "metadata.json"
 SKELETON_JSON = "skeleton.json"
 STATS_JSON = "stats.json"
+UUIDS_JSON = "uuids.json"
 
 MESSAGES_SEQUENCE = "messages"
 EVENTS_SEQUENCE = "events"
@@ -87,6 +92,17 @@ def events_stats_entry_name(id: str | int, epoch: int) -> str:
     numeric, so ``stats.json`` can never collide with one.
     """
     return f"{sample_prefix(id, epoch)}/{EVENTS_SEQUENCE}/{STATS_JSON}"
+
+
+def events_uuids_entry_name(id: str | int, epoch: int) -> str:
+    """Event uuids in ordinal order (position = ordinal), lazily fetched.
+
+    O(1) uuid->ordinal resolution for deep links and server-timeline
+    references at any sample size (design/large-samples.md, change log
+    2026-07-22). Identity facts only — ~1% of event bytes. Lives inside
+    ``events/`` like ``stats.json`` (numeric chunk names cannot collide).
+    """
+    return f"{sample_prefix(id, epoch)}/{EVENTS_SEQUENCE}/{UUIDS_JSON}"
 
 
 def chunk_entry_name(id: str | int, epoch: int, sequence: str, start: int) -> str:
@@ -138,9 +154,10 @@ def chunk_ranges(count: int, chunk_size: int) -> list[ChunkRange]:
 def chunk_boundaries(count: int, chunk_size: int) -> list[int]:
     """Cumulative end-exclusive chunk boundaries for count-based chunking.
 
-    This is the shape the shell's ``sequences`` field carries: the last
-    element is the sequence's total count; chunk entry starts are
-    ``[0, *boundaries[:-1]]``.
+    The last element is the sequence's total count; chunk entry starts
+    are ``[0, *boundaries[:-1]]``. Write-time shape only (chunk naming
+    and the stats sidecar) — boundaries are never persisted; readers
+    recover starts from entry names.
     """
     return [range.end_exclusive for range in chunk_ranges(count, chunk_size)]
 
