@@ -43,6 +43,7 @@
 - Bugfix: `text_editor()` paths containing a null byte now return a tool error to the model instead of crashing the tool. (#4659)
 - Bugfix: Anthropic: `count_tokens()` now sends `extra_headers` from the generate config (including any `anthropic-beta` values), matching `generate()`. (#4606)
 - Bugfix: Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
+- Bugfix: Dataset fields holding float `NaN` (as produced by Pandas, Hugging Face, CSV, and PyArrow sources for missing values) are now treated as missing for `input`, `choices`, `setup`, `sandbox`, `files`, and `metadata`, matching the existing `target` behavior. (#4626)
 
 ## 0.3.251 (29 July 2026)
 
