@@ -1,0 +1,243 @@
+{
+  "description": "Workflow of generate() calls with mixed system prompts and no tool calls. With no tool-calling loop there is no primary trajectory, so no call may be wrapped as a hidden utility agent \u2014 all five model events stay direct content of the main agent.",
+  "events": [
+    {
+      "event": "span_begin",
+      "id": "solvers",
+      "name": "solvers",
+      "type": "solvers",
+      "parent_id": null,
+      "timestamp": "2026-01-01T00:00:01Z",
+      "uuid": "sb-solvers"
+    },
+    {
+      "event": "span_begin",
+      "id": "solver",
+      "name": "monitor",
+      "type": "solver",
+      "parent_id": "solvers",
+      "timestamp": "2026-01-01T00:00:02Z",
+      "uuid": "sb-solver"
+    },
+    {
+      "event": "model",
+      "uuid": "m1",
+      "span_id": "solver",
+      "timestamp": "2026-01-01T00:00:03Z",
+      "completed": "2026-01-01T00:00:04Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the x-extract checker."
+        },
+        {
+          "role": "user",
+          "content": "x-extract-1"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m2",
+      "span_id": "solver",
+      "timestamp": "2026-01-01T00:00:05Z",
+      "completed": "2026-01-01T00:00:06Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the x-extract checker."
+        },
+        {
+          "role": "user",
+          "content": "x-extract-2"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m3",
+      "span_id": "solver",
+      "timestamp": "2026-01-01T00:00:07Z",
+      "completed": "2026-01-01T00:00:08Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the y-extract checker."
+        },
+        {
+          "role": "user",
+          "content": "y-extract-1"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m4",
+      "span_id": "solver",
+      "timestamp": "2026-01-01T00:00:09Z",
+      "completed": "2026-01-01T00:00:10Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the y-ground checker."
+        },
+        {
+          "role": "user",
+          "content": "y-ground-1"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "model",
+      "uuid": "m5",
+      "span_id": "solver",
+      "timestamp": "2026-01-01T00:00:11Z",
+      "completed": "2026-01-01T00:00:12Z",
+      "model": "mockllm/model",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are the y-ground checker."
+        },
+        {
+          "role": "user",
+          "content": "y-ground-2"
+        }
+      ],
+      "tools": [],
+      "tool_choice": "none",
+      "config": {},
+      "output": {
+        "model": "mockllm/model",
+        "choices": [
+          {
+            "message": {
+              "role": "assistant",
+              "content": "ok"
+            },
+            "stop_reason": "stop"
+          }
+        ],
+        "usage": {
+          "input_tokens": 5,
+          "output_tokens": 1,
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "event": "span_end",
+      "id": "solver",
+      "timestamp": "2026-01-01T00:00:13Z",
+      "uuid": "se-solver"
+    },
+    {
+      "event": "span_end",
+      "id": "solvers",
+      "timestamp": "2026-01-01T00:00:14Z",
+      "uuid": "se-solvers"
+    }
+  ],
+  "expected": {
+    "init": null,
+    "agent": {
+      "id": "solvers",
+      "name": "main",
+      "event_uuids": [
+        "sb-solver",
+        "m1",
+        "m2",
+        "m3",
+        "m4",
+        "m5",
+        "se-solver"
+      ],
+      "children": []
+    },
+    "scoring": null
+  }
+}
