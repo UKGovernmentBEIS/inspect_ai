@@ -208,7 +208,7 @@ def _validated_path(path_str: str, command: str) -> Path:
                     f"The path {path} is a directory and only the `view` command can be used on directories"
                 )
         return path
-    except OSError as e:
+    except (OSError, ValueError) as e:
         raise ToolException(f"Invalid path {path_str!r}: {e}") from None
 
 
