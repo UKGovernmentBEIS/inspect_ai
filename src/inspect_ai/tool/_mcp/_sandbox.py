@@ -11,7 +11,6 @@ from mcp.types import (
     INTERNAL_ERROR,
     ErrorData,
     JSONRPCError,
-    JSONRPCMessage,
     JSONRPCNotification,
 )
 
@@ -27,6 +26,11 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_t
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
+from ._compat import (
+    JSONRPC_MESSAGE_VALIDATOR,
+    jsonrpc_message,
+    jsonrpc_message_root,
+)
 from ._context import MCPServerContext
 
 logger = getLogger(__name__)
@@ -99,7 +103,7 @@ async def sandbox_client(  # type: ignore
             async with write_stream_reader:
                 # This reads messages until the stream is closed
                 async for message in write_stream_reader:
-                    root = message.message.root
+                    root = jsonrpc_message_root(message.message)
                     if isinstance(root, JSONRPCRequest):
                         try:
                             response = await exec_model_request(
@@ -108,7 +112,7 @@ async def sandbox_client(  # type: ignore
                                     "session_id": session_id,
                                     "request": root.model_dump(),
                                 },
-                                result_type=JSONRPCMessage,
+                                result_type=JSONRPC_MESSAGE_VALIDATOR,
                                 transport=transport,
                                 error_mapper=SandboxToolsErrorMapper,
                                 timeout=timeout,
@@ -129,7 +133,7 @@ async def sandbox_client(  # type: ignore
                                 error_message = f"MCP request failed before completing ({type(ex).__name__}): {ex}"
                             await send_to_read_stream(
                                 SessionMessage(
-                                    message=JSONRPCMessage(
+                                    message=jsonrpc_message(
                                         JSONRPCError(
                                             jsonrpc="2.0",
                                             id=root.id,
@@ -144,7 +148,9 @@ async def sandbox_client(  # type: ignore
                             )
                             continue
                         await send_to_read_stream(
-                            SessionMessage(message=response),
+                            SessionMessage(
+                                message=jsonrpc_message(jsonrpc_message_root(response))
+                            ),
                         )
                     elif isinstance(root, JSONRPCNotification):
                         try:

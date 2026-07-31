@@ -12,6 +12,7 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
 )
 
@@ -230,4 +231,14 @@ async def test_thinking_compaction_grok_4_5() -> None:
     await check_thinking_compaction(
         "grok/grok-4.5",
         GenerateConfig(reasoning_effort="low"),
+    )
+
+
+@skip_if_no_moonshot
+@pytest.mark.slow
+async def test_thinking_compaction_moonshot() -> None:
+    # kimi-k3 thinking is always on, so reasoning is reliably present
+    await check_thinking_compaction(
+        "moonshot/kimi-k3",
+        GenerateConfig(reasoning_effort="max"),
     )
