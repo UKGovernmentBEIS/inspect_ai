@@ -184,7 +184,7 @@ Claude Code:
 Other agents:
 
 ``` bash
-npx skills add meridianlabs-ai/inspect-skills --skill reading-logs
+npx skills add meridianlabs-ai/inspect-skills
 ```
 
 See the [inspect-skills README](https://github.com/meridianlabs-ai/inspect-skills#install) for all supported agents and options.
