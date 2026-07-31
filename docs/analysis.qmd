@@ -13,3 +13,24 @@ Once an evaluation has run, Inspect provides a number of tools for inspecting, a
 | [Inspect Viz](inspect-viz.qmd) | Create high quality, interactive visualisations from Inspect evaluation logs. |
 | [Task Views](task-views.qmd) | Customise how a task's samples, scores, and scanner results render in the log viewer. |
 : {.borderless tbl-colwidths=[35,65]}
+
+::: {.callout-tip appearance="simple"}
+#### Agent Skill Available
+
+Want your coding agent to answer questions about your eval results? The `analyzing-logs` skill teaches it to pick the right analysis tool for the question.
+
+Claude Code:
+
+``` default
+/plugin marketplace add meridianlabs-ai/inspect-skills
+/plugin install inspect-skills@meridian
+```
+
+Other agents:
+
+``` bash
+npx skills add meridianlabs-ai/inspect-skills --skill analyzing-logs
+```
+
+See the [inspect-skills README](https://github.com/meridianlabs-ai/inspect-skills#install) for all supported agents and options.
+:::

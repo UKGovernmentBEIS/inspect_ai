@@ -169,6 +169,27 @@ To disable model API logging entirely (errors only), use `--no-log-model-api`.
 
 ## Log File API {#sec-log-file-api}
 
+::: {.callout-tip appearance="simple"}
+#### Agent Skill Available
+
+Want your coding agent to read eval logs efficiently? The `reading-logs` skill teaches it to pick the cheapest read for the question and handle very large logs safely.
+
+Claude Code:
+
+``` default
+/plugin marketplace add meridianlabs-ai/inspect-skills
+/plugin install inspect-skills@meridian
+```
+
+Other agents:
+
+``` bash
+npx skills add meridianlabs-ai/inspect-skills --skill reading-logs
+```
+
+See the [inspect-skills README](https://github.com/meridianlabs-ai/inspect-skills#install) for all supported agents and options.
+:::
+
 ### EvalLog
 
 The `EvalLog` object returned from `eval()` provides programmatic interface to the contents of log files:
