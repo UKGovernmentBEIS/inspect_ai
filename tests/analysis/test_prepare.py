@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Any
 
-from inspect_ai.analysis import evals_df, log_viewer, prepare, task_info
+from inspect_ai.analysis import evals_df, frontier, log_viewer, prepare, task_info
 from inspect_ai.analysis._dataframe.samples.table import samples_df
 from inspect_ai.analysis._prepare.score_to_float import score_to_float
 
@@ -60,6 +60,38 @@ def test_score_to_float_with_na():
             assert math.isnan(converted)
         else:
             assert isinstance(converted, float) and not math.isnan(converted)
+
+
+def test_frontier_all_na_scores_in_date_group():
+    """frontier() must not crash when a release-date group has only NA scores.
+
+    When logs from multiple models are combined, a model_release_date group can
+    contain only missing headline scores (e.g. a model that wasn't run on the
+    task). Grouping by date and calling idxmax() over such an all-NA group
+    raises (pandas >= 3) or returns NaN (pandas < 3, breaking the subsequent
+    .loc), so rows with a missing score must be dropped before grouping.
+    """
+    import pandas as pd
+
+    nan = float("nan")
+    df = pd.DataFrame(
+        {
+            "task_name": ["t", "t", "t", "t"],
+            "model_release_date": [
+                "2024-01-01",
+                "2024-01-01",
+                "2024-02-01",
+                "2024-03-01",
+            ],
+            "score_headline_value": [nan, nan, 0.5, 0.7],
+        }
+    )
+
+    out = prepare(df, frontier())
+
+    # the all-NA-score date group (2024-01-01) is skipped; the later scored
+    # models are each an improvement, so both are on the frontier
+    assert list(out["frontier"]) == [False, False, True, True]
 
 
 def check_log_viewer(

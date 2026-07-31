@@ -254,6 +254,79 @@ async def test_terminal_sample_resolves_message_attachments(
         clear_all_eval_states()
 
 
+async def test_terminal_source_resolved_once_across_polls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Polling a terminal sample's messages parses the sample once, not per poll.
+
+    On the terminal path `tail` bounds the *response*, not the *read*: the
+    whole-conversation parse and attachment resolution ran per request against
+    an immutable source. The short-TTL cache collapses that; clearing the
+    eval states (the run boundary) also drops the cache.
+    """
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai.log._log import EvalSample
+
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [])
+
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="question",
+        target="answer",
+        messages=[ChatMessageUser(content=f"m{i}") for i in range(5)],
+    )
+    reads = [0]
+
+    async def read_sample(id: Any, epoch: int, *, exclude_fields: Any = None) -> Any:
+        reads[0] += 1
+        return sample
+
+    try:
+        register_eval("e1", 1, live=FakeLiveEvalData(sample=read_sample))
+        page1 = await sample_messages("e1", "s1", 1, tail=2)
+        page2 = await sample_messages("e1", "s1", 1, tail=2)
+        assert page1 is not None and page2 is not None
+        assert [m["content"] for m in page2["messages"]] == ["m3", "m4"]
+        assert reads[0] == 1
+
+        # the run-boundary registry clear also drops the cached source
+        clear_all_eval_states()
+        register_eval("e1", 1, live=FakeLiveEvalData(sample=read_sample))
+        assert await sample_messages("e1", "s1", 1) is not None
+        assert reads[0] == 2
+    finally:
+        clear_all_eval_states()
+
+
+async def test_running_attempt_invalidates_other_endpoints_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Observing a retry on the messages endpoint drops the events cache too.
+
+    The mirror of the events-side test: a retry supersedes the prior
+    attempt's terminal source in both projections, so the invalidation must
+    reach every registered cache, not just this endpoint's.
+    """
+    import inspect_ai._control.events as events_mod
+    import inspect_ai._control.messages as messages_mod
+    import inspect_ai.log._samples as samples_mod
+    from inspect_ai._control.events import EventsSource
+
+    key = ("e1", "1", 1)
+    events_mod._terminal_sources.put(
+        key, EventsSource(nonce="n", fetch=lambda start, limit: [], total=0, done=True)
+    )
+
+    running = _fake_running_sample([ChatMessageUser(content="retrying")])
+    monkeypatch.setattr(samples_mod, "active_samples", lambda: [running])
+    assert await sample_messages("e1", "1", 1) is not None
+
+    assert events_mod._terminal_sources.get(key) is None
+    assert messages_mod._terminal_sources.get(key) is None
+
+
 async def test_terminal_errored_sample_reports_error_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
