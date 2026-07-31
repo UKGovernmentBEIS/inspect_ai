@@ -37,7 +37,9 @@ section in the PR description summarizing pre-PR review passes: what
 model/tool reviewed and whether the review ran in a fresh context and/or
 used a different model from the author, how many passes, and the findings
 — issues found, which
-were fixed, and which were dismissed with a one-line reason each. If no
+were fixed, and which were dismissed with a one-line reason each. Multiple
+passes, each in a fresh context, often catch issues a single pass misses —
+prefer that for non-trivial changes. If no
 review pass was run, say so explicitly. Never report a review that didn't
 happen — a fabricated or content-free review claim ("reviewed, looks good")
 is worse than disclosing none. Example:
@@ -101,7 +103,7 @@ Additional files provide context when working in specific areas:
 
 Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info). Include the `### Agent review` section described in the contribution policy above (put it under "Other information"). Please include a sufficiently detailed description of the PR, including briefly noting the user facing experience that triggered the fix or change.
 
-Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? Refactoring and dev-tooling PRs have no user-facing outcome — there, describe the change itself. The same rule applies to CHANGELOG entries.
+Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 
 When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
 
