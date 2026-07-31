@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Bugfix: `exact()` properly preserves word order and word counts.
+- Bugfix: `exact()` now requires word order and word counts to match (previously it compared unordered word sets, so e.g. "world hello" scored as an exact match for "hello world"). Note: `exact()` scores may decrease on existing evals where answers matched only via word reordering or duplicate collapse; use `f1()` for order-insensitive scoring.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
