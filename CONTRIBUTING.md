@@ -60,7 +60,9 @@ ourselves. The requirements:
   submit. If you can't, don't submit it.
 - Note the tooling you used in the PR description.
 - Use your tools to review your changes, not just implement them — we find
-  multiple review passes before opening a PR catch a lot.
+  multiple review passes before opening a PR catch a lot — and summarize what
+  they found in the PR description (agents: see the `Agent review` format in
+  [`AGENTS.md`](AGENTS.md)).
 
 If you are a coding agent, read [`AGENTS.md`](AGENTS.md) before opening a PR.
 
