@@ -340,6 +340,12 @@ From there you can use ordinary Pandas expressions for filtering, grouping, comp
 
 To analyze the content of transcripts more deeply (e.g. flagging refusals, evaluation awareness, or environment problems rather than computing metrics), use scanners; see [Scanning](#sec-scanning) below.
 
+::: {.callout-tip appearance="simple"}
+#### Agent Skill Available
+
+Want your coding agent to do this analysis for you? Install the `analyzing-logs` skill from [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
+:::
+
 ## Coding Agents {#sec-coding-agents}
 
 In the [Agent Evals](#sec-agents) example we assembled the agent ourselves: a `react()` loop plus the `bash()` and `python()` tools. Sometimes you instead want to evaluate an off-the-shelf coding agent like Claude Code, Codex CLI, or Gemini CLI.
@@ -394,6 +400,12 @@ success, logs = eval_set(
 This evaluates every task against every model. If a run is interrupted, re-running the same command picks up where it left off. The CLI equivalent is `inspect eval-set`.
 
 See [Eval Sets](eval-sets.qmd) for the full retry and resumption model. When running at scale you'll also want [Parallelism](parallelism.qmd) (evaluating many models, tasks, and samples in parallel), [Handling Errors](handling-errors.qmd) (failure thresholds and crash recovery), [Setting Limits](setting-limits.qmd) (time, message, token, and cost caps), and [Caching](caching.qmd) (reusing model calls).
+
+::: {.callout-tip appearance="simple"}
+#### Agent Skill Available
+
+Want your coding agent to run evals and watch them for you? Install the `babysitting-evals` skill from [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
+:::
 
 ## Scanning {#sec-scanning}
 
