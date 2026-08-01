@@ -873,7 +873,15 @@ class Model:
                             completed_at=datetime.now(timezone.utc),
                             working_now=sample_working_time(),
                         )
-                        transcript()._event_updated(terminal_event)  # pyright: ignore[reportPrivateUsage]
+                        # Notify event listeners only for ordinary exceptions.
+                        # During cancellation/interrupt unwind the in-place
+                        # mutation above is enough (the transcript already
+                        # holds the event); firing the update listeners here
+                        # races the cancel path's own pending-resolution
+                        # machinery, which can surface a raw CancelledError
+                        # instead of resolving the sample as cancelled.
+                        if isinstance(ex, Exception):
+                            transcript()._event_updated(terminal_event)  # pyright: ignore[reportPrivateUsage]
                     raise
 
                 from inspect_ai.event._model import ModelEvent
