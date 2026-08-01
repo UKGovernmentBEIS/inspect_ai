@@ -12209,7 +12209,7 @@ function rowObjectExpression(node, table, props = table.columnNames()) {
 	return node;
 }
 //#endregion
-//#region ../../node_modules/.pnpm/acorn@8.15.0/node_modules/acorn/dist/acorn.mjs
+//#region ../../node_modules/.pnpm/acorn@8.17.0/node_modules/acorn/dist/acorn.mjs
 var astralIdentifierCodes = [
 	509,
 	0,
@@ -12241,8 +12241,8 @@ var astralIdentifierCodes = [
 	4,
 	318,
 	1,
-	80,
-	3,
+	78,
+	5,
 	71,
 	10,
 	50,
@@ -12387,7 +12387,9 @@ var astralIdentifierCodes = [
 	10,
 	47,
 	15,
-	343,
+	199,
+	7,
+	137,
 	9,
 	54,
 	7,
@@ -12419,7 +12421,9 @@ var astralIdentifierCodes = [
 	4,
 	9,
 	9,
-	330,
+	55,
+	9,
+	266,
 	3,
 	10,
 	1,
@@ -12519,7 +12523,15 @@ var astralIdentifierCodes = [
 	1,
 	2,
 	9,
-	726,
+	233,
+	0,
+	3,
+	0,
+	8,
+	1,
+	6,
+	0,
+	475,
 	6,
 	110,
 	6,
@@ -12629,7 +12641,9 @@ var astralIdentifierStartCodes = [
 	21,
 	11,
 	25,
-	71,
+	7,
+	25,
+	39,
 	55,
 	7,
 	1,
@@ -12674,8 +12688,8 @@ var astralIdentifierStartCodes = [
 	7,
 	1,
 	17,
-	2,
-	60,
+	5,
+	57,
 	28,
 	11,
 	0,
@@ -12859,7 +12873,9 @@ var astralIdentifierStartCodes = [
 	31,
 	15,
 	0,
-	328,
+	24,
+	43,
+	261,
 	18,
 	16,
 	0,
@@ -12907,7 +12923,11 @@ var astralIdentifierStartCodes = [
 	44,
 	212,
 	63,
-	129,
+	33,
+	24,
+	3,
+	24,
+	45,
 	74,
 	6,
 	0,
@@ -12917,13 +12937,15 @@ var astralIdentifierStartCodes = [
 	1,
 	2,
 	0,
-	29,
-	6135,
-	9,
-	1237,
+	15,
+	4,
+	10,
+	7381,
 	42,
-	9,
-	8936,
+	31,
+	98,
+	114,
+	8702,
 	3,
 	2,
 	6,
@@ -13031,7 +13053,19 @@ var astralIdentifierStartCodes = [
 	29,
 	3,
 	0,
-	496,
+	208,
+	30,
+	2,
+	2,
+	2,
+	1,
+	2,
+	6,
+	3,
+	4,
+	10,
+	1,
+	225,
 	6,
 	2,
 	3,
@@ -13114,12 +13148,10 @@ var astralIdentifierStartCodes = [
 	4421,
 	42719,
 	33,
-	4153,
-	7,
-	221,
+	4381,
 	3,
-	5761,
-	15,
+	5773,
+	3,
 	7472,
 	16,
 	621,
@@ -13128,10 +13160,10 @@ var astralIdentifierStartCodes = [
 	1507,
 	4938,
 	6,
-	4191
+	8489
 ];
-var nonASCIIidentifierChars = "‌‍·̀-ͯ·҃-֑҇-ׇֽֿׁׂׅׄؐ-ًؚ-٩ٰۖ-ۜ۟-۪ۤۧۨ-ۭ۰-۹ܑܰ-݊ަ-ް߀-߉߫-߽߳ࠖ-࠙ࠛ-ࠣࠥ-ࠧࠩ-࡙࠭-࡛ࢗ-࢟࣊-ࣣ࣡-ःऺ-़ा-ॏ॑-ॗॢॣ०-९ঁ-ঃ়া-ৄেৈো-্ৗৢৣ০-৯৾ਁ-ਃ਼ਾ-ੂੇੈੋ-੍ੑ੦-ੱੵઁ-ઃ઼ા-ૅે-ૉો-્ૢૣ૦-૯ૺ-૿ଁ-ଃ଼ା-ୄେୈୋ-୍୕-ୗୢୣ୦-୯ஂா-ூெ-ைொ-்ௗ௦-௯ఀ-ఄ఼ా-ౄె-ైొ-్ౕౖౢౣ౦-౯ಁ-ಃ಼ಾ-ೄೆ-ೈೊ-್ೕೖೢೣ೦-೯ೳഀ-ഃ഻഼ാ-ൄെ-ൈൊ-്ൗൢൣ൦-൯ඁ-ඃ්ා-ුූෘ-ෟ෦-෯ෲෳัิ-ฺ็-๎๐-๙ັິ-ຼ່-໎໐-໙༘༙༠-༩༹༵༷༾༿ཱ-྄྆྇ྍ-ྗྙ-ྼ࿆ါ-ှ၀-၉ၖ-ၙၞ-ၠၢ-ၤၧ-ၭၱ-ၴႂ-ႍႏ-ႝ፝-፟፩-፱ᜒ-᜕ᜲ-᜴ᝒᝓᝲᝳ឴-៓៝០-៩᠋-᠍᠏-᠙ᢩᤠ-ᤫᤰ-᤻᥆-᥏᧐-᧚ᨗ-ᨛᩕ-ᩞ᩠-᩿᩼-᪉᪐-᪙᪰-᪽ᪿ-ᫎᬀ-ᬄ᬴-᭄᭐-᭙᭫-᭳ᮀ-ᮂᮡ-ᮭ᮰-᮹᯦-᯳ᰤ-᰷᱀-᱉᱐-᱙᳐-᳔᳒-᳨᳭᳴᳷-᳹᷀-᷿‌‍‿⁀⁔⃐-⃥⃜⃡-⃰⳯-⵿⳱ⷠ-〪ⷿ-゙゚〯・꘠-꘩꙯ꙴ-꙽ꚞꚟ꛰꛱ꠂ꠆ꠋꠣ-ꠧ꠬ꢀꢁꢴ-ꣅ꣐-꣙꣠-꣱ꣿ-꤉ꤦ-꤭ꥇ-꥓ꦀ-ꦃ꦳-꧀꧐-꧙ꧥ꧰-꧹ꨩ-ꨶꩃꩌꩍ꩐-꩙ꩻ-ꩽꪰꪲ-ꪴꪷꪸꪾ꪿꫁ꫫ-ꫯꫵ꫶ꯣ-ꯪ꯬꯭꯰-꯹ﬞ︀-️︠-︯︳︴﹍-﹏０-９＿･";
-var nonASCIIidentifierStartChars = "ªµºÀ-ÖØ-öø-ˁˆ-ˑˠ-ˤˬˮͰ-ʹͶͷͺ-ͽͿΆΈ-ΊΌΎ-ΡΣ-ϵϷ-ҁҊ-ԯԱ-Ֆՙՠ-ֈא-תׯ-ײؠ-يٮٯٱ-ۓەۥۦۮۯۺ-ۼۿܐܒ-ܯݍ-ޥޱߊ-ߪߴߵߺࠀ-ࠕࠚࠤࠨࡀ-ࡘࡠ-ࡪࡰ-ࢇࢉ-ࢎࢠ-ࣉऄ-हऽॐक़-ॡॱ-ঀঅ-ঌএঐও-নপ-রলশ-হঽৎড়ঢ়য়-ৡৰৱৼਅ-ਊਏਐਓ-ਨਪ-ਰਲਲ਼ਵਸ਼ਸਹਖ਼-ੜਫ਼ੲ-ੴઅ-ઍએ-ઑઓ-નપ-રલળવ-હઽૐૠૡૹଅ-ଌଏଐଓ-ନପ-ରଲଳଵ-ହଽଡ଼ଢ଼ୟ-ୡୱஃஅ-ஊஎ-ஐஒ-கஙசஜஞடணதந-பம-ஹௐఅ-ఌఎ-ఐఒ-నప-హఽౘ-ౚౝౠౡಀಅ-ಌಎ-ಐಒ-ನಪ-ಳವ-ಹಽೝೞೠೡೱೲഄ-ഌഎ-ഐഒ-ഺഽൎൔ-ൖൟ-ൡൺ-ൿඅ-ඖක-නඳ-රලව-ෆก-ะาำเ-ๆກຂຄຆ-ຊຌ-ຣລວ-ະາຳຽເ-ໄໆໜ-ໟༀཀ-ཇཉ-ཬྈ-ྌက-ဪဿၐ-ၕၚ-ၝၡၥၦၮ-ၰၵ-ႁႎႠ-ჅჇჍა-ჺჼ-ቈቊ-ቍቐ-ቖቘቚ-ቝበ-ኈኊ-ኍነ-ኰኲ-ኵኸ-ኾዀዂ-ዅወ-ዖዘ-ጐጒ-ጕጘ-ፚᎀ-ᎏᎠ-Ᏽᏸ-ᏽᐁ-ᙬᙯ-ᙿᚁ-ᚚᚠ-ᛪᛮ-ᛸᜀ-ᜑᜟ-ᜱᝀ-ᝑᝠ-ᝬᝮ-ᝰក-ឳៗៜᠠ-ᡸᢀ-ᢨᢪᢰ-ᣵᤀ-ᤞᥐ-ᥭᥰ-ᥴᦀ-ᦫᦰ-ᧉᨀ-ᨖᨠ-ᩔᪧᬅ-ᬳᭅ-ᭌᮃ-ᮠᮮᮯᮺ-ᯥᰀ-ᰣᱍ-ᱏᱚ-ᱽᲀ-ᲊᲐ-ᲺᲽ-Ჿᳩ-ᳬᳮ-ᳳᳵᳶᳺᴀ-ᶿḀ-ἕἘ-Ἕἠ-ὅὈ-Ὅὐ-ὗὙὛὝὟ-ώᾀ-ᾴᾶ-ᾼιῂ-ῄῆ-ῌῐ-ΐῖ-Ίῠ-Ῥῲ-ῴῶ-ῼⁱⁿₐ-ₜℂℇℊ-ℓℕ℘-ℝℤΩℨK-ℹℼ-ℿⅅ-ⅉⅎⅠ-ↈⰀ-ⳤⳫ-ⳮⳲⳳⴀ-ⴥⴧⴭⴰ-ⵧⵯⶀ-ⶖⶠ-ⶦⶨ-ⶮⶰ-ⶶⶸ-ⶾⷀ-ⷆⷈ-ⷎⷐ-ⷖⷘ-ⷞ々-〇〡-〩〱-〵〸-〼ぁ-ゖ゛-ゟァ-ヺー-ヿㄅ-ㄯㄱ-ㆎㆠ-ㆿㇰ-ㇿ㐀-䶿一-ꒌꓐ-ꓽꔀ-ꘌꘐ-ꘟꘪꘫꙀ-ꙮꙿ-ꚝꚠ-ꛯꜗ-ꜟꜢ-ꞈꞋ-ꟍꟐꟑꟓꟕ-Ƛꟲ-ꠁꠃ-ꠅꠇ-ꠊꠌ-ꠢꡀ-ꡳꢂ-ꢳꣲ-ꣷꣻꣽꣾꤊ-ꤥꤰ-ꥆꥠ-ꥼꦄ-ꦲꧏꧠ-ꧤꧦ-ꧯꧺ-ꧾꨀ-ꨨꩀ-ꩂꩄ-ꩋꩠ-ꩶꩺꩾ-ꪯꪱꪵꪶꪹ-ꪽꫀꫂꫛ-ꫝꫠ-ꫪꫲ-ꫴꬁ-ꬆꬉ-ꬎꬑ-ꬖꬠ-ꬦꬨ-ꬮꬰ-ꭚꭜ-ꭩꭰ-ꯢ가-힣ힰ-ퟆퟋ-ퟻ豈-舘並-龎ﬀ-ﬆﬓ-ﬗיִײַ-ﬨשׁ-זּטּ-לּמּנּסּףּפּצּ-ﮱﯓ-ﴽﵐ-ﶏﶒ-ﷇﷰ-ﷻﹰ-ﹴﹶ-ﻼＡ-Ｚａ-ｚｦ-ﾾￂ-ￇￊ-ￏￒ-ￗￚ-ￜ";
+var nonASCIIidentifierChars = "‌‍·̀-ͯ·҃-֑҇-ׇֽֿׁׂׅׄؐ-ًؚ-٩ٰۖ-ۜ۟-۪ۤۧۨ-ۭ۰-۹ܑܰ-݊ަ-ް߀-߉߫-߽߳ࠖ-࠙ࠛ-ࠣࠥ-ࠧࠩ-࡙࠭-࡛ࢗ-࢟࣊-ࣣ࣡-ःऺ-़ा-ॏ॑-ॗॢॣ०-९ঁ-ঃ়া-ৄেৈো-্ৗৢৣ০-৯৾ਁ-ਃ਼ਾ-ੂੇੈੋ-੍ੑ੦-ੱੵઁ-ઃ઼ા-ૅે-ૉો-્ૢૣ૦-૯ૺ-૿ଁ-ଃ଼ା-ୄେୈୋ-୍୕-ୗୢୣ୦-୯ஂா-ூெ-ைொ-்ௗ௦-௯ఀ-ఄ఼ా-ౄె-ైొ-్ౕౖౢౣ౦-౯ಁ-ಃ಼ಾ-ೄೆ-ೈೊ-್ೕೖೢೣ೦-೯ೳഀ-ഃ഻഼ാ-ൄെ-ൈൊ-്ൗൢൣ൦-൯ඁ-ඃ්ා-ුූෘ-ෟ෦-෯ෲෳัิ-ฺ็-๎๐-๙ັິ-ຼ່-໎໐-໙༘༙༠-༩༹༵༷༾༿ཱ-྄྆྇ྍ-ྗྙ-ྼ࿆ါ-ှ၀-၉ၖ-ၙၞ-ၠၢ-ၤၧ-ၭၱ-ၴႂ-ႍႏ-ႝ፝-፟፩-፱ᜒ-᜕ᜲ-᜴ᝒᝓᝲᝳ឴-៓៝០-៩᠋-᠍᠏-᠙ᢩᤠ-ᤫᤰ-᤻᥆-᥏᧐-᧚ᨗ-ᨛᩕ-ᩞ᩠-᩿᩼-᪉᪐-᪙᪰-᪽ᪿ-᫝᫠-᫫ᬀ-ᬄ᬴-᭄᭐-᭙᭫-᭳ᮀ-ᮂᮡ-ᮭ᮰-᮹᯦-᯳ᰤ-᰷᱀-᱉᱐-᱙᳐-᳔᳒-᳨᳭᳴᳷-᳹᷀-᷿‌‍‿⁀⁔⃐-⃥⃜⃡-⃰⳯-⵿⳱ⷠ-〪ⷿ-゙゚〯・꘠-꘩꙯ꙴ-꙽ꚞꚟ꛰꛱ꠂ꠆ꠋꠣ-ꠧ꠬ꢀꢁꢴ-ꣅ꣐-꣙꣠-꣱ꣿ-꤉ꤦ-꤭ꥇ-꥓ꦀ-ꦃ꦳-꧀꧐-꧙ꧥ꧰-꧹ꨩ-ꨶꩃꩌꩍ꩐-꩙ꩻ-ꩽꪰꪲ-ꪴꪷꪸꪾ꪿꫁ꫫ-ꫯꫵ꫶ꯣ-ꯪ꯬꯭꯰-꯹ﬞ︀-️︠-︯︳︴﹍-﹏０-９＿･";
+var nonASCIIidentifierStartChars = "ªµºÀ-ÖØ-öø-ˁˆ-ˑˠ-ˤˬˮͰ-ʹͶͷͺ-ͽͿΆΈ-ΊΌΎ-ΡΣ-ϵϷ-ҁҊ-ԯԱ-Ֆՙՠ-ֈא-תׯ-ײؠ-يٮٯٱ-ۓەۥۦۮۯۺ-ۼۿܐܒ-ܯݍ-ޥޱߊ-ߪߴߵߺࠀ-ࠕࠚࠤࠨࡀ-ࡘࡠ-ࡪࡰ-ࢇࢉ-࢏ࢠ-ࣉऄ-हऽॐक़-ॡॱ-ঀঅ-ঌএঐও-নপ-রলশ-হঽৎড়ঢ়য়-ৡৰৱৼਅ-ਊਏਐਓ-ਨਪ-ਰਲਲ਼ਵਸ਼ਸਹਖ਼-ੜਫ਼ੲ-ੴઅ-ઍએ-ઑઓ-નપ-રલળવ-હઽૐૠૡૹଅ-ଌଏଐଓ-ନପ-ରଲଳଵ-ହଽଡ଼ଢ଼ୟ-ୡୱஃஅ-ஊஎ-ஐஒ-கஙசஜஞடணதந-பம-ஹௐఅ-ఌఎ-ఐఒ-నప-హఽౘ-ౚ౜ౝౠౡಀಅ-ಌಎ-ಐಒ-ನಪ-ಳವ-ಹಽ೜-ೞೠೡೱೲഄ-ഌഎ-ഐഒ-ഺഽൎൔ-ൖൟ-ൡൺ-ൿඅ-ඖක-නඳ-රලව-ෆก-ะาำเ-ๆກຂຄຆ-ຊຌ-ຣລວ-ະາຳຽເ-ໄໆໜ-ໟༀཀ-ཇཉ-ཬྈ-ྌက-ဪဿၐ-ၕၚ-ၝၡၥၦၮ-ၰၵ-ႁႎႠ-ჅჇჍა-ჺჼ-ቈቊ-ቍቐ-ቖቘቚ-ቝበ-ኈኊ-ኍነ-ኰኲ-ኵኸ-ኾዀዂ-ዅወ-ዖዘ-ጐጒ-ጕጘ-ፚᎀ-ᎏᎠ-Ᏽᏸ-ᏽᐁ-ᙬᙯ-ᙿᚁ-ᚚᚠ-ᛪᛮ-ᛸᜀ-ᜑᜟ-ᜱᝀ-ᝑᝠ-ᝬᝮ-ᝰក-ឳៗៜᠠ-ᡸᢀ-ᢨᢪᢰ-ᣵᤀ-ᤞᥐ-ᥭᥰ-ᥴᦀ-ᦫᦰ-ᧉᨀ-ᨖᨠ-ᩔᪧᬅ-ᬳᭅ-ᭌᮃ-ᮠᮮᮯᮺ-ᯥᰀ-ᰣᱍ-ᱏᱚ-ᱽᲀ-ᲊᲐ-ᲺᲽ-Ჿᳩ-ᳬᳮ-ᳳᳵᳶᳺᴀ-ᶿḀ-ἕἘ-Ἕἠ-ὅὈ-Ὅὐ-ὗὙὛὝὟ-ώᾀ-ᾴᾶ-ᾼιῂ-ῄῆ-ῌῐ-ΐῖ-Ίῠ-Ῥῲ-ῴῶ-ῼⁱⁿₐ-ₜℂℇℊ-ℓℕ℘-ℝℤΩℨK-ℹℼ-ℿⅅ-ⅉⅎⅠ-ↈⰀ-ⳤⳫ-ⳮⳲⳳⴀ-ⴥⴧⴭⴰ-ⵧⵯⶀ-ⶖⶠ-ⶦⶨ-ⶮⶰ-ⶶⶸ-ⶾⷀ-ⷆⷈ-ⷎⷐ-ⷖⷘ-ⷞ々-〇〡-〩〱-〵〸-〼ぁ-ゖ゛-ゟァ-ヺー-ヿㄅ-ㄯㄱ-ㆎㆠ-ㆿㇰ-ㇿ㐀-䶿一-ꒌꓐ-ꓽꔀ-ꘌꘐ-ꘟꘪꘫꙀ-ꙮꙿ-ꚝꚠ-ꛯꜗ-ꜟꜢ-ꞈꞋ-Ƛ꟱-ꠁꠃ-ꠅꠇ-ꠊꠌ-ꠢꡀ-ꡳꢂ-ꢳꣲ-ꣷꣻꣽꣾꤊ-ꤥꤰ-ꥆꥠ-ꥼꦄ-ꦲꧏꧠ-ꧤꧦ-ꧯꧺ-ꧾꨀ-ꨨꩀ-ꩂꩄ-ꩋꩠ-ꩶꩺꩾ-ꪯꪱꪵꪶꪹ-ꪽꫀꫂꫛ-ꫝꫠ-ꫪꫲ-ꫴꬁ-ꬆꬉ-ꬎꬑ-ꬖꬠ-ꬦꬨ-ꬮꬰ-ꭚꭜ-ꭩꭰ-ꯢ가-힣ힰ-ퟆퟋ-ퟻ豈-舘並-龎ﬀ-ﬆﬓ-ﬗיִײַ-ﬨשׁ-זּטּ-לּמּנּסּףּפּצּ-ﮱﯓ-ﴽﵐ-ﶏﶒ-ﷇﷰ-ﷻﹰ-ﹴﹶ-ﻼＡ-Ｚａ-ｚｦ-ﾾￂ-ￇￊ-ￏￒ-ￗￚ-ￜ";
 var reservedWords = {
 	3: "abstract boolean byte char class double enum export extends final float goto implements import int interface long native package private protected public short static super synchronized throws transient volatile",
 	5: "class enum extends super const export import",
@@ -13396,6 +13428,7 @@ function getLineInfo(input, offset) {
 var defaultOptions$1 = {
 	ecmaVersion: null,
 	sourceType: "script",
+	strict: false,
 	onInsertedSemicolon: null,
 	onTrailingComma: null,
 	allowReserved: null,
@@ -13435,6 +13468,7 @@ function getOptions(opts) {
 		};
 	}
 	if (isArray$1(options.onComment)) options.onComment = pushComment(options, options.onComment);
+	if (options.sourceType === "commonjs" && options.allowAwaitOutsideFunction) throw new Error("Cannot use allowAwaitOutsideFunction with sourceType: commonjs");
 	return options;
 }
 function pushComment(options, array) {
@@ -13460,6 +13494,7 @@ var SCOPE_SUPER = 64;
 var SCOPE_DIRECT_SUPER = 128;
 var SCOPE_CLASS_STATIC_BLOCK = 256;
 var SCOPE_CLASS_FIELD_INIT = 512;
+var SCOPE_SWITCH = 1024;
 var SCOPE_VAR = SCOPE_TOP | SCOPE_FUNCTION | SCOPE_CLASS_STATIC_BLOCK;
 function functionFlags(async, generator) {
 	return SCOPE_FUNCTION | (async ? SCOPE_ASYNC : 0) | (generator ? SCOPE_GENERATOR : 0);
@@ -13502,7 +13537,7 @@ var Parser$2 = function Parser(options, input, startPos) {
 	this.context = this.initialContext();
 	this.exprAllowed = true;
 	this.inModule = options.sourceType === "module";
-	this.strict = this.inModule || this.strictDirective(this.pos);
+	this.strict = this.inModule || options.strict === true || this.strictDirective(this.pos);
 	this.potentialArrowAt = -1;
 	this.potentialArrowInForAwait = false;
 	this.yieldPos = this.awaitPos = this.awaitIdentPos = 0;
@@ -13510,7 +13545,7 @@ var Parser$2 = function Parser(options, input, startPos) {
 	this.undefinedExports = Object.create(null);
 	if (this.pos === 0 && options.allowHashBang && this.input.slice(0, 2) === "#!") this.skipLineComment(2);
 	this.scopeStack = [];
-	this.enterScope(SCOPE_TOP);
+	this.enterScope(this.options.sourceType === "commonjs" ? SCOPE_FUNCTION : SCOPE_TOP);
 	this.regexpState = null;
 	this.privateNameStack = [];
 };
@@ -13519,16 +13554,21 @@ var prototypeAccessors = {
 	inGenerator: { configurable: true },
 	inAsync: { configurable: true },
 	canAwait: { configurable: true },
+	allowReturn: { configurable: true },
 	allowSuper: { configurable: true },
 	allowDirectSuper: { configurable: true },
 	treatFunctionsAsVar: { configurable: true },
 	allowNewDotTarget: { configurable: true },
+	allowUsing: { configurable: true },
 	inClassStaticBlock: { configurable: true }
 };
 Parser$2.prototype.parse = function parse() {
+	var this$1$1 = this;
 	var node = this.options.program || this.startNode();
 	this.nextToken();
-	return this.parseTopLevel(node);
+	return this.catchStackOverflow(function() {
+		return this$1$1.parseTopLevel(node);
+	});
 };
 prototypeAccessors.inFunction.get = function() {
 	return (this.currentVarScope().flags & SCOPE_FUNCTION) > 0;
@@ -13547,6 +13587,11 @@ prototypeAccessors.canAwait.get = function() {
 	}
 	return this.inModule && this.options.ecmaVersion >= 13 || this.options.allowAwaitOutsideFunction;
 };
+prototypeAccessors.allowReturn.get = function() {
+	if (this.inFunction) return true;
+	if (this.options.allowReturnOutsideFunction && this.currentVarScope().flags & SCOPE_TOP) return true;
+	return false;
+};
 prototypeAccessors.allowSuper.get = function() {
 	return (this.currentThisScope().flags & SCOPE_SUPER) > 0 || this.options.allowSuperOutsideMethod;
 };
@@ -13562,6 +13607,12 @@ prototypeAccessors.allowNewDotTarget.get = function() {
 		if (flags & (SCOPE_CLASS_STATIC_BLOCK | SCOPE_CLASS_FIELD_INIT) || flags & SCOPE_FUNCTION && !(flags & SCOPE_ARROW)) return true;
 	}
 	return false;
+};
+prototypeAccessors.allowUsing.get = function() {
+	var flags = this.currentScope().flags;
+	if (flags & SCOPE_SWITCH) return false;
+	if (!this.inModule && flags & SCOPE_TOP) return false;
+	return true;
 };
 prototypeAccessors.inClassStaticBlock.get = function() {
 	return (this.currentVarScope().flags & SCOPE_CLASS_STATIC_BLOCK) > 0;
@@ -13620,6 +13671,14 @@ pp$9.eatContextual = function(name) {
 	this.next();
 	return true;
 };
+pp$9.catchStackOverflow = function(f) {
+	try {
+		return f();
+	} catch (e) {
+		if (e instanceof Error && (/\bstack\b.*\b(exceeded|overflow)\b/i.test(e.message) || /\btoo much recursion\b/i.test(e.message))) this.raise(this.start, "Not enough stack space to parse input");
+		else throw e;
+	}
+};
 pp$9.expectContextual = function(name) {
 	if (!this.eatContextual(name)) this.unexpected();
 };
@@ -13675,10 +13734,10 @@ pp$9.isSimpleAssignTarget = function(expr) {
 };
 var pp$8 = Parser$2.prototype;
 pp$8.parseTopLevel = function(node) {
-	var exports = Object.create(null);
+	var exports$1 = Object.create(null);
 	if (!node.body) node.body = [];
 	while (this.type !== types$1.eof) {
-		var stmt = this.parseStatement(null, true, exports);
+		var stmt = this.parseStatement(null, true, exports$1);
 		node.body.push(stmt);
 	}
 	if (this.inModule) for (var i = 0, list = Object.keys(this.undefinedExports); i < list.length; i += 1) {
@@ -13687,7 +13746,7 @@ pp$8.parseTopLevel = function(node) {
 	}
 	this.adaptDirectivePrologue(node.body);
 	this.next();
-	node.sourceType = this.options.sourceType;
+	node.sourceType = this.options.sourceType === "commonjs" ? "script" : this.options.sourceType;
 	return this.finishNode(node, "Program");
 };
 var loopLabel = { kind: "loop" };
@@ -13696,15 +13755,17 @@ pp$8.isLet = function(context) {
 	if (this.options.ecmaVersion < 6 || !this.isContextual("let")) return false;
 	skipWhiteSpace.lastIndex = this.pos;
 	var skip = skipWhiteSpace.exec(this.input);
-	var next = this.pos + skip[0].length, nextCh = this.input.charCodeAt(next);
+	var next = this.pos + skip[0].length, nextCh = this.fullCharCodeAt(next);
 	if (nextCh === 91 || nextCh === 92) return true;
 	if (context) return false;
-	if (nextCh === 123 || nextCh > 55295 && nextCh < 56320) return true;
-	if (isIdentifierStart(nextCh, true)) {
-		var pos = next + 1;
-		while (isIdentifierChar(nextCh = this.input.charCodeAt(pos), true)) ++pos;
-		if (nextCh === 92 || nextCh > 55295 && nextCh < 56320) return true;
-		var ident = this.input.slice(next, pos);
+	if (nextCh === 123) return true;
+	if (isIdentifierStart(nextCh)) {
+		var start = next;
+		do
+			next += nextCh <= 65535 ? 1 : 2;
+		while (isIdentifierChar(nextCh = this.fullCharCodeAt(next)));
+		if (nextCh === 92) return true;
+		var ident = this.input.slice(start, next);
 		if (!keywordRelationalOperator.test(ident)) return true;
 	}
 	return false;
@@ -13714,7 +13775,7 @@ pp$8.isAsyncFunction = function() {
 	skipWhiteSpace.lastIndex = this.pos;
 	var skip = skipWhiteSpace.exec(this.input);
 	var next = this.pos + skip[0].length, after;
-	return !lineBreak.test(this.input.slice(this.pos, next)) && this.input.slice(next, next + 8) === "function" && (next + 8 === this.input.length || !(isIdentifierChar(after = this.input.charCodeAt(next + 8)) || after > 55295 && after < 56320));
+	return !lineBreak.test(this.input.slice(this.pos, next)) && this.input.slice(next, next + 8) === "function" && (next + 8 === this.input.length || !(isIdentifierChar(after = this.fullCharCodeAt(next + 8)) || after === 92));
 };
 pp$8.isUsingKeyword = function(isAwaitUsing, isFor) {
 	if (this.options.ecmaVersion < 17 || !this.isContextual(isAwaitUsing ? "await" : "using")) return false;
@@ -13723,20 +13784,29 @@ pp$8.isUsingKeyword = function(isAwaitUsing, isFor) {
 	var next = this.pos + skip[0].length;
 	if (lineBreak.test(this.input.slice(this.pos, next))) return false;
 	if (isAwaitUsing) {
-		var awaitEndPos = next + 5, after;
-		if (this.input.slice(next, awaitEndPos) !== "using" || awaitEndPos === this.input.length || isIdentifierChar(after = this.input.charCodeAt(awaitEndPos)) || after > 55295 && after < 56320) return false;
-		skipWhiteSpace.lastIndex = awaitEndPos;
+		var usingEndPos = next + 5, after;
+		if (this.input.slice(next, usingEndPos) !== "using" || usingEndPos === this.input.length || isIdentifierChar(after = this.fullCharCodeAt(usingEndPos)) || after === 92) return false;
+		skipWhiteSpace.lastIndex = usingEndPos;
 		var skipAfterUsing = skipWhiteSpace.exec(this.input);
-		if (skipAfterUsing && lineBreak.test(this.input.slice(awaitEndPos, awaitEndPos + skipAfterUsing[0].length))) return false;
+		next = usingEndPos + skipAfterUsing[0].length;
+		if (skipAfterUsing && lineBreak.test(this.input.slice(usingEndPos, next))) return false;
 	}
-	if (isFor) {
-		var ofEndPos = next + 2, after$1;
-		if (this.input.slice(next, ofEndPos) === "of") {
-			if (ofEndPos === this.input.length || !isIdentifierChar(after$1 = this.input.charCodeAt(ofEndPos)) && !(after$1 > 55295 && after$1 < 56320)) return false;
-		}
+	var ch = this.fullCharCodeAt(next);
+	if (!isIdentifierStart(ch) && ch !== 92) return false;
+	var idStart = next;
+	do
+		next += ch <= 65535 ? 1 : 2;
+	while (isIdentifierChar(ch = this.fullCharCodeAt(next)));
+	if (ch === 92) return true;
+	var id = this.input.slice(idStart, next);
+	if (keywordRelationalOperator.test(id)) return false;
+	if (isFor && !isAwaitUsing && id === "of") {
+		skipWhiteSpace.lastIndex = next;
+		var skipAfterOf = skipWhiteSpace.exec(this.input);
+		next = next + skipAfterOf[0].length;
+		if (this.input.charCodeAt(next) !== 61 || (ch = this.input.charCodeAt(next + 1)) === 61 || ch === 62) return false;
 	}
-	var ch = this.input.charCodeAt(next);
-	return isIdentifierStart(ch, true) || ch === 92;
+	return true;
 };
 pp$8.isAwaitUsing = function(isFor) {
 	return this.isUsingKeyword(true, isFor);
@@ -13744,7 +13814,7 @@ pp$8.isAwaitUsing = function(isFor) {
 pp$8.isUsing = function(isFor) {
 	return this.isUsingKeyword(false, isFor);
 };
-pp$8.parseStatement = function(context, topLevel, exports) {
+pp$8.parseStatement = function(context, topLevel, exports$1) {
 	var starttype = this.type, node = this.startNode(), kind;
 	if (this.isLet(context)) {
 		starttype = types$1._var;
@@ -13788,7 +13858,7 @@ pp$8.parseStatement = function(context, topLevel, exports) {
 				if (!topLevel) this.raise(this.start, "'import' and 'export' may only appear at the top level");
 				if (!this.inModule) this.raise(this.start, "'import' and 'export' may appear only with 'sourceType: module'");
 			}
-			return starttype === types$1._import ? this.parseImport(node) : this.parseExport(node, exports);
+			return starttype === types$1._import ? this.parseImport(node) : this.parseExport(node, exports$1);
 		default:
 			if (this.isAsyncFunction()) {
 				if (context) this.unexpected();
@@ -13797,7 +13867,8 @@ pp$8.parseStatement = function(context, topLevel, exports) {
 			}
 			var usingKind = this.isAwaitUsing(false) ? "await using" : this.isUsing(false) ? "using" : null;
 			if (usingKind) {
-				if (topLevel && this.options.sourceType === "script") this.raise(this.start, "Using declaration cannot appear in the top level when source type is `script`");
+				if (!this.allowUsing) this.raise(this.start, "Using declaration cannot appear in the top level when source type is `script` or in the bare case statement");
+				if (context) this.raise(this.start, "Using declaration is not allowed in single-statement positions");
 				if (usingKind === "await using") {
 					if (!this.canAwait) this.raise(this.start, "Await using cannot appear outside of async function");
 					this.next();
@@ -13871,7 +13942,10 @@ pp$8.parseForStatement = function(node) {
 	if (usingKind) {
 		var init$2 = this.startNode();
 		this.next();
-		if (usingKind === "await using") this.next();
+		if (usingKind === "await using") {
+			if (!this.canAwait) this.raise(this.start, "Await using cannot appear outside of async function");
+			this.next();
+		}
 		this.parseVar(init$2, true, usingKind);
 		this.finishNode(init$2, "VariableDeclaration");
 		return this.parseForAfterInit(node, init$2, awaitAt);
@@ -13898,9 +13972,10 @@ pp$8.parseForStatement = function(node) {
 };
 pp$8.parseForAfterInit = function(node, init, awaitAt) {
 	if ((this.type === types$1._in || this.options.ecmaVersion >= 6 && this.isContextual("of")) && init.declarations.length === 1) {
-		if (this.options.ecmaVersion >= 9) if (this.type === types$1._in) {
-			if (awaitAt > -1) this.unexpected(awaitAt);
-		} else node.await = awaitAt > -1;
+		if (this.type === types$1._in) {
+			if ((init.kind === "using" || init.kind === "await using") && !init.declarations[0].init) this.raise(this.start, "Using declaration is not allowed in for-in loops");
+			if (this.options.ecmaVersion >= 9 && awaitAt > -1) this.unexpected(awaitAt);
+		} else if (this.options.ecmaVersion >= 9) node.await = awaitAt > -1;
 		return this.parseForIn(node, init);
 	}
 	if (awaitAt > -1) this.unexpected(awaitAt);
@@ -13918,7 +13993,7 @@ pp$8.parseIfStatement = function(node) {
 	return this.finishNode(node, "IfStatement");
 };
 pp$8.parseReturnStatement = function(node) {
-	if (!this.inFunction && !this.options.allowReturnOutsideFunction) this.raise(this.start, "'return' outside of function");
+	if (!this.allowReturn) this.raise(this.start, "'return' outside of function");
 	this.next();
 	if (this.eat(types$1.semi) || this.insertSemicolon()) node.argument = null;
 	else {
@@ -13933,7 +14008,7 @@ pp$8.parseSwitchStatement = function(node) {
 	node.cases = [];
 	this.expect(types$1.braceL);
 	this.labels.push(switchLabel);
-	this.enterScope(0);
+	this.enterScope(SCOPE_SWITCH);
 	var cur;
 	for (var sawDefault = false; this.type !== types$1.braceR;) if (this.type === types$1._case || this.type === types$1._default) {
 		var isCase = this.type === types$1._case;
@@ -14302,10 +14377,10 @@ function checkKeyName(node, name) {
 	var key = node.key;
 	return !computed && (key.type === "Identifier" && key.name === name || key.type === "Literal" && key.value === name);
 }
-pp$8.parseExportAllDeclaration = function(node, exports) {
+pp$8.parseExportAllDeclaration = function(node, exports$1) {
 	if (this.options.ecmaVersion >= 11) if (this.eatContextual("as")) {
 		node.exported = this.parseModuleExportName();
-		this.checkExport(exports, node.exported, this.lastTokStart);
+		this.checkExport(exports$1, node.exported, this.lastTokStart);
 	} else node.exported = null;
 	this.expectContextual("from");
 	if (this.type !== types$1.string) this.unexpected();
@@ -14314,24 +14389,24 @@ pp$8.parseExportAllDeclaration = function(node, exports) {
 	this.semicolon();
 	return this.finishNode(node, "ExportAllDeclaration");
 };
-pp$8.parseExport = function(node, exports) {
+pp$8.parseExport = function(node, exports$1) {
 	this.next();
-	if (this.eat(types$1.star)) return this.parseExportAllDeclaration(node, exports);
+	if (this.eat(types$1.star)) return this.parseExportAllDeclaration(node, exports$1);
 	if (this.eat(types$1._default)) {
-		this.checkExport(exports, "default", this.lastTokStart);
+		this.checkExport(exports$1, "default", this.lastTokStart);
 		node.declaration = this.parseExportDefaultDeclaration();
 		return this.finishNode(node, "ExportDefaultDeclaration");
 	}
 	if (this.shouldParseExportStatement()) {
 		node.declaration = this.parseExportDeclaration(node);
-		if (node.declaration.type === "VariableDeclaration") this.checkVariableExport(exports, node.declaration.declarations);
-		else this.checkExport(exports, node.declaration.id, node.declaration.id.start);
+		if (node.declaration.type === "VariableDeclaration") this.checkVariableExport(exports$1, node.declaration.declarations);
+		else this.checkExport(exports$1, node.declaration.id, node.declaration.id.start);
 		node.specifiers = [];
 		node.source = null;
 		if (this.options.ecmaVersion >= 16) node.attributes = [];
 	} else {
 		node.declaration = null;
-		node.specifiers = this.parseExportSpecifiers(exports);
+		node.specifiers = this.parseExportSpecifiers(exports$1);
 		if (this.eatContextual("from")) {
 			if (this.type !== types$1.string) this.unexpected();
 			node.source = this.parseExprAtom();
@@ -14369,45 +14444,45 @@ pp$8.parseExportDefaultDeclaration = function() {
 		return declaration;
 	}
 };
-pp$8.checkExport = function(exports, name, pos) {
-	if (!exports) return;
+pp$8.checkExport = function(exports$1, name, pos) {
+	if (!exports$1) return;
 	if (typeof name !== "string") name = name.type === "Identifier" ? name.name : name.value;
-	if (hasOwn$1(exports, name)) this.raiseRecoverable(pos, "Duplicate export '" + name + "'");
-	exports[name] = true;
+	if (hasOwn$1(exports$1, name)) this.raiseRecoverable(pos, "Duplicate export '" + name + "'");
+	exports$1[name] = true;
 };
-pp$8.checkPatternExport = function(exports, pat) {
+pp$8.checkPatternExport = function(exports$1, pat) {
 	var type = pat.type;
-	if (type === "Identifier") this.checkExport(exports, pat, pat.start);
+	if (type === "Identifier") this.checkExport(exports$1, pat, pat.start);
 	else if (type === "ObjectPattern") for (var i = 0, list = pat.properties; i < list.length; i += 1) {
 		var prop = list[i];
-		this.checkPatternExport(exports, prop);
+		this.checkPatternExport(exports$1, prop);
 	}
 	else if (type === "ArrayPattern") for (var i$1 = 0, list$1 = pat.elements; i$1 < list$1.length; i$1 += 1) {
 		var elt = list$1[i$1];
-		if (elt) this.checkPatternExport(exports, elt);
+		if (elt) this.checkPatternExport(exports$1, elt);
 	}
-	else if (type === "Property") this.checkPatternExport(exports, pat.value);
-	else if (type === "AssignmentPattern") this.checkPatternExport(exports, pat.left);
-	else if (type === "RestElement") this.checkPatternExport(exports, pat.argument);
+	else if (type === "Property") this.checkPatternExport(exports$1, pat.value);
+	else if (type === "AssignmentPattern") this.checkPatternExport(exports$1, pat.left);
+	else if (type === "RestElement") this.checkPatternExport(exports$1, pat.argument);
 };
-pp$8.checkVariableExport = function(exports, decls) {
-	if (!exports) return;
+pp$8.checkVariableExport = function(exports$1, decls) {
+	if (!exports$1) return;
 	for (var i = 0, list = decls; i < list.length; i += 1) {
 		var decl = list[i];
-		this.checkPatternExport(exports, decl.id);
+		this.checkPatternExport(exports$1, decl.id);
 	}
 };
 pp$8.shouldParseExportStatement = function() {
 	return this.type.keyword === "var" || this.type.keyword === "const" || this.type.keyword === "class" || this.type.keyword === "function" || this.isLet() || this.isAsyncFunction();
 };
-pp$8.parseExportSpecifier = function(exports) {
+pp$8.parseExportSpecifier = function(exports$1) {
 	var node = this.startNode();
 	node.local = this.parseModuleExportName();
 	node.exported = this.eatContextual("as") ? this.parseModuleExportName() : node.local;
-	this.checkExport(exports, node.exported, node.exported.start);
+	this.checkExport(exports$1, node.exported, node.exported.start);
 	return this.finishNode(node, "ExportSpecifier");
 };
-pp$8.parseExportSpecifiers = function(exports) {
+pp$8.parseExportSpecifiers = function(exports$1) {
 	var nodes = [], first = true;
 	this.expect(types$1.braceL);
 	while (!this.eat(types$1.braceR)) {
@@ -14415,7 +14490,7 @@ pp$8.parseExportSpecifiers = function(exports) {
 			this.expect(types$1.comma);
 			if (this.afterTrailingComma(types$1.braceR)) break;
 		} else first = false;
-		nodes.push(this.parseExportSpecifier(exports));
+		nodes.push(this.parseExportSpecifier(exports$1));
 	}
 	return nodes;
 };
@@ -14846,15 +14921,18 @@ pp$5.checkPropClash = function(prop, propHash, refDestructuringErrors) {
 	other[kind] = true;
 };
 pp$5.parseExpression = function(forInit, refDestructuringErrors) {
-	var startPos = this.start, startLoc = this.startLoc;
-	var expr = this.parseMaybeAssign(forInit, refDestructuringErrors);
-	if (this.type === types$1.comma) {
-		var node = this.startNodeAt(startPos, startLoc);
-		node.expressions = [expr];
-		while (this.eat(types$1.comma)) node.expressions.push(this.parseMaybeAssign(forInit, refDestructuringErrors));
-		return this.finishNode(node, "SequenceExpression");
-	}
-	return expr;
+	var this$1$1 = this;
+	return this.catchStackOverflow(function() {
+		var startPos = this$1$1.start, startLoc = this$1$1.startLoc;
+		var expr = this$1$1.parseMaybeAssign(forInit, refDestructuringErrors);
+		if (this$1$1.type === types$1.comma) {
+			var node = this$1$1.startNodeAt(startPos, startLoc);
+			node.expressions = [expr];
+			while (this$1$1.eat(types$1.comma)) node.expressions.push(this$1$1.parseMaybeAssign(forInit, refDestructuringErrors));
+			return this$1$1.finishNode(node, "SequenceExpression");
+		}
+		return expr;
+	});
 };
 pp$5.parseMaybeAssign = function(forInit, refDestructuringErrors, afterLeftParse) {
 	if (this.isContextual("yield")) if (this.inGenerator) return this.parseYield(forInit);
@@ -14898,7 +14976,7 @@ pp$5.parseMaybeConditional = function(forInit, refDestructuringErrors) {
 	var startPos = this.start, startLoc = this.startLoc;
 	var expr = this.parseExprOps(forInit, refDestructuringErrors);
 	if (this.checkExpressionErrors(refDestructuringErrors)) return expr;
-	if (this.eat(types$1.question)) {
+	if (!(expr.type === "ArrowFunctionExpression" && expr.start === startPos) && this.eat(types$1.question)) {
 		var node = this.startNodeAt(startPos, startLoc);
 		node.test = expr;
 		node.consequent = this.parseMaybeAssign();
@@ -15277,6 +15355,7 @@ pp$5.parseNew = function() {
 	}
 	var startPos = this.start, startLoc = this.startLoc;
 	node.callee = this.parseSubscripts(this.parseExprAtom(null, false, true), startPos, startLoc, true, false);
+	if (node.callee.type === "Super") this.raiseRecoverable(startPos, "Invalid use of 'super'");
 	if (this.eat(types$1.parenL)) node.arguments = this.parseExprList(types$1.parenR, this.options.ecmaVersion >= 8, false);
 	else node.arguments = empty$6;
 	return this.finishNode(node, "NewExpression");
@@ -15676,7 +15755,7 @@ pp$2.copyNode = function(node) {
 	for (var prop in node) newNode[prop] = node[prop];
 	return newNode;
 };
-var scriptValuesAddedInUnicode = "Gara Garay Gukh Gurung_Khema Hrkt Katakana_Or_Hiragana Kawi Kirat_Rai Krai Nag_Mundari Nagm Ol_Onal Onao Sunu Sunuwar Todhri Todr Tulu_Tigalari Tutg Unknown Zzzz";
+var scriptValuesAddedInUnicode = "Berf Beria_Erfe Gara Garay Gukh Gurung_Khema Hrkt Katakana_Or_Hiragana Kawi Kirat_Rai Krai Nag_Mundari Nagm Ol_Onal Onao Sidetic Sidt Sunu Sunuwar Tai_Yo Tayo Todhri Todr Tolong_Siki Tols Tulu_Tigalari Tutg Unknown Zzzz";
 var ecma9BinaryProperties = "ASCII ASCII_Hex_Digit AHex Alphabetic Alpha Any Assigned Bidi_Control Bidi_C Bidi_Mirrored Bidi_M Case_Ignorable CI Cased Changes_When_Casefolded CWCF Changes_When_Casemapped CWCM Changes_When_Lowercased CWL Changes_When_NFKC_Casefolded CWKCF Changes_When_Titlecased CWT Changes_When_Uppercased CWU Dash Default_Ignorable_Code_Point DI Deprecated Dep Diacritic Dia Emoji Emoji_Component Emoji_Modifier Emoji_Modifier_Base Emoji_Presentation Extender Ext Grapheme_Base Gr_Base Grapheme_Extend Gr_Ext Hex_Digit Hex IDS_Binary_Operator IDSB IDS_Trinary_Operator IDST ID_Continue IDC ID_Start IDS Ideographic Ideo Join_Control Join_C Logical_Order_Exception LOE Lowercase Lower Math Noncharacter_Code_Point NChar Pattern_Syntax Pat_Syn Pattern_White_Space Pat_WS Quotation_Mark QMark Radical Regional_Indicator RI Sentence_Terminal STerm Soft_Dotted SD Terminal_Punctuation Term Unified_Ideograph UIdeo Uppercase Upper Variation_Selector VS White_Space space XID_Continue XIDC XID_Start XIDS";
 var ecma10BinaryProperties = ecma9BinaryProperties + " Extended_Pictographic";
 var ecma11BinaryProperties = ecma10BinaryProperties;
@@ -16679,11 +16758,14 @@ pp.readToken = function(code) {
 	if (isIdentifierStart(code, this.options.ecmaVersion >= 6) || code === 92) return this.readWord();
 	return this.getTokenFromCode(code);
 };
-pp.fullCharCodeAtPos = function() {
-	var code = this.input.charCodeAt(this.pos);
+pp.fullCharCodeAt = function(pos) {
+	var code = this.input.charCodeAt(pos);
 	if (code <= 55295 || code >= 56320) return code;
-	var next = this.input.charCodeAt(this.pos + 1);
+	var next = this.input.charCodeAt(pos + 1);
 	return next <= 56319 || next >= 57344 ? code : (code << 10) + next - 56613888;
+};
+pp.fullCharCodeAtPos = function() {
+	return this.fullCharCodeAt(this.pos);
 };
 pp.skipBlockComment = function() {
 	var startLoc = this.options.onComment && this.curPosition();
@@ -17230,7 +17312,7 @@ pp.readWord = function() {
 };
 Parser$2.acorn = {
 	Parser: Parser$2,
-	version: "8.15.0",
+	version: "8.17.0",
 	defaultOptions: defaultOptions$1,
 	Position,
 	SourceLocation,
@@ -25625,7 +25707,7 @@ function useMapAsyncData(input, transform, errorTransform) {
 					data: transform(item.data)
 				};
 			} catch (error) {
-				if (!(error instanceof Error)) throw Error(`useMapAsyncData only supports catching Error's: ${JSON.stringify(error)}`);
+				if (!(error instanceof Error)) throw Error(`useMapAsyncData only supports catching Error's: ${JSON.stringify(error)}`, { cause: error });
 				return {
 					loading: false,
 					error
@@ -26230,7 +26312,7 @@ function hashQueryKeyByOptions(queryKey, options) {
 	return (options?.queryKeyHashFn || hashKey)(queryKey);
 }
 function hashKey(queryKey) {
-	return JSON.stringify(queryKey, (_, val) => isPlainObject$3(val) ? Object.keys(val).sort().reduce((result, key) => {
+	return JSON.stringify(queryKey, (_, val) => isPlainObject$2(val) ? Object.keys(val).sort().reduce((result, key) => {
 		result[key] = val[key];
 		return result;
 	}, {}) : val);
@@ -26254,7 +26336,7 @@ function replaceEqualDeep(a, b, depth = 0) {
 	if (a === b) return a;
 	if (depth > 500) return b;
 	const array = isPlainArray(a) && isPlainArray(b);
-	if (!array && !(isPlainObject$3(a) && isPlainObject$3(b))) return b;
+	if (!array && !(isPlainObject$2(a) && isPlainObject$2(b))) return b;
 	const aSize = (array ? a : Object.keys(a)).length;
 	const bItems = array ? b : Object.keys(b);
 	const bSize = bItems.length;
@@ -26287,7 +26369,7 @@ function shallowEqualObjects(a, b) {
 function isPlainArray(value) {
 	return Array.isArray(value) && value.length === Object.keys(value).length;
 }
-function isPlainObject$3(o) {
+function isPlainObject$2(o) {
 	if (!hasObjectPrototype(o)) return false;
 	const ctor = o.constructor;
 	if (ctor === void 0) return true;
@@ -28533,9 +28615,9 @@ function useScrollDirection(scrollRef, options) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/react-router@7.18.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/chunk-KS7C4IRE.mjs
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/router/url.js
 /**
-* react-router v7.18.1
+* react-router v8.3.0
 *
 * Copyright (c) Remix Software Inc.
 *
@@ -28544,25 +28626,38 @@ function useScrollDirection(scrollRef, options) {
 *
 * @license MIT
 */
-var __typeError = (msg) => {
-	throw TypeError(msg);
-};
-var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
-var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
-var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 var ABSOLUTE_URL_REGEX = /^(?:[a-z][a-z0-9+.-]*:|[\\/]{2})/i;
 var PROTOCOL_RELATIVE_URL_REGEX = /^[\\/]{2}/;
 function normalizeProtocolRelativeUrl(url, protocol) {
 	return protocol + url.replace(/\\/g, "/");
 }
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/router/history.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var PopStateEventType = "popstate";
 function isLocation(obj) {
 	return typeof obj === "object" && obj != null && "pathname" in obj && "search" in obj && "hash" in obj && "state" in obj && "key" in obj;
 }
+/**
+* Hash history stores the location in window.location.hash. This makes it ideal
+* for situations where you don't want to send the location to the server for
+* some reason, either because you do cannot configure it or the URL space is
+* reserved for something else.
+*
+* @see https://github.com/remix-run/history/tree/main/docs/api-reference.md#createhashhistory
+*/
 function createHashHistory(options = {}) {
-	function createHashLocation(window2, globalHistory) {
-		let { pathname = "/", search = "", hash = "" } = parsePath$1(window2.location.hash.substring(1));
+	function createHashLocation(window, globalHistory) {
+		let { pathname = "/", search = "", hash = "" } = parsePath$1(window.location.hash.substring(1));
 		if (!pathname.startsWith("/") && !pathname.startsWith(".")) pathname = "/" + pathname;
 		return createLocation("", {
 			pathname,
@@ -28570,11 +28665,11 @@ function createHashHistory(options = {}) {
 			hash
 		}, globalHistory.state && globalHistory.state.usr || null, globalHistory.state && globalHistory.state.key || "default");
 	}
-	function createHashHref(window2, to) {
-		let base = window2.document.querySelector("base");
+	function createHashHref(window, to) {
+		let base = window.document.querySelector("base");
 		let href = "";
 		if (base && base.getAttribute("href")) {
-			let url = window2.location.href;
+			let url = window.location.href;
 			let hashIndex = url.indexOf("#");
 			href = hashIndex === -1 ? url : url.slice(0, hashIndex);
 		}
@@ -28585,7 +28680,7 @@ function createHashHistory(options = {}) {
 	}
 	return getUrlBasedHistory(createHashLocation, createHashHref, validateHashLocation, options);
 }
-function invariant(value, message) {
+function invariant$1(value, message) {
 	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
 }
 function warning(cond, message) {
@@ -28599,6 +28694,9 @@ function warning(cond, message) {
 function createKey() {
 	return Math.random().toString(36).substring(2, 10);
 }
+/**
+* For browser-based histories, we combine the state and key into an object
+*/
 function getHistoryState(location, index) {
 	return {
 		usr: location.state,
@@ -28611,6 +28709,9 @@ function getHistoryState(location, index) {
 		} : void 0
 	};
 }
+/**
+* Creates a Location object with a unique key from the given Path
+*/
 function createLocation(current, to, state = null, key, mask) {
 	return {
 		pathname: typeof current === "string" ? current : current.pathname,
@@ -28622,11 +28723,27 @@ function createLocation(current, to, state = null, key, mask) {
 		mask
 	};
 }
+/**
+* Creates a string URL path from the given pathname, search, and hash components.
+*
+* @public
+* @category Utils
+* @param path The pathname, search, and hash components to combine.
+* @returns The combined URL path.
+*/
 function createPath({ pathname = "/", search = "", hash = "" }) {
 	if (search && search !== "?") pathname += search.charAt(0) === "?" ? search : "?" + search;
 	if (hash && hash !== "#") pathname += hash.charAt(0) === "#" ? hash : "#" + hash;
 	return pathname;
 }
+/**
+* Parses a string URL path into its separate pathname, search, and hash components.
+*
+* @public
+* @category Utils
+* @param path The URL path to parse.
+* @returns The parsed pathname, search, and hash components.
+*/
 function parsePath$1(path) {
 	let parsedPath = {};
 	if (path) {
@@ -28644,9 +28761,9 @@ function parsePath$1(path) {
 	}
 	return parsedPath;
 }
-function getUrlBasedHistory(getLocation, createHref2, validateLocation, options = {}) {
-	let { window: window2 = document.defaultView, v5Compat = false } = options;
-	let globalHistory = window2.history;
+function getUrlBasedHistory(getLocation, createHref, validateLocation, options = {}) {
+	let { window = document.defaultView, v5Compat = false } = options;
+	let globalHistory = window.history;
 	let action = "POP";
 	let listener = null;
 	let index = getIndex();
@@ -28682,7 +28799,7 @@ function getUrlBasedHistory(getLocation, createHref2, validateLocation, options 
 			globalHistory.pushState(historyState, "", url);
 		} catch (error) {
 			if (error instanceof DOMException && error.name === "DataCloneError") throw error;
-			window2.location.assign(url);
+			window.location.assign(url);
 		}
 		if (v5Compat && listener) listener({
 			action,
@@ -28690,7 +28807,7 @@ function getUrlBasedHistory(getLocation, createHref2, validateLocation, options 
 			delta: 1
 		});
 	}
-	function replace2(to, state) {
+	function replace(to, state) {
 		action = "REPLACE";
 		let location = isLocation(to) ? to : createLocation(history.location, to, state);
 		if (validateLocation) validateLocation(location, to);
@@ -28705,26 +28822,26 @@ function getUrlBasedHistory(getLocation, createHref2, validateLocation, options 
 		});
 	}
 	function createURL(to) {
-		return createBrowserURLImpl(window2, to);
+		return createBrowserURLImpl(window, to);
 	}
 	let history = {
 		get action() {
 			return action;
 		},
 		get location() {
-			return getLocation(window2, globalHistory);
+			return getLocation(window, globalHistory);
 		},
 		listen(fn) {
 			if (listener) throw new Error("A history only accepts one active listener");
-			window2.addEventListener(PopStateEventType, handlePop);
+			window.addEventListener(PopStateEventType, handlePop);
 			listener = fn;
 			return () => {
-				window2.removeEventListener(PopStateEventType, handlePop);
+				window.removeEventListener(PopStateEventType, handlePop);
 				listener = null;
 			};
 		},
 		createHref(to) {
-			return createHref2(window2, to);
+			return createHref(window, to);
 		},
 		createURL,
 		encodeLocation(to) {
@@ -28736,7 +28853,7 @@ function getUrlBasedHistory(getLocation, createHref2, validateLocation, options 
 			};
 		},
 		push,
-		replace: replace2,
+		replace,
 		go(n) {
 			return globalHistory.go(n);
 		}
@@ -28746,20 +28863,51 @@ function getUrlBasedHistory(getLocation, createHref2, validateLocation, options 
 function createBrowserURLImpl(windowImpl, to, isAbsolute = false) {
 	let base = "http://localhost";
 	if (windowImpl) base = windowImpl.location.origin !== "null" ? windowImpl.location.origin : windowImpl.location.href;
-	invariant(base, "No window.location.(origin|href) available to create URL");
+	invariant$1(base, "No window.location.(origin|href) available to create URL");
 	let href = typeof to === "string" ? to : createPath(to);
 	href = href.replace(/ $/, "%20");
 	if (!isAbsolute && PROTOCOL_RELATIVE_URL_REGEX.test(href)) href = base + href;
 	return new URL(href, base);
 }
-var _map;
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+/**
+* Provides methods for writing/reading values in application context in a
+* type-safe way. Primarily for usage with [middleware](../../how-to/middleware).
+*
+* @example
+* import {
+*   createContext,
+*   RouterContextProvider
+* } from "react-router";
+*
+* const userContext = createContext<User | null>(null);
+* const contextProvider = new RouterContextProvider();
+* contextProvider.set(userContext, getUser());
+* //                               ^ Type-safe
+* const user = contextProvider.get(userContext);
+* //    ^ User
+*
+* @public
+* @category Utils
+* @mode framework
+* @mode data
+*/
 var RouterContextProvider = class {
+	#map = /* @__PURE__ */ new Map();
 	/**
 	* Create a new `RouterContextProvider` instance
 	* @param init An optional initial context map to populate the provider with
 	*/
 	constructor(init) {
-		__privateAdd(this, _map, /* @__PURE__ */ new Map());
 		if (init) for (let [context, value] of init) this.set(context, value);
 	}
 	/**
@@ -28771,7 +28919,7 @@ var RouterContextProvider = class {
 	* value was set
 	*/
 	get(context) {
-		if (__privateGet(this, _map).has(context)) return __privateGet(this, _map).get(context);
+		if (this.#map.has(context)) return this.#map.get(context);
 		if (context.defaultValue !== void 0) return context.defaultValue;
 		throw new Error("No value found for context");
 	}
@@ -28784,10 +28932,9 @@ var RouterContextProvider = class {
 	* @returns {void}
 	*/
 	set(context, value) {
-		__privateGet(this, _map).set(context, value);
+		this.#map.set(context, value);
 	}
 };
-_map = /* @__PURE__ */ new WeakMap();
 var unsupportedLazyRouteObjectKeys = /* @__PURE__ */ new Set([
 	"lazy",
 	"caseSensitive",
@@ -28814,18 +28961,34 @@ function isUnsupportedLazyRouteFunctionKey(key) {
 function isIndexRoute(route) {
 	return route.index === true;
 }
-function convertRoutesToDataRoutes(routes, mapRouteProperties2, parentPath = [], manifest = {}, allowInPlaceMutations = false) {
+function defaultMapRouteProperties(route) {
+	let updates = {};
+	if (route.Component) Object.assign(updates, {
+		element: import_react.createElement(route.Component),
+		Component: void 0
+	});
+	if (route.HydrateFallback) Object.assign(updates, {
+		hydrateFallbackElement: import_react.createElement(route.HydrateFallback),
+		HydrateFallback: void 0
+	});
+	if (route.ErrorBoundary) Object.assign(updates, {
+		errorElement: import_react.createElement(route.ErrorBoundary),
+		ErrorBoundary: void 0
+	});
+	return updates;
+}
+function convertRoutesToDataRoutes(routes, mapRouteProperties = defaultMapRouteProperties, parentPath = [], manifest = {}, allowInPlaceMutations = false) {
 	return routes.map((route, index) => {
 		let treePath = [...parentPath, String(index)];
 		let id = typeof route.id === "string" ? route.id : treePath.join("-");
-		invariant(route.index !== true || !route.children, `Cannot specify children on an index route`);
-		invariant(allowInPlaceMutations || !manifest[id], `Found a route id collision on id "${id}".  Route id's must be globally unique within Data Router usages`);
+		invariant$1(route.index !== true || !route.children, `Cannot specify children on an index route`);
+		invariant$1(allowInPlaceMutations || !manifest[id], `Found a route id collision on id "${id}".  Route id's must be globally unique within Data Router usages`);
 		if (isIndexRoute(route)) {
 			let indexRoute = {
 				...route,
 				id
 			};
-			manifest[id] = mergeRouteUpdates(indexRoute, mapRouteProperties2(indexRoute));
+			manifest[id] = mergeRouteUpdates(indexRoute, mapRouteProperties(indexRoute));
 			return indexRoute;
 		} else {
 			let pathOrLayoutRoute = {
@@ -28833,8 +28996,8 @@ function convertRoutesToDataRoutes(routes, mapRouteProperties2, parentPath = [],
 				id,
 				children: void 0
 			};
-			manifest[id] = mergeRouteUpdates(pathOrLayoutRoute, mapRouteProperties2(pathOrLayoutRoute));
-			if (route.children) pathOrLayoutRoute.children = convertRoutesToDataRoutes(route.children, mapRouteProperties2, treePath, manifest, allowInPlaceMutations);
+			manifest[id] = mergeRouteUpdates(pathOrLayoutRoute, mapRouteProperties(pathOrLayoutRoute));
+			if (route.children) pathOrLayoutRoute.children = convertRoutesToDataRoutes(route.children, mapRouteProperties, treePath, manifest, allowInPlaceMutations);
 			return pathOrLayoutRoute;
 		}
 	});
@@ -28848,6 +29011,32 @@ function mergeRouteUpdates(route, updates) {
 		} } : {}
 	});
 }
+/**
+* Matches the given routes to a location and returns the match data.
+*
+* @example
+* import { matchRoutes } from "react-router";
+*
+* let routes = [{
+*   path: "/",
+*   Component: Root,
+*   children: [{
+*     path: "dashboard",
+*     Component: Dashboard,
+*   }]
+* }];
+*
+* matchRoutes(routes, "/dashboard"); // [rootMatch, dashboardMatch]
+*
+* @public
+* @category Utils
+* @param routes The array of route objects to match against.
+* @param locationArg The location to match against, either a string path or a
+* partial {@link Location} object
+* @param basename Optional base path to strip from the location before matching.
+* Defaults to `/`.
+* @returns An array of matched routes, or `null` if no matches were found.
+*/
 function matchRoutes(routes, locationArg, basename = "/") {
 	return matchRoutesImpl(routes, locationArg, basename, false);
 }
@@ -28866,7 +29055,6 @@ function convertRouteMatchToUiMatch(match, loaderData) {
 		id: route.id,
 		pathname,
 		params,
-		data: loaderData[route.id],
 		loaderData: loaderData[route.id],
 		handle: route.handle
 	};
@@ -28886,23 +29074,23 @@ function flattenRoutes(routes, branches = [], parentsMeta = [], parentPath = "",
 		};
 		if (meta.relativePath.startsWith("/")) {
 			if (!meta.relativePath.startsWith(parentPath) && hasParentOptionalSegments) return;
-			invariant(meta.relativePath.startsWith(parentPath), `Absolute route path "${meta.relativePath}" nested under path "${parentPath}" is not valid. An absolute child route path must start with the combined path of all its parent routes.`);
+			invariant$1(meta.relativePath.startsWith(parentPath), `Absolute route path "${meta.relativePath}" nested under path "${parentPath}" is not valid. An absolute child route path must start with the combined path of all its parent routes.`);
 			meta.relativePath = meta.relativePath.slice(parentPath.length);
 		}
 		let path = joinPaths([parentPath, meta.relativePath]);
 		let routesMeta = parentsMeta.concat(meta);
 		if (route.children && route.children.length > 0) {
-			invariant(route.index !== true, `Index routes must not have child routes. Please remove all child routes from route path "${path}".`);
+			invariant$1(route.index !== true, `Index routes must not have child routes. Please remove all child routes from route path "${path}".`);
 			flattenRoutes(route.children, branches, routesMeta, path, hasParentOptionalSegments);
 		}
 		if (route.path == null && !route.index) return;
 		branches.push({
 			path,
 			score: computeScore(path, route.index),
-			routesMeta: routesMeta.map((meta2, i) => {
-				let [matcher, params] = compilePath(meta2.relativePath, meta2.caseSensitive, i === routesMeta.length - 1);
+			routesMeta: routesMeta.map((meta, i) => {
+				let [matcher, params] = compilePath(meta.relativePath, meta.caseSensitive, i === routesMeta.length - 1);
 				return {
-					...meta2,
+					...meta,
 					matcher,
 					compiledParams: params
 				};
@@ -28932,6 +29120,8 @@ function rankRouteBranches(branches) {
 	branches.sort((a, b) => a.score !== b.score ? b.score - a.score : compareIndexes(a.routesMeta.map((meta) => meta.childrenIndex), b.routesMeta.map((meta) => meta.childrenIndex)));
 }
 var paramRe = /^:[\w-]+$/;
+var partialParamRe = /^:[\w-]+/;
+var partialDynamicSegmentValue = 3.5;
 var dynamicSegmentValue = 3;
 var indexRouteValue = 2;
 var emptySegmentValue = 1;
@@ -28943,7 +29133,7 @@ function computeScore(path, index) {
 	let initialScore = segments.length;
 	if (segments.some(isSplat)) initialScore += splatPenalty;
 	if (index) initialScore += indexRouteValue;
-	return segments.filter((s) => !isSplat(s)).reduce((score, segment) => score + (paramRe.test(segment) ? dynamicSegmentValue : segment === "" ? emptySegmentValue : staticSegmentValue), initialScore);
+	return segments.filter((s) => !isSplat(s)).reduce((score, segment) => score + (paramRe.test(segment) ? dynamicSegmentValue : partialParamRe.test(segment) ? partialDynamicSegmentValue : segment === "" ? emptySegmentValue : staticSegmentValue), initialScore);
 }
 function compareIndexes(a, b) {
 	return a.length === b.length && a.slice(0, -1).every((n, i) => n === b[i]) ? a[a.length - 1] - b[b.length - 1] : 0;
@@ -28981,6 +29171,20 @@ function matchRouteBranch(branch, pathname, allowPartial = false) {
 	}
 	return matches;
 }
+/**
+* Performs pattern matching on a URL pathname and returns information about
+* the match.
+*
+* @public
+* @category Utils
+* @param pattern The pattern to match against the URL pathname. This can be a
+* string or a {@link PathPattern} object. If a string is provided, it will be
+* treated as a pattern with `caseSensitive` set to `false` and `end` set to
+* `true`.
+* @param pathname The URL pathname to match against the pattern.
+* @returns A path match object if the pattern matches the pathname,
+* or `null` if it does not match.
+*/
 function matchPath(pattern, pathname) {
 	if (typeof pattern === "string") pattern = {
 		path: pattern,
@@ -28997,15 +29201,15 @@ function matchPathImpl(pattern, pathname, matcher, compiledParams) {
 	let pathnameBase = matchedPathname.replace(/(.)\/+$/, "$1");
 	let captureGroups = match.slice(1);
 	return {
-		params: compiledParams.reduce((memo2, { paramName, isOptional }, index) => {
+		params: compiledParams.reduce((memo, { paramName, isOptional }, index) => {
 			if (paramName === "*") {
 				let splatValue = captureGroups[index] || "";
 				pathnameBase = matchedPathname.slice(0, matchedPathname.length - splatValue.length).replace(/(.)\/+$/, "$1");
 			}
 			const value = captureGroups[index];
-			if (isOptional && !value) memo2[paramName] = void 0;
-			else memo2[paramName] = (value || "").replace(/%2F/g, "/");
-			return memo2;
+			if (isOptional && !value) memo[paramName] = void 0;
+			else memo[paramName] = (value || "").replace(/%2F/g, "/");
+			return memo;
 		}, {}),
 		pathname: matchedPathname,
 		pathnameBase,
@@ -29026,7 +29230,7 @@ function compilePath(path, caseSensitive = false, end = true) {
 			return "(?:/([^\\/]*))?";
 		}
 		return "/([^\\/]+)";
-	}).replace(/\/([\w-]+)\?(\/|$)/g, "(/$1)?$2");
+	}).replace(/\/([\w-]+)\?(?=\/|$|\()/g, "(?:/$1)?");
 	if (path.endsWith("*")) {
 		params.push({ paramName: "*" });
 		regexpSource += path === "*" || path === "/*" ? "(.*)$" : "(?:\\/(.+)|\\/*)$";
@@ -29054,6 +29258,16 @@ function prependBasename({ basename, pathname }) {
 	return pathname === "/" ? basename : joinPaths([basename, pathname]);
 }
 var isAbsoluteUrl = (url) => ABSOLUTE_URL_REGEX.test(url);
+/**
+* Returns a resolved {@link Path} object relative to the given pathname.
+*
+* @public
+* @category Utils
+* @param to The path to resolve, either a string or a partial {@link Path}
+* object.
+* @param fromPathname The pathname to resolve the path from. Defaults to `/`.
+* @returns A {@link Path} object with the resolved pathname, search, and hash.
+*/
 function resolvePath(to, fromPathname = "/") {
 	let { pathname: toPathname, search = "", hash = "" } = typeof to === "string" ? parsePath$1(to) : to;
 	let pathname;
@@ -29092,9 +29306,9 @@ function resolveTo(toArg, routePathnames, locationPathname, isPathRelative = fal
 	if (typeof toArg === "string") to = parsePath$1(toArg);
 	else {
 		to = { ...toArg };
-		invariant(!to.pathname || !to.pathname.includes("?"), getInvalidPathError("?", "pathname", "search", to));
-		invariant(!to.pathname || !to.pathname.includes("#"), getInvalidPathError("#", "pathname", "hash", to));
-		invariant(!to.search || !to.search.includes("#"), getInvalidPathError("#", "search", "hash", to));
+		invariant$1(!to.pathname || !to.pathname.includes("?"), getInvalidPathError("?", "pathname", "search", to));
+		invariant$1(!to.pathname || !to.pathname.includes("#"), getInvalidPathError("#", "pathname", "hash", to));
+		invariant$1(!to.search || !to.search.includes("#"), getInvalidPathError("#", "search", "hash", to));
 	}
 	let isEmptyPath = toArg === "" || to.pathname === "";
 	let toPathname = isEmptyPath ? "/" : to.pathname;
@@ -29133,23 +29347,74 @@ var SUPPORTED_ERROR_TYPES = [
 	"URIError"
 ];
 var ErrorResponseImpl = class {
-	constructor(status, statusText, data2, internal = false) {
+	status;
+	statusText;
+	data;
+	error;
+	internal;
+	constructor(status, statusText, data, internal = false) {
 		this.status = status;
 		this.statusText = statusText || "";
 		this.internal = internal;
-		if (data2 instanceof Error) {
-			this.data = data2.toString();
-			this.error = data2;
-		} else this.data = data2;
+		if (data instanceof Error) {
+			this.data = data.toString();
+			this.error = data;
+		} else this.data = data;
 	}
 };
+/**
+* Check if the given error is an {@link ErrorResponse} generated from a 4xx/5xx
+* [`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response)
+* thrown from an [`action`](../../start/framework/route-module#action) or
+* [`loader`](../../start/framework/route-module#loader) function.
+*
+* @example
+* import { isRouteErrorResponse } from "react-router";
+*
+* export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+*   if (isRouteErrorResponse(error)) {
+*     return (
+*       <>
+*         <p>Error: `${error.status}: ${error.statusText}`</p>
+*         <p>{error.data}</p>
+*       </>
+*     );
+*   }
+*
+*   return (
+*     <p>Error: {error instanceof Error ? error.message : "Unknown Error"}</p>
+*   );
+* }
+*
+* @public
+* @category Utils
+* @mode framework
+* @mode data
+* @param error The error to check.
+* @returns `true` if the error is an {@link ErrorResponse}, `false` otherwise.
+*/
 function isRouteErrorResponse(error) {
 	return error != null && typeof error.status === "number" && typeof error.statusText === "string" && typeof error.internal === "boolean" && "data" in error;
 }
 function getRoutePattern(matches) {
 	return joinPaths(matches.map((m) => m.route.path).filter(Boolean)) || "/";
 }
-var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
+function createDataFunctionUrl(request, path) {
+	let url = new URL(typeof request === "string" || request instanceof URL ? request : request.url);
+	let parsed = typeof path === "string" ? parsePath$1(path) : path;
+	url.pathname = parsed.pathname || "/";
+	if (parsed.search) {
+		let searchParams = new URLSearchParams(parsed.search);
+		let indexValues = searchParams.getAll("index");
+		searchParams.delete("index");
+		for (let value of indexValues.filter(Boolean)) searchParams.append("index", value);
+		let search = searchParams.toString();
+		url.search = search ? `?${search}` : "";
+	} else url.search = "";
+	url.hash = parsed.hash || "";
+	return url;
+}
+var isBrowser$1 = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
 function parseToInfo(_to, basename) {
 	let to = _to;
 	if (typeof to !== "string" || !ABSOLUTE_URL_REGEX.test(to)) return {
@@ -29159,7 +29424,7 @@ function parseToInfo(_to, basename) {
 	};
 	let absoluteURL = to;
 	let isExternal = false;
-	if (isBrowser) try {
+	if (isBrowser$1) try {
 		let currentUrl = new URL(window.location.href);
 		let targetUrl = PROTOCOL_RELATIVE_URL_REGEX.test(to) ? new URL(normalizeProtocolRelativeUrl(to, currentUrl.protocol)) : new URL(to);
 		let path = stripBasename(targetUrl.pathname, basename);
@@ -29174,7 +29439,20 @@ function parseToInfo(_to, basename) {
 		to
 	};
 }
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/router/instrumentation.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var UninstrumentedSymbol = Symbol("Uninstrumented");
+var instrumentationClientResultMetaReceivers = /* @__PURE__ */ new WeakMap();
 function getRouteInstrumentationUpdates(fns, route) {
 	let aggregated = {
 		lazy: [],
@@ -29190,50 +29468,67 @@ function getRouteInstrumentationUpdates(fns, route) {
 		index: route.index,
 		path: route.path,
 		instrument(i) {
-			let keys = Object.keys(aggregated);
-			for (let key of keys) if (i[key]) aggregated[key].push(i[key]);
+			if (i.lazy != null) aggregated.lazy.push(i.lazy);
+			if (i["lazy.loader"] != null) aggregated["lazy.loader"].push(i["lazy.loader"]);
+			if (i["lazy.action"] != null) aggregated["lazy.action"].push(i["lazy.action"]);
+			if (i["lazy.middleware"] != null) aggregated["lazy.middleware"].push(i["lazy.middleware"]);
+			if (i.middleware != null) aggregated.middleware.push(i.middleware);
+			if (i.loader != null) aggregated.loader.push(i.loader);
+			if (i.action != null) aggregated.action.push(i.action);
 		}
 	}));
 	let updates = {};
 	if (typeof route.lazy === "function" && aggregated.lazy.length > 0) {
-		let instrumented = wrapImpl(aggregated.lazy, route.lazy, () => void 0);
-		if (instrumented) updates.lazy = instrumented;
+		let lazy = route.lazy;
+		updates.lazy = async (...args) => {
+			return throwOrReturnResult(await recurseRight(aggregated.lazy, void 0, () => lazy(...args), getInstrumentationInnerResult));
+		};
 	}
 	if (typeof route.lazy === "object") {
 		let lazyObject = route.lazy;
-		[
-			"middleware",
-			"loader",
-			"action"
-		].forEach((key) => {
-			let lazyFn = lazyObject[key];
-			let instrumentations = aggregated[`lazy.${key}`];
-			if (typeof lazyFn === "function" && instrumentations.length > 0) {
-				let instrumented = wrapImpl(instrumentations, lazyFn, () => void 0);
-				if (instrumented) updates.lazy = Object.assign(updates.lazy || {}, { [key]: instrumented });
-			}
-		});
+		if (typeof lazyObject.middleware === "function" && aggregated["lazy.middleware"].length > 0) {
+			let middleware = lazyObject.middleware;
+			updates.lazy = Object.assign(updates.lazy || {}, { middleware: async (...args) => {
+				return throwOrReturnResult(await recurseRight(aggregated["lazy.middleware"], void 0, () => middleware(...args), getInstrumentationInnerResult));
+			} });
+		}
+		if (typeof lazyObject.loader === "function" && aggregated["lazy.loader"].length > 0) {
+			let loader = lazyObject.loader;
+			updates.lazy = Object.assign(updates.lazy || {}, { loader: async (...args) => {
+				return throwOrReturnResult(await recurseRight(aggregated["lazy.loader"], void 0, () => loader(...args), getInstrumentationInnerResult));
+			} });
+		}
+		if (typeof lazyObject.action === "function" && aggregated["lazy.action"].length > 0) {
+			let action = lazyObject.action;
+			updates.lazy = Object.assign(updates.lazy || {}, { action: async (...args) => {
+				return throwOrReturnResult(await recurseRight(aggregated["lazy.action"], void 0, () => action(...args), getInstrumentationInnerResult));
+			} });
+		}
 	}
-	["loader", "action"].forEach((key) => {
-		let handler = route[key];
-		if (typeof handler === "function" && aggregated[key].length > 0) {
-			let original = handler[UninstrumentedSymbol] ?? handler;
-			let instrumented = wrapImpl(aggregated[key], original, (...args) => getHandlerInfo(args[0]));
-			if (instrumented) {
-				if (key === "loader" && original.hydrate === true) instrumented.hydrate = true;
-				instrumented[UninstrumentedSymbol] = original;
-				updates[key] = instrumented;
-			}
-		}
-	});
+	if (typeof route.loader === "function" && aggregated.loader.length > 0) {
+		let original = getUninstrumentedHandler(route.loader);
+		let instrumented = async (...args) => {
+			return throwOrReturnResult(await recurseRight(aggregated.loader, getHandlerInfo(args[0]), () => original(...args), getInstrumentationInnerResult));
+		};
+		if (original.hydrate === true) instrumented.hydrate = true;
+		setUninstrumentedHandler(instrumented, original);
+		updates.loader = instrumented;
+	}
+	if (typeof route.action === "function" && aggregated.action.length > 0) {
+		let original = getUninstrumentedHandler(route.action);
+		let instrumented = async (...args) => {
+			return throwOrReturnResult(await recurseRight(aggregated.action, getHandlerInfo(args[0]), () => original(...args), getInstrumentationInnerResult));
+		};
+		setUninstrumentedHandler(instrumented, original);
+		updates.action = instrumented;
+	}
 	if (route.middleware && route.middleware.length > 0 && aggregated.middleware.length > 0) updates.middleware = route.middleware.map((middleware) => {
-		let original = middleware[UninstrumentedSymbol] ?? middleware;
-		let instrumented = wrapImpl(aggregated.middleware, original, (...args) => getHandlerInfo(args[0]));
-		if (instrumented) {
-			instrumented[UninstrumentedSymbol] = original;
-			return instrumented;
-		}
-		return middleware;
+		let original = getUninstrumentedHandler(middleware);
+		let instrumented = async (...args) => {
+			return throwOrReturnResult(await recurseRight(aggregated.middleware, getHandlerInfo(args[0]), () => original(...args), getInstrumentationInnerResult));
+		};
+		setUninstrumentedHandler(instrumented, original);
+		return instrumented;
 	});
 	return updates;
 }
@@ -29243,77 +29538,111 @@ function instrumentClientSideRouter(router, fns) {
 		fetch: []
 	};
 	fns.forEach((fn) => fn({ instrument(i) {
-		let keys = Object.keys(i);
-		for (let key of keys) if (i[key]) aggregated[key].push(i[key]);
+		if (i.navigate != null) aggregated.navigate.push(i.navigate);
+		if (i.fetch != null) aggregated.fetch.push(i.fetch);
 	} }));
 	if (aggregated.navigate.length > 0) {
-		let navigate = router.navigate[UninstrumentedSymbol] ?? router.navigate;
-		let instrumentedNavigate = wrapImpl(aggregated.navigate, navigate, (...args) => {
+		let navigate = getUninstrumentedHandler(router.navigate);
+		let instrumentedNavigate = async (...args) => {
 			let [to, opts] = args;
-			return {
+			let meta;
+			let info = {
 				to: typeof to === "number" || typeof to === "string" ? to : to ? createPath(to) : ".",
 				...getRouterInfo(router, opts ?? {})
 			};
-		});
-		if (instrumentedNavigate) {
-			instrumentedNavigate[UninstrumentedSymbol] = navigate;
-			router.navigate = instrumentedNavigate;
-		}
+			return throwOrReturnResult(await recurseRight(aggregated.navigate, info, async () => {
+				if (typeof to === "number") return await navigate(...args);
+				let cleanup = setInstrumentationClientResultMetaReceiver(router, (value) => {
+					meta = value;
+				});
+				try {
+					return await navigate(...args);
+				} finally {
+					cleanup();
+				}
+			}, (result) => ({
+				...getInstrumentationInnerResult(result),
+				meta
+			})));
+		};
+		setUninstrumentedHandler(instrumentedNavigate, navigate);
+		router.navigate = instrumentedNavigate;
 	}
 	if (aggregated.fetch.length > 0) {
-		let fetch2 = router.fetch[UninstrumentedSymbol] ?? router.fetch;
-		let instrumentedFetch = wrapImpl(aggregated.fetch, fetch2, (...args) => {
-			let [key, , href, opts] = args;
-			return {
+		let fetch = getUninstrumentedHandler(router.fetch);
+		let instrumentedFetch = async (...args) => {
+			let [key, _, href, opts] = args;
+			let meta;
+			return throwOrReturnResult(await recurseRight(aggregated.fetch, {
 				href: href ?? ".",
 				fetcherKey: key,
 				...getRouterInfo(router, opts ?? {})
-			};
-		});
-		if (instrumentedFetch) {
-			instrumentedFetch[UninstrumentedSymbol] = fetch2;
-			router.fetch = instrumentedFetch;
-		}
+			}, async () => {
+				let cleanup = setInstrumentationClientResultMetaReceiver(router, (value) => {
+					meta = value;
+				});
+				try {
+					return await fetch(...args);
+				} finally {
+					cleanup();
+				}
+			}, (result) => ({
+				...getInstrumentationInnerResult(result),
+				meta
+			})));
+		};
+		setUninstrumentedHandler(instrumentedFetch, fetch);
+		router.fetch = instrumentedFetch;
 	}
 	return router;
 }
-function wrapImpl(impls, handler, getInfo) {
-	if (impls.length === 0) return null;
-	return async (...args) => {
-		let result = await recurseRight(impls, getInfo(...args), () => handler(...args), impls.length - 1);
-		if (result.type === "error") throw result.value;
-		return result.value;
+function getUninstrumentedHandler(handler) {
+	return handler[UninstrumentedSymbol] ?? handler;
+}
+function setUninstrumentedHandler(handler, uninstrumentedHandler) {
+	handler[UninstrumentedSymbol] = uninstrumentedHandler;
+}
+function setInstrumentationClientResultMetaReceiver(router, receiver) {
+	instrumentationClientResultMetaReceivers.set(router, receiver);
+	return () => {
+		if (instrumentationClientResultMetaReceivers.get(router) === receiver) instrumentationClientResultMetaReceivers.delete(router);
 	};
 }
-async function recurseRight(impls, info, handler, index) {
+function consumeInstrumentationClientResultMetaReceiver(router) {
+	let receiver = instrumentationClientResultMetaReceivers.get(router);
+	instrumentationClientResultMetaReceivers.delete(router);
+	return receiver;
+}
+function throwOrReturnResult(result) {
+	if (result.type === "error") throw result.value;
+	return result.value;
+}
+async function recurseRight(impls, info, handler, getInnerResult, state = {
+	result: null,
+	innerResult: null
+}, index = impls.length - 1) {
 	let impl = impls[index];
-	let result;
-	if (!impl) try {
-		result = {
-			type: "success",
-			value: await handler()
-		};
-	} catch (e) {
-		result = {
-			type: "error",
-			value: e
-		};
-	}
-	else {
+	if (!impl) {
+		try {
+			state.result = {
+				type: "success",
+				value: await handler()
+			};
+		} catch (e) {
+			state.result = {
+				type: "error",
+				value: e
+			};
+		}
+		state.innerResult = getInnerResult(state.result, info);
+	} else {
 		let handlerPromise = void 0;
 		let callHandler = async () => {
 			if (handlerPromise) console.error("You cannot call instrumented handlers more than once");
-			else handlerPromise = recurseRight(impls, info, handler, index - 1);
-			result = await handlerPromise;
-			invariant(result, "Expected a result");
-			if (result.type === "error" && result.value instanceof Error) return {
-				status: "error",
-				error: result.value
-			};
-			return {
-				status: "success",
-				error: void 0
-			};
+			else handlerPromise = recurseRight(impls, info, handler, getInnerResult, state, index - 1);
+			await handlerPromise;
+			invariant$1(state.innerResult, "Expected an inner result");
+			return state.innerResult;
 		};
 		try {
 			await impl(callHandler, info);
@@ -29323,18 +29652,30 @@ async function recurseRight(impls, info, handler, index) {
 		if (!handlerPromise) await callHandler();
 		await handlerPromise;
 	}
-	if (result) return result;
-	return {
+	if (state.result) return state.result;
+	state.result = {
 		type: "error",
 		value: /* @__PURE__ */ new Error("No result assigned in instrumentation chain.")
 	};
+	state.innerResult = getInnerResult(state.result, info);
+	return state.result;
+}
+function getInstrumentationInnerResult(result) {
+	if (result.type === "error" && result.value instanceof Error) return {
+		status: "error",
+		error: result.value
+	};
+	return {
+		status: "success",
+		error: void 0
+	};
 }
 function getHandlerInfo(args) {
-	let { request, context, params, pattern } = args;
+	let { request, context, params } = args;
 	return {
+		...args,
 		request: getReadonlyRequest(request),
 		params: { ...params },
-		pattern,
 		context: getReadonlyContext(context)
 	};
 }
@@ -29355,18 +29696,20 @@ function getReadonlyRequest(request) {
 	};
 }
 function getReadonlyContext(context) {
-	if (isPlainObject$2(context)) {
-		let frozen = { ...context };
-		Object.freeze(frozen);
-		return frozen;
-	} else return { get: (ctx) => context.get(ctx) };
+	return { get: (ctx) => context.get(ctx) };
 }
-var objectProtoNames = Object.getOwnPropertyNames(Object.prototype).sort().join("\0");
-function isPlainObject$2(thing) {
-	if (thing === null || typeof thing !== "object") return false;
-	const proto = Object.getPrototypeOf(thing);
-	return proto === Object.prototype || proto === null || Object.getOwnPropertyNames(proto).sort().join("\0") === objectProtoNames;
-}
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/router/router.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var validMutationMethodsArr = [
 	"POST",
 	"PUT",
@@ -29412,79 +29755,77 @@ var IDLE_BLOCKER = {
 	reset: void 0,
 	location: void 0
 };
-var defaultMapRouteProperties = (route) => ({ hasErrorBoundary: Boolean(route.hasErrorBoundary) });
 var TRANSITIONS_STORAGE_KEY = "remix-router-transitions";
 var ResetLoaderDataSymbol = Symbol("ResetLoaderData");
-var _routes;
-var _branches;
-var _hmrRoutes;
-var _hmrBranches;
-var DataRoutes = class {
+/**
+* Encapsulates the stable and in-flight route trees together with their
+* pre-computed branch caches so the structures always stay in sync.
+*/
+var DataRoutes$1 = class {
+	#routes;
+	#branches;
+	#hmrRoutes;
+	#hmrBranches;
 	constructor(routes) {
-		__privateAdd(this, _routes);
-		__privateAdd(this, _branches);
-		__privateAdd(this, _hmrRoutes);
-		__privateAdd(this, _hmrBranches);
-		__privateSet(this, _routes, routes);
-		__privateSet(this, _branches, flattenAndRankRoutes(routes));
+		this.#routes = routes;
+		this.#branches = flattenAndRankRoutes(routes);
 	}
 	/** The stable route tree */
 	get stableRoutes() {
-		return __privateGet(this, _routes);
+		return this.#routes;
 	}
 	/** The in-flight route tree if one is active, otherwise the stable tree */
 	get activeRoutes() {
-		return __privateGet(this, _hmrRoutes) ?? __privateGet(this, _routes);
+		return this.#hmrRoutes ?? this.#routes;
 	}
 	/** Pre-computed branches */
 	get branches() {
-		return __privateGet(this, _hmrBranches) ?? __privateGet(this, _branches);
+		return this.#hmrBranches ?? this.#branches;
 	}
 	get hasHMRRoutes() {
-		return __privateGet(this, _hmrRoutes) != null;
+		return this.#hmrRoutes != null;
 	}
 	/** Replace the stable route tree and recompute its branches */
 	setRoutes(routes) {
-		__privateSet(this, _routes, routes);
-		__privateSet(this, _branches, flattenAndRankRoutes(routes));
+		this.#routes = routes;
+		this.#branches = flattenAndRankRoutes(routes);
 	}
 	/** Set a new in-flight route tree and recompute its branches */
 	setHmrRoutes(routes) {
-		__privateSet(this, _hmrRoutes, routes);
-		__privateSet(this, _hmrBranches, flattenAndRankRoutes(routes));
+		this.#hmrRoutes = routes;
+		this.#hmrBranches = flattenAndRankRoutes(routes);
 	}
 	/** Commit in-flight routes/branches to the stable slot and clear in-flight */
 	commitHmrRoutes() {
-		if (__privateGet(this, _hmrRoutes)) {
-			__privateSet(this, _routes, __privateGet(this, _hmrRoutes));
-			__privateSet(this, _branches, __privateGet(this, _hmrBranches));
-			__privateSet(this, _hmrRoutes, void 0);
-			__privateSet(this, _hmrBranches, void 0);
+		if (this.#hmrRoutes) {
+			this.#routes = this.#hmrRoutes;
+			this.#branches = this.#hmrBranches;
+			this.#hmrRoutes = void 0;
+			this.#hmrBranches = void 0;
 		}
 	}
 };
-_routes = /* @__PURE__ */ new WeakMap();
-_branches = /* @__PURE__ */ new WeakMap();
-_hmrRoutes = /* @__PURE__ */ new WeakMap();
-_hmrBranches = /* @__PURE__ */ new WeakMap();
+/**
+* Create a router and listen to history POP navigations
+*/
 function createRouter(init) {
 	const routerWindow = init.window ? init.window : typeof window !== "undefined" ? window : void 0;
-	const isBrowser3 = typeof routerWindow !== "undefined" && typeof routerWindow.document !== "undefined" && typeof routerWindow.document.createElement !== "undefined";
-	invariant(init.routes.length > 0, "You must provide a non-empty routes array to createRouter");
-	let hydrationRouteProperties2 = init.hydrationRouteProperties || [];
-	let _mapRouteProperties = init.mapRouteProperties || defaultMapRouteProperties;
-	let mapRouteProperties2 = _mapRouteProperties;
+	const isBrowser = typeof routerWindow !== "undefined" && typeof routerWindow.document !== "undefined" && typeof routerWindow.document.createElement !== "undefined";
+	invariant$1(init.routes.length > 0, "You must provide a non-empty routes array to createRouter");
+	let hydrationRouteProperties = init.hydrationRouteProperties || [];
+	let _mapRouteProperties = init.mapRouteProperties;
+	let mapRouteProperties = _mapRouteProperties ? _mapRouteProperties : () => ({});
 	if (init.instrumentations) {
 		let instrumentations = init.instrumentations;
-		mapRouteProperties2 = (route) => {
+		mapRouteProperties = (route) => {
 			return {
-				..._mapRouteProperties(route),
+				..._mapRouteProperties?.(route),
 				...getRouteInstrumentationUpdates(instrumentations.map((i) => i.route).filter(Boolean), route)
 			};
 		};
 	}
 	let manifest = {};
-	let dataRoutes = new DataRoutes(convertRoutesToDataRoutes(init.routes, mapRouteProperties2, void 0, manifest));
+	let dataRoutes = new DataRoutes$1(convertRoutesToDataRoutes(init.routes, mapRouteProperties, void 0, manifest));
 	let basename = init.basename || "/";
 	if (!basename.startsWith("/")) basename = `/${basename}`;
 	let dataStrategyImpl = init.dataStrategy || defaultDataStrategyWithMiddleware;
@@ -29492,8 +29833,8 @@ function createRouter(init) {
 	let unlistenHistory = null;
 	let subscribers = /* @__PURE__ */ new Set();
 	let bufferedInitialStateUpdate = null;
-	let savedScrollPositions2 = null;
-	let getScrollRestorationKey2 = null;
+	let savedScrollPositions = null;
+	let getScrollRestorationKey = null;
 	let getScrollPosition = null;
 	let initialScrollRestored = init.hydrationData != null;
 	let initialMatches = matchRoutesImpl(dataRoutes.activeRoutes, init.history.location, basename, false, dataRoutes.branches);
@@ -29624,7 +29965,7 @@ function createRouter(init) {
 			}
 			return startNavigation(historyAction, location);
 		});
-		if (isBrowser3) {
+		if (isBrowser) {
 			restoreAppliedTransitions(routerWindow, appliedViewTransitions);
 			let _saveAppliedTransitions = () => persistAppliedTransitions(routerWindow, appliedViewTransitions);
 			routerWindow.addEventListener("pagehide", _saveAppliedTransitions);
@@ -29697,7 +30038,7 @@ function createRouter(init) {
 		else actionData = null;
 		let loaderData = newState.loaderData ? mergeLoaderData(state.loaderData, newState.loaderData, newState.matches || [], newState.errors) : state.loaderData;
 		let blockers = state.blockers;
-		if (blockers.size > 0) {
+		if (blockers.size > 0 && !isUninterruptedRevalidation) {
 			blockers = new Map(blockers);
 			blockers.forEach((_, k) => blockers.set(k, IDLE_BLOCKER));
 		}
@@ -29765,6 +30106,7 @@ function createRouter(init) {
 			init.history.go(to);
 			return promise;
 		}
+		let instrumentationNavigateMetaReceiver = consumeInstrumentationClientResultMetaReceiver(router);
 		let { path, submission, error } = normalizeNavigateOptions(false, normalizeTo(state.location, state.matches, basename, to, opts?.fromRouteId, opts?.relative), opts);
 		let maskPath;
 		if (opts?.mask) maskPath = {
@@ -29821,7 +30163,8 @@ function createRouter(init) {
 			replace: opts && opts.replace,
 			enableViewTransition: opts && opts.viewTransition,
 			flushSync,
-			callSiteDefaultShouldRevalidate: opts && opts.defaultShouldRevalidate
+			callSiteDefaultShouldRevalidate: opts && opts.defaultShouldRevalidate,
+			instrumentationNavigateMetaReceiver
 		});
 	}
 	function revalidate() {
@@ -29857,6 +30200,10 @@ function createRouter(init) {
 		}
 		let fogOfWar = checkFogOfWar(matches, routesToUse, location.pathname);
 		if (fogOfWar.active && fogOfWar.matches) matches = fogOfWar.matches;
+		if (opts?.instrumentationNavigateMetaReceiver) {
+			let meta = getInstrumentationNavigateMeta(init.history, location, matches);
+			opts.instrumentationNavigateMetaReceiver(meta);
+		}
 		if (!matches) {
 			let { error, notFoundMatches, route } = handleNavigational404(location.pathname);
 			completeNavigation(location, {
@@ -29923,9 +30270,9 @@ function createRouter(init) {
 			if (discoverResult.type === "aborted") return { shortCircuited: true };
 			else if (discoverResult.type === "error") {
 				if (discoverResult.partialMatches.length === 0) {
-					let { matches: matches2, route } = getShortCircuitMatches(dataRoutes.activeRoutes);
+					let { matches, route } = getShortCircuitMatches(dataRoutes.activeRoutes);
 					return {
-						matches: matches2,
+						matches,
 						pendingActionResult: [route.id, {
 							type: "error",
 							error: discoverResult.error
@@ -29962,7 +30309,7 @@ function createRouter(init) {
 			})
 		};
 		else {
-			let results = await callDataStrategy(request, location, getTargetedDataStrategyMatches(mapRouteProperties2, manifest, request, location, matches, actionMatch, initialHydration ? [] : hydrationRouteProperties2, scopedContext), scopedContext, null);
+			let results = await callDataStrategy(request, location, getTargetedDataStrategyMatches(mapRouteProperties, manifest, request, location, matches, actionMatch, initialHydration ? [] : hydrationRouteProperties, scopedContext), scopedContext, null);
 			result = results[actionMatch.route.id];
 			if (!result) {
 				for (let match of matches) if (results[match.route.id]) {
@@ -29973,12 +30320,12 @@ function createRouter(init) {
 			if (request.signal.aborted) return { shortCircuited: true };
 		}
 		if (isRedirectResult(result)) {
-			let replace2;
-			if (opts && opts.replace != null) replace2 = opts.replace;
-			else replace2 = normalizeRedirectLocation(result.response.headers.get("Location"), new URL(request.url), basename, init.history) === state.location.pathname + state.location.search;
+			let replace;
+			if (opts && opts.replace != null) replace = opts.replace;
+			else replace = normalizeRedirectLocation(result.response.headers.get("Location"), new URL(request.url), basename, init.history) === state.location.pathname + state.location.search;
 			await startRedirectNavigation(request, result, true, {
 				submission,
-				replace: replace2
+				replace
 			});
 			return { shortCircuited: true };
 		}
@@ -29999,7 +30346,7 @@ function createRouter(init) {
 			pendingActionResult: [actionMatch.route.id, result]
 		};
 	}
-	async function handleLoaders(request, location, matches, historyAction, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace2, initialHydration, flushSync, pendingActionResult, callSiteDefaultShouldRevalidate) {
+	async function handleLoaders(request, location, matches, historyAction, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace, initialHydration, flushSync, pendingActionResult, callSiteDefaultShouldRevalidate) {
 		let loadingNavigation = overrideNavigation || getLoadingNavigation(location, matches, historyAction, submission);
 		let activeSubmission = submission || fetcherSubmission || getSubmissionFromNavigation(loadingNavigation);
 		let shouldUpdateNavigationState = !isUninterruptedRevalidation && !initialHydration;
@@ -30015,9 +30362,9 @@ function createRouter(init) {
 			if (discoverResult.type === "aborted") return { shortCircuited: true };
 			else if (discoverResult.type === "error") {
 				if (discoverResult.partialMatches.length === 0) {
-					let { matches: matches2, route } = getShortCircuitMatches(dataRoutes.activeRoutes);
+					let { matches, route } = getShortCircuitMatches(dataRoutes.activeRoutes);
 					return {
-						matches: matches2,
+						matches,
 						loaderData: {},
 						errors: { [route.id]: discoverResult.error }
 					};
@@ -30038,17 +30385,17 @@ function createRouter(init) {
 			} else matches = discoverResult.matches;
 		}
 		let routesToUse = dataRoutes.activeRoutes;
-		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, init.history, state, matches, activeSubmission, location, initialHydration ? [] : hydrationRouteProperties2, initialHydration === true, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, init.patchRoutesOnNavigation != null, dataRoutes.branches, pendingActionResult, callSiteDefaultShouldRevalidate);
+		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, init.history, state, matches, activeSubmission, location, initialHydration ? [] : hydrationRouteProperties, initialHydration === true, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, init.patchRoutesOnNavigation != null, dataRoutes.branches, pendingActionResult, callSiteDefaultShouldRevalidate);
 		pendingNavigationLoadId = ++incrementingLoadId;
 		if (!init.dataStrategy && !dsMatches.some((m) => m.shouldLoad) && !dsMatches.some((m) => m.route.middleware && m.route.middleware.length > 0) && revalidatingFetchers.length === 0) {
-			let workingFetchers2 = new Map(state.fetchers);
-			let didUpdateFetcherRedirects2 = markFetchRedirectsDone(workingFetchers2);
+			let workingFetchers = new Map(state.fetchers);
+			let didUpdateFetcherRedirects = markFetchRedirectsDone(workingFetchers);
 			completeNavigation(location, {
 				matches,
 				loaderData: {},
 				errors: pendingActionResult && isErrorResult(pendingActionResult[1]) ? { [pendingActionResult[0]]: pendingActionResult[1].error } : null,
 				...getActionDataForCommit(pendingActionResult),
-				...didUpdateFetcherRedirects2 ? { fetchers: workingFetchers2 } : {}
+				...didUpdateFetcherRedirects ? { fetchers: workingFetchers } : {}
 			}, { flushSync });
 			return { shortCircuited: true };
 		}
@@ -30072,15 +30419,15 @@ function createRouter(init) {
 		if (request.signal.aborted) return { shortCircuited: true };
 		if (pendingNavigationController) pendingNavigationController.signal.removeEventListener("abort", abortPendingFetchRevalidations);
 		revalidatingFetchers.forEach((rf) => fetchControllers.delete(rf.key));
-		let redirect2 = findRedirect(loaderResults);
-		if (redirect2) {
-			await startRedirectNavigation(request, redirect2.result, true, { replace: replace2 });
+		let redirect = findRedirect(loaderResults);
+		if (redirect) {
+			await startRedirectNavigation(request, redirect.result, true, { replace });
 			return { shortCircuited: true };
 		}
-		redirect2 = findRedirect(fetcherResults);
-		if (redirect2) {
-			fetchRedirectIds.add(redirect2.key);
-			await startRedirectNavigation(request, redirect2.result, true, { replace: replace2 });
+		redirect = findRedirect(fetcherResults);
+		if (redirect) {
+			fetchRedirectIds.add(redirect.key);
+			await startRedirectNavigation(request, redirect.result, true, { replace });
 			return { shortCircuited: true };
 		}
 		let workingFetchers = new Map(state.fetchers);
@@ -30113,14 +30460,16 @@ function createRouter(init) {
 		});
 		return workingFetchers;
 	}
-	async function fetch2(key, routeId, href, opts) {
+	async function fetch(key, routeId, href, opts) {
 		abortFetcher(key);
 		let flushSync = (opts && opts.flushSync) === true;
+		let instrumentationResultMetaReceiver = consumeInstrumentationClientResultMetaReceiver(router);
 		let routesToUse = dataRoutes.activeRoutes;
 		let normalizedPath = normalizeTo(state.location, state.matches, basename, href, routeId, opts?.relative);
 		let matches = matchRoutesImpl(routesToUse, normalizedPath, basename, false, dataRoutes.branches);
 		let fogOfWar = checkFogOfWar(matches, routesToUse, normalizedPath);
 		if (fogOfWar.active && fogOfWar.matches) matches = fogOfWar.matches;
+		if (instrumentationResultMetaReceiver) instrumentationResultMetaReceiver(getInstrumentationNavigateMeta(init.history, normalizedPath, matches));
 		if (!matches) {
 			setFetcherError(key, routeId, getInternalRouterError(404, { pathname: normalizedPath }), { flushSync });
 			return;
@@ -30170,12 +30519,12 @@ function createRouter(init) {
 		}
 		fetchControllers.set(key, abortController);
 		let originatingLoadId = incrementingLoadId;
-		let fetchMatches = getTargetedDataStrategyMatches(mapRouteProperties2, manifest, fetchRequest, path, requestMatches, match, hydrationRouteProperties2, scopedContext);
+		let fetchMatches = getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, path, requestMatches, match, hydrationRouteProperties, scopedContext);
 		let actionResults = await callDataStrategy(fetchRequest, path, fetchMatches, scopedContext, key);
 		let actionResult = actionResults[match.route.id];
 		if (!actionResult) {
-			for (let match2 of fetchMatches) if (actionResults[match2.route.id]) {
-				actionResult = actionResults[match2.route.id];
+			for (let match of fetchMatches) if (actionResults[match.route.id]) {
+				actionResult = actionResults[match.route.id];
 				break;
 			}
 		}
@@ -30212,17 +30561,17 @@ function createRouter(init) {
 		let revalidationRequest = createClientSideRequest(init.history, nextLocation, abortController.signal);
 		let routesToUse = dataRoutes.activeRoutes;
 		let matches = state.navigation.state !== "idle" ? matchRoutesImpl(routesToUse, state.navigation.location, basename, false, dataRoutes.branches) : state.matches;
-		invariant(matches, "Didn't find any matches after fetcher action");
+		invariant$1(matches, "Didn't find any matches after fetcher action");
 		let loadId = ++incrementingLoadId;
 		fetchReloadIds.set(key, loadId);
-		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(revalidationRequest, scopedContext, mapRouteProperties2, manifest, init.history, state, matches, submission, nextLocation, hydrationRouteProperties2, false, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, init.patchRoutesOnNavigation != null, dataRoutes.branches, [match.route.id, actionResult], callSiteDefaultShouldRevalidate);
+		let { dsMatches, revalidatingFetchers } = getMatchesToLoad(revalidationRequest, scopedContext, mapRouteProperties, manifest, init.history, state, matches, submission, nextLocation, hydrationRouteProperties, false, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, init.patchRoutesOnNavigation != null, dataRoutes.branches, [match.route.id, actionResult], callSiteDefaultShouldRevalidate);
 		let loadFetcher = getLoadingFetcher(submission, actionResult.data);
 		let workingFetchers = new Map(state.fetchers);
 		workingFetchers.set(key, loadFetcher);
 		revalidatingFetchers.filter((rf) => rf.key !== key).forEach((rf) => {
 			let staleKey = rf.key;
-			let existingFetcher2 = workingFetchers.get(staleKey);
-			let revalidatingFetcher = getLoadingFetcher(void 0, existingFetcher2 ? existingFetcher2.data : void 0);
+			let existingFetcher = workingFetchers.get(staleKey);
+			let revalidatingFetcher = getLoadingFetcher(void 0, existingFetcher ? existingFetcher.data : void 0);
 			workingFetchers.set(staleKey, revalidatingFetcher);
 			abortFetcher(staleKey);
 			if (rf.controller) fetchControllers.set(staleKey, rf.controller);
@@ -30239,30 +30588,30 @@ function createRouter(init) {
 		let fetcherIsMounted = state.fetchers.has(key);
 		let getRedirectStateWithDoneFetcher = (s) => {
 			if (!fetcherIsMounted) return s;
-			let workingFetchers2 = new Map(s.fetchers);
-			workingFetchers2.set(key, getDoneFetcher(actionResult.data));
+			let workingFetchers = new Map(s.fetchers);
+			workingFetchers.set(key, getDoneFetcher(actionResult.data));
 			return {
 				...s,
-				fetchers: workingFetchers2
+				fetchers: workingFetchers
 			};
 		};
-		let redirect2 = findRedirect(loaderResults);
-		if (redirect2) {
+		let redirect = findRedirect(loaderResults);
+		if (redirect) {
 			state = getRedirectStateWithDoneFetcher(state);
-			return startRedirectNavigation(revalidationRequest, redirect2.result, false, { preventScrollReset });
+			return startRedirectNavigation(revalidationRequest, redirect.result, false, { preventScrollReset });
 		}
-		redirect2 = findRedirect(fetcherResults);
-		if (redirect2) {
-			fetchRedirectIds.add(redirect2.key);
+		redirect = findRedirect(fetcherResults);
+		if (redirect) {
+			fetchRedirectIds.add(redirect.key);
 			state = getRedirectStateWithDoneFetcher(state);
-			return startRedirectNavigation(revalidationRequest, redirect2.result, false, { preventScrollReset });
+			return startRedirectNavigation(revalidationRequest, redirect.result, false, { preventScrollReset });
 		}
 		let finalFetchers = new Map(state.fetchers);
 		if (fetcherIsMounted) finalFetchers.set(key, getDoneFetcher(actionResult.data));
 		let { loaderData, errors } = processLoaderData(state, matches, loaderResults, void 0, revalidatingFetchers, fetcherResults, finalFetchers);
 		abortStaleFetchLoads(loadId, finalFetchers);
 		if (state.navigation.state === "loading" && loadId > pendingNavigationLoadId) {
-			invariant(pendingAction, "Expected pending action");
+			invariant$1(pendingAction, "Expected pending action");
 			pendingNavigationController && pendingNavigationController.abort();
 			completeNavigation(state.navigation.location, {
 				matches,
@@ -30298,11 +30647,11 @@ function createRouter(init) {
 		let match = getTargetMatch(matches, path);
 		fetchControllers.set(key, abortController);
 		let originatingLoadId = incrementingLoadId;
-		let results = await callDataStrategy(fetchRequest, path, getTargetedDataStrategyMatches(mapRouteProperties2, manifest, fetchRequest, path, matches, match, hydrationRouteProperties2, scopedContext), scopedContext, key);
+		let results = await callDataStrategy(fetchRequest, path, getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, path, matches, match, hydrationRouteProperties, scopedContext), scopedContext, key);
 		let result = results[match.route.id];
 		if (!result) {
-			for (let match2 of matches) if (results[match2.route.id]) {
-				result = results[match2.route.id];
+			for (let match of matches) if (results[match.route.id]) {
+				result = results[match.route.id];
 				break;
 			}
 		}
@@ -30326,35 +30675,54 @@ function createRouter(init) {
 		}
 		updateFetcherState(key, getDoneFetcher(result.data));
 	}
-	async function startRedirectNavigation(request, redirect2, isNavigation, { submission, fetcherSubmission, preventScrollReset, replace: replace2 } = {}) {
+	/**
+	* Utility function to handle redirects returned from an action or loader.
+	* Normally, a redirect "replaces" the navigation that triggered it.  So, for
+	* example:
+	*
+	*  - user is on /a
+	*  - user clicks a link to /b
+	*  - loader for /b redirects to /c
+	*
+	* In a non-JS app the browser would track the in-flight navigation to /b and
+	* then replace it with /c when it encountered the redirect response.  In
+	* the end it would only ever update the URL bar with /c.
+	*
+	* In client-side routing using pushState/replaceState, we aim to emulate
+	* this behavior and we also do not update history until the end of the
+	* navigation (including processed redirects).  This means that we never
+	* actually touch history until we've processed redirects, so we just use
+	* the history action from the original navigation (PUSH or REPLACE).
+	*/
+	async function startRedirectNavigation(request, redirect, isNavigation, { submission, fetcherSubmission, preventScrollReset, replace } = {}) {
 		if (!isNavigation) {
 			pendingPopstateNavigationDfd?.resolve();
 			pendingPopstateNavigationDfd = null;
 		}
-		if (redirect2.response.headers.has("X-Remix-Revalidate")) isRevalidationRequired = true;
-		let location = redirect2.response.headers.get("Location");
-		invariant(location, "Expected a Location header on the redirect Response");
+		if (redirect.response.headers.has("X-Remix-Revalidate")) isRevalidationRequired = true;
+		let location = redirect.response.headers.get("Location");
+		invariant$1(location, "Expected a Location header on the redirect Response");
 		location = normalizeRedirectLocation(location, new URL(request.url), basename, init.history);
 		let redirectLocation = createLocation(state.location, location, { _isRedirect: true });
-		if (isBrowser3) {
+		if (isBrowser) {
 			let isDocumentReload = false;
-			if (redirect2.response.headers.has("X-Remix-Reload-Document")) isDocumentReload = true;
+			if (redirect.response.headers.has("X-Remix-Reload-Document")) isDocumentReload = true;
 			else if (isAbsoluteUrl(location)) {
 				const url = createBrowserURLImpl(routerWindow, location, true);
 				isDocumentReload = url.origin !== routerWindow.location.origin || stripBasename(url.pathname, basename) == null;
 			}
 			if (isDocumentReload) {
-				if (replace2) routerWindow.location.replace(location);
+				if (replace) routerWindow.location.replace(location);
 				else routerWindow.location.assign(location);
 				return;
 			}
 		}
 		pendingNavigationController = null;
-		let redirectNavigationType = replace2 === true || redirect2.response.headers.has("X-Remix-Replace") ? "REPLACE" : "PUSH";
+		let redirectNavigationType = replace === true || redirect.response.headers.has("X-Remix-Replace") ? "REPLACE" : "PUSH";
 		let { formMethod, formAction, formEncType } = state.navigation;
 		if (!submission && !fetcherSubmission && formMethod && formAction && formEncType) submission = getSubmissionFromNavigation(state.navigation);
 		let activeSubmission = submission || fetcherSubmission;
-		if (redirectPreserveMethodStatusCodes.has(redirect2.response.status) && activeSubmission && isMutationMethod(activeSubmission.formMethod)) await startNavigation(redirectNavigationType, redirectLocation, {
+		if (redirectPreserveMethodStatusCodes.has(redirect.response.status) && activeSubmission && isMutationMethod(activeSubmission.formMethod)) await startNavigation(redirectNavigationType, redirectLocation, {
 			submission: {
 				...activeSubmission,
 				formAction: location
@@ -30474,7 +30842,7 @@ function createRouter(init) {
 	function markFetchersDone(keys, fetchers) {
 		for (let key of keys) {
 			let fetcher = fetchers.get(key);
-			invariant(fetcher, `Expected fetcher: ${key}`);
+			invariant$1(fetcher, `Expected fetcher: ${key}`);
 			let doneFetcher = getDoneFetcher(fetcher.data);
 			fetchers.set(key, doneFetcher);
 		}
@@ -30484,7 +30852,7 @@ function createRouter(init) {
 		let didUpdateFetchers = false;
 		for (let key of fetchRedirectIds) {
 			let fetcher = fetchers.get(key);
-			invariant(fetcher, `Expected fetcher: ${key}`);
+			invariant$1(fetcher, `Expected fetcher: ${key}`);
 			if (fetcher.state === "loading") {
 				fetchRedirectIds.delete(key);
 				doneKeys.push(key);
@@ -30498,7 +30866,7 @@ function createRouter(init) {
 		let yeetedKeys = [];
 		for (let [key, id] of fetchReloadIds) if (id < landedId) {
 			let fetcher = fetchers.get(key);
-			invariant(fetcher, `Expected fetcher: ${key}`);
+			invariant$1(fetcher, `Expected fetcher: ${key}`);
 			if (fetcher.state === "loading") {
 				abortFetcher(key);
 				fetchReloadIds.delete(key);
@@ -30519,7 +30887,7 @@ function createRouter(init) {
 	}
 	function updateBlocker(key, newBlocker) {
 		let blocker = state.blockers.get(key) || IDLE_BLOCKER;
-		invariant(blocker.state === "unblocked" && newBlocker.state === "blocked" || blocker.state === "blocked" && newBlocker.state === "blocked" || blocker.state === "blocked" && newBlocker.state === "proceeding" || blocker.state === "blocked" && newBlocker.state === "unblocked" || blocker.state === "proceeding" && newBlocker.state === "unblocked", `Invalid blocker state transition: ${blocker.state} -> ${newBlocker.state}`);
+		invariant$1(blocker.state === "unblocked" && newBlocker.state === "blocked" || blocker.state === "blocked" && newBlocker.state === "blocked" || blocker.state === "blocked" && newBlocker.state === "proceeding" || blocker.state === "blocked" && newBlocker.state === "unblocked" || blocker.state === "proceeding" && newBlocker.state === "unblocked", `Invalid blocker state transition: ${blocker.state} -> ${newBlocker.state}`);
 		let blockers = new Map(state.blockers);
 		blockers.set(key, newBlocker);
 		updateState({ blockers });
@@ -30548,34 +30916,34 @@ function createRouter(init) {
 		};
 	}
 	function enableScrollRestoration(positions, getPosition, getKey) {
-		savedScrollPositions2 = positions;
+		savedScrollPositions = positions;
 		getScrollPosition = getPosition;
-		getScrollRestorationKey2 = getKey || null;
+		getScrollRestorationKey = getKey || null;
 		if (!initialScrollRestored && state.navigation === IDLE_NAVIGATION) {
 			initialScrollRestored = true;
 			let y = getSavedScrollPosition(state.location, state.matches);
 			if (y != null) updateState({ restoreScrollPosition: y });
 		}
 		return () => {
-			savedScrollPositions2 = null;
+			savedScrollPositions = null;
 			getScrollPosition = null;
-			getScrollRestorationKey2 = null;
+			getScrollRestorationKey = null;
 		};
 	}
 	function getScrollKey(location, matches) {
-		if (getScrollRestorationKey2) return getScrollRestorationKey2(location, matches.map((m) => convertRouteMatchToUiMatch(m, state.loaderData))) || location.key;
+		if (getScrollRestorationKey) return getScrollRestorationKey(location, matches.map((m) => convertRouteMatchToUiMatch(m, state.loaderData))) || location.key;
 		return location.key;
 	}
 	function saveScrollPosition(location, matches) {
-		if (savedScrollPositions2 && getScrollPosition) {
+		if (savedScrollPositions && getScrollPosition) {
 			let key = getScrollKey(location, matches);
-			savedScrollPositions2[key] = getScrollPosition();
+			savedScrollPositions[key] = getScrollPosition();
 		}
 	}
 	function getSavedScrollPosition(location, matches) {
-		if (savedScrollPositions2) {
+		if (savedScrollPositions) {
 			let key = getScrollKey(location, matches);
-			let y = savedScrollPositions2[key];
+			let y = savedScrollPositions[key];
 			if (typeof y === "number") return y;
 		}
 		return null;
@@ -30613,7 +30981,7 @@ function createRouter(init) {
 					fetcherKey,
 					patch: (routeId, children) => {
 						if (signal.aborted) return;
-						patchRoutesImpl(routeId, children, dataRoutes, localManifest, mapRouteProperties2, false);
+						patchRoutesImpl(routeId, children, dataRoutes, localManifest, mapRouteProperties, false);
 					}
 				});
 			} catch (e) {
@@ -30651,10 +31019,10 @@ function createRouter(init) {
 	}
 	function _internalSetRoutes(newRoutes) {
 		manifest = {};
-		dataRoutes.setHmrRoutes(convertRoutesToDataRoutes(newRoutes, mapRouteProperties2, void 0, manifest));
+		dataRoutes.setHmrRoutes(convertRoutesToDataRoutes(newRoutes, mapRouteProperties, void 0, manifest));
 	}
 	function patchRoutes(routeId, children, unstable_allowElementMutations = false) {
-		patchRoutesImpl(routeId, children, dataRoutes, manifest, mapRouteProperties2, unstable_allowElementMutations);
+		patchRoutesImpl(routeId, children, dataRoutes, manifest, mapRouteProperties, unstable_allowElementMutations);
 		if (!dataRoutes.hasHMRRoutes) updateState({});
 	}
 	router = {
@@ -30683,7 +31051,7 @@ function createRouter(init) {
 		subscribe,
 		enableScrollRestoration,
 		navigate,
-		fetch: fetch2,
+		fetch,
 		revalidate,
 		createHref: (to) => init.history.createHref(to),
 		encodeLocation: (to) => init.history.encodeLocation(to),
@@ -30760,8 +31128,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 	if (opts.body !== void 0) {
 		if (opts.formEncType === "text/plain") {
 			if (!isMutationMethod(formMethod)) return getInvalidBodyError();
-			let text = typeof opts.body === "string" ? opts.body : opts.body instanceof FormData || opts.body instanceof URLSearchParams ? Array.from(opts.body.entries()).reduce((acc, [name, value]) => `${acc}${name}=${value}
-`, "") : String(opts.body);
+			let text = typeof opts.body === "string" ? opts.body : opts.body instanceof FormData || opts.body instanceof URLSearchParams ? Array.from(opts.body.entries()).reduce((acc, [name, value]) => `${acc}${name}=${value}\n`, "") : String(opts.body);
 			return {
 				path,
 				submission: {
@@ -30793,7 +31160,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 			}
 		}
 	}
-	invariant(typeof FormData === "function", "FormData is not available in this environment");
+	invariant$1(typeof FormData === "function", "FormData is not available in this environment");
 	let searchParams;
 	let formData;
 	if (opts.formData) {
@@ -30834,7 +31201,7 @@ function normalizeNavigateOptions(isFetcher, path, opts) {
 		submission
 	};
 }
-function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history, state, matches, submission, location, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, hasPatchRoutesOnNavigation, branches, pendingActionResult, callSiteDefaultShouldRevalidate) {
+function getMatchesToLoad(request, scopedContext, mapRouteProperties, manifest, history, state, matches, submission, location, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, hasPatchRoutesOnNavigation, branches, pendingActionResult, callSiteDefaultShouldRevalidate) {
 	let actionResult = pendingActionResult ? isErrorResult(pendingActionResult[1]) ? pendingActionResult[1].error : pendingActionResult[1].data : void 0;
 	let currentUrl = history.createURL(state.location);
 	let nextUrl = history.createURL(location);
@@ -30865,10 +31232,10 @@ function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest,
 		else if (route.lazy) forceShouldLoad = true;
 		else if (!routeHasLoaderOrMiddleware(route)) forceShouldLoad = false;
 		else if (initialHydration) {
-			let { shouldLoad: shouldLoad2 } = getRouteHydrationStatus(route, state.loaderData, state.errors);
-			forceShouldLoad = shouldLoad2;
+			let { shouldLoad } = getRouteHydrationStatus(route, state.loaderData, state.errors);
+			forceShouldLoad = shouldLoad;
 		} else if (isNewLoader(state.loaderData, state.matches[index], match)) forceShouldLoad = true;
-		if (forceShouldLoad !== null) return getDataStrategyMatch(mapRouteProperties2, manifest, request, location, pattern, match, lazyRoutePropertiesToSkip, scopedContext, forceShouldLoad);
+		if (forceShouldLoad !== null) return getDataStrategyMatch(mapRouteProperties, manifest, request, location, pattern, match, lazyRoutePropertiesToSkip, scopedContext, forceShouldLoad);
 		let defaultShouldRevalidate = false;
 		if (typeof callSiteDefaultShouldRevalidate === "boolean") defaultShouldRevalidate = callSiteDefaultShouldRevalidate;
 		else if (shouldSkipRevalidation) defaultShouldRevalidate = false;
@@ -30880,8 +31247,7 @@ function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest,
 			...baseShouldRevalidateArgs,
 			defaultShouldRevalidate
 		};
-		let shouldLoad = shouldRevalidateLoader(match, shouldRevalidateArgs);
-		return getDataStrategyMatch(mapRouteProperties2, manifest, request, location, pattern, match, lazyRoutePropertiesToSkip, scopedContext, shouldLoad, shouldRevalidateArgs, callSiteDefaultShouldRevalidate);
+		return getDataStrategyMatch(mapRouteProperties, manifest, request, location, pattern, match, lazyRoutePropertiesToSkip, scopedContext, shouldRevalidateLoader(match, shouldRevalidateArgs), shouldRevalidateArgs, callSiteDefaultShouldRevalidate);
 	});
 	let revalidatingFetchers = [];
 	fetchLoadMatches.forEach((f, key) => {
@@ -30909,9 +31275,9 @@ function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest,
 		let fetcherDsMatches = null;
 		if (cancelledFetcherLoads.has(key)) {
 			cancelledFetcherLoads.delete(key);
-			fetcherDsMatches = getTargetedDataStrategyMatches(mapRouteProperties2, manifest, fetchRequest, f.path, fetcherMatches, fetcherMatch, lazyRoutePropertiesToSkip, scopedContext);
+			fetcherDsMatches = getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, f.path, fetcherMatches, fetcherMatch, lazyRoutePropertiesToSkip, scopedContext);
 		} else if (isMidInitialLoad) {
-			if (isRevalidationRequired) fetcherDsMatches = getTargetedDataStrategyMatches(mapRouteProperties2, manifest, fetchRequest, f.path, fetcherMatches, fetcherMatch, lazyRoutePropertiesToSkip, scopedContext);
+			if (isRevalidationRequired) fetcherDsMatches = getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, f.path, fetcherMatches, fetcherMatch, lazyRoutePropertiesToSkip, scopedContext);
 		} else {
 			let defaultShouldRevalidate;
 			if (typeof callSiteDefaultShouldRevalidate === "boolean") defaultShouldRevalidate = callSiteDefaultShouldRevalidate;
@@ -30921,7 +31287,7 @@ function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest,
 				...baseShouldRevalidateArgs,
 				defaultShouldRevalidate
 			};
-			if (shouldRevalidateLoader(fetcherMatch, shouldRevalidateArgs)) fetcherDsMatches = getTargetedDataStrategyMatches(mapRouteProperties2, manifest, fetchRequest, f.path, fetcherMatches, fetcherMatch, lazyRoutePropertiesToSkip, scopedContext, shouldRevalidateArgs);
+			if (shouldRevalidateLoader(fetcherMatch, shouldRevalidateArgs)) fetcherDsMatches = getTargetedDataStrategyMatches(mapRouteProperties, manifest, fetchRequest, f.path, fetcherMatches, fetcherMatch, lazyRoutePropertiesToSkip, scopedContext, shouldRevalidateArgs);
 		}
 		if (fetcherDsMatches) revalidatingFetchers.push({
 			key,
@@ -30982,18 +31348,18 @@ function shouldRevalidateLoader(loaderMatch, arg) {
 	}
 	return arg.defaultShouldRevalidate;
 }
-function patchRoutesImpl(routeId, children, dataRoutes, manifest, mapRouteProperties2, allowElementMutations) {
+function patchRoutesImpl(routeId, children, dataRoutes, manifest, mapRouteProperties, allowElementMutations) {
 	let childrenToPatch;
 	if (routeId) {
 		let route = manifest[routeId];
-		invariant(route, `No route found to patch children into: routeId = ${routeId}`);
+		invariant$1(route, `No route found to patch children into: routeId = ${routeId}`);
 		if (!route.children) route.children = [];
 		childrenToPatch = route.children;
 	} else childrenToPatch = dataRoutes.activeRoutes;
 	let uniqueChildren = [];
 	let existingChildren = [];
 	children.forEach((newRoute) => {
-		let existingRoute = childrenToPatch.find((existingRoute2) => isSameRoute(newRoute, existingRoute2));
+		let existingRoute = childrenToPatch.find((existingRoute) => isSameRoute(newRoute, existingRoute));
 		if (existingRoute) existingChildren.push({
 			existingRoute,
 			newRoute
@@ -31001,7 +31367,7 @@ function patchRoutesImpl(routeId, children, dataRoutes, manifest, mapRouteProper
 		else uniqueChildren.push(newRoute);
 	});
 	if (uniqueChildren.length > 0) {
-		let newRoutes = convertRoutesToDataRoutes(uniqueChildren, mapRouteProperties2, [
+		let newRoutes = convertRoutesToDataRoutes(uniqueChildren, mapRouteProperties, [
 			routeId || "_",
 			"patch",
 			String(childrenToPatch?.length || "0")
@@ -31011,7 +31377,7 @@ function patchRoutesImpl(routeId, children, dataRoutes, manifest, mapRouteProper
 	if (allowElementMutations && existingChildren.length > 0) for (let i = 0; i < existingChildren.length; i++) {
 		let { existingRoute, newRoute } = existingChildren[i];
 		let existingRouteTyped = existingRoute;
-		let [newRouteTyped] = convertRoutesToDataRoutes([newRoute], mapRouteProperties2, [], {}, true);
+		let [newRouteTyped] = convertRoutesToDataRoutes([newRoute], mapRouteProperties, [], {}, true);
 		Object.assign(existingRouteTyped, {
 			element: newRouteTyped.element ? newRouteTyped.element : existingRouteTyped.element,
 			errorElement: newRouteTyped.errorElement ? newRouteTyped.errorElement : existingRouteTyped.errorElement,
@@ -31027,9 +31393,9 @@ function isSameRoute(newRoute, existingRoute) {
 	return newRoute.children?.every((aChild, i) => existingRoute.children?.some((bChild) => isSameRoute(aChild, bChild))) ?? false;
 }
 var lazyRoutePropertyCache = /* @__PURE__ */ new WeakMap();
-var loadLazyRouteProperty = ({ key, route, manifest, mapRouteProperties: mapRouteProperties2 }) => {
+var loadLazyRouteProperty = ({ key, route, manifest, mapRouteProperties }) => {
 	let routeToUpdate = manifest[route.id];
-	invariant(routeToUpdate, "No route found in manifest");
+	invariant$1(routeToUpdate, "No route found in manifest");
 	if (!routeToUpdate.lazy || typeof routeToUpdate.lazy !== "object") return;
 	let lazyFn = routeToUpdate.lazy[key];
 	if (!lazyFn) return;
@@ -31042,7 +31408,7 @@ var loadLazyRouteProperty = ({ key, route, manifest, mapRouteProperties: mapRout
 	if (cachedPromise) return cachedPromise;
 	let propertyPromise = (async () => {
 		let isUnsupported = isUnsupportedLazyRouteObjectKey(key);
-		let isStaticallyDefined = routeToUpdate[key] !== void 0 && key !== "hasErrorBoundary";
+		let isStaticallyDefined = routeToUpdate[key] !== void 0;
 		if (isUnsupported) {
 			warning(!isUnsupported, "Route property " + key + " is not a supported lazy route property. This property will be ignored.");
 			cache[key] = Promise.resolve();
@@ -31051,7 +31417,7 @@ var loadLazyRouteProperty = ({ key, route, manifest, mapRouteProperties: mapRout
 			let value = await lazyFn();
 			if (value != null) {
 				Object.assign(routeToUpdate, { [key]: value });
-				Object.assign(routeToUpdate, mapRouteProperties2(routeToUpdate));
+				Object.assign(routeToUpdate, mapRouteProperties(routeToUpdate));
 			}
 		}
 		if (typeof routeToUpdate.lazy === "object") {
@@ -31063,9 +31429,14 @@ var loadLazyRouteProperty = ({ key, route, manifest, mapRouteProperties: mapRout
 	return propertyPromise;
 };
 var lazyRouteFunctionCache = /* @__PURE__ */ new WeakMap();
-function loadLazyRoute(route, type, manifest, mapRouteProperties2, lazyRoutePropertiesToSkip) {
+/**
+* Execute route.lazy functions to lazily load route modules (loader, action,
+* shouldRevalidate) and update the routeManifest in place which shares objects
+* with dataRoutes so those get updated as well.
+*/
+function loadLazyRoute(route, type, manifest, mapRouteProperties, lazyRoutePropertiesToSkip) {
 	let routeToUpdate = manifest[route.id];
-	invariant(routeToUpdate, "No route found in manifest");
+	invariant$1(routeToUpdate, "No route found in manifest");
 	if (!route.lazy) return {
 		lazyRoutePromise: void 0,
 		lazyHandlerPromise: void 0
@@ -31076,30 +31447,30 @@ function loadLazyRoute(route, type, manifest, mapRouteProperties2, lazyRouteProp
 			lazyRoutePromise: cachedPromise,
 			lazyHandlerPromise: cachedPromise
 		};
-		let lazyRoutePromise2 = (async () => {
-			invariant(typeof route.lazy === "function", "No lazy route function found");
+		let lazyRoutePromise = (async () => {
+			invariant$1(typeof route.lazy === "function", "No lazy route function found");
 			let lazyRoute = await route.lazy();
 			let routeUpdates = {};
 			for (let lazyRouteProperty in lazyRoute) {
 				let lazyValue = lazyRoute[lazyRouteProperty];
 				if (lazyValue === void 0) continue;
 				let isUnsupported = isUnsupportedLazyRouteFunctionKey(lazyRouteProperty);
-				let isStaticallyDefined = routeToUpdate[lazyRouteProperty] !== void 0 && lazyRouteProperty !== "hasErrorBoundary";
+				let isStaticallyDefined = routeToUpdate[lazyRouteProperty] !== void 0;
 				if (isUnsupported) warning(!isUnsupported, "Route property " + lazyRouteProperty + " is not a supported property to be returned from a lazy route function. This property will be ignored.");
 				else if (isStaticallyDefined) warning(!isStaticallyDefined, `Route "${routeToUpdate.id}" has a static property "${lazyRouteProperty}" defined but its lazy function is also returning a value for this property. The lazy route property "${lazyRouteProperty}" will be ignored.`);
 				else routeUpdates[lazyRouteProperty] = lazyValue;
 			}
 			Object.assign(routeToUpdate, routeUpdates);
 			Object.assign(routeToUpdate, {
-				...mapRouteProperties2(routeToUpdate),
+				...mapRouteProperties(routeToUpdate),
 				lazy: void 0
 			});
 		})();
-		lazyRouteFunctionCache.set(routeToUpdate, lazyRoutePromise2);
-		lazyRoutePromise2.catch(() => {});
+		lazyRouteFunctionCache.set(routeToUpdate, lazyRoutePromise);
+		lazyRoutePromise.catch(() => {});
 		return {
-			lazyRoutePromise: lazyRoutePromise2,
-			lazyHandlerPromise: lazyRoutePromise2
+			lazyRoutePromise,
+			lazyHandlerPromise: lazyRoutePromise
 		};
 	}
 	let lazyKeys = Object.keys(route.lazy);
@@ -31111,7 +31482,7 @@ function loadLazyRoute(route, type, manifest, mapRouteProperties2, lazyRouteProp
 			key,
 			route,
 			manifest,
-			mapRouteProperties: mapRouteProperties2
+			mapRouteProperties
 		});
 		if (promise) {
 			lazyPropertyPromises.push(promise);
@@ -31143,18 +31514,25 @@ function runClientMiddlewarePipeline(args, handler) {
 		if (isRedirectResponse(r)) throw r;
 		return r;
 	}, isDataStrategyResults, errorHandler);
-	function errorHandler(error, routeId, nextResult) {
-		if (nextResult) return Promise.resolve(Object.assign(nextResult.value, { [routeId]: {
+	async function errorHandler(error, routeId, nextResult) {
+		if (nextResult) return Object.assign(nextResult.value, { [routeId]: {
 			type: "error",
 			result: error
-		} }));
+		} });
 		else {
 			let { matches } = args;
-			let boundaryRouteId = findNearestBoundary(matches, matches[Math.min(Math.max(matches.findIndex((m) => m.route.id === routeId), 0), Math.max(matches.findIndex((m) => m.shouldCallHandler()), 0))].route.id).route.id;
-			return Promise.resolve({ [boundaryRouteId]: {
+			let maxBoundaryIdx = Math.min(Math.max(matches.findIndex((m) => m.route.id === routeId), 0), Math.max(matches.findIndex((m) => m.shouldCallHandler()), 0));
+			let deepestRouteId = matches[maxBoundaryIdx].route.id;
+			for (let match of matches.slice(0, maxBoundaryIdx + 1)) try {
+				await match._lazyPromises?.route;
+			} catch {
+				deepestRouteId = match.route.id;
+				break;
+			}
+			return { [findNearestBoundary(matches, deepestRouteId).route.id]: {
 				type: "error",
 				result: error
-			} });
+			} };
 		}
 	}
 }
@@ -31192,23 +31570,23 @@ async function callRouteMiddleware(args, middlewares, handler, processResult, is
 		return await errorHandler(error, routeId, nextResult);
 	}
 }
-function getDataStrategyMatchLazyPromises(mapRouteProperties2, manifest, request, match, lazyRoutePropertiesToSkip) {
+function getDataStrategyMatchLazyPromises(mapRouteProperties, manifest, request, match, lazyRoutePropertiesToSkip) {
 	let lazyMiddlewarePromise = loadLazyRouteProperty({
 		key: "middleware",
 		route: match.route,
 		manifest,
-		mapRouteProperties: mapRouteProperties2
+		mapRouteProperties
 	});
-	let lazyRoutePromises = loadLazyRoute(match.route, isMutationMethod(request.method) ? "action" : "loader", manifest, mapRouteProperties2, lazyRoutePropertiesToSkip);
+	let lazyRoutePromises = loadLazyRoute(match.route, isMutationMethod(request.method) ? "action" : "loader", manifest, mapRouteProperties, lazyRoutePropertiesToSkip);
 	return {
 		middleware: lazyMiddlewarePromise,
 		route: lazyRoutePromises.lazyRoutePromise,
 		handler: lazyRoutePromises.lazyHandlerPromise
 	};
 }
-function getDataStrategyMatch(mapRouteProperties2, manifest, request, path, pattern, match, lazyRoutePropertiesToSkip, scopedContext, shouldLoad, shouldRevalidateArgs = null, callSiteDefaultShouldRevalidate) {
+function getDataStrategyMatch(mapRouteProperties, manifest, request, path, pattern, match, lazyRoutePropertiesToSkip, scopedContext, shouldLoad, shouldRevalidateArgs = null, callSiteDefaultShouldRevalidate) {
 	let isUsingNewApi = false;
-	let _lazyPromises = getDataStrategyMatchLazyPromises(mapRouteProperties2, manifest, request, match, lazyRoutePropertiesToSkip);
+	let _lazyPromises = getDataStrategyMatchLazyPromises(mapRouteProperties, manifest, request, match, lazyRoutePropertiesToSkip);
 	return {
 		...match,
 		_lazyPromises,
@@ -31248,20 +31626,20 @@ function getDataStrategyMatch(mapRouteProperties2, manifest, request, path, patt
 		}
 	};
 }
-function getTargetedDataStrategyMatches(mapRouteProperties2, manifest, request, path, matches, targetMatch, lazyRoutePropertiesToSkip, scopedContext, shouldRevalidateArgs = null) {
+function getTargetedDataStrategyMatches(mapRouteProperties, manifest, request, path, matches, targetMatch, lazyRoutePropertiesToSkip, scopedContext, shouldRevalidateArgs = null) {
 	return matches.map((match) => {
 		if (match.route.id !== targetMatch.route.id) return {
 			...match,
 			shouldLoad: false,
 			shouldRevalidateArgs,
 			shouldCallHandler: () => false,
-			_lazyPromises: getDataStrategyMatchLazyPromises(mapRouteProperties2, manifest, request, match, lazyRoutePropertiesToSkip),
+			_lazyPromises: getDataStrategyMatchLazyPromises(mapRouteProperties, manifest, request, match, lazyRoutePropertiesToSkip),
 			resolve: () => Promise.resolve({
 				type: "data",
 				result: void 0
 			})
 		};
-		return getDataStrategyMatch(mapRouteProperties2, manifest, request, path, getRoutePattern(matches), match, lazyRoutePropertiesToSkip, scopedContext, true, shouldRevalidateArgs);
+		return getDataStrategyMatch(mapRouteProperties, manifest, request, path, getRoutePattern(matches), match, lazyRoutePropertiesToSkip, scopedContext, true, shouldRevalidateArgs);
 	});
 }
 async function callDataStrategyImpl(dataStrategyImpl, request, path, matches, fetcherKey, scopedContext, isStaticHandler) {
@@ -31348,8 +31726,8 @@ async function callLoaderOrAction({ request, path, pattern, match, lazyHandlerPr
 			result = value;
 		} else {
 			await lazyHandlerPromise;
-			let handler2 = isAction ? match.route.action : match.route.loader;
-			if (handler2) [result] = await Promise.all([runHandler(handler2), lazyRoutePromise]);
+			let handler = isAction ? match.route.action : match.route.loader;
+			if (handler) [result] = await Promise.all([runHandler(handler), lazyRoutePromise]);
 			else if (type === "action") {
 				let url = new URL(request.url);
 				let pathname = url.pathname + url.search;
@@ -31385,9 +31763,9 @@ async function parseResponseBody(response) {
 async function convertDataStrategyResultToDataResult(dataStrategyResult) {
 	let { result, type } = dataStrategyResult;
 	if (isResponse(result)) {
-		let data2;
+		let data;
 		try {
-			data2 = await parseResponseBody(result);
+			data = await parseResponseBody(result);
 		} catch (e) {
 			return {
 				type: "error",
@@ -31396,13 +31774,13 @@ async function convertDataStrategyResultToDataResult(dataStrategyResult) {
 		}
 		if (type === "error") return {
 			type: "error",
-			error: new ErrorResponseImpl(result.status, result.statusText, data2),
+			error: new ErrorResponseImpl(result.status, result.statusText, data),
 			statusCode: result.status,
 			headers: result.headers
 		};
 		return {
 			type: "data",
-			data: data2,
+			data,
 			statusCode: result.status,
 			headers: result.headers
 		};
@@ -31441,7 +31819,7 @@ async function convertDataStrategyResultToDataResult(dataStrategyResult) {
 }
 function normalizeRelativeRoutingRedirectResponse(response, request, routeId, matches, basename) {
 	let location = response.headers.get("Location");
-	invariant(location, "Redirects returned/thrown from loaders/actions must have a Location header");
+	invariant$1(location, "Redirects returned/thrown from loaders/actions must have a Location header");
 	if (!isAbsoluteUrl(location)) {
 		let trimmedMatches = matches.slice(0, matches.findIndex((m) => m.route.id === routeId) + 1);
 		location = normalizeTo(new URL(request.url), trimmedMatches, basename, location);
@@ -31496,20 +31874,6 @@ function createClientSideRequest(history, location, signal, submission) {
 	}
 	return new Request(url, init);
 }
-function createDataFunctionUrl(request, path) {
-	let url = new URL(request.url);
-	let parsed = typeof path === "string" ? parsePath$1(path) : path;
-	url.pathname = parsed.pathname || "/";
-	if (parsed.search) {
-		let searchParams = new URLSearchParams(parsed.search);
-		let indexValues = searchParams.getAll("index");
-		searchParams.delete("index");
-		for (let value of indexValues.filter(Boolean)) searchParams.append("index", value);
-		url.search = searchParams.size ? `?${searchParams.toString()}` : "";
-	} else url.search = "";
-	url.hash = parsed.hash || "";
-	return url;
-}
 function convertFormDataToSearchParams(formData) {
 	let searchParams = new URLSearchParams();
 	for (let [key, value] of formData.entries()) searchParams.append(key, typeof value === "string" ? value : value.name);
@@ -31531,7 +31895,7 @@ function processRouteLoaderData(matches, results, pendingActionResult, isStaticH
 		if (!(match.route.id in results)) return;
 		let id = match.route.id;
 		let result = results[id];
-		invariant(!isRedirectResult(result), "Cannot handle redirect results in processLoaderData");
+		invariant$1(!isRedirectResult(result), "Cannot handle redirect results in processLoaderData");
 		if (isErrorResult(result)) {
 			let error = result.error;
 			if (pendingError !== void 0) {
@@ -31573,7 +31937,7 @@ function processLoaderData(state, matches, results, pendingActionResult, revalid
 		let { key, match, controller } = rf;
 		if (controller && controller.signal.aborted) return;
 		let result = fetcherResults[key];
-		invariant(result, "Did not find corresponding fetcher result");
+		invariant$1(result, "Did not find corresponding fetcher result");
 		if (isErrorResult(result)) {
 			let boundaryMatch = findNearestBoundary(state.matches, match?.route.id);
 			if (!(errors && errors[boundaryMatch.route.id])) errors = {
@@ -31581,7 +31945,7 @@ function processLoaderData(state, matches, results, pendingActionResult, revalid
 				[boundaryMatch.route.id]: result.error
 			};
 			workingFetchers.delete(key);
-		} else if (isRedirectResult(result)) invariant(false, "Unhandled fetcher revalidation redirect");
+		} else if (isRedirectResult(result)) invariant$1(false, "Unhandled fetcher revalidation redirect");
 		else {
 			let doneFetcher = getDoneFetcher(result.data);
 			workingFetchers.set(key, doneFetcher);
@@ -31609,7 +31973,7 @@ function getActionDataForCommit(pendingActionResult) {
 	return isErrorResult(pendingActionResult[1]) ? { actionData: {} } : { actionData: { [pendingActionResult[0]]: pendingActionResult[1].data } };
 }
 function findNearestBoundary(matches, routeId) {
-	return (routeId ? matches.slice(0, matches.findIndex((m) => m.route.id === routeId) + 1) : [...matches]).reverse().find((m) => m.route.hasErrorBoundary === true) || matches[0];
+	return (routeId ? matches.slice(0, matches.findIndex((m) => m.route.id === routeId) + 1) : [...matches]).reverse().find((m) => m.route.ErrorBoundary != null || m.route.errorElement != null) || matches[0];
 }
 function getShortCircuitMatches(routes) {
 	let route = routes.length === 1 ? routes[0] : routes.find((r) => r.index || !r.path || r.path === "/") || { id: `__shim-error-route__` };
@@ -31666,8 +32030,8 @@ function isHashChangeOnly(a, b) {
 	else if (b.hash !== "") return true;
 	return false;
 }
-function dataWithResponseInitToErrorResponse(data2) {
-	return new ErrorResponseImpl(data2.init?.status ?? 500, data2.init?.statusText ?? "Internal Server Error", data2.data);
+function dataWithResponseInitToErrorResponse(data) {
+	return new ErrorResponseImpl(data.init?.status ?? 500, data.init?.statusText ?? "Internal Server Error", data.data);
 }
 function isDataStrategyResults(result) {
 	return result != null && typeof result === "object" && Object.entries(result).every(([key, value]) => typeof key === "string" && isDataStrategyResult(value));
@@ -31710,6 +32074,13 @@ function getTargetMatch(matches, location) {
 	if (matches[matches.length - 1].route.index && hasNakedIndexQuery(search || "")) return matches[matches.length - 1];
 	let pathMatches = getPathContributingMatches(matches);
 	return pathMatches[pathMatches.length - 1];
+}
+function getInstrumentationNavigateMeta(history, location, matches) {
+	return {
+		url: createDataFunctionUrl(history.createURL(location), location),
+		pattern: matches ? getRoutePattern(matches) : "",
+		params: matches?.[0]?.params ? { ...matches[0].params } : {}
+	};
 }
 function getSubmissionFromNavigation(navigation) {
 	let { formMethod, formAction, formEncType, text, formData, json } = navigation;
@@ -31779,7 +32150,7 @@ function getSubmittingNavigation(location, matches, historyAction, submission) {
 		text: submission.text
 	};
 }
-function getLoadingFetcher(submission, data2) {
+function getLoadingFetcher(submission, data) {
 	if (submission) return {
 		state: "loading",
 		formMethod: submission.formMethod,
@@ -31788,7 +32159,7 @@ function getLoadingFetcher(submission, data2) {
 		formData: submission.formData,
 		json: submission.json,
 		text: submission.text,
-		data: data2
+		data
 	};
 	else return {
 		state: "loading",
@@ -31798,7 +32169,7 @@ function getLoadingFetcher(submission, data2) {
 		formData: void 0,
 		json: void 0,
 		text: void 0,
-		data: data2
+		data
 	};
 }
 function getSubmittingFetcher(submission, existingFetcher) {
@@ -31813,7 +32184,7 @@ function getSubmittingFetcher(submission, existingFetcher) {
 		data: existingFetcher ? existingFetcher.data : void 0
 	};
 }
-function getDoneFetcher(data2) {
+function getDoneFetcher(data) {
 	return {
 		state: "idle",
 		formMethod: void 0,
@@ -31822,7 +32193,7 @@ function getDoneFetcher(data2) {
 		formData: void 0,
 		json: void 0,
 		text: void 0,
-		data: data2
+		data
 	};
 }
 function restoreAppliedTransitions(_window, transitions) {
@@ -31868,6 +32239,18 @@ function createDeferred() {
 		reject
 	};
 }
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/context.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var DataRouterContext = import_react.createContext(null);
 DataRouterContext.displayName = "DataRouter";
 var DataRouterStateContext = import_react.createContext(null);
@@ -31894,6 +32277,18 @@ var RouteContext = import_react.createContext({
 RouteContext.displayName = "Route";
 var RouteErrorContext = import_react.createContext(null);
 RouteErrorContext.displayName = "RouteError";
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/errors.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var ERROR_DIGEST_BASE = "REACT_ROUTER_ERROR";
 var ERROR_DIGEST_REDIRECT = "REDIRECT";
 var ERROR_DIGEST_ROUTE_ERROR_RESPONSE = "ROUTE_ERROR_RESPONSE";
@@ -31909,8 +32304,40 @@ function decodeRouteErrorResponseDigest(digest) {
 		if (typeof parsed === "object" && parsed && typeof parsed.status === "number" && typeof parsed.statusText === "string") return new ErrorResponseImpl(parsed.status, parsed.statusText, parsed.data);
 	} catch {}
 }
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/hooks.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+/**
+* Resolves a URL against the current {@link Location}.
+*
+* @example
+* import { useHref } from "react-router";
+*
+* function SomeComponent() {
+*   let href = useHref("some/where");
+*   // "/resolved/some/where"
+* }
+*
+* @public
+* @category Hooks
+* @param to The path to resolve
+* @param options Options
+* @param options.relative Defaults to `"route"` so routing is relative to the
+* route tree.
+* Set to `"path"` to make relative routing operate against path segments.
+* @returns The resolved href string
+*/
 function useHref(to, { relative } = {}) {
-	invariant(useInRouterContext(), `useHref() may be used only in the context of a <Router> component.`);
+	invariant$1(useInRouterContext(), `useHref() may be used only in the context of a <Router> component.`);
 	let { basename, navigator } = import_react.useContext(NavigationContext);
 	let { hash, pathname, search } = useResolvedPath(to, { relative });
 	let joinedPathname = pathname;
@@ -31921,30 +32348,212 @@ function useHref(to, { relative } = {}) {
 		hash
 	});
 }
+/**
+* Returns `true` if this component is a descendant of a {@link Router}, useful
+* to ensure a component is used within a {@link Router}.
+*
+* @public
+* @category Hooks
+* @mode framework
+* @mode data
+* @returns Whether the component is within a {@link Router} context
+*/
 function useInRouterContext() {
 	return import_react.useContext(LocationContext) != null;
 }
+/**
+* Returns the current {@link Location}. This can be useful if you'd like to
+* perform some side effect whenever it changes.
+*
+* @example
+* import * as React from 'react'
+* import { useLocation } from 'react-router'
+*
+* function SomeComponent() {
+*   let location = useLocation()
+*
+*   React.useEffect(() => {
+*     // Google Analytics
+*     ga('send', 'pageview')
+*   }, [location]);
+*
+*   return (
+*     // ...
+*   );
+* }
+*
+* @public
+* @category Hooks
+* @returns The current {@link Location} object
+*/
 function useLocation() {
-	invariant(useInRouterContext(), `useLocation() may be used only in the context of a <Router> component.`);
+	invariant$1(useInRouterContext(), `useLocation() may be used only in the context of a <Router> component.`);
 	return import_react.useContext(LocationContext).location;
 }
-var navigateEffectWarning = `You should call navigate() in a React.useEffect(), not when your component is first rendered.`;
-function useIsomorphicLayoutEffect$2(cb) {
-	if (!import_react.useContext(NavigationContext).static) import_react.useLayoutEffect(cb);
-}
+var navigateEffectWarning = "You should call navigate() in a React.useEffect(), not when your component is first rendered.";
+/**
+* Returns a function that lets you navigate programmatically in the browser in
+* response to user interactions or effects.
+*
+* It's often better to use {@link redirect} in [`action`](../../start/framework/route-module#action)/[`loader`](../../start/framework/route-module#loader)
+* functions than this hook.
+*
+* The returned function signature is `navigate(to, options?)`/`navigate(delta)` where:
+*
+* * `to` can be a string path, a {@link To} object, or a number (delta)
+* * `options` contains options for modifying the navigation
+*   * These options work in all modes (Framework, Data, and Declarative):
+*     * `relative`: `"route"` or `"path"` to control relative routing logic
+*     * `replace`: Replace the current entry in the [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History) stack
+*     * `state`: Optional [`history.state`](https://developer.mozilla.org/en-US/docs/Web/API/History/state) to include with the new {@link Location}
+*   * These options only work in Framework and Data modes:
+*     * `flushSync`: Wrap the DOM updates in [`ReactDom.flushSync`](https://react.dev/reference/react-dom/flushSync)
+*     * `preventScrollReset`: Do not scroll back to the top of the page after navigation
+*     * `viewTransition`: Enable [`document.startViewTransition`](https://developer.mozilla.org/en-US/docs/Web/API/Document/startViewTransition) for this navigation
+*
+* @example
+* import { useNavigate } from "react-router";
+*
+* function SomeComponent() {
+*   let navigate = useNavigate();
+*   return (
+*     <button onClick={() => navigate(-1)}>
+*       Go Back
+*     </button>
+*   );
+* }
+*
+* @additionalExamples
+* ### Navigate to another path
+*
+* ```tsx
+* navigate("/some/route");
+* navigate("/some/route?search=param");
+* ```
+*
+* ### Navigate with a {@link To} object
+*
+* All properties are optional.
+*
+* ```tsx
+* navigate(
+*   {
+*     pathname: "/some/route",
+*     search: "?search=param",
+*     hash: "#hash",
+*   },
+*   {
+*     state: { some: "state" },
+*   },
+* );
+* ```
+*
+* If you use `state`, that will be available on the {@link Location} object on
+* the next page. Access it with `useLocation().state` (see {@link useLocation}).
+*
+* ### Navigate back or forward in the history stack
+*
+* ```tsx
+* // back
+* // often used to close modals
+* navigate(-1);
+*
+* // forward
+* // often used in a multistep wizard workflows
+* navigate(1);
+* ```
+*
+* Be cautious with `navigate(number)`. If your application can load up to a
+* route that has a button that tries to navigate forward/back, there may not be
+* a [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History)
+* entry to go back or forward to, or it can go somewhere you don't expect
+* (like a different domain).
+*
+* Only use this if you're sure they will have an entry in the [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History)
+* stack to navigate to.
+*
+* ### Replace the current entry in the history stack
+*
+* This will remove the current entry in the [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History)
+* stack, replacing it with a new one, similar to a server side redirect.
+*
+* ```tsx
+* navigate("/some/route", { replace: true });
+* ```
+*
+* ### Prevent Scroll Reset
+*
+* [MODES: framework, data]
+*
+* <br/>
+* <br/>
+*
+* To prevent {@link ScrollRestoration | `<ScrollRestoration>`} from resetting
+* the scroll position, use the `preventScrollReset` option.
+*
+* ```tsx
+* navigate("?some-tab=1", { preventScrollReset: true });
+* ```
+*
+* For example, if you have a tab interface connected to search params in the
+* middle of a page, and you don't want it to scroll to the top when a tab is
+* clicked.
+*
+* ### Return Type Augmentation
+*
+* Internally, `useNavigate` uses a separate implementation when you are in
+* Declarative mode versus Data/Framework mode - the primary difference being
+* that the latter is able to return a stable reference that does not change
+* identity across navigations. The implementation in Data/Framework mode also
+* returns a [`Promise`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise)
+* that resolves when the navigation is completed. This means the return type of
+* `useNavigate` is `void | Promise<void>`. This is accurate, but can lead to
+* some red squigglies based on the union in the return value:
+*
+* - If you're using `typescript-eslint`, you may see errors from
+*   [`@typescript-eslint/no-floating-promises`](https://typescript-eslint.io/rules/no-floating-promises)
+* - In Framework/Data mode, `React.use(navigate())` will show a false-positive
+*   `Argument of type 'void | Promise<void>' is not assignable to parameter of
+*   type 'Usable<void>'` error
+*
+* The easiest way to work around these issues is to augment the type based on the
+* router you're using:
+*
+* ```ts
+* // If using <BrowserRouter>
+* declare module "react-router" {
+*   interface NavigateFunction {
+*     (to: To, options?: NavigateOptions): void;
+*     (delta: number): void;
+*   }
+* }
+*
+* // If using <RouterProvider> or Framework mode
+* declare module "react-router" {
+*   interface NavigateFunction {
+*     (to: To, options?: NavigateOptions): Promise<void>;
+*     (delta: number): Promise<void>;
+*   }
+* }
+* ```
+*
+* @public
+* @category Hooks
+* @returns A navigate function for programmatic navigation
+*/
 function useNavigate() {
 	let { isDataRoute } = import_react.useContext(RouteContext);
 	return isDataRoute ? useNavigateStable() : useNavigateUnstable();
 }
 function useNavigateUnstable() {
-	invariant(useInRouterContext(), `useNavigate() may be used only in the context of a <Router> component.`);
+	invariant$1(useInRouterContext(), `useNavigate() may be used only in the context of a <Router> component.`);
 	let dataRouterContext = import_react.useContext(DataRouterContext);
 	let { basename, navigator } = import_react.useContext(NavigationContext);
 	let { matches } = import_react.useContext(RouteContext);
 	let { pathname: locationPathname } = useLocation();
 	let routePathnamesJson = JSON.stringify(getResolveToMatches(matches));
 	let activeRef = import_react.useRef(false);
-	useIsomorphicLayoutEffect$2(() => {
+	import_react.useLayoutEffect(() => {
 		activeRef.current = true;
 	});
 	return import_react.useCallback((to, options = {}) => {
@@ -31966,14 +32575,152 @@ function useNavigateUnstable() {
 	]);
 }
 var OutletContext = import_react.createContext(null);
+/**
+* Returns the element for the child route at this level of the route
+* hierarchy. Used internally by {@link Outlet | `<Outlet>`} to render child
+* routes.
+*
+* @public
+* @category Hooks
+* @param context The context to pass to the outlet
+* @returns The child route element or `null` if no child routes match
+*/
 function useOutlet(context) {
 	let outlet = import_react.useContext(RouteContext).outlet;
 	return import_react.useMemo(() => outlet && /* @__PURE__ */ import_react.createElement(OutletContext.Provider, { value: context }, outlet), [outlet, context]);
 }
+/**
+* Returns an object of key/value-pairs of the dynamic params from the current
+* URL that were matched by the routes. Child routes inherit all params from
+* their parent routes.
+*
+* Assuming a route pattern like `/posts/:postId` is matched by `/posts/123`
+* then `params.postId` will be `"123"`.
+*
+* @example
+* import { useParams } from "react-router";
+*
+* function SomeComponent() {
+*   let params = useParams();
+*   params.postId;
+* }
+*
+* @additionalExamples
+* ### Basic Usage
+*
+* ```tsx
+* import { useParams } from "react-router";
+*
+* // given a route like:
+* <Route path="/posts/:postId" element={<Post />} />;
+*
+* // or a data route like:
+* createBrowserRouter([
+*   {
+*     path: "/posts/:postId",
+*     component: Post,
+*   },
+* ]);
+*
+* // or in routes.ts
+* route("/posts/:postId", "routes/post.tsx");
+* ```
+*
+* Access the params in a component:
+*
+* ```tsx
+* import { useParams } from "react-router";
+*
+* export default function Post() {
+*   let params = useParams();
+*   return <h1>Post: {params.postId}</h1>;
+* }
+* ```
+*
+* ### Multiple Params
+*
+* Patterns can have multiple params:
+*
+* ```tsx
+* "/posts/:postId/comments/:commentId";
+* ```
+*
+* All will be available in the params object:
+*
+* ```tsx
+* import { useParams } from "react-router";
+*
+* export default function Post() {
+*   let params = useParams();
+*   return (
+*     <h1>
+*       Post: {params.postId}, Comment: {params.commentId}
+*     </h1>
+*   );
+* }
+* ```
+*
+* ### Catchall Params
+*
+* Catchall params are defined with `*`:
+*
+* ```tsx
+* "/files/*";
+* ```
+*
+* The matched value will be available in the params object as follows:
+*
+* ```tsx
+* import { useParams } from "react-router";
+*
+* export default function File() {
+*   let params = useParams();
+*   let catchall = params["*"];
+*   // ...
+* }
+* ```
+*
+* You can destructure the catchall param:
+*
+* ```tsx
+* export default function File() {
+*   let { "*": catchall } = useParams();
+*   console.log(catchall);
+* }
+* ```
+*
+* @public
+* @category Hooks
+* @returns An object containing the dynamic route parameters
+*/
 function useParams() {
 	let { matches } = import_react.useContext(RouteContext);
 	return matches[matches.length - 1]?.params ?? {};
 }
+/**
+* Resolves the pathname of the given `to` value against the current
+* {@link Location}. Similar to {@link useHref}, but returns a
+* {@link Path} instead of a string.
+*
+* @example
+* import { useResolvedPath } from "react-router";
+*
+* function SomeComponent() {
+*   // if the user is at /dashboard/profile
+*   let path = useResolvedPath("../accounts");
+*   path.pathname; // "/dashboard/accounts"
+*   path.search; // ""
+*   path.hash; // ""
+* }
+*
+* @public
+* @category Hooks
+* @param to The path to resolve
+* @param options Options
+* @param options.relative Defaults to `"route"` so routing is relative to the route tree.
+*                         Set to `"path"` to make relative routing operate against path segments.
+* @returns The resolved {@link Path} object with `pathname`, `search`, and `hash`
+*/
 function useResolvedPath(to, { relative } = {}) {
 	let { matches } = import_react.useContext(RouteContext);
 	let { pathname: locationPathname } = useLocation();
@@ -31986,25 +32733,19 @@ function useResolvedPath(to, { relative } = {}) {
 	]);
 }
 function useRoutesImpl(routes, locationArg, dataRouterOpts) {
-	invariant(useInRouterContext(), `useRoutes() may be used only in the context of a <Router> component.`);
+	invariant$1(useInRouterContext(), `useRoutes() may be used only in the context of a <Router> component.`);
 	let { navigator } = import_react.useContext(NavigationContext);
 	let { matches: parentMatches } = import_react.useContext(RouteContext);
 	let routeMatch = parentMatches[parentMatches.length - 1];
 	let parentParams = routeMatch ? routeMatch.params : {};
-	let parentPathname = routeMatch ? routeMatch.pathname : "/";
+	routeMatch && routeMatch.pathname;
 	let parentPathnameBase = routeMatch ? routeMatch.pathnameBase : "/";
-	let parentRoute = routeMatch && routeMatch.route;
-	{
-		let parentPath = parentRoute && parentRoute.path || "";
-		warningOnce(parentPathname, !parentRoute || parentPath.endsWith("*") || parentPath.endsWith("*?"), `You rendered descendant <Routes> (or called \`useRoutes()\`) at "${parentPathname}" (under <Route path="${parentPath}">) but the parent route path has no trailing "*". This means if you navigate deeper, the parent won't match anymore and therefore the child routes will never render.
-
-Please change the parent <Route path="${parentPath}"> to <Route path="${parentPath === "/" ? "*" : `${parentPath}/*`}">.`);
-	}
+	routeMatch && routeMatch.route;
 	let locationFromContext = useLocation();
 	let location;
 	if (locationArg) {
 		let parsedLocationArg = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
-		invariant(parentPathnameBase === "/" || parsedLocationArg.pathname?.startsWith(parentPathnameBase), `When overriding the location using \`<Routes location>\` or \`useRoutes(routes, location)\`, the location pathname must begin with the portion of the URL pathname that was matched by all parent routes. The current pathname base is "${parentPathnameBase}" but pathname "${parsedLocationArg.pathname}" was given in the \`location\` prop.`);
+		invariant$1(parentPathnameBase === "/" || parsedLocationArg.pathname?.startsWith(parentPathnameBase), `When overriding the location using \`<Routes location>\` or \`useRoutes(routes, location)\`, the location pathname must begin with the portion of the URL pathname that was matched by all parent routes. The current pathname base is "${parentPathnameBase}" but pathname "${parsedLocationArg.pathname}" was given in the \`location\` prop.`);
 		location = parsedLocationArg;
 	} else location = locationFromContext;
 	let pathname = location.pathname || "/";
@@ -32014,8 +32755,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
 		remainingPathname = "/" + pathname.replace(/^\//, "").split("/").slice(parentSegments.length).join("/");
 	}
 	let matches = dataRouterOpts && dataRouterOpts.state.matches.length ? dataRouterOpts.state.matches.map((m) => Object.assign(m, { route: dataRouterOpts.manifest[m.route.id] || m.route })) : matchRoutes(routes, { pathname: remainingPathname });
-	warning(parentRoute || matches != null, `No routes matched location "${location.pathname}${location.search}${location.hash}" `);
-	warning(matches == null || matches[matches.length - 1].route.element !== void 0 || matches[matches.length - 1].route.Component !== void 0 || matches[matches.length - 1].route.lazy !== void 0, `Matched leaf route at location "${location.pathname}${location.search}${location.hash}" does not have an element or Component. This means it will render an <Outlet /> with a null value by default resulting in an "empty" page.`);
 	let renderedMatches = _renderMatches(matches && matches.map((match) => Object.assign({}, match, {
 		params: Object.assign({}, parentParams, match.params),
 		pathname: joinPaths([parentPathnameBase, navigator.encodeLocation ? navigator.encodeLocation(match.pathname.replace(/%/g, "%25").replace(/\?/g, "%3F").replace(/#/g, "%23")).pathname : match.pathname]),
@@ -32039,19 +32778,10 @@ function DefaultErrorComponent() {
 	let error = useRouteError();
 	let message = isRouteErrorResponse(error) ? `${error.status} ${error.statusText}` : error instanceof Error ? error.message : JSON.stringify(error);
 	let stack = error instanceof Error ? error.stack : null;
-	let lightgrey = "rgba(200,200,200, 0.5)";
-	let preStyles = {
+	return /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, /* @__PURE__ */ import_react.createElement("h2", null, "Unexpected Application Error!"), /* @__PURE__ */ import_react.createElement("h3", { style: { fontStyle: "italic" } }, message), stack ? /* @__PURE__ */ import_react.createElement("pre", { style: {
 		padding: "0.5rem",
-		backgroundColor: lightgrey
-	};
-	let codeStyles = {
-		padding: "2px 4px",
-		backgroundColor: lightgrey
-	};
-	let devInfo = null;
-	console.error("Error handled by React Router default ErrorBoundary:", error);
-	devInfo = /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, /* @__PURE__ */ import_react.createElement("p", null, "💿 Hey developer 👋"), /* @__PURE__ */ import_react.createElement("p", null, "You can provide a way better UX than this when your app throws errors by providing your own ", /* @__PURE__ */ import_react.createElement("code", { style: codeStyles }, "ErrorBoundary"), " or", " ", /* @__PURE__ */ import_react.createElement("code", { style: codeStyles }, "errorElement"), " prop on your route."));
-	return /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, /* @__PURE__ */ import_react.createElement("h2", null, "Unexpected Application Error!"), /* @__PURE__ */ import_react.createElement("h3", { style: { fontStyle: "italic" } }, message), stack ? /* @__PURE__ */ import_react.createElement("pre", { style: preStyles }, stack) : null, devInfo);
+		backgroundColor: "rgba(200,200,200, 0.5)"
+	} }, stack) : null, null);
 }
 var defaultErrorElement = /* @__PURE__ */ import_react.createElement(DefaultErrorComponent, null);
 var RenderErrorBoundary = class extends import_react.Component {
@@ -32063,6 +32793,7 @@ var RenderErrorBoundary = class extends import_react.Component {
 			error: props.error
 		};
 	}
+	static contextType = RSCRouterContext;
 	static getDerivedStateFromError(error) {
 		return { error };
 	}
@@ -32096,21 +32827,20 @@ var RenderErrorBoundary = class extends import_react.Component {
 		return result;
 	}
 };
-RenderErrorBoundary.contextType = RSCRouterContext;
 var errorRedirectHandledMap = /* @__PURE__ */ new WeakMap();
 function RSCErrorHandler({ children, error }) {
 	let { basename } = import_react.useContext(NavigationContext);
 	if (typeof error === "object" && error && "digest" in error && typeof error.digest === "string") {
-		let redirect2 = decodeRedirectErrorDigest(error.digest);
-		if (redirect2) {
+		let redirect = decodeRedirectErrorDigest(error.digest);
+		if (redirect) {
 			let existingRedirect = errorRedirectHandledMap.get(error);
 			if (existingRedirect) throw existingRedirect;
-			let parsed = parseToInfo(redirect2.location, basename);
+			let parsed = parseToInfo(redirect.location, basename);
 			let target = parsed.absoluteURL || parsed.to;
 			if (hasInvalidProtocol(target)) throw new Error("Invalid redirect location");
-			if (isBrowser && !errorRedirectHandledMap.get(error)) if (parsed.isExternal || redirect2.reloadDocument) window.location.href = target;
+			if (isBrowser$1 && !errorRedirectHandledMap.get(error)) if (parsed.isExternal || redirect.reloadDocument) window.location.href = target;
 			else {
-				const redirectPromise = Promise.resolve().then(() => window.__reactRouterDataRouter.navigate(parsed.to, { replace: redirect2.replace }));
+				const redirectPromise = Promise.resolve().then(() => window.__reactRouterDataRouter.navigate(parsed.to, { replace: redirect.replace }));
 				errorRedirectHandledMap.set(error, redirectPromise);
 				throw redirectPromise;
 			}
@@ -32139,7 +32869,7 @@ function _renderMatches(matches, parentMatches = [], dataRouterOpts) {
 	let errors = dataRouterState?.errors;
 	if (errors != null) {
 		let errorIndex = renderedMatches.findIndex((m) => m.route.id && errors?.[m.route.id] !== void 0);
-		invariant(errorIndex >= 0, `Could not find a matching route for errors on route IDs: ${Object.keys(errors).join(",")}`);
+		invariant$1(errorIndex >= 0, `Could not find a matching route for errors on route IDs: ${Object.keys(errors).join(",")}`);
 		renderedMatches = renderedMatches.slice(0, Math.min(renderedMatches.length, errorIndex + 1));
 	}
 	let renderFallback = false;
@@ -32150,8 +32880,8 @@ function _renderMatches(matches, parentMatches = [], dataRouterOpts) {
 			let match = renderedMatches[i];
 			if (match.route.HydrateFallback || match.route.hydrateFallbackElement) fallbackIndex = i;
 			if (match.route.id) {
-				let { loaderData, errors: errors2 } = dataRouterState;
-				let needsToRunLoader = match.route.loader && !loaderData.hasOwnProperty(match.route.id) && (!errors2 || errors2[match.route.id] === void 0);
+				let { loaderData, errors } = dataRouterState;
+				let needsToRunLoader = match.route.loader && !loaderData.hasOwnProperty(match.route.id) && (!errors || errors[match.route.id] === void 0);
 				if (match.route.lazy || needsToRunLoader) {
 					if (dataRouterOpts.isStatic) renderFallback = true;
 					if (fallbackIndex >= 0) renderedMatches = renderedMatches.slice(0, fallbackIndex + 1);
@@ -32189,7 +32919,7 @@ function _renderMatches(matches, parentMatches = [], dataRouterOpts) {
 				}
 			}
 		}
-		let matches2 = parentMatches.concat(renderedMatches.slice(0, index + 1));
+		let matches = parentMatches.concat(renderedMatches.slice(0, index + 1));
 		let getChildren = () => {
 			let children;
 			if (error) children = errorElement;
@@ -32201,7 +32931,7 @@ function _renderMatches(matches, parentMatches = [], dataRouterOpts) {
 				match,
 				routeContext: {
 					outlet,
-					matches: matches2,
+					matches,
 					isDataRoute: dataRouterState != null
 				},
 				children
@@ -32215,63 +32945,145 @@ function _renderMatches(matches, parentMatches = [], dataRouterOpts) {
 			children: getChildren(),
 			routeContext: {
 				outlet: null,
-				matches: matches2,
+				matches,
 				isDataRoute: true
 			},
 			onError
 		}) : getChildren();
 	}, null);
 }
-function getDataRouterConsoleError(hookName) {
+function getDataRouterConsoleError$1(hookName) {
 	return `${hookName} must be used within a data router.  See https://reactrouter.com/en/main/routers/picking-a-router.`;
 }
-function useDataRouterContext(hookName) {
+function useDataRouterContext$2(hookName) {
 	let ctx = import_react.useContext(DataRouterContext);
-	invariant(ctx, getDataRouterConsoleError(hookName));
+	invariant$1(ctx, getDataRouterConsoleError$1(hookName));
 	return ctx;
 }
-function useDataRouterState(hookName) {
+function useDataRouterState$1(hookName) {
 	let state = import_react.useContext(DataRouterStateContext);
-	invariant(state, getDataRouterConsoleError(hookName));
+	invariant$1(state, getDataRouterConsoleError$1(hookName));
 	return state;
 }
 function useRouteContext(hookName) {
 	let route = import_react.useContext(RouteContext);
-	invariant(route, getDataRouterConsoleError(hookName));
+	invariant$1(route, getDataRouterConsoleError$1(hookName));
 	return route;
 }
 function useCurrentRouteId(hookName) {
 	let route = useRouteContext(hookName);
 	let thisRoute = route.matches[route.matches.length - 1];
-	invariant(thisRoute.route.id, `${hookName} can only be used on routes that contain a unique "id"`);
+	invariant$1(thisRoute.route.id, `${hookName} can only be used on routes that contain a unique "id"`);
 	return thisRoute.route.id;
 }
+/**
+* Returns the ID for the nearest contextual route
+*
+* @category Hooks
+* @returns The ID of the nearest contextual route
+*/
 function useRouteId() {
 	return useCurrentRouteId("useRouteId");
 }
+/**
+* Returns the current {@link Navigation}, defaulting to an "idle" navigation
+* when no navigation is in progress. You can use this to render pending UI
+* (like a global spinner) or read [`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData)
+* from a form navigation.
+*
+* @example
+* import { useNavigation } from "react-router";
+*
+* function SomeComponent() {
+*   let navigation = useNavigation();
+*   navigation.state;
+*   navigation.formData;
+*   // etc.
+* }
+*
+* @public
+* @category Hooks
+* @mode framework
+* @mode data
+* @returns The current {@link Navigation} object
+*/
 function useNavigation() {
-	let state = useDataRouterState("useNavigation");
+	let state = useDataRouterState$1("useNavigation");
 	return import_react.useMemo(() => {
 		let { matches, historyAction, ...rest } = state.navigation;
 		return rest;
 	}, [state.navigation]);
 }
+/**
+* Returns the active route matches, useful for accessing `loaderData` for
+* parent/child routes or the route [`handle`](../../start/framework/route-module#handle)
+* property
+*
+* Pairing the route `handle` with `useMatches` gets very powerful since you can put
+* whatever you want on a route handle and have access to `useMatches` anywhere.
+* Please see the [handle](../../how-to/using-handle) documentation for an example
+* of breadcrumbs via `useMatches`/`handle`.
+*
+* ```tsx
+* import { useMatches } from "react-router";
+*
+* function SomeComponent() {
+*   const matches = useMatches();
+*   // matches[i].id          // route id
+*   // matches[i].pathname    // the portion of the URL the route matched
+*   // matches[i].params      // the parsed params from the URL
+*   // matches[i].loaderData  // the data from the loader
+*   // matches[i].handle      // the route handle with any app specific data
+* }
+* ```
+*
+* <docs-info>useMatches only works with a data router like `createBrowserRouter`,
+* since they know the full route tree up front and can provide all of the current
+* matches. Additionally, `useMatches` will not match down into any descendant route
+* trees since the router isn't aware of the descendant routes.</docs-info>
+*
+* @public
+* @category Hooks
+* @mode framework
+* @mode data
+* @returns An array of {@link UIMatch | UI matches} for the current route hierarchy
+*/
 function useMatches() {
-	let { matches, loaderData } = useDataRouterState("useMatches");
+	let { matches, loaderData } = useDataRouterState$1("useMatches");
 	return import_react.useMemo(() => matches.map((m) => convertRouteMatchToUiMatch(m, loaderData)), [matches, loaderData]);
 }
+/**
+* Accesses the error thrown during an
+* [`action`](../../start/framework/route-module#action),
+* [`loader`](../../start/framework/route-module#loader),
+* or component render to be used in a route module
+* [`ErrorBoundary`](../../start/framework/route-module#errorboundary).
+*
+* @example
+* export function ErrorBoundary() {
+*   const error = useRouteError();
+*   return <div>{error.message}</div>;
+* }
+*
+* @public
+* @category Hooks
+* @mode framework
+* @mode data
+* @returns The error that was thrown during route [loading](../../start/framework/route-module#loader),
+* [`action`](../../start/framework/route-module#action) execution, or rendering
+*/
 function useRouteError() {
 	let error = import_react.useContext(RouteErrorContext);
-	let state = useDataRouterState("useRouteError");
+	let state = useDataRouterState$1("useRouteError");
 	let routeId = useCurrentRouteId("useRouteError");
 	if (error !== void 0) return error;
 	return state.errors?.[routeId];
 }
 function useNavigateStable() {
-	let { router } = useDataRouterContext("useNavigate");
+	let { router } = useDataRouterContext$2("useNavigate");
 	let id = useCurrentRouteId("useNavigate");
 	let activeRef = import_react.useRef(false);
-	useIsomorphicLayoutEffect$2(() => {
+	import_react.useLayoutEffect(() => {
 		activeRef.current = true;
 	});
 	return import_react.useCallback(async (to, options = {}) => {
@@ -32284,55 +33096,51 @@ function useNavigateStable() {
 		});
 	}, [router, id]);
 }
-var alreadyWarned = {};
+var alreadyWarned$1 = {};
 function warningOnce(key, cond, message) {
-	if (!cond && !alreadyWarned[key]) {
-		alreadyWarned[key] = true;
+	if (!cond && !alreadyWarned$1[key]) {
+		alreadyWarned$1[key] = true;
 		warning(false, message);
 	}
 }
-var alreadyWarned2 = {};
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/server-runtime/warnings.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var alreadyWarned = {};
 function warnOnce(condition, message) {
-	if (!condition && !alreadyWarned2[message]) {
-		alreadyWarned2[message] = true;
+	if (!condition && !alreadyWarned[message]) {
+		alreadyWarned[message] = true;
 		console.warn(message);
 	}
 }
-var useOptimisticImpl = import_react.useOptimistic;
-var stableUseOptimisticSetter = () => void 0;
-function useOptimisticSafe(val) {
-	if (useOptimisticImpl) return useOptimisticImpl(val);
-	else return [val, stableUseOptimisticSetter];
-}
-function mapRouteProperties(route) {
-	let updates = { hasErrorBoundary: route.hasErrorBoundary || route.ErrorBoundary != null || route.errorElement != null };
-	if (route.Component) {
-		if (route.element) warning(false, "You should not include both `Component` and `element` on your route - `Component` will be used.");
-		Object.assign(updates, {
-			element: import_react.createElement(route.Component),
-			Component: void 0
-		});
-	}
-	if (route.HydrateFallback) {
-		if (route.hydrateFallbackElement) warning(false, "You should not include both `HydrateFallback` and `hydrateFallbackElement` on your route - `HydrateFallback` will be used.");
-		Object.assign(updates, {
-			hydrateFallbackElement: import_react.createElement(route.HydrateFallback),
-			HydrateFallback: void 0
-		});
-	}
-	if (route.ErrorBoundary) {
-		if (route.errorElement) warning(false, "You should not include both `ErrorBoundary` and `errorElement` on your route - `ErrorBoundary` will be used.");
-		Object.assign(updates, {
-			errorElement: import_react.createElement(route.ErrorBoundary),
-			ErrorBoundary: void 0
-		});
-	}
-	return updates;
-}
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/components.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var hydrationRouteProperties = ["HydrateFallback", "hydrateFallbackElement"];
 var Deferred = class {
+	status = "pending";
+	promise;
+	resolve;
+	reject;
 	constructor() {
-		this.status = "pending";
 		this.promise = new Promise((resolve, reject) => {
 			this.resolve = (value) => {
 				if (this.status === "pending") {
@@ -32349,10 +33157,44 @@ var Deferred = class {
 		});
 	}
 };
+/**
+* Render the UI for the given {@link DataRouter}. This component should
+* typically be at the top of an app's element tree. The router prop should
+* be a single router instance created outside of the React tree. Avoid
+* creating new routers during React renders/re-renders.
+*
+* ```tsx
+* import { createBrowserRouter } from "react-router";
+* import { RouterProvider } from "react-router/dom";
+* import { createRoot } from "react-dom/client";
+*
+* const router = createBrowserRouter(routes);
+* createRoot(document.getElementById("root")).render(
+*   <RouterProvider router={router} />
+* );
+* ```
+*
+* <docs-info>Please note that this component is exported both from
+* `react-router` and `react-router/dom` with the only difference being that the
+* latter automatically wires up `react-dom`'s [`flushSync`](https://react.dev/reference/react-dom/flushSync)
+* implementation. You _almost always_ want to use the version from
+* `react-router/dom` unless you're running in a non-DOM environment.</docs-info>
+*
+*
+* @public
+* @category Data Routers
+* @mode data
+* @param props Props
+* @param {RouterProviderProps.flushSync} props.flushSync n/a
+* @param {RouterProviderProps.onError} props.onError n/a
+* @param {RouterProviderProps.router} props.router n/a
+* @param {RouterProviderProps.useTransitions} props.useTransitions n/a
+* @returns React element for the rendered router
+*/
 function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, useTransitions }) {
 	useTransitions = useIsRSCRouterContext() || useTransitions;
 	let [_state, setStateImpl] = import_react.useState(router.state);
-	let [state, setOptimisticState] = useOptimisticSafe(_state);
+	let [state, setOptimisticState] = (0, import_react.useOptimistic)(_state);
 	let [pendingState, setPendingState] = import_react.useState();
 	let [vtContext, setVtContext] = import_react.useState({ isTransitioning: false });
 	let [renderDfd, setRenderDfd] = import_react.useState();
@@ -32442,7 +33284,7 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 		if (renderDfd && pendingState && router.window) {
 			let newState = pendingState;
 			let renderPromise = renderDfd.promise;
-			let transition2 = router.window.document.startViewTransition(async () => {
+			let transition = router.window.document.startViewTransition(async () => {
 				if (useTransitions === false) setStateImpl(newState);
 				else import_react.startTransition(() => {
 					if (useTransitions === true) setOptimisticState((s) => getOptimisticRouterState(s, newState));
@@ -32450,13 +33292,13 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 				});
 				await renderPromise;
 			});
-			transition2.finished.finally(() => {
+			transition.finished.finally(() => {
 				setRenderDfd(void 0);
 				setTransition(void 0);
 				setPendingState(void 0);
 				setVtContext({ isTransitioning: false });
 			});
-			setTransition(transition2);
+			setTransition(transition);
 		}
 	}, [
 		pendingState,
@@ -32490,13 +33332,13 @@ function RouterProvider({ router, flushSync: reactDomFlushSyncImpl, onError, use
 			createHref: router.createHref,
 			encodeLocation: router.encodeLocation,
 			go: (n) => router.navigate(n),
-			push: (to, state2, opts) => router.navigate(to, {
-				state: state2,
+			push: (to, state, opts) => router.navigate(to, {
+				state,
 				preventScrollReset: opts?.preventScrollReset
 			}),
-			replace: (to, state2, opts) => router.navigate(to, {
+			replace: (to, state, opts) => router.navigate(to, {
 				replace: true,
-				state: state2,
+				state,
 				preventScrollReset: opts?.preventScrollReset
 			})
 		};
@@ -32538,8 +33380,8 @@ function getOptimisticRouterState(currentState, newState) {
 		fetchers: newState.fetchers
 	};
 }
-var MemoizedDataRoutes = import_react.memo(DataRoutes2);
-function DataRoutes2({ routes, manifest, future, state, isStatic, onError }) {
+var MemoizedDataRoutes = import_react.memo(DataRoutes);
+function DataRoutes({ routes, manifest, future, state, isStatic, onError }) {
 	return useRoutesImpl(routes, void 0, {
 		manifest,
 		state,
@@ -32548,10 +33390,30 @@ function DataRoutes2({ routes, manifest, future, state, isStatic, onError }) {
 		future
 	});
 }
-function Navigate({ to, replace: replace2, state, relative }) {
-	invariant(useInRouterContext(), `<Navigate> may be used only in the context of a <Router> component.`);
+/**
+* A component-based version of {@link useNavigate} to use in a
+* [`React.Component` class](https://react.dev/reference/react/Component) where
+* hooks cannot be used.
+*
+* It's recommended to avoid using this component in favor of {@link useNavigate}.
+*
+* @example
+* <Navigate to="/tasks" />
+*
+* @public
+* @category Components
+* @param props Props
+* @param {NavigateProps.relative} props.relative n/a
+* @param {NavigateProps.replace} props.replace n/a
+* @param {NavigateProps.state} props.state n/a
+* @param {NavigateProps.to} props.to n/a
+* @returns {void}
+*
+*/
+function Navigate({ to, replace, state, relative }) {
+	invariant$1(useInRouterContext(), `<Navigate> may be used only in the context of a <Router> component.`);
 	let { static: isStatic } = import_react.useContext(NavigationContext);
-	warning(!isStatic, `<Navigate> must not be used on the initial render in a <StaticRouter>. This is a no-op, but you should modify your code so the <Navigate> is only ever rendered in response to some user interaction or state change.`);
+	warning(!isStatic, "<Navigate> must not be used on the initial render in a <StaticRouter>. This is a no-op, but you should modify your code so the <Navigate> is only ever rendered in response to some user interaction or state change.");
 	let { matches } = import_react.useContext(RouteContext);
 	let { pathname: locationPathname } = useLocation();
 	let navigate = useNavigate();
@@ -32559,7 +33421,7 @@ function Navigate({ to, replace: replace2, state, relative }) {
 	let jsonPath = JSON.stringify(path);
 	import_react.useEffect(() => {
 		navigate(JSON.parse(jsonPath), {
-			replace: replace2,
+			replace,
 			state,
 			relative
 		});
@@ -32567,16 +33429,59 @@ function Navigate({ to, replace: replace2, state, relative }) {
 		navigate,
 		jsonPath,
 		relative,
-		replace2,
+		replace,
 		state
 	]);
 	return null;
 }
+/**
+* Renders the matching child route of a parent route or nothing if no child
+* route matches.
+*
+* @example
+* import { Outlet } from "react-router";
+*
+* export default function SomeParent() {
+*   return (
+*     <div>
+*       <h1>Parent Content</h1>
+*       <Outlet />
+*     </div>
+*   );
+* }
+*
+* @public
+* @category Components
+* @param props Props
+* @param {OutletProps.context} props.context n/a
+* @returns React element for the rendered outlet or `null` if no child route matches.
+*/
 function Outlet(props) {
 	return useOutlet(props.context);
 }
+/**
+* Provides location context for the rest of the app.
+*
+* Note: You usually won't render a `<Router>` directly. Instead, you'll render a
+* router that is more specific to your environment such as a {@link BrowserRouter}
+* in web browsers or a {@link ServerRouter} for server rendering.
+*
+* @public
+* @category Declarative Routers
+* @mode declarative
+* @param props Props
+* @param {RouterProps.basename} props.basename n/a
+* @param {RouterProps.children} props.children n/a
+* @param {RouterProps.location} props.location n/a
+* @param {RouterProps.navigationType} props.navigationType n/a
+* @param {RouterProps.navigator} props.navigator n/a
+* @param {RouterProps.static} props.static n/a
+* @param {RouterProps.useTransitions} props.useTransitions n/a
+* @returns React element for the rendered router or `null` if the location does
+* not match the {@link props.basename}
+*/
 function Router({ basename: basenameProp = "/", children = null, location: locationProp, navigationType = "POP", navigator, static: staticProp = false, useTransitions }) {
-	invariant(!useInRouterContext(), `You cannot render a <Router> inside another <Router>. You should never have more than one in your app.`);
+	invariant$1(!useInRouterContext(), "You cannot render a <Router> inside another <Router>. You should never have more than one in your app.");
 	let basename = basenameProp.replace(/^\/*/, "/");
 	let navigationContext = import_react.useMemo(() => ({
 		basename,
@@ -32624,7 +33529,18 @@ function Router({ basename: basenameProp = "/", children = null, location: locat
 	}));
 }
 import_react.Component;
-var defaultMethod = "get";
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/dom.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var defaultEncType = "application/x-www-form-urlencoded";
 function isHtmlElement(object) {
 	return typeof HTMLElement !== "undefined" && object instanceof HTMLElement;
@@ -32644,10 +33560,36 @@ function isModifiedEvent(event) {
 function shouldProcessLinkClick(event, target) {
 	return event.button === 0 && (!target || target === "_self") && !isModifiedEvent(event);
 }
+/**
+* Creates a URLSearchParams object using the given initializer.
+*
+* This is identical to `new URLSearchParams(init)` except it also supports
+* arrays as values in the object form of the initializer instead of just
+* strings. This is convenient when you need multiple values for a given key,
+* but don't want to use an array initializer.
+*
+* @example
+* // Instead of:
+* let searchParams = new URLSearchParams([
+*   ["sort", "name"],
+*   ["sort", "price"],
+* ]);
+*
+* // You can do:
+* let searchParams = createSearchParams({
+*   sort: ["name", "price"],
+* });
+*
+* @public
+* @category Utils
+* @param init The value used to initialize the URL search parameters.
+* @returns A URLSearchParams object containing the initialized search
+* parameters.
+*/
 function createSearchParams(init = "") {
-	return new URLSearchParams(typeof init === "string" || Array.isArray(init) || init instanceof URLSearchParams ? init : Object.keys(init).reduce((memo2, key) => {
+	return new URLSearchParams(typeof init === "string" || Array.isArray(init) || init instanceof URLSearchParams ? init : Object.keys(init).reduce((memo, key) => {
 		let value = init[key];
-		return memo2.concat(Array.isArray(value) ? value.map((v) => [key, v]) : [[key, value]]);
+		return memo.concat(Array.isArray(value) ? value.map((v) => [key, v]) : [[key, value]]);
 	}, []));
 }
 function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
@@ -32690,7 +33632,7 @@ function getFormSubmissionInfo(target, basename) {
 	if (isFormElement(target)) {
 		let attr = target.getAttribute("action");
 		action = attr ? stripBasename(attr, basename) : null;
-		method = target.getAttribute("method") || defaultMethod;
+		method = target.getAttribute("method") || "get";
 		encType = getFormEncType(target.getAttribute("enctype")) || defaultEncType;
 		formData = new FormData(target);
 	} else if (isButtonElement(target) || isInputElement(target) && (target.type === "submit" || target.type === "image")) {
@@ -32698,7 +33640,7 @@ function getFormSubmissionInfo(target, basename) {
 		if (form == null) throw new Error(`Cannot submit a <button> or <input type="submit"> without a <form>`);
 		let attr = target.getAttribute("formaction") || form.getAttribute("action");
 		action = attr ? stripBasename(attr, basename) : null;
-		method = target.getAttribute("formmethod") || form.getAttribute("method") || defaultMethod;
+		method = target.getAttribute("formmethod") || form.getAttribute("method") || "get";
 		encType = getFormEncType(target.getAttribute("formenctype")) || getFormEncType(form.getAttribute("enctype")) || defaultEncType;
 		formData = new FormData(form, target);
 		if (!isFormDataSubmitterSupported()) {
@@ -32709,9 +33651,9 @@ function getFormSubmissionInfo(target, basename) {
 				formData.append(`${prefix}y`, "0");
 			} else if (name) formData.append(name, value);
 		}
-	} else if (isHtmlElement(target)) throw new Error(`Cannot submit element that is not <form>, <button>, or <input type="submit|image">`);
+	} else if (isHtmlElement(target)) throw new Error("Cannot submit element that is not <form>, <button>, or <input type=\"submit|image\">");
 	else {
-		method = defaultMethod;
+		method = "get";
 		action = null;
 		encType = defaultEncType;
 		body = target;
@@ -32728,7 +33670,33 @@ function getFormSubmissionInfo(target, basename) {
 		body
 	};
 }
-Object.getOwnPropertyNames(Object.prototype).sort().join("\0");
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/ssr/invariant.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+function invariant(value, message) {
+	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
+}
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/ssr/markup.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 var ESCAPE_LOOKUP = {
 	"&": "\\u0026",
 	">": "\\u003e",
@@ -32740,18 +33708,36 @@ var ESCAPE_REGEX = /[&><\u2028\u2029]/g;
 function escapeHtml$1(html) {
 	return html.replace(ESCAPE_REGEX, (match) => ESCAPE_LOOKUP[match]);
 }
-function invariant2(value, message) {
-	if (value === false || value === null || typeof value === "undefined") throw new Error(message);
-}
-function singleFetchUrl(reqUrl, basename, trailingSlashAware, extension) {
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/ssr/single-fetch.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+function singleFetchUrl(reqUrl, extension) {
 	let url = typeof reqUrl === "string" ? new URL(reqUrl, typeof window === "undefined" ? "server://singlefetch/" : window.location.origin) : reqUrl;
-	if (trailingSlashAware) if (url.pathname.endsWith("/")) url.pathname = `${url.pathname}_.${extension}`;
+	if (url.pathname.endsWith("/")) url.pathname = `${url.pathname}_.${extension}`;
 	else url.pathname = `${url.pathname}.${extension}`;
-	else if (url.pathname === "/") url.pathname = `_root.${extension}`;
-	else if (basename && stripBasename(url.pathname, basename) === "/") url.pathname = `${removeTrailingSlash(basename)}/_root.${extension}`;
-	else url.pathname = `${removeTrailingSlash(url.pathname)}.${extension}`;
 	return url;
 }
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/ssr/routeModules.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 async function loadRouteModule(route, routeModulesCache) {
 	if (route.id in routeModulesCache) return routeModulesCache[route.id];
 	try {
@@ -32770,6 +33756,18 @@ async function loadRouteModule(route, routeModulesCache) {
 		return new Promise(() => {});
 	}
 }
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/ssr/links.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
 function isPageLinkDescriptor(object) {
 	return object != null && typeof object.page === "string";
 }
@@ -32859,21 +33857,33 @@ function dedupeLinkDescriptors(descriptors, preloads) {
 		return deduped;
 	}, []);
 }
-function useDataRouterContext2() {
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/ssr/components.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+function useDataRouterContext$1() {
 	let context = import_react.useContext(DataRouterContext);
-	invariant2(context, "You must render this element inside a <DataRouterContext.Provider> element");
+	invariant(context, "You must render this element inside a <DataRouterContext.Provider> element");
 	return context;
 }
 function useDataRouterStateContext() {
 	let context = import_react.useContext(DataRouterStateContext);
-	invariant2(context, "You must render this element inside a <DataRouterStateContext.Provider> element");
+	invariant(context, "You must render this element inside a <DataRouterStateContext.Provider> element");
 	return context;
 }
 var FrameworkContext = import_react.createContext(void 0);
 FrameworkContext.displayName = "FrameworkContext";
 function useFrameworkContext() {
 	let context = import_react.useContext(FrameworkContext);
-	invariant2(context, "You must render this element inside a <HydratedRouter> element");
+	invariant(context, "You must render this element inside a <HydratedRouter> element");
 	return context;
 }
 function usePrefetchBehavior(prefetch, theirElementProps) {
@@ -32942,10 +33952,37 @@ function composeEventHandlers(theirHandler, ourHandler) {
 		if (!event.defaultPrevented) ourHandler(event);
 	};
 }
+/**
+* Renders [`<link rel=prefetch|modulepreload>`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLLinkElement/rel)
+* tags for modules and data of another page to enable an instant navigation to
+* that page. [`<Link prefetch>`](./Link#prefetch) uses this internally, but you
+* can render it to prefetch a page for any other reason.
+*
+* For example, you may render one of this as the user types into a search field
+* to prefetch search results before they click through to their selection.
+*
+* @example
+* import { PrefetchPageLinks } from "react-router";
+*
+* <PrefetchPageLinks page="/absolute/path" />
+*
+* @public
+* @category Components
+* @mode framework
+* @param props Props
+* @param {PageLinkDescriptor.page} props.page n/a
+* @param props.linkProps Additional props to spread onto the [`<link>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/link)
+* tags, such as [`crossOrigin`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLLinkElement/crossOrigin),
+* [`integrity`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLLinkElement/integrity),
+* [`rel`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLLinkElement/rel),
+* etc.
+* @returns A collection of React elements for [`<link>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/link)
+* tags
+*/
 function PrefetchPageLinks({ page, ...linkProps }) {
 	let rsc = useIsRSCRouterContext();
 	let { nonce: contextNonce } = useFrameworkContext();
-	let { router } = useDataRouterContext2();
+	let { router } = useDataRouterContext$1();
 	let matches = import_react.useMemo(() => matchRoutes(router.routes, page, router.basename), [
 		router.routes,
 		page,
@@ -32987,11 +34024,9 @@ function useKeyedPrefetchLinks(matches) {
 }
 function RSCPrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 	let location = useLocation();
-	let { future } = useFrameworkContext();
-	let { basename } = useDataRouterContext2();
 	let dataHrefs = import_react.useMemo(() => {
 		if (page === location.pathname + location.search + location.hash) return [];
-		let url = singleFetchUrl(page, basename, future.v8_trailingSlashAwareDataRequests, "rsc");
+		let url = singleFetchUrl(page, "rsc");
 		let hasSomeRoutesWithShouldRevalidate = false;
 		let targetRoutes = [];
 		for (let match of nextMatches) if (typeof match.route.shouldRevalidate === "function") hasSomeRoutesWithShouldRevalidate = true;
@@ -32999,8 +34034,6 @@ function RSCPrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) 
 		if (hasSomeRoutesWithShouldRevalidate && targetRoutes.length > 0) url.searchParams.set("_routes", targetRoutes.join(","));
 		return [url.pathname + url.search];
 	}, [
-		basename,
-		future.v8_trailingSlashAwareDataRequests,
 		page,
 		location,
 		nextMatches
@@ -33015,8 +34048,7 @@ function RSCPrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) 
 }
 function PrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 	let location = useLocation();
-	let { future, manifest, routeModules } = useFrameworkContext();
-	let { basename } = useDataRouterContext2();
+	let { manifest, routeModules } = useFrameworkContext();
 	let { loaderData, matches } = useDataRouterStateContext();
 	let newMatchesForData = import_react.useMemo(() => getNewMatchesForLinks(page, nextMatches, matches, manifest, location, "data"), [
 		page,
@@ -33044,12 +34076,10 @@ function PrefetchPageLinksImpl({ page, matches: nextMatches, ...linkProps }) {
 			else routesParams.add(m.route.id);
 		});
 		if (routesParams.size === 0) return [];
-		let url = singleFetchUrl(page, basename, future.v8_trailingSlashAwareDataRequests, "data");
+		let url = singleFetchUrl(page, "data");
 		if (foundOptOutRoute && routesParams.size > 0) url.searchParams.set("_routes", nextMatches.filter((m) => routesParams.has(m.route.id)).map((m) => m.route.id).join(","));
 		return [url.pathname + url.search];
 	}, [
-		basename,
-		future.v8_trailingSlashAwareDataRequests,
 		loaderData,
 		location,
 		manifest,
@@ -33086,11 +34116,45 @@ function mergeRefs(...refs) {
 		});
 	};
 }
-import_react.Component;
-var isBrowser2 = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom/lib.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
 try {
-	if (isBrowser2) window.__reactRouterVersion = "7.18.1";
+	if (isBrowser) window.__reactRouterVersion = "8.3.0";
 } catch (e) {}
+/**
+* Create a new {@link DataRouter| data router} that manages the application
+* path via the URL [`hash`](https://developer.mozilla.org/en-US/docs/Web/API/URL/hash).
+*
+* Data Routers should not be held in React state. You should create your router
+* once outside of the React tree and pass it to {@link RouterProvider | `<RouterProvider>`}.
+* You can use `patchRoutesOnNavigation` to add additional routes programmatically.
+*
+* @public
+* @category Data Routers
+* @mode data
+* @param routes Application routes
+* @param opts Options
+* @param {DOMRouterOpts.basename} opts.basename n/a
+* @param {DOMRouterOpts.future} opts.future n/a
+* @param {DOMRouterOpts.getContext} opts.getContext n/a
+* @param {DOMRouterOpts.hydrationData} opts.hydrationData n/a
+* @param {DOMRouterOpts.instrumentations} opts.instrumentations n/a
+* @param {DOMRouterOpts.dataStrategy} opts.dataStrategy n/a
+* @param {DOMRouterOpts.patchRoutesOnNavigation} opts.patchRoutesOnNavigation n/a
+* @param {DOMRouterOpts.window} opts.window n/a
+* @returns An initialized {@link DataRouter| data router} to pass to {@link RouterProvider | `<RouterProvider>`}
+*/
 function createHashRouter(routes, opts) {
 	return createRouter({
 		basename: opts?.basename,
@@ -33099,7 +34163,7 @@ function createHashRouter(routes, opts) {
 		history: createHashHistory({ window: opts?.window }),
 		hydrationData: opts?.hydrationData || parseHydrationData(),
 		routes,
-		mapRouteProperties,
+		mapRouteProperties: defaultMapRouteProperties,
 		hydrationRouteProperties,
 		dataStrategy: opts?.dataStrategy,
 		patchRoutesOnNavigation: opts?.patchRoutesOnNavigation,
@@ -33137,6 +34201,25 @@ function deserializeErrors(errors) {
 	} else serialized[key] = val;
 	return serialized;
 }
+/**
+* A declarative {@link Router | `<Router>`} that accepts a pre-instantiated
+* `history` object.
+* It's important to note that using your own `history` object is highly discouraged
+* and may add two versions of the `history` library to your bundles unless you use
+* the same version of the `history` library that React Router uses internally.
+*
+* @name unstable_HistoryRouter
+* @public
+* @category Declarative Routers
+* @mode declarative
+* @param props Props
+* @param {HistoryRouterProps.basename} props.basename n/a
+* @param {HistoryRouterProps.children} props.children n/a
+* @param {HistoryRouterProps.history} props.history n/a
+* @param {HistoryRouterProps.useTransitions} props.useTransitions n/a
+* @returns A declarative {@link Router | `<Router>`} using the provided history
+* implementation for client-side routing.
+*/
 function HistoryRouter({ basename, children, history, useTransitions }) {
 	let [state, setStateImpl] = import_react.useState({
 		action: history.action,
@@ -33157,7 +34240,38 @@ function HistoryRouter({ basename, children, history, useTransitions }) {
 	});
 }
 HistoryRouter.displayName = "unstable_HistoryRouter";
-var Link = import_react.forwardRef(function LinkWithRef({ onClick, discover = "render", prefetch = "none", relative, reloadDocument, replace: replace2, mask, state, target, to, preventScrollReset, viewTransition, defaultShouldRevalidate, ...rest }, forwardedRef) {
+/**
+* A progressively enhanced [`<a href>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/a)
+* wrapper to enable navigation with client-side routing.
+*
+* @example
+* import { Link } from "react-router";
+*
+* <Link to="/dashboard">Dashboard</Link>;
+*
+* <Link
+*   to={{
+*     pathname: "/some/path",
+*     search: "?query=string",
+*     hash: "#hash",
+*   }}
+* />;
+*
+* @public
+* @category Components
+* @param {LinkProps.discover} props.discover [modes: framework] n/a
+* @param {LinkProps.prefetch} props.prefetch [modes: framework] n/a
+* @param {LinkProps.preventScrollReset} props.preventScrollReset [modes: framework, data] n/a
+* @param {LinkProps.relative} props.relative n/a
+* @param {LinkProps.reloadDocument} props.reloadDocument n/a
+* @param {LinkProps.replace} props.replace n/a
+* @param {LinkProps.state} props.state n/a
+* @param {LinkProps.to} props.to n/a
+* @param {LinkProps.viewTransition} props.viewTransition [modes: framework, data] n/a
+* @param {LinkProps.defaultShouldRevalidate} props.defaultShouldRevalidate n/a
+* @param {LinkProps.mask} props.mask [modes: framework, data] n/a
+*/
+var Link = import_react.forwardRef(function LinkWithRef({ onClick, discover = "render", prefetch = "none", relative, reloadDocument, replace, mask, state, target, to, preventScrollReset, viewTransition, defaultShouldRevalidate, ...rest }, forwardedRef) {
 	let { basename, navigator, useTransitions } = import_react.useContext(NavigationContext);
 	let isAbsolute = typeof to === "string" && ABSOLUTE_URL_REGEX.test(to);
 	let parsed = parseToInfo(to, basename);
@@ -33172,7 +34286,7 @@ var Link = import_react.forwardRef(function LinkWithRef({ onClick, discover = "r
 	}
 	let [shouldPrefetch, prefetchRef, prefetchHandlers] = usePrefetchBehavior(prefetch, rest);
 	let internalOnClick = useLinkClickHandler(to, {
-		replace: replace2,
+		replace,
 		mask,
 		state,
 		target,
@@ -33199,6 +34313,49 @@ var Link = import_react.forwardRef(function LinkWithRef({ onClick, discover = "r
 	return shouldPrefetch && !isAbsolute ? /* @__PURE__ */ import_react.createElement(import_react.Fragment, null, link, /* @__PURE__ */ import_react.createElement(PrefetchPageLinks, { page: href })) : link;
 });
 Link.displayName = "Link";
+/**
+* Wraps {@link Link | `<Link>`} with additional props for styling active and
+* pending states.
+*
+* - Automatically applies classes to the link based on its `active` and `pending`
+* states, see {@link NavLinkProps.className}
+*   - Note that `pending` is only available with Framework and Data modes.
+* - Automatically applies `aria-current="page"` to the link when the link is active.
+* See [`aria-current`](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Attributes/aria-current)
+* on MDN.
+* - States are additionally available through the className, style, and children
+* render props. See {@link NavLinkRenderProps}.
+*
+* @example
+* <NavLink to="/message">Messages</NavLink>
+*
+* // Using render props
+* <NavLink
+*   to="/messages"
+*   className={({ isActive, isPending }) =>
+*     isPending ? "pending" : isActive ? "active" : ""
+*   }
+* >
+*   Messages
+* </NavLink>
+*
+* @public
+* @category Components
+* @param {NavLinkProps.caseSensitive} props.caseSensitive n/a
+* @param {NavLinkProps.children} props.children n/a
+* @param {NavLinkProps.className} props.className n/a
+* @param {NavLinkProps.discover} props.discover [modes: framework] n/a
+* @param {NavLinkProps.end} props.end n/a
+* @param {NavLinkProps.prefetch} props.prefetch [modes: framework] n/a
+* @param {NavLinkProps.preventScrollReset} props.preventScrollReset [modes: framework, data] n/a
+* @param {NavLinkProps.relative} props.relative n/a
+* @param {NavLinkProps.reloadDocument} props.reloadDocument n/a
+* @param {NavLinkProps.replace} props.replace n/a
+* @param {NavLinkProps.state} props.state n/a
+* @param {NavLinkProps.style} props.style n/a
+* @param {NavLinkProps.to} props.to n/a
+* @param {NavLinkProps.viewTransition} props.viewTransition [modes: framework, data] n/a
+*/
 var NavLink = import_react.forwardRef(function NavLinkWithRef({ "aria-current": ariaCurrentProp = "page", caseSensitive = false, className: classNameProp = "", end = false, style: styleProp, to, viewTransition, children, ...rest }, ref) {
 	let path = useResolvedPath(to, { relative: rest.relative });
 	let location = useLocation();
@@ -33216,7 +34373,7 @@ var NavLink = import_react.forwardRef(function NavLinkWithRef({ "aria-current": 
 	if (nextLocationPathname && basename) nextLocationPathname = stripBasename(nextLocationPathname, basename) || nextLocationPathname;
 	const endSlashPosition = toPathname !== "/" && toPathname.endsWith("/") ? toPathname.length - 1 : toPathname.length;
 	let isActive = locationPathname === toPathname || !end && locationPathname.startsWith(toPathname) && locationPathname.charAt(endSlashPosition) === "/";
-	let isPending = nextLocationPathname != null && (nextLocationPathname === toPathname || !end && nextLocationPathname.startsWith(toPathname) && nextLocationPathname.charAt(toPathname.length) === "/");
+	let isPending = nextLocationPathname != null && (nextLocationPathname === toPathname || !end && nextLocationPathname.startsWith(toPathname) && nextLocationPathname.charAt(endSlashPosition) === "/");
 	let renderProps = {
 		isActive,
 		isPending,
@@ -33243,7 +34400,57 @@ var NavLink = import_react.forwardRef(function NavLinkWithRef({ "aria-current": 
 	}, typeof children === "function" ? children(renderProps) : children);
 });
 NavLink.displayName = "NavLink";
-var Form = import_react.forwardRef(({ discover = "render", fetcherKey, navigate, reloadDocument, replace: replace2, state, method = defaultMethod, action, onSubmit, relative, preventScrollReset, viewTransition, defaultShouldRevalidate, ...props }, forwardedRef) => {
+/**
+* A progressively enhanced HTML [`<form>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/form)
+* that submits data to actions via [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/fetch),
+* activating pending states in {@link useNavigation} which enables advanced
+* user interfaces beyond a basic HTML [`<form>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/form).
+* After a form's `action` completes, all data on the page is automatically
+* revalidated to keep the UI in sync with the data.
+*
+* Because it uses the HTML form API, server rendered pages are interactive at a
+* basic level before JavaScript loads. Instead of React Router managing the
+* submission, the browser manages the submission as well as the pending states
+* (like the spinning favicon). After JavaScript loads, React Router takes over
+* enabling web application user experiences.
+*
+* `Form` is most useful for submissions that should also change the URL or
+* otherwise add an entry to the browser history stack. For forms that shouldn't
+* manipulate the browser [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History)
+* stack, use {@link FetcherWithComponents.Form | `<fetcher.Form>`}.
+*
+* @example
+* import { Form } from "react-router";
+*
+* function NewEvent() {
+*   return (
+*     <Form action="/events" method="post">
+*       <input name="title" type="text" />
+*       <input name="description" type="text" />
+*     </Form>
+*   );
+* }
+*
+* @public
+* @category Components
+* @mode framework
+* @mode data
+* @param {FormProps.action} action n/a
+* @param {FormProps.discover} discover n/a
+* @param {FormProps.encType} encType n/a
+* @param {FormProps.fetcherKey} fetcherKey n/a
+* @param {FormProps.method} method n/a
+* @param {FormProps.navigate} navigate n/a
+* @param {FormProps.preventScrollReset} preventScrollReset n/a
+* @param {FormProps.relative} relative n/a
+* @param {FormProps.reloadDocument} reloadDocument n/a
+* @param {FormProps.replace} replace n/a
+* @param {FormProps.state} state n/a
+* @param {FormProps.viewTransition} viewTransition n/a
+* @param {FormProps.defaultShouldRevalidate} defaultShouldRevalidate n/a
+* @returns A progressively enhanced [`<form>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/form) component
+*/
+var Form = import_react.forwardRef(({ discover = "render", fetcherKey, navigate, reloadDocument, replace, state, method = "get", action, onSubmit, relative, preventScrollReset, viewTransition, defaultShouldRevalidate, ...props }, forwardedRef) => {
 	let { useTransitions } = import_react.useContext(NavigationContext);
 	let submit = useSubmit();
 	let formAction = useFormAction(action, { relative });
@@ -33259,7 +34466,7 @@ var Form = import_react.forwardRef(({ discover = "render", fetcherKey, navigate,
 			fetcherKey,
 			method: submitMethod,
 			navigate,
-			replace: replace2,
+			replace,
 			state,
 			relative,
 			preventScrollReset,
@@ -33279,6 +34486,44 @@ var Form = import_react.forwardRef(({ discover = "render", fetcherKey, navigate,
 	});
 });
 Form.displayName = "Form";
+/**
+* Emulates the browser's scroll restoration on location changes. Apps should only render one of these, right before the {@link Scripts} component.
+*
+* ```tsx
+* import { ScrollRestoration } from "react-router";
+*
+* export default function Root() {
+*   return (
+*     <html>
+*       <body>
+*         <ScrollRestoration />
+*         <Scripts />
+*       </body>
+*     </html>
+*   );
+* }
+* ```
+*
+* This component renders an inline `<script>` to prevent scroll flashing. The
+* `nonce` prop will be passed down to the script tag to allow CSP nonce usage.
+* If not provided in Framework Mode, it will default to any
+* {@link ServerRouter | `<ServerRouter nonce>`} prop.
+*
+* ```tsx
+* <ScrollRestoration nonce={cspNonce} />
+* ```
+*
+* @public
+* @category Components
+* @mode framework
+* @mode data
+* @param props Props
+* @param {ScrollRestorationProps.getKey} props.getKey n/a
+* @param {ScriptsProps.nonce} props.nonce n/a
+* @param {ScrollRestorationProps.storageKey} props.storageKey n/a
+* @returns A [`<script>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/script)
+* tag that restores scroll positions on navigation.
+*/
 function ScrollRestoration({ getKey, storageKey, ...props }) {
 	let remixContext = import_react.useContext(FrameworkContext);
 	let { basename } = import_react.useContext(NavigationContext);
@@ -33294,17 +34539,17 @@ function ScrollRestoration({ getKey, storageKey, ...props }) {
 		return userKey !== location.key ? userKey : null;
 	}, []);
 	if (!remixContext || remixContext.isSpaMode) return null;
-	let restoreScroll = ((storageKey2, restoreKey) => {
+	let restoreScroll = ((storageKey, restoreKey) => {
 		if (!window.history.state || !window.history.state.key) {
 			let key = Math.random().toString(32).slice(2);
 			window.history.replaceState({ key }, "");
 		}
 		try {
-			let storedY = JSON.parse(sessionStorage.getItem(storageKey2) || "{}")[restoreKey || window.history.state.key];
+			let storedY = JSON.parse(sessionStorage.getItem(storageKey) || "{}")[restoreKey || window.history.state.key];
 			if (typeof storedY === "number") window.scrollTo(0, storedY);
 		} catch (error) {
 			console.error(error);
-			sessionStorage.removeItem(storageKey2);
+			sessionStorage.removeItem(storageKey);
 		}
 	}).toString();
 	if (props.nonce == null && remixContext?.nonce) props.nonce = remixContext.nonce;
@@ -33315,19 +34560,51 @@ function ScrollRestoration({ getKey, storageKey, ...props }) {
 	});
 }
 ScrollRestoration.displayName = "ScrollRestoration";
-function getDataRouterConsoleError2(hookName) {
+function getDataRouterConsoleError(hookName) {
 	return `${hookName} must be used within a data router.  See https://reactrouter.com/en/main/routers/picking-a-router.`;
 }
-function useDataRouterContext3(hookName) {
+function useDataRouterContext(hookName) {
 	let ctx = import_react.useContext(DataRouterContext);
-	invariant(ctx, getDataRouterConsoleError2(hookName));
+	invariant$1(ctx, getDataRouterConsoleError(hookName));
 	return ctx;
 }
-function useDataRouterState2(hookName) {
+function useDataRouterState(hookName) {
 	let state = import_react.useContext(DataRouterStateContext);
-	invariant(state, getDataRouterConsoleError2(hookName));
+	invariant$1(state, getDataRouterConsoleError(hookName));
 	return state;
 }
+/**
+* Handles the click behavior for router {@link Link | `<Link>`} components.This
+* is useful if you need to create custom {@link Link | `<Link>`} components with
+* the same click behavior we use in our exported {@link Link | `<Link>`}.
+*
+* @public
+* @category Hooks
+* @param to The URL to navigate to, can be a string or a partial {@link Path}.
+* @param options Options
+* @param options.preventScrollReset Whether to prevent the scroll position from
+* being reset to the top of the viewport on completion of the navigation when
+* using the {@link ScrollRestoration} component. Defaults to `false`.
+* @param options.relative The {@link RelativeRoutingType | relative routing type}
+* to use for the link. Defaults to `"route"`.
+* @param options.replace Whether to replace the current [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History)
+* entry instead of pushing a new one. Defaults to `false`.
+* @param options.state The state to add to the [`History`](https://developer.mozilla.org/en-US/docs/Web/API/History)
+* entry for this navigation. Defaults to `undefined`.
+* @param options.target The target attribute for the link. Defaults to `undefined`.
+* @param options.viewTransition Enables a [View Transition](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API)
+* for this navigation. To apply specific styles during the transition, see
+* {@link useViewTransitionState}. Defaults to `false`.
+* @param options.defaultShouldRevalidate Specify the default revalidation
+* behavior for the navigation. When not specified, loaders revalidate
+* according to the router's standard revalidation behavior.
+* @param options.mask Masked location to display in the browser instead
+* of the router location. Defaults to `undefined`.
+* @param options.useTransitions Wraps the navigation in
+* [`React.startTransition`](https://react.dev/reference/react/startTransition)
+* for concurrent rendering. Defaults to `false`.
+* @returns A click handler function that can be used in a custom {@link Link} component.
+*/
 function useLinkClickHandler(to, { target, replace: replaceProp, mask, state, preventScrollReset, relative, viewTransition, defaultShouldRevalidate, useTransitions } = {}) {
 	let navigate = useNavigate();
 	let location = useLocation();
@@ -33335,9 +34612,9 @@ function useLinkClickHandler(to, { target, replace: replaceProp, mask, state, pr
 	return import_react.useCallback((event) => {
 		if (shouldProcessLinkClick(event, target)) {
 			event.preventDefault();
-			let replace2 = replaceProp !== void 0 ? replaceProp : createPath(location) === createPath(path);
+			let replace = replaceProp !== void 0 ? replaceProp : createPath(location) === createPath(path);
 			let doNavigate = () => navigate(to, {
-				replace: replace2,
+				replace,
 				mask,
 				state,
 				preventScrollReset,
@@ -33364,8 +34641,104 @@ function useLinkClickHandler(to, { target, replace: replaceProp, mask, state, pr
 		useTransitions
 	]);
 }
+/**
+* Returns a tuple of the current URL's [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
+* and a function to update them. Setting the search params causes a navigation.
+*
+* ```tsx
+* import { useSearchParams } from "react-router";
+*
+* export function SomeComponent() {
+*   const [searchParams, setSearchParams] = useSearchParams();
+*   // ...
+* }
+* ```
+*
+* ### `setSearchParams` function
+*
+* The second element of the tuple is a function that can be used to update the
+* search params. It accepts the same types as `defaultInit` and will cause a
+* navigation to the new URL.
+*
+* ```tsx
+* let [searchParams, setSearchParams] = useSearchParams();
+*
+* // a search param string
+* setSearchParams("?tab=1");
+*
+* // a shorthand object
+* setSearchParams({ tab: "1" });
+*
+* // object keys can be arrays for multiple values on the key
+* setSearchParams({ brand: ["nike", "reebok"] });
+*
+* // an array of tuples
+* setSearchParams([["tab", "1"]]);
+*
+* // a `URLSearchParams` object
+* setSearchParams(new URLSearchParams("?tab=1"));
+* ```
+*
+* It also supports a function callback like React's
+* [`setState`](https://react.dev/reference/react/useState#setstate):
+*
+* ```tsx
+* setSearchParams((searchParams) => {
+*   searchParams.set("tab", "2");
+*   return searchParams;
+* });
+* ```
+*
+* <docs-warning>The function callback version of `setSearchParams` does not support
+* the [queueing](https://react.dev/reference/react/useState#setstate-parameters)
+* logic that React's `setState` implements.  Multiple calls to `setSearchParams`
+* in the same tick will not build on the prior value.  If you need this behavior,
+* you can use `setState` manually.</docs-warning>
+*
+* ### Notes
+*
+* Note that `searchParams` is a stable reference, so you can reliably use it
+* as a dependency in React's [`useEffect`](https://react.dev/reference/react/useEffect)
+* hooks.
+*
+* ```tsx
+* useEffect(() => {
+*   console.log(searchParams.get("tab"));
+* }, [searchParams]);
+* ```
+*
+* However, this also means it's mutable. If you change the object without
+* calling `setSearchParams`, its values will change between renders if some
+* other state causes the component to re-render and URL will not reflect the
+* values.
+*
+* @public
+* @category Hooks
+* @param defaultInit
+* You can initialize the search params with a default value, though it **will
+* not** change the URL on the first render.
+*
+* ```tsx
+* // a search param string
+* useSearchParams("?tab=1");
+*
+* // a shorthand object
+* useSearchParams({ tab: "1" });
+*
+* // object keys can be arrays for multiple values on the key
+* useSearchParams({ brand: ["nike", "reebok"] });
+*
+* // an array of tuples
+* useSearchParams([["tab", "1"]]);
+*
+* // a `URLSearchParams` object
+* useSearchParams(new URLSearchParams("?tab=1"));
+* ```
+* @returns A tuple of the current [`URLSearchParams`](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
+* and a function to update them.
+*/
 function useSearchParams(defaultInit) {
-	warning(typeof URLSearchParams !== "undefined", `You cannot use the \`useSearchParams\` hook in a browser that does not support the URLSearchParams API. If you need to support Internet Explorer 11, we recommend you load a polyfill such as https://github.com/ungap/url-search-params.`);
+	warning(typeof URLSearchParams !== "undefined", "You cannot use the `useSearchParams` hook in a browser that does not support the URLSearchParams API. If you need to support Internet Explorer 11, we recommend you load a polyfill such as https://github.com/ungap/url-search-params.");
 	let defaultSearchParamsRef = import_react.useRef(createSearchParams(defaultInit));
 	let hasSetSearchParamsRef = import_react.useRef(false);
 	let location = useLocation();
@@ -33379,26 +34752,44 @@ function useSearchParams(defaultInit) {
 }
 var fetcherId = 0;
 var getUniqueFetcherId = () => `__${String(++fetcherId)}__`;
+/**
+* The imperative version of {@link Form | `<Form>`} that lets you submit a form
+* from code instead of a user interaction.
+*
+* @example
+* import { useSubmit } from "react-router";
+*
+* function SomeComponent() {
+*   const submit = useSubmit();
+*   return (
+*     <Form onChange={(event) => submit(event.currentTarget)} />
+*   );
+* }
+*
+* @public
+* @category Hooks
+* @mode framework
+* @mode data
+* @returns A function that can be called to submit a {@link Form} imperatively.
+*/
 function useSubmit() {
-	let { router } = useDataRouterContext3("useSubmit");
+	let { router } = useDataRouterContext("useSubmit");
 	let { basename } = import_react.useContext(NavigationContext);
 	let currentRouteId = useRouteId();
 	let routerFetch = router.fetch;
 	let routerNavigate = router.navigate;
 	return import_react.useCallback(async (target, options = {}) => {
 		let { action, method, encType, formData, body } = getFormSubmissionInfo(target, basename);
-		if (options.navigate === false) {
-			let key = options.fetcherKey || getUniqueFetcherId();
-			await routerFetch(key, currentRouteId, options.action || action, {
-				defaultShouldRevalidate: options.defaultShouldRevalidate,
-				preventScrollReset: options.preventScrollReset,
-				formData,
-				body,
-				formMethod: options.method || method,
-				formEncType: options.encType || encType,
-				flushSync: options.flushSync
-			});
-		} else await routerNavigate(options.action || action, {
+		if (options.navigate === false) await routerFetch(options.fetcherKey || getUniqueFetcherId(), currentRouteId, options.action || action, {
+			defaultShouldRevalidate: options.defaultShouldRevalidate,
+			preventScrollReset: options.preventScrollReset,
+			formData,
+			body,
+			formMethod: options.method || method,
+			formEncType: options.encType || encType,
+			flushSync: options.flushSync
+		});
+		else await routerNavigate(options.action || action, {
 			defaultShouldRevalidate: options.defaultShouldRevalidate,
 			preventScrollReset: options.preventScrollReset,
 			formData,
@@ -33418,10 +34809,47 @@ function useSubmit() {
 		currentRouteId
 	]);
 }
+/**
+* Resolves the URL to the closest route in the component hierarchy instead of
+* the current URL of the app.
+*
+* This is used internally by {@link Form} to resolve the `action` to the closest
+* route, but can be used generically as well.
+*
+* ```ts
+* import { useFormAction } from "react-router";
+*
+* function SomeComponent() {
+*   // closest route URL
+*   let action = useFormAction();
+*
+*   // closest route URL + "destroy"
+*   let destroyAction = useFormAction("destroy");
+* }
+* ```
+*
+* <docs-info>This hook adds a `basename` if your app specifies one, so that it
+* can be used with raw `<form>` elements in a progressively enhanced way.  If
+* you are using this to provide an `action` to `<Form>` or `fetcher.submit`, you
+* will need to remove the `basename` since both of those will prepend it
+* internally.</docs-info>
+*
+*
+* @public
+* @category Hooks
+* @mode framework
+* @mode data
+* @param action The action to append to the closest route URL. Defaults to the
+* closest route URL.
+* @param options Options
+* @param options.relative The relative routing type to use when resolving the
+* action. Defaults to `"route"`.
+* @returns The resolved action URL.
+*/
 function useFormAction(action, { relative } = {}) {
 	let { basename } = import_react.useContext(NavigationContext);
 	let routeContext = import_react.useContext(RouteContext);
-	invariant(routeContext, "useFormAction must be used inside a RouteContext");
+	invariant$1(routeContext, "useFormAction must be used inside a RouteContext");
 	let [match] = routeContext.matches.slice(-1);
 	let path = { ...useResolvedPath(action ? action : ".", { relative }) };
 	let location = useLocation();
@@ -33452,9 +34880,31 @@ function getScrollRestorationKey(location, matches, basename, getKey) {
 	if (key == null) key = location.key;
 	return key;
 }
+/**
+* When rendered inside a {@link RouterProvider}, will restore scroll positions
+* on navigations
+*
+* <!--
+* Not marked `@public` because we only export as UNSAFE_ and therefore we don't
+* maintain an .md file for this hook
+* -->
+*
+* @name UNSAFE_useScrollRestoration
+* @category Hooks
+* @mode framework
+* @mode data
+* @param options Options
+* @param options.getKey A function that returns a key to use for scroll restoration.
+* This is useful for custom scroll restoration logic, such as using only the pathname
+* so that subsequent navigations to prior paths will restore the scroll. Defaults
+* to `location.key`.
+* @param options.storageKey The key to use for storing scroll positions in
+* `sessionStorage`. Defaults to `"react-router-scroll-positions"`.
+* @returns {void}
+*/
 function useScrollRestoration({ getKey, storageKey } = {}) {
-	let { router } = useDataRouterContext3("useScrollRestoration");
-	let { restoreScrollPosition, preventScrollReset } = useDataRouterState2("useScrollRestoration");
+	let { router } = useDataRouterContext("useScrollRestoration");
+	let { restoreScrollPosition, preventScrollReset } = useDataRouterState("useScrollRestoration");
 	let { basename } = import_react.useContext(NavigationContext);
 	let location = useLocation();
 	let matches = useMatches();
@@ -33492,7 +34942,7 @@ function useScrollRestoration({ getKey, storageKey } = {}) {
 			} catch (e) {}
 		}, [storageKey]);
 		import_react.useLayoutEffect(() => {
-			let disableScrollRestoration = router?.enableScrollRestoration(savedScrollPositions, () => window.scrollY, getKey ? (location2, matches2) => getScrollRestorationKey(location2, matches2, basename, getKey) : void 0);
+			let disableScrollRestoration = router?.enableScrollRestoration(savedScrollPositions, () => window.scrollY, getKey ? (location, matches) => getScrollRestorationKey(location, matches, basename, getKey) : void 0);
 			return () => disableScrollRestoration && disableScrollRestoration();
 		}, [
 			router,
@@ -33535,34 +34985,36 @@ function usePageHide(callback, options) {
 		};
 	}, [callback, capture]);
 }
+/**
+* This hook returns `true` when there is an active [View Transition](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API)
+* and the specified location matches either side of the navigation (the URL you are
+* navigating **to** or the URL you are navigating **from**). This can be used to apply finer-grained styles to
+* elements to further customize the view transition. This requires that view
+* transitions have been enabled for the given navigation via {@link LinkProps.viewTransition}
+* (or the `Form`, `submit`, or `navigate` call)
+*
+* @public
+* @category Hooks
+* @mode framework
+* @mode data
+* @param to The {@link To} location to compare against the active transition's current
+* and next URLs.
+* @param options Options
+* @param options.relative The relative routing type to use when resolving the
+* `to` location, defaults to `"route"`. See {@link RelativeRoutingType} for
+* more details.
+* @returns `true` if there is an active [View Transition](https://developer.mozilla.org/en-US/docs/Web/API/View_Transitions_API)
+* and the resolved path matches the transition's destination or source pathname, otherwise `false`.
+*/
 function useViewTransitionState(to, { relative } = {}) {
 	let vtContext = import_react.useContext(ViewTransitionContext);
-	invariant(vtContext != null, "`useViewTransitionState` must be used within `react-router-dom`'s `RouterProvider`.  Did you accidentally import `RouterProvider` from `react-router`?");
-	let { basename } = useDataRouterContext3("useViewTransitionState");
+	invariant$1(vtContext != null, "`useViewTransitionState` must be used within `react-router/dom`'s `RouterProvider`.  Did you accidentally import `RouterProvider` from `react-router`?");
+	let { basename } = useDataRouterContext("useViewTransitionState");
 	let path = useResolvedPath(to, { relative });
 	if (!vtContext.isTransitioning) return false;
 	let currentPath = stripBasename(vtContext.currentLocation.pathname, basename) || vtContext.currentLocation.pathname;
 	let nextPath = stripBasename(vtContext.nextLocation.pathname, basename) || vtContext.nextLocation.pathname;
 	return matchPath(path.pathname, nextPath) != null || matchPath(path.pathname, currentPath) != null;
-}
-//#endregion
-//#region ../../node_modules/.pnpm/react-router@7.18.1_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/development/dom-export.mjs
-/**
-* react-router v7.18.1
-*
-* Copyright (c) Remix Software Inc.
-*
-* This source code is licensed under the MIT license found in the
-* LICENSE.md file in the root directory of this source tree.
-*
-* @license MIT
-*/
-var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
-function RouterProvider2(props) {
-	return /* @__PURE__ */ import_react.createElement(RouterProvider, {
-		flushSync: import_react_dom.flushSync,
-		...props
-	});
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useResizeObserver.ts
@@ -35895,6 +37347,9 @@ var AsyncGate = ({ async, errorLabel, loadingText, children }) => {
 	});
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(import_jsx_runtime.Fragment, { children });
 };
+//#endregion
+//#region ../../packages/react/src/components/AutocompleteInput.module.css
+var import_react_dom = /* @__PURE__ */ __toESM(require_react_dom(), 1);
 var AutocompleteInput_module_default = {
 	container: "_container_uf0p9_1",
 	input: "_input_uf0p9_6",
@@ -60251,8 +61706,12 @@ var LightboxCarousel = ({ id, slides }) => {
 		setShowOverlay
 	]);
 	const showNext = (0, import_react.useCallback)(() => {
-		setCurrentIndex(currentIndex + 1);
-	}, [setCurrentIndex, currentIndex]);
+		setCurrentIndex((currentIndex + 1) % slides.length);
+	}, [
+		setCurrentIndex,
+		currentIndex,
+		slides.length
+	]);
 	const showPrev = (0, import_react.useCallback)(() => {
 		setCurrentIndex((currentIndex - 1 + slides.length) % slides.length);
 	}, [
@@ -60270,7 +61729,7 @@ var LightboxCarousel = ({ id, slides }) => {
 			e.stopPropagation();
 		};
 		window.addEventListener("keyup", handleKeyUp, true);
-		return () => window.removeEventListener("keyup", handleKeyUp);
+		return () => window.removeEventListener("keyup", handleKeyUp, true);
 	}, [
 		closeLightbox,
 		isOpen,
@@ -60849,7 +62308,7 @@ function inUnsearchableElement(range) {
 	return isUnsearchable;
 }
 function selectionParentElement(range) {
-	let element = null;
+	let element;
 	if (range.startContainer.nodeType === Node.ELEMENT_NODE) element = range.startContainer;
 	else element = range.startContainer.parentElement;
 	if (!element && range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE) element = range.commonAncestorContainer;
@@ -63585,10 +65044,9 @@ var hydrateFullSample = async (chunked) => {
 //#endregion
 //#region src/log_data/sampleQuery.ts
 var kSampleGcTimeMs = 3e4;
-var sampleQueryKey = (logDir, handle) => [
+var sampleQueryKey = (handle) => [
 	"log_data",
 	"sample",
-	logDir,
 	handle?.logFile ?? null,
 	handle?.id ?? null,
 	handle?.epoch ?? null
@@ -63602,13 +65060,13 @@ var sampleQueryKey = (logDir, handle) => [
 */
 var withErrorSummaryFallback = (result, summary) => result.error instanceof SampleNotFoundError$1 && summary?.error ? data$1(synthesizeErroredSampleFromSummary(summary)) : result;
 /**
-* A completed sample's EvalSample, keyed `["log_data", "sample", logDir, logFile, id, epoch]`.
+* A completed sample's EvalSample, keyed `["log_data", "sample", logFile, id, epoch]`.
 * Idles (`skipToken`) without a handle — callers pass the handle only for
 * samples on the completed path. `summary` feeds the error-summary fallback.
 */
-var useSample = (logDir, handle, summary) => {
+var useSample = (handle, summary) => {
 	const result = useAsyncDataFromQuery({
-		queryKey: sampleQueryKey(logDir, handle),
+		queryKey: sampleQueryKey(handle),
 		queryFn: handle ? () => fetchSample(getApi(), handle.logFile, handle.id, handle.epoch) : skipToken,
 		gcTime: kSampleGcTimeMs,
 		retry: false,
@@ -63626,17 +65084,16 @@ var useSample = (logDir, handle, summary) => {
 * (`streamRunningSampleTick`) — so a non-resident EvalSample reads as
 * `loading` (the query stays pending until a writer lands data at the key).
 */
-var usePassiveEvalSample = (logDir, handle) => useAsyncDataFromQuery({
-	queryKey: sampleQueryKey(logDir, handle),
+var usePassiveEvalSample = (handle) => useAsyncDataFromQuery({
+	queryKey: sampleQueryKey(handle),
 	queryFn: skipToken,
 	gcTime: kSampleGcTimeMs
 });
 //#endregion
 //#region src/log_data/chunkedSampleQuery.ts
-var chunkedSampleQueryKey = (logDir, handle) => [
+var chunkedSampleQueryKey = (handle) => [
 	"log_data",
 	"chunked-sample",
-	logDir,
 	handle?.logFile ?? null,
 	handle?.id ?? null,
 	handle?.epoch ?? null
@@ -63664,8 +65121,8 @@ var shellEvalSample = async (chunked) => {
 * errors for samples it has positively classified as chunked — which the
 * monolith path could never serve anyway.
 */
-var useChunkedSample = (logDir, handle) => useAsyncDataFromQuery({
-	queryKey: chunkedSampleQueryKey(logDir, handle),
+var useChunkedSample = (handle) => useAsyncDataFromQuery({
+	queryKey: chunkedSampleQueryKey(handle),
 	queryFn: handle ? async () => {
 		let zip;
 		try {
@@ -63932,14 +65389,14 @@ var findLiveSummary = async (logDir, handle) => (await getSampleSummaries(logDir
 var finalizeRunningSample = async (api, logDir, handle, bufferComplete) => {
 	try {
 		const sample = await fetchSample(api, handle.logFile, handle.id, handle.epoch);
-		queryClient.setQueryData(sampleQueryKey(logDir, handle), sample);
+		queryClient.setQueryData(sampleQueryKey(handle), sample);
 		return true;
 	} catch (error) {
 		if (bufferComplete) return false;
 		if (error instanceof SampleNotFoundError$1) {
 			const summary = await findLiveSummary(logDir, handle);
 			if (summary?.error) {
-				queryClient.setQueryData(sampleQueryKey(logDir, handle), synthesizeErroredSampleFromSummary(summary));
+				queryClient.setQueryData(sampleQueryKey(handle), synthesizeErroredSampleFromSummary(summary));
 				return true;
 			}
 		}
@@ -64105,10 +65562,10 @@ var useEvalSampleData = (logDir, handle) => {
 	const summaries = useSampleSummaries(logDir, handle?.logFile);
 	const summary = (0, import_react.useMemo)(() => handle === void 0 ? void 0 : summaries.data?.find((s) => sampleIdsEqual(s.id, handle.id) && s.epoch === handle.epoch), [summaries, handle]);
 	const runningPath = summary?.completed === false;
-	const chunked = useChunkedSample(logDir, !runningPath && summary !== void 0 ? handle : void 0);
-	const query = useSample(logDir, !runningPath && summary !== void 0 && chunked.data === null ? handle : void 0, summary);
+	const chunked = useChunkedSample(!runningPath && summary !== void 0 ? handle : void 0);
+	const query = useSample(!runningPath && summary !== void 0 && chunked.data === null ? handle : void 0, summary);
 	const running = useRunningSample(logDir, handle, summary);
-	const finalizedSample = usePassiveEvalSample(logDir, handle);
+	const finalizedSample = usePassiveEvalSample(handle);
 	return (0, import_react.useMemo)(() => deriveSampleData({
 		handle,
 		summaries,
@@ -64135,8 +65592,8 @@ var useEvalSampleData = (logDir, handle) => {
 * For surfaces that must stay fetch-free (e.g. the invalidation banner in
 * the title bar).
 */
-var usePassiveEvalSampleData = (logDir, handle) => {
-	return useMapAsyncData(usePassiveEvalSample(logDir, handle), settledSampleData);
+var usePassiveEvalSampleData = (handle) => {
+	return useMapAsyncData(usePassiveEvalSample(handle), settledSampleData);
 };
 //#endregion
 //#region src/log_data/chunkedAttachments.ts
@@ -64202,2452 +65659,656 @@ var prefetchAttachments = async (items, chunked) => {
 */
 var resolvedEventsReader = (chunked) => chunked.events.withTransform((items, start) => withAttachmentsResolved(items, chunked, `events chunk ${start}`));
 //#endregion
-//#region src/log_data/chunkedMessages.ts
-/**
-* Hydrate a chunked sample's final conversation: the shell's `message_refs`
-* ranges resolved against the messages sequence, attachments substituted —
-* the same material a monolith sample stores inline as `messages`.
-*
-* INTERIM: full hydration is a bridge until the Messages tab pages by
-* index window (design/large-samples.md, access pattern 3 / effort C3).
-* "The final conversation is conversation-sized" does NOT hold under
-* compaction — measured 134,989 messages / 7,961 ranges (~135MB of member
-* fetches) on the mirror-code monster — so this matches the monolith
-* path's memory profile, no better. Windowed replacement is C3; this
-* fetches on-demand (tab open), never at sample open.
-*
-* Attachment chunks are prefetched per message range as ranges arrive, so
-* attachment downloads overlap the remaining message downloads instead of
-* serializing behind the full conversation assembly.
-*/
-var hydrateFinalConversation = async (chunked) => {
-	const refs = chunked.shell.message_refs;
-	const messages = (await Promise.all(refs.map(([start, end]) => chunked.messages.getRange(start, end).then((messages) => {
-		prefetchAttachments(messages, chunked).catch(() => void 0);
-		return messages;
-	})))).flat();
-	log$4.info(`hydrate final conversation: ${messages.length} messages via ${refs.length} range${refs.length === 1 ? "" : "s"}`);
-	return withAttachmentsResolved(messages, chunked, "final conversation");
+//#region ../../packages/inspect-components/src/chat/messages.ts
+/** Whether an assistant message carries server-side tool calls (provider
+* executed `tool_use` content blocks) — these render as flush rows of the
+* assistant turn container rather than as message body. */
+var hasServerToolUse = (message) => {
+	return message.role === "assistant" && Array.isArray(message.content) && message.content.some((c) => c.type === "tool_use");
 };
-/**
-* The final conversation for the Messages tab, hydrated on first use and
-* cached alongside the sample queries.
-*/
-var useChunkedMessages = (logDir, handle, chunked) => useAsyncDataFromQuery({
-	queryKey: [
-		"log_data",
-		"chunked-messages",
-		logDir,
-		handle?.logFile ?? null,
-		handle?.id ?? null,
-		handle?.epoch ?? null
-	],
-	queryFn: chunked && handle ? () => hydrateFinalConversation(chunked) : skipToken,
-	gcTime: kSampleGcTimeMs,
-	retry: false,
-	refetchOnWindowFocus: false,
-	refetchOnReconnect: false,
-	structuralSharing: false
-});
-//#endregion
-//#region src/app/shared/useStableValue.ts
-/**
-* Keep the previous reference when a newly computed value is content-equal.
-*
-* `useMemo` can only key on dependency identity, so a memo that derives
-* from a frequently-replaced store object (e.g. `logDetails` during a
-* directory sync) returns a fresh reference on every flush even when its
-* content is unchanged — cascading identity churn into everything keyed
-* on it. This hook cuts that cascade at the source: callers compute the
-* candidate value as usual and equality decides whether downstream
-* consumers see a new reference.
-*
-* `isEqual` is only consulted when the identity actually changed.
-*/
-function useStableValue(value, isEqual) {
-	"use no memo";
-	const ref = (0, import_react.useRef)(value);
-	if (ref.current !== value && !isEqual(ref.current, value)) ref.current = value;
-	return ref.current;
-}
-//#endregion
-//#region src/log_data/scoreSchema.ts
-/**
-* Build a stable, unique column key for a (scorer, metric) pair. The reducer
-* is intentionally omitted so the same logical metric is one column regardless
-* of whether the log recorded `reducer=null` (default, silently mean) or
-* `reducer="mean"` (explicit). "/" is used as separator ("." meant
-* nested-object access to the original AG grid; the format persists in
-* stored views, so it stays).
-*/
-var scorerMetricKey = (scorerName, metricName) => `${scorerName}/${metricName}`;
-/**
-* Detect all unique (scorer, reducer, metric) combinations across all logs
-* from their results. Collapsing on metric name alone would merge distinct
-* scorers emitting the same metric (e.g. two "accuracy"s) into one column.
-*
-* @param logs - The directory's Log rows
-* @param scopeDir - When set, only logs under this directory contribute
-*   (folder view scoping)
-*/
-function computeScorerMap(logs, scopeDir) {
-	const info = {};
-	const prefix = scopeDir ? scopePrefix(scopeDir) : void 0;
-	for (const log of logs) {
-		if (prefix && !log.name.startsWith(prefix)) continue;
-		if (log.header?.results?.scores) {
-			for (const evalScore of log.header.results.scores) if (evalScore.metrics) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
-				const key = scorerMetricKey(evalScore.name, metricName);
-				info[key] = {
-					scorerName: evalScore.name,
-					metricName,
-					valueType: typeof metric.value
-				};
+var resolveMessages = (messages) => {
+	const resolvedMessages = [];
+	let index = 0;
+	for (const message of messages) {
+		const resolved = message.id === void 0 ? {
+			...message,
+			id: `msg-${index}`
+		} : message;
+		if (resolved.role === "tool") {
+			if (resolvedMessages.length > 0) {
+				const msg = resolvedMessages[resolvedMessages.length - 1];
+				if (msg) {
+					msg.toolMessages = msg.toolMessages || [];
+					msg.toolMessages.push(resolved);
+				}
 			}
-		}
-	}
-	return info;
-}
-/** Content equality for two scorer maps, independent of key order. */
-function scorerMapsEqual(a, b) {
-	if (a === b) return true;
-	const aKeys = Object.keys(a);
-	if (aKeys.length !== Object.keys(b).length) return false;
-	for (const key of aKeys) {
-		const av = a[key];
-		const bv = b[key];
-		if (!av || !bv || av.scorerName !== bv.scorerName || av.metricName !== bv.metricName || av.valueType !== bv.valueType) return false;
-	}
-	return true;
-}
-/**
-* The score columns available in a scope. Row content gets a new identity
-* on every detail flush while a directory loads, but the scorer
-* columns it implies almost never change — the result is content-stabilized
-* so consumers (and the column defs keyed on it) keep a stable reference
-* across flushes.
-*/
-var asyncScorerMapsEqual = (a, b) => a.loading === b.loading && a.error === b.error && (a.data !== void 0 && b.data !== void 0 ? scorerMapsEqual(a.data, b.data) : a.data === b.data);
-var useScoreSchema = (logDir, scopeDir) => {
-	return useStableValue(useMapAsyncData(useLogs(logDir), (0, import_react.useCallback)((rows) => computeScorerMap(rows, scopeDir), [scopeDir])), asyncScorerMapsEqual);
-};
-//#endregion
-//#region ../../node_modules/.pnpm/immer@11.1.15/node_modules/immer/dist/immer.mjs
-var NOTHING = Symbol.for("immer-nothing");
-var DRAFTABLE = Symbol.for("immer-draftable");
-var DRAFT_STATE = Symbol.for("immer-state");
-function die(error, ...args) {
-	throw new Error(`[Immer] minified error nr: ${error}. Full error at: https://bit.ly/3cXEKWf`);
-}
-var O = Object;
-var getPrototypeOf = O.getPrototypeOf;
-var CONSTRUCTOR = "constructor";
-var PROTOTYPE = "prototype";
-var CONFIGURABLE = "configurable";
-var ENUMERABLE = "enumerable";
-var WRITABLE = "writable";
-var VALUE = "value";
-var isDraft = (value) => !!value && !!value[DRAFT_STATE];
-function isDraftable(value) {
-	if (!value) return false;
-	return isPlainObject$1(value) || isArray(value) || !!value[DRAFTABLE] || !!value[CONSTRUCTOR]?.[DRAFTABLE] || isMap(value) || isSet(value);
-}
-var objectCtorString = O[PROTOTYPE][CONSTRUCTOR].toString();
-var cachedCtorStrings = /* @__PURE__ */ new WeakMap();
-function isPlainObject$1(value) {
-	if (!value || !isObjectish(value)) return false;
-	const proto = getPrototypeOf(value);
-	if (proto === null || proto === O[PROTOTYPE]) return true;
-	const Ctor = O.hasOwnProperty.call(proto, CONSTRUCTOR) && proto[CONSTRUCTOR];
-	if (Ctor === Object) return true;
-	if (!isFunction$1(Ctor)) return false;
-	let ctorString = cachedCtorStrings.get(Ctor);
-	if (ctorString === void 0) {
-		ctorString = Function.toString.call(Ctor);
-		cachedCtorStrings.set(Ctor, ctorString);
-	}
-	return ctorString === objectCtorString;
-}
-function each(obj, iter, strict = true) {
-	if (getArchtype(obj) === 0) (strict ? Reflect.ownKeys(obj) : O.keys(obj)).forEach((key) => {
-		iter(key, obj[key], obj);
-	});
-	else obj.forEach((entry, index) => iter(index, entry, obj));
-}
-function getArchtype(thing) {
-	const state = thing[DRAFT_STATE];
-	return state ? state.type_ : isArray(thing) ? 1 : isMap(thing) ? 2 : isSet(thing) ? 3 : 0;
-}
-var has = (thing, prop, type = getArchtype(thing)) => type === 2 ? thing.has(prop) : O[PROTOTYPE].hasOwnProperty.call(thing, prop);
-var get$1 = (thing, prop, type = getArchtype(thing)) => type === 2 ? thing.get(prop) : thing[prop];
-var set = (thing, propOrOldValue, value, type = getArchtype(thing)) => {
-	if (type === 2) thing.set(propOrOldValue, value);
-	else if (type === 3) thing.add(value);
-	else thing[propOrOldValue] = value;
-};
-function is(x, y) {
-	if (x === y) return x !== 0 || 1 / x === 1 / y;
-	else return x !== x && y !== y;
-}
-var isArray = Array.isArray;
-var isMap = (target) => target instanceof Map;
-var isSet = (target) => target instanceof Set;
-var isObjectish = (target) => typeof target === "object";
-var isFunction$1 = (target) => typeof target === "function";
-var isBoolean = (target) => typeof target === "boolean";
-function isArrayIndex$1(value) {
-	const n = +value;
-	return Number.isInteger(n) && String(n) === value;
-}
-var getProxyDraft = (value) => {
-	if (!isObjectish(value)) return null;
-	return value?.[DRAFT_STATE];
-};
-var latest = (state) => state.copy_ || state.base_;
-var getValue = (value) => {
-	const proxyDraft = getProxyDraft(value);
-	return proxyDraft ? proxyDraft.copy_ ?? proxyDraft.base_ : value;
-};
-var getFinalValue = (state) => state.modified_ ? state.copy_ : state.base_;
-function shallowCopy(base, strict) {
-	if (isMap(base)) return new Map(base);
-	if (isSet(base)) return new Set(base);
-	if (isArray(base)) return Array[PROTOTYPE].slice.call(base);
-	const isPlain = isPlainObject$1(base);
-	if (strict === true || strict === "class_only" && !isPlain) {
-		const descriptors = O.getOwnPropertyDescriptors(base);
-		delete descriptors[DRAFT_STATE];
-		let keys = Reflect.ownKeys(descriptors);
-		for (let i = 0; i < keys.length; i++) {
-			const key = keys[i];
-			const desc = descriptors[key];
-			if (desc[WRITABLE] === false) {
-				desc[WRITABLE] = true;
-				desc[CONFIGURABLE] = true;
-			}
-			if (desc.get || desc.set) descriptors[key] = {
-				[CONFIGURABLE]: true,
-				[WRITABLE]: true,
-				[ENUMERABLE]: desc[ENUMERABLE],
-				[VALUE]: base[key]
-			};
-		}
-		return O.create(getPrototypeOf(base), descriptors);
-	} else {
-		const proto = getPrototypeOf(base);
-		if (proto !== null && isPlain) return { ...base };
-		const obj = O.create(proto);
-		return O.assign(obj, base);
-	}
-}
-function freeze(obj, deep = false) {
-	if (isFrozen(obj) || isDraft(obj) || !isDraftable(obj)) return obj;
-	if (getArchtype(obj) > 1) O.defineProperties(obj, {
-		set: dontMutateMethodOverride,
-		add: dontMutateMethodOverride,
-		clear: dontMutateMethodOverride,
-		delete: dontMutateMethodOverride
-	});
-	O.freeze(obj);
-	if (deep) each(obj, (_key, value) => {
-		freeze(value, true);
-	}, false);
-	return obj;
-}
-function dontMutateFrozenCollections() {
-	die(2);
-}
-var dontMutateMethodOverride = { [VALUE]: dontMutateFrozenCollections };
-function isFrozen(obj) {
-	if (obj === null || !isObjectish(obj)) return true;
-	return O.isFrozen(obj);
-}
-var PluginMapSet = "MapSet";
-var PluginPatches = "Patches";
-var PluginArrayMethods = "ArrayMethods";
-var plugins = {};
-function getPlugin(pluginKey) {
-	const plugin = plugins[pluginKey];
-	if (!plugin) die(0, pluginKey);
-	return plugin;
-}
-var isPluginLoaded = (pluginKey) => !!plugins[pluginKey];
-function loadPlugin(pluginKey, implementation) {
-	if (!plugins[pluginKey]) plugins[pluginKey] = implementation;
-}
-var currentScope;
-var getCurrentScope = () => currentScope;
-var createScope = (parent_, immer_) => ({
-	drafts_: [],
-	parent_,
-	immer_,
-	canAutoFreeze_: true,
-	unfinalizedDrafts_: 0,
-	handledSet_: /* @__PURE__ */ new Set(),
-	processedForPatches_: /* @__PURE__ */ new Set(),
-	mapSetPlugin_: isPluginLoaded(PluginMapSet) ? getPlugin(PluginMapSet) : void 0,
-	arrayMethodsPlugin_: isPluginLoaded(PluginArrayMethods) ? getPlugin(PluginArrayMethods) : void 0
-});
-function usePatchesInScope(scope, patchListener) {
-	if (patchListener) {
-		scope.patchPlugin_ = getPlugin(PluginPatches);
-		scope.patches_ = [];
-		scope.inversePatches_ = [];
-		scope.patchListener_ = patchListener;
-	}
-}
-function revokeScope(scope) {
-	leaveScope(scope);
-	scope.drafts_.forEach(revokeDraft);
-	scope.drafts_ = null;
-}
-function leaveScope(scope) {
-	if (scope === currentScope) currentScope = scope.parent_;
-}
-var enterScope = (immer2) => currentScope = createScope(currentScope, immer2);
-function revokeDraft(draft) {
-	const state = draft[DRAFT_STATE];
-	if (state.type_ === 0 || state.type_ === 1) state.revoke_();
-	else state.revoked_ = true;
-}
-function processResult(result, scope) {
-	scope.unfinalizedDrafts_ = scope.drafts_.length;
-	const baseDraft = scope.drafts_[0];
-	if (result !== void 0 && result !== baseDraft) {
-		if (baseDraft[DRAFT_STATE].modified_) {
-			revokeScope(scope);
-			die(4);
-		}
-		if (isDraftable(result)) result = finalize$1(scope, result);
-		const { patchPlugin_ } = scope;
-		if (patchPlugin_) patchPlugin_.generateReplacementPatches_(baseDraft[DRAFT_STATE].base_, result, scope);
-	} else result = finalize$1(scope, baseDraft);
-	maybeFreeze(scope, result, true);
-	revokeScope(scope);
-	if (scope.patches_) scope.patchListener_(scope.patches_, scope.inversePatches_);
-	return result !== NOTHING ? result : void 0;
-}
-function finalize$1(rootScope, value) {
-	if (isFrozen(value)) return value;
-	const state = value[DRAFT_STATE];
-	if (!state) return handleValue(value, rootScope.handledSet_, rootScope);
-	if (!isSameScope(state, rootScope)) return value;
-	if (!state.modified_) return state.base_;
-	if (!state.finalized_) {
-		const { callbacks_ } = state;
-		if (callbacks_) while (callbacks_.length > 0) callbacks_.pop()(rootScope);
-		generatePatchesAndFinalize(state, rootScope);
-	}
-	return state.copy_;
-}
-function maybeFreeze(scope, value, deep = false) {
-	if (!scope.parent_ && scope.immer_.autoFreeze_ && scope.canAutoFreeze_) freeze(value, deep);
-}
-function markStateFinalized(state) {
-	state.finalized_ = true;
-	state.scope_.unfinalizedDrafts_--;
-}
-var isSameScope = (state, rootScope) => state.scope_ === rootScope;
-var EMPTY_LOCATIONS_RESULT = [];
-function updateDraftInParent(parent, draftValue, finalizedValue, originalKey) {
-	const parentCopy = latest(parent);
-	const parentType = parent.type_;
-	if (originalKey !== void 0) {
-		if (get$1(parentCopy, originalKey, parentType) === draftValue) {
-			set(parentCopy, originalKey, finalizedValue, parentType);
-			return;
-		}
-	}
-	if (!parent.draftLocations_) {
-		const draftLocations = parent.draftLocations_ = /* @__PURE__ */ new Map();
-		each(parentCopy, (key, value) => {
-			if (isDraft(value)) {
-				const keys = draftLocations.get(value) || [];
-				keys.push(key);
-				draftLocations.set(value, keys);
-			}
+		} else resolvedMessages.push({
+			message: resolved,
+			toolMessages: []
 		});
+		index++;
 	}
-	const locations = parent.draftLocations_.get(draftValue) ?? EMPTY_LOCATIONS_RESULT;
-	for (const location of locations) set(parentCopy, location, finalizedValue, parentType);
-}
-function registerChildFinalizationCallback(parent, child, key) {
-	parent.callbacks_.push(function childCleanup(rootScope) {
-		const state = child;
-		if (!state || !isSameScope(state, rootScope)) return;
-		rootScope.mapSetPlugin_?.fixSetContents(state);
-		const finalizedValue = getFinalValue(state);
-		updateDraftInParent(parent, state.draft_ ?? state, finalizedValue, key);
-		generatePatchesAndFinalize(state, rootScope);
+	const systemMessages = [];
+	const collapsedMessages = resolvedMessages.map((resolved) => {
+		if (resolved.message.role === "system") systemMessages.push(resolved.message);
+		return resolved;
+	}).filter((resolved) => {
+		return resolved.message.role !== "system";
 	});
-}
-function generatePatchesAndFinalize(state, rootScope) {
-	if (state.modified_ && !state.finalized_ && (state.type_ === 3 || state.type_ === 1 && state.allIndicesReassigned_ || (state.assigned_?.size ?? 0) > 0)) {
-		const { patchPlugin_ } = rootScope;
-		if (patchPlugin_) {
-			const basePath = patchPlugin_.getPath(state);
-			if (basePath) patchPlugin_.generatePatches_(state, basePath, rootScope);
-		}
-		markStateFinalized(state);
+	const systemContent = [];
+	for (const systemMessage of systemMessages) {
+		const contents = Array.isArray(systemMessage.content) ? systemMessage.content : [systemMessage.content];
+		systemContent.push(...contents.map(normalizeContent$2));
 	}
-}
-function handleCrossReference(target, key, value) {
-	const { scope_ } = target;
-	if (isDraft(value)) {
-		const state = value[DRAFT_STATE];
-		if (isSameScope(state, scope_)) state.callbacks_.push(function crossReferenceCleanup() {
-			prepareCopy(target);
-			updateDraftInParent(target, value, getFinalValue(state), key);
-		});
-	} else if (isDraftable(value)) target.callbacks_.push(function nestedDraftCleanup() {
-		const targetCopy = latest(target);
-		if (target.type_ === 3) {
-			if (targetCopy.has(value)) handleValue(value, scope_.handledSet_, scope_);
-		} else if (get$1(targetCopy, key, target.type_) === value) {
-			if (scope_.drafts_.length > 1 && (target.assigned_.get(key) ?? false) === true && target.copy_) handleValue(get$1(target.copy_, key, target.type_), scope_.handledSet_, scope_);
-		}
-	});
-}
-function handleValue(target, handledSet, rootScope) {
-	if (!rootScope.immer_.autoFreeze_ && rootScope.unfinalizedDrafts_ < 1) return target;
-	if (isDraft(target) || handledSet.has(target) || !isDraftable(target) || isFrozen(target)) return target;
-	handledSet.add(target);
-	each(target, (key, value) => {
-		if (isDraft(value)) {
-			const state = value[DRAFT_STATE];
-			if (isSameScope(state, rootScope)) {
-				set(target, key, getFinalValue(state), target.type_);
-				markStateFinalized(state);
-			}
-		} else if (isDraftable(value)) handleValue(value, handledSet, rootScope);
-	});
-	return target;
-}
-function createProxyProxy(base, parent) {
-	const baseIsArray = isArray(base);
-	const state = {
-		type_: baseIsArray ? 1 : 0,
-		scope_: parent ? parent.scope_ : getCurrentScope(),
-		modified_: false,
-		finalized_: false,
-		assigned_: void 0,
-		parent_: parent,
-		base_: base,
-		draft_: null,
-		copy_: null,
-		revoke_: null,
-		isManual_: false,
-		callbacks_: void 0
+	const systemMessage = {
+		id: "sys-message-6815A84B062A",
+		role: "system",
+		content: systemContent,
+		source: "input",
+		metadata: null
 	};
-	let target = state;
-	let traps = objectTraps;
-	if (baseIsArray) {
-		target = [state];
-		traps = arrayTraps;
-	}
-	const { revoke, proxy } = Proxy.revocable(target, traps);
-	state.draft_ = proxy;
-	state.revoke_ = revoke;
-	return [proxy, state];
-}
-var objectTraps = {
-	get(state, prop) {
-		if (prop === DRAFT_STATE) return state;
-		let arrayPlugin = state.scope_.arrayMethodsPlugin_;
-		const isArrayWithStringProp = state.type_ === 1 && typeof prop === "string";
-		if (isArrayWithStringProp) {
-			if (arrayPlugin?.isArrayOperationMethod(prop)) return arrayPlugin.createMethodInterceptor(state, prop);
-		}
-		const source = latest(state);
-		if (!has(source, prop, state.type_)) return readPropFromProto(state, source, prop);
-		const value = source[prop];
-		if (state.finalized_ || !isDraftable(value)) return value;
-		if (isArrayWithStringProp && state.operationMethod && arrayPlugin?.isMutatingArrayMethod(state.operationMethod) && isArrayIndex$1(prop)) return value;
-		if (value === peek(state.base_, prop) || isRelocatedBaseRef(state, prop, value)) {
-			prepareCopy(state);
-			const childKey = state.type_ === 1 ? +prop : prop;
-			const childDraft = createProxy(state.scope_, value, state, childKey);
-			return state.copy_[childKey] = childDraft;
-		}
-		return value;
-	},
-	has(state, prop) {
-		return prop in latest(state);
-	},
-	ownKeys(state) {
-		return Reflect.ownKeys(latest(state));
-	},
-	set(state, prop, value) {
-		const desc = getDescriptorFromProto(latest(state), prop);
-		if (desc?.set) {
-			desc.set.call(state.draft_, value);
-			return true;
-		}
-		if (!state.modified_) {
-			const current2 = peek(latest(state), prop);
-			const currentState = current2?.[DRAFT_STATE];
-			if (currentState && currentState.base_ === value) {
-				state.copy_[prop] = value;
-				state.assigned_.set(prop, false);
-				return true;
-			}
-			if (is(value, current2) && (value !== void 0 || has(state.base_, prop, state.type_))) return true;
-			prepareCopy(state);
-			markChanged(state);
-		}
-		if (state.copy_[prop] === value && (value !== void 0 || has(state.copy_, prop, state.type_)) || Number.isNaN(value) && Number.isNaN(state.copy_[prop])) return true;
-		state.copy_[prop] = value;
-		state.assigned_.set(prop, true);
-		handleCrossReference(state, prop, value);
-		return true;
-	},
-	deleteProperty(state, prop) {
-		prepareCopy(state);
-		if (peek(state.base_, prop) !== void 0 || prop in state.base_) {
-			state.assigned_.set(prop, false);
-			markChanged(state);
-		} else state.assigned_.delete(prop);
-		if (state.copy_) delete state.copy_[prop];
-		return true;
-	},
-	getOwnPropertyDescriptor(state, prop) {
-		const owner = latest(state);
-		const desc = Reflect.getOwnPropertyDescriptor(owner, prop);
-		if (!desc) return desc;
+	if (systemMessage && systemMessage.content.length > 0) collapsedMessages.unshift({
+		message: systemMessage,
+		toolMessages: []
+	});
+	return collapsedMessages;
+};
+/**
+* Normalize strings into ContentText objects.
+*/
+var normalizeContent$2 = (content) => {
+	if (typeof content === "string") return {
+		type: "text",
+		text: content,
+		refusal: null,
+		internal: null,
+		citations: null
+	};
+	else return content;
+};
+//#endregion
+//#region ../../packages/inspect-components/src/chat/rowsModel.ts
+/**
+* Fold options from a view's tool options — the one place the fold
+* defaults ("complete", collapse on) are defined. Data-layer folds and
+* the chat components both derive from here, so pre-built rows and their
+* rendering can't disagree on defaults.
+*/
+var messageRowOptions = (tools) => ({
+	toolCallStyle: tools?.callStyle ?? "complete",
+	collapseToolMessages: tools?.collapseToolMessages ?? true
+});
+/**
+* Fold messages into rows and attach start numbers — the whole-conversation
+* derivation the chat list renders from (tool folding, block prefix sums).
+* React-free so data-layer sources can build rows without dragging in
+* JSX/CSS modules.
+*/
+var buildMessageRows = (messages, options) => {
+	const resolved = options.collapseToolMessages ? resolveMessages(messages) : messages.map((message) => ({
+		message,
+		toolMessages: []
+	}));
+	let next = 1;
+	return resolved.map((row) => {
+		const startNumber = next;
+		next += countRowBlocks(row, options.toolCallStyle);
 		return {
-			[WRITABLE]: true,
-			[CONFIGURABLE]: state.type_ !== 1 || prop !== "length",
-			[ENUMERABLE]: desc[ENUMERABLE],
-			[VALUE]: owner[prop]
+			resolved: row,
+			startNumber
 		};
-	},
-	defineProperty() {
-		die(11);
-	},
-	getPrototypeOf(state) {
-		return getPrototypeOf(state.base_);
-	},
-	setPrototypeOf() {
-		die(12);
-	}
-};
-var arrayTraps = {};
-for (let key in objectTraps) {
-	let fn = objectTraps[key];
-	arrayTraps[key] = function() {
-		const args = arguments;
-		args[0] = args[0][0];
-		return fn.apply(this, args);
-	};
-}
-arrayTraps.deleteProperty = function(state, prop) {
-	return arrayTraps.set.call(this, state, prop, void 0);
-};
-arrayTraps.set = function(state, prop, value) {
-	return objectTraps.set.call(this, state[0], prop, value, state[0]);
-};
-function peek(draft, prop) {
-	const state = draft[DRAFT_STATE];
-	return (state ? latest(state) : draft)[prop];
-}
-function isRelocatedBaseRef(state, prop, value) {
-	if (state.type_ !== 1 || !state.allIndicesReassigned_ || state.assigned_?.get(prop) || !isDraftable(value) || value[DRAFT_STATE]) return false;
-	return state.baseRefs_.has(value);
-}
-function readPropFromProto(state, source, prop) {
-	const desc = getDescriptorFromProto(source, prop);
-	return desc ? VALUE in desc ? desc[VALUE] : desc.get?.call(state.draft_) : void 0;
-}
-function getDescriptorFromProto(source, prop) {
-	if (!(prop in source)) return void 0;
-	let proto = getPrototypeOf(source);
-	while (proto) {
-		const desc = Object.getOwnPropertyDescriptor(proto, prop);
-		if (desc) return desc;
-		proto = getPrototypeOf(proto);
-	}
-}
-function markChanged(state) {
-	if (!state.modified_) {
-		state.modified_ = true;
-		if (state.parent_) markChanged(state.parent_);
-	}
-}
-function prepareCopy(state) {
-	if (!state.copy_) {
-		state.assigned_ = /* @__PURE__ */ new Map();
-		state.copy_ = shallowCopy(state.base_, state.scope_.immer_.useStrictShallowCopy_);
-	}
-}
-var Immer2 = class {
-	constructor(config) {
-		this.autoFreeze_ = true;
-		this.useStrictShallowCopy_ = false;
-		this.useStrictIteration_ = false;
-		/**
-		* The `produce` function takes a value and a "recipe function" (whose
-		* return value often depends on the base state). The recipe function is
-		* free to mutate its first argument however it wants. All mutations are
-		* only ever applied to a __copy__ of the base state.
-		*
-		* Pass only a function to create a "curried producer" which relieves you
-		* from passing the recipe function every time.
-		*
-		* Only plain objects and arrays are made mutable. All other objects are
-		* considered uncopyable.
-		*
-		* Note: This function is __bound__ to its `Immer` instance.
-		*
-		* @param {any} base - the initial state
-		* @param {Function} recipe - function that receives a proxy of the base state as first argument and which can be freely modified
-		* @param {Function} patchListener - optional function that will be called with all the patches produced here
-		* @returns {any} a new state, or the initial state if nothing was modified
-		*/
-		this.produce = (base, recipe, patchListener) => {
-			if (isFunction$1(base) && !isFunction$1(recipe)) {
-				const defaultBase = recipe;
-				recipe = base;
-				const self = this;
-				return function curriedProduce(base2 = defaultBase, ...args) {
-					return self.produce(base2, (draft) => recipe.call(this, draft, ...args));
-				};
-			}
-			if (!isFunction$1(recipe)) die(6);
-			if (patchListener !== void 0 && !isFunction$1(patchListener)) die(7);
-			let result;
-			if (isDraftable(base)) {
-				const scope = enterScope(this);
-				const proxy = createProxy(scope, base, void 0);
-				let hasError = true;
-				try {
-					result = recipe(proxy);
-					hasError = false;
-				} finally {
-					if (hasError) revokeScope(scope);
-					else leaveScope(scope);
-				}
-				usePatchesInScope(scope, patchListener);
-				return processResult(result, scope);
-			} else if (!base || !isObjectish(base)) {
-				result = recipe(base);
-				if (result === void 0) result = base;
-				if (result === NOTHING) result = void 0;
-				if (this.autoFreeze_) freeze(result, true);
-				if (patchListener) {
-					const p = [];
-					const ip = [];
-					getPlugin(PluginPatches).generateReplacementPatches_(base, result, {
-						patches_: p,
-						inversePatches_: ip
-					});
-					patchListener(p, ip);
-				}
-				return result;
-			} else die(1, base);
-		};
-		this.produceWithPatches = (base, recipe) => {
-			if (isFunction$1(base)) return (state, ...args) => this.produceWithPatches(state, (draft) => base(draft, ...args));
-			let patches, inversePatches;
-			return [
-				this.produce(base, recipe, (p, ip) => {
-					patches = p;
-					inversePatches = ip;
-				}),
-				patches,
-				inversePatches
-			];
-		};
-		if (isBoolean(config?.autoFreeze)) this.setAutoFreeze(config.autoFreeze);
-		if (isBoolean(config?.useStrictShallowCopy)) this.setUseStrictShallowCopy(config.useStrictShallowCopy);
-		if (isBoolean(config?.useStrictIteration)) this.setUseStrictIteration(config.useStrictIteration);
-	}
-	createDraft(base) {
-		if (!isDraftable(base)) die(8);
-		if (isDraft(base)) base = current(base);
-		const scope = enterScope(this);
-		const proxy = createProxy(scope, base, void 0);
-		proxy[DRAFT_STATE].isManual_ = true;
-		leaveScope(scope);
-		return proxy;
-	}
-	finishDraft(draft, patchListener) {
-		const state = draft && draft[DRAFT_STATE];
-		if (!state || !state.isManual_) die(9);
-		const { scope_: scope } = state;
-		usePatchesInScope(scope, patchListener);
-		return processResult(void 0, scope);
-	}
-	/**
-	* Pass true to automatically freeze all copies created by Immer.
-	*
-	* By default, auto-freezing is enabled.
-	*/
-	setAutoFreeze(value) {
-		this.autoFreeze_ = value;
-	}
-	/**
-	* Pass true to enable strict shallow copy.
-	*
-	* By default, immer does not copy the object descriptors such as getter, setter and non-enumrable properties.
-	*/
-	setUseStrictShallowCopy(value) {
-		this.useStrictShallowCopy_ = value;
-	}
-	/**
-	* Pass false to use faster iteration that skips non-enumerable properties
-	* but still handles symbols for compatibility.
-	*
-	* By default, strict iteration is enabled (includes all own properties).
-	*/
-	setUseStrictIteration(value) {
-		this.useStrictIteration_ = value;
-	}
-	shouldUseStrictIteration() {
-		return this.useStrictIteration_;
-	}
-	applyPatches(base, patches) {
-		let i;
-		for (i = patches.length - 1; i >= 0; i--) {
-			const patch = patches[i];
-			if (patch.path.length === 0 && patch.op === "replace") {
-				base = patch.value;
-				break;
-			}
-		}
-		if (i > -1) patches = patches.slice(i + 1);
-		const applyPatchesImpl = getPlugin(PluginPatches).applyPatches_;
-		if (isDraft(base)) return applyPatchesImpl(base, patches);
-		return this.produce(base, (draft) => applyPatchesImpl(draft, patches));
-	}
-};
-function createProxy(rootScope, value, parent, key) {
-	const [draft, state] = isMap(value) ? getPlugin(PluginMapSet).proxyMap_(value, parent) : isSet(value) ? getPlugin(PluginMapSet).proxySet_(value, parent) : createProxyProxy(value, parent);
-	(parent?.scope_ ?? getCurrentScope()).drafts_.push(draft);
-	state.callbacks_ = parent?.callbacks_ ?? [];
-	state.key_ = key;
-	if (parent && key !== void 0) registerChildFinalizationCallback(parent, state, key);
-	else state.callbacks_.push(function rootDraftCleanup(rootScope2) {
-		rootScope2.mapSetPlugin_?.fixSetContents(state);
-		const { patchPlugin_ } = rootScope2;
-		if (state.modified_ && patchPlugin_) patchPlugin_.generatePatches_(state, [], rootScope2);
 	});
-	return draft;
-}
-function current(value) {
-	if (!isDraft(value)) die(10, value);
-	return currentImpl(value);
-}
-function currentImpl(value) {
-	if (!isDraftable(value) || isFrozen(value)) return value;
-	const state = value[DRAFT_STATE];
-	let copy;
-	let strict = true;
-	if (state) {
-		if (!state.modified_) return state.base_;
-		state.finalized_ = true;
-		copy = shallowCopy(value, state.scope_.immer_.useStrictShallowCopy_);
-		strict = state.scope_.immer_.shouldUseStrictIteration();
-	} else copy = shallowCopy(value, true);
-	each(copy, (key, childValue) => {
-		set(copy, key, currentImpl(childValue));
-	}, strict);
-	if (state) state.finalized_ = false;
-	return copy;
-}
-function enableMapSet() {
-	class DraftMap extends Map {
-		constructor(target, parent) {
-			super();
-			this[DRAFT_STATE] = {
-				type_: 2,
-				parent_: parent,
-				scope_: parent ? parent.scope_ : getCurrentScope(),
-				modified_: false,
-				finalized_: false,
-				copy_: void 0,
-				assigned_: void 0,
-				base_: target,
-				draft_: this,
-				isManual_: false,
-				revoked_: false,
-				callbacks_: []
-			};
+};
+var hasVisibleContent = (message) => {
+	const content = message.content;
+	if (typeof content === "string") return content.trim().length > 0;
+	if (!Array.isArray(content)) return false;
+	return content.some((c) => {
+		if (c.type === "tool_use") return true;
+		if (c.type === "text") {
+			const hasText = c.text.trim().length > 0;
+			const hasCitations = !!c.citations && c.citations.length > 0;
+			return hasText || hasCitations;
 		}
-		get size() {
-			return latest(this[DRAFT_STATE]).size;
+		if (c.type === "reasoning") {
+			const hasReasoning = c.reasoning.trim().length > 0;
+			const hasSummary = (c.summary?.trim().length ?? 0) > 0;
+			return hasReasoning || hasSummary;
 		}
-		has(key) {
-			return latest(this[DRAFT_STATE]).has(key);
-		}
-		set(key, value) {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			if (!latest(state).has(key) || latest(state).get(key) !== value) {
-				prepareMapCopy(state);
-				markChanged(state);
-				state.assigned_.set(key, true);
-				state.copy_.set(key, value);
-				state.assigned_.set(key, true);
-				handleCrossReference(state, key, value);
-			}
-			return this;
-		}
-		delete(key) {
-			if (!this.has(key)) return false;
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			prepareMapCopy(state);
-			markChanged(state);
-			if (state.base_.has(key)) state.assigned_.set(key, false);
-			else state.assigned_.delete(key);
-			state.copy_.delete(key);
-			return true;
-		}
-		clear() {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			if (latest(state).size) {
-				prepareMapCopy(state);
-				markChanged(state);
-				state.assigned_ = /* @__PURE__ */ new Map();
-				each(state.base_, (key) => {
-					state.assigned_.set(key, false);
-				});
-				state.copy_.clear();
-			}
-		}
-		forEach(cb, thisArg) {
-			const state = this[DRAFT_STATE];
-			latest(state).forEach((_value, key, _map) => {
-				cb.call(thisArg, this.get(key), key, this);
-			});
-		}
-		get(key) {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			const value = latest(state).get(key);
-			if (state.finalized_ || !isDraftable(value)) return value;
-			if (value !== state.base_.get(key)) return value;
-			const draft = createProxy(state.scope_, value, state, key);
-			prepareMapCopy(state);
-			state.copy_.set(key, draft);
-			return draft;
-		}
-		keys() {
-			return latest(this[DRAFT_STATE]).keys();
-		}
-		values() {
-			const iterator = this.keys();
-			return iteratorFrom({ next: () => {
-				const r = iterator.next();
-				if (r.done) return r;
-				return {
-					done: false,
-					value: this.get(r.value)
-				};
-			} });
-		}
-		entries() {
-			const iterator = this.keys();
-			return iteratorFrom({ next: () => {
-				const r = iterator.next();
-				if (r.done) return r;
-				const value = this.get(r.value);
-				return {
-					done: false,
-					value: [r.value, value]
-				};
-			} });
-		}
-		[Symbol.iterator]() {
-			return this.entries();
-		}
-	}
-	function iteratorFrom(iterable) {
-		if (typeof Iterator !== "undefined") return Iterator.from(iterable);
-		const iterator = {
-			...iterable,
-			[Symbol.iterator]: () => iterator
-		};
-		return iterator;
-	}
-	function proxyMap_(target, parent) {
-		const map = new DraftMap(target, parent);
-		return [map, map[DRAFT_STATE]];
-	}
-	function prepareMapCopy(state) {
-		if (!state.copy_) {
-			state.assigned_ = /* @__PURE__ */ new Map();
-			state.copy_ = new Map(state.base_);
-		}
-	}
-	class DraftSet extends Set {
-		constructor(target, parent) {
-			super();
-			this[DRAFT_STATE] = {
-				type_: 3,
-				parent_: parent,
-				scope_: parent ? parent.scope_ : getCurrentScope(),
-				modified_: false,
-				finalized_: false,
-				copy_: void 0,
-				base_: target,
-				draft_: this,
-				drafts_: /* @__PURE__ */ new Map(),
-				revoked_: false,
-				isManual_: false,
-				assigned_: void 0,
-				callbacks_: []
-			};
-		}
-		get size() {
-			return latest(this[DRAFT_STATE]).size;
-		}
-		has(value) {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			if (!state.copy_) return state.base_.has(value);
-			if (state.copy_.has(value)) return true;
-			if (state.drafts_.has(value) && state.copy_.has(state.drafts_.get(value))) return true;
-			return false;
-		}
-		add(value) {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			if (!this.has(value)) {
-				prepareSetCopy(state);
-				markChanged(state);
-				state.copy_.add(value);
-				handleCrossReference(state, value, value);
-			}
-			return this;
-		}
-		delete(value) {
-			if (!this.has(value)) return false;
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			prepareSetCopy(state);
-			markChanged(state);
-			return state.copy_.delete(value) || (state.drafts_.has(value) ? state.copy_.delete(state.drafts_.get(value)) : 
-			/* istanbul ignore next */
-false);
-		}
-		clear() {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			if (latest(state).size) {
-				prepareSetCopy(state);
-				markChanged(state);
-				state.copy_.clear();
-			}
-		}
-		values() {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			prepareSetCopy(state);
-			return state.copy_.values();
-		}
-		entries() {
-			const state = this[DRAFT_STATE];
-			assertUnrevoked(state);
-			prepareSetCopy(state);
-			return state.copy_.entries();
-		}
-		keys() {
-			return this.values();
-		}
-		[Symbol.iterator]() {
-			return this.values();
-		}
-		forEach(cb, thisArg) {
-			const iterator = this.values();
-			let result = iterator.next();
-			while (!result.done) {
-				cb.call(thisArg, result.value, result.value, this);
-				result = iterator.next();
-			}
-		}
-	}
-	function proxySet_(target, parent) {
-		const set2 = new DraftSet(target, parent);
-		return [set2, set2[DRAFT_STATE]];
-	}
-	function prepareSetCopy(state) {
-		if (!state.copy_) {
-			state.copy_ = /* @__PURE__ */ new Set();
-			state.base_.forEach((value) => {
-				if (isDraftable(value)) {
-					const draft = createProxy(state.scope_, value, state, value);
-					state.drafts_.set(value, draft);
-					state.copy_.add(draft);
-				} else state.copy_.add(value);
-			});
-		}
-	}
-	function assertUnrevoked(state) {
-		if (state.revoked_) die(3, JSON.stringify(latest(state)));
-	}
-	function fixSetContents(target) {
-		if (target.type_ === 3 && target.copy_) {
-			const copy = new Set(target.copy_);
-			target.copy_.clear();
-			copy.forEach((value) => {
-				target.copy_.add(getValue(value));
-			});
-		}
-	}
-	loadPlugin(PluginMapSet, {
-		proxyMap_,
-		proxySet_,
-		fixSetContents
+		return true;
 	});
-}
-var produce = new Immer2().produce;
+};
+/**
+* Number of sequentially-numbered blocks a row renders. Only the full
+* (un-embedded) layout numbers tool calls individually; every other style
+* keeps the legacy one-number-per-row behavior.
+*/
+var countRowBlocks = (resolved, toolCallStyle) => {
+	if (toolCallStyle !== "complete") return 1;
+	const message = resolved.message;
+	const hasToolCalls = message.role === "assistant" && !!message.tool_calls?.length;
+	return (hasToolCalls && !hasVisibleContent(message) ? 0 : 1) + (hasToolCalls ? message.tool_calls.length : 0);
+};
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/vanilla.mjs
-var createStoreImpl = (createState) => {
-	let state;
-	const listeners = /* @__PURE__ */ new Set();
-	const setState = (partial, replace) => {
-		const nextState = typeof partial === "function" ? partial(state) : partial;
-		if (!Object.is(nextState, state)) {
-			const previousState = state;
-			state = (replace != null ? replace : typeof nextState !== "object" || nextState === null) ? nextState : Object.assign({}, state, nextState);
-			listeners.forEach((listener) => listener(state, previousState));
+//#region ../../packages/inspect-components/src/chat/messagesToStr.ts
+var messagesToStr = (messages, options) => {
+	const opts = options || {};
+	return messages.map((msg) => messageToStr(msg, opts)).filter((str) => str !== null).join("\n");
+};
+var messageToStr = (message, options) => {
+	if (options.excludeSystem && message.role === "system") return null;
+	const content = betterContentText(message.content, options.excludeToolUsage || false, options.excludeReasoning || false);
+	if (!options.excludeToolUsage && message.role === "assistant" && message.tool_calls) {
+		let entry = `${message.role.toUpperCase()}:\n${content}\n`;
+		for (const tool of message.tool_calls) {
+			const funcName = tool.function;
+			const args = tool.arguments;
+			if (typeof args === "object" && args !== null) {
+				const argsText = Object.entries(args).map(([k, v]) => `${k}: ${String(v)}`).join("\n");
+				entry += `\nTool Call: ${funcName}\nArguments:\n${argsText}\n`;
+			} else entry += `\nTool Call: ${funcName}\n`;
 		}
-	};
-	const getState = () => state;
-	const getInitialState = () => initialState;
-	const subscribe = (listener) => {
-		listeners.add(listener);
-		return () => listeners.delete(listener);
-	};
-	const api = {
-		setState,
-		getState,
-		getInitialState,
-		subscribe
-	};
-	const initialState = state = createState(setState, getState, api);
-	return api;
+		return entry;
+	}
+	if (message.role === "tool") {
+		if (options.excludeToolUsage) return null;
+		const funcName = message.function || "unknown";
+		const errorPart = message.error ? `\n\nError in tool call '${funcName}':\n${message.error.message}\n` : "";
+		return `${message.role.toUpperCase()}:\n${content}${errorPart}\n`;
+	}
+	return `${message.role.toUpperCase()}:\n${content}\n`;
 };
-var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
+var textFromContent = (content, excludeToolUsage, excludeReasoning) => {
+	switch (content.type) {
+		case "text": return content.text;
+		case "reasoning": {
+			if (excludeReasoning) return null;
+			const text = content.redacted ? content.summary : content.reasoning || content.summary;
+			if (!text) return null;
+			return `\n<think>${text}</think>`;
+		}
+		case "tool_use": {
+			if (excludeToolUsage) return null;
+			const errorStr = content.error ? ` ${content.error}` : "";
+			return `\nTool Use: ${content.name}(${content.arguments}) -> ${content.result}${errorStr}`;
+		}
+		case "image":
+		case "audio":
+		case "video":
+		case "data":
+		case "document": return `<${content.type} />`;
+		default: return null;
+	}
+};
+var betterContentText = (content, excludeToolUsage, excludeReasoning) => {
+	if (typeof content === "string") return content;
+	return content.map((c) => textFromContent(c, excludeToolUsage, excludeReasoning)).filter((text) => text !== null).join("\n");
+};
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/react.mjs
-var identity = (arg) => arg;
-function useStore$1(api, selector = identity) {
-	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
-	import_react.useDebugValue(slice);
-	return slice;
-}
-var createImpl = (createState) => {
-	const api = createStore(createState);
-	const useBoundStore = (selector) => useStore$1(api, selector);
-	Object.assign(useBoundStore, api);
-	return useBoundStore;
+//#region ../../packages/inspect-components/src/chat/messageSearchText.ts
+/**
+* Extracts searchable text from a ResolvedMessage for find-in-page functionality.
+*/
+var messageSearchText = (resolved) => {
+	const texts = [];
+	texts.push(...extractContentText$1(resolved.message.content));
+	if (resolved.message.role === "assistant" && "tool_calls" in resolved.message && resolved.message.tool_calls) for (const toolCall of resolved.message.tool_calls) {
+		if (toolCall.function) texts.push(toolCall.function);
+		if (toolCall.arguments) texts.push(JSON.stringify(toolCall.arguments));
+	}
+	for (const toolMsg of resolved.toolMessages) {
+		if (toolMsg.function) texts.push(toolMsg.function);
+		texts.push(...extractContentText$1(toolMsg.content));
+		if (toolMsg.error?.message) texts.push(toolMsg.error.message);
+	}
+	return texts;
 };
-var create = ((createState) => createState ? createImpl(createState) : createImpl);
+/**
+* Extracts text strings from message content.
+*/
+var extractContentText$1 = (content) => {
+	if (typeof content === "string") return [content];
+	const texts = [];
+	for (const item of content) switch (item.type) {
+		case "text":
+			texts.push(item.text);
+			break;
+		case "reasoning": {
+			const reasoning = item;
+			if (reasoning.redacted) {
+				if (reasoning.summary) texts.push(reasoning.summary);
+			} else if (reasoning.reasoning) texts.push(reasoning.reasoning);
+			else if (reasoning.summary) texts.push(reasoning.summary);
+			break;
+		}
+		case "tool_use": {
+			const toolUse = item;
+			if (toolUse.name) texts.push(toolUse.name);
+			if (toolUse.arguments) texts.push(JSON.stringify(toolUse.arguments));
+			break;
+		}
+	}
+	return texts;
+};
 //#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware.mjs
-var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
-var trackedConnections = /* @__PURE__ */ new Map();
-var getTrackedConnectionState = (name) => {
-	const api = trackedConnections.get(name);
-	if (!api) return {};
-	return Object.fromEntries(Object.entries(api.stores).map(([key, api2]) => [key, api2.getState()]));
+//#region ../../packages/inspect-components/src/chat/tools/tool.ts
+var kToolTodoContentType = "agent/todo-list";
+var kToolIcons = {
+	bash: "bi-terminal",
+	Bash: "bi-terminal",
+	bash_session: "bi-terminal",
+	shell: "bi-terminal",
+	shell_command: "bi-terminal",
+	exec_command: "bi-terminal",
+	python: "bi-code-square",
+	code_execution: "bi-code-square",
+	web_search: "bi-search",
+	WebSearch: "bi-search",
+	web_fetch: "bi-globe2",
+	WebFetch: "bi-globe2",
+	web_browser: "bi-window",
+	text_editor: "bi-pencil-square",
+	str_replace_editor: "bi-pencil-square",
+	str_replace_based_edit_tool: "bi-pencil-square",
+	Edit: "bi-pencil-square",
+	Write: "bi-pencil-square",
+	NotebookEdit: "bi-pencil-square",
+	Read: "bi-file-earmark-text",
+	Glob: "bi-search",
+	Grep: "bi-search",
+	task: "bi-people",
+	Task: "bi-people",
+	agent: "bi-people",
+	Agent: "bi-people",
+	spawn_agent: "bi-people",
+	send_input: "bi-people",
+	wait_agent: "bi-people",
+	resume_agent: "bi-people",
+	close_agent: "bi-people",
+	agent_status: "bi-people",
+	agent_wait: "bi-people",
+	agent_cancel: "bi-people",
+	agent_list: "bi-people",
+	TodoWrite: "bi-list-check",
+	todo_write: "bi-list-check",
+	update_plan: "bi-list-check",
+	think: "bi-lightbulb",
+	computer: "bi-display",
+	tool_search: "bi-search",
+	mcp_list_tools: "bi-plug",
+	mcp_call: "bi-plug"
 };
-var extractConnectionInformation = (store, extensionConnector, options) => {
-	if (store === void 0) return {
-		type: "untracked",
-		connection: extensionConnector.connect(options)
+/**
+* Header icon for a tool call. Unknown client tools get the general tool
+* icon; unknown server tools keep the globe (the server tell).
+*/
+var iconForTool = (tool, options) => {
+	const icon = kToolIcons[tool];
+	if (icon) return icon;
+	if (tool.startsWith("browser_")) return "bi-window";
+	return options?.server ? "bi-globe2" : "bi-tools";
+};
+/**
+* Resolves the input and metadata for a given tool call.
+*/
+var resolveToolInput = (fn, toolArgs) => {
+	const toolName = fn;
+	const inputDescriptor = extractInputMetadata(toolName, toolArgs);
+	const { input, description, args } = extractInput(toolArgs, inputDescriptor);
+	const functionCall = args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
+	if ((fn === "Task" || fn === "task" || fn === "Agent" || fn === "agent") && typeof toolArgs.subagent_type === "string") {
+		const subagentType = toolArgs.subagent_type;
+		return {
+			name: fn,
+			functionCall: `${fn}: ${subagentType}`,
+			title: `${fn}: ${subagentType}`,
+			input,
+			description,
+			contentType: "markdown"
+		};
+	}
+	if (fn === "spawn_agent" && typeof toolArgs.agent_type === "string") {
+		const agentType = toolArgs.agent_type;
+		return {
+			name: fn,
+			functionCall: `${fn}: ${agentType}`,
+			title: `${fn}: ${agentType}`,
+			input,
+			description,
+			contentType: "markdown"
+		};
+	}
+	if (fn === "agent_status" || fn === "agent_wait" || fn === "agent_cancel" || fn === "agent_list") return {
+		name: fn,
+		functionCall,
+		input,
+		description,
+		contentType: "markdown"
 	};
-	const existingConnection = trackedConnections.get(options.name);
-	if (existingConnection) return {
-		type: "tracked",
-		store,
-		...existingConnection
+	if (fn === "wait_agent" || fn === "close_agent" || fn === "resume_agent") return {
+		name: fn,
+		functionCall,
+		input,
+		description,
+		contentType: "markdown"
 	};
-	const newConnection = {
-		connection: extensionConnector.connect(options),
-		stores: {}
-	};
-	trackedConnections.set(options.name, newConnection);
 	return {
-		type: "tracked",
-		store,
-		...newConnection
+		name: fn,
+		functionCall,
+		input,
+		description,
+		contentType: inputDescriptor?.contentType
 	};
 };
-var removeStoreFromTrackedConnections = (name, store) => {
-	if (store === void 0) return;
-	const connectionInfo = trackedConnections.get(name);
-	if (!connectionInfo) return;
-	delete connectionInfo.stores[store];
-	if (Object.keys(connectionInfo.stores).length === 0) trackedConnections.delete(name);
-};
-var v8StackLineRe = /.+ (.+) .+/;
-var geckoStackLineRe = /^([^@]+)@/;
-function findCallerName(stack) {
-	var _a, _b, _c;
-	if (!stack) return void 0;
-	const traceLines = stack.split("\n");
-	const apiSetStateLineIndex = traceLines.findIndex((traceLine) => traceLine.includes("api.setState"));
-	if (apiSetStateLineIndex < 0) return void 0;
-	const callerLine = ((_a = traceLines[apiSetStateLineIndex + 1]) == null ? void 0 : _a.trim()) || "";
-	return ((_b = v8StackLineRe.exec(callerLine)) == null ? void 0 : _b[1]) || ((_c = geckoStackLineRe.exec(callerLine)) == null ? void 0 : _c[1]);
-}
-var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
-	const { enabled, anonymousActionType, store, ...options } = devtoolsOptions;
-	let extensionConnector;
-	try {
-		extensionConnector = (enabled != null ? enabled : true) && window.__REDUX_DEVTOOLS_EXTENSION__;
-	} catch (e) {}
-	if (!extensionConnector) return fn(set, get, api);
-	const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options);
-	let isRecording = true;
-	api.setState = ((state, replace, nameOrAction) => {
-		const r = set(state, replace);
-		if (!isRecording) return r;
-		const action = nameOrAction === void 0 ? { type: anonymousActionType || findCallerName((/* @__PURE__ */ new Error()).stack) || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
-		if (store === void 0) {
-			connection?.send(action, get());
-			return r;
-		}
-		connection?.send({
-			...action,
-			type: `${store}/${action.type}`
-		}, {
-			...getTrackedConnectionState(options.name),
-			[store]: api.getState()
-		});
-		return r;
-	});
-	api.devtools = { cleanup: () => {
-		if (connection && typeof connection.unsubscribe === "function") connection.unsubscribe();
-		removeStoreFromTrackedConnections(options.name, store);
-	} };
-	const setStateFromDevtools = (...a) => {
-		const originalIsRecording = isRecording;
-		isRecording = false;
-		set(...a);
-		isRecording = originalIsRecording;
+var extractInputMetadata = (toolName, toolArgs) => {
+	if (toolName === "text_editor" && toolArgs.command === "create") return {
+		inputArg: "file_text",
+		contentType: prismLanguageForPath(toolArgs.path)
 	};
-	const initialState = fn(api.setState, get, api);
-	if (connectionInformation.type === "untracked") connection?.init(initialState);
-	else {
-		connectionInformation.stores[connectionInformation.store] = api;
-		connection?.init(Object.fromEntries(Object.entries(connectionInformation.stores).map(([key, store2]) => [key, key === connectionInformation.store ? initialState : store2.getState()])));
-	}
-	if (shouldDispatchFromDevtools(api)) {
-		let didWarnAboutReservedActionType = false;
-		const originalDispatch = api.dispatch;
-		api.dispatch = (...args) => {
-			if (args[0].type === "__setState" && !didWarnAboutReservedActionType) {
-				console.warn("[zustand devtools middleware] \"__setState\" action type is reserved to set state from the devtools. Avoid using it.");
-				didWarnAboutReservedActionType = true;
-			}
-			originalDispatch(...args);
-		};
-	}
-	connection.subscribe((message) => {
-		var _a;
-		switch (message.type) {
-			case "ACTION":
-				if (typeof message.payload !== "string") {
-					console.error("[zustand devtools middleware] Unsupported action format");
-					return;
-				}
-				return parseJsonThen(message.payload, (action) => {
-					if (action.type === "__setState") {
-						if (store === void 0) {
-							setStateFromDevtools(action.state);
-							return;
-						}
-						if (Object.keys(action.state).length !== 1) console.error(`
-                    [zustand devtools middleware] Unsupported __setState action format.
-                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
-                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
-                    `);
-						const stateFromDevtools = action.state[store];
-						if (stateFromDevtools === void 0 || stateFromDevtools === null) return;
-						if (JSON.stringify(api.getState()) !== JSON.stringify(stateFromDevtools)) setStateFromDevtools(stateFromDevtools);
-						return;
-					}
-					if (shouldDispatchFromDevtools(api)) api.dispatch(action);
-				});
-			case "DISPATCH":
-				switch (message.payload.type) {
-					case "RESET":
-						setStateFromDevtools(initialState);
-						if (store === void 0) return connection == null ? void 0 : connection.init(api.getState());
-						return connection == null ? void 0 : connection.init(getTrackedConnectionState(options.name));
-					case "COMMIT":
-						if (store === void 0) {
-							connection?.init(api.getState());
-							return;
-						}
-						return connection == null ? void 0 : connection.init(getTrackedConnectionState(options.name));
-					case "ROLLBACK": return parseJsonThen(message.state, (state) => {
-						if (store === void 0) {
-							setStateFromDevtools(state);
-							connection?.init(api.getState());
-							return;
-						}
-						setStateFromDevtools(state[store]);
-						connection?.init(getTrackedConnectionState(options.name));
-					});
-					case "JUMP_TO_STATE":
-					case "JUMP_TO_ACTION": return parseJsonThen(message.state, (state) => {
-						if (store === void 0) {
-							setStateFromDevtools(state);
-							return;
-						}
-						if (JSON.stringify(api.getState()) !== JSON.stringify(state[store])) setStateFromDevtools(state[store]);
-					});
-					case "IMPORT_STATE": {
-						const { nextLiftedState } = message.payload;
-						const lastComputedState = (_a = nextLiftedState.computedStates.slice(-1)[0]) == null ? void 0 : _a.state;
-						if (!lastComputedState) return;
-						if (store === void 0) setStateFromDevtools(lastComputedState);
-						else setStateFromDevtools(lastComputedState[store]);
-						connection?.send(null, nextLiftedState);
-						return;
-					}
-					case "PAUSE_RECORDING": return isRecording = !isRecording;
-				}
-				return;
+	if (toolName === "bash") return {
+		inputArg: ["cmd", "command"],
+		contentType: "bash"
+	};
+	else if (toolName === "python") return {
+		inputArg: "code",
+		contentType: "python"
+	};
+	else if (toolName === "web_search") return {
+		inputArg: "query",
+		contentType: "json"
+	};
+	else if (toolName === "Bash") return {
+		inputArg: "command",
+		descriptionArg: "description",
+		contentType: "bash"
+	};
+	else if (toolName === "shell_command") return {
+		inputArg: "command",
+		descriptionArg: "description",
+		contentType: "bash"
+	};
+	else if (toolName === "shell") return {
+		inputArg: "command",
+		contentType: "bash",
+		inputToStr: (input) => {
+			if (Array.isArray(input)) return input.join(" ");
 		}
-	});
-	return initialState;
+	};
+	else if (toolName == "TodoWrite") return {
+		inputArg: "todos",
+		contentType: kToolTodoContentType
+	};
+	else if (toolName == "update_plan") return {
+		inputArg: "plan",
+		contentType: kToolTodoContentType
+	};
+	else if (toolName == "todo_write") return {
+		inputArg: "todos",
+		contentType: kToolTodoContentType
+	};
+	else if (toolName === "Task" || toolName === "Agent") return {
+		inputArg: "prompt",
+		descriptionArg: "description",
+		contentType: "markdown"
+	};
+	else if (toolName === "task" || toolName === "agent") return {
+		inputArg: "prompt",
+		descriptionArg: "task_description",
+		contentType: "markdown"
+	};
+	else if (toolName === "exec_command") return {
+		inputArg: "cmd",
+		contentType: "bash"
+	};
+	else if (toolName === "spawn_agent") return {
+		inputArg: "message",
+		contentType: "markdown"
+	};
+	else if (toolName === "send_input") return {
+		inputArg: "message",
+		contentType: "markdown"
+	};
+	else if (toolName === "tool_search") return { contentType: "markdown" };
+	else return;
 };
-var devtools = devtoolsImpl;
-var parseJsonThen = (stringified, fn) => {
-	let parsed;
-	try {
-		parsed = JSON.parse(stringified);
-	} catch (e) {
-		console.error("[zustand devtools middleware] Could not parse the received json", e);
+var prismLanguageForPath = (path) => {
+	if (typeof path !== "string") return;
+	switch (path.split(".").pop()?.toLowerCase()) {
+		case "py": return "python";
+		case "js":
+		case "jsx":
+		case "mjs":
+		case "cjs": return "javascript";
+		case "json": return "json";
+		case "sh":
+		case "bash": return "bash";
+		case "yaml":
+		case "yml": return "yaml";
+		default: return;
 	}
-	if (parsed !== void 0) fn(parsed);
 };
-function createJSONStorage(getStorage, options) {
-	let storage;
+var kCodexAgentResultTools = /* @__PURE__ */ new Set([
+	"wait_agent",
+	"close_agent",
+	"resume_agent"
+]);
+/**
+* Reshapes a Codex sub-agent tool *result* into markdown, or returns undefined
+* when no reshape applies (caller renders the raw output).
+*
+* `spawn_agent` returns `{"agent_id": …, "nickname": …}` — we surface a compact
+* line naming the spawned sub-agent. `wait_agent` / `close_agent` /
+* `resume_agent` return JSON-wrapped status whose `completed` fields hold the
+* sub-agent's markdown final answer — we surface those answers. Accepts a raw
+* string output or structured content (the viewer wraps tool results as
+* `Content[]`), extracting the underlying text either way. The raw output
+* remains in the JSON tab.
+*
+* (`tool_search` is handled separately by `parseToolSearchCatalog` +
+* `ToolSearchView`, which needs real collapsible `<details>` elements that the
+* HTML-escaping markdown pipeline can't produce from a string.)
+*/
+var codexToolMarkdown = (fn, output) => {
+	const text = toolOutputText(output);
+	if (text === void 0) return;
+	if (fn === "spawn_agent") return formatSpawnAgentResult(text);
+	if (kCodexAgentResultTools.has(fn)) return extractCodexAgentAnswers(text);
+};
+var formatSpawnAgentResult = (text) => {
+	let data;
 	try {
-		storage = getStorage();
-	} catch (e) {
+		data = JSON.parse(text);
+	} catch {
 		return;
 	}
-	return {
-		getItem: (name) => {
-			var _a;
-			const parse = (str2) => {
-				if (str2 === null) return null;
-				return JSON.parse(str2, options == null ? void 0 : options.reviver);
-			};
-			const str = (_a = storage.getItem(name)) != null ? _a : null;
-			if (str instanceof Promise) return str.then(parse);
-			return parse(str);
-		},
-		setItem: (name, newValue) => storage.setItem(name, JSON.stringify(newValue, options == null ? void 0 : options.replacer)),
-		removeItem: (name) => storage.removeItem(name)
-	};
-}
-var toThenable = (fn) => (input) => {
+	if (!data || typeof data !== "object") return;
+	const record = data;
+	const nickname = typeof record.nickname === "string" ? record.nickname : void 0;
+	const agentId = typeof record.agent_id === "string" ? record.agent_id : void 0;
+	const parts = [];
+	if (nickname) parts.push(nickname);
+	if (agentId) parts.push(`\`${agentId}\``);
+	return parts.length > 0 ? parts.join(" — ") : void 0;
+};
+var toolOutputText = (output) => {
+	if (typeof output === "string") return output;
+	if (Array.isArray(output)) {
+		const parts = [];
+		for (const item of output) collectContentText(item, parts);
+		return parts.length > 0 ? parts.join("") : void 0;
+	}
+};
+var collectContentText = (item, parts) => {
+	if (!item || typeof item !== "object") return;
+	const record = item;
+	if (record.type === "text" && typeof record.text === "string") parts.push(record.text);
+	else if (record.type === "tool" && Array.isArray(record.content)) for (const child of record.content) collectContentText(child, parts);
+};
+var formatSubagentNotifications = (content) => {
+	const text = toolOutputText(content);
+	if (text === void 0 || !text.includes("<subagent_notification>")) return;
+	const lines = [];
+	const regex = /<subagent_notification>([\s\S]*?)<\/subagent_notification>/g;
+	let match;
+	while ((match = regex.exec(text)) !== null) {
+		const line = formatSubagentNotification(match[1]);
+		if (line) lines.push(line);
+	}
+	return lines.length > 0 ? lines.join("\n\n") : void 0;
+};
+var formatSubagentNotification = (payload) => {
+	let data;
 	try {
-		const result = fn(input);
-		if (result instanceof Promise) return result;
-		return {
-			then(onFulfilled) {
-				return toThenable(onFulfilled)(result);
-			},
-			catch(_onRejected) {
-				return this;
-			}
-		};
-	} catch (e) {
-		return {
-			then(_onFulfilled) {
-				return this;
-			},
-			catch(onRejected) {
-				return toThenable(onRejected)(e);
-			}
-		};
+		data = JSON.parse(payload.trim());
+	} catch {
+		return;
 	}
+	if (!data || typeof data !== "object") return;
+	const record = data;
+	const agentPath = typeof record.agent_path === "string" ? record.agent_path : void 0;
+	const status = record.status && typeof record.status === "object" ? Object.keys(record.status)[0] : void 0;
+	if (agentPath === void 0 && status === void 0) return;
+	const statusWord = status ?? "notified";
+	return agentPath ? `agent ${statusWord}: \`${agentPath}\`` : `agent ${statusWord}`;
 };
-var persistImpl = (config, baseOptions) => (set, get, api) => {
-	let options = {
-		storage: createJSONStorage(() => window.localStorage),
-		partialize: (state) => state,
-		version: 0,
-		merge: (persistedState, currentState) => ({
-			...currentState,
-			...persistedState
-		}),
-		...baseOptions
-	};
-	let hasHydrated = false;
-	let hydrationVersion = 0;
-	const hydrationListeners = /* @__PURE__ */ new Set();
-	const finishHydrationListeners = /* @__PURE__ */ new Set();
-	let storage = options.storage;
-	if (!storage) return config((...args) => {
-		console.warn(`[zustand persist middleware] Unable to update item '${options.name}', the given storage is currently unavailable.`);
-		set(...args);
-	}, get, api);
-	const setItem = () => {
-		const state = options.partialize({ ...get() });
-		return storage.setItem(options.name, {
-			state,
-			version: options.version
-		});
-	};
-	const savedSetState = api.setState;
-	api.setState = (state, replace) => {
-		savedSetState(state, replace);
-		return setItem();
-	};
-	const configResult = config((...args) => {
-		set(...args);
-		return setItem();
-	}, get, api);
-	api.getInitialState = () => configResult;
-	let stateFromStorage;
-	const hydrate = () => {
-		var _a, _b;
-		if (!storage) return;
-		const currentVersion = ++hydrationVersion;
-		hasHydrated = false;
-		hydrationListeners.forEach((cb) => {
-			var _a2;
-			return cb((_a2 = get()) != null ? _a2 : configResult);
-		});
-		const postRehydrationCallback = ((_b = options.onRehydrateStorage) == null ? void 0 : _b.call(options, (_a = get()) != null ? _a : configResult)) || void 0;
-		return toThenable(storage.getItem.bind(storage))(options.name).then((deserializedStorageValue) => {
-			if (deserializedStorageValue) if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options.version) {
-				if (options.migrate) {
-					const migration = options.migrate(deserializedStorageValue.state, deserializedStorageValue.version);
-					if (migration instanceof Promise) return migration.then((result) => [true, result]);
-					return [true, migration];
-				}
-				console.error(`State loaded from storage couldn't be migrated since no migrate function was provided`);
-			} else return [false, deserializedStorageValue.state];
-			return [false, void 0];
-		}).then((migrationResult) => {
-			var _a2;
-			if (currentVersion !== hydrationVersion) return;
-			const [migrated, migratedState] = migrationResult;
-			stateFromStorage = options.merge(migratedState, (_a2 = get()) != null ? _a2 : configResult);
-			set(stateFromStorage, true);
-			if (migrated) return setItem();
-		}).then(() => {
-			if (currentVersion !== hydrationVersion) return;
-			postRehydrationCallback?.(get(), void 0);
-			stateFromStorage = get();
-			hasHydrated = true;
-			finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
-		}).catch((e) => {
-			if (currentVersion !== hydrationVersion) return;
-			postRehydrationCallback?.(void 0, e);
-		});
-	};
-	api.persist = {
-		setOptions: (newOptions) => {
-			options = {
-				...options,
-				...newOptions
-			};
-			if (newOptions.storage) storage = newOptions.storage;
-		},
-		clearStorage: () => {
-			storage?.removeItem(options.name);
-		},
-		getOptions: () => options,
-		rehydrate: () => hydrate(),
-		hasHydrated: () => hasHydrated,
-		onHydrate: (cb) => {
-			hydrationListeners.add(cb);
-			return () => {
-				hydrationListeners.delete(cb);
-			};
-		},
-		onFinishHydration: (cb) => {
-			finishHydrationListeners.add(cb);
-			return () => {
-				finishHydrationListeners.delete(cb);
-			};
-		}
-	};
-	if (!options.skipHydration) hydrate();
-	return stateFromStorage || configResult;
-};
-var persist = persistImpl;
-//#endregion
-//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware/immer.mjs
-var immerImpl = (initializer) => (set, get, store) => {
-	store.setState = (updater, replace, ...args) => {
-		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
-	};
-	return initializer(store.setState, get, store);
-};
-var immer = immerImpl;
-var kLogViewSamplesTabId = "samples";
-var kLogViewJsonTabId = "json";
-var kLogViewInfoTabId = "info";
-var kLogViewModelsTabId = "models";
-var kLogViewTaskTabId = "task";
-var kLogViewErrorTabId = "error";
-var kWorkspaceTabs = [
-	kLogViewSamplesTabId,
-	kLogViewJsonTabId,
-	kLogViewInfoTabId,
-	kLogViewModelsTabId,
-	kLogViewTaskTabId,
-	kLogViewErrorTabId
-];
-var kSampleMessagesTabId = `messages`;
-var kSampleTranscriptTabId = `transcript`;
-var kSampleScoringTabId = `scoring`;
-var kSampleMetdataTabId = `metadata`;
-var kSampleUsageTabId = `usage`;
-var kSampleErrorTabId = `error`;
-var kSampleRetriesTabId = `retries`;
-var kSampleErrorRetriesTabId = `retry-errors`;
-var kSampleJsonTabId = `json`;
-var kSampleEventTabId = `event`;
-var kSampleTabIds = [
-	kSampleMessagesTabId,
-	kSampleTranscriptTabId,
-	kSampleScoringTabId,
-	kSampleUsageTabId,
-	kSampleMetdataTabId,
-	kSampleErrorTabId,
-	kSampleRetriesTabId,
-	kSampleErrorRetriesTabId,
-	kSampleJsonTabId
-];
-var kScoreTypePassFail = "passfail";
-var kScoreTypeCategorical = "categorical";
-var kScoreTypeNumeric = "numeric";
-var kScoreTypeOther = "other";
-var kScoreTypeObject = "object";
-var kScoreTypeBoolean = "boolean";
-var kScoreTypeList = "list";
-//#endregion
-//#region src/state/appSlice.ts
-var kDefaultWorkspaceTab = kLogViewSamplesTabId;
-var kDefaultSampleTab = kSampleTranscriptTabId;
-var initialState$3 = {
-	showFind: false,
-	dialogs: {
-		transcriptFilter: false,
-		options: false
-	},
-	tabs: {
-		workspace: kDefaultWorkspaceTab,
-		sample: kDefaultSampleTab
-	},
-	scrollPositions: {},
-	listPositions: {},
-	visibleRanges: {},
-	collapsed: {},
-	messages: {},
-	propertyBags: {},
-	displayMode: "rendered",
-	logsSampleView: false
-};
-var createAppSlice = (set, get, _store) => {
-	const getBoolRecord = (record, name, defaultValue) => {
-		if (Object.hasOwn(record, name)) return record[name] ?? false;
-		else return defaultValue || false;
-	};
-	return {
-		app: initialState$3,
-		capabilities: {},
-		appActions: {
-			setShowFind: (show) => set((state) => {
-				state.app.showFind = show;
-			}),
-			hideFind: () => {
-				clearDocumentSelection();
-				set((state) => {
-					state.app.showFind = false;
-				});
-			},
-			setNativeFind: (nativeFind) => set((state) => {
-				state.app.nativeFind = nativeFind;
-			}),
-			setShowingTranscriptFilterDialog: (showing) => {
-				if (showing === get().app.dialogs.transcriptFilter) return;
-				set((state) => {
-					state.app.dialogs.transcriptFilter = showing;
-				});
-			},
-			setShowingOptionsDialog: (showing) => {
-				if (showing === get().app.dialogs.options) return;
-				set((state) => {
-					state.app.dialogs.options = showing;
-				});
-			},
-			setWorkspaceTab: (tab) => {
-				set((state) => {
-					state.app.tabs.workspace = tab;
-				});
-			},
-			clearWorkspaceTab: () => {
-				set((state) => {
-					state.app.tabs.workspace = kDefaultWorkspaceTab;
-				});
-			},
-			setInitialState: (log, sample_id, sample_epoch) => {
-				set((state) => {
-					state.app.initialState = {
-						log,
-						sample_id,
-						sample_epoch
-					};
-				});
-			},
-			clearInitialState: () => {
-				set((state) => {
-					state.app.initialState = void 0;
-				});
-			},
-			setSampleTab: (tab) => {
-				set((state) => {
-					state.app.tabs.sample = tab;
-				});
-			},
-			clearSampleTab: () => {
-				set((state) => {
-					state.app.tabs.sample = kDefaultSampleTab;
-				});
-			},
-			getScrollPosition: (name) => {
-				return get().app.scrollPositions[name];
-			},
-			setScrollPosition: (name, position) => {
-				set((state) => {
-					state.app.scrollPositions[name] = position;
-				});
-			},
-			getListPosition: (name) => {
-				const state = get();
-				if (Object.keys(state.app.listPositions).includes(name)) return state.app.listPositions[name];
-				else return;
-			},
-			setListPosition: (name, position) => {
-				set((state) => {
-					state.app.listPositions[name] = position;
-				});
-			},
-			clearListPosition: (name) => {
-				set((state) => {
-					const newListPositions = { ...state.app.listPositions };
-					delete newListPositions[name];
-					return { app: {
-						...state.app,
-						listPositions: newListPositions
-					} };
-				});
-			},
-			getVisibleRange: (name) => {
-				const state = get();
-				if (Object.hasOwn(state.app.visibleRanges, name)) return state.app.visibleRanges[name] ?? {
-					startIndex: 0,
-					endIndex: 0,
-					totalCount: 0
-				};
-				else return {
-					startIndex: 0,
-					endIndex: 0,
-					totalCount: 0
-				};
-			},
-			setVisibleRange: (name, value) => {
-				set((state) => {
-					state.app.visibleRanges[name] = value;
-				});
-			},
-			clearVisibleRange: (name) => {
-				set((state) => {
-					const newVisibleRanges = { ...state.app.visibleRanges };
-					delete newVisibleRanges[name];
-					return { app: {
-						...state.app,
-						visibleRanges: newVisibleRanges
-					} };
-				});
-			},
-			getCollapsed: (name, defaultValue) => {
-				return getBoolRecord(get().app.collapsed, name, defaultValue);
-			},
-			setCollapsed: (name, value) => {
-				set((state) => {
-					state.app.collapsed[name] = value;
-				});
-			},
-			getMessageVisible: (name, defaultValue) => {
-				return getBoolRecord(get().app.messages, name, defaultValue);
-			},
-			setMessageVisible: (name, value) => {
-				set((state) => {
-					state.app.messages[name] = value;
-				});
-			},
-			clearMessageVisible: (name) => {
-				set((state) => {
-					delete state.app.messages[name];
-				});
-			},
-			getPropertyValue: (bagName, key, defaultValue) => {
-				const bag = get().app.propertyBags[bagName] || {};
-				return key in bag ? bag[key] : defaultValue;
-			},
-			setPropertyValue: (bagName, key, value) => {
-				set((state) => {
-					if (!state.app.propertyBags[bagName]) state.app.propertyBags[bagName] = {};
-					state.app.propertyBags[bagName][key] = value;
-				});
-			},
-			removePropertyValue: (bagName, key) => {
-				set((state) => {
-					if (state.app.propertyBags[bagName]) {
-						const { [key]: _, ...rest } = state.app.propertyBags[bagName];
-						state.app.propertyBags[bagName] = rest;
-					}
-				});
-			},
-			removeAllProperties: (bagName) => {
-				set((state) => {
-					const { [bagName]: _, ...rest } = state.app.propertyBags;
-					state.app.propertyBags = rest;
-				});
-			},
-			removeBagsByPrefix: (bagNamePrefix) => {
-				set((state) => {
-					for (const name of Object.keys(state.app.propertyBags)) if (name.startsWith(bagNamePrefix)) delete state.app.propertyBags[name];
-				});
-			},
-			removeByPrefix: (bagName, prefix) => {
-				set((state) => {
-					const bag = state.app.propertyBags[bagName];
-					if (!bag) return;
-					let changed = false;
-					const next = { ...bag };
-					for (const key of Object.keys(next)) if (key.startsWith(prefix)) {
-						delete next[key];
-						changed = true;
-					}
-					if (changed) if (Object.keys(next).length === 0) {
-						const { [bagName]: _, ...rest } = state.app.propertyBags;
-						state.app.propertyBags = rest;
-					} else state.app.propertyBags[bagName] = next;
-				});
-			},
-			setUrlHash: (urlHash) => {
-				set((state) => {
-					state.app.urlHash = urlHash;
-				});
-			},
-			setDisplayMode: (mode) => {
-				set((state) => {
-					state.app.displayMode = mode;
-				});
-			},
-			setLogsSampleView: (logsSampleView) => {
-				set((state) => {
-					state.app.logsSampleView = logsSampleView;
-				});
-			}
-		}
-	};
-};
-var initializeAppSlice = (set, capabilities) => {
-	set((state) => {
-		state.capabilities = capabilities;
-		if (!state.app) state.app = initialState$3;
-	});
-};
-//#endregion
-//#region src/state/logSlice.ts
-var initialState$2 = {
-	selectedSampleId: void 0,
-	selectedSampleEpoch: void 0,
-	loadedLog: void 0,
-	filter: "",
-	filterError: void 0,
-	selectedScores: void 0,
-	scores: void 0
-};
-var createLogSlice = (set, get, _store) => {
-	return {
-		log: initialState$2,
-		logActions: {
-			selectSample: (sampleId, epoch, logFile) => {
-				const currentSample = get().log.selectedSampleHandle;
-				if (sampleHandlesEqual(currentSample, {
-					id: sampleId,
-					epoch,
-					logFile
-				})) return;
-				set((state) => {
-					state.log.selectedSampleHandle = {
-						id: sampleId,
-						epoch,
-						logFile
-					};
-				});
-			},
-			clearSelectedScores: () => {
-				set((state) => {
-					state.log.selectedScores = void 0;
-				});
-			},
-			setFilter: (filter) => set((state) => {
-				state.log.filter = filter;
-			}),
-			setFilterError: (error) => set((state) => {
-				state.log.filterError = error;
-			}),
-			clearFilterError: () => {
-				set((state) => {
-					state.log.filterError = void 0;
-				});
-			},
-			setSelectedScores: (scores) => set((state) => {
-				state.log.selectedScores = scores;
-			}),
-			setScores: (scores) => set((state) => {
-				state.log.scores = scores;
-			}),
-			resetFiltering: () => set((state) => {
-				state.log.filter = "";
-				state.log.filterError = void 0;
-				state.log.selectedScores = state.log.scores?.slice(0, 1);
-			}),
-			setLoadedLog: (logFileName) => {
-				set((state) => {
-					state.log.loadedLog = logFileName;
-				});
-			},
-			clearLog: () => {
-				set((state) => {
-					state.log.loadedLog = void 0;
-				});
-			},
-			setFilteredSampleCount: (count) => {
-				set((state) => {
-					state.log.filteredSampleCount = count;
-				});
-			},
-			clearFilteredSampleCount: () => {
-				set((state) => {
-					state.log.filteredSampleCount = void 0;
-				});
-			}
-		}
-	};
-};
-var initalializeLogSlice = (set) => {
-	set((state) => {
-		if (!state.log) state.log = initialState$2;
-	});
-};
-//#endregion
-//#region src/state/logsSlice.ts
-var initialState$1 = {
-	selectedLogFile: void 0,
-	listing: {
-		columnVisibility: {},
-		gridStateByScope: {}
-	},
-	samplesListState: {
-		byScope: { samplesPanel: { columnVisibility: {} } },
-		byLog: {}
+var parseToolSearchCatalog = (output) => {
+	const text = toolOutputText(output);
+	if (text === void 0) return;
+	let data;
+	try {
+		data = JSON.parse(text);
+	} catch {
+		return;
 	}
-};
-var createLogsSlice = (set, get, _store) => {
-	return {
-		logs: initialState$1,
-		logsActions: {
-			patchSamplesGridState: (scope, partial) => {
-				set((state) => {
-					Object.assign(state.logs.samplesListState.byScope[scope], partial);
-				});
-			},
-			setSampleListView: (logFile, view) => {
-				set((state) => {
-					state.logs.samplesListState.byLog[logFile] = view;
-				});
-			},
-			setDisplayedSamples: (samples) => {
-				const currentDisplaySamples = get().logs.samplesListState.displayedSamples;
-				set((state) => {
-					if (!displaySamplesEqual(currentDisplaySamples, samples)) state.logs.samplesListState.displayedSamples = samples;
-				});
-			},
-			clearDisplayedSamples: () => {
-				set((state) => {
-					state.logs.samplesListState.displayedSamples = void 0;
-				});
-			},
-			setSamplesColumnVisibility: (scope, visibility) => {
-				set((state) => {
-					state.logs.samplesListState.byScope[scope].columnVisibility = visibility;
-				});
-			},
-			setPreviousSamplesPath: (path) => {
-				set((state) => {
-					state.logs.samplesListState.previousSamplesPath = path;
-				});
-			},
-			setSelectedLogFile: (logFile) => {
-				set((state) => {
-					state.logs.selectedLogFile = logFile;
-				});
-			},
-			setSelectedRowIndex: (index) => {
-				set((state) => {
-					state.logs.listing.selectedRowIndex = index;
-				});
-			},
-			patchLogsGridState: (scope, partial) => {
-				set((state) => {
-					const entry = state.logs.listing.gridStateByScope[scope];
-					if (entry) Object.assign(entry, partial);
-					else state.logs.listing.gridStateByScope[scope] = {
-						sorting: [],
-						...partial
-					};
-				});
-			},
-			clearLogsGridState: (scope) => {
-				set((state) => {
-					if (scope === void 0) state.logs.listing.gridStateByScope = {};
-					else delete state.logs.listing.gridStateByScope[scope];
-				});
-			},
-			setLogsColumnVisibility: (visibility) => {
-				set((state) => {
-					state.logs.listing.columnVisibility = visibility;
-				});
-			},
-			clearSelectedLogFile: () => {
-				set((state) => {
-					state.logs.selectedLogFile = void 0;
-				});
-			}
-		}
-	};
-};
-var initializeLogsSlice = (set) => {
-	set((state) => {
-		if (!state.logs) state.logs = initialState$1;
-	});
-};
-var displaySamplesEqual = (a, b) => {
-	if (!a && !b) return true;
-	if (!a || !b) return false;
-	if (a.length !== b.length) return false;
-	for (let i = 0; i < a.length; i++) {
-		const sampleA = a[i];
-		const sampleB = b[i];
-		if (sampleA === void 0 || sampleB === void 0) return false;
-		if (sampleA.logFile !== sampleB.logFile || sampleA.sampleId !== sampleB.sampleId || sampleA.epoch !== sampleB.epoch) return false;
-	}
-	return true;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/utils.ts
-var STEP = "step";
-var SPAN_BEGIN = "span_begin";
-var SPAN_END = "span_end";
-var TYPE_TOOL = "tool";
-var TYPE_SUBTASK = "subtask";
-var TYPE_SCORERS = "scorers";
-var hasSpans = (events) => {
-	return events.some((event) => event.event === SPAN_BEGIN);
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/types.ts
-var kTranscriptCollapseScope = "transcript-collapse";
-var kTranscriptOutlineCollapseScope = "transcript-outline";
-/** Event types whose *children* can be collapsed (tree collapse). */
-var kCollapsibleEventTypes = [
-	STEP,
-	SPAN_BEGIN,
-	TYPE_TOOL,
-	TYPE_SUBTASK
-];
-/** Event types whose *content* can be collapsed (panel-level collapse). */
-var kContentCollapsibleEventTypes = [
-	"model",
-	"state",
-	"store"
-];
-var kDefaultExcludeEvents = [
-	"sample_init",
-	"sandbox",
-	"state",
-	"store",
-	"branch",
-	"anchor",
-	"checkpoint"
-];
-var EventNode = class {
-	id;
-	event;
-	children = [];
-	depth;
-	/** Timeline span info, attached by app-level processing. */
-	sourceSpan;
-	constructor(id, event, depth) {
-		this.id = id;
-		this.event = event;
-		this.depth = depth;
-	}
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/fixups.ts
-var kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
-/**
-* Normalizes event content
-*/
-var fixupEventStream = (events, filterPending = true) => {
-	return groupSandboxEvents(collapseSampleInit(processPendingEvents(events, filterPending)));
-};
-var processPendingEvents = (events, filter) => {
-	return filter ? events.filter((e) => !e.pending) : events.reduce((acc, event) => {
-		if (!event.pending) {
-			acc.push(event);
-			return acc;
-		}
-		const lastIndex = acc.length - 1;
-		if (lastIndex >= 0 && event.uuid != null && acc[lastIndex]?.pending && acc[lastIndex]?.uuid === event.uuid) acc[lastIndex] = event;
-		else acc.push(event);
-		return acc;
-	}, []);
-};
-var collapseSampleInit = (events) => {
-	if (events.some((e) => {
-		return e.event === "span_begin" || e.event === "span_end";
-	})) return events;
-	if (events.findIndex((e) => {
-		return e.event === "step" && e.name === "init";
-	}) !== -1) return events;
-	const initEventIndex = events.findIndex((e) => {
-		return e.event === "sample_init";
-	});
-	const initEvent = events[initEventIndex];
-	if (!initEvent) return events;
-	const fixedUp = [...events];
-	fixedUp.splice(initEventIndex, 0, {
-		timestamp: initEvent.timestamp,
-		event: "step",
-		action: "begin",
-		type: null,
-		name: "sample_init",
-		pending: false,
-		working_start: 0,
-		span_id: initEvent.span_id,
-		uuid: null,
-		metadata: null
-	});
-	fixedUp.splice(initEventIndex + 2, 0, {
-		timestamp: initEvent.timestamp,
-		event: "step",
-		action: "end",
-		type: null,
-		name: "sample_init",
-		pending: false,
-		working_start: 0,
-		span_id: initEvent.span_id,
-		uuid: null,
-		metadata: null
-	});
-	return fixedUp;
-};
-var groupSandboxEvents = (events) => {
-	const result = [];
-	const pendingSandboxEvents = [];
-	const useSpans = hasSpans(events);
-	const pushPendingSandboxEvents = () => {
-		const timestamp = pendingSandboxEvents[pendingSandboxEvents.length - 1]?.timestamp || "";
-		if (useSpans) result.push(createSpanBegin(kSandboxSignalName, timestamp, null));
-		else result.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
-		result.push(...pendingSandboxEvents);
-		if (useSpans) result.push(createSpanEnd(kSandboxSignalName, timestamp));
-		else result.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
-		pendingSandboxEvents.length = 0;
-	};
-	for (const event of events) {
-		if (event.event === "sandbox") {
-			pendingSandboxEvents.push(event);
+	if (!Array.isArray(data)) return;
+	const namespaces = [];
+	const looseTools = [];
+	for (const entry of data) {
+		if (!entry || typeof entry !== "object") continue;
+		const record = entry;
+		const rawTools = Array.isArray(record.tools) ? record.tools : void 0;
+		if (record.type === "function" || rawTools === void 0 && "parameters" in record) {
+			const tool = parseToolEntry(record);
+			if (tool) looseTools.push(tool);
 			continue;
 		}
-		if (pendingSandboxEvents.length > 0) pushPendingSandboxEvents();
-		result.push(event);
+		const name = typeof record.name === "string" ? record.name : void 0;
+		const description = typeof record.description === "string" ? record.description : "";
+		const toolList = rawTools ?? [];
+		if (name === void 0 && toolList.length === 0) continue;
+		const tools = [];
+		for (const tool of toolList) {
+			if (!tool || typeof tool !== "object") continue;
+			const parsed = parseToolEntry(tool);
+			if (parsed) tools.push(parsed);
+		}
+		namespaces.push({
+			name,
+			description,
+			tools
+		});
 	}
-	if (pendingSandboxEvents.length > 0) pushPendingSandboxEvents();
-	return result;
+	if (looseTools.length > 0) namespaces.push({
+		name: void 0,
+		description: "",
+		tools: looseTools
+	});
+	return namespaces.length > 0 ? namespaces : void 0;
 };
-var createStepEvent = (name, timestamp, action) => ({
-	timestamp,
-	event: "step",
-	action,
-	type: null,
-	name,
-	pending: false,
-	working_start: 0,
-	span_id: null,
-	uuid: null,
-	metadata: null
-});
-var createSpanBegin = (name, timestamp, parent_id) => {
+var parseToolEntry = (tool) => {
+	const name = typeof tool.name === "string" ? tool.name : void 0;
+	if (name === void 0) return;
 	return {
-		name,
-		id: `${name}-begin`,
-		span_id: name,
-		parent_id,
-		timestamp,
-		event: "span_begin",
-		type: null,
-		pending: false,
-		working_start: 0,
-		uuid: null,
-		metadata: null
+		signature: `${name}(${toolParamNames(tool).join(", ")})`,
+		description: typeof tool.description === "string" ? dedentDescription(tool.description) : ""
 	};
 };
-var createSpanEnd = (name, timestamp) => {
+var toolParamNames = (tool) => {
+	const parameters = tool.parameters;
+	if (parameters && typeof parameters === "object") {
+		const properties = parameters.properties;
+		if (properties && typeof properties === "object") return Object.keys(properties);
+	}
+	return [];
+};
+var dedentDescription = (description) => description.split("\n").map((line) => line.trim()).join("\n").trim();
+var extractCodexAgentAnswers = (output) => {
+	if (typeof output !== "string") return;
+	let data;
+	try {
+		data = JSON.parse(output);
+	} catch {
+		return;
+	}
+	const answers = [];
+	const visit = (node) => {
+		if (Array.isArray(node)) node.forEach(visit);
+		else if (node && typeof node === "object") for (const [key, value] of Object.entries(node)) if ((key === "completed" || key === "failed" || key === "cancelled") && typeof value === "string") answers.push(cleanCodexAnswer(value));
+		else visit(value);
+	};
+	visit(data);
+	const nonEmpty = answers.filter((answer) => answer.length > 0);
+	return nonEmpty.length > 0 ? nonEmpty.join("\n\n---\n\n") : void 0;
+};
+var cleanCodexAnswer = (text) => {
+	const match = /<content-internal>([A-Za-z0-9+/]+={0,2})<\/content-internal>\s*$/.exec(text);
+	const payload = match?.[1];
+	if (!match || payload === void 0) return text;
+	const visibleAnswer = text.slice(0, match.index);
+	if (visibleAnswer.includes("<content-internal>") || visibleAnswer.includes("</content-internal>")) return text;
+	try {
+		const decoded = Uint8Array.from(atob(payload), (char) => char.charCodeAt(0));
+		JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded));
+	} catch {
+		return text;
+	}
+	return visibleAnswer.trimEnd();
+};
+/**
+* Substitutes `{{param_name}}` placeholders in tool call content
+* with actual values from the tool call arguments.
+*/
+var substituteToolCallContent = (content, args) => {
+	const replace = (text) => text.replace(/\{\{(\w+)\}\}/g, (match, key) => Object.hasOwn(args, key) ? String(args[key]) : match);
 	return {
-		id: `${name}-end`,
-		timestamp,
-		event: "span_end",
-		pending: false,
-		working_start: 0,
-		span_id: name,
-		uuid: null,
-		metadata: null
+		...content,
+		title: content.title ? replace(content.title) : content.title,
+		content: replace(content.content)
 	};
 };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/transform/flatten.ts
-/**
-* Find the IDs of all ancestors of `eventId` in the EventNode tree.
-* Returns an empty array if `eventId` is not found.
-* Order: outermost ancestor first.
-*/
-function findAncestorIds(nodes, eventId) {
-	const path = [];
-	return walk(nodes, eventId, path) ? path : [];
-	function walk(nodes, target, path) {
-		for (const n of nodes) {
-			if (n.id === target) return true;
-			if (n.children.length > 0) {
-				path.push(n.id);
-				if (walk(n.children, target, path)) return true;
-				path.pop();
-			}
-		}
-		return false;
-	}
-}
-/**
-* Collapsed ancestor ids on the path to `targetId`, outermost first.
-*
-* The target's own collapsed state is irrelevant — a collapsed node still
-* has a row of its own; only collapsed ancestors remove it from the
-* flattened list. Empty when the target is missing or fully visible.
-*/
-function findCollapsedAncestors(eventNodes, targetId, collapsed) {
-	return findAncestorIds(eventNodes, targetId).filter((id) => collapsed?.[id] === true);
-}
-/**
-* Flatten the tree structure into a flat array of EventNode objects
-* Each node in the result will have its children set properly
-* @param eventNodes - The event nodes to flatten
-* @param collapsed - Record indicating which nodes are collapsed
-* @param visitors - Array of visitors to apply to each node
-* @param parentNode - The parent node of the current nodes being processed
-* @returns An array of EventNode objects
-*/
-var flatTree = (eventNodes, collapsed, visitors, parentNode) => {
-	const result = [];
-	for (const node of eventNodes) if (visitors && visitors.length > 0) {
-		let pendingNodes = [{ ...node }];
-		for (const visitor of visitors) {
-			const allResults = [];
-			for (const pendingNode of pendingNodes) {
-				const visitorResult = visitor.visit(pendingNode);
-				if (parentNode) parentNode.children = visitorResult;
-				allResults.push(...visitorResult);
-			}
-			pendingNodes = allResults;
-		}
-		for (const pendingNode of pendingNodes) {
-			const children = flatTree(pendingNode.children, collapsed, visitors, pendingNode);
-			pendingNode.children = children;
-			result.push(pendingNode);
-			if (collapsed === null || collapsed[pendingNode.id] !== true) for (const child of children) result.push(child);
-		}
-		for (const visitor of visitors) if (visitor.flush) {
-			const finalNodes = visitor.flush();
-			result.push(...finalNodes);
-		}
-	} else {
-		result.push(node);
-		const children = flatTree(node.children, collapsed, visitors, node);
-		if (collapsed === null || collapsed[node.id] !== true) for (const child of children) result.push(child);
-	}
-	return result;
-};
-var FocusTurnView_module_default = {
-	root: "_root_ugt1x_1",
-	focusBar: "_focusBar_ugt1x_14",
-	crumbs: "_crumbs_ugt1x_25",
-	laneName: "_laneName_ugt1x_33",
-	crumbButton: "_crumbButton_ugt1x_39",
-	crumbSeparator: "_crumbSeparator_ugt1x_62",
-	laneMenu: "_laneMenu_ugt1x_67",
-	laneMenuItem: "_laneMenuItem_ugt1x_73",
-	laneMenuItemCurrent: "_laneMenuItemCurrent_ugt1x_90",
-	controls: "_controls_ugt1x_94",
-	turnLabel: "_turnLabel_ugt1x_101",
-	divider: "_divider_ugt1x_106",
-	button: "_button_ugt1x_115",
-	container: "_container_ugt1x_146",
-	errorStrip: "_errorStrip_ugt1x_168",
-	errorStripLabel: "_errorStripLabel_ugt1x_183",
-	errorStripMessage: "_errorStripMessage_ugt1x_191"
-};
-var GoToTurnBar_module_default = {
-	dock: "_dock_1hs1n_5",
-	bar: "_bar_1hs1n_17",
-	title: "_title_1hs1n_30",
-	input: "_input_1hs1n_39",
-	range: "_range_1hs1n_57",
-	divider: "_divider_1hs1n_63",
-	hint: "_hint_1hs1n_69",
-	hintKey: "_hintKey_1hs1n_75",
-	close: "_close_1hs1n_79"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/GoToTurnBar.tsx
-/**
-* Floating find-style "Go to turn" bar, top-center of the events column.
-* Opened by Ctrl/Cmd+G or imperatively (turn-label click, prefilled). Enter
-* clamps to the valid range and jumps via the caller's deep-link path;
-* Esc / click outside / the close button dismiss without navigating.
-*/
-var GoToTurnBar = (0, import_react.forwardRef)(function GoToTurnBar({ totalTurns, onJump, offsetTop = 0, disabled }, ref) {
-	const [open, setOpen] = (0, import_react.useState)(false);
-	const [value, setValue] = (0, import_react.useState)("");
-	const [focusEpoch, setFocusEpoch] = (0, import_react.useState)(0);
-	const openRef = (0, import_react.useRef)(false);
-	const dockRef = (0, import_react.useRef)(null);
-	const containerRef = (0, import_react.useRef)(null);
-	const inputRef = (0, import_react.useRef)(null);
-	const restoreFocusRef = (0, import_react.useRef)(null);
-	const rangeId = (0, import_react.useId)();
-	const openBar = (0, import_react.useCallback)((prefillTurn) => {
-		if (!openRef.current) {
-			restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-			setValue(prefillTurn !== void 0 ? String(prefillTurn) : "");
-		} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
-		openRef.current = true;
-		setOpen(true);
-		setFocusEpoch((epoch) => epoch + 1);
-	}, []);
-	const close = (0, import_react.useCallback)((restoreFocus) => {
-		openRef.current = false;
-		setOpen(false);
-		if (restoreFocus) restoreFocusRef.current?.focus();
-	}, []);
-	(0, import_react.useImperativeHandle)(ref, () => ({ open: openBar }), [openBar]);
-	(0, import_react.useEffect)(() => {
-		if (!open) return;
-		inputRef.current?.focus();
-		inputRef.current?.select();
-	}, [open, focusEpoch]);
-	(0, import_react.useEffect)(() => {
-		if (disabled) return;
-		const onKeyDown = (e) => {
-			if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "g") return;
-			const dock = dockRef.current;
-			if (!dock?.isConnected || dock.checkVisibility?.() === false) return;
-			if (document.activeElement !== inputRef.current && isEditableTarget(document.activeElement)) return;
-			e.preventDefault();
-			e.stopImmediatePropagation();
-			openBar();
-		};
-		window.addEventListener("keydown", onKeyDown, { capture: true });
-		return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
-	}, [openBar, disabled]);
-	(0, import_react.useEffect)(() => {
-		if (!open) return;
-		const onPointerDown = (e) => {
-			if (e.target instanceof Node && !containerRef.current?.contains(e.target)) close(false);
-		};
-		document.addEventListener("pointerdown", onPointerDown);
-		return () => document.removeEventListener("pointerdown", onPointerDown);
-	}, [open, close]);
-	const parsed = value === "" ? void 0 : parseInt(value, 10);
-	const clamped = parsed === void 0 ? void 0 : Math.max(1, Math.min(totalTurns, parsed));
-	const outOfRange = clamped !== void 0 && clamped !== parsed;
-	const placeholder = `1–${totalTurns}`;
-	const inputChars = Math.max(placeholder.length, value.length, 2);
-	const commit = () => {
-		if (clamped === void 0) return;
-		close(true);
-		onJump(clamped);
+var extractInput = (args, inputDescriptor) => {
+	const formatArg = (key, value) => {
+		return `${key}: ${value === null ? "None" : typeof value === "string" ? `"${value}"` : typeof value === "object" || Array.isArray(value) ? JSON.stringify(value, void 0, 2) : String(value)}`;
 	};
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		ref: dockRef,
-		className: GoToTurnBar_module_default.dock,
-		style: { top: offsetTop },
-		children: open && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			ref: containerRef,
-			className: GoToTurnBar_module_default.bar,
-			role: "dialog",
-			"aria-label": "Go to turn",
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: GoToTurnBar_module_default.title,
-					children: "Go to turn"
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
-					ref: inputRef,
-					type: "text",
-					inputMode: "numeric",
-					className: GoToTurnBar_module_default.input,
-					style: { width: `calc(${inputChars}ch + 16px)` },
-					"aria-label": "Turn number",
-					"aria-describedby": rangeId,
-					placeholder,
-					value,
-					onChange: (e) => setValue(e.target.value.replace(/[^0-9]/g, "")),
-					onKeyDown: (e) => {
-						if (e.key === "Enter") {
-							e.preventDefault();
-							commit();
-						} else if (e.key === "Escape") {
-							e.preventDefault();
-							e.stopPropagation();
-							close(true);
-						}
-					}
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					id: rangeId,
-					className: GoToTurnBar_module_default.range,
-					children: outOfRange ? `→ ${clamped} (${clamped === 1 ? "first" : "last"} turn)` : `/ ${totalTurns}`
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: GoToTurnBar_module_default.divider }),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-					className: GoToTurnBar_module_default.hint,
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: GoToTurnBar_module_default.hintKey,
-							children: "↵"
-						}),
-						" jump · ",
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: GoToTurnBar_module_default.hintKey,
-							children: "esc"
-						}),
-						" close"
-					]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					className: GoToTurnBar_module_default.close,
-					"aria-label": "Close",
-					title: "Close",
-					onClick: () => close(true),
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-x" })
-				})
-			]
-		})
-	});
-});
-var TimelineSelector_module_default = {
-	selectorContainer: "_selectorContainer_djjmp_1",
-	selectorButton: "_selectorButton_djjmp_8",
-	chevron: "_chevron_djjmp_28",
-	backdrop: "_backdrop_djjmp_33",
-	dropdownMenu: "_dropdownMenu_djjmp_42",
-	dropdownItem: "_dropdownItem_djjmp_57",
-	dropdownItemActive: "_dropdownItemActive_djjmp_74"
-};
-var EventRow_module_default = {
-	title: "_title_xefxk_1",
-	contents: "_contents_xefxk_7",
-	below: "_below_xefxk_14"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventRow.tsx
-var kDefaultIcon$1 = "bi bi-table";
-/**
-* Renders the EventRow component.
-*/
-var EventRow = ({ title, icon, iconClassName, className, children, below }) => {
-	const contentEl = title ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx("text-size-small", EventRow_module_default.title, className),
-		children: [
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon || kDefaultIcon$1, iconClassName) }),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx("text-style-label"),
-				children: title
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children })
-		]
-	}), below ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx("text-size-small", EventRow_module_default.below),
-		children: below
-	}) : null] }) : "";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: clsx("card", EventRow_module_default.contents),
-		children: contentEl
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/icons.ts
-/**
-* Bootstrap icon class names used by transcript event components.
-* Both apps (scout and inspect) use the same Bootstrap icons,
-* so these are safe to hardcode as string constants.
-*/
-var TranscriptIcons = {
-	agent: "bi bi-grid",
-	approve: "bi bi-shield",
-	cancel: "bi bi-x-circle",
-	checkpoint: "bi bi-bookmark-check-fill",
-	approvals: {
-		approve: "bi bi-shield-check",
-		reject: "bi bi-shield-x",
-		terminate: "bi bi-shield-exclamation",
-		escalate: "bi bi-box-arrow-up",
-		modify: "bi bi-pencil-square"
-	},
-	arrows: { right: "bi bi-arrow-right" },
-	expand: "bi bi-chevron-up",
-	compaction: "bi bi-arrows-collapse-vertical",
-	edit: "bi bi-pencil-square",
-	error: "bi bi-exclamation-circle-fill",
-	fork: "bi bi-sign-intersection-y-fill",
-	info: "bi bi-info-circle",
-	input: "bi bi-terminal",
-	interrupt: "bi bi-slash-circle",
-	limits: {
-		messages: "bi bi-chat-right-text",
-		custom: "bi bi-exclamation-triangle",
-		operator: "bi bi-person-workspace",
-		tokens: "bi bi-list",
-		turns: "bi bi-arrow-repeat",
-		time: "bi bi-clock",
-		execution: "bi bi-stopwatch",
-		cost: "bi bi-currency-dollar"
-	},
-	logging: {
-		notset: "bi bi-card-text",
-		debug: "bi bi-bug",
-		http: "bi bi-download",
-		info: "bi bi-info-square",
-		warning: "bi bi-exclamation-triangle",
-		error: "bi bi-x-circle",
-		critical: "bi bi-fire"
-	},
-	model: "bi bi-grid-3x3-gap",
-	sample: "bi bi-database",
-	sandbox: "bi bi-box-seam",
-	scorer: "bi bi-calculator",
-	solvers: { use_tools: "bi bi-tools" }
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/AnchorEventView.tsx
-var AnchorEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(EventRow, {
-		title: "Anchor",
-		icon: TranscriptIcons.fork,
-		className,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
-			className: "text-style-secondary",
-			children: event.anchor_id
-		}), event.source ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-			className: "text-style-secondary",
-			children: [" · ", event.source]
-		}) : null]
-	});
-};
-var ApprovalEventView_module_default = {
-	headline: "_headline_1l22a_1",
-	inlineExplanation: "_inlineExplanation_1l22a_6",
-	rejected: "_rejected_1l22a_10"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
-/**
-* Renders the ApprovalEventView component.
-*/
-var ApprovalEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	const decision = event.decision;
-	const explanation = event.explanation?.trim() ?? "";
-	const approver = event.approver;
-	const alarming = decision === "reject" || decision === "terminate";
-	const explanationIsBlock = explanation.includes("\n");
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventRow, {
-		title: alarming ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			className: ApprovalEventView_module_default.rejected,
-			children: decisionLabel(decision)
-		}) : decisionLabel(decision),
-		icon: decisionIcon(decision),
-		iconClassName: alarming ? ApprovalEventView_module_default.rejected : void 0,
-		className,
-		below: explanation && explanationIsBlock ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-			className: ApprovalEventView_module_default.headline,
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-				className: clsx("text-style-secondary"),
-				children: [
-					"(",
-					approver,
-					")"
-				]
-			}), explanation && !explanationIsBlock ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: ApprovalEventView_module_default.inlineExplanation,
-				children: explanation
-			}) : null]
-		})
-	});
-};
-var decisionLabel = (decision) => {
-	switch (decision) {
-		case "approve": return "Approved";
-		case "reject": return "Rejected";
-		case "terminate": return "Terminated";
-		case "escalate": return "Escalated";
-		case "modify": return "Modified";
-		default: return decision;
-	}
-};
-var decisionIcon = (decision) => {
-	switch (decision) {
-		case "approve": return TranscriptIcons.approvals.approve;
-		case "reject": return TranscriptIcons.approvals.reject;
-		case "terminate": return TranscriptIcons.approvals.terminate;
-		case "escalate": return TranscriptIcons.approvals.escalate;
-		case "modify": return TranscriptIcons.approvals.modify;
-		default: return TranscriptIcons.approve;
-	}
-};
-//#endregion
-//#region ../../packages/inspect-components/src/content/ContentRenderersContext.tsx
-var ContentRenderersContext = (0, import_react.createContext)(null);
-var useContentRenderers = () => {
-	return (0, import_react.useContext)(ContentRenderersContext);
+	if (!args) return { args: [] };
+	if (inputDescriptor) {
+		const filterKeys = /* @__PURE__ */ new Set();
+		const base = {};
+		if (inputDescriptor.inputArg) {
+			const inputArgs = Array.isArray(inputDescriptor.inputArg) ? inputDescriptor.inputArg : [inputDescriptor.inputArg];
+			const matchedKey = inputArgs.find((key) => args[key] !== void 0);
+			if (matchedKey) {
+				filterKeys.add(matchedKey);
+				base.input = inputDescriptor.inputToStr ? inputDescriptor.inputToStr(args[matchedKey]) || args[matchedKey] : args[matchedKey];
+			}
+			for (const key of inputArgs) filterKeys.add(key);
+		}
+		if (inputDescriptor.descriptionArg && args[inputDescriptor.descriptionArg]) {
+			filterKeys.add(inputDescriptor.descriptionArg);
+			base.description = String(args[inputDescriptor.descriptionArg]);
+		}
+		const filteredArgs = Object.keys(args).filter((key) => {
+			return !filterKeys.has(key);
+		}).map((key) => {
+			return formatArg(key, args[key]);
+		});
+		return {
+			...base,
+			args: filteredArgs
+		};
+	} else return { args: Object.keys(args).map((key) => {
+		return formatArg(key, args[key]);
+	}) };
 };
 //#endregion
 //#region ../../packages/inspect-components/src/content/DisplayModeContext.tsx
@@ -66658,67 +66319,79 @@ var DisplayModeContext = (0, import_react.createContext)(null);
 var useDisplayMode = () => {
 	return (0, import_react.useContext)(DisplayModeContext)?.displayMode ?? "rendered";
 };
-var IconsContext = (0, import_react.createContext)({
-	model: "bi bi-grid-3x3-gap",
-	search: "bi bi-search",
-	tree: {
-		open: "bi bi-caret-down-fill",
-		closed: "bi bi-caret-right-fill"
-	},
-	checkbox: {
-		checked: "bi bi-check-circle",
-		unchecked: "bi bi-circle"
-	},
-	role: { tool: "bi bi-tools" },
-	iconForMimeType: (mimeType) => {
-		if (mimeType === "application/pdf") return "bi bi-file-pdf";
-		if (mimeType.startsWith("image/")) return "bi bi-file-image";
-		return "bi bi-file-earmark";
-	}
-});
-var useContentIcons = () => {
-	return (0, import_react.useContext)(IconsContext);
+var cappedText_module_default = { notice: "_notice_mpxkz_1" };
+//#endregion
+//#region ../../packages/inspect-components/src/content/cappedText.tsx
+var MAX_INLINE_CHARS = 25e4;
+/**
+* Caps very large text so a single huge DOM node never enters the layout/paint
+* path. Returns a (possibly truncated) string and a static notice describing
+* how much was hidden. Intentionally offers no expand affordance — revealing
+* the full content would reintroduce the performance cliff.
+*/
+var cappedText = (full) => {
+	if (full.length <= MAX_INLINE_CHARS) return {
+		text: full,
+		truncated: false,
+		notice: null
+	};
+	const text = full.slice(0, MAX_INLINE_CHARS);
+	const hidden = full.length - text.length;
+	return {
+		text,
+		truncated: true,
+		notice: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: cappedText_module_default.notice,
+			children: `Output truncated — ${formatSize(hidden)} hidden`
+		})
+	};
+};
+var formatSize = (n) => {
+	if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
+	if (n >= 1e3) return `${Math.round(n / 1e3)} KB`;
+	return `${n} chars`;
 };
 //#endregion
-//#region ../../packages/inspect-components/src/content/copyText.ts
-/**
-* Plain-text form of a metadata value for clipboard copy.
-*
-* Strings copy verbatim; other scalars use their string form; objects
-* and arrays copy as pretty-printed JSON.
-*/
-var copyValueText = (value) => {
-	if (typeof value === "string") return value;
-	if (value === null || value === void 0) return String(value);
-	if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" || typeof value === "function") return value.toString();
-	if (typeof value === "symbol") return value.toString();
-	try {
-		return JSON.stringify(value, null, 2) ?? "";
-	} catch {
-		return "";
-	}
-};
-var MetadataGrid_module_default = {
-	grid: "_grid_25rj7_5",
-	rows: "_rows_25rj7_14",
-	row: "_row_25rj7_14",
-	striped: "_striped_25rj7_35",
-	key: "_key_25rj7_43",
-	val: "_val_25rj7_52",
-	empty: "_empty_25rj7_63",
-	numVal: "_numVal_25rj7_69",
-	boolVal: "_boolVal_25rj7_73",
-	rowsCopy: "_rowsCopy_25rj7_79",
-	copyCell: "_copyCell_25rj7_85",
-	group: "_group_25rj7_104",
-	groupHeader: "_groupHeader_25rj7_116",
-	groupKey: "_groupKey_25rj7_124",
-	groupRule: "_groupRule_25rj7_132",
-	depth1: "_depth1_25rj7_140",
-	depth1Group: "_depth1Group_25rj7_153",
-	depth2: "_depth2_25rj7_168",
-	toggleContainer: "_toggleContainer_25rj7_178",
-	toggleButton: "_toggleButton_25rj7_189"
+//#region ../../packages/inspect-components/src/content/RenderedText.tsx
+var RenderedText = (0, import_react.forwardRef)(({ markdown, references, style, className, forceRender, renderer, options }, ref) => {
+	const displayMode = useDisplayMode();
+	const { text, notice } = cappedText(markdown);
+	const body = forceRender || displayMode === "rendered" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
+		ref,
+		markdown: text,
+		references,
+		options,
+		style,
+		className,
+		renderer
+	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Preformatted, {
+		ref,
+		text,
+		style,
+		className
+	});
+	if (notice === null) return body;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [body, notice] });
+});
+RenderedText.displayName = "RenderedText";
+var MediaReference_module_default = { reference: "_reference_7p4hu_1" };
+//#endregion
+//#region ../../packages/inspect-components/src/media/MediaReference.tsx
+var MediaReference = ({ source, className }) => {
+	const href = parseAbsoluteHttpUrl(source);
+	const dataUri = parseDataUri(source);
+	const label = dataUri ? `data:${dataUri.mimeType}${dataUri.base64 ? ";base64" : ""},...` : source;
+	const classes = clsx(MediaReference_module_default.reference, className);
+	return href ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
+		className: classes,
+		href,
+		target: "_blank",
+		rel: "noopener noreferrer",
+		children: href
+	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
+		className: classes,
+		children: label
+	});
 };
 //#endregion
 //#region ../../packages/inspect-components/src/media/mediaSource.ts
@@ -66783,392 +66456,6 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	const normalizedSource = normalizedImageMimeType(sourceMimeType);
 	const normalizedDeclared = normalizedImageMimeType(declaredMimeType);
 	return rasterImageMimeTypes.has(normalizedSource) && normalizedSource === normalizedDeclared;
-};
-var RenderedContent_module_default = {
-	query: "_query_seqs2_1",
-	summary: "_summary_seqs2_6",
-	preWrap: "_preWrap_seqs2_10",
-	preCompact: "_preCompact_seqs2_15"
-};
-var cappedText_module_default = { notice: "_notice_mpxkz_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/content/cappedText.tsx
-var MAX_INLINE_CHARS = 25e4;
-/**
-* Caps very large text so a single huge DOM node never enters the layout/paint
-* path. Returns a (possibly truncated) string and a static notice describing
-* how much was hidden. Intentionally offers no expand affordance — revealing
-* the full content would reintroduce the performance cliff.
-*/
-var cappedText = (full) => {
-	if (full.length <= MAX_INLINE_CHARS) return {
-		text: full,
-		truncated: false,
-		notice: null
-	};
-	const text = full.slice(0, MAX_INLINE_CHARS);
-	const hidden = full.length - text.length;
-	return {
-		text,
-		truncated: true,
-		notice: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: cappedText_module_default.notice,
-			children: `Output truncated — ${formatSize(hidden)} hidden`
-		})
-	};
-};
-var formatSize = (n) => {
-	if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-	if (n >= 1e3) return `${Math.round(n / 1e3)} KB`;
-	return `${n} chars`;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/content/RenderedText.tsx
-var RenderedText = (0, import_react.forwardRef)(({ markdown, references, style, className, forceRender, renderer, options }, ref) => {
-	const displayMode = useDisplayMode();
-	const { text, notice } = cappedText(markdown);
-	const body = forceRender || displayMode === "rendered" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDivWithReferences, {
-		ref,
-		markdown: text,
-		references,
-		options,
-		style,
-		className,
-		renderer
-	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Preformatted, {
-		ref,
-		text,
-		style,
-		className
-	});
-	if (notice === null) return body;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [body, notice] });
-});
-RenderedText.displayName = "RenderedText";
-//#endregion
-//#region ../../packages/inspect-components/src/content/types.ts
-var Buckets = {
-	first: 0,
-	intermediate: 10,
-	final: 1e3
-};
-//#endregion
-//#region ../../packages/inspect-components/src/content/RenderedContent.tsx
-/**
-* Renders content based on its type using registered content renderers.
-*/
-var RenderedContent = ({ id, entry, references, renderOptions = { renderString: "markdown" }, renderObject }) => {
-	const icons = useContentIcons();
-	const externalRenderers = useContentRenderers();
-	if (entry.value === null) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "[null]" }) }) });
-	const renderers = contentRenderers(icons, renderObject, externalRenderers?.renderers);
-	const renderer = Object.keys(renderers).map((key) => {
-		return renderers[key];
-	}).sort((a, b) => {
-		if (!a || !b) return 0;
-		return a.bucket - b.bucket;
-	}).find((renderer) => {
-		return renderer?.canRender(entry);
-	});
-	if (renderer) {
-		const { rendered } = renderer.render(id, entry, renderOptions, references);
-		if (rendered !== void 0 && (0, import_react.isValidElement)(rendered)) return rendered;
-	}
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: (() => {
-		try {
-			if (typeof entry.value === "object") return JSON.stringify(entry.value);
-			return String(entry.value).trim();
-		} catch (e) {
-			return "[Unable to display value]";
-		}
-	})() });
-};
-/**
-* Object containing different content renderers.
-* Each renderer is responsible for rendering a specific type of content.
-*/
-var contentRenderers = (icons, renderObject, externalRenderers) => {
-	const contentRenderers = {
-		AnsiString: {
-			bucket: Buckets.first,
-			canRender: (entry) => {
-				return typeof entry.value === "string" && entry.value.indexOf("\x1B") > -1;
-			},
-			render: (_id, entry, _options) => {
-				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, { output: entry.value }) };
-			}
-		},
-		JsonString: {
-			bucket: Buckets.first,
-			canRender: (entry) => {
-				if (typeof entry.value === "string") return isJson(entry.value.trim());
-				return false;
-			},
-			render: (_id, entry, _options) => {
-				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JSONPanel, { data: import_dist.default.parse(entry.value) }) };
-			}
-		},
-		Model: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "object" && entry.value._model;
-			},
-			render: (_id, entry, _options) => {
-				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.model }),
-					" ",
-					entry.value._model
-				] }) };
-			}
-		},
-		Boolean: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "boolean";
-			},
-			render: (id, entry, options) => {
-				entry.value = entry.value.toString();
-				return contentRenderers.String?.render(id, entry, options) || { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: entry.value }) };
-			}
-		},
-		Number: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "number";
-			},
-			render: (id, entry, options) => {
-				entry.value = formatNumber(entry.value);
-				return contentRenderers.String?.render(id, entry, options) || { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: entry.value }) };
-			}
-		},
-		String: {
-			bucket: Buckets.final,
-			canRender: (entry) => {
-				return typeof entry.value === "string";
-			},
-			render: (_id, entry, options, references) => {
-				const rendered = entry.value.trim();
-				if (options.renderString === "markdown") return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedText, {
-					markdown: rendered,
-					references,
-					options: { previewRefsOnHover: options.previewRefsOnHover }
-				}) };
-				else return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
-					className: clsx(RenderedContent_module_default.preWrap, RenderedContent_module_default.preCompact),
-					children: rendered
-				}) };
-			}
-		},
-		Array: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				if (Array.isArray(entry.value)) {
-					if (entry.value.length === 0 || entry.value.length === 1) return true;
-					return new Set(entry.value.filter((e) => e !== null).map((e) => {
-						return typeof e;
-					})).size === 1;
-				} else return false;
-			},
-			render: (id, entry, _options) => {
-				const arrayMap = {};
-				entry.value.forEach((e, index) => {
-					arrayMap[`[${index}]`] = e;
-				});
-				return { rendered: renderObject ? renderObject(arrayMap) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-					id,
-					className: "font-size-small",
-					entries: arrayMap,
-					options: { plain: true }
-				}) };
-			}
-		},
-		...externalRenderers,
-		web_search: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "object" && entry.name === "web_search";
-			},
-			render: (_id, entry, _options) => {
-				const results = [];
-				results.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-					className: RenderedContent_module_default.query,
-					children: [
-						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.search }),
-						" ",
-						entry.value.query
-					]
-				}));
-				entry.value.results.forEach((result) => {
-					results.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-						href: result.url,
-						children: result.url
-					}) }));
-					results.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						className: clsx("text-size-smaller", RenderedContent_module_default.summary),
-						children: result.summary
-					}));
-				});
-				return { rendered: results };
-			}
-		},
-		web_browser: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "string" && entry.name?.startsWith("web_browser");
-			},
-			render: (_id, entry, _options) => {
-				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
-					className: RenderedContent_module_default.preWrap,
-					children: entry.value
-				}) };
-			}
-		},
-		Html: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "object" && entry.value._html;
-			},
-			render: (_id, entry, _options) => {
-				return { rendered: entry.value._html };
-			}
-		},
-		Image: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "string" && isRenderableImageSource(entry.value);
-			},
-			render: (_id, entry, _options) => {
-				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
-					src: entry.value,
-					alt: "Attachment"
-				}) };
-			}
-		},
-		Object: {
-			bucket: Buckets.intermediate,
-			canRender: (entry) => {
-				return typeof entry.value === "object";
-			},
-			render: (id, entry, _options) => {
-				if (renderObject) return { rendered: renderObject(entry.value) };
-				else return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-					id,
-					className: "font-size-small",
-					entries: entry.value,
-					options: { plain: true }
-				}) };
-			}
-		}
-	};
-	return contentRenderers;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/content/MetaDataGrid.tsx
-var isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-var isNonEmptyObject = (v) => isPlainObject(v) && Object.keys(v).length > 0;
-var hasHtmlEscape = (v) => isPlainObject(v) && "_html" in v && v._html != null;
-/**
-* Renders structured metadata as a grid with section cards.
-*
-* Top-level scalars render as key-value rows; nested objects are
-* promoted to titled sections with a header rule. Recurses for
-* deeply nested objects.
-*/
-var MetaDataGrid = ({ id, entries, className, references, style, maxRows, options, depth = 0 }) => {
-	const baseId = id ?? "metadata-grid";
-	const allEntries = entryRecords(entries);
-	const scalars = allEntries.filter((e) => !isNonEmptyObject(e.value) || hasHtmlEscape(e.value));
-	const groups = allEntries.filter((e) => isNonEmptyObject(e.value) && !hasHtmlEscape(e.value));
-	const [expanded, setExpanded] = (0, import_react.useState)(false);
-	const isCollapsible = maxRows != null && scalars.length > maxRows;
-	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
-	const depthClass = depth === 1 ? MetadataGrid_module_default.depth1 : depth >= 2 ? MetadataGrid_module_default.depth2 : void 0;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		id: depth === 0 ? id : void 0,
-		className: clsx(depth === 0 && className, MetadataGrid_module_default.grid, depthClass, options?.striped && depth === 0 && MetadataGrid_module_default.striped),
-		style: depth === 0 ? style : void 0,
-		children: [
-			visibleScalars.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx(MetadataGrid_module_default.rows, options?.copyButton && MetadataGrid_module_default.rowsCopy),
-				children: visibleScalars.map((entry, index) => {
-					const entryId = `${baseId}-value-${index}`;
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-						className: MetadataGrid_module_default.row,
-						children: [
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: MetadataGrid_module_default.key,
-								children: entry.name
-							}),
-							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: MetadataGrid_module_default.val,
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedContent, {
-									id: entryId,
-									entry,
-									references,
-									renderOptions: {
-										renderString: "markdown",
-										previewRefsOnHover: options?.previewRefsOnHover
-									},
-									renderObject: (obj) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-										id: entryId,
-										entries: obj,
-										options,
-										references,
-										depth: depth + 1
-									})
-								})
-							}),
-							options?.copyButton && !hasHtmlEscape(entry.value) ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-								className: MetadataGrid_module_default.copyCell,
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CopyButton, {
-									value: copyValueText(entry.value),
-									ariaLabel: `Copy ${entry.name}`
-								})
-							}) : void 0
-						]
-					}, entryId);
-				})
-			}),
-			isCollapsible && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: MetadataGrid_module_default.toggleContainer,
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-					type: "button",
-					className: clsx(MetadataGrid_module_default.toggleButton, "text-size-smallest"),
-					onClick: () => setExpanded((prev) => !prev),
-					children: [expanded ? "less" : `${scalars.length - visibleScalars.length} more`, "..."]
-				})
-			}),
-			groups.map((entry, groupIndex) => {
-				const groupId = `${baseId}-group-${groupIndex}`;
-				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
-					className: clsx(MetadataGrid_module_default.group, depth >= 1 && MetadataGrid_module_default.depth1Group),
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
-						className: MetadataGrid_module_default.groupHeader,
-						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-							className: MetadataGrid_module_default.groupKey,
-							children: entry.name
-						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: MetadataGrid_module_default.groupRule })]
-					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-						id: groupId,
-						entries: entry.value,
-						options,
-						references,
-						depth: depth + 1
-					})]
-				}, groupId);
-			})
-		]
-	});
-};
-var entryRecords = (entries) => {
-	if (!entries) return [];
-	if (!Array.isArray(entries)) return Object.entries(entries || {}).map(([key, value]) => {
-		return {
-			name: key,
-			value
-		};
-	});
-	else return entries;
 };
 //#endregion
 //#region ../../node_modules/.pnpm/react-virtuoso@4.18.11_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-virtuoso/dist/index.mjs
@@ -69906,6 +69193,46 @@ var useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
 	};
 };
 //#endregion
+//#region ../../packages/inspect-components/src/content/copyText.ts
+/**
+* Plain-text form of a metadata value for clipboard copy.
+*
+* Strings copy verbatim; other scalars use their string form; objects
+* and arrays copy as pretty-printed JSON.
+*/
+var copyValueText = (value) => {
+	if (typeof value === "string") return value;
+	if (value === null || value === void 0) return String(value);
+	if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint" || typeof value === "function") return value.toString();
+	if (typeof value === "symbol") return value.toString();
+	try {
+		return JSON.stringify(value, null, 2) ?? "";
+	} catch {
+		return "";
+	}
+};
+var IconsContext = (0, import_react.createContext)({
+	model: "bi bi-grid-3x3-gap",
+	search: "bi bi-search",
+	tree: {
+		open: "bi bi-caret-down-fill",
+		closed: "bi bi-caret-right-fill"
+	},
+	checkbox: {
+		checked: "bi bi-check-circle",
+		unchecked: "bi bi-circle"
+	},
+	role: { tool: "bi bi-tools" },
+	iconForMimeType: (mimeType) => {
+		if (mimeType === "application/pdf") return "bi bi-file-pdf";
+		if (mimeType.startsWith("image/")) return "bi bi-file-image";
+		return "bi bi-file-earmark";
+	}
+});
+var useContentIcons = () => {
+	return (0, import_react.useContext)(IconsContext);
+};
+//#endregion
 //#region ../../packages/inspect-components/src/content/record_processors/store.ts
 var kStoreInstanceKey = /^(.+)?:([a-zA-Z0-9]{22}):instance$/;
 var kStoreKey = /^(.+)?:([a-zA-Z0-9]{22}):(.+)$/;
@@ -69977,6 +69304,365 @@ var RecordTree_module_default = {
 	key: "_key_1u1d5_1",
 	pre: "_pre_1u1d5_43",
 	treeIcon: "_treeIcon_1u1d5_47"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/content/ContentRenderersContext.tsx
+var ContentRenderersContext = (0, import_react.createContext)(null);
+var useContentRenderers = () => {
+	return (0, import_react.useContext)(ContentRenderersContext);
+};
+var MetadataGrid_module_default = {
+	grid: "_grid_25rj7_5",
+	rows: "_rows_25rj7_14",
+	row: "_row_25rj7_14",
+	striped: "_striped_25rj7_35",
+	key: "_key_25rj7_43",
+	val: "_val_25rj7_52",
+	empty: "_empty_25rj7_63",
+	numVal: "_numVal_25rj7_69",
+	boolVal: "_boolVal_25rj7_73",
+	rowsCopy: "_rowsCopy_25rj7_79",
+	copyCell: "_copyCell_25rj7_85",
+	group: "_group_25rj7_104",
+	groupHeader: "_groupHeader_25rj7_116",
+	groupKey: "_groupKey_25rj7_124",
+	groupRule: "_groupRule_25rj7_132",
+	depth1: "_depth1_25rj7_140",
+	depth1Group: "_depth1Group_25rj7_153",
+	depth2: "_depth2_25rj7_168",
+	toggleContainer: "_toggleContainer_25rj7_178",
+	toggleButton: "_toggleButton_25rj7_189"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/content/MetaDataGrid.tsx
+var isPlainObject$1 = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+var isNonEmptyObject = (v) => isPlainObject$1(v) && Object.keys(v).length > 0;
+var hasHtmlEscape = (v) => isPlainObject$1(v) && "_html" in v && v._html != null;
+/**
+* Renders structured metadata as a grid with section cards.
+*
+* Top-level scalars render as key-value rows; nested objects are
+* promoted to titled sections with a header rule. Recurses for
+* deeply nested objects.
+*/
+var MetaDataGrid = ({ id, entries, className, references, style, maxRows, options, depth = 0 }) => {
+	const baseId = id ?? "metadata-grid";
+	const allEntries = entryRecords(entries);
+	const scalars = allEntries.filter((e) => !isNonEmptyObject(e.value) || hasHtmlEscape(e.value));
+	const groups = allEntries.filter((e) => isNonEmptyObject(e.value) && !hasHtmlEscape(e.value));
+	const [expanded, setExpanded] = (0, import_react.useState)(false);
+	const isCollapsible = maxRows != null && scalars.length > maxRows;
+	const visibleScalars = isCollapsible && !expanded ? scalars.slice(0, maxRows) : scalars;
+	const depthClass = depth === 1 ? MetadataGrid_module_default.depth1 : depth >= 2 ? MetadataGrid_module_default.depth2 : void 0;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		id: depth === 0 ? id : void 0,
+		className: clsx(depth === 0 && className, MetadataGrid_module_default.grid, depthClass, options?.striped && depth === 0 && MetadataGrid_module_default.striped),
+		style: depth === 0 ? style : void 0,
+		children: [
+			visibleScalars.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx(MetadataGrid_module_default.rows, options?.copyButton && MetadataGrid_module_default.rowsCopy),
+				children: visibleScalars.map((entry, index) => {
+					const entryId = `${baseId}-value-${index}`;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+						className: MetadataGrid_module_default.row,
+						children: [
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: MetadataGrid_module_default.key,
+								children: entry.name
+							}),
+							/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: MetadataGrid_module_default.val,
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedContent, {
+									id: entryId,
+									entry,
+									references,
+									renderOptions: {
+										renderString: "markdown",
+										previewRefsOnHover: options?.previewRefsOnHover
+									},
+									renderObject: (obj) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+										id: entryId,
+										entries: obj,
+										options,
+										references,
+										depth: depth + 1
+									})
+								})
+							}),
+							options?.copyButton && !hasHtmlEscape(entry.value) ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+								className: MetadataGrid_module_default.copyCell,
+								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CopyButton, {
+									value: copyValueText(entry.value),
+									ariaLabel: `Copy ${entry.name}`
+								})
+							}) : void 0
+						]
+					}, entryId);
+				})
+			}),
+			isCollapsible && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: MetadataGrid_module_default.toggleContainer,
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+					type: "button",
+					className: clsx(MetadataGrid_module_default.toggleButton, "text-size-smallest"),
+					onClick: () => setExpanded((prev) => !prev),
+					children: [expanded ? "less" : `${scalars.length - visibleScalars.length} more`, "..."]
+				})
+			}),
+			groups.map((entry, groupIndex) => {
+				const groupId = `${baseId}-group-${groupIndex}`;
+				return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", {
+					className: clsx(MetadataGrid_module_default.group, depth >= 1 && MetadataGrid_module_default.depth1Group),
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", {
+						className: MetadataGrid_module_default.groupHeader,
+						children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: MetadataGrid_module_default.groupKey,
+							children: entry.name
+						}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: MetadataGrid_module_default.groupRule })]
+					}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+						id: groupId,
+						entries: entry.value,
+						options,
+						references,
+						depth: depth + 1
+					})]
+				}, groupId);
+			})
+		]
+	});
+};
+var entryRecords = (entries) => {
+	if (!entries) return [];
+	if (!Array.isArray(entries)) return Object.entries(entries || {}).map(([key, value]) => {
+		return {
+			name: key,
+			value
+		};
+	});
+	else return entries;
+};
+var RenderedContent_module_default = {
+	query: "_query_seqs2_1",
+	summary: "_summary_seqs2_6",
+	preWrap: "_preWrap_seqs2_10",
+	preCompact: "_preCompact_seqs2_15"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/content/types.ts
+var Buckets = {
+	first: 0,
+	intermediate: 10,
+	final: 1e3
+};
+//#endregion
+//#region ../../packages/inspect-components/src/content/RenderedContent.tsx
+/**
+* Renders content based on its type using registered content renderers.
+*/
+var RenderedContent = ({ id, entry, references, renderOptions = { renderString: "markdown" }, renderObject }) => {
+	const icons = useContentIcons();
+	const externalRenderers = useContentRenderers();
+	if (entry.value === null) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: "[null]" }) }) });
+	const renderers = contentRenderers(icons, renderObject, externalRenderers?.renderers);
+	const renderer = Object.keys(renderers).map((key) => {
+		return renderers[key];
+	}).sort((a, b) => {
+		if (!a || !b) return 0;
+		return a.bucket - b.bucket;
+	}).find((renderer) => {
+		return renderer?.canRender(entry);
+	});
+	if (renderer) {
+		const { rendered } = renderer.render(id, entry, renderOptions, references);
+		if (rendered !== void 0 && (0, import_react.isValidElement)(rendered)) return rendered;
+	}
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: (() => {
+		try {
+			if (typeof entry.value === "object") return JSON.stringify(entry.value);
+			return String(entry.value).trim();
+		} catch (e) {
+			return "[Unable to display value]";
+		}
+	})() });
+};
+/**
+* Object containing different content renderers.
+* Each renderer is responsible for rendering a specific type of content.
+*/
+var contentRenderers = (icons, renderObject, externalRenderers) => {
+	const contentRenderers = {
+		AnsiString: {
+			bucket: Buckets.first,
+			canRender: (entry) => {
+				return typeof entry.value === "string" && entry.value.indexOf("\x1B") > -1;
+			},
+			render: (_id, entry, _options) => {
+				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, { output: entry.value }) };
+			}
+		},
+		JsonString: {
+			bucket: Buckets.first,
+			canRender: (entry) => {
+				if (typeof entry.value === "string") return isJson(entry.value.trim());
+				return false;
+			},
+			render: (_id, entry, _options) => {
+				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JSONPanel, { data: import_dist.default.parse(entry.value) }) };
+			}
+		},
+		Model: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "object" && entry.value._model;
+			},
+			render: (_id, entry, _options) => {
+				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_react.Fragment, { children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.model }),
+					" ",
+					entry.value._model
+				] }) };
+			}
+		},
+		Boolean: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "boolean";
+			},
+			render: (id, entry, options) => {
+				entry.value = entry.value.toString();
+				return contentRenderers.String?.render(id, entry, options) || { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: entry.value }) };
+			}
+		},
+		Number: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "number";
+			},
+			render: (id, entry, options) => {
+				entry.value = formatNumber(entry.value);
+				return contentRenderers.String?.render(id, entry, options) || { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: entry.value }) };
+			}
+		},
+		String: {
+			bucket: Buckets.final,
+			canRender: (entry) => {
+				return typeof entry.value === "string";
+			},
+			render: (_id, entry, options, references) => {
+				const rendered = entry.value.trim();
+				if (options.renderString === "markdown") return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedText, {
+					markdown: rendered,
+					references,
+					options: { previewRefsOnHover: options.previewRefsOnHover }
+				}) };
+				else return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
+					className: clsx(RenderedContent_module_default.preWrap, RenderedContent_module_default.preCompact),
+					children: rendered
+				}) };
+			}
+		},
+		Array: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				if (Array.isArray(entry.value)) {
+					if (entry.value.length === 0 || entry.value.length === 1) return true;
+					return new Set(entry.value.filter((e) => e !== null).map((e) => {
+						return typeof e;
+					})).size === 1;
+				} else return false;
+			},
+			render: (id, entry, _options) => {
+				const arrayMap = {};
+				entry.value.forEach((e, index) => {
+					arrayMap[`[${index}]`] = e;
+				});
+				return { rendered: renderObject ? renderObject(arrayMap) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+					id,
+					className: "font-size-small",
+					entries: arrayMap,
+					options: { plain: true }
+				}) };
+			}
+		},
+		...externalRenderers,
+		web_search: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "object" && entry.name === "web_search";
+			},
+			render: (_id, entry, _options) => {
+				const results = [];
+				results.push(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+					className: RenderedContent_module_default.query,
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: icons.search }),
+						" ",
+						entry.value.query
+					]
+				}));
+				entry.value.results.forEach((result) => {
+					results.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
+						href: result.url,
+						children: result.url
+					}) }));
+					results.push(/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						className: clsx("text-size-smaller", RenderedContent_module_default.summary),
+						children: result.summary
+					}));
+				});
+				return { rendered: results };
+			}
+		},
+		web_browser: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "string" && entry.name?.startsWith("web_browser");
+			},
+			render: (_id, entry, _options) => {
+				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("pre", {
+					className: RenderedContent_module_default.preWrap,
+					children: entry.value
+				}) };
+			}
+		},
+		Html: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "object" && entry.value._html;
+			},
+			render: (_id, entry, _options) => {
+				return { rendered: entry.value._html };
+			}
+		},
+		Image: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "string" && isRenderableImageSource(entry.value);
+			},
+			render: (_id, entry, _options) => {
+				return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("img", {
+					src: entry.value,
+					alt: "Attachment"
+				}) };
+			}
+		},
+		Object: {
+			bucket: Buckets.intermediate,
+			canRender: (entry) => {
+				return typeof entry.value === "object";
+			},
+			render: (id, entry, _options) => {
+				if (renderObject) return { rendered: renderObject(entry.value) };
+				else return { rendered: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+					id,
+					className: "font-size-small",
+					entries: entry.value,
+					options: { plain: true }
+				}) };
+			}
+		}
+	};
+	return contentRenderers;
 };
 //#endregion
 //#region ../../packages/inspect-components/src/content/RecordTree.tsx
@@ -70156,8 +69842,8 @@ var processNodeRecursive = (key, value, depth, parentPath, thisPath, isCollapsed
 		});
 		return items;
 	}
-	let displayValue = null;
-	let processChildren = false;
+	let displayValue;
+	let processChildren;
 	let childCount;
 	if (Array.isArray(value)) {
 		processChildren = true;
@@ -70203,1559 +69889,6 @@ var processNodeRecursive = (key, value, depth, parentPath, thisPath, isCollapsed
 var isPrimitiveOrNull = (value) => {
 	return value === null || value === void 0 || typeof value === "string" || typeof value === "number" || typeof value === "boolean";
 };
-var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
-var MessageLabel_module_default = {
-	badge: "_badge_15iyu_1",
-	inline: "_inline_15iyu_2",
-	interactive: "_interactive_15iyu_24"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/chat/MessageLabel.tsx
-/**
-* Badge display form of a label: strips the surrounding cite brackets but
-* keeps the type letter, so "[M4]" → "M4" and "[E58]" → "E58". The full
-* cite stays in the badge tooltip; inline anchors keep the original text —
-* they must read like the prose they sit in.
-*/
-var compactLabel = (label) => label.replace(/^\[/, "").replace(/\]$/, "");
-/**
-* A filled monospace chip used for message position labels (top-right of a
-* message) and as an inline anchor in summary prose.
-*/
-var MessageLabel = ({ label, mode = "badge", onActivate, className }) => {
-	if (mode === "inline") {
-		const onKeyDown = (e) => {
-			if (onActivate && (e.key === "Enter" || e.key === " ")) {
-				e.preventDefault();
-				onActivate();
-			}
-		};
-		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-			className: clsx(MessageLabel_module_default.inline, onActivate && MessageLabel_module_default.interactive, className),
-			onClick: onActivate,
-			onKeyDown: onActivate ? onKeyDown : void 0,
-			tabIndex: onActivate ? 0 : void 0,
-			children: label
-		});
-	}
-	const compact = compactLabel(label);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-		className: clsx(MessageLabel_module_default.badge, onActivate && MessageLabel_module_default.interactive, className),
-		onClick: onActivate,
-		title: compact === label ? void 0 : label,
-		children: compact
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/EventLabelContext.ts
-var EventLabelContext = (0, import_react.createContext)(void 0);
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/hooks/useStickyStuck.ts
-var kStuckAttribute = "data-sticky-stuck";
-var registries = /* @__PURE__ */ new Map();
-function updateElementStuckState(containerTop, el, stickyTop) {
-	const relativeTop = el.getBoundingClientRect().top - containerTop;
-	const isStuck = relativeTop <= stickyTop + 1 && relativeTop >= stickyTop - 1;
-	el.toggleAttribute(kStuckAttribute, isStuck);
-}
-function updateStuckState(container, entries) {
-	const containerTop = container.getBoundingClientRect().top;
-	entries.forEach((stickyTop, el) => updateElementStuckState(containerTop, el, stickyTop));
-}
-function getRegistry(container) {
-	let registry = registries.get(container);
-	if (!registry) {
-		const entries = /* @__PURE__ */ new Map();
-		let rafId = null;
-		const scheduleUpdate = () => {
-			if (rafId === null) rafId = requestAnimationFrame(() => {
-				rafId = null;
-				updateStuckState(container, entries);
-			});
-		};
-		container.addEventListener("scroll", scheduleUpdate, { passive: true });
-		window.addEventListener("resize", scheduleUpdate, { passive: true });
-		registry = {
-			entries,
-			scheduleUpdate,
-			cleanup: () => {
-				container.removeEventListener("scroll", scheduleUpdate);
-				window.removeEventListener("resize", scheduleUpdate);
-				if (rafId !== null) cancelAnimationFrame(rafId);
-			}
-		};
-		registries.set(container, registry);
-	}
-	return registry;
-}
-/**
-* Toggles `data-sticky-stuck` on `ref`'s element while it is pinned at
-* `stickyTop` px inside `scrollRef`'s scroll container. Style the stuck state
-* with `[data-sticky-stuck]` attribute selectors. No-op without a container.
-*/
-function useStickyStuck(ref, stickyTop, scrollRef) {
-	(0, import_react.useEffect)(() => {
-		const el = ref.current;
-		const container = scrollRef?.current;
-		if (!el || !container) return;
-		const registry = getRegistry(container);
-		registry.entries.set(el, stickyTop);
-		updateElementStuckState(container.getBoundingClientRect().top, el, stickyTop);
-		registry.scheduleUpdate();
-		return () => {
-			registry.entries.delete(el);
-			el.removeAttribute(kStuckAttribute);
-			if (registry.entries.size === 0) {
-				registry.cleanup();
-				registries.delete(container);
-			}
-		};
-	}, [
-		ref,
-		stickyTop,
-		scrollRef
-	]);
-}
-var EventNav_module_default = { tab: "_tab_1je38_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventNav.tsx
-/**
-* Component to render a single navigation item.
-*/
-var EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
-	const active = target === selectedNav;
-	const handleClick = (0, import_react.useCallback)(() => {
-		setSelectedNav(target);
-	}, [setSelectedNav, target]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
-		className: "nav-item",
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-			type: "button",
-			role: "tab",
-			"aria-controls": target,
-			"aria-selected": active,
-			className: clsx("nav-link", active ? "active " : "", "text-style-label", "text-size-small", EventNav_module_default.tab),
-			onClick: handleClick,
-			children: title
-		})
-	});
-};
-var EventNavs_module_default = {
-	wrapper: "_wrapper_og902_1",
-	navs: "_navs_og902_10",
-	probe: "_probe_og902_17",
-	probeItem: "_probeItem_og902_27"
-};
-var EventNavsPicker_module_default = {
-	trigger: "_trigger_nqyxq_1",
-	label: "_label_nqyxq_21",
-	chevron: "_chevron_nqyxq_27",
-	backdrop: "_backdrop_nqyxq_33",
-	menu: "_menu_nqyxq_43",
-	item: "_item_nqyxq_55",
-	selected: "_selected_nqyxq_76"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventNavsPicker.tsx
-/**
-* Compact replacement for {@link EventNavs} when the tab row is too narrow
-* to display all pills inline. Renders the active tab title as a single
-* button that opens a portal-anchored menu of all navs.
-*/
-var EventNavsPicker = ({ navs, selectedNav, setSelectedNav, labelWidth }) => {
-	const [open, setOpen] = (0, import_react.useState)(false);
-	const buttonRef = (0, import_react.useRef)(null);
-	const [position, setPosition] = (0, import_react.useState)(null);
-	const computePosition = (0, import_react.useCallback)(() => {
-		const rect = buttonRef.current?.getBoundingClientRect();
-		if (!rect) return;
-		setPosition({
-			top: rect.bottom,
-			right: window.innerWidth - rect.right,
-			minWidth: rect.width
-		});
-	}, []);
-	(0, import_react.useLayoutEffect)(() => {
-		if (open) computePosition();
-	}, [open, computePosition]);
-	(0, import_react.useEffect)(() => {
-		if (!open) return;
-		const handler = () => computePosition();
-		window.addEventListener("resize", handler);
-		window.addEventListener("scroll", handler, true);
-		return () => {
-			window.removeEventListener("resize", handler);
-			window.removeEventListener("scroll", handler, true);
-		};
-	}, [open, computePosition]);
-	const handleKeyDown = (0, import_react.useCallback)((e) => {
-		if (e.key === "Escape") {
-			setOpen(false);
-			buttonRef.current?.focus();
-		}
-	}, []);
-	const selected = navs.find((nav) => nav.target === selectedNav) ?? navs[0];
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-		ref: buttonRef,
-		type: "button",
-		"aria-haspopup": "listbox",
-		"aria-expanded": open,
-		className: clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger),
-		onClick: () => setOpen((v) => !v),
-		onKeyDown: handleKeyDown,
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-			className: EventNavsPicker_module_default.label,
-			style: labelWidth ? { width: labelWidth } : void 0,
-			children: selected?.title ?? ""
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi", "bi-chevron-down", EventNavsPicker_module_default.chevron) })]
-	}), open && position && (0, import_react_dom.createPortal)(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: EventNavsPicker_module_default.backdrop,
-		onClick: () => setOpen(false)
-	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		role: "listbox",
-		className: EventNavsPicker_module_default.menu,
-		style: {
-			top: position.top,
-			right: position.right,
-			minWidth: position.minWidth
-		},
-		onKeyDown: handleKeyDown,
-		children: navs.map((nav) => {
-			const isSelected = nav.target === selectedNav;
-			return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-				type: "button",
-				role: "option",
-				"aria-selected": isSelected,
-				className: clsx(EventNavsPicker_module_default.item, isSelected ? EventNavsPicker_module_default.selected : void 0, "text-size-small"),
-				onClick: () => {
-					setSelectedNav(nav.target);
-					setOpen(false);
-				},
-				children: nav.title
-			}, nav.id);
-		})
-	})] }), document.body)] });
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventNavs.tsx
-var SWITCH_TOLERANCE = 4;
-/**
-* Renders the event panel's tab navigation. When the available width is
-* smaller than the natural width of the pill row, collapses to a picker
-* dropdown instead of letting the pills wrap to a second line.
-*/
-var EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
-	const [mode, setMode] = (0, import_react.useState)("tabs");
-	const [labelWidth, setLabelWidth] = (0, import_react.useState)(0);
-	const probeRef = (0, import_react.useRef)(null);
-	const naturalWidthRef = (0, import_react.useRef)(0);
-	(0, import_react.useLayoutEffect)(() => {
-		const probe = probeRef.current;
-		if (!probe) return;
-		naturalWidthRef.current = probe.scrollWidth;
-		const sample = probe.querySelector(".nav-link");
-		if (!sample) return;
-		const cs = getComputedStyle(sample);
-		const ctx = document.createElement("canvas").getContext("2d");
-		if (!ctx) return;
-		ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-		const transform = cs.textTransform;
-		const transformed = (s) => transform === "uppercase" ? s.toUpperCase() : transform === "lowercase" ? s.toLowerCase() : s;
-		let max = 0;
-		navs.forEach((nav) => {
-			max = Math.max(max, ctx.measureText(transformed(nav.title)).width);
-		});
-		setLabelWidth(Math.ceil(max));
-	}, [navs]);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		ref: useResizeObserver((0, import_react.useCallback)((entry) => {
-			const available = entry.contentRect.width;
-			const natural = naturalWidthRef.current;
-			if (natural === 0) return;
-			setMode((current) => {
-				if (current === "tabs" && available < natural - SWITCH_TOLERANCE) return "picker";
-				if (current === "picker" && available >= natural + SWITCH_TOLERANCE) return "tabs";
-				return current;
-			});
-		}, [])),
-		className: EventNavs_module_default.wrapper,
-		children: [mode === "tabs" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
-			className: clsx("nav", "nav-pills", EventNavs_module_default.navs),
-			role: "tablist",
-			"aria-orientation": "horizontal",
-			children: navs.map((nav) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventNav, {
-				target: nav.target,
-				title: nav.title,
-				selectedNav,
-				setSelectedNav
-			}, nav.title))
-		}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventNavsPicker, {
-			navs,
-			selectedNav,
-			setSelectedNav,
-			labelWidth
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
-			ref: probeRef,
-			"aria-hidden": true,
-			className: clsx("nav", "nav-pills", EventNavs_module_default.navs, EventNavs_module_default.probe),
-			children: navs.map((nav) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
-				className: "nav-item",
-				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-					type: "button",
-					tabIndex: -1,
-					className: clsx("nav-link", "text-style-label", "text-size-small", EventNavs_module_default.probeItem),
-					children: nav.title
-				})
-			}, nav.id))
-		})]
-	});
-};
-var EventPanel_module_default = {
-	stickyWrapper: "_stickyWrapper_dht85_1",
-	label: "_label_dht85_21",
-	title: "_title_dht85_30",
-	titleExtra: "_titleExtra_dht85_38",
-	navs: "_navs_dht85_45",
-	turnLabel: "_turnLabel_dht85_52",
-	turnNav: "_turnNav_dht85_60",
-	turnNavFollower: "_turnNavFollower_dht85_75",
-	turnLabelButton: "_turnLabelButton_dht85_83",
-	turnButton: "_turnButton_dht85_100",
-	card: "_card_dht85_132",
-	jumpTarget: "_jumpTarget_dht85_141",
-	cardContent: "_cardContent_dht85_146",
-	hidden: "_hidden_dht85_151",
-	copyLink: "_copyLink_dht85_159",
-	hover: "_hover_dht85_169",
-	eventLabel: "_eventLabel_dht85_174",
-	root: "_root_dht85_178",
-	expanded: "_expanded_dht85_189",
-	bottomDongle: "_bottomDongle_dht85_194",
-	dongleIcon: "_dongleIcon_dht85_210"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/EventPanel.tsx
-var kChevronRight$1 = "bi bi-chevron-right";
-var kChevronDown$1 = "bi bi-chevron-down";
-var kChevronUp$1 = "bi bi-chevron-up";
-var kLinkIcon = "bi bi-link-45deg";
-var kDefaultIcon = "bi bi-table";
-var kFocusIcon = "bi bi-arrows-angle-expand";
-/**
-* Renders a collapsible event panel with optional tabs, icons, and deep linking.
-*/
-var EventPanel = ({ eventNodeId, className, title, subTitle, text, icon, children, childIds, collapsibleContent, collapseControl = "top", muted, depth, turnNav, headerExtra, eventCallbacks }) => {
-	const { onCollapse, getCollapsed, getEventUrl, linkingEnabled, getEventFocusUrl, onFocusTabChange, onPrevTurn, onNextTurn, onTurnLabelClick, onOpenEventFocus, getSelectedTab, onSelectTab, onTabSelected } = eventCallbacks ?? {};
-	const eventLabel = (0, import_react.useContext)(EventLabelContext);
-	const collapsed = getCollapsed?.(eventNodeId) ?? false;
-	const setCollapsed = (0, import_react.useCallback)((value) => {
-		onCollapse?.(eventNodeId, value);
-	}, [onCollapse, eventNodeId]);
-	const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
-	const useBottomDongle = isCollapsible && collapseControl === "bottom";
-	const url = linkingEnabled && getEventUrl ? getEventUrl(eventNodeId) : void 0;
-	const pillId = (index) => `${eventNodeId}-nav-pill-${index}`;
-	const filteredArrChildren = (Array.isArray(children) ? children : [children]).filter(Boolean);
-	const defaultPill = filteredArrChildren.findIndex((node) => hasDataDefault(node) && node.props["data-default"]);
-	const defaultPillId = defaultPill !== -1 ? pillId(defaultPill) : pillId(0);
-	const showNavs = !(isCollapsible && collapsibleContent && collapsed) && filteredArrChildren.length > 1;
-	const [storedNav, setStoredNav] = useProperty(eventNodeId, "selectedNav", { defaultValue: defaultPillId });
-	const tabNameAt = (index) => {
-		const child = filteredArrChildren[index];
-		return child && (0, import_react.isValidElement)(child) ? child.props["data-name"] : void 0;
-	};
-	const tabNames = (0, import_react.useMemo)(() => (Array.isArray(children) ? children : [children]).filter(Boolean).map((child, index) => (0, import_react.isValidElement)(child) ? child.props["data-name"] ?? `Tab ${index}` : `Tab ${index}`), [children]);
-	const sharedTabActive = !!getSelectedTab && filteredArrChildren.length > 1;
-	const sharedTab = sharedTabActive ? getSelectedTab(eventNodeId, tabNames) : void 0;
-	const sharedSelectedNav = pillId(Math.max(0, sharedTab === void 0 ? -1 : tabNames.indexOf(sharedTab)));
-	const selectedNav = sharedTabActive ? sharedSelectedNav : storedNav;
-	const setSelectedNav = (target) => {
-		if (sharedTabActive && onSelectTab) {
-			const name = tabNameAt(Number(target.slice(target.lastIndexOf("-") + 1)));
-			if (name) onSelectTab(eventNodeId, name);
-		} else setStoredNav(target);
-		onTabSelected?.(eventNodeId);
-	};
-	const stickyRef = (0, import_react.useRef)(null);
-	const { stickyTop, scrollRef } = useStickyScroll();
-	useStickyStuck(stickyRef, stickyTop, scrollRef);
-	const selectedTabName = (0, import_react.useMemo)(() => tabNames.length > 1 ? tabNames[Number(selectedNav.slice(selectedNav.lastIndexOf("-") + 1)) || 0] : void 0, [tabNames, selectedNav]);
-	const focusUrl = turnNav ? getEventFocusUrl?.(eventNodeId, selectedTabName) : void 0;
-	const reportFocusTab = turnNav !== void 0;
-	(0, import_react.useEffect)(() => {
-		if (reportFocusTab) onFocusTabChange?.(eventNodeId, selectedTabName);
-	}, [
-		onFocusTabChange,
-		eventNodeId,
-		selectedTabName,
-		reportFocusTab
-	]);
-	const gridColumns = [];
-	if (isCollapsible && !useBottomDongle) gridColumns.push("minmax(0, max-content)");
-	if (icon) gridColumns.push("max-content");
-	gridColumns.push("minmax(0, max-content)");
-	gridColumns.push("minmax(3rem, 1fr)");
-	if (turnNav) gridColumns.push("max-content");
-	if (eventLabel) gridColumns.push("max-content");
-	const toggleCollapse = (0, import_react.useCallback)(() => {
-		setCollapsed(!collapsed);
-	}, [setCollapsed, collapsed]);
-	const [mouseOver, setMouseOver] = (0, import_react.useState)(false);
-	const titleEl = eventLabel || title || icon || filteredArrChildren.length > 1 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		title: subTitle,
-		className: clsx("text-size-small", mouseOver ? EventPanel_module_default.hover : "", EventPanel_module_default.stickyWrapper),
-		ref: stickyRef,
-		style: {
-			display: "grid",
-			gridTemplateColumns: gridColumns.join(" "),
-			columnGap: "0.3em",
-			alignItems: "center",
-			cursor: isCollapsible && !useBottomDongle ? "pointer" : void 0,
-			top: stickyTop
-		},
-		onMouseEnter: () => setMouseOver(true),
-		onMouseLeave: () => setMouseOver(false),
-		children: [
-			isCollapsible && !useBottomDongle ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
-				onClick: toggleCollapse,
-				className: collapsed ? kChevronRight$1 : kChevronDown$1
-			}) : "",
-			icon ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
-				className: clsx(icon || kDefaultIcon, "text-style-secondary"),
-				onClick: toggleCollapse
-			}) : "",
-			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx("text-style-secondary", "text-style-label", EventPanel_module_default.title),
-				onClick: toggleCollapse,
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: title }),
-					headerExtra ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: EventPanel_module_default.titleExtra,
-						onClick: (e) => e.stopPropagation(),
-						children: headerExtra
-					}) : null,
-					url ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						onClick: (e) => e.stopPropagation(),
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CopyButton, {
-							value: url,
-							icon: kLinkIcon,
-							className: clsx(EventPanel_module_default.copyLink)
-						})
-					}) : null
-				]
-			}),
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: EventPanel_module_default.navs,
-				onClick: showNavs ? void 0 : toggleCollapse,
-				children: showNavs ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventNavs, {
-					navs: filteredArrChildren.map((child, index) => {
-						const defaultTitle = `Tab ${index}`;
-						const title = child && (0, import_react.isValidElement)(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
-						return {
-							id: `eventpanel-${eventNodeId}-${index}`,
-							title,
-							target: pillId(index)
-						};
-					}),
-					selectedNav: selectedNav || "",
-					setSelectedNav
-				}) : collapsed && text ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-					className: clsx("text-style-secondary", EventPanel_module_default.label),
-					children: text
-				}) : null
-			}),
-			turnNav ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-				className: clsx(EventPanel_module_default.turnNav, turnNav.isAnchor === false && EventPanel_module_default.turnNavFollower),
-				onClick: (e) => e.stopPropagation(),
-				children: [
-					onTurnLabelClick ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: clsx(EventPanel_module_default.turnLabel, EventPanel_module_default.turnLabelButton),
-						title: "Go to turn (Ctrl+G)",
-						"aria-label": `Go to turn — currently turn ${turnNav.turnNumber} of ${turnNav.totalTurns}`,
-						onClick: () => onTurnLabelClick(turnNav.turnNumber),
-						children: `turn ${turnNav.turnNumber}/${turnNav.totalTurns}`
-					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-						className: EventPanel_module_default.turnLabel,
-						children: `turn ${turnNav.turnNumber}/${turnNav.totalTurns}`
-					}),
-					onNextTurn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: EventPanel_module_default.turnButton,
-						title: "Next turn (j)",
-						"aria-label": "Next turn",
-						disabled: turnNav.turnNumber >= turnNav.totalTurns,
-						onClick: () => onNextTurn(turnNav.turnNumber),
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: kChevronDown$1 })
-					}),
-					onPrevTurn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
-						type: "button",
-						className: EventPanel_module_default.turnButton,
-						title: "Previous turn (k)",
-						"aria-label": "Previous turn",
-						disabled: turnNav.turnNumber <= 1,
-						onClick: () => onPrevTurn(turnNav.turnNumber),
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: kChevronUp$1 })
-					}),
-					focusUrl && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-						className: EventPanel_module_default.turnButton,
-						href: focusUrl,
-						target: onOpenEventFocus ? void 0 : "_blank",
-						rel: "noreferrer",
-						title: "Open focused turn view (f)",
-						"aria-label": "Open focused turn view",
-						onClick: (e) => {
-							if (onOpenEventFocus && e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
-								e.preventDefault();
-								onOpenEventFocus(focusUrl);
-							}
-						},
-						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: kFocusIcon })
-					})
-				]
-			}) : null,
-			eventLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageLabel, {
-				label: eventLabel,
-				className: EventPanel_module_default.eventLabel
-			})
-		]
-	}) : "";
-	const isRoot = depth === 0 || muted;
-	const detailExpanded = filteredArrChildren.length > 1 ? !collapsed && selectedNav !== defaultPillId : !!collapsibleContent && !collapsed;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		id: `event-panel-${eventNodeId}`,
-		className: clsx(className, EventPanel_module_default.card, isRoot ? EventPanel_module_default.root : void 0, detailExpanded ? EventPanel_module_default.expanded : void 0, eventCallbacks?.isJumpTarget?.(eventNodeId) ? EventPanel_module_default.jumpTarget : void 0),
-		children: [
-			titleEl,
-			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx("tab-content", EventPanel_module_default.cardContent, isCollapsible && collapsed && collapsibleContent ? EventPanel_module_default.hidden : void 0),
-				children: filteredArrChildren?.map((child, index) => {
-					const id = pillId(index);
-					const isSelected = id === selectedNav;
-					if (!isSelected) return null;
-					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-						id,
-						className: clsx("tab-pane", "show", isSelected ? "active" : ""),
-						children: child
-					}, `children-${id}-${index}`);
-				})
-			}),
-			isCollapsible && useBottomDongle ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx(EventPanel_module_default.bottomDongle, "text-size-smallest"),
-				onClick: toggleCollapse,
-				children: [
-					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(collapsed ? kChevronRight$1 : kChevronDown$1, EventPanel_module_default.dongleIcon) }),
-					"transcript (",
-					childIds?.length,
-					" ",
-					childIds?.length === 1 ? "event" : "events",
-					")"
-				]
-			}) : void 0
-		]
-	});
-};
-function hasDataDefault(node) {
-	return (0, import_react.isValidElement)(node) && node.props !== null && typeof node.props === "object" && "data-default" in node.props;
-}
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/event/utils.ts
-var cancelErrors = /* @__PURE__ */ new Set([
-	"Cancelled by operator",
-	"Cancelled by limit",
-	"Cancelled by system"
-]);
-/** True when a model error is a cancel sentinel (not a genuine failure). */
-var isCancelError = (error) => !!error && cancelErrors.has(error);
-var formatTiming = (timestamp, working_start) => {
-	if (working_start) return `${formatDateTime$1(new Date(timestamp))}\n@ working time: ${formatTime$1(working_start)}`;
-	else return formatDateTime$1(new Date(timestamp));
-};
-var formatTitle = (title, total_tokens, working_start, role) => {
-	const titleWithRole = role ? `${title} – ${role} –` : title;
-	const subItems = [];
-	if (total_tokens) subItems.push(`${formatNumber(total_tokens)} tokens`);
-	if (working_start) subItems.push(`${formatTime$1(working_start)}`);
-	return `${titleWithRole}${subItems.length > 0 ? ` (${subItems.join(", ")})` : ""}`;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/BranchEventView.tsx
-var BranchEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	const data = {};
-	if (event.from_anchor) data["from_anchor"] = event.from_anchor;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		title: formatTitle("Branch", void 0, event.working_start),
-		className,
-		subTitle: formatDateTime$1(new Date(event.timestamp)),
-		icon: TranscriptIcons.info,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-			entries: data,
-			className: BranchEventView_module_default.panel
-		})
-	});
-};
-var BranchPoint_module_default = {
-	branchPoint: "_branchPoint_m92x3_1",
-	label: "_label_m92x3_20",
-	glyph: "_glyph_m92x3_27",
-	labelText: "_labelText_m92x3_36",
-	segmented: "_segmented_m92x3_44",
-	segment: "_segment_m92x3_44",
-	continuesGlyph: "_continuesGlyph_m92x3_87"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/BranchPoint.tsx
-var BranchPoint = ({ parent, spawned, viewing, onSelect, className }) => {
-	if (spawned.length === 0) return null;
-	const options = [parent, ...spawned];
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		role: "group",
-		"aria-label": "Branch point",
-		className: clsx(BranchPoint_module_default.branchPoint, className),
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
-			className: BranchPoint_module_default.label,
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
-				className: clsx(TranscriptIcons.fork, BranchPoint_module_default.glyph),
-				"aria-hidden": "true"
-			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
-				className: BranchPoint_module_default.labelText,
-				children: "Branch point"
-			})]
-		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			role: "radiogroup",
-			"aria-label": "Choose branch",
-			className: BranchPoint_module_default.segmented,
-			children: options.map((b) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Segment, {
-				branch: b,
-				isCurrent: b === viewing,
-				isParent: b === parent,
-				onSelect
-			}, b))
-		})]
-	});
-};
-var Segment = ({ branch, isCurrent, isParent, onSelect }) => {
-	const interactive = !!onSelect && !isCurrent;
-	const handleClick = (e) => {
-		if (interactive && onSelect) onSelect(branch, e.currentTarget);
-	};
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
-		type: "button",
-		role: "radio",
-		className: BranchPoint_module_default.segment,
-		"data-testid": "bp-segment",
-		"data-branch": branch,
-		"aria-checked": isCurrent,
-		"aria-pressed": isCurrent ? "true" : "false",
-		onClick: interactive ? handleClick : void 0,
-		disabled: !interactive,
-		children: [isParent && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ContinuesGlyph, {}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: branch })]
-	});
-};
-var ContinuesGlyph = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", {
-	className: BranchPoint_module_default.continuesGlyph,
-	viewBox: "0 0 9 9",
-	"aria-hidden": "true",
-	"data-testid": "bp-continues",
-	children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M 1 1 L 8 4.5 L 1 8 Z" })
-});
-/**
-* Adapt a merged `fork_nav` payload to BranchPoint props.
-*/
-function forkNavToBranchPointProps(data) {
-	const first = data.groups[0];
-	if (!first || first.options.length === 0) return null;
-	const parent = first.options[0].label;
-	const spawned = [];
-	let viewing = parent;
-	for (const group of data.groups) {
-		for (let i = 1; i < group.options.length; i++) spawned.push(group.options[i].label);
-		if (group.selectedIndex > 0) viewing = group.options[group.selectedIndex].label;
-	}
-	if (spawned.length === 0) return null;
-	return {
-		parent,
-		spawned,
-		viewing
-	};
-}
-/**
-* Find the swimlane row key for a clicked branch label. First match wins
-* when labels collide across merged groups.
-*/
-function findRowKeyForLabel(data, label) {
-	for (const group of data.groups) for (const opt of group.options) if (opt.label === label) return opt.rowKey;
-	return null;
-}
-var CheckpointEventView_module_default = {
-	panel: "_panel_1us8t_1",
-	rowValue: "_rowValue_1us8t_10",
-	files: "_files_1us8t_16",
-	file: "_file_1us8t_16",
-	fileOverflow: "_fileOverflow_1us8t_27"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/CheckpointEventView.tsx
-var asNumber = (v) => typeof v === "number" ? v : null;
-var triggerSummary = (event) => {
-	const md = event.trigger_metadata ?? {};
-	switch (event.trigger) {
-		case "token": {
-			const every = asNumber(md["every"]);
-			const since = asNumber(md["tokens_since_last_fire"]);
-			return every !== null && since !== null ? `token — ${formatNumber(every)} (${formatNumber(since)})` : null;
-		}
-		case "time": {
-			const every = asNumber(md["every_seconds"]);
-			const elapsed = asNumber(md["elapsed_seconds"]);
-			return every !== null && elapsed !== null ? `time — ${formatTime$1(every)} (${formatTime$1(elapsed)})` : null;
-		}
-		case "turn": {
-			const every = asNumber(md["every"]);
-			return every !== null ? `turn — ${formatNumber(every)}` : null;
-		}
-		case "manual": return "manual";
-		case "agent_complete": return "agent complete";
-		default: return null;
-	}
-};
-var Row = ({ label, children }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-	className: clsx("text-style-label", "text-style-secondary"),
-	children: label
-}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-	className: CheckpointEventView_module_default.rowValue,
-	children
-})] });
-var Snapshot = ({ details }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
-	formatBytes(details.size_bytes),
-	" · ",
-	formatMs(details.duration_ms)
-] }), details.files && details.files.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-	className: CheckpointEventView_module_default.files,
-	children: [details.files.map((file) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-		className: CheckpointEventView_module_default.file,
-		children: file
-	}, file)), details.additional_files ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: CheckpointEventView_module_default.fileOverflow,
-		children: [
-			"+",
-			details.additional_files,
-			" more"
-		]
-	}) : null]
-}) : null] });
-var CheckpointEventView = ({ eventNode, className, eventCallbacks }) => {
-	const event = eventNode.event;
-	const summary = triggerSummary(event);
-	const metadata = event.trigger_metadata ?? {};
-	const sandboxEntries = Object.entries(event.sandboxes);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		className,
-		title: `Checkpoint ${event.checkpoint_id} — turn ${event.turn} (${formatBytes(event.size_bytes)}, ${formatTime$1(event.duration_ms / 1e3)})`,
-		icon: TranscriptIcons.checkpoint,
-		eventCallbacks,
-		collapsibleContent: true,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: clsx(CheckpointEventView_module_default.panel, "text-size-small"),
-			children: [
-				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Row, {
-					label: "Trigger",
-					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: summary ?? event.trigger }), summary === null && Object.keys(metadata).length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-						entries: metadata,
-						options: {
-							plain: true,
-							size: "mini"
-						}
-					}) : null]
-				}),
-				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, {
-					label: "Host",
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Snapshot, { details: event.host })
-				}),
-				sandboxEntries.map(([name, details]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, {
-					label: sandboxEntries.length === 1 ? "Sandbox" : name,
-					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Snapshot, { details })
-				}, name))
-			]
-		})
-	});
-};
-var CompactionEventView_module_default = { panel: "_panel_8zdtn_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/CompactionEventView.tsx
-var CompactionEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	let data = {};
-	if (event.tokens_before) data["tokens_before"] = event.tokens_before;
-	if (event.tokens_after) data["tokens_after"] = event.tokens_after;
-	data = {
-		...data,
-		...event.metadata || {}
-	};
-	const source = event.source && event.source !== "inspect" ? ": " + event.source : "";
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		title: formatTitle("Compaction" + source, void 0, event.working_start),
-		className,
-		subTitle: formatDateTime$1(new Date(event.timestamp)),
-		icon: TranscriptIcons.compaction,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
-			entries: data,
-			className: CompactionEventView_module_default.panel,
-			options: { copyButton: true }
-		})
-	});
-};
-var EmptyBranchView_module_default = {
-	empty: "_empty_f9al6_1",
-	headline: "_headline_f9al6_6",
-	detail: "_detail_f9al6_12"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/EmptyBranchView.tsx
-var EmptyBranchView = ({ eventNode, className }) => {
-	const data = eventNode.event.metadata?.empty_branch;
-	if (!data) return null;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-		className: clsx(EmptyBranchView_module_default.empty, className),
-		role: "note",
-		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: EmptyBranchView_module_default.headline,
-			children: "No events in this branch"
-		}), data.terminator ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: EmptyBranchView_module_default.detail,
-			children: ["Branch ended via ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: data.terminator })]
-		}) : null]
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/ErrorEventView.tsx
-var ErrorEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		title: "Error",
-		className,
-		subTitle: event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0,
-		icon: TranscriptIcons.error,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
-			output: event.error.traceback_ansi,
-			style: {
-				fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
-				margin: "0.5em 0"
-			}
-		})
-	});
-};
-var InfoEventView_module_default = { panel: "_panel_vz394_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/InfoEventView.tsx
-var InfoEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	const panel = typeof event.data === "string" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedText, {
-		markdown: event.data,
-		className: clsx(InfoEventView_module_default.panel, "text-size-base")
-	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JSONPanel, {
-		data: event.data,
-		className: InfoEventView_module_default.panel
-	});
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		title: "Info" + (event.source ? ": " + event.source : ""),
-		className,
-		subTitle: event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0,
-		icon: TranscriptIcons.info,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
-			id: `${eventNode.id}-info`,
-			collapse: true,
-			children: panel
-		})
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/InputEventView.tsx
-var InputEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		title: "Input",
-		className,
-		subTitle: event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0,
-		icon: TranscriptIcons.input,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
-			output: event.input_ansi,
-			style: { fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" }
-		})
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/InterruptEventView.tsx
-var SOURCE_TITLES = {
-	user_cancel: "Interrupted by user",
-	limit: "Interrupted by limit",
-	system: "Interrupted by system"
-};
-var INTERRUPTED_DESCRIPTIONS = {
-	generate: "during model generation",
-	tool_call: "during tool execution",
-	between_turns: "between turns"
-};
-var InterruptEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	const baseTitle = SOURCE_TITLES[event.source];
-	const title = event.timestamp ? `${baseTitle} — ${formatDateTime$1(new Date(event.timestamp))}` : baseTitle;
-	const detail = INTERRUPTED_DESCRIPTIONS[event.interrupted];
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
-		eventNodeId: eventNode.id,
-		title,
-		icon: TranscriptIcons.interrupt,
-		className,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-			className: clsx("text-size-smaller"),
-			children: detail
-		})
-	});
-};
-var LoggerEventView_module_default = {
-	grid: "_grid_1eq5o_1",
-	jsonPanel: "_jsonPanel_1eq5o_8"
-};
-//#endregion
-//#region ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
-var LoggerEventView = ({ eventNode, className }) => {
-	const event = eventNode.event;
-	const obj = parsedJson(event.message.message);
-	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventRow, {
-		className,
-		title: event.message.level,
-		icon: TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info,
-		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-			className: clsx("text-size-base", LoggerEventView_module_default.grid),
-			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
-				className: clsx("text-size-smaller"),
-				children: obj !== void 0 && obj !== null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: obj }) : event.message.message
-			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
-				className: clsx("text-size-smaller", "text-style-secondary"),
-				children: [
-					event.message.filename,
-					":",
-					event.message.lineno
-				]
-			})]
-		})
-	});
-};
-//#endregion
-//#region ../../packages/inspect-components/src/chat/messages.ts
-/** Whether an assistant message carries server-side tool calls (provider
-* executed `tool_use` content blocks) — these render as flush rows of the
-* assistant turn container rather than as message body. */
-var hasServerToolUse = (message) => {
-	return message.role === "assistant" && Array.isArray(message.content) && message.content.some((c) => c.type === "tool_use");
-};
-var resolveMessages = (messages) => {
-	const resolvedMessages = [];
-	let index = 0;
-	for (const message of messages) {
-		const resolved = message.id === void 0 ? {
-			...message,
-			id: `msg-${index}`
-		} : message;
-		if (resolved.role === "tool") {
-			if (resolvedMessages.length > 0) {
-				const msg = resolvedMessages[resolvedMessages.length - 1];
-				if (msg) {
-					msg.toolMessages = msg.toolMessages || [];
-					msg.toolMessages.push(resolved);
-				}
-			}
-		} else resolvedMessages.push({
-			message: resolved,
-			toolMessages: []
-		});
-		index++;
-	}
-	const systemMessages = [];
-	const collapsedMessages = resolvedMessages.map((resolved) => {
-		if (resolved.message.role === "system") systemMessages.push(resolved.message);
-		return resolved;
-	}).filter((resolved) => {
-		return resolved.message.role !== "system";
-	});
-	const systemContent = [];
-	for (const systemMessage of systemMessages) {
-		const contents = Array.isArray(systemMessage.content) ? systemMessage.content : [systemMessage.content];
-		systemContent.push(...contents.map(normalizeContent$2));
-	}
-	const systemMessage = {
-		id: "sys-message-6815A84B062A",
-		role: "system",
-		content: systemContent,
-		source: "input",
-		metadata: null
-	};
-	if (systemMessage && systemMessage.content.length > 0) collapsedMessages.unshift({
-		message: systemMessage,
-		toolMessages: []
-	});
-	return collapsedMessages;
-};
-/**
-* Normalize strings into ContentText objects.
-*/
-var normalizeContent$2 = (content) => {
-	if (typeof content === "string") return {
-		type: "text",
-		text: content,
-		refusal: null,
-		internal: null,
-		citations: null
-	};
-	else return content;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/chat/messagesToStr.ts
-var messagesToStr = (messages, options) => {
-	const opts = options || {};
-	return messages.map((msg) => messageToStr(msg, opts)).filter((str) => str !== null).join("\n");
-};
-var messageToStr = (message, options) => {
-	if (options.excludeSystem && message.role === "system") return null;
-	const content = betterContentText(message.content, options.excludeToolUsage || false, options.excludeReasoning || false);
-	if (!options.excludeToolUsage && message.role === "assistant" && message.tool_calls) {
-		let entry = `${message.role.toUpperCase()}:\n${content}\n`;
-		for (const tool of message.tool_calls) {
-			const funcName = tool.function;
-			const args = tool.arguments;
-			if (typeof args === "object" && args !== null) {
-				const argsText = Object.entries(args).map(([k, v]) => `${k}: ${String(v)}`).join("\n");
-				entry += `\nTool Call: ${funcName}\nArguments:\n${argsText}\n`;
-			} else entry += `\nTool Call: ${funcName}\n`;
-		}
-		return entry;
-	}
-	if (message.role === "tool") {
-		if (options.excludeToolUsage) return null;
-		const funcName = message.function || "unknown";
-		const errorPart = message.error ? `\n\nError in tool call '${funcName}':\n${message.error.message}\n` : "";
-		return `${message.role.toUpperCase()}:\n${content}${errorPart}\n`;
-	}
-	return `${message.role.toUpperCase()}:\n${content}\n`;
-};
-var textFromContent = (content, excludeToolUsage, excludeReasoning) => {
-	switch (content.type) {
-		case "text": return content.text;
-		case "reasoning": {
-			if (excludeReasoning) return null;
-			const text = content.redacted ? content.summary : content.reasoning || content.summary;
-			if (!text) return null;
-			return `\n<think>${text}</think>`;
-		}
-		case "tool_use": {
-			if (excludeToolUsage) return null;
-			const errorStr = content.error ? ` ${content.error}` : "";
-			return `\nTool Use: ${content.name}(${content.arguments}) -> ${content.result}${errorStr}`;
-		}
-		case "image":
-		case "audio":
-		case "video":
-		case "data":
-		case "document": return `<${content.type} />`;
-		default: return null;
-	}
-};
-var betterContentText = (content, excludeToolUsage, excludeReasoning) => {
-	if (typeof content === "string") return content;
-	return content.map((c) => textFromContent(c, excludeToolUsage, excludeReasoning)).filter((text) => text !== null).join("\n");
-};
-//#endregion
-//#region ../../packages/inspect-components/src/chat/messageSearchText.ts
-/**
-* Extracts searchable text from a ResolvedMessage for find-in-page functionality.
-*/
-var messageSearchText = (resolved) => {
-	const texts = [];
-	texts.push(...extractContentText$1(resolved.message.content));
-	if (resolved.message.role === "assistant" && "tool_calls" in resolved.message && resolved.message.tool_calls) for (const toolCall of resolved.message.tool_calls) {
-		if (toolCall.function) texts.push(toolCall.function);
-		if (toolCall.arguments) texts.push(JSON.stringify(toolCall.arguments));
-	}
-	for (const toolMsg of resolved.toolMessages) {
-		if (toolMsg.function) texts.push(toolMsg.function);
-		texts.push(...extractContentText$1(toolMsg.content));
-		if (toolMsg.error?.message) texts.push(toolMsg.error.message);
-	}
-	return texts;
-};
-/**
-* Extracts text strings from message content.
-*/
-var extractContentText$1 = (content) => {
-	if (typeof content === "string") return [content];
-	const texts = [];
-	for (const item of content) switch (item.type) {
-		case "text":
-			texts.push(item.text);
-			break;
-		case "reasoning": {
-			const reasoning = item;
-			if (reasoning.redacted) {
-				if (reasoning.summary) texts.push(reasoning.summary);
-			} else if (reasoning.reasoning) texts.push(reasoning.reasoning);
-			else if (reasoning.summary) texts.push(reasoning.summary);
-			break;
-		}
-		case "tool_use": {
-			const toolUse = item;
-			if (toolUse.name) texts.push(toolUse.name);
-			if (toolUse.arguments) texts.push(JSON.stringify(toolUse.arguments));
-			break;
-		}
-	}
-	return texts;
-};
-//#endregion
-//#region ../../packages/inspect-components/src/chat/tools/tool.ts
-var kToolTodoContentType = "agent/todo-list";
-var kToolIcons = {
-	bash: "bi-terminal",
-	Bash: "bi-terminal",
-	bash_session: "bi-terminal",
-	shell: "bi-terminal",
-	shell_command: "bi-terminal",
-	exec_command: "bi-terminal",
-	python: "bi-code-square",
-	code_execution: "bi-code-square",
-	web_search: "bi-search",
-	WebSearch: "bi-search",
-	web_fetch: "bi-globe2",
-	WebFetch: "bi-globe2",
-	web_browser: "bi-window",
-	text_editor: "bi-pencil-square",
-	str_replace_editor: "bi-pencil-square",
-	str_replace_based_edit_tool: "bi-pencil-square",
-	Edit: "bi-pencil-square",
-	Write: "bi-pencil-square",
-	NotebookEdit: "bi-pencil-square",
-	Read: "bi-file-earmark-text",
-	Glob: "bi-search",
-	Grep: "bi-search",
-	task: "bi-people",
-	Task: "bi-people",
-	agent: "bi-people",
-	Agent: "bi-people",
-	spawn_agent: "bi-people",
-	send_input: "bi-people",
-	wait_agent: "bi-people",
-	resume_agent: "bi-people",
-	close_agent: "bi-people",
-	agent_status: "bi-people",
-	agent_wait: "bi-people",
-	agent_cancel: "bi-people",
-	agent_list: "bi-people",
-	TodoWrite: "bi-list-check",
-	todo_write: "bi-list-check",
-	update_plan: "bi-list-check",
-	think: "bi-lightbulb",
-	computer: "bi-display",
-	tool_search: "bi-search",
-	mcp_list_tools: "bi-plug",
-	mcp_call: "bi-plug"
-};
-/**
-* Header icon for a tool call. Unknown client tools get the general tool
-* icon; unknown server tools keep the globe (the server tell).
-*/
-var iconForTool = (tool, options) => {
-	const icon = kToolIcons[tool];
-	if (icon) return icon;
-	if (tool.startsWith("browser_")) return "bi-window";
-	return options?.server ? "bi-globe2" : "bi-tools";
-};
-/**
-* Resolves the input and metadata for a given tool call.
-*/
-var resolveToolInput = (fn, toolArgs) => {
-	const toolName = fn;
-	const inputDescriptor = extractInputMetadata(toolName, toolArgs);
-	const { input, description, args } = extractInput(toolArgs, inputDescriptor);
-	const functionCall = args.length > 0 ? `${toolName}(${args.join(", ")})` : toolName;
-	if ((fn === "Task" || fn === "task" || fn === "Agent" || fn === "agent") && typeof toolArgs.subagent_type === "string") {
-		const subagentType = toolArgs.subagent_type;
-		return {
-			name: fn,
-			functionCall: `${fn}: ${subagentType}`,
-			title: `${fn}: ${subagentType}`,
-			input,
-			description,
-			contentType: "markdown"
-		};
-	}
-	if (fn === "spawn_agent" && typeof toolArgs.agent_type === "string") {
-		const agentType = toolArgs.agent_type;
-		return {
-			name: fn,
-			functionCall: `${fn}: ${agentType}`,
-			title: `${fn}: ${agentType}`,
-			input,
-			description,
-			contentType: "markdown"
-		};
-	}
-	if (fn === "agent_status" || fn === "agent_wait" || fn === "agent_cancel" || fn === "agent_list") return {
-		name: fn,
-		functionCall,
-		input,
-		description,
-		contentType: "markdown"
-	};
-	if (fn === "wait_agent" || fn === "close_agent" || fn === "resume_agent") return {
-		name: fn,
-		functionCall,
-		input,
-		description,
-		contentType: "markdown"
-	};
-	return {
-		name: fn,
-		functionCall,
-		input,
-		description,
-		contentType: inputDescriptor?.contentType
-	};
-};
-var extractInputMetadata = (toolName, toolArgs) => {
-	if (toolName === "text_editor" && toolArgs.command === "create") return {
-		inputArg: "file_text",
-		contentType: prismLanguageForPath(toolArgs.path)
-	};
-	if (toolName === "bash") return {
-		inputArg: ["cmd", "command"],
-		contentType: "bash"
-	};
-	else if (toolName === "python") return {
-		inputArg: "code",
-		contentType: "python"
-	};
-	else if (toolName === "web_search") return {
-		inputArg: "query",
-		contentType: "json"
-	};
-	else if (toolName === "Bash") return {
-		inputArg: "command",
-		descriptionArg: "description",
-		contentType: "bash"
-	};
-	else if (toolName === "shell_command") return {
-		inputArg: "command",
-		descriptionArg: "description",
-		contentType: "bash"
-	};
-	else if (toolName === "shell") return {
-		inputArg: "command",
-		contentType: "bash",
-		inputToStr: (input) => {
-			if (Array.isArray(input)) return input.join(" ");
-		}
-	};
-	else if (toolName == "TodoWrite") return {
-		inputArg: "todos",
-		contentType: kToolTodoContentType
-	};
-	else if (toolName == "update_plan") return {
-		inputArg: "plan",
-		contentType: kToolTodoContentType
-	};
-	else if (toolName == "todo_write") return {
-		inputArg: "todos",
-		contentType: kToolTodoContentType
-	};
-	else if (toolName === "Task" || toolName === "Agent") return {
-		inputArg: "prompt",
-		descriptionArg: "description",
-		contentType: "markdown"
-	};
-	else if (toolName === "task" || toolName === "agent") return {
-		inputArg: "prompt",
-		descriptionArg: "task_description",
-		contentType: "markdown"
-	};
-	else if (toolName === "exec_command") return {
-		inputArg: "cmd",
-		contentType: "bash"
-	};
-	else if (toolName === "spawn_agent") return {
-		inputArg: "message",
-		contentType: "markdown"
-	};
-	else if (toolName === "send_input") return {
-		inputArg: "message",
-		contentType: "markdown"
-	};
-	else if (toolName === "tool_search") return { contentType: "markdown" };
-	else return;
-};
-var prismLanguageForPath = (path) => {
-	if (typeof path !== "string") return;
-	switch (path.split(".").pop()?.toLowerCase()) {
-		case "py": return "python";
-		case "js":
-		case "jsx":
-		case "mjs":
-		case "cjs": return "javascript";
-		case "json": return "json";
-		case "sh":
-		case "bash": return "bash";
-		case "yaml":
-		case "yml": return "yaml";
-		default: return;
-	}
-};
-var kCodexAgentResultTools = /* @__PURE__ */ new Set([
-	"wait_agent",
-	"close_agent",
-	"resume_agent"
-]);
-/**
-* Reshapes a Codex sub-agent tool *result* into markdown, or returns undefined
-* when no reshape applies (caller renders the raw output).
-*
-* `spawn_agent` returns `{"agent_id": …, "nickname": …}` — we surface a compact
-* line naming the spawned sub-agent. `wait_agent` / `close_agent` /
-* `resume_agent` return JSON-wrapped status whose `completed` fields hold the
-* sub-agent's markdown final answer — we surface those answers. Accepts a raw
-* string output or structured content (the viewer wraps tool results as
-* `Content[]`), extracting the underlying text either way. The raw output
-* remains in the JSON tab.
-*
-* (`tool_search` is handled separately by `parseToolSearchCatalog` +
-* `ToolSearchView`, which needs real collapsible `<details>` elements that the
-* HTML-escaping markdown pipeline can't produce from a string.)
-*/
-var codexToolMarkdown = (fn, output) => {
-	const text = toolOutputText(output);
-	if (text === void 0) return;
-	if (fn === "spawn_agent") return formatSpawnAgentResult(text);
-	if (kCodexAgentResultTools.has(fn)) return extractCodexAgentAnswers(text);
-};
-var formatSpawnAgentResult = (text) => {
-	let data;
-	try {
-		data = JSON.parse(text);
-	} catch {
-		return;
-	}
-	if (!data || typeof data !== "object") return;
-	const record = data;
-	const nickname = typeof record.nickname === "string" ? record.nickname : void 0;
-	const agentId = typeof record.agent_id === "string" ? record.agent_id : void 0;
-	const parts = [];
-	if (nickname) parts.push(nickname);
-	if (agentId) parts.push(`\`${agentId}\``);
-	return parts.length > 0 ? parts.join(" — ") : void 0;
-};
-var toolOutputText = (output) => {
-	if (typeof output === "string") return output;
-	if (Array.isArray(output)) {
-		const parts = [];
-		for (const item of output) collectContentText(item, parts);
-		return parts.length > 0 ? parts.join("") : void 0;
-	}
-};
-var collectContentText = (item, parts) => {
-	if (!item || typeof item !== "object") return;
-	const record = item;
-	if (record.type === "text" && typeof record.text === "string") parts.push(record.text);
-	else if (record.type === "tool" && Array.isArray(record.content)) for (const child of record.content) collectContentText(child, parts);
-};
-var formatSubagentNotifications = (content) => {
-	const text = toolOutputText(content);
-	if (text === void 0 || !text.includes("<subagent_notification>")) return;
-	const lines = [];
-	const regex = /<subagent_notification>([\s\S]*?)<\/subagent_notification>/g;
-	let match;
-	while ((match = regex.exec(text)) !== null) {
-		const line = formatSubagentNotification(match[1]);
-		if (line) lines.push(line);
-	}
-	return lines.length > 0 ? lines.join("\n\n") : void 0;
-};
-var formatSubagentNotification = (payload) => {
-	let data;
-	try {
-		data = JSON.parse(payload.trim());
-	} catch {
-		return;
-	}
-	if (!data || typeof data !== "object") return;
-	const record = data;
-	const agentPath = typeof record.agent_path === "string" ? record.agent_path : void 0;
-	const status = record.status && typeof record.status === "object" ? Object.keys(record.status)[0] : void 0;
-	if (agentPath === void 0 && status === void 0) return;
-	const statusWord = status ?? "notified";
-	return agentPath ? `agent ${statusWord}: \`${agentPath}\`` : `agent ${statusWord}`;
-};
-var parseToolSearchCatalog = (output) => {
-	const text = toolOutputText(output);
-	if (text === void 0) return;
-	let data;
-	try {
-		data = JSON.parse(text);
-	} catch {
-		return;
-	}
-	if (!Array.isArray(data)) return;
-	const namespaces = [];
-	const looseTools = [];
-	for (const entry of data) {
-		if (!entry || typeof entry !== "object") continue;
-		const record = entry;
-		const rawTools = Array.isArray(record.tools) ? record.tools : void 0;
-		if (record.type === "function" || rawTools === void 0 && "parameters" in record) {
-			const tool = parseToolEntry(record);
-			if (tool) looseTools.push(tool);
-			continue;
-		}
-		const name = typeof record.name === "string" ? record.name : void 0;
-		const description = typeof record.description === "string" ? record.description : "";
-		const toolList = rawTools ?? [];
-		if (name === void 0 && toolList.length === 0) continue;
-		const tools = [];
-		for (const tool of toolList) {
-			if (!tool || typeof tool !== "object") continue;
-			const parsed = parseToolEntry(tool);
-			if (parsed) tools.push(parsed);
-		}
-		namespaces.push({
-			name,
-			description,
-			tools
-		});
-	}
-	if (looseTools.length > 0) namespaces.push({
-		name: void 0,
-		description: "",
-		tools: looseTools
-	});
-	return namespaces.length > 0 ? namespaces : void 0;
-};
-var parseToolEntry = (tool) => {
-	const name = typeof tool.name === "string" ? tool.name : void 0;
-	if (name === void 0) return;
-	return {
-		signature: `${name}(${toolParamNames(tool).join(", ")})`,
-		description: typeof tool.description === "string" ? dedentDescription(tool.description) : ""
-	};
-};
-var toolParamNames = (tool) => {
-	const parameters = tool.parameters;
-	if (parameters && typeof parameters === "object") {
-		const properties = parameters.properties;
-		if (properties && typeof properties === "object") return Object.keys(properties);
-	}
-	return [];
-};
-var dedentDescription = (description) => description.split("\n").map((line) => line.trim()).join("\n").trim();
-var extractCodexAgentAnswers = (output) => {
-	if (typeof output !== "string") return;
-	let data;
-	try {
-		data = JSON.parse(output);
-	} catch {
-		return;
-	}
-	const answers = [];
-	const visit = (node) => {
-		if (Array.isArray(node)) node.forEach(visit);
-		else if (node && typeof node === "object") for (const [key, value] of Object.entries(node)) if ((key === "completed" || key === "failed" || key === "cancelled") && typeof value === "string") answers.push(cleanCodexAnswer(value));
-		else visit(value);
-	};
-	visit(data);
-	const nonEmpty = answers.filter((answer) => answer.length > 0);
-	return nonEmpty.length > 0 ? nonEmpty.join("\n\n---\n\n") : void 0;
-};
-var cleanCodexAnswer = (text) => {
-	const match = /<content-internal>([A-Za-z0-9+/]+={0,2})<\/content-internal>\s*$/.exec(text);
-	const payload = match?.[1];
-	if (!match || payload === void 0) return text;
-	const visibleAnswer = text.slice(0, match.index);
-	if (visibleAnswer.includes("<content-internal>") || visibleAnswer.includes("</content-internal>")) return text;
-	try {
-		const decoded = Uint8Array.from(atob(payload), (char) => char.charCodeAt(0));
-		JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(decoded));
-	} catch {
-		return text;
-	}
-	return visibleAnswer.trimEnd();
-};
-/**
-* Substitutes `{{param_name}}` placeholders in tool call content
-* with actual values from the tool call arguments.
-*/
-var substituteToolCallContent = (content, args) => {
-	const replace = (text) => text.replace(/\{\{(\w+)\}\}/g, (match, key) => Object.hasOwn(args, key) ? String(args[key]) : match);
-	return {
-		...content,
-		title: content.title ? replace(content.title) : content.title,
-		content: replace(content.content)
-	};
-};
-var extractInput = (args, inputDescriptor) => {
-	const formatArg = (key, value) => {
-		return `${key}: ${value === null ? "None" : typeof value === "string" ? `"${value}"` : typeof value === "object" || Array.isArray(value) ? JSON.stringify(value, void 0, 2) : String(value)}`;
-	};
-	if (!args) return { args: [] };
-	if (inputDescriptor) {
-		const filterKeys = /* @__PURE__ */ new Set();
-		const base = {};
-		if (inputDescriptor.inputArg) {
-			const inputArgs = Array.isArray(inputDescriptor.inputArg) ? inputDescriptor.inputArg : [inputDescriptor.inputArg];
-			const matchedKey = inputArgs.find((key) => args[key] !== void 0);
-			if (matchedKey) {
-				filterKeys.add(matchedKey);
-				base.input = inputDescriptor.inputToStr ? inputDescriptor.inputToStr(args[matchedKey]) || args[matchedKey] : args[matchedKey];
-			}
-			for (const key of inputArgs) filterKeys.add(key);
-		}
-		if (inputDescriptor.descriptionArg && args[inputDescriptor.descriptionArg]) {
-			filterKeys.add(inputDescriptor.descriptionArg);
-			base.description = String(args[inputDescriptor.descriptionArg]);
-		}
-		const filteredArgs = Object.keys(args).filter((key) => {
-			return !filterKeys.has(key);
-		}).map((key) => {
-			return formatArg(key, args[key]);
-		});
-		return {
-			...base,
-			args: filteredArgs
-		};
-	} else return { args: Object.keys(args).map((key) => {
-		return formatArg(key, args[key]);
-	}) };
-};
-var MediaReference_module_default = { reference: "_reference_7p4hu_1" };
-//#endregion
-//#region ../../packages/inspect-components/src/media/MediaReference.tsx
-var MediaReference = ({ source, className }) => {
-	const href = parseAbsoluteHttpUrl(source);
-	const dataUri = parseDataUri(source);
-	const label = dataUri ? `data:${dataUri.mimeType}${dataUri.base64 ? ";base64" : ""},...` : source;
-	const classes = clsx(MediaReference_module_default.reference, className);
-	return href ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
-		className: classes,
-		href,
-		target: "_blank",
-		rel: "noopener noreferrer",
-		children: href
-	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
-		className: classes,
-		children: label
-	});
-};
 var CompactionData_module_default = {
 	title: "_title_1pwo3_1",
 	content: "_content_1pwo3_11",
@@ -71766,13 +69899,11 @@ var CompactionData_module_default = {
 var kCompactionMetadata = "compaction_metadata";
 var CompactionData = ({ id, data }) => {
 	const compactionMetadata = data[kCompactionMetadata];
-	let compactionContent = void 0;
-	if (compactionMetadata.type === "anthropic_compact") compactionContent = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+	const compactionContent = compactionMetadata.type === "anthropic_compact" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 		id: `${id}-compacted-content`,
 		collapse: true,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedText, { markdown: String(compactionMetadata.content) })
-	});
-	else compactionContent = /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
 		id: `${id}-compacted-content-metadata`,
 		className: CompactionData_module_default.grid,
 		entries: compactionMetadata,
@@ -73321,6 +71452,48 @@ var ChatMessageRow_module_default = {
 	codeCompact: "_codeCompact_1mah3_91",
 	simple: "_simple_1mah3_95"
 };
+var MessageLabel_module_default = {
+	badge: "_badge_15iyu_1",
+	inline: "_inline_15iyu_2",
+	interactive: "_interactive_15iyu_24"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/chat/MessageLabel.tsx
+/**
+* Badge display form of a label: strips the surrounding cite brackets but
+* keeps the type letter, so "[M4]" → "M4" and "[E58]" → "E58". The full
+* cite stays in the badge tooltip; inline anchors keep the original text —
+* they must read like the prose they sit in.
+*/
+var compactLabel = (label) => label.replace(/^\[/, "").replace(/\]$/, "");
+/**
+* A filled monospace chip used for message position labels (top-right of a
+* message) and as an inline anchor in summary prose.
+*/
+var MessageLabel = ({ label, mode = "badge", onActivate, className }) => {
+	if (mode === "inline") {
+		const onKeyDown = (e) => {
+			if (onActivate && (e.key === "Enter" || e.key === " ")) {
+				e.preventDefault();
+				onActivate();
+			}
+		};
+		return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
+			className: clsx(MessageLabel_module_default.inline, onActivate && MessageLabel_module_default.interactive, className),
+			onClick: onActivate,
+			onKeyDown: onActivate ? onKeyDown : void 0,
+			tabIndex: onActivate ? 0 : void 0,
+			children: label
+		});
+	}
+	const compact = compactLabel(label);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+		className: clsx(MessageLabel_module_default.badge, onActivate && MessageLabel_module_default.interactive, className),
+		onClick: onActivate,
+		title: compact === label ? void 0 : label,
+		children: compact
+	});
+};
 //#endregion
 //#region ../../packages/inspect-components/src/chat/ChatMessageRow.tsx
 /**
@@ -73468,36 +71641,6 @@ var resolveToolMessage = (toolMessage) => {
 		};
 	}).filter((con) => con !== void 0);
 };
-var hasVisibleContent = (message) => {
-	const content = message.content;
-	if (typeof content === "string") return content.trim().length > 0;
-	if (!Array.isArray(content)) return false;
-	return content.some((c) => {
-		if (c.type === "tool_use") return true;
-		if (c.type === "text") {
-			const hasText = c.text.trim().length > 0;
-			const hasCitations = !!c.citations && c.citations.length > 0;
-			return hasText || hasCitations;
-		}
-		if (c.type === "reasoning") {
-			const hasReasoning = c.reasoning.trim().length > 0;
-			const hasSummary = (c.summary?.trim().length ?? 0) > 0;
-			return hasReasoning || hasSummary;
-		}
-		return true;
-	});
-};
-/**
-* Number of sequentially-numbered blocks a row renders. Only the full
-* (un-embedded) layout numbers tool calls individually; every other style
-* keeps the legacy one-number-per-row behavior.
-*/
-var countRowBlocks = (resolved, toolCallStyle) => {
-	if (toolCallStyle !== "complete") return 1;
-	const message = resolved.message;
-	const hasToolCalls = message.role === "assistant" && !!message.tool_calls?.length;
-	return (hasToolCalls && !hasVisibleContent(message) ? 0 : 1) + (hasToolCalls ? message.tool_calls.length : 0);
-};
 var ToolCallViewCompact = ({ idx, functionCall }) => {
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("code", {
 		className: clsx(ChatMessageRow_module_default.codeCompact),
@@ -73532,36 +71675,30 @@ function computeMaxLabelLength(messageLabels) {
 * Renders the ChatView component.
 */
 var ChatView = ({ id, messages, className, display, labels, linking, tools, references }) => {
-	const collapsedMessages = tools?.collapseToolMessages ?? true ? resolveMessages(messages) : messages.map((msg) => {
-		return {
-			message: msg,
-			toolMessages: []
-		};
-	});
+	const callStyle = tools?.callStyle;
+	const collapseToolMessages = tools?.collapseToolMessages;
+	const rows = (0, import_react.useMemo)(() => buildMessageRows(messages, messageRowOptions({
+		callStyle,
+		collapseToolMessages
+	})), [
+		messages,
+		callStyle,
+		collapseToolMessages
+	]);
 	const maxLabelLength = (0, import_react.useMemo)(() => computeMaxLabelLength(labels?.messageLabels), [labels?.messageLabels]);
-	const toolCallStyle = tools?.callStyle ?? "complete";
-	const rowStartNumbers = (0, import_react.useMemo)(() => {
-		const starts = [];
-		let next = 1;
-		for (const msg of collapsedMessages) {
-			starts.push(next);
-			next += countRowBlocks(msg, toolCallStyle);
-		}
-		return starts;
-	}, [collapsedMessages, toolCallStyle]);
 	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 		className: clsx(className),
-		children: collapsedMessages.map((msg, index) => {
+		children: rows.map((row, index) => {
 			return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatMessageRow, {
 				index,
 				parentName: id || "chat-view",
-				resolvedMessage: msg,
+				resolvedMessage: row.resolved,
 				display,
 				labels,
 				linking,
 				tools,
 				maxLabelLength,
-				startNumber: rowStartNumbers[index],
+				startNumber: row.startNumber,
 				references
 			}, `${id}-msg-${index}`);
 		})
@@ -75512,7 +73649,12 @@ var ChatItem = ({ children, ...props }) => {
 };
 var chatComponents = { Item: ChatItem };
 var kChatScrollPaddingStart = -15;
-var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ id, messages, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
+/**
+* The chat list over prebuilt rows — hosts that source rows from a data
+* layer render through this; the message-array wrapper below covers callers
+* that still hold raw messages.
+*/
+var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtualList({ id, rows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
 	const listHandle = (0, import_react.useRef)(null);
 	const [navOwned] = (0, import_react.useState)(() => !!initialMessageId);
 	(0, import_react.useEffect)(() => {
@@ -75521,51 +73663,34 @@ var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ 
 	useListKeyboardNavigation({
 		listHandle,
 		scrollRef,
-		itemCount: messages.length
+		itemCount: rows.length
 	});
-	const resolveInto = tools?.collapseToolMessages ?? true;
-	const collapsedMessages = (0, import_react.useMemo)(() => {
-		return resolveInto ? resolveMessages(messages) : messages.map((msg) => ({
-			message: msg,
-			toolMessages: []
-		}));
-	}, [resolveInto, messages]);
 	const initialMessageIndex = (0, import_react.useMemo)(() => {
 		if (initialMessageId === null || initialMessageId === void 0) return;
-		const index = collapsedMessages.findIndex((message) => {
-			if (message.message.id === initialMessageId) return true;
-			if (message.toolMessages.find((tm) => tm.id === initialMessageId)) return true;
+		const index = rows.findIndex((row) => {
+			if (row.resolved.message.id === initialMessageId) return true;
+			if (row.resolved.toolMessages.find((tm) => tm.id === initialMessageId)) return true;
 		});
 		return index !== -1 ? index : void 0;
-	}, [initialMessageId, collapsedMessages]);
+	}, [initialMessageId, rows]);
 	const maxLabelLength = (0, import_react.useMemo)(() => computeMaxLabelLength(labels?.messageLabels), [labels?.messageLabels]);
-	const toolCallStyle = tools?.callStyle ?? "complete";
-	const rowStartNumbers = (0, import_react.useMemo)(() => {
-		const starts = [];
-		let next = 1;
-		for (const msg of collapsedMessages) {
-			starts.push(next);
-			next += countRowBlocks(msg, toolCallStyle);
-		}
-		return starts;
-	}, [collapsedMessages, toolCallStyle]);
-	const lastIndex = collapsedMessages.length - 1;
+	const lastIndex = rows.length - 1;
 	const renderRow = (0, import_react.useCallback)((index, item) => {
-		if (running && index === lastIndex && isLivePlaceholderMessage(item.message)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		if (running && index === lastIndex && isLivePlaceholderMessage(item.resolved.message)) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: ChatViewVirtualList_module_default.generatingRow,
 			children: backfilling ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(GeneratingIndicator, {})
 		});
-		const toolExecuting = running && index === lastIndex && isToolExecutingMessage(item.message, item.toolMessages.length);
+		const toolExecuting = running && index === lastIndex && isToolExecutingMessage(item.resolved.message, item.resolved.toolMessages.length);
 		return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatMessageRow, {
 			index,
 			parentName: id || "chat-virtual-list",
-			resolvedMessage: item,
+			resolvedMessage: item.resolved,
 			display,
 			labels,
 			linking,
 			tools,
 			maxLabelLength,
-			startNumber: rowStartNumbers[index]
+			startNumber: item.startNumber
 		}), toolExecuting ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
 			className: ChatViewVirtualList_module_default.generatingRow,
 			children: backfilling ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(GeneratingIndicator, { label: "running" })
@@ -75579,10 +73704,10 @@ var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ 
 		labels,
 		linking,
 		tools,
-		maxLabelLength,
-		rowStartNumbers
+		maxLabelLength
 	]);
-	if (collapsedMessages.length === 0) {
+	const rowSearchText = (0, import_react.useCallback)((item) => messageSearchText(item.resolved), []);
+	if (rows.length === 0) {
 		if (backfilling) return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(LoadingEventsIndicator, { label: "Loading messages" });
 		return running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(NoContentsPanel, {
 			text: "Waiting for messages",
@@ -75594,7 +73719,7 @@ var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ 
 		ref: listHandle,
 		className: clsx(ChatViewVirtualList_module_default.list, className),
 		scrollRef,
-		data: collapsedMessages,
+		data: rows,
 		renderRow,
 		initialIndex: initialMessageIndex,
 		scrollPaddingStart: kChatScrollPaddingStart,
@@ -75604,9 +73729,3708 @@ var ChatViewVirtualList = (0, import_react.memo)(function ChatViewVirtualList({ 
 		scrollToTopOnFinish,
 		components: chatComponents,
 		smoothScroll: false,
-		itemSearchText: messageSearchText
+		itemSearchText: rowSearchText
 	});
 });
+(0, import_react.memo)(function ChatViewVirtualList({ messages, tools, ...rest }) {
+	const callStyle = tools?.callStyle;
+	const collapseToolMessages = tools?.collapseToolMessages;
+	const rows = (0, import_react.useMemo)(() => buildMessageRows(messages, messageRowOptions({
+		callStyle,
+		collapseToolMessages
+	})), [
+		messages,
+		callStyle,
+		collapseToolMessages
+	]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatViewRowsVirtualList, {
+		rows,
+		tools,
+		...rest
+	});
+});
+//#endregion
+//#region src/log_data/messageRows.ts
+/**
+* Resolve a `Pagination` to the half-open row range it requests against a
+* known total: `limit` rows starting AT the cursor's offset (or the start).
+*/
+var paginationRange = (pagination, total) => {
+	const offset = pagination.cursor?.["offset"];
+	const lo = Math.max(0, Math.min(typeof offset === "number" ? offset : 0, total));
+	return {
+		lo,
+		hi: Math.min(lo + Math.max(pagination.limit, 0), total)
+	};
+};
+var kDefaultMessageRowOptions = messageRowOptions();
+/**
+* A source over an inline message array (monolith samples and hydrated
+* chunked samples — every source in this stage).
+*/
+var inMemoryMessageRows = (messages, options = kDefaultMessageRowOptions) => {
+	let rows;
+	const allRows = () => {
+		rows ??= buildMessageRows(messages, options);
+		return rows;
+	};
+	return {
+		rowCount: () => Promise.resolve(allRows().length),
+		getRows: (pagination) => {
+			const all = allRows();
+			const { lo, hi } = paginationRange(pagination, all.length);
+			return Promise.resolve({
+				rows: all.slice(lo, hi),
+				offset: lo,
+				totalRowCount: all.length,
+				nextCursor: hi < all.length && hi > lo ? { offset: hi } : null,
+				prevCursor: lo > 0 && hi > lo ? { offset: Math.max(0, lo - pagination.limit) } : null
+			});
+		},
+		exportText: () => Promise.resolve(messagesToStr(messages))
+	};
+};
+//#endregion
+//#region src/log_data/conversation.ts
+/**
+* Map conversation positions `[start, end)` to half-open ranges of the
+* messages sequence via `message_refs` — the whole chunked-format
+* coordinate mapping, kept pure. A linear walk: refs top out around 8k on
+* the largest measured sample (compaction multiplies them), negligible per
+* read.
+*/
+var conversationRanges = (refs, start, end) => {
+	const ranges = [];
+	let pos = 0;
+	for (const [lo, hi] of refs) {
+		if (pos >= end) break;
+		const takeLo = Math.max(start - pos, 0);
+		const takeHi = Math.min(end - pos, hi - lo);
+		if (takeLo < takeHi) ranges.push([lo + takeLo, lo + takeHi]);
+		pos += hi - lo;
+	}
+	return ranges;
+};
+/**
+* A conversation over a chunked sample's `message_refs`: sequence ranges
+* fetched per read, attachment refs substituted before anything downstream
+* sees them. Attachment chunks are prefetched per range as ranges arrive,
+* so attachment downloads overlap the remaining message downloads instead
+* of serializing behind the read's assembly.
+*/
+var chunkedConversation = (chunked) => {
+	const refs = chunked.shell.message_refs;
+	const messageCount = refs.reduce((n, [start, end]) => n + (end - start), 0);
+	return {
+		messageCount,
+		getMessages: async (start, end) => {
+			const lo = Math.max(0, start);
+			const hi = Math.min(Math.max(lo, end), messageCount);
+			const ranges = conversationRanges(refs, lo, hi);
+			const messages = (await Promise.all(ranges.map(([rangeLo, rangeHi]) => chunked.messages.getRange(rangeLo, rangeHi).then((messages) => {
+				prefetchAttachments(messages, chunked).catch(() => void 0);
+				return messages;
+			})))).flat();
+			const label = `conversation [${lo}, ${hi})`;
+			log$4.info(`read ${label}: ${messages.length} messages via ${ranges.length} range${ranges.length === 1 ? "" : "s"}`);
+			return withAttachmentsResolved(messages, chunked, label);
+		}
+	};
+};
+//#endregion
+//#region src/log_data/chunkedMessages.ts
+/**
+* Hydrate a chunked sample's final conversation — a degenerate full-range
+* read on the conversation seam, yielding the same material a monolith
+* sample stores inline as `messages`.
+*
+* INTERIM: full hydration is a bridge until the Messages tab pages by
+* index window (design/large-samples.md, access pattern 3 / effort C3).
+* "The final conversation is conversation-sized" does NOT hold under
+* compaction — measured 134,989 messages / 7,961 ranges (~135MB of member
+* fetches) on the mirror-code monster — so this matches the monolith
+* path's memory profile, no better. Windowed replacement is C3; this
+* fetches on-demand (tab open), never at sample open.
+*/
+var hydrateFinalConversation = (chunked) => {
+	const conversation = chunkedConversation(chunked);
+	return conversation.getMessages(0, conversation.messageCount);
+};
+var chunkedMessagesQueryKey = (handle) => [
+	"log_data",
+	"chunked-messages",
+	handle?.logFile ?? null,
+	handle?.id ?? null,
+	handle?.epoch ?? null
+];
+/**
+* The final conversation for the Messages tab, hydrated on first use and
+* cached alongside the sample queries.
+*/
+var useChunkedMessages = (handle, chunked) => useAsyncDataFromQuery({
+	queryKey: chunkedMessagesQueryKey(handle),
+	queryFn: chunked && handle ? () => hydrateFinalConversation(chunked) : skipToken,
+	gcTime: kSampleGcTimeMs,
+	staleTime: Infinity,
+	retry: false,
+	refetchOnWindowFocus: false,
+	refetchOnReconnect: false,
+	structuralSharing: false
+});
+//#endregion
+//#region src/log_data/messagesExport.ts
+/**
+* Copy/Download > Messages: the settled conversation as text, produced on
+* demand. Undefined when there is no settled conversation to export (live
+* streaming samples, a sample still loading). Chunked samples hydrate on
+* first use, through the same query the Messages tab reads, so export
+* never requires the tab to have been opened.
+*/
+var useMessagesExport = (handle, sampleData) => {
+	const queryClient = useQueryClient();
+	const chunked = sampleData.chunked;
+	const messages = chunked === void 0 ? sampleData.sample?.messages : void 0;
+	return (0, import_react.useMemo)(() => {
+		if (chunked && handle) return async () => {
+			return inMemoryMessageRows(await queryClient.fetchQuery({
+				queryKey: chunkedMessagesQueryKey(handle),
+				queryFn: () => hydrateFinalConversation(chunked),
+				gcTime: kSampleGcTimeMs,
+				staleTime: Infinity
+			})).exportText();
+		};
+		if (messages) return () => inMemoryMessageRows(messages).exportText();
+	}, [
+		queryClient,
+		chunked,
+		handle,
+		messages
+	]);
+};
+//#endregion
+//#region src/log_data/messageRowsQuery.ts
+/**
+* The settled conversation's rows for a sample, held in react-query.
+* Which feed backs them — completed monolith messages or a hydrated
+* chunked sample — is selected here, behind the SampleMessagesData seam.
+* This stage materializes the whole conversation in one read — still slow
+* on huge samples, but behind the seam a windowed source can later serve
+* page by page without touching consumers.
+*
+* Returns undefined while there is no settled conversation to read (a
+* live streaming sample, a sample still fetching, the Messages tab never
+* activated); loading while one is materializing (chunked hydration, the
+* rows read); the caller owns what covers those states (streaming rows,
+* waiting/loading affordances).
+*/
+var useMessageRows = (handle, sampleData, activated) => {
+	const chunked = sampleData.chunked;
+	const isChunked = chunked !== void 0;
+	const chunkedMessages = useChunkedMessages(isChunked && activated ? handle : void 0, chunked);
+	const messages = isChunked ? chunkedMessages.data : sampleData.sample?.messages;
+	const source = (0, import_react.useMemo)(() => messages ? inMemoryMessageRows(messages) : void 0, [messages]);
+	const rows = useAsyncDataFromQuery({
+		queryKey: [
+			"log_data",
+			"message-rows",
+			handle?.logFile ?? null,
+			handle?.id ?? null,
+			handle?.epoch ?? null
+		],
+		queryFn: activated && source && handle ? async () => {
+			return (await source.getRows({
+				cursor: null,
+				direction: "forward",
+				limit: Number.MAX_SAFE_INTEGER
+			})).rows;
+		} : skipToken,
+		gcTime: kSampleGcTimeMs,
+		staleTime: Infinity,
+		retry: false,
+		refetchOnWindowFocus: false,
+		refetchOnReconnect: false,
+		structuralSharing: false
+	});
+	return (0, import_react.useMemo)(() => {
+		if (!activated) return;
+		if (isChunked && chunkedMessages.error !== void 0) return {
+			error: chunkedMessages.error,
+			loading: false
+		};
+		if (isChunked && chunkedMessages.loading) return loading$2;
+		return source === void 0 ? void 0 : rows;
+	}, [
+		activated,
+		isChunked,
+		chunkedMessages,
+		source,
+		rows
+	]);
+};
+//#endregion
+//#region src/log_data/messagesFromEvents.ts
+var isSuccessfulModelEvent = (e) => e.event === "model" && !e.error;
+var createState = () => ({
+	messages: [],
+	positions: /* @__PURE__ */ new Map(),
+	events: [],
+	lastResult: []
+});
+var insertAt = (state, index, m) => {
+	state.messages.splice(index, 0, m);
+	for (let i = index; i < state.messages.length; i++) {
+		const id = state.messages[i]?.id;
+		if (id) state.positions.set(id, i);
+	}
+};
+var processEvent = (state, e) => {
+	let cursor = state.messages.length - 1;
+	const seenInEvent = /* @__PURE__ */ new Set();
+	for (const m of e.input) {
+		if (!m.id || seenInEvent.has(m.id)) continue;
+		seenInEvent.add(m.id);
+		const known = state.positions.get(m.id);
+		if (known !== void 0) cursor = known;
+		else {
+			cursor += 1;
+			insertAt(state, cursor, m);
+		}
+	}
+	const out = e.output.choices[0]?.message;
+	if (out?.id && !state.positions.has(out.id)) {
+		state.positions.set(out.id, state.messages.length);
+		state.messages.push(out);
+	}
+};
+/**
+* Reconstruct the conversation message list shown in the running-sample
+* Messages tab from a stream of events.
+*
+* If `stateRef` is supplied, the function tries to reuse cached work
+* from the previous call. When `events` is a pure prefix-extension of
+* the prior snapshot (events[i] === prior.events[i] for all prior
+* indices), only the new tail is processed; otherwise we recompute
+* from scratch. The cache is updated in place via `stateRef.current`.
+*
+* Note: the polling pipeline replaces the trailing event in place when
+* a streaming model call produces successive output chunks. That shows
+* up as divergence at the last index and forces a rebuild every poll
+* for the active turn, so the cache mainly earns its keep between
+* turns and on idle polls, not while a single model call is streaming.
+*/
+var messagesFromEvents = (events, stateRef) => {
+	const prior = stateRef?.current ?? null;
+	let startFrom = 0;
+	if (prior) while (startFrom < prior.events.length && startFrom < events.length && prior.events[startFrom] === events[startFrom]) startFrom++;
+	const canReuse = prior !== null && startFrom === prior.events.length && events.length >= prior.events.length;
+	let state;
+	if (canReuse) state = prior;
+	else {
+		state = createState();
+		startFrom = 0;
+	}
+	const priorLen = state.messages.length;
+	for (let i = startFrom; i < events.length; i++) {
+		const e = events[i];
+		if (e !== void 0 && isSuccessfulModelEvent(e)) processEvent(state, e);
+	}
+	state.events = events;
+	if (!canReuse || state.messages.length !== priorLen) state.lastResult = state.messages.slice();
+	if (stateRef) stateRef.current = state;
+	return state.lastResult;
+};
+//#endregion
+//#region src/log_data/sampleMessages.ts
+var kNoRows$1 = [];
+/**
+* The streaming rows: derived from the event stream each poll while the
+* Messages tab is shown, and latched across the live-finish handoff — the
+* settled feed's read is asynchronous, so the last streaming rows stay up
+* until it settles (`relieved`). Without the bridge the finish would blank
+* the list for the read's pending frames, unmounting it and losing its
+* scroll handoff. The held rows never cross samples, and hiding the tab
+* drops the rows entirely: nothing mid-stream is worth keeping warm — the
+* fold reruns per poll by design — so a hidden tab shouldn't pay
+* O(conversation) per poll; returning rebuilds once from the events.
+*/
+var useStreamingRowsLatch = (active, relieved, runningEvents, sampleKey) => {
+	const messagesRef = (0, import_react.useRef)(null);
+	const heldRef = (0, import_react.useRef)(null);
+	const built = (0, import_react.useMemo)(() => {
+		if (!active || relieved || runningEvents.length === 0) {
+			messagesRef.current = null;
+			return;
+		}
+		return buildMessageRows(messagesFromEvents(runningEvents, messagesRef), kDefaultMessageRowOptions);
+	}, [
+		active,
+		relieved,
+		runningEvents
+	]);
+	if (relieved || heldRef.current?.key !== sampleKey) heldRef.current = null;
+	if (built !== void 0) {
+		heldRef.current = {
+			key: sampleKey,
+			rows: built
+		};
+		return built;
+	}
+	return active && runningEvents.length === 0 ? heldRef.current?.rows : void 0;
+};
+/**
+* The Messages tab's one entry point: the settled conversation's rows read
+* through `useMessageRows`, with the live event stream serving rows until
+* a settled feed exists. The view consumes the result and reports two
+* gates it owns: `active` (the tab is open — the settled read and chunked
+* hydration are activation-latched on it, so neither is ever paid at
+* sample open) and `running` (live samples surface "waiting", not
+* "loading", before their first poll lands).
+*
+* `data` is the rows to render (settled, streaming, or an empty settled
+* conversation); `loading` means data that will produce messages is still
+* in flight (monolith fetch, chunked hydration, rows materialization);
+* `error` means the conversation failed to materialize. On loading and
+* error the view renders that affordance, never "No messages".
+*/
+var useSampleMessages = (handle, sampleData, active, running) => {
+	const sampleKey = handle ? `${handle.logFile}|${handle.id}|${handle.epoch}` : null;
+	const [latch, setLatch] = (0, import_react.useState)({
+		key: null,
+		activated: false
+	});
+	if (latch.key !== sampleKey) setLatch({
+		key: sampleKey,
+		activated: active
+	});
+	else if (active && !latch.activated) setLatch({
+		key: sampleKey,
+		activated: true
+	});
+	const settled = useMessageRows(handle, sampleData, active || latch.key === sampleKey && latch.activated);
+	const streamingRows = useStreamingRowsLatch(active, settled?.data !== void 0 || settled?.error !== void 0, sampleData.running, sampleKey);
+	const status = sampleData.status;
+	return (0, import_react.useMemo)(() => {
+		if (settled?.error !== void 0) return {
+			error: settled.error,
+			loading: false
+		};
+		if (settled?.data !== void 0) return {
+			data: settled.data,
+			loading: false
+		};
+		if (streamingRows !== void 0) return {
+			data: streamingRows,
+			loading: false
+		};
+		if (settled?.loading || status === "loading" && !running) return loading$2;
+		return {
+			data: kNoRows$1,
+			loading: false
+		};
+	}, [
+		settled,
+		streamingRows,
+		status,
+		running
+	]);
+};
+//#endregion
+//#region src/app/shared/useStableValue.ts
+/**
+* Keep the previous reference when a newly computed value is content-equal.
+*
+* `useMemo` can only key on dependency identity, so a memo that derives
+* from a frequently-replaced store object (e.g. `logDetails` during a
+* directory sync) returns a fresh reference on every flush even when its
+* content is unchanged — cascading identity churn into everything keyed
+* on it. This hook cuts that cascade at the source: callers compute the
+* candidate value as usual and equality decides whether downstream
+* consumers see a new reference.
+*
+* `isEqual` is only consulted when the identity actually changed.
+*/
+function useStableValue(value, isEqual) {
+	"use no memo";
+	const ref = (0, import_react.useRef)(value);
+	if (ref.current !== value && !isEqual(ref.current, value)) ref.current = value;
+	return ref.current;
+}
+//#endregion
+//#region src/log_data/scoreSchema.ts
+/**
+* Build a stable, unique column key for a (scorer, metric) pair. The reducer
+* is intentionally omitted so the same logical metric is one column regardless
+* of whether the log recorded `reducer=null` (default, silently mean) or
+* `reducer="mean"` (explicit). "/" is used as separator ("." meant
+* nested-object access to the original AG grid; the format persists in
+* stored views, so it stays).
+*/
+var scorerMetricKey = (scorerName, metricName) => `${scorerName}/${metricName}`;
+/**
+* Detect all unique (scorer, reducer, metric) combinations across all logs
+* from their results. Collapsing on metric name alone would merge distinct
+* scorers emitting the same metric (e.g. two "accuracy"s) into one column.
+*
+* @param logs - The directory's Log rows
+* @param scopeDir - When set, only logs under this directory contribute
+*   (folder view scoping)
+*/
+function computeScorerMap(logs, scopeDir) {
+	const info = {};
+	const prefix = scopeDir ? scopePrefix(scopeDir) : void 0;
+	for (const log of logs) {
+		if (prefix && !log.name.startsWith(prefix)) continue;
+		if (log.header?.results?.scores) {
+			for (const evalScore of log.header.results.scores) if (evalScore.metrics) for (const [metricName, metric] of Object.entries(evalScore.metrics)) {
+				const key = scorerMetricKey(evalScore.name, metricName);
+				info[key] = {
+					scorerName: evalScore.name,
+					metricName,
+					valueType: typeof metric.value
+				};
+			}
+		}
+	}
+	return info;
+}
+/** Content equality for two scorer maps, independent of key order. */
+function scorerMapsEqual(a, b) {
+	if (a === b) return true;
+	const aKeys = Object.keys(a);
+	if (aKeys.length !== Object.keys(b).length) return false;
+	for (const key of aKeys) {
+		const av = a[key];
+		const bv = b[key];
+		if (!av || !bv || av.scorerName !== bv.scorerName || av.metricName !== bv.metricName || av.valueType !== bv.valueType) return false;
+	}
+	return true;
+}
+/**
+* The score columns available in a scope. Row content gets a new identity
+* on every detail flush while a directory loads, but the scorer
+* columns it implies almost never change — the result is content-stabilized
+* so consumers (and the column defs keyed on it) keep a stable reference
+* across flushes.
+*/
+var asyncScorerMapsEqual = (a, b) => a.loading === b.loading && a.error === b.error && (a.data !== void 0 && b.data !== void 0 ? scorerMapsEqual(a.data, b.data) : a.data === b.data);
+var useScoreSchema = (logDir, scopeDir) => {
+	return useStableValue(useMapAsyncData(useLogs(logDir), (0, import_react.useCallback)((rows) => computeScorerMap(rows, scopeDir), [scopeDir])), asyncScorerMapsEqual);
+};
+//#endregion
+//#region ../../node_modules/.pnpm/immer@11.1.15/node_modules/immer/dist/immer.mjs
+var NOTHING = Symbol.for("immer-nothing");
+var DRAFTABLE = Symbol.for("immer-draftable");
+var DRAFT_STATE = Symbol.for("immer-state");
+function die(error, ...args) {
+	throw new Error(`[Immer] minified error nr: ${error}. Full error at: https://bit.ly/3cXEKWf`);
+}
+var O = Object;
+var getPrototypeOf = O.getPrototypeOf;
+var CONSTRUCTOR = "constructor";
+var PROTOTYPE = "prototype";
+var CONFIGURABLE = "configurable";
+var ENUMERABLE = "enumerable";
+var WRITABLE = "writable";
+var VALUE = "value";
+var isDraft = (value) => !!value && !!value[DRAFT_STATE];
+function isDraftable(value) {
+	if (!value) return false;
+	return isPlainObject(value) || isArray(value) || !!value[DRAFTABLE] || !!value[CONSTRUCTOR]?.[DRAFTABLE] || isMap(value) || isSet(value);
+}
+var objectCtorString = O[PROTOTYPE][CONSTRUCTOR].toString();
+var cachedCtorStrings = /* @__PURE__ */ new WeakMap();
+function isPlainObject(value) {
+	if (!value || !isObjectish(value)) return false;
+	const proto = getPrototypeOf(value);
+	if (proto === null || proto === O[PROTOTYPE]) return true;
+	const Ctor = O.hasOwnProperty.call(proto, CONSTRUCTOR) && proto[CONSTRUCTOR];
+	if (Ctor === Object) return true;
+	if (!isFunction$1(Ctor)) return false;
+	let ctorString = cachedCtorStrings.get(Ctor);
+	if (ctorString === void 0) {
+		ctorString = Function.toString.call(Ctor);
+		cachedCtorStrings.set(Ctor, ctorString);
+	}
+	return ctorString === objectCtorString;
+}
+function each(obj, iter, strict = true) {
+	if (getArchtype(obj) === 0) (strict ? Reflect.ownKeys(obj) : O.keys(obj)).forEach((key) => {
+		iter(key, obj[key], obj);
+	});
+	else obj.forEach((entry, index) => iter(index, entry, obj));
+}
+function getArchtype(thing) {
+	const state = thing[DRAFT_STATE];
+	return state ? state.type_ : isArray(thing) ? 1 : isMap(thing) ? 2 : isSet(thing) ? 3 : 0;
+}
+var has = (thing, prop, type = getArchtype(thing)) => type === 2 ? thing.has(prop) : O[PROTOTYPE].hasOwnProperty.call(thing, prop);
+var get$1 = (thing, prop, type = getArchtype(thing)) => type === 2 ? thing.get(prop) : thing[prop];
+var set = (thing, propOrOldValue, value, type = getArchtype(thing)) => {
+	if (type === 2) thing.set(propOrOldValue, value);
+	else if (type === 3) thing.add(value);
+	else thing[propOrOldValue] = value;
+};
+function is(x, y) {
+	if (x === y) return x !== 0 || 1 / x === 1 / y;
+	else return x !== x && y !== y;
+}
+var isArray = Array.isArray;
+var isMap = (target) => target instanceof Map;
+var isSet = (target) => target instanceof Set;
+var isObjectish = (target) => typeof target === "object";
+var isFunction$1 = (target) => typeof target === "function";
+var isBoolean = (target) => typeof target === "boolean";
+function isArrayIndex$1(value) {
+	const n = +value;
+	return Number.isInteger(n) && String(n) === value;
+}
+var getProxyDraft = (value) => {
+	if (!isObjectish(value)) return null;
+	return value?.[DRAFT_STATE];
+};
+var latest = (state) => state.copy_ || state.base_;
+var getValue = (value) => {
+	const proxyDraft = getProxyDraft(value);
+	return proxyDraft ? proxyDraft.copy_ ?? proxyDraft.base_ : value;
+};
+var getFinalValue = (state) => state.modified_ ? state.copy_ : state.base_;
+function shallowCopy(base, strict) {
+	if (isMap(base)) return new Map(base);
+	if (isSet(base)) return new Set(base);
+	if (isArray(base)) return Array[PROTOTYPE].slice.call(base);
+	const isPlain = isPlainObject(base);
+	if (strict === true || strict === "class_only" && !isPlain) {
+		const descriptors = O.getOwnPropertyDescriptors(base);
+		delete descriptors[DRAFT_STATE];
+		let keys = Reflect.ownKeys(descriptors);
+		for (let i = 0; i < keys.length; i++) {
+			const key = keys[i];
+			const desc = descriptors[key];
+			if (desc[WRITABLE] === false) {
+				desc[WRITABLE] = true;
+				desc[CONFIGURABLE] = true;
+			}
+			if (desc.get || desc.set) descriptors[key] = {
+				[CONFIGURABLE]: true,
+				[WRITABLE]: true,
+				[ENUMERABLE]: desc[ENUMERABLE],
+				[VALUE]: base[key]
+			};
+		}
+		return O.create(getPrototypeOf(base), descriptors);
+	} else {
+		const proto = getPrototypeOf(base);
+		if (proto !== null && isPlain) return { ...base };
+		const obj = O.create(proto);
+		return O.assign(obj, base);
+	}
+}
+function freeze(obj, deep = false) {
+	if (isFrozen(obj) || isDraft(obj) || !isDraftable(obj)) return obj;
+	if (getArchtype(obj) > 1) O.defineProperties(obj, {
+		set: dontMutateMethodOverride,
+		add: dontMutateMethodOverride,
+		clear: dontMutateMethodOverride,
+		delete: dontMutateMethodOverride
+	});
+	O.freeze(obj);
+	if (deep) each(obj, (_key, value) => {
+		freeze(value, true);
+	}, false);
+	return obj;
+}
+function dontMutateFrozenCollections() {
+	die(2);
+}
+var dontMutateMethodOverride = { [VALUE]: dontMutateFrozenCollections };
+function isFrozen(obj) {
+	if (obj === null || !isObjectish(obj)) return true;
+	return O.isFrozen(obj);
+}
+var PluginMapSet = "MapSet";
+var PluginPatches = "Patches";
+var PluginArrayMethods = "ArrayMethods";
+var plugins = {};
+function getPlugin(pluginKey) {
+	const plugin = plugins[pluginKey];
+	if (!plugin) die(0, pluginKey);
+	return plugin;
+}
+var isPluginLoaded = (pluginKey) => !!plugins[pluginKey];
+function loadPlugin(pluginKey, implementation) {
+	if (!plugins[pluginKey]) plugins[pluginKey] = implementation;
+}
+var currentScope;
+var getCurrentScope = () => currentScope;
+var createScope = (parent_, immer_) => ({
+	drafts_: [],
+	parent_,
+	immer_,
+	canAutoFreeze_: true,
+	unfinalizedDrafts_: 0,
+	handledSet_: /* @__PURE__ */ new Set(),
+	processedForPatches_: /* @__PURE__ */ new Set(),
+	mapSetPlugin_: isPluginLoaded(PluginMapSet) ? getPlugin(PluginMapSet) : void 0,
+	arrayMethodsPlugin_: isPluginLoaded(PluginArrayMethods) ? getPlugin(PluginArrayMethods) : void 0
+});
+function usePatchesInScope(scope, patchListener) {
+	if (patchListener) {
+		scope.patchPlugin_ = getPlugin(PluginPatches);
+		scope.patches_ = [];
+		scope.inversePatches_ = [];
+		scope.patchListener_ = patchListener;
+	}
+}
+function revokeScope(scope) {
+	leaveScope(scope);
+	scope.drafts_.forEach(revokeDraft);
+	scope.drafts_ = null;
+}
+function leaveScope(scope) {
+	if (scope === currentScope) currentScope = scope.parent_;
+}
+var enterScope = (immer2) => currentScope = createScope(currentScope, immer2);
+function revokeDraft(draft) {
+	const state = draft[DRAFT_STATE];
+	if (state.type_ === 0 || state.type_ === 1) state.revoke_();
+	else state.revoked_ = true;
+}
+function processResult(result, scope) {
+	scope.unfinalizedDrafts_ = scope.drafts_.length;
+	const baseDraft = scope.drafts_[0];
+	if (result !== void 0 && result !== baseDraft) {
+		if (baseDraft[DRAFT_STATE].modified_) {
+			revokeScope(scope);
+			die(4);
+		}
+		if (isDraftable(result)) result = finalize$1(scope, result);
+		const { patchPlugin_ } = scope;
+		if (patchPlugin_) patchPlugin_.generateReplacementPatches_(baseDraft[DRAFT_STATE].base_, result, scope);
+	} else result = finalize$1(scope, baseDraft);
+	maybeFreeze(scope, result, true);
+	revokeScope(scope);
+	if (scope.patches_) scope.patchListener_(scope.patches_, scope.inversePatches_);
+	return result !== NOTHING ? result : void 0;
+}
+function finalize$1(rootScope, value) {
+	if (isFrozen(value)) return value;
+	const state = value[DRAFT_STATE];
+	if (!state) return handleValue(value, rootScope.handledSet_, rootScope);
+	if (!isSameScope(state, rootScope)) return value;
+	if (!state.modified_) return state.base_;
+	if (!state.finalized_) {
+		const { callbacks_ } = state;
+		if (callbacks_) while (callbacks_.length > 0) callbacks_.pop()(rootScope);
+		generatePatchesAndFinalize(state, rootScope);
+	}
+	return state.copy_;
+}
+function maybeFreeze(scope, value, deep = false) {
+	if (!scope.parent_ && scope.immer_.autoFreeze_ && scope.canAutoFreeze_) freeze(value, deep);
+}
+function markStateFinalized(state) {
+	state.finalized_ = true;
+	state.scope_.unfinalizedDrafts_--;
+}
+var isSameScope = (state, rootScope) => state.scope_ === rootScope;
+var EMPTY_LOCATIONS_RESULT = [];
+function updateDraftInParent(parent, draftValue, finalizedValue, originalKey) {
+	const parentCopy = latest(parent);
+	const parentType = parent.type_;
+	if (originalKey !== void 0) {
+		if (get$1(parentCopy, originalKey, parentType) === draftValue) {
+			set(parentCopy, originalKey, finalizedValue, parentType);
+			return;
+		}
+	}
+	if (!parent.draftLocations_) {
+		const draftLocations = parent.draftLocations_ = /* @__PURE__ */ new Map();
+		each(parentCopy, (key, value) => {
+			if (isDraft(value)) {
+				const keys = draftLocations.get(value) || [];
+				keys.push(key);
+				draftLocations.set(value, keys);
+			}
+		});
+	}
+	const locations = parent.draftLocations_.get(draftValue) ?? EMPTY_LOCATIONS_RESULT;
+	for (const location of locations) set(parentCopy, location, finalizedValue, parentType);
+}
+function registerChildFinalizationCallback(parent, child, key) {
+	parent.callbacks_.push(function childCleanup(rootScope) {
+		const state = child;
+		if (!state || !isSameScope(state, rootScope)) return;
+		rootScope.mapSetPlugin_?.fixSetContents(state);
+		const finalizedValue = getFinalValue(state);
+		updateDraftInParent(parent, state.draft_ ?? state, finalizedValue, key);
+		generatePatchesAndFinalize(state, rootScope);
+	});
+}
+function generatePatchesAndFinalize(state, rootScope) {
+	if (state.modified_ && !state.finalized_ && (state.type_ === 3 || state.type_ === 1 && state.allIndicesReassigned_ || (state.assigned_?.size ?? 0) > 0)) {
+		const { patchPlugin_ } = rootScope;
+		if (patchPlugin_) {
+			const basePath = patchPlugin_.getPath(state);
+			if (basePath) patchPlugin_.generatePatches_(state, basePath, rootScope);
+		}
+		markStateFinalized(state);
+	}
+}
+function handleCrossReference(target, key, value) {
+	const { scope_ } = target;
+	if (isDraft(value)) {
+		const state = value[DRAFT_STATE];
+		if (isSameScope(state, scope_)) state.callbacks_.push(function crossReferenceCleanup() {
+			prepareCopy(target);
+			updateDraftInParent(target, value, getFinalValue(state), key);
+		});
+	} else if (isDraftable(value)) target.callbacks_.push(function nestedDraftCleanup() {
+		const targetCopy = latest(target);
+		if (target.type_ === 3) {
+			if (targetCopy.has(value)) handleValue(value, scope_.handledSet_, scope_);
+		} else if (get$1(targetCopy, key, target.type_) === value) {
+			if (scope_.drafts_.length > 1 && (target.assigned_.get(key) ?? false) === true && target.copy_) handleValue(get$1(target.copy_, key, target.type_), scope_.handledSet_, scope_);
+		}
+	});
+}
+function handleValue(target, handledSet, rootScope) {
+	if (!rootScope.immer_.autoFreeze_ && rootScope.unfinalizedDrafts_ < 1) return target;
+	if (isDraft(target) || handledSet.has(target) || !isDraftable(target) || isFrozen(target)) return target;
+	handledSet.add(target);
+	each(target, (key, value) => {
+		if (isDraft(value)) {
+			const state = value[DRAFT_STATE];
+			if (isSameScope(state, rootScope)) {
+				set(target, key, getFinalValue(state), target.type_);
+				markStateFinalized(state);
+			}
+		} else if (isDraftable(value)) handleValue(value, handledSet, rootScope);
+	});
+	return target;
+}
+function createProxyProxy(base, parent) {
+	const baseIsArray = isArray(base);
+	const state = {
+		type_: baseIsArray ? 1 : 0,
+		scope_: parent ? parent.scope_ : getCurrentScope(),
+		modified_: false,
+		finalized_: false,
+		assigned_: void 0,
+		parent_: parent,
+		base_: base,
+		draft_: null,
+		copy_: null,
+		revoke_: null,
+		isManual_: false,
+		callbacks_: void 0
+	};
+	let target = state;
+	let traps = objectTraps;
+	if (baseIsArray) {
+		target = [state];
+		traps = arrayTraps;
+	}
+	const { revoke, proxy } = Proxy.revocable(target, traps);
+	state.draft_ = proxy;
+	state.revoke_ = revoke;
+	return [proxy, state];
+}
+var objectTraps = {
+	get(state, prop) {
+		if (prop === DRAFT_STATE) return state;
+		let arrayPlugin = state.scope_.arrayMethodsPlugin_;
+		const isArrayWithStringProp = state.type_ === 1 && typeof prop === "string";
+		if (isArrayWithStringProp) {
+			if (arrayPlugin?.isArrayOperationMethod(prop)) return arrayPlugin.createMethodInterceptor(state, prop);
+		}
+		const source = latest(state);
+		if (!has(source, prop, state.type_)) return readPropFromProto(state, source, prop);
+		const value = source[prop];
+		if (state.finalized_ || !isDraftable(value)) return value;
+		if (isArrayWithStringProp && state.operationMethod && arrayPlugin?.isMutatingArrayMethod(state.operationMethod) && isArrayIndex$1(prop)) return value;
+		if (value === peek(state.base_, prop) || isRelocatedBaseRef(state, prop, value)) {
+			prepareCopy(state);
+			const childKey = state.type_ === 1 ? +prop : prop;
+			const childDraft = createProxy(state.scope_, value, state, childKey);
+			return state.copy_[childKey] = childDraft;
+		}
+		return value;
+	},
+	has(state, prop) {
+		return prop in latest(state);
+	},
+	ownKeys(state) {
+		return Reflect.ownKeys(latest(state));
+	},
+	set(state, prop, value) {
+		const desc = getDescriptorFromProto(latest(state), prop);
+		if (desc?.set) {
+			desc.set.call(state.draft_, value);
+			return true;
+		}
+		if (!state.modified_) {
+			const current2 = peek(latest(state), prop);
+			const currentState = current2?.[DRAFT_STATE];
+			if (currentState && currentState.base_ === value) {
+				state.copy_[prop] = value;
+				state.assigned_.set(prop, false);
+				return true;
+			}
+			if (is(value, current2) && (value !== void 0 || has(state.base_, prop, state.type_))) return true;
+			prepareCopy(state);
+			markChanged(state);
+		}
+		if (state.copy_[prop] === value && (value !== void 0 || has(state.copy_, prop, state.type_)) || Number.isNaN(value) && Number.isNaN(state.copy_[prop])) return true;
+		state.copy_[prop] = value;
+		state.assigned_.set(prop, true);
+		handleCrossReference(state, prop, value);
+		return true;
+	},
+	deleteProperty(state, prop) {
+		prepareCopy(state);
+		if (peek(state.base_, prop) !== void 0 || prop in state.base_) {
+			state.assigned_.set(prop, false);
+			markChanged(state);
+		} else state.assigned_.delete(prop);
+		if (state.copy_) delete state.copy_[prop];
+		return true;
+	},
+	getOwnPropertyDescriptor(state, prop) {
+		const owner = latest(state);
+		const desc = Reflect.getOwnPropertyDescriptor(owner, prop);
+		if (!desc) return desc;
+		return {
+			[WRITABLE]: true,
+			[CONFIGURABLE]: state.type_ !== 1 || prop !== "length",
+			[ENUMERABLE]: desc[ENUMERABLE],
+			[VALUE]: owner[prop]
+		};
+	},
+	defineProperty() {
+		die(11);
+	},
+	getPrototypeOf(state) {
+		return getPrototypeOf(state.base_);
+	},
+	setPrototypeOf() {
+		die(12);
+	}
+};
+var arrayTraps = {};
+for (let key in objectTraps) {
+	let fn = objectTraps[key];
+	arrayTraps[key] = function() {
+		const args = arguments;
+		args[0] = args[0][0];
+		return fn.apply(this, args);
+	};
+}
+arrayTraps.deleteProperty = function(state, prop) {
+	return arrayTraps.set.call(this, state, prop, void 0);
+};
+arrayTraps.set = function(state, prop, value) {
+	return objectTraps.set.call(this, state[0], prop, value, state[0]);
+};
+function peek(draft, prop) {
+	const state = draft[DRAFT_STATE];
+	return (state ? latest(state) : draft)[prop];
+}
+function isRelocatedBaseRef(state, prop, value) {
+	if (state.type_ !== 1 || !state.allIndicesReassigned_ || state.assigned_?.get(prop) || !isDraftable(value) || value[DRAFT_STATE]) return false;
+	return state.baseRefs_.has(value);
+}
+function readPropFromProto(state, source, prop) {
+	const desc = getDescriptorFromProto(source, prop);
+	return desc ? VALUE in desc ? desc[VALUE] : desc.get?.call(state.draft_) : void 0;
+}
+function getDescriptorFromProto(source, prop) {
+	if (!(prop in source)) return void 0;
+	let proto = getPrototypeOf(source);
+	while (proto) {
+		const desc = Object.getOwnPropertyDescriptor(proto, prop);
+		if (desc) return desc;
+		proto = getPrototypeOf(proto);
+	}
+}
+function markChanged(state) {
+	if (!state.modified_) {
+		state.modified_ = true;
+		if (state.parent_) markChanged(state.parent_);
+	}
+}
+function prepareCopy(state) {
+	if (!state.copy_) {
+		state.assigned_ = /* @__PURE__ */ new Map();
+		state.copy_ = shallowCopy(state.base_, state.scope_.immer_.useStrictShallowCopy_);
+	}
+}
+var Immer2 = class {
+	constructor(config) {
+		this.autoFreeze_ = true;
+		this.useStrictShallowCopy_ = false;
+		this.useStrictIteration_ = false;
+		/**
+		* The `produce` function takes a value and a "recipe function" (whose
+		* return value often depends on the base state). The recipe function is
+		* free to mutate its first argument however it wants. All mutations are
+		* only ever applied to a __copy__ of the base state.
+		*
+		* Pass only a function to create a "curried producer" which relieves you
+		* from passing the recipe function every time.
+		*
+		* Only plain objects and arrays are made mutable. All other objects are
+		* considered uncopyable.
+		*
+		* Note: This function is __bound__ to its `Immer` instance.
+		*
+		* @param {any} base - the initial state
+		* @param {Function} recipe - function that receives a proxy of the base state as first argument and which can be freely modified
+		* @param {Function} patchListener - optional function that will be called with all the patches produced here
+		* @returns {any} a new state, or the initial state if nothing was modified
+		*/
+		this.produce = (base, recipe, patchListener) => {
+			if (isFunction$1(base) && !isFunction$1(recipe)) {
+				const defaultBase = recipe;
+				recipe = base;
+				const self = this;
+				return function curriedProduce(base2 = defaultBase, ...args) {
+					return self.produce(base2, (draft) => recipe.call(this, draft, ...args));
+				};
+			}
+			if (!isFunction$1(recipe)) die(6);
+			if (patchListener !== void 0 && !isFunction$1(patchListener)) die(7);
+			let result;
+			if (isDraftable(base)) {
+				const scope = enterScope(this);
+				const proxy = createProxy(scope, base, void 0);
+				let hasError = true;
+				try {
+					result = recipe(proxy);
+					hasError = false;
+				} finally {
+					if (hasError) revokeScope(scope);
+					else leaveScope(scope);
+				}
+				usePatchesInScope(scope, patchListener);
+				return processResult(result, scope);
+			} else if (!base || !isObjectish(base)) {
+				result = recipe(base);
+				if (result === void 0) result = base;
+				if (result === NOTHING) result = void 0;
+				if (this.autoFreeze_) freeze(result, true);
+				if (patchListener) {
+					const p = [];
+					const ip = [];
+					getPlugin(PluginPatches).generateReplacementPatches_(base, result, {
+						patches_: p,
+						inversePatches_: ip
+					});
+					patchListener(p, ip);
+				}
+				return result;
+			} else die(1, base);
+		};
+		this.produceWithPatches = (base, recipe) => {
+			if (isFunction$1(base)) return (state, ...args) => this.produceWithPatches(state, (draft) => base(draft, ...args));
+			let patches, inversePatches;
+			return [
+				this.produce(base, recipe, (p, ip) => {
+					patches = p;
+					inversePatches = ip;
+				}),
+				patches,
+				inversePatches
+			];
+		};
+		if (isBoolean(config?.autoFreeze)) this.setAutoFreeze(config.autoFreeze);
+		if (isBoolean(config?.useStrictShallowCopy)) this.setUseStrictShallowCopy(config.useStrictShallowCopy);
+		if (isBoolean(config?.useStrictIteration)) this.setUseStrictIteration(config.useStrictIteration);
+	}
+	createDraft(base) {
+		if (!isDraftable(base)) die(8);
+		if (isDraft(base)) base = current(base);
+		const scope = enterScope(this);
+		const proxy = createProxy(scope, base, void 0);
+		proxy[DRAFT_STATE].isManual_ = true;
+		leaveScope(scope);
+		return proxy;
+	}
+	finishDraft(draft, patchListener) {
+		const state = draft && draft[DRAFT_STATE];
+		if (!state || !state.isManual_) die(9);
+		const { scope_: scope } = state;
+		usePatchesInScope(scope, patchListener);
+		return processResult(void 0, scope);
+	}
+	/**
+	* Pass true to automatically freeze all copies created by Immer.
+	*
+	* By default, auto-freezing is enabled.
+	*/
+	setAutoFreeze(value) {
+		this.autoFreeze_ = value;
+	}
+	/**
+	* Pass true to enable strict shallow copy.
+	*
+	* By default, immer does not copy the object descriptors such as getter, setter and non-enumrable properties.
+	*/
+	setUseStrictShallowCopy(value) {
+		this.useStrictShallowCopy_ = value;
+	}
+	/**
+	* Pass false to use faster iteration that skips non-enumerable properties
+	* but still handles symbols for compatibility.
+	*
+	* By default, strict iteration is enabled (includes all own properties).
+	*/
+	setUseStrictIteration(value) {
+		this.useStrictIteration_ = value;
+	}
+	shouldUseStrictIteration() {
+		return this.useStrictIteration_;
+	}
+	applyPatches(base, patches) {
+		let i;
+		for (i = patches.length - 1; i >= 0; i--) {
+			const patch = patches[i];
+			if (patch.path.length === 0 && patch.op === "replace") {
+				base = patch.value;
+				break;
+			}
+		}
+		if (i > -1) patches = patches.slice(i + 1);
+		const applyPatchesImpl = getPlugin(PluginPatches).applyPatches_;
+		if (isDraft(base)) return applyPatchesImpl(base, patches);
+		return this.produce(base, (draft) => applyPatchesImpl(draft, patches));
+	}
+};
+function createProxy(rootScope, value, parent, key) {
+	const [draft, state] = isMap(value) ? getPlugin(PluginMapSet).proxyMap_(value, parent) : isSet(value) ? getPlugin(PluginMapSet).proxySet_(value, parent) : createProxyProxy(value, parent);
+	(parent?.scope_ ?? getCurrentScope()).drafts_.push(draft);
+	state.callbacks_ = parent?.callbacks_ ?? [];
+	state.key_ = key;
+	if (parent && key !== void 0) registerChildFinalizationCallback(parent, state, key);
+	else state.callbacks_.push(function rootDraftCleanup(rootScope2) {
+		rootScope2.mapSetPlugin_?.fixSetContents(state);
+		const { patchPlugin_ } = rootScope2;
+		if (state.modified_ && patchPlugin_) patchPlugin_.generatePatches_(state, [], rootScope2);
+	});
+	return draft;
+}
+function current(value) {
+	if (!isDraft(value)) die(10, value);
+	return currentImpl(value);
+}
+function currentImpl(value) {
+	if (!isDraftable(value) || isFrozen(value)) return value;
+	const state = value[DRAFT_STATE];
+	let copy;
+	let strict = true;
+	if (state) {
+		if (!state.modified_) return state.base_;
+		state.finalized_ = true;
+		copy = shallowCopy(value, state.scope_.immer_.useStrictShallowCopy_);
+		strict = state.scope_.immer_.shouldUseStrictIteration();
+	} else copy = shallowCopy(value, true);
+	each(copy, (key, childValue) => {
+		set(copy, key, currentImpl(childValue));
+	}, strict);
+	if (state) state.finalized_ = false;
+	return copy;
+}
+function enableMapSet() {
+	class DraftMap extends Map {
+		constructor(target, parent) {
+			super();
+			this[DRAFT_STATE] = {
+				type_: 2,
+				parent_: parent,
+				scope_: parent ? parent.scope_ : getCurrentScope(),
+				modified_: false,
+				finalized_: false,
+				copy_: void 0,
+				assigned_: void 0,
+				base_: target,
+				draft_: this,
+				isManual_: false,
+				revoked_: false,
+				callbacks_: []
+			};
+		}
+		get size() {
+			return latest(this[DRAFT_STATE]).size;
+		}
+		has(key) {
+			return latest(this[DRAFT_STATE]).has(key);
+		}
+		set(key, value) {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			if (!latest(state).has(key) || latest(state).get(key) !== value) {
+				prepareMapCopy(state);
+				markChanged(state);
+				state.assigned_.set(key, true);
+				state.copy_.set(key, value);
+				state.assigned_.set(key, true);
+				handleCrossReference(state, key, value);
+			}
+			return this;
+		}
+		delete(key) {
+			if (!this.has(key)) return false;
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			prepareMapCopy(state);
+			markChanged(state);
+			if (state.base_.has(key)) state.assigned_.set(key, false);
+			else state.assigned_.delete(key);
+			state.copy_.delete(key);
+			return true;
+		}
+		clear() {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			if (latest(state).size) {
+				prepareMapCopy(state);
+				markChanged(state);
+				state.assigned_ = /* @__PURE__ */ new Map();
+				each(state.base_, (key) => {
+					state.assigned_.set(key, false);
+				});
+				state.copy_.clear();
+			}
+		}
+		forEach(cb, thisArg) {
+			const state = this[DRAFT_STATE];
+			latest(state).forEach((_value, key, _map) => {
+				cb.call(thisArg, this.get(key), key, this);
+			});
+		}
+		get(key) {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			const value = latest(state).get(key);
+			if (state.finalized_ || !isDraftable(value)) return value;
+			if (value !== state.base_.get(key)) return value;
+			const draft = createProxy(state.scope_, value, state, key);
+			prepareMapCopy(state);
+			state.copy_.set(key, draft);
+			return draft;
+		}
+		keys() {
+			return latest(this[DRAFT_STATE]).keys();
+		}
+		values() {
+			const iterator = this.keys();
+			return iteratorFrom({ next: () => {
+				const r = iterator.next();
+				if (r.done) return r;
+				return {
+					done: false,
+					value: this.get(r.value)
+				};
+			} });
+		}
+		entries() {
+			const iterator = this.keys();
+			return iteratorFrom({ next: () => {
+				const r = iterator.next();
+				if (r.done) return r;
+				const value = this.get(r.value);
+				return {
+					done: false,
+					value: [r.value, value]
+				};
+			} });
+		}
+		[Symbol.iterator]() {
+			return this.entries();
+		}
+	}
+	function iteratorFrom(iterable) {
+		if (typeof Iterator !== "undefined") return Iterator.from(iterable);
+		const iterator = {
+			...iterable,
+			[Symbol.iterator]: () => iterator
+		};
+		return iterator;
+	}
+	function proxyMap_(target, parent) {
+		const map = new DraftMap(target, parent);
+		return [map, map[DRAFT_STATE]];
+	}
+	function prepareMapCopy(state) {
+		if (!state.copy_) {
+			state.assigned_ = /* @__PURE__ */ new Map();
+			state.copy_ = new Map(state.base_);
+		}
+	}
+	class DraftSet extends Set {
+		constructor(target, parent) {
+			super();
+			this[DRAFT_STATE] = {
+				type_: 3,
+				parent_: parent,
+				scope_: parent ? parent.scope_ : getCurrentScope(),
+				modified_: false,
+				finalized_: false,
+				copy_: void 0,
+				base_: target,
+				draft_: this,
+				drafts_: /* @__PURE__ */ new Map(),
+				revoked_: false,
+				isManual_: false,
+				assigned_: void 0,
+				callbacks_: []
+			};
+		}
+		get size() {
+			return latest(this[DRAFT_STATE]).size;
+		}
+		has(value) {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			if (!state.copy_) return state.base_.has(value);
+			if (state.copy_.has(value)) return true;
+			if (state.drafts_.has(value) && state.copy_.has(state.drafts_.get(value))) return true;
+			return false;
+		}
+		add(value) {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			if (!this.has(value)) {
+				prepareSetCopy(state);
+				markChanged(state);
+				state.copy_.add(value);
+				handleCrossReference(state, value, value);
+			}
+			return this;
+		}
+		delete(value) {
+			if (!this.has(value)) return false;
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			prepareSetCopy(state);
+			markChanged(state);
+			return state.copy_.delete(value) || (state.drafts_.has(value) ? state.copy_.delete(state.drafts_.get(value)) : 
+			/* istanbul ignore next */
+false);
+		}
+		clear() {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			if (latest(state).size) {
+				prepareSetCopy(state);
+				markChanged(state);
+				state.copy_.clear();
+			}
+		}
+		values() {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			prepareSetCopy(state);
+			return state.copy_.values();
+		}
+		entries() {
+			const state = this[DRAFT_STATE];
+			assertUnrevoked(state);
+			prepareSetCopy(state);
+			return state.copy_.entries();
+		}
+		keys() {
+			return this.values();
+		}
+		[Symbol.iterator]() {
+			return this.values();
+		}
+		forEach(cb, thisArg) {
+			const iterator = this.values();
+			let result = iterator.next();
+			while (!result.done) {
+				cb.call(thisArg, result.value, result.value, this);
+				result = iterator.next();
+			}
+		}
+	}
+	function proxySet_(target, parent) {
+		const set2 = new DraftSet(target, parent);
+		return [set2, set2[DRAFT_STATE]];
+	}
+	function prepareSetCopy(state) {
+		if (!state.copy_) {
+			state.copy_ = /* @__PURE__ */ new Set();
+			state.base_.forEach((value) => {
+				if (isDraftable(value)) {
+					const draft = createProxy(state.scope_, value, state, value);
+					state.drafts_.set(value, draft);
+					state.copy_.add(draft);
+				} else state.copy_.add(value);
+			});
+		}
+	}
+	function assertUnrevoked(state) {
+		if (state.revoked_) die(3, JSON.stringify(latest(state)));
+	}
+	function fixSetContents(target) {
+		if (target.type_ === 3 && target.copy_) {
+			const copy = new Set(target.copy_);
+			target.copy_.clear();
+			copy.forEach((value) => {
+				target.copy_.add(getValue(value));
+			});
+		}
+	}
+	loadPlugin(PluginMapSet, {
+		proxyMap_,
+		proxySet_,
+		fixSetContents
+	});
+}
+var produce = new Immer2().produce;
+//#endregion
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/vanilla.mjs
+var createStoreImpl = (createState) => {
+	let state;
+	const listeners = /* @__PURE__ */ new Set();
+	const setState = (partial, replace) => {
+		const nextState = typeof partial === "function" ? partial(state) : partial;
+		if (!Object.is(nextState, state)) {
+			const previousState = state;
+			state = (replace != null ? replace : typeof nextState !== "object" || nextState === null) ? nextState : Object.assign({}, state, nextState);
+			listeners.forEach((listener) => listener(state, previousState));
+		}
+	};
+	const getState = () => state;
+	const getInitialState = () => initialState;
+	const subscribe = (listener) => {
+		listeners.add(listener);
+		return () => listeners.delete(listener);
+	};
+	const api = {
+		setState,
+		getState,
+		getInitialState,
+		subscribe
+	};
+	const initialState = state = createState(setState, getState, api);
+	return api;
+};
+var createStore = ((createState) => createState ? createStoreImpl(createState) : createStoreImpl);
+//#endregion
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/react.mjs
+var identity = (arg) => arg;
+function useStore$1(api, selector = identity) {
+	const slice = import_react.useSyncExternalStore(api.subscribe, import_react.useCallback(() => selector(api.getState()), [api, selector]), import_react.useCallback(() => selector(api.getInitialState()), [api, selector]));
+	import_react.useDebugValue(slice);
+	return slice;
+}
+var createImpl = (createState) => {
+	const api = createStore(createState);
+	const useBoundStore = (selector) => useStore$1(api, selector);
+	Object.assign(useBoundStore, api);
+	return useBoundStore;
+};
+var create = ((createState) => createState ? createImpl(createState) : createImpl);
+//#endregion
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware.mjs
+var shouldDispatchFromDevtools = (api) => !!api.dispatchFromDevtools && typeof api.dispatch === "function";
+var trackedConnections = /* @__PURE__ */ new Map();
+var getTrackedConnectionState = (name) => {
+	const api = trackedConnections.get(name);
+	if (!api) return {};
+	return Object.fromEntries(Object.entries(api.stores).map(([key, api2]) => [key, api2.getState()]));
+};
+var extractConnectionInformation = (store, extensionConnector, options) => {
+	if (store === void 0) return {
+		type: "untracked",
+		connection: extensionConnector.connect(options)
+	};
+	const existingConnection = trackedConnections.get(options.name);
+	if (existingConnection) return {
+		type: "tracked",
+		store,
+		...existingConnection
+	};
+	const newConnection = {
+		connection: extensionConnector.connect(options),
+		stores: {}
+	};
+	trackedConnections.set(options.name, newConnection);
+	return {
+		type: "tracked",
+		store,
+		...newConnection
+	};
+};
+var removeStoreFromTrackedConnections = (name, store) => {
+	if (store === void 0) return;
+	const connectionInfo = trackedConnections.get(name);
+	if (!connectionInfo) return;
+	delete connectionInfo.stores[store];
+	if (Object.keys(connectionInfo.stores).length === 0) trackedConnections.delete(name);
+};
+var v8StackLineRe = /.+ (.+) .+/;
+var geckoStackLineRe = /^([^@]+)@/;
+function findCallerName(stack) {
+	var _a, _b, _c;
+	if (!stack) return void 0;
+	const traceLines = stack.split("\n");
+	const apiSetStateLineIndex = traceLines.findIndex((traceLine) => traceLine.includes("api.setState"));
+	if (apiSetStateLineIndex < 0) return void 0;
+	const callerLine = ((_a = traceLines[apiSetStateLineIndex + 1]) == null ? void 0 : _a.trim()) || "";
+	return ((_b = v8StackLineRe.exec(callerLine)) == null ? void 0 : _b[1]) || ((_c = geckoStackLineRe.exec(callerLine)) == null ? void 0 : _c[1]);
+}
+var devtoolsImpl = (fn, devtoolsOptions = {}) => (set, get, api) => {
+	const { enabled, anonymousActionType, store, ...options } = devtoolsOptions;
+	let extensionConnector;
+	try {
+		extensionConnector = (enabled != null ? enabled : true) && window.__REDUX_DEVTOOLS_EXTENSION__;
+	} catch (e) {}
+	if (!extensionConnector) return fn(set, get, api);
+	const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options);
+	let isRecording = true;
+	api.setState = ((state, replace, nameOrAction) => {
+		const r = set(state, replace);
+		if (!isRecording) return r;
+		const action = nameOrAction === void 0 ? { type: anonymousActionType || findCallerName((/* @__PURE__ */ new Error()).stack) || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
+		if (store === void 0) {
+			connection?.send(action, get());
+			return r;
+		}
+		connection?.send({
+			...action,
+			type: `${store}/${action.type}`
+		}, {
+			...getTrackedConnectionState(options.name),
+			[store]: api.getState()
+		});
+		return r;
+	});
+	api.devtools = { cleanup: () => {
+		if (connection && typeof connection.unsubscribe === "function") connection.unsubscribe();
+		removeStoreFromTrackedConnections(options.name, store);
+	} };
+	const setStateFromDevtools = (...a) => {
+		const originalIsRecording = isRecording;
+		isRecording = false;
+		set(...a);
+		isRecording = originalIsRecording;
+	};
+	const initialState = fn(api.setState, get, api);
+	if (connectionInformation.type === "untracked") connection?.init(initialState);
+	else {
+		connectionInformation.stores[connectionInformation.store] = api;
+		connection?.init(Object.fromEntries(Object.entries(connectionInformation.stores).map(([key, store2]) => [key, key === connectionInformation.store ? initialState : store2.getState()])));
+	}
+	if (shouldDispatchFromDevtools(api)) {
+		let didWarnAboutReservedActionType = false;
+		const originalDispatch = api.dispatch;
+		api.dispatch = (...args) => {
+			if (args[0].type === "__setState" && !didWarnAboutReservedActionType) {
+				console.warn("[zustand devtools middleware] \"__setState\" action type is reserved to set state from the devtools. Avoid using it.");
+				didWarnAboutReservedActionType = true;
+			}
+			originalDispatch(...args);
+		};
+	}
+	connection.subscribe((message) => {
+		var _a;
+		switch (message.type) {
+			case "ACTION":
+				if (typeof message.payload !== "string") {
+					console.error("[zustand devtools middleware] Unsupported action format");
+					return;
+				}
+				return parseJsonThen(message.payload, (action) => {
+					if (action.type === "__setState") {
+						if (store === void 0) {
+							setStateFromDevtools(action.state);
+							return;
+						}
+						if (Object.keys(action.state).length !== 1) console.error(`
+                    [zustand devtools middleware] Unsupported __setState action format.
+                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
+                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
+                    `);
+						const stateFromDevtools = action.state[store];
+						if (stateFromDevtools === void 0 || stateFromDevtools === null) return;
+						if (JSON.stringify(api.getState()) !== JSON.stringify(stateFromDevtools)) setStateFromDevtools(stateFromDevtools);
+						return;
+					}
+					if (shouldDispatchFromDevtools(api)) api.dispatch(action);
+				});
+			case "DISPATCH":
+				switch (message.payload.type) {
+					case "RESET":
+						setStateFromDevtools(initialState);
+						if (store === void 0) return connection == null ? void 0 : connection.init(api.getState());
+						return connection == null ? void 0 : connection.init(getTrackedConnectionState(options.name));
+					case "COMMIT":
+						if (store === void 0) {
+							connection?.init(api.getState());
+							return;
+						}
+						return connection == null ? void 0 : connection.init(getTrackedConnectionState(options.name));
+					case "ROLLBACK": return parseJsonThen(message.state, (state) => {
+						if (store === void 0) {
+							setStateFromDevtools(state);
+							connection?.init(api.getState());
+							return;
+						}
+						setStateFromDevtools(state[store]);
+						connection?.init(getTrackedConnectionState(options.name));
+					});
+					case "JUMP_TO_STATE":
+					case "JUMP_TO_ACTION": return parseJsonThen(message.state, (state) => {
+						if (store === void 0) {
+							setStateFromDevtools(state);
+							return;
+						}
+						if (JSON.stringify(api.getState()) !== JSON.stringify(state[store])) setStateFromDevtools(state[store]);
+					});
+					case "IMPORT_STATE": {
+						const { nextLiftedState } = message.payload;
+						const lastComputedState = (_a = nextLiftedState.computedStates.slice(-1)[0]) == null ? void 0 : _a.state;
+						if (!lastComputedState) return;
+						if (store === void 0) setStateFromDevtools(lastComputedState);
+						else setStateFromDevtools(lastComputedState[store]);
+						connection?.send(null, nextLiftedState);
+						return;
+					}
+					case "PAUSE_RECORDING": return isRecording = !isRecording;
+				}
+				return;
+		}
+	});
+	return initialState;
+};
+var devtools = devtoolsImpl;
+var parseJsonThen = (stringified, fn) => {
+	let parsed;
+	try {
+		parsed = JSON.parse(stringified);
+	} catch (e) {
+		console.error("[zustand devtools middleware] Could not parse the received json", e);
+	}
+	if (parsed !== void 0) fn(parsed);
+};
+function createJSONStorage(getStorage, options) {
+	let storage;
+	try {
+		storage = getStorage();
+	} catch (e) {
+		return;
+	}
+	return {
+		getItem: (name) => {
+			var _a;
+			const parse = (str2) => {
+				if (str2 === null) return null;
+				return JSON.parse(str2, options == null ? void 0 : options.reviver);
+			};
+			const str = (_a = storage.getItem(name)) != null ? _a : null;
+			if (str instanceof Promise) return str.then(parse);
+			return parse(str);
+		},
+		setItem: (name, newValue) => storage.setItem(name, JSON.stringify(newValue, options == null ? void 0 : options.replacer)),
+		removeItem: (name) => storage.removeItem(name)
+	};
+}
+var toThenable = (fn) => (input) => {
+	try {
+		const result = fn(input);
+		if (result instanceof Promise) return result;
+		return {
+			then(onFulfilled) {
+				return toThenable(onFulfilled)(result);
+			},
+			catch(_onRejected) {
+				return this;
+			}
+		};
+	} catch (e) {
+		return {
+			then(_onFulfilled) {
+				return this;
+			},
+			catch(onRejected) {
+				return toThenable(onRejected)(e);
+			}
+		};
+	}
+};
+var persistImpl = (config, baseOptions) => (set, get, api) => {
+	let options = {
+		storage: createJSONStorage(() => window.localStorage),
+		partialize: (state) => state,
+		version: 0,
+		merge: (persistedState, currentState) => ({
+			...currentState,
+			...persistedState
+		}),
+		...baseOptions
+	};
+	let hasHydrated = false;
+	let hydrationVersion = 0;
+	const hydrationListeners = /* @__PURE__ */ new Set();
+	const finishHydrationListeners = /* @__PURE__ */ new Set();
+	let storage = options.storage;
+	if (!storage) return config((...args) => {
+		console.warn(`[zustand persist middleware] Unable to update item '${options.name}', the given storage is currently unavailable.`);
+		set(...args);
+	}, get, api);
+	const setItem = () => {
+		const state = options.partialize({ ...get() });
+		return storage.setItem(options.name, {
+			state,
+			version: options.version
+		});
+	};
+	const savedSetState = api.setState;
+	api.setState = (state, replace) => {
+		savedSetState(state, replace);
+		return setItem();
+	};
+	const configResult = config((...args) => {
+		set(...args);
+		return setItem();
+	}, get, api);
+	api.getInitialState = () => configResult;
+	let stateFromStorage;
+	const hydrate = () => {
+		var _a, _b;
+		if (!storage) return;
+		const currentVersion = ++hydrationVersion;
+		hasHydrated = false;
+		hydrationListeners.forEach((cb) => {
+			var _a2;
+			return cb((_a2 = get()) != null ? _a2 : configResult);
+		});
+		const postRehydrationCallback = ((_b = options.onRehydrateStorage) == null ? void 0 : _b.call(options, (_a = get()) != null ? _a : configResult)) || void 0;
+		return toThenable(storage.getItem.bind(storage))(options.name).then((deserializedStorageValue) => {
+			if (deserializedStorageValue) if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options.version) {
+				if (options.migrate) {
+					const migration = options.migrate(deserializedStorageValue.state, deserializedStorageValue.version);
+					if (migration instanceof Promise) return migration.then((result) => [true, result]);
+					return [true, migration];
+				}
+				console.error(`State loaded from storage couldn't be migrated since no migrate function was provided`);
+			} else return [false, deserializedStorageValue.state];
+			return [false, void 0];
+		}).then((migrationResult) => {
+			var _a2;
+			if (currentVersion !== hydrationVersion) return;
+			const [migrated, migratedState] = migrationResult;
+			stateFromStorage = options.merge(migratedState, (_a2 = get()) != null ? _a2 : configResult);
+			set(stateFromStorage, true);
+			if (migrated) return setItem();
+		}).then(() => {
+			if (currentVersion !== hydrationVersion) return;
+			postRehydrationCallback?.(get(), void 0);
+			stateFromStorage = get();
+			hasHydrated = true;
+			finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
+		}).catch((e) => {
+			if (currentVersion !== hydrationVersion) return;
+			postRehydrationCallback?.(void 0, e);
+		});
+	};
+	api.persist = {
+		setOptions: (newOptions) => {
+			options = {
+				...options,
+				...newOptions
+			};
+			if (newOptions.storage) storage = newOptions.storage;
+		},
+		clearStorage: () => {
+			storage?.removeItem(options.name);
+		},
+		getOptions: () => options,
+		rehydrate: () => hydrate(),
+		hasHydrated: () => hasHydrated,
+		onHydrate: (cb) => {
+			hydrationListeners.add(cb);
+			return () => {
+				hydrationListeners.delete(cb);
+			};
+		},
+		onFinishHydration: (cb) => {
+			finishHydrationListeners.add(cb);
+			return () => {
+				finishHydrationListeners.delete(cb);
+			};
+		}
+	};
+	if (!options.skipHydration) hydrate();
+	return stateFromStorage || configResult;
+};
+var persist = persistImpl;
+//#endregion
+//#region ../../node_modules/.pnpm/zustand@5.0.14_@types+react@19.2.17_immer@11.1.15_react@19.2.7_use-sync-external-store@1.6.0_react@19.2.7_/node_modules/zustand/esm/middleware/immer.mjs
+var immerImpl = (initializer) => (set, get, store) => {
+	store.setState = (updater, replace, ...args) => {
+		return set(typeof updater === "function" ? produce(updater) : updater, replace, ...args);
+	};
+	return initializer(store.setState, get, store);
+};
+var immer = immerImpl;
+var kLogViewSamplesTabId = "samples";
+var kLogViewJsonTabId = "json";
+var kLogViewInfoTabId = "info";
+var kLogViewModelsTabId = "models";
+var kLogViewTaskTabId = "task";
+var kLogViewErrorTabId = "error";
+var kWorkspaceTabs = [
+	kLogViewSamplesTabId,
+	kLogViewJsonTabId,
+	kLogViewInfoTabId,
+	kLogViewModelsTabId,
+	kLogViewTaskTabId,
+	kLogViewErrorTabId
+];
+var kSampleMessagesTabId = `messages`;
+var kSampleTranscriptTabId = `transcript`;
+var kSampleScoringTabId = `scoring`;
+var kSampleMetdataTabId = `metadata`;
+var kSampleUsageTabId = `usage`;
+var kSampleErrorTabId = `error`;
+var kSampleRetriesTabId = `retries`;
+var kSampleErrorRetriesTabId = `retry-errors`;
+var kSampleJsonTabId = `json`;
+var kSampleEventTabId = `event`;
+var kSampleTabIds = [
+	kSampleMessagesTabId,
+	kSampleTranscriptTabId,
+	kSampleScoringTabId,
+	kSampleUsageTabId,
+	kSampleMetdataTabId,
+	kSampleErrorTabId,
+	kSampleRetriesTabId,
+	kSampleErrorRetriesTabId,
+	kSampleJsonTabId
+];
+var kScoreTypePassFail = "passfail";
+var kScoreTypeCategorical = "categorical";
+var kScoreTypeNumeric = "numeric";
+var kScoreTypeOther = "other";
+var kScoreTypeObject = "object";
+var kScoreTypeBoolean = "boolean";
+var kScoreTypeList = "list";
+//#endregion
+//#region src/state/appSlice.ts
+var kDefaultWorkspaceTab = kLogViewSamplesTabId;
+var kDefaultSampleTab = kSampleTranscriptTabId;
+var initialState$3 = {
+	showFind: false,
+	dialogs: {
+		transcriptFilter: false,
+		options: false
+	},
+	tabs: {
+		workspace: kDefaultWorkspaceTab,
+		sample: kDefaultSampleTab
+	},
+	scrollPositions: {},
+	listPositions: {},
+	visibleRanges: {},
+	collapsed: {},
+	messages: {},
+	propertyBags: {},
+	displayMode: "rendered",
+	logsSampleView: false
+};
+var createAppSlice = (set, get, _store) => {
+	const getBoolRecord = (record, name, defaultValue) => {
+		if (Object.hasOwn(record, name)) return record[name] ?? false;
+		else return defaultValue || false;
+	};
+	return {
+		app: initialState$3,
+		capabilities: {},
+		appActions: {
+			setShowFind: (show) => set((state) => {
+				state.app.showFind = show;
+			}),
+			hideFind: () => {
+				clearDocumentSelection();
+				set((state) => {
+					state.app.showFind = false;
+				});
+			},
+			setNativeFind: (nativeFind) => set((state) => {
+				state.app.nativeFind = nativeFind;
+			}),
+			setShowingTranscriptFilterDialog: (showing) => {
+				if (showing === get().app.dialogs.transcriptFilter) return;
+				set((state) => {
+					state.app.dialogs.transcriptFilter = showing;
+				});
+			},
+			setShowingOptionsDialog: (showing) => {
+				if (showing === get().app.dialogs.options) return;
+				set((state) => {
+					state.app.dialogs.options = showing;
+				});
+			},
+			setWorkspaceTab: (tab) => {
+				set((state) => {
+					state.app.tabs.workspace = tab;
+				});
+			},
+			clearWorkspaceTab: () => {
+				set((state) => {
+					state.app.tabs.workspace = kDefaultWorkspaceTab;
+				});
+			},
+			setInitialState: (log, sample_id, sample_epoch) => {
+				set((state) => {
+					state.app.initialState = {
+						log,
+						sample_id,
+						sample_epoch
+					};
+				});
+			},
+			clearInitialState: () => {
+				set((state) => {
+					state.app.initialState = void 0;
+				});
+			},
+			setSampleTab: (tab) => {
+				set((state) => {
+					state.app.tabs.sample = tab;
+				});
+			},
+			clearSampleTab: () => {
+				set((state) => {
+					state.app.tabs.sample = kDefaultSampleTab;
+				});
+			},
+			getScrollPosition: (name) => {
+				return get().app.scrollPositions[name];
+			},
+			setScrollPosition: (name, position) => {
+				set((state) => {
+					state.app.scrollPositions[name] = position;
+				});
+			},
+			getListPosition: (name) => {
+				const state = get();
+				if (Object.keys(state.app.listPositions).includes(name)) return state.app.listPositions[name];
+				else return;
+			},
+			setListPosition: (name, position) => {
+				set((state) => {
+					state.app.listPositions[name] = position;
+				});
+			},
+			clearListPosition: (name) => {
+				set((state) => {
+					const newListPositions = { ...state.app.listPositions };
+					delete newListPositions[name];
+					return { app: {
+						...state.app,
+						listPositions: newListPositions
+					} };
+				});
+			},
+			getVisibleRange: (name) => {
+				const state = get();
+				if (Object.hasOwn(state.app.visibleRanges, name)) return state.app.visibleRanges[name] ?? {
+					startIndex: 0,
+					endIndex: 0,
+					totalCount: 0
+				};
+				else return {
+					startIndex: 0,
+					endIndex: 0,
+					totalCount: 0
+				};
+			},
+			setVisibleRange: (name, value) => {
+				set((state) => {
+					state.app.visibleRanges[name] = value;
+				});
+			},
+			clearVisibleRange: (name) => {
+				set((state) => {
+					const newVisibleRanges = { ...state.app.visibleRanges };
+					delete newVisibleRanges[name];
+					return { app: {
+						...state.app,
+						visibleRanges: newVisibleRanges
+					} };
+				});
+			},
+			getCollapsed: (name, defaultValue) => {
+				return getBoolRecord(get().app.collapsed, name, defaultValue);
+			},
+			setCollapsed: (name, value) => {
+				set((state) => {
+					state.app.collapsed[name] = value;
+				});
+			},
+			getMessageVisible: (name, defaultValue) => {
+				return getBoolRecord(get().app.messages, name, defaultValue);
+			},
+			setMessageVisible: (name, value) => {
+				set((state) => {
+					state.app.messages[name] = value;
+				});
+			},
+			clearMessageVisible: (name) => {
+				set((state) => {
+					delete state.app.messages[name];
+				});
+			},
+			getPropertyValue: (bagName, key, defaultValue) => {
+				const bag = get().app.propertyBags[bagName] || {};
+				return key in bag ? bag[key] : defaultValue;
+			},
+			setPropertyValue: (bagName, key, value) => {
+				set((state) => {
+					if (!state.app.propertyBags[bagName]) state.app.propertyBags[bagName] = {};
+					state.app.propertyBags[bagName][key] = value;
+				});
+			},
+			removePropertyValue: (bagName, key) => {
+				set((state) => {
+					if (state.app.propertyBags[bagName]) {
+						const { [key]: _, ...rest } = state.app.propertyBags[bagName];
+						state.app.propertyBags[bagName] = rest;
+					}
+				});
+			},
+			removeAllProperties: (bagName) => {
+				set((state) => {
+					const { [bagName]: _, ...rest } = state.app.propertyBags;
+					state.app.propertyBags = rest;
+				});
+			},
+			removeBagsByPrefix: (bagNamePrefix) => {
+				set((state) => {
+					for (const name of Object.keys(state.app.propertyBags)) if (name.startsWith(bagNamePrefix)) delete state.app.propertyBags[name];
+				});
+			},
+			removeByPrefix: (bagName, prefix) => {
+				set((state) => {
+					const bag = state.app.propertyBags[bagName];
+					if (!bag) return;
+					let changed = false;
+					const next = { ...bag };
+					for (const key of Object.keys(next)) if (key.startsWith(prefix)) {
+						delete next[key];
+						changed = true;
+					}
+					if (changed) if (Object.keys(next).length === 0) {
+						const { [bagName]: _, ...rest } = state.app.propertyBags;
+						state.app.propertyBags = rest;
+					} else state.app.propertyBags[bagName] = next;
+				});
+			},
+			setUrlHash: (urlHash) => {
+				set((state) => {
+					state.app.urlHash = urlHash;
+				});
+			},
+			setDisplayMode: (mode) => {
+				set((state) => {
+					state.app.displayMode = mode;
+				});
+			},
+			setLogsSampleView: (logsSampleView) => {
+				set((state) => {
+					state.app.logsSampleView = logsSampleView;
+				});
+			}
+		}
+	};
+};
+var initializeAppSlice = (set, capabilities) => {
+	set((state) => {
+		state.capabilities = capabilities;
+		if (!state.app) state.app = initialState$3;
+	});
+};
+//#endregion
+//#region src/state/logSlice.ts
+var initialState$2 = {
+	selectedSampleId: void 0,
+	selectedSampleEpoch: void 0,
+	loadedLog: void 0,
+	filter: "",
+	filterError: void 0,
+	selectedScores: void 0,
+	scores: void 0
+};
+var createLogSlice = (set, get, _store) => {
+	return {
+		log: initialState$2,
+		logActions: {
+			selectSample: (sampleId, epoch, logFile) => {
+				const currentSample = get().log.selectedSampleHandle;
+				if (sampleHandlesEqual(currentSample, {
+					id: sampleId,
+					epoch,
+					logFile
+				})) return;
+				set((state) => {
+					state.log.selectedSampleHandle = {
+						id: sampleId,
+						epoch,
+						logFile
+					};
+				});
+			},
+			clearSelectedScores: () => {
+				set((state) => {
+					state.log.selectedScores = void 0;
+				});
+			},
+			setFilter: (filter) => set((state) => {
+				state.log.filter = filter;
+			}),
+			setFilterError: (error) => set((state) => {
+				state.log.filterError = error;
+			}),
+			clearFilterError: () => {
+				set((state) => {
+					state.log.filterError = void 0;
+				});
+			},
+			setSelectedScores: (scores) => set((state) => {
+				state.log.selectedScores = scores;
+			}),
+			setScores: (scores) => set((state) => {
+				state.log.scores = scores;
+			}),
+			resetFiltering: () => set((state) => {
+				state.log.filter = "";
+				state.log.filterError = void 0;
+				state.log.selectedScores = state.log.scores?.slice(0, 1);
+			}),
+			setLoadedLog: (logFileName) => {
+				set((state) => {
+					state.log.loadedLog = logFileName;
+				});
+			},
+			clearLog: () => {
+				set((state) => {
+					state.log.loadedLog = void 0;
+				});
+			},
+			setFilteredSampleCount: (count) => {
+				set((state) => {
+					state.log.filteredSampleCount = count;
+				});
+			},
+			clearFilteredSampleCount: () => {
+				set((state) => {
+					state.log.filteredSampleCount = void 0;
+				});
+			}
+		}
+	};
+};
+var initalializeLogSlice = (set) => {
+	set((state) => {
+		if (!state.log) state.log = initialState$2;
+	});
+};
+//#endregion
+//#region src/state/logsSlice.ts
+var initialState$1 = {
+	selectedLogFile: void 0,
+	listing: {
+		columnVisibility: {},
+		gridStateByScope: {}
+	},
+	samplesListState: {
+		byScope: { samplesPanel: { columnVisibility: {} } },
+		byLog: {}
+	}
+};
+var createLogsSlice = (set, get, _store) => {
+	return {
+		logs: initialState$1,
+		logsActions: {
+			patchSamplesGridState: (scope, partial) => {
+				set((state) => {
+					Object.assign(state.logs.samplesListState.byScope[scope], partial);
+				});
+			},
+			setSampleListView: (logFile, view) => {
+				set((state) => {
+					state.logs.samplesListState.byLog[logFile] = view;
+				});
+			},
+			setDisplayedSamples: (samples) => {
+				const currentDisplaySamples = get().logs.samplesListState.displayedSamples;
+				set((state) => {
+					if (!displaySamplesEqual(currentDisplaySamples, samples)) state.logs.samplesListState.displayedSamples = samples;
+				});
+			},
+			clearDisplayedSamples: () => {
+				set((state) => {
+					state.logs.samplesListState.displayedSamples = void 0;
+				});
+			},
+			setSamplesColumnVisibility: (scope, visibility) => {
+				set((state) => {
+					state.logs.samplesListState.byScope[scope].columnVisibility = visibility;
+				});
+			},
+			setPreviousSamplesPath: (path) => {
+				set((state) => {
+					state.logs.samplesListState.previousSamplesPath = path;
+				});
+			},
+			setSelectedLogFile: (logFile) => {
+				set((state) => {
+					state.logs.selectedLogFile = logFile;
+				});
+			},
+			setSelectedRowIndex: (index) => {
+				set((state) => {
+					state.logs.listing.selectedRowIndex = index;
+				});
+			},
+			patchLogsGridState: (scope, partial) => {
+				set((state) => {
+					const entry = state.logs.listing.gridStateByScope[scope];
+					if (entry) Object.assign(entry, partial);
+					else state.logs.listing.gridStateByScope[scope] = {
+						sorting: [],
+						...partial
+					};
+				});
+			},
+			clearLogsGridState: (scope) => {
+				set((state) => {
+					if (scope === void 0) state.logs.listing.gridStateByScope = {};
+					else delete state.logs.listing.gridStateByScope[scope];
+				});
+			},
+			setLogsColumnVisibility: (visibility) => {
+				set((state) => {
+					state.logs.listing.columnVisibility = visibility;
+				});
+			},
+			clearSelectedLogFile: () => {
+				set((state) => {
+					state.logs.selectedLogFile = void 0;
+				});
+			}
+		}
+	};
+};
+var initializeLogsSlice = (set) => {
+	set((state) => {
+		if (!state.logs) state.logs = initialState$1;
+	});
+};
+var displaySamplesEqual = (a, b) => {
+	if (!a && !b) return true;
+	if (!a || !b) return false;
+	if (a.length !== b.length) return false;
+	for (let i = 0; i < a.length; i++) {
+		const sampleA = a[i];
+		const sampleB = b[i];
+		if (sampleA === void 0 || sampleB === void 0) return false;
+		if (sampleA.logFile !== sampleB.logFile || sampleA.sampleId !== sampleB.sampleId || sampleA.epoch !== sampleB.epoch) return false;
+	}
+	return true;
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/utils.ts
+var STEP = "step";
+var SPAN_BEGIN = "span_begin";
+var SPAN_END = "span_end";
+var TYPE_TOOL = "tool";
+var TYPE_SUBTASK = "subtask";
+var TYPE_SCORERS = "scorers";
+var hasSpans = (events) => {
+	return events.some((event) => event.event === SPAN_BEGIN);
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/types.ts
+var kTranscriptCollapseScope = "transcript-collapse";
+var kTranscriptOutlineCollapseScope = "transcript-outline";
+/** Event types whose *children* can be collapsed (tree collapse). */
+var kCollapsibleEventTypes = [
+	STEP,
+	SPAN_BEGIN,
+	TYPE_TOOL,
+	TYPE_SUBTASK
+];
+/** Event types whose *content* can be collapsed (panel-level collapse). */
+var kContentCollapsibleEventTypes = [
+	"model",
+	"state",
+	"store"
+];
+var kDefaultExcludeEvents = [
+	"sample_init",
+	"sandbox",
+	"state",
+	"store",
+	"branch",
+	"anchor",
+	"checkpoint"
+];
+var EventNode = class {
+	id;
+	event;
+	children = [];
+	depth;
+	/** Timeline span info, attached by app-level processing. */
+	sourceSpan;
+	constructor(id, event, depth) {
+		this.id = id;
+		this.event = event;
+		this.depth = depth;
+	}
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/fixups.ts
+var kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
+/**
+* Normalizes event content
+*/
+var fixupEventStream = (events, filterPending = true) => {
+	return groupSandboxEvents(collapseSampleInit(processPendingEvents(events, filterPending)));
+};
+var processPendingEvents = (events, filter) => {
+	return filter ? events.filter((e) => !e.pending) : events.reduce((acc, event) => {
+		if (!event.pending) {
+			acc.push(event);
+			return acc;
+		}
+		const lastIndex = acc.length - 1;
+		if (lastIndex >= 0 && event.uuid != null && acc[lastIndex]?.pending && acc[lastIndex]?.uuid === event.uuid) acc[lastIndex] = event;
+		else acc.push(event);
+		return acc;
+	}, []);
+};
+var collapseSampleInit = (events) => {
+	if (events.some((e) => {
+		return e.event === "span_begin" || e.event === "span_end";
+	})) return events;
+	if (events.findIndex((e) => {
+		return e.event === "step" && e.name === "init";
+	}) !== -1) return events;
+	const initEventIndex = events.findIndex((e) => {
+		return e.event === "sample_init";
+	});
+	const initEvent = events[initEventIndex];
+	if (!initEvent) return events;
+	const fixedUp = [...events];
+	fixedUp.splice(initEventIndex, 0, {
+		timestamp: initEvent.timestamp,
+		event: "step",
+		action: "begin",
+		type: null,
+		name: "sample_init",
+		pending: false,
+		working_start: 0,
+		span_id: initEvent.span_id,
+		uuid: null,
+		metadata: null
+	});
+	fixedUp.splice(initEventIndex + 2, 0, {
+		timestamp: initEvent.timestamp,
+		event: "step",
+		action: "end",
+		type: null,
+		name: "sample_init",
+		pending: false,
+		working_start: 0,
+		span_id: initEvent.span_id,
+		uuid: null,
+		metadata: null
+	});
+	return fixedUp;
+};
+var groupSandboxEvents = (events) => {
+	const result = [];
+	const pendingSandboxEvents = [];
+	const useSpans = hasSpans(events);
+	const pushPendingSandboxEvents = () => {
+		const timestamp = pendingSandboxEvents[pendingSandboxEvents.length - 1]?.timestamp || "";
+		if (useSpans) result.push(createSpanBegin(kSandboxSignalName, timestamp, null));
+		else result.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+		result.push(...pendingSandboxEvents);
+		if (useSpans) result.push(createSpanEnd(kSandboxSignalName, timestamp));
+		else result.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
+		pendingSandboxEvents.length = 0;
+	};
+	for (const event of events) {
+		if (event.event === "sandbox") {
+			pendingSandboxEvents.push(event);
+			continue;
+		}
+		if (pendingSandboxEvents.length > 0) pushPendingSandboxEvents();
+		result.push(event);
+	}
+	if (pendingSandboxEvents.length > 0) pushPendingSandboxEvents();
+	return result;
+};
+var createStepEvent = (name, timestamp, action) => ({
+	timestamp,
+	event: "step",
+	action,
+	type: null,
+	name,
+	pending: false,
+	working_start: 0,
+	span_id: null,
+	uuid: null,
+	metadata: null
+});
+var createSpanBegin = (name, timestamp, parent_id) => {
+	return {
+		name,
+		id: `${name}-begin`,
+		span_id: name,
+		parent_id,
+		timestamp,
+		event: "span_begin",
+		type: null,
+		pending: false,
+		working_start: 0,
+		uuid: null,
+		metadata: null
+	};
+};
+var createSpanEnd = (name, timestamp) => {
+	return {
+		id: `${name}-end`,
+		timestamp,
+		event: "span_end",
+		pending: false,
+		working_start: 0,
+		span_id: name,
+		uuid: null,
+		metadata: null
+	};
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/transform/flatten.ts
+/**
+* Find the IDs of all ancestors of `eventId` in the EventNode tree.
+* Returns an empty array if `eventId` is not found.
+* Order: outermost ancestor first.
+*/
+function findAncestorIds(nodes, eventId) {
+	const path = [];
+	return walk(nodes, eventId, path) ? path : [];
+	function walk(nodes, target, path) {
+		for (const n of nodes) {
+			if (n.id === target) return true;
+			if (n.children.length > 0) {
+				path.push(n.id);
+				if (walk(n.children, target, path)) return true;
+				path.pop();
+			}
+		}
+		return false;
+	}
+}
+/**
+* Collapsed ancestor ids on the path to `targetId`, outermost first.
+*
+* The target's own collapsed state is irrelevant — a collapsed node still
+* has a row of its own; only collapsed ancestors remove it from the
+* flattened list. Empty when the target is missing or fully visible.
+*/
+function findCollapsedAncestors(eventNodes, targetId, collapsed) {
+	return findAncestorIds(eventNodes, targetId).filter((id) => collapsed?.[id] === true);
+}
+/**
+* Flatten the tree structure into a flat array of EventNode objects
+* Each node in the result will have its children set properly
+* @param eventNodes - The event nodes to flatten
+* @param collapsed - Record indicating which nodes are collapsed
+* @param visitors - Array of visitors to apply to each node
+* @param parentNode - The parent node of the current nodes being processed
+* @returns An array of EventNode objects
+*/
+var flatTree = (eventNodes, collapsed, visitors, parentNode) => {
+	const result = [];
+	for (const node of eventNodes) if (visitors && visitors.length > 0) {
+		let pendingNodes = [{ ...node }];
+		for (const visitor of visitors) {
+			const allResults = [];
+			for (const pendingNode of pendingNodes) {
+				const visitorResult = visitor.visit(pendingNode);
+				if (parentNode) parentNode.children = visitorResult;
+				allResults.push(...visitorResult);
+			}
+			pendingNodes = allResults;
+		}
+		for (const pendingNode of pendingNodes) {
+			const children = flatTree(pendingNode.children, collapsed, visitors, pendingNode);
+			pendingNode.children = children;
+			result.push(pendingNode);
+			if (collapsed === null || collapsed[pendingNode.id] !== true) for (const child of children) result.push(child);
+		}
+		for (const visitor of visitors) if (visitor.flush) {
+			const finalNodes = visitor.flush();
+			result.push(...finalNodes);
+		}
+	} else {
+		result.push(node);
+		const children = flatTree(node.children, collapsed, visitors, node);
+		if (collapsed === null || collapsed[node.id] !== true) for (const child of children) result.push(child);
+	}
+	return result;
+};
+var FocusTurnView_module_default = {
+	root: "_root_ugt1x_1",
+	focusBar: "_focusBar_ugt1x_14",
+	crumbs: "_crumbs_ugt1x_25",
+	laneName: "_laneName_ugt1x_33",
+	crumbButton: "_crumbButton_ugt1x_39",
+	crumbSeparator: "_crumbSeparator_ugt1x_62",
+	laneMenu: "_laneMenu_ugt1x_67",
+	laneMenuItem: "_laneMenuItem_ugt1x_73",
+	laneMenuItemCurrent: "_laneMenuItemCurrent_ugt1x_90",
+	controls: "_controls_ugt1x_94",
+	turnLabel: "_turnLabel_ugt1x_101",
+	divider: "_divider_ugt1x_106",
+	button: "_button_ugt1x_115",
+	container: "_container_ugt1x_146",
+	errorStrip: "_errorStrip_ugt1x_168",
+	errorStripLabel: "_errorStripLabel_ugt1x_183",
+	errorStripMessage: "_errorStripMessage_ugt1x_191"
+};
+var GoToTurnBar_module_default = {
+	dock: "_dock_1hs1n_5",
+	bar: "_bar_1hs1n_17",
+	title: "_title_1hs1n_30",
+	input: "_input_1hs1n_39",
+	range: "_range_1hs1n_57",
+	divider: "_divider_1hs1n_63",
+	hint: "_hint_1hs1n_69",
+	hintKey: "_hintKey_1hs1n_75",
+	close: "_close_1hs1n_79"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/GoToTurnBar.tsx
+/**
+* Floating find-style "Go to turn" bar, top-center of the events column.
+* Opened by Ctrl/Cmd+G or imperatively (turn-label click, prefilled). Enter
+* clamps to the valid range and jumps via the caller's deep-link path;
+* Esc / click outside / the close button dismiss without navigating.
+*/
+var GoToTurnBar = (0, import_react.forwardRef)(function GoToTurnBar({ totalTurns, onJump, offsetTop = 0, disabled }, ref) {
+	const [open, setOpen] = (0, import_react.useState)(false);
+	const [value, setValue] = (0, import_react.useState)("");
+	const [focusEpoch, setFocusEpoch] = (0, import_react.useState)(0);
+	const openRef = (0, import_react.useRef)(false);
+	const dockRef = (0, import_react.useRef)(null);
+	const containerRef = (0, import_react.useRef)(null);
+	const inputRef = (0, import_react.useRef)(null);
+	const restoreFocusRef = (0, import_react.useRef)(null);
+	const rangeId = (0, import_react.useId)();
+	const openBar = (0, import_react.useCallback)((prefillTurn) => {
+		if (!openRef.current) {
+			restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+			setValue(prefillTurn !== void 0 ? String(prefillTurn) : "");
+		} else if (prefillTurn !== void 0) setValue(String(prefillTurn));
+		openRef.current = true;
+		setOpen(true);
+		setFocusEpoch((epoch) => epoch + 1);
+	}, []);
+	const close = (0, import_react.useCallback)((restoreFocus) => {
+		openRef.current = false;
+		setOpen(false);
+		if (restoreFocus) restoreFocusRef.current?.focus();
+	}, []);
+	(0, import_react.useImperativeHandle)(ref, () => ({ open: openBar }), [openBar]);
+	(0, import_react.useEffect)(() => {
+		if (!open) return;
+		inputRef.current?.focus();
+		inputRef.current?.select();
+	}, [open, focusEpoch]);
+	(0, import_react.useEffect)(() => {
+		if (disabled) return;
+		const onKeyDown = (e) => {
+			if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "g") return;
+			const dock = dockRef.current;
+			if (!dock?.isConnected || dock.checkVisibility?.() === false) return;
+			if (document.activeElement !== inputRef.current && isEditableTarget(document.activeElement)) return;
+			e.preventDefault();
+			e.stopImmediatePropagation();
+			openBar();
+		};
+		window.addEventListener("keydown", onKeyDown, { capture: true });
+		return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
+	}, [openBar, disabled]);
+	(0, import_react.useEffect)(() => {
+		if (!open) return;
+		const onPointerDown = (e) => {
+			if (e.target instanceof Node && !containerRef.current?.contains(e.target)) close(false);
+		};
+		document.addEventListener("pointerdown", onPointerDown);
+		return () => document.removeEventListener("pointerdown", onPointerDown);
+	}, [open, close]);
+	const parsed = value === "" ? void 0 : parseInt(value, 10);
+	const clamped = parsed === void 0 ? void 0 : Math.max(1, Math.min(totalTurns, parsed));
+	const outOfRange = clamped !== void 0 && clamped !== parsed;
+	const placeholder = `1–${totalTurns}`;
+	const inputChars = Math.max(placeholder.length, value.length, 2);
+	const commit = () => {
+		if (clamped === void 0) return;
+		close(true);
+		onJump(clamped);
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		ref: dockRef,
+		className: GoToTurnBar_module_default.dock,
+		style: { top: offsetTop },
+		children: open && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			ref: containerRef,
+			className: GoToTurnBar_module_default.bar,
+			role: "dialog",
+			"aria-label": "Go to turn",
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: GoToTurnBar_module_default.title,
+					children: "Go to turn"
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("input", {
+					ref: inputRef,
+					type: "text",
+					inputMode: "numeric",
+					className: GoToTurnBar_module_default.input,
+					style: { width: `calc(${inputChars}ch + 16px)` },
+					"aria-label": "Turn number",
+					"aria-describedby": rangeId,
+					placeholder,
+					value,
+					onChange: (e) => setValue(e.target.value.replace(/[^0-9]/g, "")),
+					onKeyDown: (e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							commit();
+						} else if (e.key === "Escape") {
+							e.preventDefault();
+							e.stopPropagation();
+							close(true);
+						}
+					}
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					id: rangeId,
+					className: GoToTurnBar_module_default.range,
+					children: outOfRange ? `→ ${clamped} (${clamped === 1 ? "first" : "last"} turn)` : `/ ${totalTurns}`
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: GoToTurnBar_module_default.divider }),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+					className: GoToTurnBar_module_default.hint,
+					children: [
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: GoToTurnBar_module_default.hintKey,
+							children: "↵"
+						}),
+						" jump · ",
+						/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+							className: GoToTurnBar_module_default.hintKey,
+							children: "esc"
+						}),
+						" close"
+					]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					className: GoToTurnBar_module_default.close,
+					"aria-label": "Close",
+					title: "Close",
+					onClick: () => close(true),
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: "bi bi-x" })
+				})
+			]
+		})
+	});
+});
+var TimelineSelector_module_default = {
+	selectorContainer: "_selectorContainer_djjmp_1",
+	selectorButton: "_selectorButton_djjmp_8",
+	chevron: "_chevron_djjmp_28",
+	backdrop: "_backdrop_djjmp_33",
+	dropdownMenu: "_dropdownMenu_djjmp_42",
+	dropdownItem: "_dropdownItem_djjmp_57",
+	dropdownItemActive: "_dropdownItemActive_djjmp_74"
+};
+var EventRow_module_default = {
+	title: "_title_xefxk_1",
+	contents: "_contents_xefxk_7",
+	below: "_below_xefxk_14"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/event/EventRow.tsx
+var kDefaultIcon$1 = "bi bi-table";
+/**
+* Renders the EventRow component.
+*/
+var EventRow = ({ title, icon, iconClassName, className, children, below }) => {
+	const contentEl = title ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx("text-size-small", EventRow_module_default.title, className),
+		children: [
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(icon || kDefaultIcon$1, iconClassName) }),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx("text-style-label"),
+				children: title
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children })
+		]
+	}), below ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: clsx("text-size-small", EventRow_module_default.below),
+		children: below
+	}) : null] }) : "";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: clsx("card", EventRow_module_default.contents),
+		children: contentEl
+	});
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/icons.ts
+/**
+* Bootstrap icon class names used by transcript event components.
+* Both apps (scout and inspect) use the same Bootstrap icons,
+* so these are safe to hardcode as string constants.
+*/
+var TranscriptIcons = {
+	agent: "bi bi-grid",
+	approve: "bi bi-shield",
+	cancel: "bi bi-x-circle",
+	checkpoint: "bi bi-bookmark-check-fill",
+	approvals: {
+		approve: "bi bi-shield-check",
+		reject: "bi bi-shield-x",
+		terminate: "bi bi-shield-exclamation",
+		escalate: "bi bi-box-arrow-up",
+		modify: "bi bi-pencil-square"
+	},
+	arrows: { right: "bi bi-arrow-right" },
+	expand: "bi bi-chevron-up",
+	compaction: "bi bi-arrows-collapse-vertical",
+	edit: "bi bi-pencil-square",
+	error: "bi bi-exclamation-circle-fill",
+	fork: "bi bi-sign-intersection-y-fill",
+	info: "bi bi-info-circle",
+	input: "bi bi-terminal",
+	interrupt: "bi bi-slash-circle",
+	limits: {
+		messages: "bi bi-chat-right-text",
+		custom: "bi bi-exclamation-triangle",
+		operator: "bi bi-person-workspace",
+		tokens: "bi bi-list",
+		turns: "bi bi-arrow-repeat",
+		time: "bi bi-clock",
+		execution: "bi bi-stopwatch",
+		cost: "bi bi-currency-dollar"
+	},
+	logging: {
+		notset: "bi bi-card-text",
+		debug: "bi bi-bug",
+		http: "bi bi-download",
+		info: "bi bi-info-square",
+		warning: "bi bi-exclamation-triangle",
+		error: "bi bi-x-circle",
+		critical: "bi bi-fire"
+	},
+	model: "bi bi-grid-3x3-gap",
+	sample: "bi bi-database",
+	sandbox: "bi bi-box-seam",
+	scorer: "bi bi-calculator",
+	solvers: { use_tools: "bi bi-tools" }
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/AnchorEventView.tsx
+var AnchorEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(EventRow, {
+		title: "Anchor",
+		icon: TranscriptIcons.fork,
+		className,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", {
+			className: "text-style-secondary",
+			children: event.anchor_id
+		}), event.source ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+			className: "text-style-secondary",
+			children: [" · ", event.source]
+		}) : null]
+	});
+};
+var ApprovalEventView_module_default = {
+	headline: "_headline_1l22a_1",
+	inlineExplanation: "_inlineExplanation_1l22a_6",
+	rejected: "_rejected_1l22a_10"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/ApprovalEventView.tsx
+/**
+* Renders the ApprovalEventView component.
+*/
+var ApprovalEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	const decision = event.decision;
+	const explanation = event.explanation?.trim() ?? "";
+	const approver = event.approver;
+	const alarming = decision === "reject" || decision === "terminate";
+	const explanationIsBlock = explanation.includes("\n");
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventRow, {
+		title: alarming ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: ApprovalEventView_module_default.rejected,
+			children: decisionLabel(decision)
+		}) : decisionLabel(decision),
+		icon: decisionIcon(decision),
+		iconClassName: alarming ? ApprovalEventView_module_default.rejected : void 0,
+		className,
+		below: explanation && explanationIsBlock ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MarkdownDiv, { markdown: explanation }) : void 0,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+			className: ApprovalEventView_module_default.headline,
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: clsx("text-style-secondary"),
+				children: [
+					"(",
+					approver,
+					")"
+				]
+			}), explanation && !explanationIsBlock ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: ApprovalEventView_module_default.inlineExplanation,
+				children: explanation
+			}) : null]
+		})
+	});
+};
+var decisionLabel = (decision) => {
+	switch (decision) {
+		case "approve": return "Approved";
+		case "reject": return "Rejected";
+		case "terminate": return "Terminated";
+		case "escalate": return "Escalated";
+		case "modify": return "Modified";
+		default: return decision;
+	}
+};
+var decisionIcon = (decision) => {
+	switch (decision) {
+		case "approve": return TranscriptIcons.approvals.approve;
+		case "reject": return TranscriptIcons.approvals.reject;
+		case "terminate": return TranscriptIcons.approvals.terminate;
+		case "escalate": return TranscriptIcons.approvals.escalate;
+		case "modify": return TranscriptIcons.approvals.modify;
+		default: return TranscriptIcons.approve;
+	}
+};
+var BranchEventView_module_default = { panel: "_panel_8zdtn_1" };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/EventLabelContext.ts
+var EventLabelContext = (0, import_react.createContext)(void 0);
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/hooks/useStickyStuck.ts
+var kStuckAttribute = "data-sticky-stuck";
+var registries = /* @__PURE__ */ new Map();
+function updateElementStuckState(containerTop, el, stickyTop) {
+	const relativeTop = el.getBoundingClientRect().top - containerTop;
+	const isStuck = relativeTop <= stickyTop + 1 && relativeTop >= stickyTop - 1;
+	el.toggleAttribute(kStuckAttribute, isStuck);
+}
+function updateStuckState(container, entries) {
+	const containerTop = container.getBoundingClientRect().top;
+	entries.forEach((stickyTop, el) => updateElementStuckState(containerTop, el, stickyTop));
+}
+function getRegistry(container) {
+	let registry = registries.get(container);
+	if (!registry) {
+		const entries = /* @__PURE__ */ new Map();
+		let rafId = null;
+		const scheduleUpdate = () => {
+			if (rafId === null) rafId = requestAnimationFrame(() => {
+				rafId = null;
+				updateStuckState(container, entries);
+			});
+		};
+		container.addEventListener("scroll", scheduleUpdate, { passive: true });
+		window.addEventListener("resize", scheduleUpdate, { passive: true });
+		registry = {
+			entries,
+			scheduleUpdate,
+			cleanup: () => {
+				container.removeEventListener("scroll", scheduleUpdate);
+				window.removeEventListener("resize", scheduleUpdate);
+				if (rafId !== null) cancelAnimationFrame(rafId);
+			}
+		};
+		registries.set(container, registry);
+	}
+	return registry;
+}
+/**
+* Toggles `data-sticky-stuck` on `ref`'s element while it is pinned at
+* `stickyTop` px inside `scrollRef`'s scroll container. Style the stuck state
+* with `[data-sticky-stuck]` attribute selectors. No-op without a container.
+*/
+function useStickyStuck(ref, stickyTop, scrollRef) {
+	(0, import_react.useEffect)(() => {
+		const el = ref.current;
+		const container = scrollRef?.current;
+		if (!el || !container) return;
+		const registry = getRegistry(container);
+		registry.entries.set(el, stickyTop);
+		updateElementStuckState(container.getBoundingClientRect().top, el, stickyTop);
+		registry.scheduleUpdate();
+		return () => {
+			registry.entries.delete(el);
+			el.removeAttribute(kStuckAttribute);
+			if (registry.entries.size === 0) {
+				registry.cleanup();
+				registries.delete(container);
+			}
+		};
+	}, [
+		ref,
+		stickyTop,
+		scrollRef
+	]);
+}
+var EventNav_module_default = { tab: "_tab_1je38_1" };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/event/EventNav.tsx
+/**
+* Component to render a single navigation item.
+*/
+var EventNav = ({ target, title, selectedNav, setSelectedNav }) => {
+	const active = target === selectedNav;
+	const handleClick = (0, import_react.useCallback)(() => {
+		setSelectedNav(target);
+	}, [setSelectedNav, target]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
+		className: "nav-item",
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+			type: "button",
+			role: "tab",
+			"aria-controls": target,
+			"aria-selected": active,
+			className: clsx("nav-link", active ? "active " : "", "text-style-label", "text-size-small", EventNav_module_default.tab),
+			onClick: handleClick,
+			children: title
+		})
+	});
+};
+var EventNavs_module_default = {
+	wrapper: "_wrapper_og902_1",
+	navs: "_navs_og902_10",
+	probe: "_probe_og902_17",
+	probeItem: "_probeItem_og902_27"
+};
+var EventNavsPicker_module_default = {
+	trigger: "_trigger_nqyxq_1",
+	label: "_label_nqyxq_21",
+	chevron: "_chevron_nqyxq_27",
+	backdrop: "_backdrop_nqyxq_33",
+	menu: "_menu_nqyxq_43",
+	item: "_item_nqyxq_55",
+	selected: "_selected_nqyxq_76"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/event/EventNavsPicker.tsx
+/**
+* Compact replacement for {@link EventNavs} when the tab row is too narrow
+* to display all pills inline. Renders the active tab title as a single
+* button that opens a portal-anchored menu of all navs.
+*/
+var EventNavsPicker = ({ navs, selectedNav, setSelectedNav, labelWidth }) => {
+	const [open, setOpen] = (0, import_react.useState)(false);
+	const buttonRef = (0, import_react.useRef)(null);
+	const [position, setPosition] = (0, import_react.useState)(null);
+	const computePosition = (0, import_react.useCallback)(() => {
+		const rect = buttonRef.current?.getBoundingClientRect();
+		if (!rect) return;
+		setPosition({
+			top: rect.bottom,
+			right: window.innerWidth - rect.right,
+			minWidth: rect.width
+		});
+	}, []);
+	(0, import_react.useLayoutEffect)(() => {
+		if (open) computePosition();
+	}, [open, computePosition]);
+	(0, import_react.useEffect)(() => {
+		if (!open) return;
+		const handler = () => computePosition();
+		window.addEventListener("resize", handler);
+		window.addEventListener("scroll", handler, true);
+		return () => {
+			window.removeEventListener("resize", handler);
+			window.removeEventListener("scroll", handler, true);
+		};
+	}, [open, computePosition]);
+	const handleKeyDown = (0, import_react.useCallback)((e) => {
+		if (e.key === "Escape") {
+			setOpen(false);
+			buttonRef.current?.focus();
+		}
+	}, []);
+	const selected = navs.find((nav) => nav.target === selectedNav) ?? navs[0];
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+		ref: buttonRef,
+		type: "button",
+		"aria-haspopup": "listbox",
+		"aria-expanded": open,
+		className: clsx("nav-link", "active", "text-style-label", "text-size-small", EventNavsPicker_module_default.trigger),
+		onClick: () => setOpen((v) => !v),
+		onKeyDown: handleKeyDown,
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+			className: EventNavsPicker_module_default.label,
+			style: labelWidth ? { width: labelWidth } : void 0,
+			children: selected?.title ?? ""
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx("bi", "bi-chevron-down", EventNavsPicker_module_default.chevron) })]
+	}), open && position && (0, import_react_dom.createPortal)(/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: EventNavsPicker_module_default.backdrop,
+		onClick: () => setOpen(false)
+	}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		role: "listbox",
+		className: EventNavsPicker_module_default.menu,
+		style: {
+			top: position.top,
+			right: position.right,
+			minWidth: position.minWidth
+		},
+		onKeyDown: handleKeyDown,
+		children: navs.map((nav) => {
+			const isSelected = nav.target === selectedNav;
+			return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+				type: "button",
+				role: "option",
+				"aria-selected": isSelected,
+				className: clsx(EventNavsPicker_module_default.item, isSelected ? EventNavsPicker_module_default.selected : void 0, "text-size-small"),
+				onClick: () => {
+					setSelectedNav(nav.target);
+					setOpen(false);
+				},
+				children: nav.title
+			}, nav.id);
+		})
+	})] }), document.body)] });
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/event/EventNavs.tsx
+var SWITCH_TOLERANCE = 4;
+/**
+* Renders the event panel's tab navigation. When the available width is
+* smaller than the natural width of the pill row, collapses to a picker
+* dropdown instead of letting the pills wrap to a second line.
+*/
+var EventNavs = ({ navs, selectedNav, setSelectedNav }) => {
+	const [mode, setMode] = (0, import_react.useState)("tabs");
+	const [labelWidth, setLabelWidth] = (0, import_react.useState)(0);
+	const probeRef = (0, import_react.useRef)(null);
+	const naturalWidthRef = (0, import_react.useRef)(0);
+	(0, import_react.useLayoutEffect)(() => {
+		const probe = probeRef.current;
+		if (!probe) return;
+		naturalWidthRef.current = probe.scrollWidth;
+		const sample = probe.querySelector(".nav-link");
+		if (!sample) return;
+		const cs = getComputedStyle(sample);
+		const ctx = document.createElement("canvas").getContext("2d");
+		if (!ctx) return;
+		ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+		const transform = cs.textTransform;
+		const transformed = (s) => transform === "uppercase" ? s.toUpperCase() : transform === "lowercase" ? s.toLowerCase() : s;
+		let max = 0;
+		navs.forEach((nav) => {
+			max = Math.max(max, ctx.measureText(transformed(nav.title)).width);
+		});
+		setLabelWidth(Math.ceil(max));
+	}, [navs]);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		ref: useResizeObserver((0, import_react.useCallback)((entry) => {
+			const available = entry.contentRect.width;
+			const natural = naturalWidthRef.current;
+			if (natural === 0) return;
+			setMode((current) => {
+				if (current === "tabs" && available < natural - SWITCH_TOLERANCE) return "picker";
+				if (current === "picker" && available >= natural + SWITCH_TOLERANCE) return "tabs";
+				return current;
+			});
+		}, [])),
+		className: EventNavs_module_default.wrapper,
+		children: [mode === "tabs" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
+			className: clsx("nav", "nav-pills", EventNavs_module_default.navs),
+			role: "tablist",
+			"aria-orientation": "horizontal",
+			children: navs.map((nav) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventNav, {
+				target: nav.target,
+				title: nav.title,
+				selectedNav,
+				setSelectedNav
+			}, nav.title))
+		}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventNavsPicker, {
+			navs,
+			selectedNav,
+			setSelectedNav,
+			labelWidth
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", {
+			ref: probeRef,
+			"aria-hidden": true,
+			className: clsx("nav", "nav-pills", EventNavs_module_default.navs, EventNavs_module_default.probe),
+			children: navs.map((nav) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", {
+				className: "nav-item",
+				children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+					type: "button",
+					tabIndex: -1,
+					className: clsx("nav-link", "text-style-label", "text-size-small", EventNavs_module_default.probeItem),
+					children: nav.title
+				})
+			}, nav.id))
+		})]
+	});
+};
+var EventPanel_module_default = {
+	stickyWrapper: "_stickyWrapper_dht85_1",
+	label: "_label_dht85_21",
+	title: "_title_dht85_30",
+	titleExtra: "_titleExtra_dht85_38",
+	navs: "_navs_dht85_45",
+	turnLabel: "_turnLabel_dht85_52",
+	turnNav: "_turnNav_dht85_60",
+	turnNavFollower: "_turnNavFollower_dht85_75",
+	turnLabelButton: "_turnLabelButton_dht85_83",
+	turnButton: "_turnButton_dht85_100",
+	card: "_card_dht85_132",
+	jumpTarget: "_jumpTarget_dht85_141",
+	cardContent: "_cardContent_dht85_146",
+	hidden: "_hidden_dht85_151",
+	copyLink: "_copyLink_dht85_159",
+	hover: "_hover_dht85_169",
+	eventLabel: "_eventLabel_dht85_174",
+	root: "_root_dht85_178",
+	expanded: "_expanded_dht85_189",
+	bottomDongle: "_bottomDongle_dht85_194",
+	dongleIcon: "_dongleIcon_dht85_210"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/event/EventPanel.tsx
+var kChevronRight$1 = "bi bi-chevron-right";
+var kChevronDown$1 = "bi bi-chevron-down";
+var kChevronUp$1 = "bi bi-chevron-up";
+var kLinkIcon = "bi bi-link-45deg";
+var kDefaultIcon = "bi bi-table";
+var kFocusIcon = "bi bi-arrows-angle-expand";
+/**
+* Renders a collapsible event panel with optional tabs, icons, and deep linking.
+*/
+var EventPanel = ({ eventNodeId, className, title, subTitle, text, icon, children, childIds, collapsibleContent, collapseControl = "top", muted, depth, turnNav, headerExtra, eventCallbacks }) => {
+	const { onCollapse, getCollapsed, getEventUrl, linkingEnabled, getEventFocusUrl, onFocusTabChange, onPrevTurn, onNextTurn, onTurnLabelClick, onOpenEventFocus, getSelectedTab, onSelectTab, onTabSelected } = eventCallbacks ?? {};
+	const eventLabel = (0, import_react.useContext)(EventLabelContext);
+	const collapsed = getCollapsed?.(eventNodeId) ?? false;
+	const setCollapsed = (0, import_react.useCallback)((value) => {
+		onCollapse?.(eventNodeId, value);
+	}, [onCollapse, eventNodeId]);
+	const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
+	const useBottomDongle = isCollapsible && collapseControl === "bottom";
+	const url = linkingEnabled && getEventUrl ? getEventUrl(eventNodeId) : void 0;
+	const pillId = (index) => `${eventNodeId}-nav-pill-${index}`;
+	const filteredArrChildren = (Array.isArray(children) ? children : [children]).filter(Boolean);
+	const defaultPill = filteredArrChildren.findIndex((node) => hasDataDefault(node) && node.props["data-default"]);
+	const defaultPillId = defaultPill !== -1 ? pillId(defaultPill) : pillId(0);
+	const showNavs = !(isCollapsible && collapsibleContent && collapsed) && filteredArrChildren.length > 1;
+	const [storedNav, setStoredNav] = useProperty(eventNodeId, "selectedNav", { defaultValue: defaultPillId });
+	const tabNameAt = (index) => {
+		const child = filteredArrChildren[index];
+		return child && (0, import_react.isValidElement)(child) ? child.props["data-name"] : void 0;
+	};
+	const tabNames = (0, import_react.useMemo)(() => (Array.isArray(children) ? children : [children]).filter(Boolean).map((child, index) => (0, import_react.isValidElement)(child) ? child.props["data-name"] ?? `Tab ${index}` : `Tab ${index}`), [children]);
+	const sharedTabActive = !!getSelectedTab && filteredArrChildren.length > 1;
+	const sharedTab = sharedTabActive ? getSelectedTab(eventNodeId, tabNames) : void 0;
+	const sharedSelectedNav = pillId(Math.max(0, sharedTab === void 0 ? -1 : tabNames.indexOf(sharedTab)));
+	const selectedNav = sharedTabActive ? sharedSelectedNav : storedNav;
+	const setSelectedNav = (target) => {
+		if (sharedTabActive && onSelectTab) {
+			const name = tabNameAt(Number(target.slice(target.lastIndexOf("-") + 1)));
+			if (name) onSelectTab(eventNodeId, name);
+		} else setStoredNav(target);
+		onTabSelected?.(eventNodeId);
+	};
+	const stickyRef = (0, import_react.useRef)(null);
+	const { stickyTop, scrollRef } = useStickyScroll();
+	useStickyStuck(stickyRef, stickyTop, scrollRef);
+	const selectedTabName = (0, import_react.useMemo)(() => tabNames.length > 1 ? tabNames[Number(selectedNav.slice(selectedNav.lastIndexOf("-") + 1)) || 0] : void 0, [tabNames, selectedNav]);
+	const focusUrl = turnNav ? getEventFocusUrl?.(eventNodeId, selectedTabName) : void 0;
+	const reportFocusTab = turnNav !== void 0;
+	(0, import_react.useEffect)(() => {
+		if (reportFocusTab) onFocusTabChange?.(eventNodeId, selectedTabName);
+	}, [
+		onFocusTabChange,
+		eventNodeId,
+		selectedTabName,
+		reportFocusTab
+	]);
+	const gridColumns = [];
+	if (isCollapsible && !useBottomDongle) gridColumns.push("minmax(0, max-content)");
+	if (icon) gridColumns.push("max-content");
+	gridColumns.push("minmax(0, max-content)");
+	gridColumns.push("minmax(3rem, 1fr)");
+	if (turnNav) gridColumns.push("max-content");
+	if (eventLabel) gridColumns.push("max-content");
+	const toggleCollapse = (0, import_react.useCallback)(() => {
+		setCollapsed(!collapsed);
+	}, [setCollapsed, collapsed]);
+	const [mouseOver, setMouseOver] = (0, import_react.useState)(false);
+	const titleEl = eventLabel || title || icon || filteredArrChildren.length > 1 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		title: subTitle,
+		className: clsx("text-size-small", mouseOver ? EventPanel_module_default.hover : "", EventPanel_module_default.stickyWrapper),
+		ref: stickyRef,
+		style: {
+			display: "grid",
+			gridTemplateColumns: gridColumns.join(" "),
+			columnGap: "0.3em",
+			alignItems: "center",
+			cursor: isCollapsible && !useBottomDongle ? "pointer" : void 0,
+			top: stickyTop
+		},
+		onMouseEnter: () => setMouseOver(true),
+		onMouseLeave: () => setMouseOver(false),
+		children: [
+			isCollapsible && !useBottomDongle ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
+				onClick: toggleCollapse,
+				className: collapsed ? kChevronRight$1 : kChevronDown$1
+			}) : "",
+			icon ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
+				className: clsx(icon || kDefaultIcon, "text-style-secondary"),
+				onClick: toggleCollapse
+			}) : "",
+			/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx("text-style-secondary", "text-style-label", EventPanel_module_default.title),
+				onClick: toggleCollapse,
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: title }),
+					headerExtra ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: EventPanel_module_default.titleExtra,
+						onClick: (e) => e.stopPropagation(),
+						children: headerExtra
+					}) : null,
+					url ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						onClick: (e) => e.stopPropagation(),
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(CopyButton, {
+							value: url,
+							icon: kLinkIcon,
+							className: clsx(EventPanel_module_default.copyLink)
+						})
+					}) : null
+				]
+			}),
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: EventPanel_module_default.navs,
+				onClick: showNavs ? void 0 : toggleCollapse,
+				children: showNavs ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventNavs, {
+					navs: filteredArrChildren.map((child, index) => {
+						const defaultTitle = `Tab ${index}`;
+						const title = child && (0, import_react.isValidElement)(child) ? child.props["data-name"] || defaultTitle : defaultTitle;
+						return {
+							id: `eventpanel-${eventNodeId}-${index}`,
+							title,
+							target: pillId(index)
+						};
+					}),
+					selectedNav: selectedNav || "",
+					setSelectedNav
+				}) : collapsed && text ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+					className: clsx("text-style-secondary", EventPanel_module_default.label),
+					children: text
+				}) : null
+			}),
+			turnNav ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+				className: clsx(EventPanel_module_default.turnNav, turnNav.isAnchor === false && EventPanel_module_default.turnNavFollower),
+				onClick: (e) => e.stopPropagation(),
+				children: [
+					onTurnLabelClick ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: clsx(EventPanel_module_default.turnLabel, EventPanel_module_default.turnLabelButton),
+						title: "Go to turn (Ctrl+G)",
+						"aria-label": `Go to turn — currently turn ${turnNav.turnNumber} of ${turnNav.totalTurns}`,
+						onClick: () => onTurnLabelClick(turnNav.turnNumber),
+						children: `turn ${turnNav.turnNumber}/${turnNav.totalTurns}`
+					}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+						className: EventPanel_module_default.turnLabel,
+						children: `turn ${turnNav.turnNumber}/${turnNav.totalTurns}`
+					}),
+					onNextTurn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: EventPanel_module_default.turnButton,
+						title: "Next turn (j)",
+						"aria-label": "Next turn",
+						disabled: turnNav.turnNumber >= turnNav.totalTurns,
+						onClick: () => onNextTurn(turnNav.turnNumber),
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: kChevronDown$1 })
+					}),
+					onPrevTurn && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: EventPanel_module_default.turnButton,
+						title: "Previous turn (k)",
+						"aria-label": "Previous turn",
+						disabled: turnNav.turnNumber <= 1,
+						onClick: () => onPrevTurn(turnNav.turnNumber),
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: kChevronUp$1 })
+					}),
+					focusUrl && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("a", {
+						className: EventPanel_module_default.turnButton,
+						href: focusUrl,
+						target: onOpenEventFocus ? void 0 : "_blank",
+						rel: "noreferrer",
+						title: "Open focused turn view (f)",
+						"aria-label": "Open focused turn view",
+						onClick: (e) => {
+							if (onOpenEventFocus && e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+								e.preventDefault();
+								onOpenEventFocus(focusUrl);
+							}
+						},
+						children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: kFocusIcon })
+					})
+				]
+			}) : null,
+			eventLabel && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MessageLabel, {
+				label: eventLabel,
+				className: EventPanel_module_default.eventLabel
+			})
+		]
+	}) : "";
+	const isRoot = depth === 0 || muted;
+	const detailExpanded = filteredArrChildren.length > 1 ? !collapsed && selectedNav !== defaultPillId : !!collapsibleContent && !collapsed;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		id: `event-panel-${eventNodeId}`,
+		className: clsx(className, EventPanel_module_default.card, isRoot ? EventPanel_module_default.root : void 0, detailExpanded ? EventPanel_module_default.expanded : void 0, eventCallbacks?.isJumpTarget?.(eventNodeId) ? EventPanel_module_default.jumpTarget : void 0),
+		children: [
+			titleEl,
+			/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx("tab-content", EventPanel_module_default.cardContent, isCollapsible && collapsed && collapsibleContent ? EventPanel_module_default.hidden : void 0),
+				children: filteredArrChildren?.map((child, index) => {
+					const id = pillId(index);
+					const isSelected = id === selectedNav;
+					if (!isSelected) return null;
+					return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+						id,
+						className: clsx("tab-pane", "show", isSelected ? "active" : ""),
+						children: child
+					}, `children-${id}-${index}`);
+				})
+			}),
+			isCollapsible && useBottomDongle ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx(EventPanel_module_default.bottomDongle, "text-size-smallest"),
+				onClick: toggleCollapse,
+				children: [
+					/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", { className: clsx(collapsed ? kChevronRight$1 : kChevronDown$1, EventPanel_module_default.dongleIcon) }),
+					"transcript (",
+					childIds?.length,
+					" ",
+					childIds?.length === 1 ? "event" : "events",
+					")"
+				]
+			}) : void 0
+		]
+	});
+};
+function hasDataDefault(node) {
+	return (0, import_react.isValidElement)(node) && node.props !== null && typeof node.props === "object" && "data-default" in node.props;
+}
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/event/utils.ts
+var cancelErrors = /* @__PURE__ */ new Set([
+	"Cancelled by operator",
+	"Cancelled by limit",
+	"Cancelled by system"
+]);
+/** True when a model error is a cancel sentinel (not a genuine failure). */
+var isCancelError = (error) => !!error && cancelErrors.has(error);
+var formatTiming = (timestamp, working_start) => {
+	if (working_start) return `${formatDateTime$1(new Date(timestamp))}\n@ working time: ${formatTime$1(working_start)}`;
+	else return formatDateTime$1(new Date(timestamp));
+};
+var formatTitle = (title, total_tokens, working_start, role) => {
+	const titleWithRole = role ? `${title} – ${role} –` : title;
+	const subItems = [];
+	if (total_tokens) subItems.push(`${formatNumber(total_tokens)} tokens`);
+	if (working_start) subItems.push(`${formatTime$1(working_start)}`);
+	return `${titleWithRole}${subItems.length > 0 ? ` (${subItems.join(", ")})` : ""}`;
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/BranchEventView.tsx
+var BranchEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	const data = {};
+	if (event.from_anchor) data["from_anchor"] = event.from_anchor;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: eventNode.id,
+		title: formatTitle("Branch", void 0, event.working_start),
+		className,
+		subTitle: formatDateTime$1(new Date(event.timestamp)),
+		icon: TranscriptIcons.info,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+			entries: data,
+			className: BranchEventView_module_default.panel
+		})
+	});
+};
+var BranchPoint_module_default = {
+	branchPoint: "_branchPoint_m92x3_1",
+	label: "_label_m92x3_20",
+	glyph: "_glyph_m92x3_27",
+	labelText: "_labelText_m92x3_36",
+	segmented: "_segmented_m92x3_44",
+	segment: "_segment_m92x3_44",
+	continuesGlyph: "_continuesGlyph_m92x3_87"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/BranchPoint.tsx
+var BranchPoint = ({ parent, spawned, viewing, onSelect, className }) => {
+	if (spawned.length === 0) return null;
+	const options = [parent, ...spawned];
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		role: "group",
+		"aria-label": "Branch point",
+		className: clsx(BranchPoint_module_default.branchPoint, className),
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", {
+			className: BranchPoint_module_default.label,
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("i", {
+				className: clsx(TranscriptIcons.fork, BranchPoint_module_default.glyph),
+				"aria-hidden": "true"
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", {
+				className: BranchPoint_module_default.labelText,
+				children: "Branch point"
+			})]
+		}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			role: "radiogroup",
+			"aria-label": "Choose branch",
+			className: BranchPoint_module_default.segmented,
+			children: options.map((b) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Segment, {
+				branch: b,
+				isCurrent: b === viewing,
+				isParent: b === parent,
+				onSelect
+			}, b))
+		})]
+	});
+};
+var Segment = ({ branch, isCurrent, isParent, onSelect }) => {
+	const interactive = !!onSelect && !isCurrent;
+	const handleClick = (e) => {
+		if (interactive && onSelect) onSelect(branch, e.currentTarget);
+	};
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("button", {
+		type: "button",
+		role: "radio",
+		className: BranchPoint_module_default.segment,
+		"data-testid": "bp-segment",
+		"data-branch": branch,
+		"aria-checked": isCurrent,
+		"aria-pressed": isCurrent ? "true" : "false",
+		onClick: interactive ? handleClick : void 0,
+		disabled: !interactive,
+		children: [isParent && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ContinuesGlyph, {}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: branch })]
+	});
+};
+var ContinuesGlyph = () => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", {
+	className: BranchPoint_module_default.continuesGlyph,
+	viewBox: "0 0 9 9",
+	"aria-hidden": "true",
+	"data-testid": "bp-continues",
+	children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: "M 1 1 L 8 4.5 L 1 8 Z" })
+});
+/**
+* Adapt a merged `fork_nav` payload to BranchPoint props.
+*/
+function forkNavToBranchPointProps(data) {
+	const first = data.groups[0];
+	if (!first || first.options.length === 0) return null;
+	const parent = first.options[0].label;
+	const spawned = [];
+	let viewing = parent;
+	for (const group of data.groups) {
+		for (let i = 1; i < group.options.length; i++) spawned.push(group.options[i].label);
+		if (group.selectedIndex > 0) viewing = group.options[group.selectedIndex].label;
+	}
+	if (spawned.length === 0) return null;
+	return {
+		parent,
+		spawned,
+		viewing
+	};
+}
+/**
+* Find the swimlane row key for a clicked branch label. First match wins
+* when labels collide across merged groups.
+*/
+function findRowKeyForLabel(data, label) {
+	for (const group of data.groups) for (const opt of group.options) if (opt.label === label) return opt.rowKey;
+	return null;
+}
+var CheckpointEventView_module_default = {
+	panel: "_panel_1us8t_1",
+	rowValue: "_rowValue_1us8t_10",
+	files: "_files_1us8t_16",
+	file: "_file_1us8t_16",
+	fileOverflow: "_fileOverflow_1us8t_27"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/CheckpointEventView.tsx
+var asNumber = (v) => typeof v === "number" ? v : null;
+var triggerSummary = (event) => {
+	const md = event.trigger_metadata ?? {};
+	switch (event.trigger) {
+		case "token": {
+			const every = asNumber(md["every"]);
+			const since = asNumber(md["tokens_since_last_fire"]);
+			return every !== null && since !== null ? `token — ${formatNumber(every)} (${formatNumber(since)})` : null;
+		}
+		case "time": {
+			const every = asNumber(md["every_seconds"]);
+			const elapsed = asNumber(md["elapsed_seconds"]);
+			return every !== null && elapsed !== null ? `time — ${formatTime$1(every)} (${formatTime$1(elapsed)})` : null;
+		}
+		case "turn": {
+			const every = asNumber(md["every"]);
+			return every !== null ? `turn — ${formatNumber(every)}` : null;
+		}
+		case "manual": return "manual";
+		case "agent_complete": return "agent complete";
+		default: return null;
+	}
+};
+var Row = ({ label, children }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+	className: clsx("text-style-label", "text-style-secondary"),
+	children: label
+}), /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+	className: CheckpointEventView_module_default.rowValue,
+	children
+})] });
+var Snapshot = ({ details }) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+	formatBytes(details.size_bytes),
+	" · ",
+	formatMs(details.duration_ms)
+] }), details.files && details.files.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+	className: CheckpointEventView_module_default.files,
+	children: [details.files.map((file) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+		className: CheckpointEventView_module_default.file,
+		children: file
+	}, file)), details.additional_files ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: CheckpointEventView_module_default.fileOverflow,
+		children: [
+			"+",
+			details.additional_files,
+			" more"
+		]
+	}) : null]
+}) : null] });
+var CheckpointEventView = ({ eventNode, className, eventCallbacks }) => {
+	const event = eventNode.event;
+	const summary = triggerSummary(event);
+	const metadata = event.trigger_metadata ?? {};
+	const sandboxEntries = Object.entries(event.sandboxes);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: eventNode.id,
+		className,
+		title: `Checkpoint ${event.checkpoint_id} — turn ${event.turn} (${formatBytes(event.size_bytes)}, ${formatTime$1(event.duration_ms / 1e3)})`,
+		icon: TranscriptIcons.checkpoint,
+		eventCallbacks,
+		collapsibleContent: true,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: clsx(CheckpointEventView_module_default.panel, "text-size-small"),
+			children: [
+				/* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Row, {
+					label: "Trigger",
+					children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { children: summary ?? event.trigger }), summary === null && Object.keys(metadata).length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+						entries: metadata,
+						options: {
+							plain: true,
+							size: "mini"
+						}
+					}) : null]
+				}),
+				/* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, {
+					label: "Host",
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Snapshot, { details: event.host })
+				}),
+				sandboxEntries.map(([name, details]) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Row, {
+					label: sandboxEntries.length === 1 ? "Sandbox" : name,
+					children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Snapshot, { details })
+				}, name))
+			]
+		})
+	});
+};
+var CompactionEventView_module_default = { panel: "_panel_8zdtn_1" };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/CompactionEventView.tsx
+var CompactionEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	let data = {};
+	if (event.tokens_before) data["tokens_before"] = event.tokens_before;
+	if (event.tokens_after) data["tokens_after"] = event.tokens_after;
+	data = {
+		...data,
+		...event.metadata || {}
+	};
+	const source = event.source && event.source !== "inspect" ? ": " + event.source : "";
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: eventNode.id,
+		title: formatTitle("Compaction" + source, void 0, event.working_start),
+		className,
+		subTitle: formatDateTime$1(new Date(event.timestamp)),
+		icon: TranscriptIcons.compaction,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, {
+			entries: data,
+			className: CompactionEventView_module_default.panel,
+			options: { copyButton: true }
+		})
+	});
+};
+var EmptyBranchView_module_default = {
+	empty: "_empty_f9al6_1",
+	headline: "_headline_f9al6_6",
+	detail: "_detail_f9al6_12"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/EmptyBranchView.tsx
+var EmptyBranchView = ({ eventNode, className }) => {
+	const data = eventNode.event.metadata?.empty_branch;
+	if (!data) return null;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+		className: clsx(EmptyBranchView_module_default.empty, className),
+		role: "note",
+		children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: EmptyBranchView_module_default.headline,
+			children: "No events in this branch"
+		}), data.terminator ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: EmptyBranchView_module_default.detail,
+			children: ["Branch ended via ", /* @__PURE__ */ (0, import_jsx_runtime.jsx)("code", { children: data.terminator })]
+		}) : null]
+	});
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/ErrorEventView.tsx
+var ErrorEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: eventNode.id,
+		title: "Error",
+		className,
+		subTitle: event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0,
+		icon: TranscriptIcons.error,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
+			output: event.error.traceback_ansi,
+			style: {
+				fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
+				margin: "0.5em 0"
+			}
+		})
+	});
+};
+var InfoEventView_module_default = { panel: "_panel_vz394_1" };
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/InfoEventView.tsx
+var InfoEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	const panel = typeof event.data === "string" ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RenderedText, {
+		markdown: event.data,
+		className: clsx(InfoEventView_module_default.panel, "text-size-base")
+	}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(JSONPanel, {
+		data: event.data,
+		className: InfoEventView_module_default.panel
+	});
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: eventNode.id,
+		title: "Info" + (event.source ? ": " + event.source : ""),
+		className,
+		subTitle: event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0,
+		icon: TranscriptIcons.info,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+			id: `${eventNode.id}-info`,
+			collapse: true,
+			children: panel
+		})
+	});
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/InputEventView.tsx
+var InputEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: eventNode.id,
+		title: "Input",
+		className,
+		subTitle: event.timestamp ? formatDateTime$1(new Date(event.timestamp)) : void 0,
+		icon: TranscriptIcons.input,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ANSIDisplay, {
+			output: event.input_ansi,
+			style: { fontSize: "clamp(0.4rem, 1.15vw, 0.9rem)" }
+		})
+	});
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/InterruptEventView.tsx
+var SOURCE_TITLES = {
+	user_cancel: "Interrupted by user",
+	limit: "Interrupted by limit",
+	system: "Interrupted by system"
+};
+var INTERRUPTED_DESCRIPTIONS = {
+	generate: "during model generation",
+	tool_call: "during tool execution",
+	between_turns: "between turns"
+};
+var InterruptEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	const baseTitle = SOURCE_TITLES[event.source];
+	const title = event.timestamp ? `${baseTitle} — ${formatDateTime$1(new Date(event.timestamp))}` : baseTitle;
+	const detail = INTERRUPTED_DESCRIPTIONS[event.interrupted];
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventPanel, {
+		eventNodeId: eventNode.id,
+		title,
+		icon: TranscriptIcons.interrupt,
+		className,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+			className: clsx("text-size-smaller"),
+			children: detail
+		})
+	});
+};
+var LoggerEventView_module_default = {
+	grid: "_grid_1eq5o_1",
+	jsonPanel: "_jsonPanel_1eq5o_8"
+};
+//#endregion
+//#region ../../packages/inspect-components/src/transcript/LoggerEventView.tsx
+var LoggerEventView = ({ eventNode, className }) => {
+	const event = eventNode.event;
+	const obj = parsedJson(event.message.message);
+	return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(EventRow, {
+		className,
+		title: event.message.level,
+		icon: TranscriptIcons.logging[event.message.level.toLowerCase()] || TranscriptIcons.info,
+		children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+			className: clsx("text-size-base", LoggerEventView_module_default.grid),
+			children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", {
+				className: clsx("text-size-smaller"),
+				children: obj !== void 0 && obj !== null ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MetaDataGrid, { entries: obj }) : event.message.message
+			}), /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", {
+				className: clsx("text-size-smaller", "text-style-secondary"),
+				children: [
+					event.message.filename,
+					":",
+					event.message.lineno
+				]
+			})]
+		})
+	});
+};
 var ConnectionsLane_module_default = {
 	lane: "_lane_ax2f5_1",
 	statsLine: "_statsLine_ax2f5_5",
@@ -87251,7 +89075,7 @@ function findVariantPositions(lowered, variants) {
 	for (const v of variants) {
 		if (!v) continue;
 		let from = 0;
-		let p = 0;
+		let p;
 		while ((p = lowered.indexOf(v, from)) !== -1) {
 			hits.push({
 				pos: p,
@@ -91130,6 +92954,20 @@ var headerFromLogStart = (start) => ({
 	tags: start.eval?.tags ?? [],
 	metadata: start.eval?.metadata ?? {}
 });
+var JOURNAL_SUMMARIES_DIR = "_journal/summaries/";
+var journalFileIndex = (filename) => parseInt(filename.slice(19), 10);
+/**
+* Keep the last row per (id, epoch), matching the Python readers'
+* last-entry-wins rule: a requeued sample's re-run is recorded after its
+* superseded prior attempt.
+*
+* Exported for unit testing.
+*/
+var dedupeSummaries = (summaries) => {
+	const byKey = /* @__PURE__ */ new Map();
+	for (const summary of summaries) byKey.set(JSON.stringify([summary.id, summary.epoch]), summary);
+	return Array.from(byKey.values());
+};
 /**
 * Opens a remote log file and provides methods to read its contents.
 */
@@ -91167,8 +93005,8 @@ var openRemoteLogFile = async (api, url, concurrency) => {
 			return asyncJsonParseBytes(data);
 		} catch (error) {
 			if (error instanceof FileSizeLimitError) throw error;
-			else if (error instanceof Error) throw new Error(`Failed to read or parse file ${file}: ${error.message}`);
-			else throw new Error(`Failed to read or parse file ${file} - an unknown error occurred`);
+			else if (error instanceof Error) throw new Error(`Failed to read or parse file ${file}: ${error.message}`, { cause: error });
+			else throw new Error(`Failed to read or parse file ${file} - an unknown error occurred`, { cause: error });
 		}
 	};
 	/**
@@ -91206,25 +93044,26 @@ var openRemoteLogFile = async (api, url, concurrency) => {
 	* Reads individual summary files when summaries.json is not available.
 	*/
 	const readFallbackSummaries = async () => {
-		const summaryFiles = Array.from(remoteZipFile.centralDirectory.keys()).filter((filename) => filename.startsWith("_journal/summaries/") && filename.endsWith(".json"));
-		const summaries = [];
+		const summaryFiles = Array.from(remoteZipFile.centralDirectory.keys()).filter((filename) => filename.startsWith(JOURNAL_SUMMARIES_DIR) && filename.endsWith(".json")).sort((a, b) => journalFileIndex(a) - journalFileIndex(b));
+		const perFile = [];
 		const errors = [];
-		await Promise.all(summaryFiles.map((filename) => queue.enqueue(async () => {
+		await Promise.all(summaryFiles.map((filename, index) => queue.enqueue(async () => {
 			try {
-				const partialSummary = await readJSONFile(filename);
-				summaries.push(...partialSummary);
+				const parsed = await readJSONFile(filename);
+				if (!Array.isArray(parsed)) throw new Error(`Expected an array in ${filename}`);
+				perFile[index] = parsed;
 			} catch (error) {
 				errors.push(error);
 			}
 		})));
 		if (errors.length > 0) console.error(`Encountered ${errors.length} errors while reading summary files:`, errors);
-		return summaries;
+		return dedupeSummaries(perFile.flat());
 	};
 	/**
 	* Reads all summaries, falling back to individual files if necessary.
 	*/
 	const readSampleSummaries = async () => {
-		if (remoteZipFile.centralDirectory.has("summaries.json")) return await readJSONFile("summaries.json");
+		if (remoteZipFile.centralDirectory.has("summaries.json")) return dedupeSummaries(await readJSONFile("summaries.json"));
 		else return readFallbackSummaries();
 	};
 	return {
@@ -92530,7 +94369,7 @@ async function edit_log(log_file, update, if_match_etag) {
 	} catch (e) {
 		const err = asRpcError(e);
 		if (typeof err.code === "number" && err.code >= 400 && err.code < 600) throw new ApiError(err.code, err.message ?? `Edit failed (${err.code})`);
-		if (err.code === -32601) throw new Error("Log editing requires a newer Inspect VS Code extension.");
+		if (err.code === -32601) throw new Error("Log editing requires a newer Inspect VS Code extension.", { cause: e });
 		throw e;
 	}
 }
@@ -92586,7 +94425,7 @@ async function list_searches(search_type, count) {
 	try {
 		return parsePayload(await vscodeClient(kMethodListSearches, [search_type, count]));
 	} catch (e) {
-		if (asRpcError(e).code === -32601) throw new Error(kSearchUnsupportedMessage);
+		if (asRpcError(e).code === -32601) throw new Error(kSearchUnsupportedMessage, { cause: e });
 		throw e;
 	}
 }
@@ -92598,7 +94437,7 @@ async function post_search(transcriptDir, transcriptId, request) {
 			request
 		]));
 	} catch (e) {
-		if (asRpcError(e).code === -32601) throw new Error(kSearchUnsupportedMessage);
+		if (asRpcError(e).code === -32601) throw new Error(kSearchUnsupportedMessage, { cause: e });
 		throw e;
 	}
 }
@@ -92615,7 +94454,7 @@ async function get_search_result(transcriptDir, transcriptId, search_id, scope) 
 	} catch (e) {
 		const err = asRpcError(e);
 		if (err.code === 404) return null;
-		if (err.code === -32601) throw new Error(kSearchUnsupportedMessage);
+		if (err.code === -32601) throw new Error(kSearchUnsupportedMessage, { cause: e });
 		throw e;
 	}
 }
@@ -93401,15 +95240,15 @@ Prism.languages.py = Prism.languages.python;
 	};
 	Prism.languages.yml = Prism.languages.yaml;
 })(Prism);
-/*!
-* clipboard.js v2.0.11
-* https://clipboardjs.com/
-*
-* Licensed MIT © Zeno Rocha
-*/
 //#endregion
-//#region ../../packages/zustand-devtools/src/entries.ts
-var import_clipboard = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((exports, module) => {
+//#region ../../node_modules/.pnpm/clipboard@2.0.11/node_modules/clipboard/dist/clipboard.js
+var require_clipboard = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+	/*!
+	* clipboard.js v2.0.11
+	* https://clipboardjs.com/
+	*
+	* Licensed MIT © Zeno Rocha
+	*/
 	(function webpackUniversalModuleDefinition(root, factory) {
 		if (typeof exports === "object" && typeof module === "object") module.exports = factory();
 		else if (typeof define === "function" && define.amd) define([], factory);
@@ -94016,7 +95855,28 @@ var import_clipboard = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((
 			return __webpack_require__(686);
 		})().default;
 	});
-})))(), 1);
+}));
+//#endregion
+//#region ../../node_modules/.pnpm/react-router@8.3.0_react-dom@19.2.7_react@19.2.7__react@19.2.7/node_modules/react-router/dist/production/lib/dom-export/dom-router-provider.js
+/**
+* react-router v8.3.0
+*
+* Copyright (c) Remix Software Inc.
+*
+* This source code is licensed under the MIT license found in the
+* LICENSE.md file in the root directory of this source tree.
+*
+* @license MIT
+*/
+function RouterProvider$1(props) {
+	return /* @__PURE__ */ import_react.createElement(RouterProvider, {
+		flushSync: import_react_dom.flushSync,
+		...props
+	});
+}
+//#endregion
+//#region ../../packages/zustand-devtools/src/entries.ts
+var import_clipboard = /* @__PURE__ */ __toESM(require_clipboard(), 1);
 var isExpandable = (value) => typeof value === "object" && value !== null;
 var objectEntries = (o) => Object.entries(o).map(([key, value]) => ({
 	key,
@@ -94116,7 +95976,7 @@ var ZustandDevtoolsPanel_module_default = {
 var CHUNK_SIZE = 100;
 var COPIED_FEEDBACK_MS = 1e3;
 var classes = (...names) => names.filter((n) => typeof n === "string").join(" ");
-var TreeNode$2 = (0, import_react.memo)(({ name, value, defaultExpanded = false }) => {
+var TreeNode$1 = (0, import_react.memo)(({ name, value, defaultExpanded = false }) => {
 	const [expanded, setExpanded] = (0, import_react.useState)(defaultExpanded);
 	const [limit, setLimit] = (0, import_react.useState)(CHUNK_SIZE);
 	const [copied, setCopied] = (0, import_react.useState)(false);
@@ -94173,7 +96033,7 @@ var TreeNode$2 = (0, import_react.memo)(({ name, value, defaultExpanded = false 
 				className: ZustandDevtoolsPanel_module_default.empty,
 				children: "empty"
 			}),
-			entries.slice(0, limit).map((entry) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TreeNode$2, {
+			entries.slice(0, limit).map((entry) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TreeNode$1, {
 				name: entry.key,
 				value: entry.value
 			}, entry.key)),
@@ -94194,7 +96054,7 @@ var TreeNode$2 = (0, import_react.memo)(({ name, value, defaultExpanded = false 
 		]
 	})] });
 });
-TreeNode$2.displayName = "TreeNode";
+TreeNode$1.displayName = "TreeNode";
 //#endregion
 //#region src/state/componentStateAdapter.ts
 var inspectStateHooks = {
@@ -97774,7 +99634,7 @@ var useSelectedEvalSampleData = () => {
 * projecting from the param-driven `usePassiveEvalSampleData` acquisition
 * hook.
 */
-var useSelectedSampleInvalidation = () => usePassiveEvalSampleData(useLogDir(), useStore((state) => state.log.selectedSampleHandle)).data?.sample?.invalidation ?? void 0;
+var useSelectedSampleInvalidation = () => usePassiveEvalSampleData(useStore((state) => state.log.selectedSampleHandle)).data?.sample?.invalidation ?? void 0;
 var useMessageVisibility = (id, scope) => {
 	const visible = useStore((state) => state.appActions.getMessageVisible(id, true));
 	const setVisible = useStore((state) => state.appActions.setMessageVisible);
@@ -104939,78 +106799,6 @@ var InlineSampleDisplay_module_default = {
 	container: "_container_ly812_1",
 	scroller: "_scroller_ly812_7"
 };
-//#endregion
-//#region src/app/samples/messagesFromEvents.ts
-var isSuccessfulModelEvent = (e) => e.event === "model" && !e.error;
-var createState = () => ({
-	messages: [],
-	positions: /* @__PURE__ */ new Map(),
-	events: [],
-	lastResult: []
-});
-var insertAt = (state, index, m) => {
-	state.messages.splice(index, 0, m);
-	for (let i = index; i < state.messages.length; i++) {
-		const id = state.messages[i]?.id;
-		if (id) state.positions.set(id, i);
-	}
-};
-var processEvent = (state, e) => {
-	let cursor = state.messages.length - 1;
-	const seenInEvent = /* @__PURE__ */ new Set();
-	for (const m of e.input) {
-		if (!m.id || seenInEvent.has(m.id)) continue;
-		seenInEvent.add(m.id);
-		const known = state.positions.get(m.id);
-		if (known !== void 0) cursor = known;
-		else {
-			cursor += 1;
-			insertAt(state, cursor, m);
-		}
-	}
-	const out = e.output.choices[0]?.message;
-	if (out?.id && !state.positions.has(out.id)) {
-		state.positions.set(out.id, state.messages.length);
-		state.messages.push(out);
-	}
-};
-/**
-* Reconstruct the conversation message list shown in the running-sample
-* Messages tab from a stream of events.
-*
-* If `stateRef` is supplied, the function tries to reuse cached work
-* from the previous call. When `events` is a pure prefix-extension of
-* the prior snapshot (events[i] === prior.events[i] for all prior
-* indices), only the new tail is processed; otherwise we recompute
-* from scratch. The cache is updated in place via `stateRef.current`.
-*
-* Note: the polling pipeline replaces the trailing event in place when
-* a streaming model call produces successive output chunks. That shows
-* up as divergence at the last index and forces a rebuild every poll
-* for the active turn, so the cache mainly earns its keep between
-* turns and on idle polls, not while a single model call is streaming.
-*/
-var messagesFromEvents = (events, stateRef) => {
-	const prior = stateRef?.current ?? null;
-	let startFrom = 0;
-	if (prior) while (startFrom < prior.events.length && startFrom < events.length && prior.events[startFrom] === events[startFrom]) startFrom++;
-	const canReuse = prior !== null && startFrom === prior.events.length && events.length >= prior.events.length;
-	let state;
-	if (canReuse) state = prior;
-	else {
-		state = createState();
-		startFrom = 0;
-	}
-	const priorLen = state.messages.length;
-	for (let i = startFrom; i < events.length; i++) {
-		const e = events[i];
-		if (e !== void 0 && isSuccessfulModelEvent(e)) processEvent(state, e);
-	}
-	state.events = events;
-	if (!canReuse || state.messages.length !== priorLen) state.lastResult = state.messages.slice();
-	if (stateRef) stateRef.current = state;
-	return state.lastResult;
-};
 var SampleDisplay_module_default = {
 	tabControls: "_tabControls_fvnsu_1",
 	fullWidth: "_fullWidth_fvnsu_10",
@@ -110384,6 +112172,7 @@ var TranscriptPanel = (0, import_react.memo)((props) => {
 TranscriptPanel.displayName = "TranscriptPanel";
 //#endregion
 //#region src/app/samples/SampleDisplay.tsx
+var kNoMessageRows = [];
 /**
 * Component to display a sample with relevant context and visibility control.
 */
@@ -110433,17 +112222,13 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	const tabsHeight = useElementHeight(tabsRef);
 	const selectedSampleSummary = useSelectedSampleSummary();
 	const sampleEvents = sample?.events || runningSampleData;
-	const messagesRef = (0, import_react.useRef)(null);
-	const sampleMessages = (0, import_react.useMemo)(() => {
-		if (sample?.messages) {
-			messagesRef.current = null;
-			return sample.messages;
-		} else if (runningSampleData) return messagesFromEvents(runningSampleData, messagesRef);
-		else {
-			messagesRef.current = null;
-			return [];
-		}
-	}, [sample?.messages, runningSampleData]);
+	const running = (0, import_react.useMemo)(() => {
+		return isRunning(selectedSampleSummary, runningSampleData, sampleData.status);
+	}, [
+		selectedSampleSummary,
+		runningSampleData,
+		sampleData.status
+	]);
 	const { logPath: urlLogPath, id: urlSampleId, epoch: urlEpoch, sampleTabId } = useLogOrSampleRouteParams();
 	const clearSampleTab = useStore((state) => state.appActions.clearSampleTab);
 	(0, import_react.useEffect)(() => {
@@ -110452,10 +112237,9 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 		};
 	}, [clearSampleTab]);
 	const effectiveSelectedTab = sampleTabId || selectedTab;
-	const logDir = useLogDir();
 	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
-	const chunkedMessages = useChunkedMessages(logDir, isChunked && effectiveSelectedTab === kSampleMessagesTabId ? selectedSampleHandle : void 0, sampleData.chunked);
-	const effectiveMessages = isChunked ? chunkedMessages.data ?? [] : sampleMessages;
+	const sampleMessages = useSampleMessages(selectedSampleHandle, sampleData, effectiveSelectedTab === kSampleMessagesTabId, running);
+	const exportMessages = useMessagesExport(selectedSampleHandle, sampleData);
 	(0, import_react.useEffect)(() => {
 		if (!focusOnLoad) return;
 		const id = setTimeout(() => scrollRef.current?.focus(), 10);
@@ -110488,7 +112272,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 		enabled: isHostedEnvironment(),
 		getMessageUrl
 	}), [getMessageUrl]);
-	const chatTools = (0, import_react.useMemo)(() => ({ callStyle: "complete" }), []);
+	const chatTools = (0, import_react.useMemo)(() => ({ callStyle: kDefaultMessageRowOptions.toolCallStyle }), []);
 	const sampleUsages = usageViewsForSample(`${baseId}-${id}`, sample, evalSpec);
 	const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, scrollRef, sample);
 	const tabsetId = `task-sample-details-tab-${id}`;
@@ -110621,15 +112405,16 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 					}, 1250);
 				}
 			},
-			Messages: () => {
-				if (sample?.messages) {
-					navigator.clipboard.writeText(messagesToStr(sample.messages));
+			...exportMessages ? { Messages: () => {
+				exportMessages().then((text) => navigator.clipboard.writeText(text)).then(() => {
 					setIcon(ApplicationIcons.confirm);
 					setTimeout(() => {
 						setIcon(ApplicationIcons.copy);
 					}, 1250);
-				}
-			},
+				}).catch((error) => {
+					console.error("Failed to copy messages:", error);
+				});
+			} } : {},
 			Transcript: () => {
 				if (sampleEvents && sampleEvents.length > 0) {
 					navigator.clipboard.writeText(eventsToStr(sampleEvents));
@@ -110652,9 +112437,11 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 				"Sample JSON": () => {
 					api.download_file(`${sampleId}.json`, JSON.stringify(sample, null, 2));
 				},
-				Messages: () => {
-					if (sample.messages && sample.messages.length > 0) api.download_file(`${sampleId}-messages.txt`, messagesToStr(sample.messages));
-				},
+				...exportMessages ? { Messages: () => {
+					exportMessages().then((text) => api.download_file(`${sampleId}-messages.txt`, text)).catch((error) => {
+						console.error("Failed to download messages:", error);
+					});
+				} } : {},
 				Transcript: () => {
 					if (sampleEvents && sampleEvents.length > 0) api.download_file(`${sampleId}-transcript.txt`, eventsToStr(sampleEvents));
 				}
@@ -110667,13 +112454,6 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 		onClick: handlePrintClick,
 		subtle: true
 	}, "sample-print-tool"));
-	const running = (0, import_react.useMemo)(() => {
-		return isRunning(selectedSampleSummary, runningSampleData, sampleData.status);
-	}, [
-		selectedSampleSummary,
-		runningSampleData,
-		sampleData.status
-	]);
 	const scrollToTopOnFinish = !sample?.error && !selectedSampleSummary?.error && logDetails?.status !== "error" && logDetails?.status !== "cancelled";
 	const sampleDetailNavigation = useSampleDetailNavigation();
 	const displayModeContext = (0, import_react.useMemo)(() => ({ displayMode: displayMode ?? "rendered" }), [displayMode]);
@@ -110835,9 +112615,12 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								rail: hasRail ? railNode : void 0,
 								panel: hasRail ? railPanel : void 0,
 								label: railLabel,
-								children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatViewVirtualList, {
+								children: sampleMessages.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ErrorPanel, {
+									title: "An error occurred while loading messages.",
+									error: sampleMessages.error
+								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatViewRowsVirtualList, {
 									id: chatListId,
-									messages: effectiveMessages,
+									rows: sampleMessages.data ?? kNoMessageRows,
 									initialMessageId: sampleDetailNavigation.message,
 									followRequested: sampleDetailNavigation.follow,
 									display: chatDisplay,
@@ -110847,7 +112630,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 									scrollRef,
 									tools: chatTools,
 									running,
-									backfilling,
+									backfilling: backfilling || sampleMessages.loading,
 									scrollToTopOnFinish,
 									className: SampleDisplay_module_default.fullWidth
 								}, chatListId)
@@ -112629,8 +114412,8 @@ SampleList.displayName = "SampleList";
 /**
 The default maximum length of a `TreeBuffer` node.
 */
-var DefaultBufferLength$1 = 1024;
-var nextPropID$1 = 0;
+var DefaultBufferLength = 1024;
+var nextPropID = 0;
 var Range$1 = class {
 	constructor(from, to) {
 		this.from = from;
@@ -112642,12 +114425,12 @@ Each [node type](#common.NodeType) or [individual tree](#common.Tree)
 can have metadata associated with it in props. Instances of this
 class represent prop names.
 */
-var NodeProp$1 = class {
+var NodeProp = class {
 	/**
 	Create a new node prop type.
 	*/
 	constructor(config = {}) {
-		this.id = nextPropID$1++;
+		this.id = nextPropID++;
 		this.perNode = !!config.perNode;
 		this.deserialize = config.deserialize || (() => {
 			throw new Error("This node type doesn't define a deserialize function");
@@ -112665,7 +114448,7 @@ var NodeProp$1 = class {
 	*/
 	add(match) {
 		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType$1.match(match);
+		if (typeof match != "function") match = NodeType.match(match);
 		return (type) => {
 			let result = match(type);
 			return result === void 0 ? null : [this, result];
@@ -112678,19 +114461,19 @@ delimiters, this holds an array of node names (written as a
 space-separated string when declaring this prop in a grammar)
 for the node types of closing delimiters that match it.
 */
-NodeProp$1.closedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
 attached to closing delimiters, holding an array of node names
 of types of matching opening delimiters.
 */
-NodeProp$1.openedBy = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 Used to assign node types to groups (for example, all node
 types that represent an expression could be tagged with an
 `"Expression"` group).
 */
-NodeProp$1.group = new NodeProp$1({ deserialize: (str) => str.split(" ") });
+NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
 /**
 Attached to nodes to indicate these should be
 [displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
@@ -112702,7 +114485,7 @@ nodes that appear _inside_ arbitrary text, like HTML tags. When
 not given a value, in a grammar declaration, defaults to
 `"auto"`.
 */
-NodeProp$1.isolate = new NodeProp$1({ deserialize: (value) => {
+NodeProp.isolate = new NodeProp({ deserialize: (value) => {
 	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
 	return value || "auto";
 } });
@@ -112711,26 +114494,26 @@ The hash of the [context](#lr.ContextTracker.constructor)
 that the node was parsed in, if any. Used to limit reuse of
 contextual nodes.
 */
-NodeProp$1.contextHash = new NodeProp$1({ perNode: true });
+NodeProp.contextHash = new NodeProp({ perNode: true });
 /**
 The distance beyond the end of the node that the tokenizer
 looked ahead for any of the tokens inside the node. (The LR
 parser only stores this when it is larger than 25, for
 efficiency reasons.)
 */
-NodeProp$1.lookAhead = new NodeProp$1({ perNode: true });
+NodeProp.lookAhead = new NodeProp({ perNode: true });
 /**
 This per-node prop is used to replace a given node, or part of a
 node, with another tree. This is useful to include trees from
 different languages in mixed-language parsers.
 */
-NodeProp$1.mounted = new NodeProp$1({ perNode: true });
+NodeProp.mounted = new NodeProp({ perNode: true });
 /**
 A mounted tree, which can be [stored](#common.NodeProp^mounted) on
 a tree node to indicate that parts of its content are
 represented by another tree.
 */
-var MountedTree$1 = class {
+var MountedTree = class {
 	constructor(tree, overlay, parser, bracketed = false) {
 		this.tree = tree;
 		this.overlay = overlay;
@@ -112741,14 +114524,14 @@ var MountedTree$1 = class {
 	@internal
 	*/
 	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp$1.mounted.id];
+		return tree && tree.props && tree.props[NodeProp.mounted.id];
 	}
 };
-var noProps$1 = Object.create(null);
+var noProps = Object.create(null);
 /**
 Each node in a syntax tree has a node type associated with it.
 */
-var NodeType$1 = class NodeType$1 {
+var NodeType = class NodeType {
 	/**
 	@internal
 	*/
@@ -112762,9 +114545,9 @@ var NodeType$1 = class NodeType$1 {
 	Define a node type.
 	*/
 	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps$1;
+		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
 		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType$1(spec.name || "", props, spec.id, flags);
+		let type = new NodeType(spec.name || "", props, spec.id, flags);
 		if (spec.props) for (let src of spec.props) {
 			if (!Array.isArray(src)) src = src(type);
 			if (src) {
@@ -112813,7 +114596,7 @@ var NodeType$1 = class NodeType$1 {
 	is(name) {
 		if (typeof name == "string") {
 			if (this.name == name) return true;
-			let group = this.prop(NodeProp$1.group);
+			let group = this.prop(NodeProp.group);
 			return group ? group.indexOf(name) > -1 : false;
 		}
 		return this.id == name;
@@ -112830,7 +114613,7 @@ var NodeType$1 = class NodeType$1 {
 		let direct = Object.create(null);
 		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
 		return (node) => {
-			for (let groups = node.prop(NodeProp$1.group), i = -1; i < (groups ? groups.length : 0); i++) {
+			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
 				let found = direct[i < 0 ? node.name : groups[i]];
 				if (found) return found;
 			}
@@ -112840,7 +114623,7 @@ var NodeType$1 = class NodeType$1 {
 /**
 An empty dummy node type to use when no actual type is available.
 */
-NodeType$1.none = new NodeType$1("", Object.create(null), 0, 8);
+NodeType.none = new NodeType("", Object.create(null), 0, 8);
 /**
 A node set holds a collection of node types. It is used to
 compactly represent trees by storing their type ids, rather than a
@@ -112877,18 +114660,18 @@ var NodeSet = class NodeSet {
 					newProps[prop.id] = value;
 				}
 			}
-			newTypes.push(newProps ? new NodeType$1(type.name, newProps, type.id, type.flags) : type);
+			newTypes.push(newProps ? new NodeType(type.name, newProps, type.id, type.flags) : type);
 		}
 		return new NodeSet(newTypes);
 	}
 };
-var CachedNode$1 = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode$1 = /* @__PURE__ */ new WeakMap();
+var CachedNode = /* @__PURE__ */ new WeakMap();
+var CachedInnerNode = /* @__PURE__ */ new WeakMap();
 /**
 Options that control iteration. Can be combined with the `|`
 operator to enable multiple ones.
 */
-var IterMode$1;
+var IterMode;
 (function(IterMode) {
 	/**
 	When enabled, iteration will only visit [`Tree`](#common.Tree)
@@ -112922,7 +114705,7 @@ var IterMode$1;
 	[`enter`](#common.SyntaxNode.enter), not in cursors.
 	*/
 	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode$1 || (IterMode$1 = {}));
+})(IterMode || (IterMode = {}));
 /**
 A piece of syntax tree. There are two ways to approach these
 trees: the way they are actually stored in memory, and the
@@ -112939,7 +114722,7 @@ use the [`TreeCursor`](#common.TreeCursor) or
 a view on some part of this data structure, and can be used to
 move around to adjacent nodes.
 */
-var Tree$1 = class Tree$1 {
+var Tree = class Tree {
 	/**
 	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
 	*/
@@ -112961,7 +114744,7 @@ var Tree$1 = class Tree$1 {
 	@internal
 	*/
 	toString() {
-		let mounted = MountedTree$1.get(this);
+		let mounted = MountedTree.get(this);
 		if (mounted && !mounted.overlay) return mounted.tree.toString();
 		let children = "";
 		for (let ch of this.children) {
@@ -112979,7 +114762,7 @@ var Tree$1 = class Tree$1 {
 	nodes the cursor visits.
 	*/
 	cursor(mode = 0) {
-		return new TreeCursor$1(this.topNode, mode);
+		return new TreeCursor(this.topNode, mode);
 	}
 	/**
 	Get a [tree cursor](#common.TreeCursor) pointing into this tree
@@ -112987,9 +114770,9 @@ var Tree$1 = class Tree$1 {
 	[`moveTo`](#common.TreeCursor.moveTo).
 	*/
 	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor$1(CachedNode$1.get(this) || this.topNode);
+		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
 		cursor.moveTo(pos, side);
-		CachedNode$1.set(this, cursor._tree);
+		CachedNode.set(this, cursor._tree);
 		return cursor;
 	}
 	/**
@@ -112997,7 +114780,7 @@ var Tree$1 = class Tree$1 {
 	tree.
 	*/
 	get topNode() {
-		return new TreeNode$1(this, 0, 0, null);
+		return new TreeNode(this, 0, 0, null);
 	}
 	/**
 	Get the [syntax node](#common.SyntaxNode) at the given position.
@@ -113011,8 +114794,8 @@ var Tree$1 = class Tree$1 {
 	[`resolveInner`](#common.Tree.resolveInner) instead.
 	*/
 	resolve(pos, side = 0) {
-		let node = resolveNode$1(CachedNode$1.get(this) || this.topNode, pos, side, false);
-		CachedNode$1.set(this, node);
+		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
+		CachedNode.set(this, node);
 		return node;
 	}
 	/**
@@ -113023,8 +114806,8 @@ var Tree$1 = class Tree$1 {
 	the host trees).
 	*/
 	resolveInner(pos, side = 0) {
-		let node = resolveNode$1(CachedInnerNode$1.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode$1.set(this, node);
+		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
+		CachedInnerNode.set(this, node);
 		return node;
 	}
 	/**
@@ -113035,7 +114818,7 @@ var Tree$1 = class Tree$1 {
 	position.
 	*/
 	resolveStack(pos, side = 0) {
-		return stackIterator$1(this, pos, side);
+		return stackIterator(this, pos, side);
 	}
 	/**
 	Iterate over the tree and its children, calling `enter` for any
@@ -113046,8 +114829,8 @@ var Tree$1 = class Tree$1 {
 	*/
 	iterate(spec) {
 		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode$1.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode$1.IncludeAnonymous);;) {
+		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
+		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
 			let entered = false;
 			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
 				if (c.firstChild()) continue;
@@ -113084,21 +114867,21 @@ var Tree$1 = class Tree$1 {
 	[`NodeType.none`](#common.NodeType^none).
 	*/
 	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange$1(NodeType$1.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree$1(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree$1(NodeType$1.none, children, positions, length)));
+		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
 	}
 	/**
 	Build a tree from a postfix-ordered buffer of node information,
 	or a cursor over such a buffer.
 	*/
 	static build(data) {
-		return buildTree$1(data);
+		return buildTree(data);
 	}
 };
 /**
 The empty tree
 */
-Tree$1.empty = new Tree$1(NodeType$1.none, [], [], 0);
-var FlatBufferCursor$1 = class FlatBufferCursor$1 {
+Tree.empty = new Tree(NodeType.none, [], [], 0);
+var FlatBufferCursor = class FlatBufferCursor {
 	constructor(buffer, index) {
 		this.buffer = buffer;
 		this.index = index;
@@ -113122,7 +114905,7 @@ var FlatBufferCursor$1 = class FlatBufferCursor$1 {
 		this.index -= 4;
 	}
 	fork() {
-		return new FlatBufferCursor$1(this.buffer, this.index);
+		return new FlatBufferCursor(this.buffer, this.index);
 	}
 };
 /**
@@ -113131,7 +114914,7 @@ node. In such a buffer, nodes are stored in prefix order (parents
 before children, with the endIndex of the parent indicating which
 children belong to it).
 */
-var TreeBuffer$1 = class TreeBuffer$1 {
+var TreeBuffer = class TreeBuffer {
 	/**
 	Create a tree buffer.
 	*/
@@ -113144,7 +114927,7 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 	@internal
 	*/
 	get type() {
-		return NodeType$1.none;
+		return NodeType.none;
 	}
 	/**
 	@internal
@@ -113178,7 +114961,7 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 	*/
 	findChild(startIndex, endIndex, dir, pos, side) {
 		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide$1(side, pos, buffer[i + 1], buffer[i + 2])) {
+		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
 			pick = i;
 			if (dir > 0) break;
 		}
@@ -113197,10 +114980,10 @@ var TreeBuffer$1 = class TreeBuffer$1 {
 			copy[j++] = b[i++] - startI;
 			len = Math.max(len, to);
 		}
-		return new TreeBuffer$1(copy, len, this.set);
+		return new TreeBuffer(copy, len, this.set);
 	}
 };
-function checkSide$1(side, pos, from, to) {
+function checkSide(side, pos, from, to) {
 	switch (side) {
 		case -2: return from < pos;
 		case -1: return to >= pos && from < pos;
@@ -113210,16 +114993,16 @@ function checkSide$1(side, pos, from, to) {
 		case 4: return true;
 	}
 }
-function resolveNode$1(node, pos, side, overlays) {
+function resolveNode(node, pos, side, overlays) {
 	var _a;
 	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode$1 && node.index < 0 ? null : node.parent;
+		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
 		if (!parent) return node;
 		node = parent;
 	}
-	let mode = overlays ? 0 : IterMode$1.IgnoreOverlays;
+	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
 	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode$1 && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
+		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
 	}
 	for (;;) {
 		let inner = node.enter(pos, side, mode);
@@ -113227,25 +115010,25 @@ function resolveNode$1(node, pos, side, overlays) {
 		node = inner;
 	}
 }
-var BaseNode$1 = class {
+var BaseNode = class {
 	cursor(mode = 0) {
-		return new TreeCursor$1(this, mode);
+		return new TreeCursor(this, mode);
 	}
 	getChild(type, before = null, after = null) {
-		let r = getChildren$1(this, type, before, after);
+		let r = getChildren(this, type, before, after);
 		return r.length ? r[0] : null;
 	}
 	getChildren(type, before = null, after = null) {
-		return getChildren$1(this, type, before, after);
+		return getChildren(this, type, before, after);
 	}
 	resolve(pos, side = 0) {
-		return resolveNode$1(this, pos, side, false);
+		return resolveNode(this, pos, side, false);
 	}
 	resolveInner(pos, side = 0) {
-		return resolveNode$1(this, pos, side, true);
+		return resolveNode(this, pos, side, true);
 	}
 	matchContext(context) {
-		return matchNodeContext$1(this.parent, context);
+		return matchNodeContext(this.parent, context);
 	}
 	enterUnfinishedNodesBefore(pos) {
 		let scan = this.childBefore(pos), node = this;
@@ -113266,7 +115049,7 @@ var BaseNode$1 = class {
 		return this.parent;
 	}
 };
-var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
+var TreeNode = class TreeNode extends BaseNode {
 	constructor(_tree, from, index, _parent) {
 		super();
 		this._tree = _tree;
@@ -113287,19 +115070,19 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 		for (let parent = this;;) {
 			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
 				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode$1.EnterBracketed && next instanceof Tree$1 && (mounted = MountedTree$1.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide$1(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer$1) {
-					if (mode & IterMode$1.ExcludeBuffers) continue;
+				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
+				if (next instanceof TreeBuffer) {
+					if (mode & IterMode.ExcludeBuffers) continue;
 					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode$1(new BufferContext$1(parent, next, i, start), null, index);
-				} else if (mode & IterMode$1.IncludeAnonymous || !next.type.isAnonymous || hasChild$1(next)) {
+					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
+				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
 					let mounted;
-					if (!(mode & IterMode$1.IgnoreMounts) && (mounted = MountedTree$1.get(next)) && !mounted.overlay) return new TreeNode$1(mounted.tree, start, i, parent);
-					let inner = new TreeNode$1(next, start, i, parent);
-					return mode & IterMode$1.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
+					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
+					let inner = new TreeNode(next, start, i, parent);
+					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
 				}
 			}
-			if (mode & IterMode$1.IncludeAnonymous || !parent.type.isAnonymous) return null;
+			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
 			if (parent.index >= 0) i = parent.index + dir;
 			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
 			parent = parent._parent;
@@ -113323,9 +115106,9 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 	}
 	enter(pos, side, mode = 0) {
 		let mounted;
-		if (!(mode & IterMode$1.IgnoreOverlays) && (mounted = MountedTree$1.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode$1.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode$1(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
+		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
+			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
+			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
 		}
 		return this.nextChild(0, 1, pos, side, mode);
 	}
@@ -113356,7 +115139,7 @@ var TreeNode$1 = class TreeNode$1 extends BaseNode$1 {
 		return this._tree.toString();
 	}
 };
-function getChildren$1(node, type, before, after) {
+function getChildren(node, type, before, after) {
 	let cur = node.cursor(), result = [];
 	if (!cur.firstChild()) return result;
 	if (before != null) for (let found = false; !found;) {
@@ -113369,7 +115152,7 @@ function getChildren$1(node, type, before, after) {
 		if (!cur.nextSibling()) return after == null ? result : [];
 	}
 }
-function matchNodeContext$1(node, context, i = context.length - 1) {
+function matchNodeContext(node, context, i = context.length - 1) {
 	for (let p = node; i >= 0; p = p.parent) {
 		if (!p) return false;
 		if (!p.type.isAnonymous) {
@@ -113379,7 +115162,7 @@ function matchNodeContext$1(node, context, i = context.length - 1) {
 	}
 	return true;
 }
-var BufferContext$1 = class {
+var BufferContext = class {
 	constructor(parent, buffer, index, start) {
 		this.parent = parent;
 		this.buffer = buffer;
@@ -113387,7 +115170,7 @@ var BufferContext$1 = class {
 		this.start = start;
 	}
 };
-var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
+var BufferNode = class BufferNode extends BaseNode {
 	get name() {
 		return this.type.name;
 	}
@@ -113407,7 +115190,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	child(dir, pos, side) {
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode$1(this.context, this, index);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
 	}
 	get firstChild() {
 		return this.child(1, 0, 4);
@@ -113425,10 +115208,10 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 		return this.type.prop(prop);
 	}
 	enter(pos, side, mode = 0) {
-		if (mode & IterMode$1.ExcludeBuffers) return null;
+		if (mode & IterMode.ExcludeBuffers) return null;
 		let { buffer } = this.context;
 		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode$1(this.context, this, index);
+		return index < 0 ? null : new BufferNode(this.context, this, index);
 	}
 	get parent() {
 		return this._parent || this.context.parent.nextSignificantParent();
@@ -113439,14 +115222,14 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 	get nextSibling() {
 		let { buffer } = this.context;
 		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode$1(this.context, this._parent, after);
+		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
 		return this.externalSibling(1);
 	}
 	get prevSibling() {
 		let { buffer } = this.context;
 		let parentStart = this._parent ? this._parent.index + 4 : 0;
 		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode$1(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
+		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
 	}
 	get tree() {
 		return null;
@@ -113460,7 +115243,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 			children.push(buffer.slice(startI, endI, from));
 			positions.push(0);
 		}
-		return new Tree$1(this.type, children, positions, this.to - this.from);
+		return new Tree(this.type, children, positions, this.to - this.from);
 	}
 	/**
 	@internal
@@ -113469,7 +115252,7 @@ var BufferNode$1 = class BufferNode$1 extends BaseNode$1 {
 		return this.context.buffer.childString(this.index);
 	}
 };
-function iterStack$1(heads) {
+function iterStack(heads) {
 	if (!heads.length) return null;
 	let pick = 0, picked = heads[0];
 	for (let i = 1; i < heads.length; i++) {
@@ -113479,41 +115262,41 @@ function iterStack$1(heads) {
 			pick = i;
 		}
 	}
-	let next = picked instanceof TreeNode$1 && picked.index < 0 ? null : picked.parent;
+	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
 	let newHeads = heads.slice();
 	if (next) newHeads[pick] = next;
 	else newHeads.splice(pick, 1);
-	return new StackIterator$1(newHeads, picked);
+	return new StackIterator(newHeads, picked);
 }
-var StackIterator$1 = class {
+var StackIterator = class {
 	constructor(heads, node) {
 		this.heads = heads;
 		this.node = node;
 	}
 	get next() {
-		return iterStack$1(this.heads);
+		return iterStack(this.heads);
 	}
 };
-function stackIterator$1(tree, pos, side) {
+function stackIterator(tree, pos, side) {
 	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode$1 ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
+	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
 		let parent = scan.parent;
 		(layers || (layers = [inner])).push(parent.resolve(pos, side));
 		scan = parent;
 	} else {
-		let mount = MountedTree$1.get(scan.tree);
+		let mount = MountedTree.get(scan.tree);
 		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode$1(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode$1(root, pos, side, false));
+			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
+			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
 		}
 	}
-	return layers ? iterStack$1(layers) : inner;
+	return layers ? iterStack(layers) : inner;
 }
 /**
 A tree cursor object focuses on a given node in a syntax tree, and
 allows you to move to adjacent nodes.
 */
-var TreeCursor$1 = class {
+var TreeCursor = class {
 	/**
 	Shorthand for `.type.name`.
 	*/
@@ -113534,8 +115317,8 @@ var TreeCursor$1 = class {
 		*/
 		this.index = 0;
 		this.bufferNode = null;
-		this.mode = mode & ~IterMode$1.EnterBracketed;
-		if (node instanceof TreeNode$1) this.yieldNode(node);
+		this.mode = mode & ~IterMode.EnterBracketed;
+		if (node instanceof TreeNode) this.yieldNode(node);
 		else {
 			this._tree = node.context.parent;
 			this.buffer = node.context;
@@ -113565,7 +115348,7 @@ var TreeCursor$1 = class {
 	*/
 	yield(node) {
 		if (!node) return false;
-		if (node instanceof TreeNode$1) {
+		if (node instanceof TreeNode) {
 			this.buffer = null;
 			return this.yieldNode(node);
 		}
@@ -113623,15 +115406,15 @@ var TreeCursor$1 = class {
 	*/
 	enter(pos, side, mode = this.mode) {
 		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode$1.ExcludeBuffers ? false : this.enterChild(1, pos, side);
+		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
 	}
 	/**
 	Move to the node's parent node, if this isn't the top node.
 	*/
 	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode$1.IncludeAnonymous ? this._tree._parent : this._tree.parent);
+		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
 		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode$1.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
+		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
 		this.buffer = null;
 		return this.yieldNode(parent);
 	}
@@ -113672,7 +115455,7 @@ var TreeCursor$1 = class {
 		} else ({index, _parent: parent} = this._tree);
 		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
 			let child = parent._tree.children[i];
-			if (this.mode & IterMode$1.IncludeAnonymous || child instanceof TreeBuffer$1 || !child.type.isAnonymous || hasChild$1(child)) return false;
+			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
 		}
 		return true;
 	}
@@ -113728,8 +115511,8 @@ var TreeCursor$1 = class {
 			}
 			index = this.stack[--d];
 		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode$1(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode$1(this.buffer, result, this.index);
+		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
+		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
 	}
 	/**
 	Get the [tree](#common.Tree) that represents the current node, if
@@ -113772,10 +115555,10 @@ var TreeCursor$1 = class {
 	are treated as wildcards.
 	*/
 	matchContext(context) {
-		if (!this.buffer) return matchNodeContext$1(this.node.parent, context);
+		if (!this.buffer) return matchNodeContext(this.node.parent, context);
 		let { buffer } = this.buffer, { types } = buffer.set;
 		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext$1(this._tree, context, i);
+			if (d < 0) return matchNodeContext(this._tree, context, i);
 			let type = types[buffer.buffer[this.stack[d]]];
 			if (!type.isAnonymous) {
 				if (context[i] && context[i] != type.name) return false;
@@ -113785,13 +115568,13 @@ var TreeCursor$1 = class {
 		return true;
 	}
 };
-function hasChild$1(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer$1 || !ch.type.isAnonymous || hasChild$1(ch));
+function hasChild(tree) {
+	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
 }
-function buildTree$1(data) {
+function buildTree(data) {
 	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength$1, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor$1(buffer, buffer.length) : buffer;
+	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
+	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
 	let types = nodeSet.types;
 	let contextHash = 0, lookAhead = 0;
 	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
@@ -113818,7 +115601,7 @@ function buildTree$1(data) {
 			let data = new Uint16Array(buffer.size - buffer.skip);
 			let endPos = cursor.pos - buffer.size, index = data.length;
 			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer$1(data, end - buffer.start, nodeSet);
+			node = new TreeBuffer(data, end - buffer.start, nodeSet);
 			startPos = buffer.start - parentStart;
 		} else {
 			let endPos = cursor.pos - size;
@@ -113840,7 +115623,7 @@ function buildTree$1(data) {
 			localPositions.reverse();
 			if (localInRepeat > -1 && lastGroup > 0) {
 				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange$1(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
 			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
 		}
 		children.push(node);
@@ -113869,16 +115652,16 @@ function buildTree$1(data) {
 				buffer[j++] = nodes[i + 2] - start;
 				buffer[j++] = j;
 			}
-			children.push(new TreeBuffer$1(buffer, nodes[2] - start, nodeSet));
+			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
 			positions.push(start - parentStart);
 		}
 	}
 	function makeBalanced(type, contextHash) {
 		return (children, positions, length) => {
 			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree$1) {
+			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
 				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp$1.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
+				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
 			}
 			return makeTree(type, children, positions, length, lookAhead, contextHash);
 		};
@@ -113894,14 +115677,14 @@ function buildTree$1(data) {
 	}
 	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
 		if (contextHash) {
-			let pair = [NodeProp$1.contextHash, contextHash];
+			let pair = [NodeProp.contextHash, contextHash];
 			props = props ? [pair].concat(props) : [pair];
 		}
 		if (lookAhead > 25) {
-			let pair = [NodeProp$1.lookAhead, lookAhead];
+			let pair = [NodeProp.lookAhead, lookAhead];
 			props = props ? [pair].concat(props) : [pair];
 		}
-		return new Tree$1(type, children, positions, length, props);
+		return new Tree(type, children, positions, length, props);
 	}
 	function findBufferSize(maxSize, inRepeat) {
 		let fork = cursor.fork();
@@ -113964,36 +115747,36 @@ function buildTree$1(data) {
 	let children = [], positions = [];
 	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
 	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree$1(types[data.topID], children.reverse(), positions.reverse(), length);
+	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
 }
-var nodeSizeCache$1 = /* @__PURE__ */ new WeakMap();
-function nodeSize$1(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer$1 || node.type != balanceType) return 1;
-	let size = nodeSizeCache$1.get(node);
+var nodeSizeCache = /* @__PURE__ */ new WeakMap();
+function nodeSize(balanceType, node) {
+	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
+	let size = nodeSizeCache.get(node);
 	if (size == null) {
 		size = 1;
 		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree$1)) {
+			if (child.type != balanceType || !(child instanceof Tree)) {
 				size = 1;
 				break;
 			}
-			size += nodeSize$1(balanceType, child);
+			size += nodeSize(balanceType, child);
 		}
-		nodeSizeCache$1.set(node, size);
+		nodeSizeCache.set(node, size);
 	}
 	return size;
 }
-function balanceRange$1(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
+function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
 	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize$1(balanceType, children[i]);
+	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
 	let maxChild = Math.ceil(total * 1.5 / 8);
 	let localChildren = [], localPositions = [];
 	function divide(children, positions, from, to, offset) {
 		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize$1(balanceType, children[i]);
+			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
 			i++;
 			for (; i < to; i++) {
-				let nextSize = nodeSize$1(balanceType, children[i]);
+				let nextSize = nodeSize(balanceType, children[i]);
 				if (groupSize + nextSize >= maxChild) break;
 				groupSize += nextSize;
 			}
@@ -114006,7 +115789,7 @@ function balanceRange$1(balanceType, children, positions, from, to, start, lengt
 				localChildren.push(children[groupFrom]);
 			} else {
 				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange$1(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
+				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
 			}
 			localPositions.push(groupStart + offset - start);
 		}
@@ -114142,7 +115925,7 @@ var StringInput = class {
 		return this.string.slice(from, to);
 	}
 };
-new NodeProp$1({ perNode: true });
+new NodeProp({ perNode: true });
 //#endregion
 //#region ../../node_modules/.pnpm/@marijn+find-cluster-break@1.0.3/node_modules/@marijn/find-cluster-break/src/index.js
 var rangeFrom = [];
@@ -117785,6 +119568,29 @@ function keyName(event) {
 	if (name == "Right") name = "ArrowRight";
 	if (name == "Down") name = "ArrowDown";
 	return name;
+}
+//#endregion
+//#region ../../node_modules/.pnpm/crelt@1.0.7/node_modules/crelt/index.js
+function crelt() {
+	var elt = arguments[0];
+	if (typeof elt == "string") elt = document.createElement(elt);
+	var i = 1, next = arguments[1];
+	if (next && typeof next == "object" && next.nodeType == null && !Array.isArray(next)) {
+		for (var name in next) if (Object.prototype.hasOwnProperty.call(next, name)) {
+			var value = next[name];
+			if (typeof value == "string") elt.setAttribute(name, value);
+			else if (value != null) elt[name] = value;
+		}
+		i++;
+	}
+	for (; i < arguments.length; i++) add(elt, arguments[i]);
+	return elt;
+}
+function add(elt, child) {
+	if (typeof child == "string") elt.appendChild(document.createTextNode(child));
+	else if (child == null) {} else if (child.nodeType != null) elt.appendChild(child);
+	else if (Array.isArray(child)) for (var i = 0; i < child.length; i++) add(elt, child[i]);
+	else throw new RangeError("Unsupported child node: " + child);
 }
 //#endregion
 //#region ../../node_modules/.pnpm/@codemirror+view@6.43.6/node_modules/@codemirror/view/dist/index.js
@@ -126759,1350 +128565,6 @@ GutterMarker.prototype.mapMode = MapMode.TrackBefore;
 GutterMarker.prototype.startSide = GutterMarker.prototype.endSide = -1;
 GutterMarker.prototype.point = true;
 //#endregion
-//#region ../../node_modules/.pnpm/@lezer+common@1.5.1/node_modules/@lezer/common/dist/index.js
-/**
-The default maximum length of a `TreeBuffer` node.
-*/
-var DefaultBufferLength = 1024;
-var nextPropID = 0;
-/**
-Each [node type](#common.NodeType) or [individual tree](#common.Tree)
-can have metadata associated with it in props. Instances of this
-class represent prop names.
-*/
-var NodeProp = class {
-	/**
-	Create a new node prop type.
-	*/
-	constructor(config = {}) {
-		this.id = nextPropID++;
-		this.perNode = !!config.perNode;
-		this.deserialize = config.deserialize || (() => {
-			throw new Error("This node type doesn't define a deserialize function");
-		});
-		this.combine = config.combine || null;
-	}
-	/**
-	This is meant to be used with
-	[`NodeSet.extend`](#common.NodeSet.extend) or
-	[`LRParser.configure`](#lr.ParserConfig.props) to compute
-	prop values for each node type in the set. Takes a [match
-	object](#common.NodeType^match) or function that returns undefined
-	if the node type doesn't get this prop, and the prop's value if
-	it does.
-	*/
-	add(match) {
-		if (this.perNode) throw new RangeError("Can't add per-node props to node types");
-		if (typeof match != "function") match = NodeType.match(match);
-		return (type) => {
-			let result = match(type);
-			return result === void 0 ? null : [this, result];
-		};
-	}
-};
-/**
-Prop that is used to describe matching delimiters. For opening
-delimiters, this holds an array of node names (written as a
-space-separated string when declaring this prop in a grammar)
-for the node types of closing delimiters that match it.
-*/
-NodeProp.closedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-The inverse of [`closedBy`](#common.NodeProp^closedBy). This is
-attached to closing delimiters, holding an array of node names
-of types of matching opening delimiters.
-*/
-NodeProp.openedBy = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-Used to assign node types to groups (for example, all node
-types that represent an expression could be tagged with an
-`"Expression"` group).
-*/
-NodeProp.group = new NodeProp({ deserialize: (str) => str.split(" ") });
-/**
-Attached to nodes to indicate these should be
-[displayed](https://codemirror.net/docs/ref/#language.syntaxTree)
-in a bidirectional text isolate, so that direction-neutral
-characters on their sides don't incorrectly get associated with
-surrounding text. You'll generally want to set this for nodes
-that contain arbitrary text, like strings and comments, and for
-nodes that appear _inside_ arbitrary text, like HTML tags. When
-not given a value, in a grammar declaration, defaults to
-`"auto"`.
-*/
-NodeProp.isolate = new NodeProp({ deserialize: (value) => {
-	if (value && value != "rtl" && value != "ltr" && value != "auto") throw new RangeError("Invalid value for isolate: " + value);
-	return value || "auto";
-} });
-/**
-The hash of the [context](#lr.ContextTracker.constructor)
-that the node was parsed in, if any. Used to limit reuse of
-contextual nodes.
-*/
-NodeProp.contextHash = new NodeProp({ perNode: true });
-/**
-The distance beyond the end of the node that the tokenizer
-looked ahead for any of the tokens inside the node. (The LR
-parser only stores this when it is larger than 25, for
-efficiency reasons.)
-*/
-NodeProp.lookAhead = new NodeProp({ perNode: true });
-/**
-This per-node prop is used to replace a given node, or part of a
-node, with another tree. This is useful to include trees from
-different languages in mixed-language parsers.
-*/
-NodeProp.mounted = new NodeProp({ perNode: true });
-/**
-A mounted tree, which can be [stored](#common.NodeProp^mounted) on
-a tree node to indicate that parts of its content are
-represented by another tree.
-*/
-var MountedTree = class {
-	constructor(tree, overlay, parser, bracketed = false) {
-		this.tree = tree;
-		this.overlay = overlay;
-		this.parser = parser;
-		this.bracketed = bracketed;
-	}
-	/**
-	@internal
-	*/
-	static get(tree) {
-		return tree && tree.props && tree.props[NodeProp.mounted.id];
-	}
-};
-var noProps = Object.create(null);
-/**
-Each node in a syntax tree has a node type associated with it.
-*/
-var NodeType = class NodeType {
-	/**
-	@internal
-	*/
-	constructor(name, props, id, flags = 0) {
-		this.name = name;
-		this.props = props;
-		this.id = id;
-		this.flags = flags;
-	}
-	/**
-	Define a node type.
-	*/
-	static define(spec) {
-		let props = spec.props && spec.props.length ? Object.create(null) : noProps;
-		let flags = (spec.top ? 1 : 0) | (spec.skipped ? 2 : 0) | (spec.error ? 4 : 0) | (spec.name == null ? 8 : 0);
-		let type = new NodeType(spec.name || "", props, spec.id, flags);
-		if (spec.props) for (let src of spec.props) {
-			if (!Array.isArray(src)) src = src(type);
-			if (src) {
-				if (src[0].perNode) throw new RangeError("Can't store a per-node prop on a node type");
-				props[src[0].id] = src[1];
-			}
-		}
-		return type;
-	}
-	/**
-	Retrieves a node prop for this type. Will return `undefined` if
-	the prop isn't present on this node.
-	*/
-	prop(prop) {
-		return this.props[prop.id];
-	}
-	/**
-	True when this is the top node of a grammar.
-	*/
-	get isTop() {
-		return (this.flags & 1) > 0;
-	}
-	/**
-	True when this node is produced by a skip rule.
-	*/
-	get isSkipped() {
-		return (this.flags & 2) > 0;
-	}
-	/**
-	Indicates whether this is an error node.
-	*/
-	get isError() {
-		return (this.flags & 4) > 0;
-	}
-	/**
-	When true, this node type doesn't correspond to a user-declared
-	named node, for example because it is used to cache repetition.
-	*/
-	get isAnonymous() {
-		return (this.flags & 8) > 0;
-	}
-	/**
-	Returns true when this node's name or one of its
-	[groups](#common.NodeProp^group) matches the given string.
-	*/
-	is(name) {
-		if (typeof name == "string") {
-			if (this.name == name) return true;
-			let group = this.prop(NodeProp.group);
-			return group ? group.indexOf(name) > -1 : false;
-		}
-		return this.id == name;
-	}
-	/**
-	Create a function from node types to arbitrary values by
-	specifying an object whose property names are node or
-	[group](#common.NodeProp^group) names. Often useful with
-	[`NodeProp.add`](#common.NodeProp.add). You can put multiple
-	names, separated by spaces, in a single property name to map
-	multiple node names to a single value.
-	*/
-	static match(map) {
-		let direct = Object.create(null);
-		for (let prop in map) for (let name of prop.split(" ")) direct[name] = map[prop];
-		return (node) => {
-			for (let groups = node.prop(NodeProp.group), i = -1; i < (groups ? groups.length : 0); i++) {
-				let found = direct[i < 0 ? node.name : groups[i]];
-				if (found) return found;
-			}
-		};
-	}
-};
-/**
-An empty dummy node type to use when no actual type is available.
-*/
-NodeType.none = new NodeType("", Object.create(null), 0, 8);
-var CachedNode = /* @__PURE__ */ new WeakMap();
-var CachedInnerNode = /* @__PURE__ */ new WeakMap();
-/**
-Options that control iteration. Can be combined with the `|`
-operator to enable multiple ones.
-*/
-var IterMode;
-(function(IterMode) {
-	/**
-	When enabled, iteration will only visit [`Tree`](#common.Tree)
-	objects, not nodes packed into
-	[`TreeBuffer`](#common.TreeBuffer)s.
-	*/
-	IterMode[IterMode["ExcludeBuffers"] = 1] = "ExcludeBuffers";
-	/**
-	Enable this to make iteration include anonymous nodes (such as
-	the nodes that wrap repeated grammar constructs into a balanced
-	tree).
-	*/
-	IterMode[IterMode["IncludeAnonymous"] = 2] = "IncludeAnonymous";
-	/**
-	By default, regular [mounted](#common.NodeProp^mounted) nodes
-	replace their base node in iteration. Enable this to ignore them
-	instead.
-	*/
-	IterMode[IterMode["IgnoreMounts"] = 4] = "IgnoreMounts";
-	/**
-	This option only applies in
-	[`enter`](#common.SyntaxNode.enter)-style methods. It tells the
-	library to not enter mounted overlays if one covers the given
-	position.
-	*/
-	IterMode[IterMode["IgnoreOverlays"] = 8] = "IgnoreOverlays";
-	/**
-	When set, positions on the boundary of a mounted overlay tree
-	that has its [`bracketed`](#common.NestedParse.bracketed) flag
-	set will enter that tree regardless of side. Only supported in
-	[`enter`](#common.SyntaxNode.enter), not in cursors.
-	*/
-	IterMode[IterMode["EnterBracketed"] = 16] = "EnterBracketed";
-})(IterMode || (IterMode = {}));
-/**
-A piece of syntax tree. There are two ways to approach these
-trees: the way they are actually stored in memory, and the
-convenient way.
-
-Syntax trees are stored as a tree of `Tree` and `TreeBuffer`
-objects. By packing detail information into `TreeBuffer` leaf
-nodes, the representation is made a lot more memory-efficient.
-
-However, when you want to actually work with tree nodes, this
-representation is very awkward, so most client code will want to
-use the [`TreeCursor`](#common.TreeCursor) or
-[`SyntaxNode`](#common.SyntaxNode) interface instead, which provides
-a view on some part of this data structure, and can be used to
-move around to adjacent nodes.
-*/
-var Tree = class Tree {
-	/**
-	Construct a new tree. See also [`Tree.build`](#common.Tree^build).
-	*/
-	constructor(type, children, positions, length, props) {
-		this.type = type;
-		this.children = children;
-		this.positions = positions;
-		this.length = length;
-		/**
-		@internal
-		*/
-		this.props = null;
-		if (props && props.length) {
-			this.props = Object.create(null);
-			for (let [prop, value] of props) this.props[typeof prop == "number" ? prop : prop.id] = value;
-		}
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		let mounted = MountedTree.get(this);
-		if (mounted && !mounted.overlay) return mounted.tree.toString();
-		let children = "";
-		for (let ch of this.children) {
-			let str = ch.toString();
-			if (str) {
-				if (children) children += ",";
-				children += str;
-			}
-		}
-		return !this.type.name ? children : (/\W/.test(this.type.name) && !this.type.isError ? JSON.stringify(this.type.name) : this.type.name) + (children.length ? "(" + children + ")" : "");
-	}
-	/**
-	Get a [tree cursor](#common.TreeCursor) positioned at the top of
-	the tree. Mode can be used to [control](#common.IterMode) which
-	nodes the cursor visits.
-	*/
-	cursor(mode = 0) {
-		return new TreeCursor(this.topNode, mode);
-	}
-	/**
-	Get a [tree cursor](#common.TreeCursor) pointing into this tree
-	at the given position and side (see
-	[`moveTo`](#common.TreeCursor.moveTo).
-	*/
-	cursorAt(pos, side = 0, mode = 0) {
-		let cursor = new TreeCursor(CachedNode.get(this) || this.topNode);
-		cursor.moveTo(pos, side);
-		CachedNode.set(this, cursor._tree);
-		return cursor;
-	}
-	/**
-	Get a [syntax node](#common.SyntaxNode) object for the top of the
-	tree.
-	*/
-	get topNode() {
-		return new TreeNode(this, 0, 0, null);
-	}
-	/**
-	Get the [syntax node](#common.SyntaxNode) at the given position.
-	If `side` is -1, this will move into nodes that end at the
-	position. If 1, it'll move into nodes that start at the
-	position. With 0, it'll only enter nodes that cover the position
-	from both sides.
-	
-	Note that this will not enter
-	[overlays](#common.MountedTree.overlay), and you often want
-	[`resolveInner`](#common.Tree.resolveInner) instead.
-	*/
-	resolve(pos, side = 0) {
-		let node = resolveNode(CachedNode.get(this) || this.topNode, pos, side, false);
-		CachedNode.set(this, node);
-		return node;
-	}
-	/**
-	Like [`resolve`](#common.Tree.resolve), but will enter
-	[overlaid](#common.MountedTree.overlay) nodes, producing a syntax node
-	pointing into the innermost overlaid tree at the given position
-	(with parent links going through all parent structure, including
-	the host trees).
-	*/
-	resolveInner(pos, side = 0) {
-		let node = resolveNode(CachedInnerNode.get(this) || this.topNode, pos, side, true);
-		CachedInnerNode.set(this, node);
-		return node;
-	}
-	/**
-	In some situations, it can be useful to iterate through all
-	nodes around a position, including those in overlays that don't
-	directly cover the position. This method gives you an iterator
-	that will produce all nodes, from small to big, around the given
-	position.
-	*/
-	resolveStack(pos, side = 0) {
-		return stackIterator(this, pos, side);
-	}
-	/**
-	Iterate over the tree and its children, calling `enter` for any
-	node that touches the `from`/`to` region (if given) before
-	running over such a node's children, and `leave` (if given) when
-	leaving the node. When `enter` returns `false`, that node will
-	not have its children iterated over (or `leave` called).
-	*/
-	iterate(spec) {
-		let { enter, leave, from = 0, to = this.length } = spec;
-		let mode = spec.mode || 0, anon = (mode & IterMode.IncludeAnonymous) > 0;
-		for (let c = this.cursor(mode | IterMode.IncludeAnonymous);;) {
-			let entered = false;
-			if (c.from <= to && c.to >= from && (!anon && c.type.isAnonymous || enter(c) !== false)) {
-				if (c.firstChild()) continue;
-				entered = true;
-			}
-			for (;;) {
-				if (entered && leave && (anon || !c.type.isAnonymous)) leave(c);
-				if (c.nextSibling()) break;
-				if (!c.parent()) return;
-				entered = true;
-			}
-		}
-	}
-	/**
-	Get the value of the given [node prop](#common.NodeProp) for this
-	node. Works with both per-node and per-type props.
-	*/
-	prop(prop) {
-		return !prop.perNode ? this.type.prop(prop) : this.props ? this.props[prop.id] : void 0;
-	}
-	/**
-	Returns the node's [per-node props](#common.NodeProp.perNode) in a
-	format that can be passed to the [`Tree`](#common.Tree)
-	constructor.
-	*/
-	get propValues() {
-		let result = [];
-		if (this.props) for (let id in this.props) result.push([+id, this.props[id]]);
-		return result;
-	}
-	/**
-	Balance the direct children of this tree, producing a copy of
-	which may have children grouped into subtrees with type
-	[`NodeType.none`](#common.NodeType^none).
-	*/
-	balance(config = {}) {
-		return this.children.length <= 8 ? this : balanceRange(NodeType.none, this.children, this.positions, 0, this.children.length, 0, this.length, (children, positions, length) => new Tree(this.type, children, positions, length, this.propValues), config.makeTree || ((children, positions, length) => new Tree(NodeType.none, children, positions, length)));
-	}
-	/**
-	Build a tree from a postfix-ordered buffer of node information,
-	or a cursor over such a buffer.
-	*/
-	static build(data) {
-		return buildTree(data);
-	}
-};
-/**
-The empty tree
-*/
-Tree.empty = new Tree(NodeType.none, [], [], 0);
-var FlatBufferCursor = class FlatBufferCursor {
-	constructor(buffer, index) {
-		this.buffer = buffer;
-		this.index = index;
-	}
-	get id() {
-		return this.buffer[this.index - 4];
-	}
-	get start() {
-		return this.buffer[this.index - 3];
-	}
-	get end() {
-		return this.buffer[this.index - 2];
-	}
-	get size() {
-		return this.buffer[this.index - 1];
-	}
-	get pos() {
-		return this.index;
-	}
-	next() {
-		this.index -= 4;
-	}
-	fork() {
-		return new FlatBufferCursor(this.buffer, this.index);
-	}
-};
-/**
-Tree buffers contain (type, start, end, endIndex) quads for each
-node. In such a buffer, nodes are stored in prefix order (parents
-before children, with the endIndex of the parent indicating which
-children belong to it).
-*/
-var TreeBuffer = class TreeBuffer {
-	/**
-	Create a tree buffer.
-	*/
-	constructor(buffer, length, set) {
-		this.buffer = buffer;
-		this.length = length;
-		this.set = set;
-	}
-	/**
-	@internal
-	*/
-	get type() {
-		return NodeType.none;
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		let result = [];
-		for (let index = 0; index < this.buffer.length;) {
-			result.push(this.childString(index));
-			index = this.buffer[index + 3];
-		}
-		return result.join(",");
-	}
-	/**
-	@internal
-	*/
-	childString(index) {
-		let id = this.buffer[index], endIndex = this.buffer[index + 3];
-		let type = this.set.types[id], result = type.name;
-		if (/\W/.test(result) && !type.isError) result = JSON.stringify(result);
-		index += 4;
-		if (endIndex == index) return result;
-		let children = [];
-		while (index < endIndex) {
-			children.push(this.childString(index));
-			index = this.buffer[index + 3];
-		}
-		return result + "(" + children.join(",") + ")";
-	}
-	/**
-	@internal
-	*/
-	findChild(startIndex, endIndex, dir, pos, side) {
-		let { buffer } = this, pick = -1;
-		for (let i = startIndex; i != endIndex; i = buffer[i + 3]) if (checkSide(side, pos, buffer[i + 1], buffer[i + 2])) {
-			pick = i;
-			if (dir > 0) break;
-		}
-		return pick;
-	}
-	/**
-	@internal
-	*/
-	slice(startI, endI, from) {
-		let b = this.buffer;
-		let copy = new Uint16Array(endI - startI), len = 0;
-		for (let i = startI, j = 0; i < endI;) {
-			copy[j++] = b[i++];
-			copy[j++] = b[i++] - from;
-			let to = copy[j++] = b[i++] - from;
-			copy[j++] = b[i++] - startI;
-			len = Math.max(len, to);
-		}
-		return new TreeBuffer(copy, len, this.set);
-	}
-};
-function checkSide(side, pos, from, to) {
-	switch (side) {
-		case -2: return from < pos;
-		case -1: return to >= pos && from < pos;
-		case 0: return from < pos && to > pos;
-		case 1: return from <= pos && to > pos;
-		case 2: return to > pos;
-		case 4: return true;
-	}
-}
-function resolveNode(node, pos, side, overlays) {
-	var _a;
-	while (node.from == node.to || (side < 1 ? node.from >= pos : node.from > pos) || (side > -1 ? node.to <= pos : node.to < pos)) {
-		let parent = !overlays && node instanceof TreeNode && node.index < 0 ? null : node.parent;
-		if (!parent) return node;
-		node = parent;
-	}
-	let mode = overlays ? 0 : IterMode.IgnoreOverlays;
-	if (overlays) {
-		for (let scan = node, parent = scan.parent; parent; scan = parent, parent = scan.parent) if (scan instanceof TreeNode && scan.index < 0 && ((_a = parent.enter(pos, side, mode)) === null || _a === void 0 ? void 0 : _a.from) != scan.from) node = parent;
-	}
-	for (;;) {
-		let inner = node.enter(pos, side, mode);
-		if (!inner) return node;
-		node = inner;
-	}
-}
-var BaseNode = class {
-	cursor(mode = 0) {
-		return new TreeCursor(this, mode);
-	}
-	getChild(type, before = null, after = null) {
-		let r = getChildren(this, type, before, after);
-		return r.length ? r[0] : null;
-	}
-	getChildren(type, before = null, after = null) {
-		return getChildren(this, type, before, after);
-	}
-	resolve(pos, side = 0) {
-		return resolveNode(this, pos, side, false);
-	}
-	resolveInner(pos, side = 0) {
-		return resolveNode(this, pos, side, true);
-	}
-	matchContext(context) {
-		return matchNodeContext(this.parent, context);
-	}
-	enterUnfinishedNodesBefore(pos) {
-		let scan = this.childBefore(pos), node = this;
-		while (scan) {
-			let last = scan.lastChild;
-			if (!last || last.to != scan.to) break;
-			if (last.type.isError && last.from == last.to) {
-				node = scan;
-				scan = last.prevSibling;
-			} else scan = last;
-		}
-		return node;
-	}
-	get node() {
-		return this;
-	}
-	get next() {
-		return this.parent;
-	}
-};
-var TreeNode = class TreeNode extends BaseNode {
-	constructor(_tree, from, index, _parent) {
-		super();
-		this._tree = _tree;
-		this.from = from;
-		this.index = index;
-		this._parent = _parent;
-	}
-	get type() {
-		return this._tree.type;
-	}
-	get name() {
-		return this._tree.type.name;
-	}
-	get to() {
-		return this.from + this._tree.length;
-	}
-	nextChild(i, dir, pos, side, mode = 0) {
-		for (let parent = this;;) {
-			for (let { children, positions } = parent._tree, e = dir > 0 ? children.length : -1; i != e; i += dir) {
-				let next = children[i], start = positions[i] + parent.from, mounted;
-				if (!(mode & IterMode.EnterBracketed && next instanceof Tree && (mounted = MountedTree.get(next)) && !mounted.overlay && mounted.bracketed && pos >= start && pos <= start + next.length) && !checkSide(side, pos, start, start + next.length)) continue;
-				if (next instanceof TreeBuffer) {
-					if (mode & IterMode.ExcludeBuffers) continue;
-					let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-					if (index > -1) return new BufferNode(new BufferContext(parent, next, i, start), null, index);
-				} else if (mode & IterMode.IncludeAnonymous || !next.type.isAnonymous || hasChild(next)) {
-					let mounted;
-					if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay) return new TreeNode(mounted.tree, start, i, parent);
-					let inner = new TreeNode(next, start, i, parent);
-					return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos, side, mode);
-				}
-			}
-			if (mode & IterMode.IncludeAnonymous || !parent.type.isAnonymous) return null;
-			if (parent.index >= 0) i = parent.index + dir;
-			else i = dir < 0 ? -1 : parent._parent._tree.children.length;
-			parent = parent._parent;
-			if (!parent) return null;
-		}
-	}
-	get firstChild() {
-		return this.nextChild(0, 1, 0, 4);
-	}
-	get lastChild() {
-		return this.nextChild(this._tree.children.length - 1, -1, 0, 4);
-	}
-	childAfter(pos) {
-		return this.nextChild(0, 1, pos, 2);
-	}
-	childBefore(pos) {
-		return this.nextChild(this._tree.children.length - 1, -1, pos, -2);
-	}
-	prop(prop) {
-		return this._tree.prop(prop);
-	}
-	enter(pos, side, mode = 0) {
-		let mounted;
-		if (!(mode & IterMode.IgnoreOverlays) && (mounted = MountedTree.get(this._tree)) && mounted.overlay) {
-			let rPos = pos - this.from, enterBracketed = mode & IterMode.EnterBracketed && mounted.bracketed;
-			for (let { from, to } of mounted.overlay) if ((side > 0 || enterBracketed ? from <= rPos : from < rPos) && (side < 0 || enterBracketed ? to >= rPos : to > rPos)) return new TreeNode(mounted.tree, mounted.overlay[0].from + this.from, -1, this);
-		}
-		return this.nextChild(0, 1, pos, side, mode);
-	}
-	nextSignificantParent() {
-		let val = this;
-		while (val.type.isAnonymous && val._parent) val = val._parent;
-		return val;
-	}
-	get parent() {
-		return this._parent ? this._parent.nextSignificantParent() : null;
-	}
-	get nextSibling() {
-		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index + 1, 1, 0, 4) : null;
-	}
-	get prevSibling() {
-		return this._parent && this.index >= 0 ? this._parent.nextChild(this.index - 1, -1, 0, 4) : null;
-	}
-	get tree() {
-		return this._tree;
-	}
-	toTree() {
-		return this._tree;
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this._tree.toString();
-	}
-};
-function getChildren(node, type, before, after) {
-	let cur = node.cursor(), result = [];
-	if (!cur.firstChild()) return result;
-	if (before != null) for (let found = false; !found;) {
-		found = cur.type.is(before);
-		if (!cur.nextSibling()) return result;
-	}
-	for (;;) {
-		if (after != null && cur.type.is(after)) return result;
-		if (cur.type.is(type)) result.push(cur.node);
-		if (!cur.nextSibling()) return after == null ? result : [];
-	}
-}
-function matchNodeContext(node, context, i = context.length - 1) {
-	for (let p = node; i >= 0; p = p.parent) {
-		if (!p) return false;
-		if (!p.type.isAnonymous) {
-			if (context[i] && context[i] != p.name) return false;
-			i--;
-		}
-	}
-	return true;
-}
-var BufferContext = class {
-	constructor(parent, buffer, index, start) {
-		this.parent = parent;
-		this.buffer = buffer;
-		this.index = index;
-		this.start = start;
-	}
-};
-var BufferNode = class BufferNode extends BaseNode {
-	get name() {
-		return this.type.name;
-	}
-	get from() {
-		return this.context.start + this.context.buffer.buffer[this.index + 1];
-	}
-	get to() {
-		return this.context.start + this.context.buffer.buffer[this.index + 2];
-	}
-	constructor(context, _parent, index) {
-		super();
-		this.context = context;
-		this._parent = _parent;
-		this.index = index;
-		this.type = context.buffer.set.types[context.buffer.buffer[index]];
-	}
-	child(dir, pos, side) {
-		let { buffer } = this.context;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
-	}
-	get firstChild() {
-		return this.child(1, 0, 4);
-	}
-	get lastChild() {
-		return this.child(-1, 0, 4);
-	}
-	childAfter(pos) {
-		return this.child(1, pos, 2);
-	}
-	childBefore(pos) {
-		return this.child(-1, pos, -2);
-	}
-	prop(prop) {
-		return this.type.prop(prop);
-	}
-	enter(pos, side, mode = 0) {
-		if (mode & IterMode.ExcludeBuffers) return null;
-		let { buffer } = this.context;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-		return index < 0 ? null : new BufferNode(this.context, this, index);
-	}
-	get parent() {
-		return this._parent || this.context.parent.nextSignificantParent();
-	}
-	externalSibling(dir) {
-		return this._parent ? null : this.context.parent.nextChild(this.context.index + dir, dir, 0, 4);
-	}
-	get nextSibling() {
-		let { buffer } = this.context;
-		let after = buffer.buffer[this.index + 3];
-		if (after < (this._parent ? buffer.buffer[this._parent.index + 3] : buffer.buffer.length)) return new BufferNode(this.context, this._parent, after);
-		return this.externalSibling(1);
-	}
-	get prevSibling() {
-		let { buffer } = this.context;
-		let parentStart = this._parent ? this._parent.index + 4 : 0;
-		if (this.index == parentStart) return this.externalSibling(-1);
-		return new BufferNode(this.context, this._parent, buffer.findChild(parentStart, this.index, -1, 0, 4));
-	}
-	get tree() {
-		return null;
-	}
-	toTree() {
-		let children = [], positions = [];
-		let { buffer } = this.context;
-		let startI = this.index + 4, endI = buffer.buffer[this.index + 3];
-		if (endI > startI) {
-			let from = buffer.buffer[this.index + 1];
-			children.push(buffer.slice(startI, endI, from));
-			positions.push(0);
-		}
-		return new Tree(this.type, children, positions, this.to - this.from);
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this.context.buffer.childString(this.index);
-	}
-};
-function iterStack(heads) {
-	if (!heads.length) return null;
-	let pick = 0, picked = heads[0];
-	for (let i = 1; i < heads.length; i++) {
-		let node = heads[i];
-		if (node.from > picked.from || node.to < picked.to) {
-			picked = node;
-			pick = i;
-		}
-	}
-	let next = picked instanceof TreeNode && picked.index < 0 ? null : picked.parent;
-	let newHeads = heads.slice();
-	if (next) newHeads[pick] = next;
-	else newHeads.splice(pick, 1);
-	return new StackIterator(newHeads, picked);
-}
-var StackIterator = class {
-	constructor(heads, node) {
-		this.heads = heads;
-		this.node = node;
-	}
-	get next() {
-		return iterStack(this.heads);
-	}
-};
-function stackIterator(tree, pos, side) {
-	let inner = tree.resolveInner(pos, side), layers = null;
-	for (let scan = inner instanceof TreeNode ? inner : inner.context.parent; scan; scan = scan.parent) if (scan.index < 0) {
-		let parent = scan.parent;
-		(layers || (layers = [inner])).push(parent.resolve(pos, side));
-		scan = parent;
-	} else {
-		let mount = MountedTree.get(scan.tree);
-		if (mount && mount.overlay && mount.overlay[0].from <= pos && mount.overlay[mount.overlay.length - 1].to >= pos) {
-			let root = new TreeNode(mount.tree, mount.overlay[0].from + scan.from, -1, scan);
-			(layers || (layers = [inner])).push(resolveNode(root, pos, side, false));
-		}
-	}
-	return layers ? iterStack(layers) : inner;
-}
-/**
-A tree cursor object focuses on a given node in a syntax tree, and
-allows you to move to adjacent nodes.
-*/
-var TreeCursor = class {
-	/**
-	Shorthand for `.type.name`.
-	*/
-	get name() {
-		return this.type.name;
-	}
-	/**
-	@internal
-	*/
-	constructor(node, mode = 0) {
-		/**
-		@internal
-		*/
-		this.buffer = null;
-		this.stack = [];
-		/**
-		@internal
-		*/
-		this.index = 0;
-		this.bufferNode = null;
-		this.mode = mode & ~IterMode.EnterBracketed;
-		if (node instanceof TreeNode) this.yieldNode(node);
-		else {
-			this._tree = node.context.parent;
-			this.buffer = node.context;
-			for (let n = node._parent; n; n = n._parent) this.stack.unshift(n.index);
-			this.bufferNode = node;
-			this.yieldBuf(node.index);
-		}
-	}
-	yieldNode(node) {
-		if (!node) return false;
-		this._tree = node;
-		this.type = node.type;
-		this.from = node.from;
-		this.to = node.to;
-		return true;
-	}
-	yieldBuf(index, type) {
-		this.index = index;
-		let { start, buffer } = this.buffer;
-		this.type = type || buffer.set.types[buffer.buffer[index]];
-		this.from = start + buffer.buffer[index + 1];
-		this.to = start + buffer.buffer[index + 2];
-		return true;
-	}
-	/**
-	@internal
-	*/
-	yield(node) {
-		if (!node) return false;
-		if (node instanceof TreeNode) {
-			this.buffer = null;
-			return this.yieldNode(node);
-		}
-		this.buffer = node.context;
-		return this.yieldBuf(node.index, node.type);
-	}
-	/**
-	@internal
-	*/
-	toString() {
-		return this.buffer ? this.buffer.buffer.childString(this.index) : this._tree.toString();
-	}
-	/**
-	@internal
-	*/
-	enterChild(dir, pos, side) {
-		if (!this.buffer) return this.yield(this._tree.nextChild(dir < 0 ? this._tree._tree.children.length - 1 : 0, dir, pos, side, this.mode));
-		let { buffer } = this.buffer;
-		let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.buffer.start, side);
-		if (index < 0) return false;
-		this.stack.push(this.index);
-		return this.yieldBuf(index);
-	}
-	/**
-	Move the cursor to this node's first child. When this returns
-	false, the node has no child, and the cursor has not been moved.
-	*/
-	firstChild() {
-		return this.enterChild(1, 0, 4);
-	}
-	/**
-	Move the cursor to this node's last child.
-	*/
-	lastChild() {
-		return this.enterChild(-1, 0, 4);
-	}
-	/**
-	Move the cursor to the first child that ends after `pos`.
-	*/
-	childAfter(pos) {
-		return this.enterChild(1, pos, 2);
-	}
-	/**
-	Move to the last child that starts before `pos`.
-	*/
-	childBefore(pos) {
-		return this.enterChild(-1, pos, -2);
-	}
-	/**
-	Move the cursor to the child around `pos`. If side is -1 the
-	child may end at that position, when 1 it may start there. This
-	will also enter [overlaid](#common.MountedTree.overlay)
-	[mounted](#common.NodeProp^mounted) trees unless `overlays` is
-	set to false.
-	*/
-	enter(pos, side, mode = this.mode) {
-		if (!this.buffer) return this.yield(this._tree.enter(pos, side, mode));
-		return mode & IterMode.ExcludeBuffers ? false : this.enterChild(1, pos, side);
-	}
-	/**
-	Move to the node's parent node, if this isn't the top node.
-	*/
-	parent() {
-		if (!this.buffer) return this.yieldNode(this.mode & IterMode.IncludeAnonymous ? this._tree._parent : this._tree.parent);
-		if (this.stack.length) return this.yieldBuf(this.stack.pop());
-		let parent = this.mode & IterMode.IncludeAnonymous ? this.buffer.parent : this.buffer.parent.nextSignificantParent();
-		this.buffer = null;
-		return this.yieldNode(parent);
-	}
-	/**
-	@internal
-	*/
-	sibling(dir) {
-		if (!this.buffer) return !this._tree._parent ? false : this.yield(this._tree.index < 0 ? null : this._tree._parent.nextChild(this._tree.index + dir, dir, 0, 4, this.mode));
-		let { buffer } = this.buffer, d = this.stack.length - 1;
-		if (dir < 0) {
-			let parentStart = d < 0 ? 0 : this.stack[d] + 4;
-			if (this.index != parentStart) return this.yieldBuf(buffer.findChild(parentStart, this.index, -1, 0, 4));
-		} else {
-			let after = buffer.buffer[this.index + 3];
-			if (after < (d < 0 ? buffer.buffer.length : buffer.buffer[this.stack[d] + 3])) return this.yieldBuf(after);
-		}
-		return d < 0 ? this.yield(this.buffer.parent.nextChild(this.buffer.index + dir, dir, 0, 4, this.mode)) : false;
-	}
-	/**
-	Move to this node's next sibling, if any.
-	*/
-	nextSibling() {
-		return this.sibling(1);
-	}
-	/**
-	Move to this node's previous sibling, if any.
-	*/
-	prevSibling() {
-		return this.sibling(-1);
-	}
-	atLastNode(dir) {
-		let index, parent, { buffer } = this;
-		if (buffer) {
-			if (dir > 0) {
-				if (this.index < buffer.buffer.buffer.length) return false;
-			} else for (let i = 0; i < this.index; i++) if (buffer.buffer.buffer[i + 3] < this.index) return false;
-			({index, parent} = buffer);
-		} else ({index, _parent: parent} = this._tree);
-		for (; parent; {index, _parent: parent} = parent) if (index > -1) for (let i = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i != e; i += dir) {
-			let child = parent._tree.children[i];
-			if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child)) return false;
-		}
-		return true;
-	}
-	move(dir, enter) {
-		if (enter && this.enterChild(dir, 0, 4)) return true;
-		for (;;) {
-			if (this.sibling(dir)) return true;
-			if (this.atLastNode(dir) || !this.parent()) return false;
-		}
-	}
-	/**
-	Move to the next node in a
-	[pre-order](https://en.wikipedia.org/wiki/Tree_traversal#Pre-order,_NLR)
-	traversal, going from a node to its first child or, if the
-	current node is empty or `enter` is false, its next sibling or
-	the next sibling of the first parent node that has one.
-	*/
-	next(enter = true) {
-		return this.move(1, enter);
-	}
-	/**
-	Move to the next node in a last-to-first pre-order traversal. A
-	node is followed by its last child or, if it has none, its
-	previous sibling or the previous sibling of the first parent
-	node that has one.
-	*/
-	prev(enter = true) {
-		return this.move(-1, enter);
-	}
-	/**
-	Move the cursor to the innermost node that covers `pos`. If
-	`side` is -1, it will enter nodes that end at `pos`. If it is 1,
-	it will enter nodes that start at `pos`.
-	*/
-	moveTo(pos, side = 0) {
-		while (this.from == this.to || (side < 1 ? this.from >= pos : this.from > pos) || (side > -1 ? this.to <= pos : this.to < pos)) if (!this.parent()) break;
-		while (this.enterChild(1, pos, side));
-		return this;
-	}
-	/**
-	Get a [syntax node](#common.SyntaxNode) at the cursor's current
-	position.
-	*/
-	get node() {
-		if (!this.buffer) return this._tree;
-		let cache = this.bufferNode, result = null, depth = 0;
-		if (cache && cache.context == this.buffer) scan: for (let index = this.index, d = this.stack.length; d >= 0;) {
-			for (let c = cache; c; c = c._parent) if (c.index == index) {
-				if (index == this.index) return c;
-				result = c;
-				depth = d + 1;
-				break scan;
-			}
-			index = this.stack[--d];
-		}
-		for (let i = depth; i < this.stack.length; i++) result = new BufferNode(this.buffer, result, this.stack[i]);
-		return this.bufferNode = new BufferNode(this.buffer, result, this.index);
-	}
-	/**
-	Get the [tree](#common.Tree) that represents the current node, if
-	any. Will return null when the node is in a [tree
-	buffer](#common.TreeBuffer).
-	*/
-	get tree() {
-		return this.buffer ? null : this._tree._tree;
-	}
-	/**
-	Iterate over the current node and all its descendants, calling
-	`enter` when entering a node and `leave`, if given, when leaving
-	one. When `enter` returns `false`, any children of that node are
-	skipped, and `leave` isn't called for it.
-	*/
-	iterate(enter, leave) {
-		for (let depth = 0;;) {
-			let mustLeave = false;
-			if (this.type.isAnonymous || enter(this) !== false) {
-				if (this.firstChild()) {
-					depth++;
-					continue;
-				}
-				if (!this.type.isAnonymous) mustLeave = true;
-			}
-			for (;;) {
-				if (mustLeave && leave) leave(this);
-				mustLeave = this.type.isAnonymous;
-				if (!depth) return;
-				if (this.nextSibling()) break;
-				this.parent();
-				depth--;
-				mustLeave = true;
-			}
-		}
-	}
-	/**
-	Test whether the current node matches a given context—a sequence
-	of direct parent node names. Empty strings in the context array
-	are treated as wildcards.
-	*/
-	matchContext(context) {
-		if (!this.buffer) return matchNodeContext(this.node.parent, context);
-		let { buffer } = this.buffer, { types } = buffer.set;
-		for (let i = context.length - 1, d = this.stack.length - 1; i >= 0; d--) {
-			if (d < 0) return matchNodeContext(this._tree, context, i);
-			let type = types[buffer.buffer[this.stack[d]]];
-			if (!type.isAnonymous) {
-				if (context[i] && context[i] != type.name) return false;
-				i--;
-			}
-		}
-		return true;
-	}
-};
-function hasChild(tree) {
-	return tree.children.some((ch) => ch instanceof TreeBuffer || !ch.type.isAnonymous || hasChild(ch));
-}
-function buildTree(data) {
-	var _a;
-	let { buffer, nodeSet, maxBufferLength = DefaultBufferLength, reused = [], minRepeatType = nodeSet.types.length } = data;
-	let cursor = Array.isArray(buffer) ? new FlatBufferCursor(buffer, buffer.length) : buffer;
-	let types = nodeSet.types;
-	let contextHash = 0, lookAhead = 0;
-	function takeNode(parentStart, minPos, children, positions, inRepeat, depth) {
-		let { id, start, end, size } = cursor;
-		let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
-		if (size < 0) {
-			cursor.next();
-			if (size == -1) {
-				let node = reused[id];
-				children.push(node);
-				positions.push(start - parentStart);
-				return;
-			} else if (size == -3) {
-				contextHash = id;
-				return;
-			} else if (size == -4) {
-				lookAhead = id;
-				return;
-			} else throw new RangeError(`Unrecognized record size: ${size}`);
-		}
-		let type = types[id], node, buffer;
-		let startPos = start - parentStart;
-		if (end - start <= maxBufferLength && (buffer = findBufferSize(cursor.pos - minPos, inRepeat))) {
-			let data = new Uint16Array(buffer.size - buffer.skip);
-			let endPos = cursor.pos - buffer.size, index = data.length;
-			while (cursor.pos > endPos) index = copyToBuffer(buffer.start, data, index);
-			node = new TreeBuffer(data, end - buffer.start, nodeSet);
-			startPos = buffer.start - parentStart;
-		} else {
-			let endPos = cursor.pos - size;
-			cursor.next();
-			let localChildren = [], localPositions = [];
-			let localInRepeat = id >= minRepeatType ? id : -1;
-			let lastGroup = 0, lastEnd = end;
-			while (cursor.pos > endPos) if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
-				if (cursor.end <= lastEnd - maxBufferLength) {
-					makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
-					lastGroup = localChildren.length;
-					lastEnd = cursor.end;
-				}
-				cursor.next();
-			} else if (depth > 2500) takeFlatNode(start, endPos, localChildren, localPositions);
-			else takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth + 1);
-			if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length) makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
-			localChildren.reverse();
-			localPositions.reverse();
-			if (localInRepeat > -1 && lastGroup > 0) {
-				let make = makeBalanced(type, contextAtStart);
-				node = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
-			} else node = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
-		}
-		children.push(node);
-		positions.push(startPos);
-	}
-	function takeFlatNode(parentStart, minPos, children, positions) {
-		let nodes = [];
-		let nodeCount = 0, stopAt = -1;
-		while (cursor.pos > minPos) {
-			let { id, start, end, size } = cursor;
-			if (size > 4) cursor.next();
-			else if (stopAt > -1 && start < stopAt) break;
-			else {
-				if (stopAt < 0) stopAt = end - maxBufferLength;
-				nodes.push(id, start, end);
-				nodeCount++;
-				cursor.next();
-			}
-		}
-		if (nodeCount) {
-			let buffer = new Uint16Array(nodeCount * 4);
-			let start = nodes[nodes.length - 2];
-			for (let i = nodes.length - 3, j = 0; i >= 0; i -= 3) {
-				buffer[j++] = nodes[i];
-				buffer[j++] = nodes[i + 1] - start;
-				buffer[j++] = nodes[i + 2] - start;
-				buffer[j++] = j;
-			}
-			children.push(new TreeBuffer(buffer, nodes[2] - start, nodeSet));
-			positions.push(start - parentStart);
-		}
-	}
-	function makeBalanced(type, contextHash) {
-		return (children, positions, length) => {
-			let lookAhead = 0, lastI = children.length - 1, last, lookAheadProp;
-			if (lastI >= 0 && (last = children[lastI]) instanceof Tree) {
-				if (!lastI && last.type == type && last.length == length) return last;
-				if (lookAheadProp = last.prop(NodeProp.lookAhead)) lookAhead = positions[lastI] + last.length + lookAheadProp;
-			}
-			return makeTree(type, children, positions, length, lookAhead, contextHash);
-		};
-	}
-	function makeRepeatLeaf(children, positions, base, i, from, to, type, lookAhead, contextHash) {
-		let localChildren = [], localPositions = [];
-		while (children.length > i) {
-			localChildren.push(children.pop());
-			localPositions.push(positions.pop() + base - from);
-		}
-		children.push(makeTree(nodeSet.types[type], localChildren, localPositions, to - from, lookAhead - to, contextHash));
-		positions.push(from - base);
-	}
-	function makeTree(type, children, positions, length, lookAhead, contextHash, props) {
-		if (contextHash) {
-			let pair = [NodeProp.contextHash, contextHash];
-			props = props ? [pair].concat(props) : [pair];
-		}
-		if (lookAhead > 25) {
-			let pair = [NodeProp.lookAhead, lookAhead];
-			props = props ? [pair].concat(props) : [pair];
-		}
-		return new Tree(type, children, positions, length, props);
-	}
-	function findBufferSize(maxSize, inRepeat) {
-		let fork = cursor.fork();
-		let size = 0, start = 0, skip = 0, minStart = fork.end - maxBufferLength;
-		let result = {
-			size: 0,
-			start: 0,
-			skip: 0
-		};
-		scan: for (let minPos = fork.pos - maxSize; fork.pos > minPos;) {
-			let nodeSize = fork.size;
-			if (fork.id == inRepeat && nodeSize >= 0) {
-				result.size = size;
-				result.start = start;
-				result.skip = skip;
-				skip += 4;
-				size += 4;
-				fork.next();
-				continue;
-			}
-			let startPos = fork.pos - nodeSize;
-			if (nodeSize < 0 || startPos < minPos || fork.start < minStart) break;
-			let localSkipped = fork.id >= minRepeatType ? 4 : 0;
-			let nodeStart = fork.start;
-			fork.next();
-			while (fork.pos > startPos) {
-				if (fork.size < 0) if (fork.size == -3 || fork.size == -4) localSkipped += 4;
-				else break scan;
-				else if (fork.id >= minRepeatType) localSkipped += 4;
-				fork.next();
-			}
-			start = nodeStart;
-			size += nodeSize;
-			skip += localSkipped;
-		}
-		if (inRepeat < 0 || size == maxSize) {
-			result.size = size;
-			result.start = start;
-			result.skip = skip;
-		}
-		return result.size > 4 ? result : void 0;
-	}
-	function copyToBuffer(bufferStart, buffer, index) {
-		let { id, start, end, size } = cursor;
-		cursor.next();
-		if (size >= 0 && id < minRepeatType) {
-			let startIndex = index;
-			if (size > 4) {
-				let endPos = cursor.pos - (size - 4);
-				while (cursor.pos > endPos) index = copyToBuffer(bufferStart, buffer, index);
-			}
-			buffer[--index] = startIndex;
-			buffer[--index] = end - bufferStart;
-			buffer[--index] = start - bufferStart;
-			buffer[--index] = id;
-		} else if (size == -3) contextHash = id;
-		else if (size == -4) lookAhead = id;
-		return index;
-	}
-	let children = [], positions = [];
-	while (cursor.pos > 0) takeNode(data.start || 0, data.bufferStart || 0, children, positions, -1, 0);
-	let length = (_a = data.length) !== null && _a !== void 0 ? _a : children.length ? positions[0] + children[0].length : 0;
-	return new Tree(types[data.topID], children.reverse(), positions.reverse(), length);
-}
-var nodeSizeCache = /* @__PURE__ */ new WeakMap();
-function nodeSize(balanceType, node) {
-	if (!balanceType.isAnonymous || node instanceof TreeBuffer || node.type != balanceType) return 1;
-	let size = nodeSizeCache.get(node);
-	if (size == null) {
-		size = 1;
-		for (let child of node.children) {
-			if (child.type != balanceType || !(child instanceof Tree)) {
-				size = 1;
-				break;
-			}
-			size += nodeSize(balanceType, child);
-		}
-		nodeSizeCache.set(node, size);
-	}
-	return size;
-}
-function balanceRange(balanceType, children, positions, from, to, start, length, mkTop, mkTree) {
-	let total = 0;
-	for (let i = from; i < to; i++) total += nodeSize(balanceType, children[i]);
-	let maxChild = Math.ceil(total * 1.5 / 8);
-	let localChildren = [], localPositions = [];
-	function divide(children, positions, from, to, offset) {
-		for (let i = from; i < to;) {
-			let groupFrom = i, groupStart = positions[i], groupSize = nodeSize(balanceType, children[i]);
-			i++;
-			for (; i < to; i++) {
-				let nextSize = nodeSize(balanceType, children[i]);
-				if (groupSize + nextSize >= maxChild) break;
-				groupSize += nextSize;
-			}
-			if (i == groupFrom + 1) {
-				if (groupSize > maxChild) {
-					let only = children[groupFrom];
-					divide(only.children, only.positions, 0, only.children.length, positions[groupFrom] + offset);
-					continue;
-				}
-				localChildren.push(children[groupFrom]);
-			} else {
-				let length = positions[i - 1] + children[i - 1].length - groupStart;
-				localChildren.push(balanceRange(balanceType, children, positions, groupFrom, i, groupStart, length, null, mkTree));
-			}
-			localPositions.push(groupStart + offset - start);
-		}
-	}
-	divide(children, positions, from, to, 0);
-	return (mkTop || mkTree)(localChildren, localPositions, length);
-}
-new NodeProp({ perNode: true });
-//#endregion
 //#region ../../node_modules/.pnpm/@lezer+highlight@1.2.3/node_modules/@lezer/highlight/dist/index.js
 var nextTagID = 0;
 /**
@@ -128982,7 +129444,7 @@ var _a;
 Node prop stored in a parser's top syntax node to provide the
 facet that stores language-specific data for that language.
 */
-var languageDataProp = /*@__PURE__*/ new NodeProp$1();
+var languageDataProp = /*@__PURE__*/ new NodeProp();
 /**
 Helper function to define a facet (to be added to the top syntax
 node(s) for a language via
@@ -128998,7 +129460,7 @@ function defineLanguageFacet(baseData) {
 Syntax node prop used to register sublanguages. Should be added to
 the top level node type for the language.
 */
-var sublanguageProp = /*@__PURE__*/ new NodeProp$1();
+var sublanguageProp = /*@__PURE__*/ new NodeProp();
 /**
 A language object manages parsing and per-language
 [metadata](https://codemirror.net/6/docs/ref/#state.EditorState.languageDataAt). Parse data is
@@ -129064,7 +129526,7 @@ var Language = class {
 				});
 				return;
 			}
-			let mount = tree.prop(NodeProp$1.mounted);
+			let mount = tree.prop(NodeProp.mounted);
 			if (mount) {
 				if (mount.tree.prop(languageDataProp) == this.data) {
 					if (mount.overlay) for (let r of mount.overlay) result.push({
@@ -129084,7 +129546,7 @@ var Language = class {
 			}
 			for (let i = 0; i < tree.children.length; i++) {
 				let ch = tree.children[i];
-				if (ch instanceof Tree$1) explore(ch, tree.positions[i] + from);
+				if (ch instanceof Tree) explore(ch, tree.positions[i] + from);
 			}
 		};
 		explore(syntaxTree(state), 0);
@@ -129105,7 +129567,7 @@ Language.setState = /*@__PURE__*/ StateEffect.define();
 function topNodeAt(state, pos, side) {
 	let topLang = state.facet(language$1), tree = syntaxTree(state).topNode;
 	if (!topLang || topLang.allowsNesting) {
-		for (let node = tree; node; node = node.enter(pos, side, IterMode$1.ExcludeBuffers | IterMode$1.EnterBracketed)) if (node.type.isTop) tree = node;
+		for (let node = tree; node; node = node.enter(pos, side, IterMode.ExcludeBuffers | IterMode.EnterBracketed)) if (node.type.isTop) tree = node;
 	}
 	return tree;
 }
@@ -129117,7 +129579,7 @@ language available.
 */
 function syntaxTree(state) {
 	let field = state.field(Language.state, false);
-	return field ? field.tree : Tree$1.empty;
+	return field ? field.tree : Tree.empty;
 }
 /**
 Lezer-style
@@ -129179,7 +129641,7 @@ var ParseContext = class ParseContext {
 	@internal
 	*/
 	static create(parser, state, viewport) {
-		return new ParseContext(parser, state, [], Tree$1.empty, 0, viewport, [], null);
+		return new ParseContext(parser, state, [], Tree.empty, 0, viewport, [], null);
 	}
 	startParse() {
 		return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -129189,7 +129651,7 @@ var ParseContext = class ParseContext {
 	*/
 	work(until, upto) {
 		if (upto != null && upto >= this.state.doc.length) upto = void 0;
-		if (this.tree != Tree$1.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
+		if (this.tree != Tree.empty && this.isDone(upto !== null && upto !== void 0 ? upto : this.state.doc.length)) {
 			this.takeTree();
 			return true;
 		}
@@ -129259,7 +129721,7 @@ var ParseContext = class ParseContext {
 				toB
 			}));
 			fragments = TreeFragment.applyChanges(fragments, ranges);
-			tree = Tree$1.empty;
+			tree = Tree.empty;
 			treeLen = 0;
 			viewport = {
 				from: changes.mapPos(viewport.from, -1),
@@ -129338,7 +129800,7 @@ var ParseContext = class ParseContext {
 							if (until) cx.scheduleOn = cx.scheduleOn ? Promise.all([cx.scheduleOn, until]) : until;
 						}
 						this.parsedPos = to;
-						return new Tree$1(NodeType$1.none, [], [], to - from);
+						return new Tree(NodeType.none, [], [], to - from);
 					},
 					stoppedAt: null,
 					stopAt() {}
@@ -129654,7 +130116,7 @@ context to a column number (see also
 [`indentString`](https://codemirror.net/6/docs/ref/#language.indentString)) or null, where null
 indicates that no definitive indentation can be determined.
 */
-var indentNodeProp = /*@__PURE__*/ new NodeProp$1();
+var indentNodeProp = /*@__PURE__*/ new NodeProp();
 function syntaxIndentation(cx, ast, pos) {
 	let stack = ast.resolveStack(pos);
 	let inner = ast.resolveInner(pos, -1).resolve(pos, 0).enterUnfinishedNodesBefore(pos);
@@ -129682,7 +130144,7 @@ function indentStrategy(tree) {
 	let strategy = tree.type.prop(indentNodeProp);
 	if (strategy) return strategy;
 	let first = tree.firstChild, close;
-	if (first && (close = first.type.prop(NodeProp$1.closedBy))) {
+	if (first && (close = first.type.prop(NodeProp.closedBy))) {
 		let last = tree.lastChild, closed = last && close.indexOf(last.name) > -1;
 		return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
 	}
@@ -130043,9 +130505,9 @@ a node, a ‘handle’—the part of the node that is highlighted, and
 that the cursor must be on to activate highlighting in the first
 place.
 */
-var bracketMatchingHandle = /*@__PURE__*/ new NodeProp$1();
+var bracketMatchingHandle = /*@__PURE__*/ new NodeProp();
 function matchingNodes(node, dir, brackets) {
-	let byProp = node.prop(dir < 0 ? NodeProp$1.openedBy : NodeProp$1.closedBy);
+	let byProp = node.prop(dir < 0 ? NodeProp.openedBy : NodeProp.closedBy);
 	if (byProp) return byProp;
 	if (node.name.length == 1) {
 		let index = brackets.indexOf(node.name);
@@ -130354,7 +130816,7 @@ var StreamLanguage = class StreamLanguage extends Language {
 		this.topNode = docID(data, this);
 		self = this;
 		this.streamParser = p;
-		this.stateAfter = new NodeProp$1({ perNode: true });
+		this.stateAfter = new NodeProp({ perNode: true });
 		this.tokenTable = parser.tokenTable ? new TokenTable(p.tokenTable) : defaultTokenTable;
 	}
 	/**
@@ -130408,7 +130870,7 @@ function findState(lang, tree, off, startPos, before) {
 	};
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let child = tree.children[i], pos = off + tree.positions[i];
-		let found = child instanceof Tree$1 && pos < before && findState(lang, child, pos, startPos, before);
+		let found = child instanceof Tree && pos < before && findState(lang, child, pos, startPos, before);
 		if (found) return found;
 	}
 	return null;
@@ -130418,9 +130880,9 @@ function cutTree(lang, tree, from, to, inside) {
 	if (!inside && from == 0 && tree.type == lang.topNode) inside = true;
 	for (let i = tree.children.length - 1; i >= 0; i--) {
 		let pos = tree.positions[i], child = tree.children[i], inner;
-		if (pos < to && child instanceof Tree$1) {
+		if (pos < to && child instanceof Tree) {
 			if (!(inner = cutTree(lang, child, from - pos, to - pos, inside))) break;
-			return !inside ? inner : new Tree$1(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
+			return !inside ? inner : new Tree(tree.type, tree.children.slice(0, i).concat(inner), tree.positions.slice(0, i + 1), pos + inner.length);
 		}
 	}
 	return null;
@@ -130436,7 +130898,7 @@ function findStartInFragments(lang, fragments, startPos, endPos, editorState) {
 	}
 	return {
 		state: lang.streamParser.startState(editorState ? getIndentUnit(editorState) : 4),
-		tree: Tree$1.empty
+		tree: Tree.empty
 	};
 }
 var Parse = class {
@@ -130551,7 +131013,7 @@ var Parse = class {
 		if (this.parsedPos < this.to) this.parsedPos++;
 	}
 	finishChunk() {
-		let tree = Tree$1.build({
+		let tree = Tree.build({
 			buffer: this.chunk,
 			start: this.chunkStart,
 			length: this.parsedPos - this.chunkStart,
@@ -130560,7 +131022,7 @@ var Parse = class {
 			maxBufferLength: 512,
 			reused: this.chunkReused
 		});
-		tree = new Tree$1(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
+		tree = new Tree(tree.type, tree.children, tree.positions, tree.length, [[this.lang.stateAfter, this.lang.streamParser.copyState(this.state)]]);
 		this.chunks.push(tree);
 		this.chunkPos.push(this.chunkStart - this.ranges[0].from);
 		this.chunk = [];
@@ -130568,7 +131030,7 @@ var Parse = class {
 		this.chunkStart = this.parsedPos;
 	}
 	finish() {
-		return new Tree$1(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
+		return new Tree(this.lang.topNode, this.chunks, this.chunkPos, this.parsedPos - this.ranges[0].from).balance();
 	}
 };
 function readToken(token, stream, state) {
@@ -130580,7 +131042,7 @@ function readToken(token, stream, state) {
 	throw new Error("Stream parser failed to advance stream.");
 }
 var noTokens = /*@__PURE__*/ Object.create(null);
-var typeArray = [NodeType$1.none];
+var typeArray = [NodeType.none];
 var nodeSet = /*@__PURE__*/ new NodeSet(typeArray);
 var warned = [];
 var byTag = /*@__PURE__*/ Object.create(null);
@@ -130632,7 +131094,7 @@ function createTokenType(extra, tagStr) {
 	let name = tagStr.replace(/ /g, "_"), key = name + " " + tags$1.map((t) => t.id);
 	let known = byTag[key];
 	if (known) return known.id;
-	let type = byTag[key] = NodeType$1.define({
+	let type = byTag[key] = NodeType.define({
 		id: typeArray.length,
 		name,
 		props: [styleTags({ [name]: tags$1 })]
@@ -130641,7 +131103,7 @@ function createTokenType(extra, tagStr) {
 	return type.id;
 }
 function docID(data, lang) {
-	let type = NodeType$1.define({
+	let type = NodeType.define({
 		id: typeArray.length,
 		name: "Document",
 		props: [languageDataProp.add(() => data), indentNodeProp.add(() => (cx) => lang.getIndent(cx))],
@@ -133232,29 +133694,6 @@ var completionKeymap = [
 ];
 var completionKeymapExt = /*@__PURE__*/ Prec.highest(/*@__PURE__*/ keymap.computeN([completionConfig], (state) => state.facet(completionConfig).defaultKeymap ? [completionKeymap] : []));
 //#endregion
-//#region ../../node_modules/.pnpm/crelt@1.0.6/node_modules/crelt/index.js
-function crelt() {
-	var elt = arguments[0];
-	if (typeof elt == "string") elt = document.createElement(elt);
-	var i = 1, next = arguments[1];
-	if (next && typeof next == "object" && next.nodeType == null && !Array.isArray(next)) {
-		for (var name in next) if (Object.prototype.hasOwnProperty.call(next, name)) {
-			var value = next[name];
-			if (typeof value == "string") elt.setAttribute(name, value);
-			else if (value != null) elt[name] = value;
-		}
-		i++;
-	}
-	for (; i < arguments.length; i++) add(elt, arguments[i]);
-	return elt;
-}
-function add(elt, child) {
-	if (typeof child == "string") elt.appendChild(document.createTextNode(child));
-	else if (child == null) {} else if (child.nodeType != null) elt.appendChild(child);
-	else if (Array.isArray(child)) for (var i = 0; i < child.length; i++) add(elt, child[i]);
-	else throw new RangeError("Unsupported child node: " + child);
-}
-//#endregion
 //#region ../../node_modules/.pnpm/@codemirror+lint@6.9.7/node_modules/@codemirror/lint/dist/index.js
 var SelectedDiagnostic = class {
 	constructor(from, to, diagnostic) {
@@ -134392,7 +134831,7 @@ function interestingNode(state, node, bracketProp) {
 }
 function moveBySyntax(state, start, forward) {
 	let pos = syntaxTree(state).resolveInner(start.head);
-	let bracketProp = forward ? NodeProp$1.closedBy : NodeProp$1.openedBy;
+	let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
 	for (let at = start.head;;) {
 		let next = forward ? pos.childAfter(at) : pos.childBefore(at);
 		if (!next) break;
@@ -135025,7 +135464,7 @@ function isBetweenBrackets(state, pos) {
 	};
 	let context = syntaxTree(state).resolveInner(pos);
 	let before = context.childBefore(pos), after = context.childAfter(pos), closedBy;
-	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp$1.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
+	if (before && after && before.to <= pos && after.from >= pos && (closedBy = before.type.prop(NodeProp.closedBy)) && closedBy.indexOf(after.name) > -1 && state.doc.lineAt(before.to).from == state.doc.lineAt(after.from).from && !/\S/.test(state.sliceDoc(before.to, after.from))) return {
 		from: before.to,
 		to: after.from
 	};
@@ -139426,7 +139865,7 @@ var AppContent = () => {
 		icons: componentIcons,
 		children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ComponentStateProvider, {
 			hooks: inspectStateHooks,
-			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RouterProvider2, { router: AppRouter })
+			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(RouterProvider$1, { router: AppRouter })
 		})
 	})] });
 };

@@ -1390,397 +1390,64 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._center_1i4o7_18 {
   text-align: center;
 }
-._root_ugt1x_1 {
-  /* A var, not a plain 100vh, so a host whose chrome sits above the page
-     (scout's ProjectBar) can shrink the root via its className without a
-     cascade-order fight — an overflowing root gets its header clipped once
-     mount-time scrolling nudges the overflow-hidden ancestor. */
-  height: var(--focus-turn-view-height, 100vh);
-  display: flex;
-  flex-direction: column;
+._notice_mpxkz_1 {
+  margin-top: 0.25rem;
+  font-size: var(--inspect-font-size-smaller);
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
+._reference_7p4hu_1 {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+._keyPairContainer_1u1d5_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.5em;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
-/* Fixed secondary header under the app chrome: agent-path breadcrumb on the
-   left; turn label + turn/lane navigation + exit-focus on the right. A
-   non-scrolling sibling of the scroll container (the column layout pins it). */
-._focusBar_ugt1x_14 {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5em;
-  padding: 0.3rem 0.5rem;
-  background-color: var(--bs-body-bg);
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-._crumbs_ugt1x_25 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  white-space: nowrap;
-  color: var(--bs-secondary);
-}
-
-._laneName_ugt1x_33 {
-  font-weight: 500;
-}
-
-/* Breadcrumb segments that act (ancestor links, lane picker) render as plain
-   text in the bar's muted color; hover matches the bar's icon buttons. */
-._crumbButton_ugt1x_39 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25em;
-  padding: 0;
-  border: none;
-  background: none;
-  color: inherit;
-  font-size: inherit;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-._crumbButton_ugt1x_39:hover {
-  color: var(--bs-body-color);
-  text-decoration: underline;
-}
-
-._crumbButton_ugt1x_39:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-._crumbSeparator_ugt1x_62 {
-  font-size: 0.7em;
-  opacity: 0.6;
-}
-
-._laneMenu_ugt1x_67 {
-  display: flex;
-  flex-direction: column;
-  row-gap: 0.15em;
-}
-
-._laneMenuItem_ugt1x_73 {
-  display: block;
-  border: none;
-  background: none;
-  color: var(--bs-body-color);
-  font-family: inherit;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-  border-radius: var(--bs-border-radius);
-  padding: 0.1em 0.4em;
-}
-
-._laneMenuItem_ugt1x_73:hover {
-  background-color: var(--bs-secondary-bg);
-}
-
-._laneMenuItemCurrent_ugt1x_90 {
-  font-weight: 600;
-}
-
-._controls_ugt1x_94 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.15em;
-  color: var(--bs-secondary);
-}
-
-._turnLabel_ugt1x_101 {
-  white-space: nowrap;
-  margin-right: 0.35em;
-}
-
-._divider_ugt1x_106 {
-  display: inline-block;
-  width: 1px;
-  align-self: stretch;
-  background-color: var(--bs-border-color);
-  margin: 2px 0.5em;
-  opacity: 0.5;
-}
-
-._button_ugt1x_115 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.3em;
-  border: none;
-  background: none;
-  color: var(--bs-secondary);
-  cursor: pointer;
-  line-height: 1.6;
-  text-decoration: none;
-}
-
-._button_ugt1x_115:hover:not(:disabled) {
-  color: var(--bs-body-color);
-}
-
-._button_ugt1x_115:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-._button_ugt1x_115:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-/* Only the scroll container flexes. Host-provided header chrome must not
-   shrink: an overflow:hidden header (scout's navbar) has no automatic
-   min-height, so with the scroller's content-sized flex basis it would get
-   crushed whenever the focused turn is taller than the viewport. */
-._root_ugt1x_1 > :not(._container_ugt1x_146) {
-  flex-shrink: 0;
-}
-
-._container_ugt1x_146 {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 0.5rem 1rem;
-}
-
-/* A single focused event isn't a transcript list — drop the per-card box and
-   the expanded-boundary gutter (both are transcript-row chrome). Keep the
-   background so the model's sticky header stays opaque as content scrolls. */
-._container_ugt1x_146 [id^="event-panel-"] {
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0;
-}
-
-/* Sample/transcript-level error strip: persistent on every focused turn
-   (only the last turn's slice carries the actual error card). */
-._errorStrip_ugt1x_168 {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5em;
-  width: 100%;
-  border: none;
+._keyPairBordered_1u1d5_9 {
   border-bottom: solid 1px var(--bs-border-color);
-  background: var(--bs-danger-bg-subtle);
-  color: var(--bs-danger-text-emphasis);
-  font-size: 0.8rem;
-  padding: 0.25rem 1rem;
-  text-align: left;
-  cursor: pointer;
 }
 
-._errorStripLabel_ugt1x_183 {
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  flex-shrink: 0;
+/* Copy button column (opt-in via copyButton prop) */
+
+._keyPairCopy_1u1d5_15 {
+  grid-template-columns: max-content auto max-content;
 }
 
-._errorStripMessage_ugt1x_191 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Zero-height sticky dock so mounting the bar never shifts the event list;
-   it centers the bar over the events column. Sits above the sticky card
-   headers (z-index 1) and the swimlanes (500). `top` is set inline to the
-   chrome offset. */
-._dock_1hs1n_5 {
-  position: sticky;
-  z-index: 600;
-  height: 0;
-  display: flex;
-  justify-content: center;
-  /* The zero-height dock would otherwise stretch the bar to its own height,
-     collapsing the bar's vertical padding. */
-  align-items: flex-start;
-  pointer-events: none;
+/* Wrapper carries the hover reveal so CopyButton's own opacity
+   styles still apply unchanged inside it. */
+._copyCell_1u1d5_21 {
+  opacity: 0;
+  justify-self: end;
+  transition: opacity 0.2s;
 }
 
-._bar_1hs1n_17 {
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 24px;
-  padding: 12px 16px;
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-}
-
-._title_1hs1n_30 {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--bs-secondary-color);
-  white-space: nowrap;
-}
-
-/* Width is set inline (fits the placeholder range / prefilled value). */
-._input_1hs1n_39 {
-  padding: 2px 6px;
-  font-size: 12.5px;
-  color: var(--bs-body-color);
-  background: var(--bs-body-bg);
-  border: 1px solid var(--inspect-focus-border-color);
-  border-radius: var(--bs-border-radius);
-  outline: none;
-}
-
-._input_1hs1n_39:focus {
-  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.18);
-}
-
-._input_1hs1n_39::placeholder {
-  color: var(--bs-tertiary-color);
-}
-
-._range_1hs1n_57 {
-  font-size: 13px;
-  color: var(--bs-secondary-color);
-  white-space: nowrap;
-}
-
-._divider_1hs1n_63 {
-  width: 1px;
-  height: 18px;
-  background: var(--bs-border-color);
-}
-
-._hint_1hs1n_69 {
-  font-size: 11.5px;
-  color: var(--bs-secondary-color);
-  white-space: nowrap;
-}
-
-._hintKey_1hs1n_75 {
-  font-weight: 600;
-}
-
-._close_1hs1n_79 {
-  display: inline-flex;
-  align-items: center;
+._copyCell_1u1d5_21 button {
   padding: 0;
-  border: none;
-  background: none;
-  font-size: 15px;
-  color: var(--bs-secondary-color);
-  cursor: pointer;
   line-height: 1;
 }
 
-._close_1hs1n_79:hover {
-  color: var(--bs-body-color);
-}
-._selectorContainer_djjmp_1 {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  margin-right: 2px;
+._keyPairContainer_1u1d5_1:hover ._copyCell_1u1d5_21,
+._copyCell_1u1d5_21:focus-within {
+  opacity: 1;
 }
 
-._selectorButton_djjmp_8 {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background-color: var(--bs-body-bg);
-  color: var(--bs-body-color);
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius-pill, 999px);
-  padding: 0 8px;
-  font-size: var(--inspect-font-size-smallest);
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  line-height: 1.5;
-}
-
-._selectorButton_djjmp_8:hover {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._chevron_djjmp_28 {
-  font-size: 0.6em;
-  margin-left: 1px;
-}
-
-._backdrop_djjmp_33 {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 998;
-}
-
-._dropdownMenu_djjmp_42 {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 2px;
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: var(--bs-border-radius);
-  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
-  z-index: 999;
-  min-width: 100%;
-  overflow: hidden;
-  padding: 2px 0;
-}
-
-._dropdownItem_djjmp_57 {
-  display: block;
-  width: 100%;
-  padding: 2px 10px;
-  background: none;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  color: var(--bs-body-color);
-  font-size: var(--inspect-font-size-smallest);
-  white-space: nowrap;
-}
-
-._dropdownItem_djjmp_57:hover {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._dropdownItemActive_djjmp_74 {
-  font-weight: 600;
-}
-._title_xefxk_1 {
+._key_1u1d5_1 {
   display: grid;
-  grid-template-columns: max-content max-content minmax(0, 1fr);
-  column-gap: 0.3em;
+  grid-template-columns: 1em auto;
+  cursor: pointer;
 }
 
-._contents_xefxk_7 {
-  padding: 0.4em;
+._pre_1u1d5_43 {
   margin-bottom: 0;
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
 }
 
-._below_xefxk_14 {
-  margin-top: 0.4em;
-}
-._headline_1l22a_1 {
-  display: block;
-  min-width: 0;
-}
-
-._inlineExplanation_1l22a_6 {
-  margin-left: 0.3em;
-}
-
-._rejected_1l22a_10 {
-  color: var(--bs-danger);
+._treeIcon_1u1d5_47 {
+  margin-top: -3px;
 }
 /* MetadataGrid — Section Cards
    Compact density, mono labels, striped rows, rule-style section headers.
@@ -1994,614 +1661,6 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 
 ._preCompact_seqs2_15 {
   margin-bottom: 0;
-}
-._notice_mpxkz_1 {
-  margin-top: 0.25rem;
-  font-size: var(--inspect-font-size-smaller);
-  color: var(--bs-secondary-color);
-  font-style: italic;
-}
-._keyPairContainer_1u1d5_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 0.5em;
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
-._keyPairBordered_1u1d5_9 {
-  border-bottom: solid 1px var(--bs-border-color);
-}
-
-/* Copy button column (opt-in via copyButton prop) */
-
-._keyPairCopy_1u1d5_15 {
-  grid-template-columns: max-content auto max-content;
-}
-
-/* Wrapper carries the hover reveal so CopyButton's own opacity
-   styles still apply unchanged inside it. */
-._copyCell_1u1d5_21 {
-  opacity: 0;
-  justify-self: end;
-  transition: opacity 0.2s;
-}
-
-._copyCell_1u1d5_21 button {
-  padding: 0;
-  line-height: 1;
-}
-
-._keyPairContainer_1u1d5_1:hover ._copyCell_1u1d5_21,
-._copyCell_1u1d5_21:focus-within {
-  opacity: 1;
-}
-
-._key_1u1d5_1 {
-  display: grid;
-  grid-template-columns: 1em auto;
-  cursor: pointer;
-}
-
-._pre_1u1d5_43 {
-  margin-bottom: 0;
-}
-
-._treeIcon_1u1d5_47 {
-  margin-top: -3px;
-}
-._panel_8zdtn_1 {
-  margin: 0.5em 0;
-}
-._badge_15iyu_1,
-._inline_15iyu_2 {
-  display: inline-flex;
-  align-items: center;
-  font-family: var(
-    --bs-font-monospace,
-    ui-monospace,
-    "SF Mono",
-    "JetBrains Mono",
-    Menlo,
-    Consolas,
-    monospace
-  );
-  font-size: 11.5px;
-  line-height: 1;
-  font-weight: 400;
-  background: var(--inspect-msg-label-bg);
-  border: 1px solid var(--inspect-msg-label-border);
-  color: var(--inspect-msg-label-text);
-  transition: background 0.12s ease;
-}
-
-/* Pointer + hover only when the chip actually activates something. */
-._interactive_15iyu_24 {
-  cursor: pointer;
-}
-
-._badge_15iyu_1 {
-  flex: none;
-  padding: 3px 8px;
-  border-radius: 6px;
-  user-select: none;
-}
-
-._inline_15iyu_2 {
-  padding: 1px 6px;
-  border-radius: 5px;
-  white-space: nowrap;
-  text-decoration: none;
-  vertical-align: baseline;
-}
-
-._interactive_15iyu_24:hover {
-  background: var(--inspect-msg-label-bg-hover);
-}
-._tab_1je38_1 {
-  min-width: 4rem;
-  padding: 0.1rem 0.6rem;
-  border-radius: var(--bs-border-radius);
-}
-._wrapper_og902_1 {
-  position: relative;
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  min-width: 0;
-  flex: 1;
-}
-
-._navs_og902_10 {
-  margin-right: 0;
-  flex-wrap: nowrap;
-}
-
-/* Off-screen single-line copy of the pills used to measure the natural
-   width that determines whether to render tabs or the picker. */
-._probe_og902_17 {
-  position: absolute;
-  top: 0;
-  left: 0;
-  visibility: hidden;
-  pointer-events: none;
-  width: max-content;
-  flex-wrap: nowrap;
-}
-
-._probeItem_og902_27 {
-  min-width: 4rem;
-  padding: 0.1rem 0.6rem;
-  white-space: nowrap;
-}
-._trigger_nqyxq_1 {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.1rem 0.6rem;
-  border: none;
-  border-radius: var(--bs-border-radius);
-  white-space: nowrap;
-  max-width: 100%;
-  min-width: 0;
-  cursor: pointer;
-  /* `.nav-link.active` colors only apply inside a `.nav-pills` parent;
-     the picker button isn't nested in one, so apply them directly. */
-  background-color: var(--bs-nav-pills-link-active-bg, var(--bs-primary));
-  color: var(--bs-nav-pills-link-active-color, #fff);
-}
-
-._trigger_nqyxq_1:hover {
-  filter: brightness(1.05);
-}
-
-._label_nqyxq_21 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-._chevron_nqyxq_27 {
-  margin-left: 0.4em;
-  font-size: 0.75em;
-  flex-shrink: 0;
-}
-
-._backdrop_nqyxq_33 {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
-  z-index: 1049;
-}
-
-._menu_nqyxq_43 {
-  position: fixed;
-  background: var(--bs-body-bg);
-  border: 1px solid var(--bs-border-color);
-  border-radius: 0.25rem;
-  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  z-index: 1050;
-  overflow: hidden;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-._item_nqyxq_55 {
-  display: block;
-  width: 100%;
-  padding: 0.25rem 0.75rem;
-  background: none;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  color: var(--bs-body-color);
-  white-space: nowrap;
-  transition: background-color 0.15s ease-in-out;
-}
-
-._item_nqyxq_55:hover {
-  background-color: var(--bs-tertiary-bg);
-}
-
-._item_nqyxq_55:active {
-  background-color: var(--bs-secondary-bg);
-}
-
-._item_nqyxq_55._selected_nqyxq_76 {
-  background-color: var(--bs-primary);
-  color: var(--bs-light);
-}
-
-._item_nqyxq_55._selected_nqyxq_76:hover {
-  background-color: var(--bs-primary);
-  filter: brightness(1.05);
-}
-._stickyWrapper_dht85_1 {
-  position: sticky;
-  /* `top` is set inline from StickyScrollContext (the chrome offset). */
-  /* Full-bleed: cancel the parent card's padding so the sticky bar
-     spans the entire card width, then re-apply padding internally. */
-  margin: -5px -0.625rem -5px -0.625rem;
-  padding: 5px 0.625rem;
-  /* Opaque (matches the host card) even when unstuck so colored message bands
-     don't bleed through the header as it scrolls off during the push-off. */
-  background-color: inherit;
-  z-index: 1;
-  border-bottom: solid 1px transparent;
-}
-
-/* Header pinned at its sticky offset (attribute toggled by useStickyStuck). */
-._stickyWrapper_dht85_1[data-sticky-stuck] {
-  background-color: var(--bs-light);
-  border-bottom-color: var(--bs-light-border-subtle);
-}
-
-._label_dht85_21 {
-  margin-right: 0.2em;
-  justify-self: end;
-}
-
-/* Single line, truncated with an ellipsis rather than wrapping: the header's
-   grid track shrinks this cell (via `minmax(0, max-content)`) whenever the
-   turnNav cluster and/or tab picker need the room, and a wrapped second line
-   would grow the sticky header's height instead of just losing title text. */
-._title_dht85_30 {
-  min-width: 0;
-  line-height: 1.6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-._titleExtra_dht85_38 {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  margin-left: 0.5em;
-}
-
-._navs_dht85_45 {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  min-width: 0;
-}
-
-._turnLabel_dht85_52 {
-  margin-left: 1rem;
-  margin-top: 0.2rem;
-  opacity: 0.5;
-  font-size: var(--inspect-font-size-smallest);
-  white-space: nowrap;
-}
-
-._turnNav_dht85_60 {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 1rem;
-  cursor: default;
-}
-
-._turnNav_dht85_60 ._turnLabel_dht85_52 {
-  margin-left: 0;
-  margin-top: 0;
-}
-
-/* Non-capstone headers of a turn hide their cluster while the capstone is on
-   screen, revealing it only when this header is pinned. `visibility` (not
-   `display`) so the grid column keeps its width and nothing reflows. */
-._turnNavFollower_dht85_75 {
-  visibility: hidden;
-}
-
-._stickyWrapper_dht85_1[data-sticky-stuck] ._turnNavFollower_dht85_75 {
-  visibility: visible;
-}
-
-._turnLabelButton_dht85_83 {
-  border: none;
-  background: none;
-  font: inherit;
-  color: inherit;
-  padding: 2px 8px;
-  border-radius: var(--bs-border-radius);
-  cursor: pointer;
-}
-
-/* Link-like text highlight, matching the sibling chevron/focus buttons —
-   deliberately no pill hover; no other header button has a pill treatment. */
-._turnLabelButton_dht85_83:hover {
-  color: var(--bs-body-color);
-  opacity: 1;
-}
-
-._turnButton_dht85_100 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.25em;
-  border: none;
-  background: none;
-  color: var(--bs-secondary);
-  cursor: pointer;
-  line-height: 1;
-  text-decoration: none;
-  font-size: var(--inspect-font-size-smallest);
-}
-
-._turnButton_dht85_100:hover:not(:disabled) {
-  color: var(--bs-body-color);
-}
-
-._turnButton_dht85_100:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-._turnButton_dht85_100:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-a._turnButton_dht85_100 {
-  padding: 0 0.4em;
-}
-
-._card_dht85_132 {
-  position: relative;
-  background-color: var(--bs-body-bg);
-  padding: 0.625rem;
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-}
-
-/* Landing target of the latest go-to-turn jump — persistent selection ring. */
-._card_dht85_132._jumpTarget_dht85_141 {
-  outline: 2px solid var(--inspect-jump-target-ring-color);
-  outline-offset: 2px;
-}
-
-._cardContent_dht85_146 {
-  padding: 0;
-  display: inherit;
-}
-
-._cardContent_dht85_146._hidden_dht85_151 {
-  display: none;
-}
-
-._hidden_dht85_151 {
-  display: none;
-}
-
-._copyLink_dht85_159 {
-  font-size: 1.2em;
-  opacity: 0;
-  padding-left: 0.2em;
-  padding-right: 0;
-  vertical-align: middle;
-  line-height: 1;
-  margin-left: 0.25em;
-}
-
-._hover_dht85_169 ._copyLink_dht85_159 {
-  opacity: 0.75;
-}
-
-/* Extra air between the turn label and the event-number pill. */
-._eventLabel_dht85_174 {
-  margin-left: 0.5em;
-}
-
-._root_dht85_178 {
-  background-color: var(--bs-light-bg-subtle);
-  border-radius: unset;
-}
-
-/* A panel showing non-summary detail gets a contrasting gray right gutter (same
-   3px width as the colorful message/tool edges, --bs-secondary so it reads in
-   both light and dark). The negative margin offsets the extra 2px over the
-   default 1px border so widening it doesn't shift the card. Compounded with
-   .card so it outranks .depthRoot's `border-right: none`, keeping the gutter on
-   depth-0 / lane-scoped events. */
-._card_dht85_132._expanded_dht85_189 {
-  border-right: 3px solid var(--bs-secondary);
-  margin-right: -2px;
-}
-
-._bottomDongle_dht85_194 {
-  display: block;
-  position: absolute;
-  margin: 0 auto;
-  width: fit-content;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: var(--bs-body-bg);
-  border: solid 1px var(--bs-light-border-subtle);
-  color: var(--bs-secondary);
-  border-radius: var(--bs-border-radius);
-  padding: 0em 0.4em;
-  cursor: pointer;
-}
-
-._dongleIcon_dht85_210 {
-  padding-right: 0.3em;
-}
-
-@media print {
-  ._card_dht85_132 {
-    break-inside: avoid;
-  }
-}
-._branchPoint_m92x3_1 {
-  --bp-bg: var(--bs-tertiary-bg, #fafbfd);
-  --bp-hairline: var(--bs-border-color, #e5e7eb);
-  --bp-segmented-border: var(--bs-border-color, #d1d5db);
-  --bp-segmented-bg: var(--bs-body-bg, #ffffff);
-  --bp-label: var(--bs-secondary-color, #6b7280);
-  --bp-active-bg: var(--bs-secondary-bg, #e5e7eb);
-
-  background: var(--bp-bg);
-  border-top: 1px solid var(--bp-hairline);
-  border-bottom: 1px solid var(--bp-hairline);
-  padding: 6px 18px;
-
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-._label_m92x3_20 {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-}
-
-._glyph_m92x3_27 {
-  display: inline-flex;
-  align-items: center;
-  color: var(--bp-label);
-  font-size: 14px;
-  line-height: 1;
-  flex: none;
-}
-
-._labelText_m92x3_36 {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--bp-label);
-}
-
-._segmented_m92x3_44 {
-  display: inline-flex;
-  border: 1px solid var(--bp-segmented-border);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--bp-segmented-bg);
-}
-
-._segment_m92x3_44 {
-  all: unset;
-  padding: 3px 12px;
-  background: var(--bp-segmented-bg);
-  color: var(--bp-label);
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-left: 1px solid var(--bp-segmented-border);
-  user-select: none;
-}
-._segment_m92x3_44:first-of-type {
-  border-left: 0;
-}
-._segment_m92x3_44:hover:not([aria-pressed="true"]):not(:disabled) {
-  background: var(--bp-active-bg);
-  color: var(--bs-body-color, inherit);
-}
-._segment_m92x3_44[aria-pressed="true"] {
-  background: var(--bp-active-bg);
-  color: var(--bs-body-color, inherit);
-  font-weight: 600;
-  cursor: default;
-}
-._segment_m92x3_44:disabled:not([aria-pressed="true"]) {
-  cursor: default;
-}
-._segment_m92x3_44:focus-visible {
-  outline: 2px solid var(--bp-segmented-border);
-  outline-offset: 2px;
-}
-
-._continuesGlyph_m92x3_87 {
-  width: 9px;
-  height: 9px;
-  fill: currentColor;
-  flex: none;
-  opacity: 0.85;
-}
-._panel_1us8t_1 {
-  margin: 0.2em 0;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 1em;
-  row-gap: 0.3em;
-  align-items: baseline;
-}
-
-._rowValue_1us8t_10 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1em;
-}
-
-._files_1us8t_16 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1em;
-  font-family: var(--bs-font-monospace);
-}
-
-._file_1us8t_16 {
-  overflow-wrap: anywhere;
-}
-
-._fileOverflow_1us8t_27 {
-  font-style: italic;
-  opacity: 0.7;
-}
-._panel_8zdtn_1 {
-  margin: 0.5em 0;
-}
-._empty_f9al6_1 {
-  padding: 0 18px 14px;
-  color: var(--bs-secondary-color, #6b7280);
-}
-
-._headline_f9al6_6 {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
-}
-
-._detail_f9al6_12 {
-  font-size: 12.5px;
-  margin-top: 4px;
-}
-
-._detail_f9al6_12 code {
-  background: var(--bs-body-bg, #ffffff);
-  border: 1px solid var(--bs-border-color, #e5e7eb);
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 11.5px;
-  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
-}
-._panel_vz394_1 {
-  margin: 0.2em 0;
-}
-._grid_1eq5o_1 {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr max-content;
-  column-gap: 1em;
-}
-
-._jsonPanel_1eq5o_8 {
-  padding: 0 !important;
-}
-._reference_7p4hu_1 {
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
 }
 ._title_1pwo3_1 {
   margin-bottom: 0.25em;
@@ -3241,6 +2300,51 @@ a._citationLink_1ggvf_9:hover {
 ._simple_1mah3_95 {
   /* styles for simple display mode */
 }
+._badge_15iyu_1,
+._inline_15iyu_2 {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(
+    --bs-font-monospace,
+    ui-monospace,
+    "SF Mono",
+    "JetBrains Mono",
+    Menlo,
+    Consolas,
+    monospace
+  );
+  font-size: 11.5px;
+  line-height: 1;
+  font-weight: 400;
+  background: var(--inspect-msg-label-bg);
+  border: 1px solid var(--inspect-msg-label-border);
+  color: var(--inspect-msg-label-text);
+  transition: background 0.12s ease;
+}
+
+/* Pointer + hover only when the chip actually activates something. */
+._interactive_15iyu_24 {
+  cursor: pointer;
+}
+
+._badge_15iyu_1 {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  user-select: none;
+}
+
+._inline_15iyu_2 {
+  padding: 1px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  text-decoration: none;
+  vertical-align: baseline;
+}
+
+._interactive_15iyu_24:hover {
+  background: var(--inspect-msg-label-bg-hover);
+}
 ._scroller_1rroa_1 {
   position: relative;
   /* One scroll owner: native anchoring must not fight the virtualizer's own resize compensation. */
@@ -3497,6 +2601,902 @@ a._citationLink_1ggvf_9:hover {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   margin-bottom: 0.75rem;
+}
+._root_ugt1x_1 {
+  /* A var, not a plain 100vh, so a host whose chrome sits above the page
+     (scout's ProjectBar) can shrink the root via its className without a
+     cascade-order fight — an overflowing root gets its header clipped once
+     mount-time scrolling nudges the overflow-hidden ancestor. */
+  height: var(--focus-turn-view-height, 100vh);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fixed secondary header under the app chrome: agent-path breadcrumb on the
+   left; turn label + turn/lane navigation + exit-focus on the right. A
+   non-scrolling sibling of the scroll container (the column layout pins it). */
+._focusBar_ugt1x_14 {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+  padding: 0.3rem 0.5rem;
+  background-color: var(--bs-body-bg);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+._crumbs_ugt1x_25 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  white-space: nowrap;
+  color: var(--bs-secondary);
+}
+
+._laneName_ugt1x_33 {
+  font-weight: 500;
+}
+
+/* Breadcrumb segments that act (ancestor links, lane picker) render as plain
+   text in the bar's muted color; hover matches the bar's icon buttons. */
+._crumbButton_ugt1x_39 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+._crumbButton_ugt1x_39:hover {
+  color: var(--bs-body-color);
+  text-decoration: underline;
+}
+
+._crumbButton_ugt1x_39:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+._crumbSeparator_ugt1x_62 {
+  font-size: 0.7em;
+  opacity: 0.6;
+}
+
+._laneMenu_ugt1x_67 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.15em;
+}
+
+._laneMenuItem_ugt1x_73 {
+  display: block;
+  border: none;
+  background: none;
+  color: var(--bs-body-color);
+  font-family: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--bs-border-radius);
+  padding: 0.1em 0.4em;
+}
+
+._laneMenuItem_ugt1x_73:hover {
+  background-color: var(--bs-secondary-bg);
+}
+
+._laneMenuItemCurrent_ugt1x_90 {
+  font-weight: 600;
+}
+
+._controls_ugt1x_94 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15em;
+  color: var(--bs-secondary);
+}
+
+._turnLabel_ugt1x_101 {
+  white-space: nowrap;
+  margin-right: 0.35em;
+}
+
+._divider_ugt1x_106 {
+  display: inline-block;
+  width: 1px;
+  align-self: stretch;
+  background-color: var(--bs-border-color);
+  margin: 2px 0.5em;
+  opacity: 0.5;
+}
+
+._button_ugt1x_115 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3em;
+  border: none;
+  background: none;
+  color: var(--bs-secondary);
+  cursor: pointer;
+  line-height: 1.6;
+  text-decoration: none;
+}
+
+._button_ugt1x_115:hover:not(:disabled) {
+  color: var(--bs-body-color);
+}
+
+._button_ugt1x_115:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+._button_ugt1x_115:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Only the scroll container flexes. Host-provided header chrome must not
+   shrink: an overflow:hidden header (scout's navbar) has no automatic
+   min-height, so with the scroller's content-sized flex basis it would get
+   crushed whenever the focused turn is taller than the viewport. */
+._root_ugt1x_1 > :not(._container_ugt1x_146) {
+  flex-shrink: 0;
+}
+
+._container_ugt1x_146 {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0.5rem 1rem;
+}
+
+/* A single focused event isn't a transcript list — drop the per-card box and
+   the expanded-boundary gutter (both are transcript-row chrome). Keep the
+   background so the model's sticky header stays opaque as content scrolls. */
+._container_ugt1x_146 [id^="event-panel-"] {
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+}
+
+/* Sample/transcript-level error strip: persistent on every focused turn
+   (only the last turn's slice carries the actual error card). */
+._errorStrip_ugt1x_168 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  width: 100%;
+  border: none;
+  border-bottom: solid 1px var(--bs-border-color);
+  background: var(--bs-danger-bg-subtle);
+  color: var(--bs-danger-text-emphasis);
+  font-size: 0.8rem;
+  padding: 0.25rem 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+._errorStripLabel_ugt1x_183 {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+._errorStripMessage_ugt1x_191 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Zero-height sticky dock so mounting the bar never shifts the event list;
+   it centers the bar over the events column. Sits above the sticky card
+   headers (z-index 1) and the swimlanes (500). `top` is set inline to the
+   chrome offset. */
+._dock_1hs1n_5 {
+  position: sticky;
+  z-index: 600;
+  height: 0;
+  display: flex;
+  justify-content: center;
+  /* The zero-height dock would otherwise stretch the bar to its own height,
+     collapsing the bar's vertical padding. */
+  align-items: flex-start;
+  pointer-events: none;
+}
+
+._bar_1hs1n_17 {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 12px 16px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+._title_1hs1n_30 {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+/* Width is set inline (fits the placeholder range / prefilled value). */
+._input_1hs1n_39 {
+  padding: 2px 6px;
+  font-size: 12.5px;
+  color: var(--bs-body-color);
+  background: var(--bs-body-bg);
+  border: 1px solid var(--inspect-focus-border-color);
+  border-radius: var(--bs-border-radius);
+  outline: none;
+}
+
+._input_1hs1n_39:focus {
+  box-shadow: 0 0 0 3px rgba(var(--bs-primary-rgb), 0.18);
+}
+
+._input_1hs1n_39::placeholder {
+  color: var(--bs-tertiary-color);
+}
+
+._range_1hs1n_57 {
+  font-size: 13px;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+._divider_1hs1n_63 {
+  width: 1px;
+  height: 18px;
+  background: var(--bs-border-color);
+}
+
+._hint_1hs1n_69 {
+  font-size: 11.5px;
+  color: var(--bs-secondary-color);
+  white-space: nowrap;
+}
+
+._hintKey_1hs1n_75 {
+  font-weight: 600;
+}
+
+._close_1hs1n_79 {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  line-height: 1;
+}
+
+._close_1hs1n_79:hover {
+  color: var(--bs-body-color);
+}
+._selectorContainer_djjmp_1 {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 2px;
+}
+
+._selectorButton_djjmp_8 {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius-pill, 999px);
+  padding: 0 8px;
+  font-size: var(--inspect-font-size-smallest);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+._selectorButton_djjmp_8:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._chevron_djjmp_28 {
+  font-size: 0.6em;
+  margin-left: 1px;
+}
+
+._backdrop_djjmp_33 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 998;
+}
+
+._dropdownMenu_djjmp_42 {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 2px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
+  z-index: 999;
+  min-width: 100%;
+  overflow: hidden;
+  padding: 2px 0;
+}
+
+._dropdownItem_djjmp_57 {
+  display: block;
+  width: 100%;
+  padding: 2px 10px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--bs-body-color);
+  font-size: var(--inspect-font-size-smallest);
+  white-space: nowrap;
+}
+
+._dropdownItem_djjmp_57:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._dropdownItemActive_djjmp_74 {
+  font-weight: 600;
+}
+._title_xefxk_1 {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(0, 1fr);
+  column-gap: 0.3em;
+}
+
+._contents_xefxk_7 {
+  padding: 0.4em;
+  margin-bottom: 0;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+._below_xefxk_14 {
+  margin-top: 0.4em;
+}
+._headline_1l22a_1 {
+  display: block;
+  min-width: 0;
+}
+
+._inlineExplanation_1l22a_6 {
+  margin-left: 0.3em;
+}
+
+._rejected_1l22a_10 {
+  color: var(--bs-danger);
+}
+._panel_8zdtn_1 {
+  margin: 0.5em 0;
+}
+._tab_1je38_1 {
+  min-width: 4rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: var(--bs-border-radius);
+}
+._wrapper_og902_1 {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+  flex: 1;
+}
+
+._navs_og902_10 {
+  margin-right: 0;
+  flex-wrap: nowrap;
+}
+
+/* Off-screen single-line copy of the pills used to measure the natural
+   width that determines whether to render tabs or the picker. */
+._probe_og902_17 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  width: max-content;
+  flex-wrap: nowrap;
+}
+
+._probeItem_og902_27 {
+  min-width: 4rem;
+  padding: 0.1rem 0.6rem;
+  white-space: nowrap;
+}
+._trigger_nqyxq_1 {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.6rem;
+  border: none;
+  border-radius: var(--bs-border-radius);
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  /* `.nav-link.active` colors only apply inside a `.nav-pills` parent;
+     the picker button isn't nested in one, so apply them directly. */
+  background-color: var(--bs-nav-pills-link-active-bg, var(--bs-primary));
+  color: var(--bs-nav-pills-link-active-color, #fff);
+}
+
+._trigger_nqyxq_1:hover {
+  filter: brightness(1.05);
+}
+
+._label_nqyxq_21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._chevron_nqyxq_27 {
+  margin-left: 0.4em;
+  font-size: 0.75em;
+  flex-shrink: 0;
+}
+
+._backdrop_nqyxq_33 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
+  z-index: 1049;
+}
+
+._menu_nqyxq_43 {
+  position: fixed;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.25rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  z-index: 1050;
+  overflow: hidden;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+._item_nqyxq_55 {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  transition: background-color 0.15s ease-in-out;
+}
+
+._item_nqyxq_55:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._item_nqyxq_55:active {
+  background-color: var(--bs-secondary-bg);
+}
+
+._item_nqyxq_55._selected_nqyxq_76 {
+  background-color: var(--bs-primary);
+  color: var(--bs-light);
+}
+
+._item_nqyxq_55._selected_nqyxq_76:hover {
+  background-color: var(--bs-primary);
+  filter: brightness(1.05);
+}
+._stickyWrapper_dht85_1 {
+  position: sticky;
+  /* `top` is set inline from StickyScrollContext (the chrome offset). */
+  /* Full-bleed: cancel the parent card's padding so the sticky bar
+     spans the entire card width, then re-apply padding internally. */
+  margin: -5px -0.625rem -5px -0.625rem;
+  padding: 5px 0.625rem;
+  /* Opaque (matches the host card) even when unstuck so colored message bands
+     don't bleed through the header as it scrolls off during the push-off. */
+  background-color: inherit;
+  z-index: 1;
+  border-bottom: solid 1px transparent;
+}
+
+/* Header pinned at its sticky offset (attribute toggled by useStickyStuck). */
+._stickyWrapper_dht85_1[data-sticky-stuck] {
+  background-color: var(--bs-light);
+  border-bottom-color: var(--bs-light-border-subtle);
+}
+
+._label_dht85_21 {
+  margin-right: 0.2em;
+  justify-self: end;
+}
+
+/* Single line, truncated with an ellipsis rather than wrapping: the header's
+   grid track shrinks this cell (via `minmax(0, max-content)`) whenever the
+   turnNav cluster and/or tab picker need the room, and a wrapped second line
+   would grow the sticky header's height instead of just losing title text. */
+._title_dht85_30 {
+  min-width: 0;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._titleExtra_dht85_38 {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.5em;
+}
+
+._navs_dht85_45 {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+._turnLabel_dht85_52 {
+  margin-left: 1rem;
+  margin-top: 0.2rem;
+  opacity: 0.5;
+  font-size: var(--inspect-font-size-smallest);
+  white-space: nowrap;
+}
+
+._turnNav_dht85_60 {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 1rem;
+  cursor: default;
+}
+
+._turnNav_dht85_60 ._turnLabel_dht85_52 {
+  margin-left: 0;
+  margin-top: 0;
+}
+
+/* Non-capstone headers of a turn hide their cluster while the capstone is on
+   screen, revealing it only when this header is pinned. `visibility` (not
+   `display`) so the grid column keeps its width and nothing reflows. */
+._turnNavFollower_dht85_75 {
+  visibility: hidden;
+}
+
+._stickyWrapper_dht85_1[data-sticky-stuck] ._turnNavFollower_dht85_75 {
+  visibility: visible;
+}
+
+._turnLabelButton_dht85_83 {
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 2px 8px;
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+}
+
+/* Link-like text highlight, matching the sibling chevron/focus buttons —
+   deliberately no pill hover; no other header button has a pill treatment. */
+._turnLabelButton_dht85_83:hover {
+  color: var(--bs-body-color);
+  opacity: 1;
+}
+
+._turnButton_dht85_100 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25em;
+  border: none;
+  background: none;
+  color: var(--bs-secondary);
+  cursor: pointer;
+  line-height: 1;
+  text-decoration: none;
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._turnButton_dht85_100:hover:not(:disabled) {
+  color: var(--bs-body-color);
+}
+
+._turnButton_dht85_100:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+._turnButton_dht85_100:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+a._turnButton_dht85_100 {
+  padding: 0 0.4em;
+}
+
+._card_dht85_132 {
+  position: relative;
+  background-color: var(--bs-body-bg);
+  padding: 0.625rem;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+/* Landing target of the latest go-to-turn jump — persistent selection ring. */
+._card_dht85_132._jumpTarget_dht85_141 {
+  outline: 2px solid var(--inspect-jump-target-ring-color);
+  outline-offset: 2px;
+}
+
+._cardContent_dht85_146 {
+  padding: 0;
+  display: inherit;
+}
+
+._cardContent_dht85_146._hidden_dht85_151 {
+  display: none;
+}
+
+._hidden_dht85_151 {
+  display: none;
+}
+
+._copyLink_dht85_159 {
+  font-size: 1.2em;
+  opacity: 0;
+  padding-left: 0.2em;
+  padding-right: 0;
+  vertical-align: middle;
+  line-height: 1;
+  margin-left: 0.25em;
+}
+
+._hover_dht85_169 ._copyLink_dht85_159 {
+  opacity: 0.75;
+}
+
+/* Extra air between the turn label and the event-number pill. */
+._eventLabel_dht85_174 {
+  margin-left: 0.5em;
+}
+
+._root_dht85_178 {
+  background-color: var(--bs-light-bg-subtle);
+  border-radius: unset;
+}
+
+/* A panel showing non-summary detail gets a contrasting gray right gutter (same
+   3px width as the colorful message/tool edges, --bs-secondary so it reads in
+   both light and dark). The negative margin offsets the extra 2px over the
+   default 1px border so widening it doesn't shift the card. Compounded with
+   .card so it outranks .depthRoot's `border-right: none`, keeping the gutter on
+   depth-0 / lane-scoped events. */
+._card_dht85_132._expanded_dht85_189 {
+  border-right: 3px solid var(--bs-secondary);
+  margin-right: -2px;
+}
+
+._bottomDongle_dht85_194 {
+  display: block;
+  position: absolute;
+  margin: 0 auto;
+  width: fit-content;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--bs-body-bg);
+  border: solid 1px var(--bs-light-border-subtle);
+  color: var(--bs-secondary);
+  border-radius: var(--bs-border-radius);
+  padding: 0em 0.4em;
+  cursor: pointer;
+}
+
+._dongleIcon_dht85_210 {
+  padding-right: 0.3em;
+}
+
+@media print {
+  ._card_dht85_132 {
+    break-inside: avoid;
+  }
+}
+._branchPoint_m92x3_1 {
+  --bp-bg: var(--bs-tertiary-bg, #fafbfd);
+  --bp-hairline: var(--bs-border-color, #e5e7eb);
+  --bp-segmented-border: var(--bs-border-color, #d1d5db);
+  --bp-segmented-bg: var(--bs-body-bg, #ffffff);
+  --bp-label: var(--bs-secondary-color, #6b7280);
+  --bp-active-bg: var(--bs-secondary-bg, #e5e7eb);
+
+  background: var(--bp-bg);
+  border-top: 1px solid var(--bp-hairline);
+  border-bottom: 1px solid var(--bp-hairline);
+  padding: 6px 18px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+._label_m92x3_20 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+._glyph_m92x3_27 {
+  display: inline-flex;
+  align-items: center;
+  color: var(--bp-label);
+  font-size: 14px;
+  line-height: 1;
+  flex: none;
+}
+
+._labelText_m92x3_36 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bp-label);
+}
+
+._segmented_m92x3_44 {
+  display: inline-flex;
+  border: 1px solid var(--bp-segmented-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bp-segmented-bg);
+}
+
+._segment_m92x3_44 {
+  all: unset;
+  padding: 3px 12px;
+  background: var(--bp-segmented-bg);
+  color: var(--bp-label);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 1px solid var(--bp-segmented-border);
+  user-select: none;
+}
+._segment_m92x3_44:first-of-type {
+  border-left: 0;
+}
+._segment_m92x3_44:hover:not([aria-pressed="true"]):not(:disabled) {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+}
+._segment_m92x3_44[aria-pressed="true"] {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+  font-weight: 600;
+  cursor: default;
+}
+._segment_m92x3_44:disabled:not([aria-pressed="true"]) {
+  cursor: default;
+}
+._segment_m92x3_44:focus-visible {
+  outline: 2px solid var(--bp-segmented-border);
+  outline-offset: 2px;
+}
+
+._continuesGlyph_m92x3_87 {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+  flex: none;
+  opacity: 0.85;
+}
+._panel_1us8t_1 {
+  margin: 0.2em 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  row-gap: 0.3em;
+  align-items: baseline;
+}
+
+._rowValue_1us8t_10 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+._files_1us8t_16 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-family: var(--bs-font-monospace);
+}
+
+._file_1us8t_16 {
+  overflow-wrap: anywhere;
+}
+
+._fileOverflow_1us8t_27 {
+  font-style: italic;
+  opacity: 0.7;
+}
+._panel_8zdtn_1 {
+  margin: 0.5em 0;
+}
+._empty_f9al6_1 {
+  padding: 0 18px 14px;
+  color: var(--bs-secondary-color, #6b7280);
+}
+
+._headline_f9al6_6 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
+}
+
+._detail_f9al6_12 {
+  font-size: 12.5px;
+  margin-top: 4px;
+}
+
+._detail_f9al6_12 code {
+  background: var(--bs-body-bg, #ffffff);
+  border: 1px solid var(--bs-border-color, #e5e7eb);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
+}
+._panel_vz394_1 {
+  margin: 0.2em 0;
+}
+._grid_1eq5o_1 {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr max-content;
+  column-gap: 1em;
+}
+
+._jsonPanel_1eq5o_8 {
+  padding: 0 !important;
 }
 ._lane_ax2f5_1 {
   width: 100%;
