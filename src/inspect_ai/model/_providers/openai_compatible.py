@@ -137,7 +137,9 @@ class OpenAICompatibleAPI(ModelAPI):
             )
         self.stream = False if stream is None else stream
         self.stream_include_usage = (
-            True if stream_include_usage is None else stream_include_usage
+            self.default_stream_include_usage()
+            if stream_include_usage is None
+            else stream_include_usage
         )
         self.strict_tools = strict_tools
 
@@ -307,6 +309,14 @@ class OpenAICompatibleAPI(ModelAPI):
     ) -> tuple[list[ToolInfo], ToolChoice, GenerateConfig]:
         """Provides an opportunity for concrete classes to customize tool resolution."""
         return tools, tool_choice, config
+
+    def default_stream_include_usage(self) -> bool:
+        """Whether streaming requests ask for a final usage chunk by default.
+
+        Providers that stream implicitly (rather than only when the user opts in)
+        can return False to leave their requests unchanged.
+        """
+        return True
 
     def apply_stream_usage_options(self, request: dict[str, Any]) -> dict[str, Any]:
         """Request a final usage chunk so streamed completions report token usage."""

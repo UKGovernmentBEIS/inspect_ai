@@ -3,7 +3,7 @@
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
 - Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
 - Bugfix: Reading eval logs with field exclusion (e.g. header-only reads) no longer crashes under a trio event loop; the pure-Python ijson backend is now selected when the C backend's asyncio-only async parser is unavailable. (#4589)
-- OpenAI Compatible: Streaming requests now ask for a final usage chunk (`stream_options={"include_usage": True}`) so token counts are populated rather than zero; opt out with `-M stream_include_usage=false`.
+- OpenAI Compatible: Streaming requests now ask for a final usage chunk (`stream_options={"include_usage": True}`) so token counts are populated rather than zero; opt out with `-M stream_include_usage=false`. Providers that stream implicitly rather than on request (HF Inference Providers) keep their existing requests and can opt in with `-M stream_include_usage=true`.
 - Control Channel: `inspect ctl sample list`/`show` now report a running sample's in-flight activity (`generating 7:12`, `bash 0:41`, `retrying in 0:45`), and `sample events` renders pending events, so long model calls and retry backoffs no longer read as silent idle.
 - Retry: Samples reused from a prior attempt no longer stay resident in memory awaiting a flush, and are written to the new attempt's log (readable by `inspect ctl` and viewers) as soon as the reuse sweep completes.
 - Control Channel: Paginating or polling a finished sample's events or messages no longer re-parses the whole sample per request (resolved terminal sources are briefly cached).
