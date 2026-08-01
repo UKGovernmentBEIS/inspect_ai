@@ -203,6 +203,14 @@ def sambanova() -> type[ModelAPI]:
     return SambaNovaAPI
 
 
+@modelapi(name="abliteration")
+def abliteration() -> type[ModelAPI]:
+    validate_openai_client("Abliteration API")
+    from .abliteration import AbliterationAPI
+
+    return AbliterationAPI
+
+
 @modelapi(name="ollama")
 def ollama() -> type[ModelAPI]:
     # validate

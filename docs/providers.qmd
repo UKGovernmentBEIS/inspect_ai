@@ -833,6 +833,25 @@ The following environment variables are supported by the SambaNova provider
 | `SAMBANOVA_API_KEY` | API key credentials (required). |
 | `SAMBANOVA_BASE_URL` | Base URL for requests (optional, defaults to `https://api.sambanova.ai/v1`) |
 
+## Abliteration {#abliteration}
+
+To use the [Abliteration](https://abliteration.ai/) provider (uncensored/abliterated open models hosted behind an OpenAI-compatible API), install the `openai` package, set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export ABLIT_KEY=your-abliteration-api-key
+inspect eval arc.py --model abliteration/huihui-ai/Llama-3.2-3B-Instruct-abliterated
+```
+
+For the `abliteration` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The following environment variables are supported by the Abliteration provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `ABLIT_KEY` | API key credentials (required). |
+| `ABLITERATION_BASE_URL` | Base URL for requests (optional, defaults to `https://api.abliteration.ai/v1`) |
+
 ## Cloudflare {#cloudflare}
 
 To use the [Cloudflare](https://developers.cloudflare.com/workers-ai/) provider, set your account id and access token, and specify a model using the `--model` option:
