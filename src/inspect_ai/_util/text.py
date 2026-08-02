@@ -207,7 +207,11 @@ def str_to_float(s: str) -> float:
     # Calculate the base value (whole number + fraction if present)
     base_value = 0.0
 
-    if base_part:
+    if base_part in ("-", "+"):
+        if not fraction_char and not exponent_part:
+            raise ValueError(f"Value could not be parsed as a float: {s}")
+        base_value = 0.0 if fraction_char else (-1.0 if base_part == "-" else 1.0)
+    elif base_part:
         # find the first valid float (LLMs may include additional spurious output)
         match = re.match(r"^([+-]?\d+(?:\.\d+)?)", base_part)
         if match is None:
@@ -221,8 +225,8 @@ def str_to_float(s: str) -> float:
 
     if fraction_char:
         fraction_value = fraction_map[fraction_char]
-        if base_value < 0:
-            # For negative values, subtract the fraction (e.g., -2½ = -2.5)
+        if base_value < 0 or base_part == "-":
+            # For negative values, subtract the fraction (e.g., -2½ = -2.5, -½ = -0.5)
             base_value -= fraction_value
         else:
             # For zero or positive values, add the fraction
