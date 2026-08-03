@@ -31,6 +31,10 @@ class HFInferenceProvidersAPI(OpenAICompatibleAPI):
         )
 
     @override
+    def default_stream_include_usage(self) -> bool:
+        return False
+
+    @override
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup.
 

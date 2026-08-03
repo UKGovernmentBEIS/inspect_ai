@@ -73,6 +73,7 @@ class OpenAICompatibleAPI(ModelAPI):
         responses_api: bool | None = None,
         responses_store: bool | None = None,
         stream: bool | None = None,
+        stream_include_usage: bool | None = None,
         strict_tools: bool = True,
         client_timeout: float | None = None,
         **model_args: Any,
@@ -135,6 +136,11 @@ class OpenAICompatibleAPI(ModelAPI):
                 "emulate_tools is not compatible with using the responses_api"
             )
         self.stream = False if stream is None else stream
+        self.stream_include_usage = (
+            self.default_stream_include_usage()
+            if stream_include_usage is None
+            else stream_include_usage
+        )
         self.strict_tools = strict_tools
 
         # store client_timeout for http client creation
@@ -304,6 +310,22 @@ class OpenAICompatibleAPI(ModelAPI):
         """Provides an opportunity for concrete classes to customize tool resolution."""
         return tools, tool_choice, config
 
+    def default_stream_include_usage(self) -> bool:
+        """Whether streaming requests ask for a final usage chunk by default.
+
+        Providers that stream implicitly (rather than only when the user opts in)
+        can return False to leave their requests unchanged.
+        """
+        return True
+
+    def apply_stream_usage_options(self, request: dict[str, Any]) -> dict[str, Any]:
+        """Request a final usage chunk so streamed completions report token usage."""
+        if self.stream_include_usage:
+            stream_options = dict(request.get("stream_options") or {})
+            stream_options.setdefault("include_usage", True)
+            request["stream_options"] = stream_options
+        return request
+
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
@@ -315,7 +337,9 @@ class OpenAICompatibleAPI(ModelAPI):
                     "be ignored. Disable streaming to receive prompt log "
                     "probabilities.",
                 )
-            async with self.client.chat.completions.stream(**request) as stream:
+            async with self.client.chat.completions.stream(
+                **self.apply_stream_usage_options(request)
+            ) as stream:
                 try:
                     return await stream.get_final_completion()
                 except LengthFinishReasonError as ex:

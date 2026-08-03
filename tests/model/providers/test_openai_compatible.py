@@ -19,6 +19,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.hf_inference_providers import HFInferenceProvidersAPI
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
 from inspect_ai.tool import ToolInfo
@@ -68,6 +69,72 @@ def test_strict_tools_default_true() -> None:
 
     tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
     assert tools[0]["function"]["strict"] is True
+
+
+def _stream_usage_api(
+    stream_include_usage: bool | None = None,
+) -> OpenAICompatibleAPI:
+    return OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        stream_include_usage=stream_include_usage,
+    )
+
+
+def test_stream_include_usage_defaults_to_true() -> None:
+    assert _stream_usage_api().stream_include_usage is True
+
+
+def test_stream_options_request_usage_by_default() -> None:
+    request = _stream_usage_api().apply_stream_usage_options({})
+
+    assert request["stream_options"] == {"include_usage": True}
+
+
+def test_stream_options_omitted_when_disabled() -> None:
+    request = _stream_usage_api(stream_include_usage=False).apply_stream_usage_options(
+        {}
+    )
+
+    assert "stream_options" not in request
+
+
+def test_stream_options_preserve_caller_supplied_values() -> None:
+    request = _stream_usage_api().apply_stream_usage_options(
+        {"stream_options": {"include_usage": False}}
+    )
+
+    assert request["stream_options"]["include_usage"] is False
+
+
+def _hf_inference_providers_api(
+    stream_include_usage: bool | None = None,
+) -> HFInferenceProvidersAPI:
+    return HFInferenceProvidersAPI(
+        model_name="hf-inference-providers/meta-llama/Llama-3.1-8B-Instruct",
+        api_key="test",
+        stream_include_usage=stream_include_usage,
+    )
+
+
+def test_hf_inference_providers_streams_by_default() -> None:
+    assert _hf_inference_providers_api().stream is True
+
+
+def test_hf_inference_providers_omits_stream_usage_by_default() -> None:
+    api = _hf_inference_providers_api()
+
+    assert api.stream_include_usage is False
+    assert "stream_options" not in api.apply_stream_usage_options({})
+
+
+def test_hf_inference_providers_stream_usage_can_be_opted_in() -> None:
+    api = _hf_inference_providers_api(stream_include_usage=True)
+
+    assert api.apply_stream_usage_options({})["stream_options"] == {
+        "include_usage": True
+    }
 
 
 async def test_responses_phase_model_arg(monkeypatch: pytest.MonkeyPatch) -> None:
