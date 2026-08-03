@@ -1,7 +1,7 @@
 """Process-level per-eval state aggregate.
 
 Tracks running totals across the samples of each in-flight eval
-(``eval_id``-keyed). Consumed by the control-channel ``GET /evals``
+(``eval_id``-keyed). Consumed by the control-channel ``GET /tasks``
 endpoint to surface counts that ``active_samples()`` alone can't
 provide.
 
@@ -11,7 +11,7 @@ total sample count is known), plus :func:`record_sample_completed` /
 are not unregistered per-eval — the registry is cleared in one shot at
 the outermost run boundary (``eval`` / ``eval_set``) via
 :func:`clear_all_eval_states`, which keeps completed evals visible in
-``inspect ctl tasks`` through the run (and any keep-alive park).
+``inspect ctl task list`` through the run (and any keep-alive park).
 
 Lives under ``_control/`` because the control channel is currently
 the only consumer; if other surfaces (TUI, view server) ever need
@@ -34,44 +34,102 @@ import time
 from dataclasses import dataclass, field
 from logging import getLogger
 from threading import Lock
-from typing import TYPE_CHECKING, NamedTuple, Protocol
+from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol
 
 logger = getLogger(__name__)
 
-# The provider types live under TYPE_CHECKING so this module stays
-# dependency-free at runtime (it's imported during eval bootstrap, before the
-# log/event packages finish initializing). PEP 563 (`from __future__ import
-# annotations`) means every annotation below is a string, so nothing here is
-# evaluated at runtime — but note that `typing.get_type_hints(EvalState)`
-# would fail outside a type-checking context.
+# The LiveEvalData protocol and the deferred-stats alias live under
+# TYPE_CHECKING so this module stays dependency-free at runtime (it's imported
+# during eval bootstrap, before the log/event packages finish initializing).
+# PEP 563 (`from __future__ import annotations`) means every annotation below is
+# a string, so nothing here is evaluated at runtime — but note that
+# `typing.get_type_hints(EvalState)` would fail outside a type-checking context.
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from inspect_ai._display.core.display import TaskCancel
+    from inspect_ai._eval.task.scheduler import SampleRequeue
+    from inspect_ai.log._config_update import ConfigUpdate
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
-    # Async accessor for an eval's completed-sample summaries.
-    SummariesProvider = Callable[[], Awaitable[list[EvalSampleSummary] | None]]
+    class LiveEvalData(Protocol):
+        """A running eval's live data source — the in-process ``TaskLogger``.
 
-    # Async accessor for one full sample by ``(id, epoch)``. A Protocol
-    # (rather than a Callable alias) because of the keyword-only
-    # ``exclude_fields`` argument.
-    class SampleProvider(Protocol):
-        def __call__(
+        A live (still-running or keep-alive-parked) eval serves its
+        not-yet-on-disk sample data and its buffer directives through these
+        methods; the control endpoints prefer them over reading the on-disk log
+        so reads are gap-free. The running ``TaskLogger`` satisfies this
+        structurally — these are its methods — so the runner hands the logger
+        itself to :func:`register_eval` and this module never imports it (the
+        layering the ``TYPE_CHECKING`` guard preserves).
+
+        ``EvalState.live`` is ``None`` for reused/synthetic evals (no running
+        logger — they fall back to :attr:`~EvalState.log_location` and
+        :attr:`~EvalState.deferred_sample_stats`) and is cleared when a retry
+        supersedes the attempt the logger was bound to (see
+        :func:`detach_eval_live`).
+        """
+
+        def sample_summaries(self) -> Awaitable[list[EvalSampleSummary] | None]:
+            """Completed-sample summaries (gap-free); ``None`` once torn down."""
+            ...
+
+        def read_sample(
             self,
             id: str | int,
             epoch: int,
             *,
             exclude_fields: set[str] | None = None,
-        ) -> Awaitable[EvalSample | None]: ...
+        ) -> Awaitable[EvalSample | None]:
+            """One full sample by ``(id, epoch)`` — recorder, then on-disk log."""
+            ...
 
-    # Sync accessor for one sample's transcript-event history by
-    # ``(id, epoch)``, or None once the backing buffer is torn down.
-    EventsProvider = Callable[[str | int, int], TranscriptHistoryProvider | None]
+        def sample_events_provider(
+            self, id: str | int, epoch: int
+        ) -> TranscriptHistoryProvider | None:
+            """One sample's realtime-buffer history provider; ``None`` once torn down."""
+            ...
+
+        def flush_samples(self) -> Awaitable[int]:
+            """Flush buffered completed samples to the log; return the count."""
+            ...
+
+        def buffer_config(
+            self, log_buffer: int | None = None, log_shared: int | None = None
+        ) -> "BufferConfig":
+            """Read (both args ``None``) or update the sample-buffer parameters."""
+            ...
+
+        def log_config_update(self, update: ConfigUpdate) -> Awaitable[bool]:
+            """Record a mid-run config change into the log.
+
+            ``False`` means the logger *declined* because its log has already
+            finished (its record is complete — not a failure; failures raise).
+            """
+            ...
 
     # Async accessor for a reused eval's summaries-derived stats, resolved
     # lazily on first control request (see ``DeferredSampleStats``).
     DeferredStatsProvider = Callable[[], Awaitable["DeferredSampleStats"]]
+
+
+class BufferConfig(NamedTuple):
+    """A running eval's sample-buffer parameters (see ``inspect ctl config``).
+
+    Reported by the buffer directive and, when set values are supplied,
+    re-reported after the update.
+    """
+
+    log_buffer: int
+    """Completed samples buffered before a write to the (possibly remote) log."""
+
+    pending: int
+    """Completed samples currently buffered, not yet written to the log."""
+
+    log_shared: int | None
+    """Shared-log sync interval in seconds, or ``None`` when realtime logging
+    (and thus the shared-log sync) is off."""
 
 
 class DeferredSampleStats(NamedTuple):
@@ -139,34 +197,45 @@ class EvalState:
     model: str = ""
     """Primary model name. Same rationale as :attr:`task`."""
 
+    solver: str = ""
+    """Solver name — the unqualified name of the plan's terminal step
+    (an agent name for agentic tasks, e.g. ``react``). Same rationale
+    as :attr:`task`."""
+
     log_location: str = ""
     """This eval's log file location. The per-sample listing reads
     completed samples from here once the live recorder is gone (see
-    :attr:`summaries_provider`)."""
+    :attr:`live`)."""
 
-    summaries_provider: SummariesProvider | None = None
-    """Live accessor for completed-sample summaries from the recorder.
-    The per-sample listing prefers this and falls back to
-    :attr:`log_location` when it's ``None`` (reused/synthetic eval) or
-    returns ``None`` (recorder torn down)."""
+    live: "LiveEvalData | None" = None
+    """The running eval's live data source — the in-process ``TaskLogger`` (see
+    :class:`LiveEvalData`).
 
-    sample_provider: SampleProvider | None = None
-    """Live accessor for one full sample (``EvalSample``) from the recorder.
-    The whole-sample analogue of :attr:`summaries_provider`: per-sample
-    reads (error detail, event pages) prefer this gap-free source so they
-    agree with the samples listing, falling back to the on-disk
-    :attr:`log_location` when it's ``None`` (reused/synthetic eval) or the
-    recorder no longer holds the sample (flushed / torn down)."""
+    The gap-free, ahead-of-disk source the control endpoints prefer for this
+    eval's sample summaries / full samples / transcript events, and the target
+    of its flush / buffer directives. ``None`` for reused/synthetic evals (which
+    fall back to :attr:`log_location` and :attr:`deferred_sample_stats`); set to
+    ``None`` by :func:`detach_eval_live` when a retry supersedes the
+    attempt the logger was bound to (after which reads fall back to
+    :attr:`log_location` until the retry sweep removes that log)."""
 
-    events_provider: EventsProvider | None = None
-    """Live accessor for one sample's transcript-event history (a
-    ``TranscriptHistoryProvider``) from the realtime buffer. The events
-    analogue of :attr:`sample_provider`, for streaming-completion samples
-    whose recorder copy is event-less (their events live in the buffer
-    database): event pages read through the eval's own buffer instance
-    rather than the control layer re-deriving the buffer's location.
-    ``None`` for reused/synthetic evals; returns ``None`` once the buffer
-    is torn down."""
+    task_cancel: "TaskCancel | None" = None
+    """The running attempt's cancel handle — the same ``TaskCancel`` the
+    in-process task display's cancel dialog drives. The control channel's
+    task-cancel directive fires it with ``"abort"`` (see
+    :mod:`inspect_ai._control.cancel`). ``None`` for reused/synthetic evals
+    (nothing is running, so there is nothing to cancel); each retry attempt
+    registers its own handle, and :func:`latest_eval_for_task` resolves the
+    current one."""
+
+    sample_requeue: "SampleRequeue | None" = None
+    """The running attempt's sample-requeue capability — the handle the
+    control channel's requeue directive invokes (see
+    :mod:`inspect_ai._control.requeue` and ``design/ctl/sample-requeue.md``).
+    Set by :func:`set_sample_requeue` when the attempt's sample fanout
+    starts (the scheduler it closes over doesn't exist at
+    :func:`register_eval` time); ``None`` for reused/synthetic evals, and
+    detached alongside :attr:`live` when a retry supersedes the attempt."""
 
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
@@ -196,7 +265,19 @@ class EvalState:
     """Unix timestamp when this eval's last sample finished (i.e. when
     ``completed + errored`` first reached ``total``). ``None`` while the
     eval is still running. Used by the control endpoint to surface
-    completion to agents without forcing them to derive it from counters."""
+    completion to agents without forcing them to derive it from counters.
+    For a :attr:`dynamic` eval this is only stamped by :func:`finalize_eval`
+    (the task's finish point) — counters reaching ``total`` doesn't mean
+    done when the source can still add samples."""
+
+    dynamic: bool = False
+    """Whether this eval's planned sample set can grow while it runs (a
+    ``SampleSource``-driven task). While set, ``terminal >= total`` is not
+    proof of completion — the task may be idle awaiting its source (or have
+    an empty seed, ``total == 0``, at registration) — so the provisional
+    ``completed_at`` stamp is suppressed and consumers (task cancel, status
+    listings) correctly see the eval as running. Cleared by
+    :func:`finalize_eval`, the task's single true finish point."""
 
     started_at: float | None = None
     """Earliest observed sample-start time, tracked as a running minimum.
@@ -219,6 +300,18 @@ class EvalState:
     Set from ``TaskCancel.can_retry`` at registration. Lets the control
     endpoint render a cancelled sample as ``pending`` (a retry will re-run
     it) rather than ``cancelled`` (terminal — no retry coming)."""
+
+    retry_pending: bool = False
+    """Whether this attempt finished with an error and a retry has been queued.
+
+    Stamped by :func:`mark_eval_retry_pending` at the eval-set's retry
+    decision point, so directives that would otherwise read a stamped
+    :attr:`completed_at` as "task finished" (eg. task cancel) can answer
+    honestly during the window between attempts — the retry registers its
+    own :class:`EvalState` only when it actually starts, and until then
+    this errored attempt is the task's latest. Never cleared: once the
+    retry starts, :func:`latest_eval_for_task` resolves to its fresh
+    state and this one is no longer consulted."""
 
     total_tokens: int = 0
     """Cumulative model tokens used by this eval's terminal samples.
@@ -281,20 +374,21 @@ def register_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    solver: str | None = None,
     log_location: str = "",
-    summaries_provider: SummariesProvider | None = None,
-    sample_provider: SampleProvider | None = None,
-    events_provider: EventsProvider | None = None,
+    live: "LiveEvalData | None" = None,
     sample_ids: list[str | int] | None = None,
     epochs: int = 1,
     run_id: str | None = None,
     will_retry: bool = False,
+    task_cancel: "TaskCancel | None" = None,
+    dynamic: bool = False,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
-    Idempotent on ``eval_id`` — re-registering an existing eval (eg.
-    on retry) returns the existing state without resetting its
-    counters.
+    Idempotent on ``eval_id`` — re-registering an existing eval (eg. on
+    retry, which mints a fresh ``eval_id`` via ``TaskLogger.reinit``) returns
+    the existing state without resetting its counters.
     """
     with _lock:
         existing = _eval_states.get(eval_id)
@@ -306,20 +400,26 @@ def register_eval(
             task=task,
             task_id=task_id,
             model=model,
+            solver=solver or "",
             log_location=log_location,
-            summaries_provider=summaries_provider,
-            sample_provider=sample_provider,
-            events_provider=events_provider,
-            sample_ids=sample_ids or [],
+            live=live,
+            # copy: a SampleSource-driven task appends to its planned-ids list
+            # as samples are injected; the state's list must grow only via
+            # record_samples_added, not by aliasing the caller's list
+            sample_ids=list(sample_ids or []),
             epochs=epochs,
             run_id=run_id,
             will_retry=will_retry,
+            task_cancel=task_cancel,
+            dynamic=dynamic,
         )
         _eval_states[eval_id] = state
         # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
         # already finished — no sample will ever run to fire a terminal counter
         # and stamp ``completed_at`` via record_sample_*, so do it now. A no-op
-        # for the normal ``total > 0`` case (not yet finished at registration).
+        # for the normal ``total > 0`` case (not yet finished at registration)
+        # and for a dynamic eval (an empty seed just means the source hasn't
+        # produced yet — finalize_eval stamps it when the task truly ends).
         _maybe_mark_finished(state)
         return state
 
@@ -333,6 +433,7 @@ def register_completed_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    solver: str | None = None,
     log_location: str = "",
     run_id: str | None = None,
     completed_at: float | None = None,
@@ -367,6 +468,7 @@ def register_completed_eval(
             task=task,
             task_id=task_id,
             model=model,
+            solver=solver or "",
             log_location=log_location,
             run_id=run_id,
             completed_at=completed_at if completed_at is not None else time.time(),
@@ -484,25 +586,137 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
-def detach_eval_providers(eval_id: str) -> None:
-    """Null a superseded attempt's live providers.
+def record_sample_requeued(
+    eval_id: str, prior_status: Literal["error", "cancelled"]
+) -> None:
+    """Re-open a terminal sample's slot when a requeue is accepted.
 
-    Called by ``TaskLogger.reinit()`` when a task retry re-points the (one,
-    shared) logger at a fresh attempt: the superseded attempt's providers are
-    bound methods of that logger, so left attached they would silently serve
-    the *new* attempt's recorder/log/buffer data under the old attempt's
-    eval_id. Detaching them makes the superseded attempt's reads fall back to
-    its own ``log_location`` — its data stays correct until the retry sweep
-    removes that log, after which per-sample reads degrade to empty/404
-    (the counters on the state itself are unaffected). No-ops if the eval
-    isn't registered.
+    Decrements the bucket the prior terminal outcome bumped (``errored`` or
+    ``cancelled``, per the prior record's status) — the sample re-occupies
+    its planned slot, so ``total`` never changes and the re-run bumps a
+    bucket again at its own terminal outcome (``terminal == total`` still
+    holds at the end; :func:`finalize_eval`'s shortfall fold reconciles a
+    re-run torn down before recording). Cumulative usage
+    (``total_tokens`` / ``total_messages``) is *not* rolled back — the
+    prior attempt's spend was real. Called synchronously in the requeue
+    accept path (see ``design/ctl/sample-requeue.md``). Silently no-ops if
+    the eval isn't registered.
+
+    Guarded against decrementing a bucket below zero: that would mean the
+    caller's message-based classification of the prior record diverged from
+    the bucket its terminal recording actually bumped, so fail loudly (a
+    warning naming the divergence) rather than corrupting the counters.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
-            state.summaries_provider = None
-            state.sample_provider = None
-            state.events_provider = None
+            bucket = "errored" if prior_status == "error" else "cancelled"
+            count = getattr(state, bucket)
+            if count <= 0:
+                logger.warning(
+                    f"requeue accepted a prior with status '{prior_status}' "
+                    f"but the eval's {bucket} count is {count} (eval "
+                    f"{eval_id}) — classification/bucket divergence; not "
+                    "decremented"
+                )
+            else:
+                setattr(state, bucket, count - 1)
+
+
+def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
+    """Register the running attempt's sample-requeue capability.
+
+    Called by ``task_run`` when the sample fanout starts — later than
+    :func:`register_eval`, because the scheduler the handle closes over
+    doesn't exist until then. Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.sample_requeue = handle
+
+
+def record_samples_added(
+    eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
+) -> None:
+    """Grow a running eval's planned totals when samples are added dynamically.
+
+    Called by ``task_run`` when a ``SampleSource`` injects samples mid-run:
+    ``total`` is the number of additional planned runs (samples × epochs) and
+    ``sample_ids`` the injected ids (so the per-sample listing can surface them
+    as pending). The eval is :attr:`EvalState.dynamic`, so no provisional
+    finish stamp needs clearing here — ``completed_at`` stays ``None`` until
+    :func:`finalize_eval`. No-ops if unregistered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.total += total
+            if sample_ids:
+                state.sample_ids.extend(sample_ids)
+
+
+def latest_eval_for_task(task_id: str) -> "EvalState | None":
+    """The last-registered attempt of ``task_id``, or ``None`` if untracked.
+
+    The same fold rule the summaries use (registration order — a retry
+    registers after the attempt it supersedes), so a task-keyed directive
+    acts on the attempt the read surface reports as current. A non-``None``
+    result doubles as the existence check for task-keyed directives —
+    including reused-log tasks registered via :func:`register_completed_eval`,
+    which never run here but should get "not adjustable" warnings rather
+    than a 404. A falsy ``task_id`` never resolves (states without one are
+    addressable only by eval id).
+    """
+    if not task_id:
+        return None
+    with _lock:
+        latest = None
+        for state in _eval_states.values():
+            if state.task_id == task_id:
+                latest = state
+        return latest
+
+
+def mark_eval_retry_pending(eval_id: str) -> None:
+    """Record that a retry of this (errored, finished) attempt has been queued.
+
+    Called by the eval-set runner at the point it decides to re-queue a
+    failed task — after the attempt's ``finalize_eval`` (which stamped
+    ``completed_at``) and before the retry attempt starts (which registers
+    a fresh :class:`EvalState`). See :attr:`EvalState.retry_pending` for
+    why the window between those two events needs the flag. No-ops if the
+    eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.retry_pending = True
+
+
+def detach_eval_live(eval_id: str) -> None:
+    """Detach a superseded attempt's live data source.
+
+    Called by ``TaskLogger.reinit()`` when a task retry re-points the (one,
+    shared) logger at a fresh attempt: the superseded attempt's :attr:`live`
+    is that same logger, so left attached it would silently serve the *new*
+    attempt's recorder/log/buffer data under the old attempt's eval_id.
+    Clearing it makes the superseded attempt's reads fall back to its own
+    ``log_location`` — its data stays correct until the retry sweep removes
+    that log, after which per-sample reads degrade to empty/404 (the counters
+    on the state itself are unaffected).
+
+    The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
+    requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
+    mutate a dead attempt's scheduler.
+
+    No-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.live = None
+            state.sample_requeue = None
 
 
 def finalize_eval(eval_id: str) -> None:
@@ -532,6 +746,9 @@ def finalize_eval(eval_id: str) -> None:
             shortfall = state.total - state.terminal
             if shortfall > 0:
                 state.cancelled += shortfall
+            # the task has truly finished — no source can add samples now, so
+            # the dynamic suppression of the finish stamp no longer applies
+            state.dynamic = False
             _maybe_mark_finished(state)
 
 
@@ -541,12 +758,15 @@ def _maybe_mark_finished(state: EvalState) -> None:
     Fires the first time the terminal sum (``completed + errored +
     cancelled``) reaches ``total``; later updates are no-ops so a late
     counter update from a teardown race doesn't overwrite the original
-    finish time. Also drops
+    finish time. Suppressed for a :attr:`EvalState.dynamic` eval — its
+    counters reaching ``total`` doesn't mean done (the source may add more
+    samples); ``finalize_eval`` clears the flag at the task's true finish
+    point. Also drops
     ``sample_ids`` — a finished eval has no pending samples, so the
     planned-id list is dead weight (it's retained on the state until the
     run boundary clears it). Caller must hold the registry lock.
     """
-    if state.completed_at is None and state.is_finished:
+    if state.completed_at is None and not state.dynamic and state.is_finished:
         state.completed_at = time.time()
         state.sample_ids = []
 
@@ -568,7 +788,37 @@ def clear_all_eval_states() -> None:
 
     Called at the outermost run boundary (``eval`` / ``eval_set``) — after
     any keep-alive park — to clear the registry in one shot, since evals
-    are no longer unregistered individually.
+    are no longer unregistered individually. The terminal-source caches
+    (events / messages) are cleared in the same shot: every cached source
+    was derived from a registered eval, so none may outlive the registry.
     """
+    from inspect_ai._control.terminal_cache import clear_terminal_source_caches
+
     with _lock:
         _eval_states.clear()
+    clear_terminal_source_caches()
+
+
+def reset_run_registries() -> None:
+    """Reset the process-scoped control-channel registries at a run boundary.
+
+    The single reset call for the outermost run boundary (``eval`` /
+    ``eval_set``, after any keep-alive park). Both boundaries call this one
+    helper so a future process-scoped registry can't get its reset added at
+    one boundary and leak stale state through the other — add new resets
+    here, not at the call sites.
+    """
+    from inspect_ai._control.config_record import reset_process_config_updates
+    from inspect_ai._control.pause import (
+        reset_process_pause,
+        reset_task_pause_gates,
+    )
+    from inspect_ai.model._generate_overrides import (
+        reset_generate_config_overrides,
+    )
+
+    clear_all_eval_states()
+    reset_generate_config_overrides()
+    reset_process_config_updates()
+    reset_task_pause_gates()
+    reset_process_pause()

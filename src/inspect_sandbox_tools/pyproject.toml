@@ -96,7 +96,9 @@ dependencies = [
     "aiohttp",
     "httpx",
     "jsonrpcserver",
-    "mcp",
+    # mcp_server_session.py uses mcp 1.x-only APIs (JSONRPCMessage.model_validate_json
+    # and .root); keep below 2.x until that code is ported to the 2.x API
+    "mcp>=1.10.0,<2",
     "packaging",
     "pydantic",
     "returns",
@@ -120,6 +122,11 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "pytest-dotenv",
+    # Provider SDKs the model-proxy tests point at the proxy to exercise it
+    # end-to-end (dummy keys + mock bridge service; no real API access).
+    "anthropic",
+    "openai",
+    "google-genai",
 ]
 
 dist = ["twine", "build"]

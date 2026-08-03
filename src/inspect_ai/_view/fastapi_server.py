@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import secrets
 import urllib.parse
 from io import BytesIO
 from logging import getLogger
@@ -20,18 +21,28 @@ from starlette.status import (
     HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
 )
-from starlette.types import Scope
+from starlette.types import ASGIApp, Scope
 from typing_extensions import override
 
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
+from inspect_ai._util.asyncfiles import AsyncFilesystem, bind_async_filesystem
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
 from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
-from inspect_ai._view import notify
-from inspect_ai._view._dist import resolve_dist_directory
-from inspect_ai._view.common import (
+from inspect_ai.log import EvalLog
+from inspect_ai.log._edit import LogUpdate
+from inspect_ai.log._file import read_eval_log_headers_async
+from inspect_ai.log._recorders.buffer import sample_buffer
+from inspect_ai.log._recorders.buffer.types import (
+    PendingSampleUrls,
+    SampleData,
+    Samples,
+)
+
+from ._dist import resolve_dist_directory
+from .common import (
     AppConfig,
     LogDirResponse,
     LogFilesResponse,
@@ -50,21 +61,27 @@ from inspect_ai._view.common import (
     get_logs,
     normalize_uri,
     parse_log_token,
+    read_eval_set_info_async,
     stream_log_bytes,
 )
-from inspect_ai._view.scout_routes import get_scout_search_router
-from inspect_ai._view.user_info import UserInfo, user_info
-from inspect_ai.log import EvalLog
-from inspect_ai.log._edit import LogUpdate
-from inspect_ai.log._file import read_eval_log_headers_async
-from inspect_ai.log._recorders.buffer import sample_buffer
-from inspect_ai.log._recorders.buffer.types import (
-    PendingSampleUrls,
-    SampleData,
-    Samples,
+from .network import (
+    BrowserOriginMiddleware,
+    HostValidationMiddleware,
+    SecurityHeadersMiddleware,
+    ViewerNetworkPolicy,
+    resolve_viewer_network_policy,
+    unsafe_network_warning,
 )
+from .notify import view_last_eval_time
+from .scout_routes import get_scout_search_router
+from .user_info import UserInfo, user_info
 
 logger = getLogger(__name__)
+
+VIEW_REQUEST_HEADER = "X-Inspect-View-Request"
+VIEW_REQUEST_HEADER_VALUE = "true"
+
+SHARED_FS_CLIENT_TTL_SECONDS = 15 * 60
 
 
 class AccessPolicy(Protocol):
@@ -141,6 +158,14 @@ def view_server_app(
             if not await access_policy.can_list(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
+    def _validate_mutating_request(request: Request) -> None:
+        if request.headers.get(VIEW_REQUEST_HEADER) != VIEW_REQUEST_HEADER_VALUE:
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
+        fetch_dest = request.headers.get("Sec-Fetch-Dest")
+        if fetch_dest is not None and fetch_dest != "empty":
+            raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
     @app.get("/logs/{log:path}", response_model=EvalLog)
     async def api_log(
         request: Request,
@@ -168,8 +193,9 @@ def view_server_app(
             generate_direct_url=generate_direct_urls,
         )
 
-    @app.get("/log-delete/{log:path}")
+    @app.delete("/log-delete/{log:path}")
     async def api_log_delete(request: Request, log: str) -> bool:
+        _validate_mutating_request(request)
         file = normalize_uri(log)
         await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
@@ -177,6 +203,7 @@ def view_server_app(
 
     @app.post("/log-edit/{log:path}", response_model=EvalLog)
     async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
+        _validate_mutating_request(request)
         file = normalize_uri(log)
         await _validate_write(request, file)
         if_match = request.headers.get("If-Match")
@@ -257,8 +284,13 @@ def view_server_app(
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
 
+        # No explicit Content-Length: the file may change between
+        # get_log_size() and the read (in-progress evals are rewritten
+        # in place), and a stale size makes clients fail the download.
+        # The buffered branch lets the framework set it from the actual
+        # body; the streaming branch uses chunked transfer encoding
+        # (same rationale as /log-bytes above).
         headers = {
-            "Content-Length": str(file_size),
             "Content-Disposition": f'attachment; filename="{filename}"',
         }
 
@@ -330,6 +362,8 @@ def view_server_app(
         for entry in listing.files:
             entry.name = await _unmap_file(request, entry.name)
         listing.log_dir = await _unmap_file(request, listing.log_dir)
+        if listing.log_dir_uri is not None:
+            listing.log_dir_uri = await _unmap_file(request, listing.log_dir_uri)
         return listing
 
     @app.get(
@@ -354,10 +388,13 @@ def view_server_app(
         # validate that the directory can be listed
         await _validate_list(request, eval_set_dir)
 
-        # return the eval set info for this directory
-        return read_eval_set_info(
-            await _map_file(request, eval_set_dir), fs_options=fs_options
-        )
+        # return the eval set info for this directory (async fs, not to_thread —
+        # see the fsspec/to_thread warning in AGENTS.md)
+        mapped = await _map_file(request, eval_set_dir)
+        if fs_options:
+            return read_eval_set_info(mapped, fs_options=fs_options)
+        async with AsyncFilesystem() as afs:
+            return await read_eval_set_info_async(mapped, afs)
 
     @app.get("/flow")
     async def flow(
@@ -378,13 +415,19 @@ def view_server_app(
         await _validate_list(request, flow_dir)
 
         mapped_dir = await _map_file(request, flow_dir)
-        fs = filesystem(mapped_dir)
-        flow_file = f"{mapped_dir}{fs.sep}flow.yaml"
-        if fs.exists(flow_file):
-            bytes = fs.read_bytes(flow_file)
+        sep = filesystem(mapped_dir).sep
+        flow_file = f"{mapped_dir.rstrip('/').rstrip(sep)}{sep}flow.yaml"
 
+        # async fs, not to_thread — see the fsspec/to_thread warning in AGENTS.md
+        async with AsyncFilesystem() as afs:
+            content = (
+                await afs.read_file(flow_file) if await afs.exists(flow_file) else None
+            )
+        if content is not None:
             return Response(
-                content=bytes.decode("utf-8"), status_code=200, media_type="text/yaml"
+                content=content.decode("utf-8"),
+                status_code=200,
+                media_type="text/yaml",
             )
         else:
             return Response(status_code=HTTP_404_NOT_FOUND)
@@ -420,7 +463,7 @@ def view_server_app(
     ) -> list[str]:
         return (
             ["refresh-evals"]
-            if last_eval_time and notify.view_last_eval_time() > int(last_eval_time)
+            if last_eval_time and view_last_eval_time() > int(last_eval_time)
             else []
         )
 
@@ -435,6 +478,9 @@ def view_server_app(
 
         client_etag = request.headers.get("If-None-Match")
 
+        # NOTE: sync on the event loop. The sample buffer can be filestore-backed
+        # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
+        # warning in AGENTS.md.
         buffer = sample_buffer(await _map_file(request, file))
         samples = buffer.get_samples(client_etag)
         if samples == "NotModified":
@@ -445,10 +491,11 @@ def view_server_app(
             response.headers["ETag"] = samples.etag
             return samples
 
-    @app.get("/log-message")
+    @app.post("/log-message")
     async def api_log_message(
         request: Request, log_file: str, message: str
     ) -> Response:
+        _validate_mutating_request(request)
         file = urllib.parse.unquote(log_file)
         await _validate_read(request, file)
 
@@ -475,6 +522,9 @@ def view_server_app(
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
 
+        # NOTE: sync on the event loop. The sample buffer can be filestore-backed
+        # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
+        # warning in AGENTS.md.
         buffer = sample_buffer(await _map_file(request, file))
         sample_data = buffer.get_sample_data(
             id=id,
@@ -560,11 +610,35 @@ def authorization_middleware(authorization: str) -> type[BaseHTTPMiddleware]:
             self, request: Request, call_next: RequestResponseEndpoint
         ) -> Response:
             auth_header = request.headers.get("authorization", None)
-            if auth_header != authorization:
+            if auth_header is None or not secrets.compare_digest(
+                auth_header.encode(), authorization.encode()
+            ):
                 return Response("Unauthorized", status_code=401)
             return await call_next(request)
 
     return AuthorizationMiddleware
+
+
+class AsyncFilesystemMiddleware:
+    """Bind one shared AsyncFilesystem for the lifetime of each request.
+
+    Pure-ASGI (not BaseHTTPMiddleware) so the ContextVar set here propagates to
+    the route handler and into its `tg_collect` fan-out tasks — BaseHTTPMiddleware
+    runs the endpoint in a separate task and would drop it. The single instance
+    keeps one warm aioboto3 client + connection pool across all requests, so S3
+    reads don't re-pay the credential/connection cold-start on every request.
+    """
+
+    def __init__(self, app: Any, fs: AsyncFilesystem) -> None:
+        self.app = app
+        self.fs = fs
+
+    async def __call__(self, scope: Scope, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        with bind_async_filesystem(self.fs):
+            await self.app(scope, receive, send)
 
 
 class _InspectStaticFiles(StaticFiles):
@@ -607,6 +681,49 @@ class OnlyDirAccessPolicy(AccessPolicy):
         return self._validate_log_dir(file)
 
 
+def standalone_view_app(
+    *,
+    log_dir: str,
+    network_policy: ViewerNetworkPolicy,
+    recursive: bool = True,
+    fs_options: dict[str, Any] = {},
+    generate_direct_urls: bool = False,
+    dist_dir: Path | None = None,
+) -> ASGIApp:
+    api = view_server_app(
+        mapping_policy=None,
+        access_policy=(
+            OnlyDirAccessPolicy(log_dir)
+            if network_policy.authorization is None
+            else None
+        ),
+        default_dir=log_dir,
+        recursive=recursive,
+        fs_options=fs_options,
+        generate_direct_urls=generate_direct_urls,
+    )
+
+    resolved_dist_dir = dist_dir or resolve_dist_directory()
+
+    @api.get("/dist")
+    async def api_dist() -> dict[str, str]:
+        return {"path": resolved_dist_dir.as_posix()}
+
+    app = FastAPI()
+    app.mount("/api", BrowserOriginMiddleware(api, network_policy))
+    app.mount(
+        "/",
+        _InspectStaticFiles(directory=resolved_dist_dir.as_posix(), html=True),
+        name="static",
+    )
+
+    if network_policy.authorization:
+        app.add_middleware(authorization_middleware(network_policy.authorization))
+
+    protected_app: ASGIApp = HostValidationMiddleware(app, network_policy)
+    return SecurityHeadersMiddleware(protected_app)
+
+
 def view_server(
     log_dir: str,
     recursive: bool = True,
@@ -615,49 +732,67 @@ def view_server(
     authorization: str | None = None,
     fs_options: dict[str, Any] = {},
     generate_direct_urls: bool = False,
+    trusted_origins: tuple[str, ...] = (),
+    trusted_hosts: tuple[str, ...] = (),
+    unsafe_allow_unauthenticated: bool = False,
+    network_policy: ViewerNetworkPolicy | None = None,
 ) -> None:
+    network_policy = network_policy or resolve_viewer_network_policy(
+        bind_host=host,
+        port=port,
+        trusted_hosts=trusted_hosts,
+        trusted_origins=trusted_origins,
+        authorization=authorization,
+        unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
+    )
+
     # get filesystem and resolve log_dir to full path
     fs = filesystem(log_dir)
     if not fs.exists(log_dir):
         fs.mkdir(log_dir, True)
     log_dir = fs.info(log_dir).name
 
-    # setup server
-    api = view_server_app(
-        mapping_policy=None,
-        access_policy=OnlyDirAccessPolicy(log_dir) if not authorization else None,
-        default_dir=log_dir,
+    app = standalone_view_app(
+        log_dir=log_dir,
+        network_policy=network_policy,
         recursive=recursive,
         fs_options=fs_options,
         generate_direct_urls=generate_direct_urls,
     )
 
-    dist_dir = resolve_dist_directory()
-
-    @api.get("/dist")
-    async def api_dist() -> dict[str, str]:
-        return {"path": dist_dir.as_posix()}
-
-    app = FastAPI()
-    app.mount("/api", api)
-    app.mount(
-        "/",
-        _InspectStaticFiles(directory=dist_dir.as_posix(), html=True),
-        name="static",
-    )
-
-    if authorization:
-        app.add_middleware(authorization_middleware(authorization))
+    # one server-lifetime async filesystem (shared client + connection pool)
+    # bound into every request by AsyncFilesystemMiddleware; client_ttl so the
+    # long-running server picks up externally rotated static AWS credentials
+    shared_fs = AsyncFilesystem(client_ttl=SHARED_FS_CLIENT_TTL_SECONDS)
+    app = AsyncFilesystemMiddleware(app, fs=shared_fs)
 
     # filter request log (remove /api/events)
     filter_fastapi_log()
 
     # run app
     display().print(f"Inspect View: {log_dir}")
+    warning = unsafe_network_warning(network_policy)
+    if warning:
+        logger.warning(warning)
 
     async def run_server() -> None:
+        async def warm_shared_fs() -> None:
+            # Warm the shared async S3 client (connection pool + credentials)
+            # concurrently with server startup, so the first request doesn't
+            # pay the cold-start but slow credential resolution doesn't delay
+            # listening. Only relevant for S3; other backends don't use the
+            # aioboto3 client.
+            try:
+                await shared_fs.exists(log_dir)
+            except Exception:
+                logger.warning("Failed to pre-warm shared S3 filesystem", exc_info=True)
+
         config = uvicorn.Config(
-            app, host=host, port=port, log_config=None, timeout_keep_alive=15
+            app,
+            host=network_policy.bind_host,
+            port=network_policy.port,
+            log_config=None,
+            timeout_keep_alive=15,
         )
         server = uvicorn.Server(config)
 
@@ -666,16 +801,22 @@ def view_server(
                 await anyio.sleep(0.05)
 
             # Only show machine IP when binding to 0.0.0.0 (accessible from all interfaces)
-            machine_ip = host
-            if host == "0.0.0.0":
+            machine_ip = network_policy.bind_host
+            if network_policy.bind_host == "0.0.0.0":
                 machine_ip = get_machine_ip() or "0.0.0.0"
             display().print(
-                f"======== Running on http://{machine_ip}:{port} ========\n"
+                "======== Running on "
+                f"http://{machine_ip}:{network_policy.port} ========\n"
                 "(Press CTRL+C to quit)"
             )
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(announce_when_ready)
-            await server.serve()
+        try:
+            async with anyio.create_task_group() as tg:
+                if fs.is_s3():
+                    tg.start_soon(warm_shared_fs)
+                tg.start_soon(announce_when_ready)
+                await server.serve()
+        finally:
+            await shared_fs.close()
 
     anyio.run(run_server)

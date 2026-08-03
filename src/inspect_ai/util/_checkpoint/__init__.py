@@ -13,22 +13,25 @@ from ._triggers import (
     TokenInterval,
     TurnInterval,
 )
-from .checkpointer import Checkpointer, checkpointer
+from .checkpointer import Checkpointer, checkpointer, current_checkpointer
 from .config import (
     CheckpointConfig,
     CheckpointSampleConfig,
     normalize_checkpoint,
 )
+from .report import ResumeReport
 
 __all__ = [
     "CheckpointConfig",
     "CheckpointSampleConfig",
     "CheckpointTrigger",
     "Manual",
+    "ResumeReport",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",
     "checkpointer",
+    "current_checkpointer",
     "Checkpointer",
     "normalize_checkpoint",
 ]

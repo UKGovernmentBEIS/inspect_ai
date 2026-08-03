@@ -101,8 +101,11 @@ def get_url(
         if service == "noVNC":
             return f"http://localhost:{host_port}?view_only=true&autoconnect=true&resize=scale"
 
-        if service.startswith("HTTP"):
+        if service.startswith("HTTPS"):
             return f"https://localhost:{host_port}"
+
+        if service.startswith("HTTP"):
+            return f"http://localhost:{host_port}"
 
         if service.startswith("VNC"):
             return f"vnc://localhost:{host_port}"

@@ -251,18 +251,7 @@ def test_ollama_effort_none_omitted():
 # -- OpenAI Responses path max -> xhigh clamp --
 
 
-@pytest.mark.parametrize(
-    "effort,expected",
-    [
-        ("minimal", "minimal"),
-        ("low", "low"),
-        ("medium", "medium"),
-        ("high", "high"),
-        ("xhigh", "xhigh"),
-        ("max", "xhigh"),  # OpenAI's highest published value is xhigh
-    ],
-)
-def test_openai_responses_max_clamped_to_xhigh(effort, expected):
+def _openai_responses_params(effort, supports_max):
     from unittest.mock import MagicMock
 
     from openai._types import NOT_GIVEN
@@ -286,8 +275,9 @@ def test_openai_responses_max_clamped_to_xhigh(effort, expected):
     model_info.is_deep_research.return_value = False
     model_info.is_codex.return_value = False
     model_info.is_latest.return_value = False
+    model_info.supports_max_reasoning_effort.return_value = supports_max
 
-    params = completion_params_responses(
+    return completion_params_responses(
         "gpt-5",
         model_info=model_info,
         config=GenerateConfig(reasoning_effort=effort),
@@ -300,7 +290,122 @@ def test_openai_responses_max_clamped_to_xhigh(effort, expected):
         tool_params=[],
         has_computer_tool=False,
     )
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "minimal"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "xhigh"),
+        ("max", "xhigh"),  # pre-5.6 models top out at xhigh
+    ],
+)
+def test_openai_responses_max_clamped_to_xhigh(effort, expected):
+    params = _openai_responses_params(effort, supports_max=False)
     assert params["reasoning"]["effort"] == expected
+
+
+def test_openai_responses_max_passed_through_when_supported():
+    params = _openai_responses_params("max", supports_max=True)
+    assert params["reasoning"]["effort"] == "max"
+
+
+def _responses_params_for(model_name, config):
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai import OpenAIAPI
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
+
+    api = OpenAIAPI(model_name=model_name, api_key="test-key")
+    return completion_params_responses(
+        model_name,
+        model_info=api,
+        config=config,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        tools=False,
+        tool_params=[],
+        has_computer_tool=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-5.6", "max"),
+        ("gpt-5.6-sol", "max"),
+        ("gpt-5.5", "xhigh"),
+    ],
+)
+def test_openai_responses_max_effort_by_model(model_name, expected):
+    params = _responses_params_for(model_name, GenerateConfig(reasoning_effort="max"))
+    assert params["reasoning"]["effort"] == expected
+
+
+# -- OpenAI Responses reasoning.mode (pro mode) --
+
+
+# reasoning_mode is passed through for all models (the API accepts "pro"
+# wherever it can be honored — gpt-5.6+ and legacy -pro models — and rejects
+# it with a clear param-naming error otherwise)
+@pytest.mark.parametrize("model_name", ["gpt-5.6-sol", "gpt-5.5", "gpt-5-pro"])
+@pytest.mark.parametrize("mode", ["pro", "standard"])
+def test_openai_responses_reasoning_mode_passed_through(model_name, mode):
+    params = _responses_params_for(model_name, GenerateConfig(reasoning_mode=mode))
+    assert params["reasoning"]["mode"] == mode
+
+
+def test_openai_responses_reasoning_mode_omitted_by_default():
+    params = _responses_params_for(
+        "gpt-5.6-sol", GenerateConfig(reasoning_effort="low")
+    )
+    assert "mode" not in params["reasoning"]
+
+
+def test_openai_responses_reasoning_mode_composes_with_effort():
+    params = _responses_params_for(
+        "gpt-5.6-sol", GenerateConfig(reasoning_mode="pro", reasoning_effort="high")
+    )
+    assert params["reasoning"]["mode"] == "pro"
+    assert params["reasoning"]["effort"] == "high"
+
+
+def test_openai_responses_pro_mode_suppresses_sampling_params():
+    params = _responses_params_for(
+        "gpt-5.6-sol", GenerateConfig(reasoning_mode="pro", temperature=0.7)
+    )
+    assert "temperature" not in params
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("gpt-5", False),
+        ("gpt-5.5", False),
+        ("gpt-5.5-pro", False),
+        ("gpt-5.6", True),
+        ("gpt-5.6-sol", True),
+        ("gpt-5.6-terra", True),
+        ("gpt-5.6-luna", True),
+        ("gpt-6", True),
+        ("gpt-4o", False),
+        ("o3", False),
+        ("foo-bar-22", True),  # codename frontier
+    ],
+)
+def test_openai_supports_max_reasoning_effort(model_name, expected):
+    from inspect_ai.model._providers.openai import OpenAIAPI
+
+    api = OpenAIAPI(model_name=model_name, api_key="test-key")
+    assert api.supports_max_reasoning_effort() is expected
 
 
 # -- OpenRouter max -> xhigh clamp --
@@ -358,6 +463,25 @@ def test_grok_effort_mapping(effort, expected) -> None:
     assert gconfig.get("reasoning_effort") == expected
 
 
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_grok_4_5_effort_mapping(effort, expected) -> None:
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.5", api_key="test-key")
+    gconfig = api._grok_params(GenerateConfig(reasoning_effort=effort))
+    assert gconfig.get("reasoning_effort") == expected
+
+
 def test_grok_4_original_excluded_from_reasoning_effort():
     """The deprecated grok-4 reasons but does not accept reasoning_effort."""
     from inspect_ai.model._providers.grok import GrokAPI
@@ -365,7 +489,7 @@ def test_grok_4_original_excluded_from_reasoning_effort():
     for name in ("grok-4", "grok-4-latest", "grok-4-0709"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert api.is_grok_4_original(), f"{name} should be detected as original"
-    # grok-4.3 / 4-fast / 4.20 are NOT the original
-    for name in ("grok-4.3", "grok-4-fast-reasoning", "grok-4.20"):
+    # grok-4.3 / 4-fast / 4.20 / 4.5 are NOT the original
+    for name in ("grok-4.3", "grok-4-fast-reasoning", "grok-4.20", "grok-4.5"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert not api.is_grok_4_original(), f"{name} must not be original"

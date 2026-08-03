@@ -9,12 +9,14 @@ from inspect_ai._eval.registry import task, task_source
 from inspect_ai._eval.score import score, score_async
 from inspect_ai._eval.task import (
     Epochs,
+    SampleSource,
     Task,
     TaskInfo,
     TaskSource,
     task_with,
 )
 from inspect_ai._eval.task.enqueue import enqueue_task
+from inspect_ai._eval.task.sample_source import enqueue_sample
 from inspect_ai._eval.task.scan import ScannerConfig, Scanners
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
@@ -42,6 +44,7 @@ __all__ = [
     "Epochs",
     "Scanners",
     "ScannerConfig",
+    "SampleSource",
     "Task",
     "Tasks",
     "TaskInfo",
@@ -49,6 +52,7 @@ __all__ = [
     "task",
     "task_source",
     "task_with",
+    "enqueue_sample",
     "enqueue_task",
     "view",
 ]

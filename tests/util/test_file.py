@@ -43,6 +43,18 @@ def test_filesystem_file_info():
     assert info.size == 0
 
 
+def test_is_writeable_strips_trailing_sep():
+    # is_writeable builds a "<path><sep><marker>" write-test file. A trailing
+    # slash on the path must be stripped first, otherwise the marker path gets a
+    # double separator (e.g. "s3://bucket/logs//.inspect_write_test"), which is a
+    # malformed key on S3/Azure.
+    fs = filesystem("memory://")
+    with patch.object(fs, "touch") as mock_touch, patch.object(fs, "rm"):
+        fs.is_writeable("mydir/")
+    touch_path = mock_touch.call_args[0][0]
+    assert f"{fs.fs.sep}{fs.fs.sep}" not in touch_path
+
+
 @pytest.mark.parametrize(
     "installed_version",
     [HF_FILESYSTEM_REQUIRED_VERSION, "1.6", "1.6.0.post1", "1.6.1", "2.0.0"],

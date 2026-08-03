@@ -204,6 +204,28 @@
     "model_cards": []
   },
   {
+    "id": "tinycomputerai_bun_server_bench",
+    "name": "bun-server-bench",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "bun-server-bench: a correctness benchmark of 50 production-shaped Bun server engineering tasks for evaluating AI coding agents.",
+    "paper": "https://github.com/tinycomputerai/bun-server-bench",
+    "code": "inspect_harbor/tinycomputerai_bun_server_bench",
+    "contributors": [],
+    "samples": 50,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/tinycomputerai_bun_server_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "gnucleus_ai_cad_bench",
     "name": "CAD-Bench",
     "source": "harbor",
@@ -1661,6 +1683,28 @@
     "model_cards": []
   },
   {
+    "id": "grandsmile_unicode",
+    "name": "UniCode",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "UniCode: competitive-programming problems systematically augmented into novel variations to probe genuine code reasoning rather than memorized solutions, scored against an oracle-verified solvable subset.",
+    "paper": "https://arxiv.org/abs/2510.17868",
+    "code": "inspect_harbor/grandsmile_unicode",
+    "contributors": [],
+    "samples": 399,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/grandsmile_unicode.html",
+    "model_cards": []
+  },
+  {
     "id": "usaco",
     "name": "USACO",
     "source": "evals",
@@ -1946,6 +1990,28 @@
     "model_cards": []
   },
   {
+    "id": "orinlabs_horizon_public",
+    "name": "Horizon",
+    "source": "harbor",
+    "categories": [
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Horizon: public example subset of a learning benchmark for extremely long-horizon agents — the agent must acquire knowledge from a long first-person session history and apply it to resolve a later request in the environment.",
+    "paper": "https://github.com/orinlabs/horizon",
+    "code": "inspect_harbor/orinlabs_horizon_public",
+    "contributors": [],
+    "samples": 3,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/orinlabs_horizon_public.html",
+    "model_cards": []
+  },
+  {
     "id": "mind2web",
     "name": "Mind2Web",
     "source": "evals",
@@ -2043,6 +2109,28 @@
     "samples": 150,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/agentscope_ai_pawbench.html",
+    "model_cards": []
+  },
+  {
+    "id": "benchflow_skillsbench",
+    "name": "SkillsBench",
+    "source": "harbor",
+    "categories": [
+      "Assistants"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SkillsBench: agent benchmark measuring how effectively models compose and use modular skills (folders of instructions, scripts, and resources) to complete specialized workflows spanning science, engineering, and professional domains.",
+    "paper": "https://github.com/benchflow-ai/skillsbench",
+    "code": "inspect_harbor/benchflow_skillsbench",
+    "contributors": [],
+    "samples": 87,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/benchflow_skillsbench.html",
     "model_cards": []
   },
   {
@@ -3989,8 +4077,8 @@
     "model_cards": []
   },
   {
-    "id": "harbor_rewardhackbench",
-    "name": "RewardHackBench",
+    "id": "islo_labs_reward_hack_bench",
+    "name": "Reward-Hack-Bench",
     "source": "harbor",
     "categories": [
       "Safeguards"
@@ -4001,13 +4089,35 @@
       "agent",
       "sandbox"
     ],
-    "desc": "RewardHackBench: judge benchmark for detecting reward hacking in agent trajectories — each trace is labelled for harness-level cheating, task-level reward hacking, and refusals.",
-    "paper": null,
-    "code": "inspect_harbor/harbor_rewardhackbench",
+    "desc": "Reward-hacking benchmark: SWE-bench + CyBench tasks with injected solution-retrieval cheat prompts, scored by a fairness LLM judge. Reward = solved without cheating.",
+    "paper": "https://github.com/islo-labs/reward-hack-bench",
+    "code": "inspect_harbor/islo_labs_reward_hack_bench",
     "contributors": [],
-    "samples": 846,
+    "samples": 8,
     "featured": false,
-    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harbor_rewardhackbench.html",
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/islo_labs_reward_hack_bench.html",
+    "model_cards": []
+  },
+  {
+    "id": "islo_labs_reward_hack_bench_control",
+    "name": "Reward-Hack-Bench (Control)",
+    "source": "harbor",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Baseline/control companion to reward-hack-bench: the same 8 SWE-bench + CyBench tasks with NO cheat prompt, still scored by the fairness judge. Also packages these CyBench/GlacierCTF tasks as Harbor tasks.",
+    "paper": "https://github.com/islo-labs/reward-hack-bench",
+    "code": "inspect_harbor/islo_labs_reward_hack_bench_control",
+    "contributors": [],
+    "samples": 8,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/islo_labs_reward_hack_bench_control.html",
     "model_cards": []
   },
   {
@@ -4097,9 +4207,10 @@
     "code": "inspect_evals/tac",
     "contributors": [
       "darkness8i8",
-      "joel-christoph"
+      "joel-christoph",
+      "oTullio"
     ],
-    "samples": 48,
+    "samples": 52,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/tac/",
     "model_cards": []

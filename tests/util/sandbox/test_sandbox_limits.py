@@ -6,6 +6,7 @@ from inspect_ai.util._sandbox.limits import (
     _human_readable_size,
     _parse_limit_env_var,
     override_max_exec_output_size,
+    override_sandbox_output_limit,
     reset_sandbox_limits,
     set_sandbox_limits,
     verify_read_file_size,
@@ -94,6 +95,38 @@ def test_override_max_exec_output_size_restores_on_error():
             assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 100 * 1024**2
             raise RuntimeError("boom")
     assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+
+
+def test_override_sandbox_output_limit_both():
+    assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+    assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 100 * 1024**2
+    with override_sandbox_output_limit(500 * 1024**2):
+        assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 500 * 1024**2
+        assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 500 * 1024**2
+    assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+    assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 100 * 1024**2
+
+
+def test_override_sandbox_output_limit_single_target():
+    with override_sandbox_output_limit(500 * 1024**2, "exec"):
+        assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 500 * 1024**2
+        assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 100 * 1024**2
+    assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+
+    with override_sandbox_output_limit(500 * 1024**2, "read_file"):
+        assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 500 * 1024**2
+        assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+    assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 100 * 1024**2
+
+
+def test_override_sandbox_output_limit_restores_on_error():
+    with pytest.raises(RuntimeError):
+        with override_sandbox_output_limit(500 * 1024**2):
+            assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 500 * 1024**2
+            assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 500 * 1024**2
+            raise RuntimeError("boom")
+    assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+    assert SandboxEnvironmentLimits.MAX_READ_FILE_SIZE == 100 * 1024**2
 
 
 def test_verify_read_file_size_under_limit(tmp_path):

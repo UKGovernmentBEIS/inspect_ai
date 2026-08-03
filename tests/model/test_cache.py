@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
+import pytest
 from test_helpers.utils import run_example
 
 from inspect_ai import Task, eval
@@ -14,7 +16,13 @@ def test_cache_examples():
     assert all(log.status == "success" for log in logs)
 
 
-def test_cache():
+def test_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    # The miss-then-hit assertion below requires a cache no other test can
+    # touch: under pytest-xdist a concurrent worker (e.g. test_cache_examples
+    # exercising expiry policies) can evict entries from the shared cache dir
+    # between the two evals.
+    monkeypatch.setenv("INSPECT_CACHE_DIR", str(tmp_path))
+
     # helper to check for cache hit
     def sample_cache_hit(sample: EvalSample) -> bool:
         return (

@@ -57,6 +57,12 @@ class NNterpAPI(ModelAPI):
         dtype = collect_model_arg("dtype", torch.float16)
         self.hidden_states = collect_model_arg("hidden_states", False)
 
+        if self.api_key is not None:
+            model_args["token"] = self.api_key
+            tokenizer_kwargs = dict(model_args.get("tokenizer_kwargs") or {})
+            tokenizer_kwargs["token"] = self.api_key
+            model_args["tokenizer_kwargs"] = tokenizer_kwargs
+
         self.model = StandardizedTransformer(
             model_name,
             dispatch=dispatch,

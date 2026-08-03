@@ -7,6 +7,7 @@ from openai import (
     APIStatusError,
     AsyncOpenAI,
     BadRequestError,
+    LengthFinishReasonError,
     PermissionDeniedError,
     UnprocessableEntityError,
 )
@@ -51,6 +52,7 @@ from .._openai import (
     openai_completion_params,
     openai_handle_bad_request,
     openai_media_filter,
+    supports_native_max_reasoning_effort,
 )
 from .util import environment_prerequisite_error, model_base_url
 
@@ -66,6 +68,7 @@ class OpenAICompatibleAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         service: str | None = None,
         service_base_url: str | None = None,
+        api_key_var: str | None = None,
         emulate_tools: bool = False,
         responses_api: bool | None = None,
         responses_store: bool | None = None,
@@ -85,9 +88,12 @@ class OpenAICompatibleAPI(ModelAPI):
         else:
             self.service = service
 
-        # compute api key
+        # Compute API key env var name (e.g. HF_API_KEY). Callers may provide a
+        # non-standard env var (e.g. HF_TOKEN). Ensure the API key override
+        # hooks in ModelAPI receive the env var name the value actually came
+        # from.
         service_env_name = self.service.upper().replace("-", "_")
-        api_key_var = f"{service_env_name}_API_KEY"
+        api_key_var = api_key_var or f"{service_env_name}_API_KEY"
 
         super().__init__(
             model_name=model_name,
@@ -280,6 +286,17 @@ class OpenAICompatibleAPI(ModelAPI):
                     as_error_response(ex.body), self._http_hooks.end_request(request_id)
                 )
                 return self.handle_bad_request(ex), model_call
+            except APIStatusError as ex:
+                # 413 (payload too large) has no dedicated SDK exception type but
+                # is a bad-request-class error (e.g. CloudFlare signals context
+                # window overflow this way)
+                if ex.status_code == 413:
+                    model_call.set_error(
+                        as_error_response(ex.body),
+                        self._http_hooks.end_request(request_id),
+                    )
+                    return self.handle_bad_request(ex), model_call
+                raise
 
     def resolve_tools(
         self, tools: list[ToolInfo], tool_choice: ToolChoice, config: GenerateConfig
@@ -299,7 +316,10 @@ class OpenAICompatibleAPI(ModelAPI):
                     "probabilities.",
                 )
             async with self.client.chat.completions.stream(**request) as stream:
-                return await stream.get_final_completion()
+                try:
+                    return await stream.get_final_completion()
+                except LengthFinishReasonError as ex:
+                    return ex.completion
         else:
             return cast(
                 ChatCompletion, await self.client.chat.completions.create(**request)
@@ -333,7 +353,7 @@ class OpenAICompatibleAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -458,6 +478,9 @@ class ModelInfo(ResponsesModelInfo):
 
     def is_gpt_5_pro(self) -> bool:
         return self.is_gpt_5() and "-pro" in self.model_family
+
+    def supports_max_reasoning_effort(self) -> bool:
+        return supports_native_max_reasoning_effort(self.model_family)
 
     def is_gpt_5_chat(self) -> bool:
         return self.is_gpt_5() and "-chat" in self.model_family

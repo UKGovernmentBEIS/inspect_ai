@@ -55,6 +55,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
+from inspect_ai._util.http import status_code_of
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -68,6 +69,7 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.rich import format_traceback
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
+from inspect_ai.model._generate_overrides import generate_config_override
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
@@ -82,6 +84,8 @@ from inspect_ai.util._limit import (
     record_model_cost,
     record_model_usage,
     record_turn,
+    token_limit_usage,
+    turn_count,
 )
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
@@ -217,6 +221,11 @@ class ModelAPI(abc.ABC):
         self.base_url = base_url
         self.api_key = api_key
         self.api_key_vars = api_key_vars
+        # Stable pooling identity for connection_key(). Captured from the
+        # constructor before _apply_api_key_overrides() runs and never mutated
+        # afterwards, so it survives api_key rotation (e.g. a credential hook
+        # refreshing self.api_key via initialize()). See connection_key().
+        self.initial_api_key = api_key
         self._apply_api_key_overrides()
 
     def _apply_api_key_overrides(self) -> None:
@@ -410,7 +419,20 @@ class ModelAPI(abc.ABC):
         return DEFAULT_MAX_CONNECTIONS
 
     def connection_key(self) -> str:
-        """Scope for enforcement of max_connections."""
+        """Scope for enforcement of max_connections (and adaptive concurrency).
+
+        Two instances of the *same provider* that return the same key share one
+        connection pool. This method only needs to distinguish accounts/models
+        within a provider; the model layer adds the provider namespace on top
+        (see `_connection_pool_key`), so distinct providers never collide even
+        when their `connection_key()` values coincide.
+
+        Providers that scope by API key should use `self.initial_api_key` here,
+        NOT the live `self.api_key`: the live key can rotate mid-eval (e.g. a
+        credential hook refreshing it via `initialize()`), and keying on it
+        would discard all learned pool/adaptive state on every rotation.
+        ``initial_api_key`` is fixed at construction, so the scope stays stable.
+        """
         return "default"
 
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
@@ -567,6 +589,74 @@ def _stamp_redacted_reasoning_tokens(output: ModelOutput) -> None:
         **(output.message.metadata or {}),
         REDACTED_REASONING_TOKENS_METADATA_KEY: output.usage.reasoning_tokens,
     }
+
+
+def _connection_pool_key(api: ModelAPI) -> str:
+    """Provider-namespaced connection-pool key for the model layer.
+
+    Prefixes the provider's `connection_key()` with the provider class so two
+    providers serving the same model don't share a pool (e.g. `openai/gpt-5`
+    and `azureai/gpt-5`, whose `connection_key()` both reduce to `None:gpt-5`
+    when their api keys are elided).
+    """
+    return f"{type(api).__name__}:{api.connection_key()}"
+
+
+def model_concurrency_key(api: ModelAPI) -> str:
+    """Registry key of the model's generate-concurrency context.
+
+    The single definition of the key under which `_connection_concurrency`
+    registers a model's semaphore / adaptive controller — also computed by
+    `create_sample_semaphore` to scope a task's `DynamicSampleLimiter` to its
+    own model's controller, so the two sides can't drift.
+    """
+    return f"Model{_connection_pool_key(api)}"
+
+
+async def ensure_model_controller(model: "Model", config: GenerateConfig) -> None:
+    """Create the model's adaptive-connections controller if adaptive is active.
+
+    The controller is normally created lazily inside the model's first
+    generate; the run startup calls this ahead of time (before sandbox
+    startup, whose image pulls can take minutes) so the control channel can
+    observe and retune ``max_connections`` from the start of the run rather
+    than dropping a retune with a "not using adaptive connections" warning.
+
+    ``config`` is the task's would-be active generate config; it is composed
+    with the model's own config here exactly as ``_resolve_config`` does for
+    the active model, so this and the generate path cannot disagree on
+    whether adaptive is active or on the controller's bounds. That agreement
+    is load-bearing: the registry coalesces on key with first-created bounds
+    winning, so a controller created here from a divergent config would
+    silently override the bounds generates resolve (and a controller created
+    for a model whose generates take the static path would be a phantom —
+    reported and "retuned" by ``ctl config`` while gating nothing).
+
+    A no-op for the ``NoModel`` sentinel (nothing will generate) and when the
+    composed config says adaptive isn't active (explicit ``max_connections``,
+    batch mode, or ``adaptive_connections=False``).
+    """
+    from inspect_ai.model._providers.none import NoModel
+    from inspect_ai.util._concurrency import (
+        adaptive_active,
+        get_or_create_semaphore,
+        resolve_adaptive,
+    )
+
+    if isinstance(model.api, NoModel):
+        return
+    effective = model.config.merge(config)
+    if adaptive_active(
+        effective.adaptive_connections, effective.max_connections, effective.batch
+    ):
+        adaptive = resolve_adaptive(effective.adaptive_connections)
+        await get_or_create_semaphore(
+            str(ModelName(model)),
+            adaptive.start,
+            model_concurrency_key(model.api),
+            True,
+            adaptive,
+        )
 
 
 class Model:
@@ -818,12 +908,12 @@ class Model:
         """
         config = self._resolve_config(config)
 
-        # retry handler for token counting (429/timeouts retried with the
-        # same backoff and adaptive-controller signaling as `generate`).
-        # No per-model concurrency cap: count_tokens is O(delta) under the
-        # compaction baseline mechanism, max_samples already provides the
-        # structural ceiling, retries handle rate limits, and provider
-        # count_tokens envelopes are wider than generate envelopes.
+        # Retry handler for token counting (429/timeouts retried with the
+        # same backoff as `generate`). Count-token calls still need a
+        # concurrency bound -- a caller can fan out many counts inside one
+        # sample -- but token counting hits a different provider rate-limit
+        # bucket than inference, so it gets its own pool rather than sharing
+        # the generate() connection limiter.
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -841,7 +931,53 @@ class Model:
         ) -> int:
             return await self.api.count_tokens(input, config)
 
-        return await _count_tokens(input, config)
+        model_name = ModelName(self)
+        key = f"ModelCountTokens({_connection_pool_key(self.api)})"
+
+        from inspect_ai.log._samples import cleared_retry_wait
+        from inspect_ai.util._concurrency import (
+            AdaptiveConcurrencyController,
+            _active_controller,
+            _request_had_retry,
+            adaptive_active,
+            resolve_adaptive,
+        )
+
+        # Adaptive path mirrors `_connection_concurrency`: the count pool gets
+        # its own controller (kept distinct from generate's by the key above)
+        # that shrinks on count-endpoint 429s and grows past the static cap
+        # when the endpoint allows, so the bound learns the endpoint's real
+        # capacity instead of a fixed number that re-creates queueing.
+        if adaptive_active(
+            config.adaptive_connections, config.max_connections, config.batch
+        ):
+            adaptive = resolve_adaptive(config.adaptive_connections)
+            async with concurrency(
+                f"{model_name}_count_tokens",
+                adaptive.start,
+                key,
+                adaptive=adaptive,
+                visible=False,
+            ) as sem:
+                assert isinstance(sem, AdaptiveConcurrencyController)
+                token_c = _active_controller.set(sem)
+                token_r = _request_had_retry.set(False)
+                try:
+                    with cleared_retry_wait():
+                        result = await _count_tokens(input, config)
+                    # counts are never cached, so a retry-free call always
+                    # exercised the endpoint and counts as a clean success
+                    if not _request_had_retry.get():
+                        sem.notify_success()
+                    return result
+                finally:
+                    _active_controller.reset(token_c)
+                    _request_had_retry.reset(token_r)
+
+        # static fallback (explicit max_connections or batch mode)
+        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
+            with cleared_retry_wait():
+                return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -900,7 +1036,7 @@ class Model:
                 config.max_tokens = self.api.max_tokens()
 
         model_name = ModelName(self)
-        key = f"ModelCompact({self.api.connection_key()})"
+        key = f"ModelCompact({_connection_pool_key(self.api)})"
 
         async with concurrency(f"{model_name}_compact", 10, key, visible=False):
 
@@ -921,12 +1057,15 @@ class Model:
             ) -> tuple[list[ChatMessage], ModelUsage | None]:
                 return await self.api.compact(messages, tools, config, instructions)
 
+            from inspect_ai.log._samples import cleared_retry_wait
+
             # Call compact with retry handling
-            compacted_messages, usage = await _compact(input)
+            with cleared_retry_wait():
+                compacted_messages, usage = await _compact(input)
 
             # Record and check usage
             if usage:
-                record_and_check_model_usage(f"{self}", usage, role=self.role)
+                record_and_check_model_usage(self, usage, role=self.role)
 
             return compacted_messages, usage
 
@@ -950,7 +1089,10 @@ class Model:
         )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
-        from inspect_ai.log._samples import track_active_model_event
+        from inspect_ai.log._samples import (
+            cleared_retry_wait,
+            track_active_model_event,
+        )
 
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
@@ -1114,9 +1256,21 @@ class Model:
             )
 
             # create timeout context manager if we have an attempt timeout
+            # (resolved per attempt so a live `inspect ctl config` override
+            # applies from the next attempt onward). A batched call keeps its
+            # launch value: its attempt awaits an entire provider batch, and
+            # an override cancelling that wait would resubmit the request
+            # into a new batch on every retry (duplicated provider work) —
+            # the whole-batch blast radius the batchers' admin-op override
+            # opt-out exists to avoid.
+            attempt_timeout = (
+                config.attempt_timeout
+                if config.batch
+                else generate_config_override("attempt_timeout", config.attempt_timeout)
+            )
             timeout_cm = (
-                anyio.move_on_after(config.attempt_timeout)
-                if config.attempt_timeout is not None
+                anyio.move_on_after(attempt_timeout)
+                if attempt_timeout is not None
                 else contextlib.nullcontext()
             )
 
@@ -1150,7 +1304,7 @@ class Model:
                             isinstance(timeout_cm, anyio.CancelScope)
                             and timeout_cm.cancel_called
                         ):
-                            raise AttemptTimeoutError(config.attempt_timeout)
+                            raise AttemptTimeoutError(attempt_timeout)
                 except Exception as ex:
                     # Mark event as failed for uncaught provider exceptions
                     complete(ex, None)
@@ -1168,9 +1322,12 @@ class Model:
             if isinstance(output, Exception):
                 complete(output, call)
 
-                # Wrap the error in a runtime error which will show the
+                # Wrap the error in a ModelGenerateError which will show the
                 # request which caused the error (truncated to last
-                # 200 lines if larger to avoid overflowing terminal)
+                # 200 lines if larger to avoid overflowing terminal). The
+                # subclass preserves the provider status_code/message so the
+                # agent bridge can forward a faithful provider error rather
+                # than crashing the model proxy.
                 error = repr(output)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
                 max_lines = 200
@@ -1181,7 +1338,11 @@ class Model:
                         + request_lines[-max_lines:]
                     )
                 error_message = f"\nRequest:\n{request}\n\n{error}"
-                raise RuntimeError(error_message)
+                raise ModelGenerateError(
+                    error_message,
+                    status_code=status_code_of(output),
+                    provider_message=str(output),
+                ) from output
 
             # update output with time (call.time captures time spent
             # on the actual request that succeeds w/ status 200)
@@ -1200,7 +1361,7 @@ class Model:
 
             # record usage
             if output.usage:
-                record_and_check_model_usage(f"{self}", output.usage, role=self.role)
+                record_and_check_model_usage(self, output.usage, role=self.role)
 
                 # send telemetry to hooks
                 await emit_model_usage(
@@ -1219,7 +1380,8 @@ class Model:
         # call the model (this will do retries, etc., so report waiting time
         # as elapsed time - actual time for successful model call)
         time_start = time.monotonic()
-        model_output, event = await generate()
+        with cleared_retry_wait():
+            model_output, event = await generate()
         total_time = time.monotonic() - time_start
 
         # record any model fallback against the active sample (here in the
@@ -1238,7 +1400,15 @@ class Model:
         # double-counting nested generations: model.compact() does not flow
         # through this path, and sub-agent/scorer generations are scoped by
         # their own turn_limit() contexts (or none).
-        record_turn()
+        from inspect_ai.log._samples import set_active_sample_total_turns
+
+        # record_turn() raises when a turn limit is exceeded, but it records
+        # the tripping turn first -- push in a finally so the control channel
+        # sees the final count for a sample halted by its turn limit
+        try:
+            record_turn()
+        finally:
+            set_active_sample_total_turns(turn_count() or 0)
 
         # notify the adaptive controller of a clean success (no retries during
         # this logical request, AND not a cache hit since cache hits don't
@@ -1281,6 +1451,23 @@ class Model:
             # count toward adaptive scale-up, but the controller doesn't
             # scale down for what's essentially infra noise.
             if isinstance(ex, AttemptTimeoutError):
+                report_http_retry()
+                return True
+
+            # anyio asyncio-backend race: SocketStream.aclose() calls
+            # transport.abort() after connection_lost already ran (nulling
+            # transport._loop). Fires during response close, i.e. after the
+            # request completed — pure cleanup noise, so retry regardless of
+            # provider. The name/obj check keeps this working if CPython
+            # rewords the message: interpreter-raised AttributeError carries
+            # name="call_soon", obj=None for this race, without matching
+            # call_soon failures on non-None receivers.
+            # See https://github.com/agronholm/anyio/issues/1250
+            # See https://github.com/meridianlabs-ai/inspect_ai/issues/177
+            if isinstance(ex, AttributeError) and (
+                "'NoneType' object has no attribute 'call_soon'" in str(ex)
+                or (ex.name == "call_soon" and ex.obj is None)
+            ):
                 report_http_retry()
                 return True
 
@@ -1343,8 +1530,8 @@ class Model:
     # (which would likely cause the rate limit to be exceeded). conversely if
     # you are using distinct models/endpoints/accounts within an eval you should
     # be able get the full max_connections for each of them. subclasses can
-    # override the _connection_key() argument to provide a scope within which
-    # to enforce max_connections (e.g. by account/api_key, by endpoint, etc.)
+    # override connection_key() to provide a scope within which to enforce
+    # max_connections (e.g. by account/api_key, by endpoint, etc.)
 
     @contextlib.asynccontextmanager
     async def _connection_concurrency(
@@ -1361,7 +1548,7 @@ class Model:
         )
 
         model_name = ModelName(self)
-        key = f"Model{self.api.connection_key()}"
+        key = model_concurrency_key(self.api)
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
         # rules — both silent — keep deliberate overrides working under
@@ -1576,6 +1763,28 @@ or return ``None`` to allow default processing to continue.
 class AttemptTimeoutError(RuntimeError):
     def __init__(self, timeout: int | None) -> None:
         super().__init__(f"attempt_timeout '{timeout or 0}' exceeded.")
+
+
+class ModelGenerateError(RuntimeError):
+    """A model generation failed with a provider error.
+
+    Subclass of `RuntimeError` (so existing `except RuntimeError` / `except
+    Exception` handling and retry classification are unchanged) that
+    additionally preserves the originating provider HTTP `status_code` and a
+    clean `provider_message`. The agent bridge uses these to forward a faithful
+    provider error response to the proxied agent rather than crashing.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        provider_message: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.provider_message = provider_message
 
 
 class ModelName:
@@ -1974,7 +2183,6 @@ MEDIA_PLACEHOLDERS: dict[type, str] = {
     ContentDocument: "Document content is included below.",
 }
 
-MediaAccumulator: TypeAlias = tuple[list[ChatMessage], list[Content], list[str]]
 MediaContentAccumulator: TypeAlias = tuple[list[Content], list[Content]]
 
 
@@ -1987,13 +2195,44 @@ def tool_result_media_as_user_message(
     Tool responses will have matching media replaced with placeholder text,
     and the extracted content will appear in a new user message.
     """
-    message_reducer = _make_message_reducer(extract_types)
-    chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        message_reducer,
-        messages,
-        (list[ChatMessage](), list[Content](), list[str]()),
-    )
-    return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
+    content_reducer = _make_content_reducer(extract_types)
+    chat_messages: list[ChatMessage] = []
+    pending_content: list[Content] = []
+    tool_call_ids: list[str] = []
+    for message in messages:
+        if (
+            isinstance(message, ChatMessageTool)
+            and isinstance(message.content, list)
+            and any(isinstance(c, extract_types) for c in message.content)
+        ):
+            new_user_message_content, edited_tool_message_content = functools.reduce(
+                content_reducer,
+                message.content,
+                (list[Content](), list[Content]()),
+            )
+            chat_messages.append(
+                ChatMessageTool(
+                    content=edited_tool_message_content,
+                    tool_call_id=message.tool_call_id,
+                    function=message.function,
+                )
+            )
+            pending_content.extend(new_user_message_content)
+            if message.tool_call_id:
+                tool_call_ids.append(message.tool_call_id)
+        else:
+            if pending_content:
+                chat_messages.append(
+                    ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+                )
+            pending_content = []
+            tool_call_ids = []
+            chat_messages.append(message)
+    if pending_content:
+        chat_messages.append(
+            ChatMessageUser(content=pending_content, tool_call_id=tool_call_ids)
+        )
+    return chat_messages
 
 
 def _make_content_reducer(
@@ -2013,61 +2252,6 @@ def _make_content_reducer(
         return new_user_message_content, edited_tool_message_content + [content]
 
     return reducer
-
-
-def _make_message_reducer(
-    extract_types: tuple[type, ...],
-) -> Callable[[MediaAccumulator, ChatMessage], MediaAccumulator]:
-    """Return a message-level reducer that extracts the given media types."""
-    content_reducer = _make_content_reducer(extract_types)
-
-    def reducer(accum: MediaAccumulator, message: ChatMessage) -> MediaAccumulator:
-        messages, pending_content, tool_call_ids = accum
-        if (
-            isinstance(message, ChatMessageTool)
-            and isinstance(message.content, list)
-            and any(isinstance(c, extract_types) for c in message.content)
-        ):
-            new_user_message_content, edited_tool_message_content = functools.reduce(
-                content_reducer,
-                message.content,
-                (list[Content](), list[Content]()),
-            )
-
-            return (
-                messages
-                + [
-                    ChatMessageTool(
-                        content=edited_tool_message_content,
-                        tool_call_id=message.tool_call_id,
-                        function=message.function,
-                    )
-                ],
-                pending_content + new_user_message_content,
-                tool_call_ids
-                + ([message.tool_call_id] if message.tool_call_id else []),
-            )
-
-        else:
-            return (
-                maybe_adding_user_message(messages, pending_content, tool_call_ids)
-                + [message],
-                [],
-                [],
-            )
-
-    return reducer
-
-
-def maybe_adding_user_message(
-    messages: list[ChatMessage], content: list[Content], tool_call_ids: list[str]
-) -> list[ChatMessage]:
-    """If content is empty, return messages, otherwise, create a new ChatMessageUser with it and return a new messages list with that message added."""
-    return (
-        messages + [ChatMessageUser(content=content, tool_call_id=tool_call_ids)]
-        if content
-        else messages
-    )
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
@@ -2201,7 +2385,11 @@ def combine_messages(
 
 
 async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
-    from inspect_ai._util.retry import retry_error_summary, sample_context_prefix
+    from inspect_ai._util.retry import (
+        retry_error_summary,
+        retry_error_type_status,
+        sample_context_prefix,
+    )
 
     prefix = sample_context_prefix()
     error = retry_error_summary(retry_state)
@@ -2215,10 +2403,13 @@ async def log_model_retry(model_name: str, retry_state: RetryCallState) -> None:
     # notify hooks of the retry (useful for surfacing time spent in rate limiting)
     from inspect_ai.hooks._hooks import emit_model_retry
 
+    exception_type, status_code = retry_error_type_status(retry_state)
     await emit_model_retry(
         model_name=model_name,
         attempt=retry_state.attempt_number,
         wait_time=retry_state.upcoming_sleep,
+        exception_type=exception_type,
+        status_code=status_code,
     )
 
 
@@ -2341,17 +2532,23 @@ def init_sample_role_usage() -> None:
 
 
 def record_and_check_model_usage(
-    model: str, usage: ModelUsage, role: str | None = None
+    model: Model, usage: ModelUsage, role: str | None = None
 ) -> None:
     from inspect_ai.log._samples import (
+        set_active_sample_token_limit_usage,
         set_active_sample_total_cost,
         set_active_sample_total_tokens,
     )
-    from inspect_ai.model._model_info import get_model_info
+    from inspect_ai.model._model_info import _get_model_info_direct
+
+    # full "provider/model" identifier, used as the usage-bookkeeping dict key
+    model_name = f"{model}"
 
     # compute cost and set on usage before recording (so ModelUsage.__add__
-    # accumulates it in the per-model usage dicts)
-    info = get_model_info(model)
+    # accumulates it in the per-model usage dicts). Use the direct (non
+    # provider-resolving) lookup: the model is already instantiated, so falling
+    # back to get_model() here would re-instantiate it (reloading local weights).
+    info = _get_model_info_direct(model)
     total_cost: float | None = None
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
     if info is not None and info.cost is not None:
@@ -2359,8 +2556,8 @@ def record_and_check_model_usage(
         usage.total_cost = total_cost
 
     # record usage
-    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
-    set_model_usage(model, usage, model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model_name, usage, model_usage_context_var.get(None))
 
     # record usage by role name (if role is set)
     if role is not None:
@@ -2369,9 +2566,11 @@ def record_and_check_model_usage(
 
     record_model_usage(usage)
 
-    # compute total tokens and update active sample
+    # compute total tokens and update active sample (before check_token_limit()
+    # so the control channel sees the usage that tripped the limit)
     total_tokens = sample_total_tokens()
     set_active_sample_total_tokens(total_tokens)
+    set_active_sample_token_limit_usage(token_limit_usage())
     check_token_limit()
 
     # record cost to limit tree and check

@@ -1,3 +1,8 @@
+import importlib
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock
+
 import pytest
 from test_helpers.utils import skip_if_no_nnterp
 
@@ -7,6 +12,46 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._chat_message import ChatMessage
+
+
+def test_nnterp_explicit_api_key_reaches_huggingface_loaders(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict = {}
+
+    class FakeStandardizedTransformer:
+        def __init__(self, *args, **kwargs) -> None:
+            captured.update(kwargs)
+            self.tokenizer = MagicMock()
+
+    fake_nnterp = ModuleType("nnterp")
+    fake_nnterp.StandardizedTransformer = FakeStandardizedTransformer  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "nnterp", fake_nnterp)
+
+    fake_torch = ModuleType("torch")
+    fake_torch.float16 = object()  # type: ignore[attr-defined]
+    fake_torch.Tensor = object  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    module_name = "inspect_ai.model._providers.nnterp"
+    previous_module = sys.modules.pop(module_name, None)
+    try:
+        provider_module = importlib.import_module(module_name)
+        provider_module.NNterpAPI(
+            model_name="private/model",
+            api_key="hf-test-token",
+            tokenizer_kwargs={"padding_side": "right"},
+        )
+    finally:
+        sys.modules.pop(module_name, None)
+        if previous_module is not None:
+            sys.modules[module_name] = previous_module
+
+    assert captured["token"] == "hf-test-token"
+    assert captured["tokenizer_kwargs"] == {
+        "padding_side": "right",
+        "token": "hf-test-token",
+    }
 
 
 @pytest.fixture

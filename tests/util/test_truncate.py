@@ -21,6 +21,16 @@ def test_exact_length():
     assert truncate("1234", 4, pad=False) == "1234"
 
 
+def test_length_smaller_than_overflow():
+    # When length cannot fit the overflow indicator, the result must still stay
+    # within length rather than growing past it (negative slice index bug).
+    assert len(truncate("Hello World!", 2)) <= 2
+    assert len(truncate("Hello World!", 2, pad=False)) <= 2
+    assert len(truncate("Hello World!", 1)) <= 1
+    assert len(truncate("Hello World!", 0)) <= 0
+    assert len(truncate("Hello World!", 2, overflow=">>>>")) <= 2
+
+
 def test_truncate_lines_no_truncation():
     text = "line1\nline2\nline3"
     result, additional = truncate_lines(text, max_lines=10)

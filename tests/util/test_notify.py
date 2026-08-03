@@ -10,7 +10,6 @@ import pytest
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util import notify
 from inspect_ai.util._notify import (
-    NOTIFY_TIMEOUT_SECONDS,
     active_apprise,
     apprise_scope,
     build_apprise,
@@ -266,16 +265,25 @@ async def test_notify_swallows_backend_exception() -> None:
     fake.notify.assert_called_once()
 
 
-async def test_notify_bounded_when_backend_hangs() -> None:
+async def test_notify_bounded_when_backend_hangs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A hanging Apprise backend returns within `NOTIFY_TIMEOUT_SECONDS`.
 
     Uses a real thread-blocking `time.sleep` (not anyio.sleep) so the cap
     must be enforced via `anyio.move_on_after` around `run_sync`, not via
     cooperative cancellation inside the worker.
     """
+    # Shrink the production cap so the test asserts the same bounding behavior
+    # without waiting the full 5s. `notify()` reads the module global at call
+    # time, so patching it here takes effect.
+    from inspect_ai.util import _notify
+
+    timeout = 0.5
+    monkeypatch.setattr(_notify, "NOTIFY_TIMEOUT_SECONDS", timeout)
 
     def hang(*args: Any, **kwargs: Any) -> bool:
-        time.sleep(NOTIFY_TIMEOUT_SECONDS * 4)
+        time.sleep(timeout * 4)
         return True
 
     fake = MagicMock()
@@ -283,12 +291,12 @@ async def test_notify_bounded_when_backend_hangs() -> None:
 
     start = time.monotonic()
     with apprise_scope(fake):
-        with anyio.fail_after(NOTIFY_TIMEOUT_SECONDS + 2.0):
+        with anyio.fail_after(timeout + 2.0):
             await notify("hello")
     elapsed = time.monotonic() - start
 
-    # We expect ~NOTIFY_TIMEOUT_SECONDS; allow generous slack for CI jitter.
-    assert elapsed < NOTIFY_TIMEOUT_SECONDS + 2.0
+    # We expect ~timeout; allow generous slack for CI jitter.
+    assert elapsed < timeout + 2.0
 
 
 # -- apprise_scope contextvar plumbing ------------------------------------

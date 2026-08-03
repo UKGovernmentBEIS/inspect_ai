@@ -12,6 +12,7 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
 )
 
@@ -163,9 +164,23 @@ async def check_thinking_compaction(
 @skip_if_no_openai
 @pytest.mark.slow
 async def test_thinking_compaction_openai() -> None:
+    # medium (not low) effort: at low, gpt-5-mini sometimes performs no
+    # reasoning at all on this prompt, leaving nothing to compact
     await check_thinking_compaction(
         "openai/gpt-5-mini",
-        GenerateConfig(reasoning_effort="low"),
+        GenerateConfig(reasoning_effort="medium"),
+    )
+
+
+@skip_if_no_openai
+@pytest.mark.slow
+async def test_thinking_compaction_openai_gpt_5_6() -> None:
+    # gpt-5.6 treats effort as a ceiling and skips reasoning on trivial
+    # prompts (sol emits zero reasoning tokens through xhigh); luna at high
+    # is the cheapest 5.6 combination that reliably produces thinking
+    await check_thinking_compaction(
+        "openai/gpt-5.6-luna",
+        GenerateConfig(reasoning_effort="high"),
     )
 
 
@@ -205,4 +220,25 @@ async def test_thinking_compaction_grok() -> None:
     await check_thinking_compaction(
         "grok/grok-3-mini",
         GenerateConfig(reasoning_effort="low"),
+    )
+
+
+@skip_if_no_grok
+@pytest.mark.slow
+async def test_thinking_compaction_grok_4_5() -> None:
+    # grok-4.5 reasoning cannot be disabled, so thinking is reliably present
+    # even at low effort
+    await check_thinking_compaction(
+        "grok/grok-4.5",
+        GenerateConfig(reasoning_effort="low"),
+    )
+
+
+@skip_if_no_moonshot
+@pytest.mark.slow
+async def test_thinking_compaction_moonshot() -> None:
+    # kimi-k3 thinking is always on, so reasoning is reliably present
+    await check_thinking_compaction(
+        "moonshot/kimi-k3",
+        GenerateConfig(reasoning_effort="max"),
     )

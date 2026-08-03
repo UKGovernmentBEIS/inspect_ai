@@ -9,6 +9,7 @@ counters never reach ``total`` and the eval reads "running" forever.
 from typing import Any
 
 import pytest
+from test_helpers.live_eval_data import FakeLiveEvalData
 
 from inspect_ai._control.eval_state import (
     clear_all_eval_states,
@@ -16,6 +17,7 @@ from inspect_ai._control.eval_state import (
     get_eval_state,
     record_sample_completed,
     record_sample_errored,
+    record_samples_added,
     register_eval,
 )
 
@@ -40,6 +42,24 @@ def test_finalize_folds_unaccounted_samples_into_cancelled() -> None:
     assert state.errored == 1
     assert state.cancelled == 5
     assert state.is_finished
+    assert state.completed_at is not None
+
+
+def test_dynamic_eval_not_provisionally_finished() -> None:
+    # a SampleSource-driven eval's totals grow while it runs: counters
+    # reaching total (or an empty seed's 0 >= 0 at registration) must not
+    # read as finished — the task may be idle awaiting its source — so the
+    # stamp waits for finalize_eval, keeping task cancel and status honest
+    state = register_eval("e1", 0, dynamic=True)
+    assert state.completed_at is None
+
+    record_samples_added("e1", 2)
+    record_sample_completed("e1")
+    record_sample_completed("e1")
+    assert state.terminal == state.total
+    assert state.completed_at is None
+
+    finalize_eval("e1")
     assert state.completed_at is not None
 
 
@@ -82,14 +102,15 @@ def test_finalize_preserves_recorded_outcomes() -> None:
     assert state.total_messages == 3
 
 
-def test_detach_eval_providers_nulls_live_accessors() -> None:
-    """Detaching a superseded attempt removes its live providers only.
+def test_detach_eval_live_clears_live_data() -> None:
+    """Detaching a superseded attempt clears its live data source only.
 
     On task retry the (shared) TaskLogger is re-pointed at the new attempt;
-    the superseded attempt's bound-method providers would otherwise serve the
-    new attempt's data under the old eval_id. Counters and metadata persist.
+    the superseded attempt's ``live`` is that same logger, so left attached it
+    would serve the new attempt's data under the old eval_id. Counters and
+    metadata persist.
     """
-    from inspect_ai._control.eval_state import detach_eval_providers
+    from inspect_ai._control.eval_state import detach_eval_live
 
     async def summaries():
         return []
@@ -101,25 +122,49 @@ def test_detach_eval_providers_nulls_live_accessors() -> None:
         "e1",
         2,
         log_location="logs/a.eval",
-        summaries_provider=summaries,
-        sample_provider=sample,
-        events_provider=lambda id, epoch: None,
+        live=FakeLiveEvalData(
+            summaries=summaries, sample=sample, events=lambda id, epoch: None
+        ),
     )
     record_sample_errored("e1")
 
-    detach_eval_providers("e1")
+    detach_eval_live("e1")
 
     state = get_eval_state("e1")
     assert state is not None
-    assert state.summaries_provider is None
-    assert state.sample_provider is None
-    assert state.events_provider is None
+    assert state.live is None
     # everything else is untouched
     assert state.errored == 1
     assert state.log_location == "logs/a.eval"
 
     # unregistered evals no-op
-    detach_eval_providers("never-registered")
+    detach_eval_live("never-registered")
+
+
+async def test_summary_carries_registration_metadata() -> None:
+    """Registration metadata (model, solver, epochs) flows through to /evals summaries.
+
+    ``epochs`` matters beyond display: the CLI's multi-epoch EPOCH guard for
+    sample mutations treats a missing field as an old server and falls back
+    to the epoch-1 default, so dropping it from the summary would silently
+    disable the guard with the CLI tests still green.
+    """
+    from inspect_ai._control.state import current_eval_summaries
+
+    register_eval(
+        "e1",
+        3,
+        task="t",
+        task_id="tid",
+        model="mockllm/model",
+        solver="react",
+        epochs=3,
+    )
+
+    [entry] = await current_eval_summaries(0.0)
+    assert entry["model"] == "mockllm/model"
+    assert entry["solver"] == "react"
+    assert entry["epochs"] == 3
 
 
 async def test_deferred_sample_stats_resolve_lazily_and_once() -> None:

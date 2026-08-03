@@ -134,7 +134,12 @@ def write_text_atomic(path: str | Path, content: str) -> None:
 
 
 def write_atomic_text(path: str | Path, write: Callable[[TextIO], object]) -> None:
-    """Atomically write UTF-8 text with a caller-provided writer."""
+    """Atomically write UTF-8 text with a caller-provided writer.
+
+    See :mod:`inspect_ai._util.atomic_write` for the binary counterpart
+    (streaming context manager, one-shot bytes, mode preservation) used by
+    the log recorders.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
@@ -278,7 +283,7 @@ class FileSystem:
         # Data Writer). The marker file can just be gc'd later.
         _WRITE_TEST_FILENAME = ".inspect_write_test"
         touch_filename = _WRITE_TEST_FILENAME if is_azure_path(path) else uuid()
-        path.rstrip("/\\")
+        path = path.rstrip("/\\")
         touch_file = f"{path}{self.fs.sep}{touch_filename}"
         try:
             self.touch(touch_file)

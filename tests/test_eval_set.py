@@ -10,6 +10,7 @@ from typing import Callable
 from unittest.mock import patch
 
 import pytest
+from test_helpers.buffer import simulate_crashed_buffer_db
 from test_helpers.utils import (
     failing_solver,
     failing_task,
@@ -20,7 +21,7 @@ from test_helpers.utils import (
     sleep_for_solver,
 )
 
-from inspect_ai import Task, task
+from inspect_ai import Task, eval, task
 from inspect_ai._eval.evalset import (
     _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
@@ -37,7 +38,9 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, local_path, size_in_mb
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -45,13 +48,16 @@ from inspect_ai.log._file import (
     read_eval_log,
     write_eval_log,
 )
-from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.log._recorders.eval import ZipLogFile
+from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import CachePolicy, Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import exact
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util._limit import TokenLimit
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -667,6 +673,32 @@ def test_task_identifier_with_model_configs():
     run_eval_set(create_resolved_tasks)
 
 
+def test_task_identifier_with_token_limit_type():
+    model = get_model("mockllm/model")
+    resolved = resolve_tasks([hello_world()], {}, model, None, None, None)[0]
+
+    def identifier(token_limit: int | TokenLimit | None) -> str:
+        return task_identifier(
+            resolved,
+            EvalSetArgsInTaskIdentifier(
+                config=GenerateConfig(), token_limit=token_limit
+            ),
+        )
+
+    # an all-tokens TokenLimit hashes identically to the plain int encoding
+    # (existing eval-set identifiers are unchanged)
+    assert identifier(1000) == identifier(TokenLimit(tokens=1000, type="all"))
+    # output-metered limits hash distinctly
+    assert identifier(1000) != identifier(TokenLimit(tokens=1000, type="output"))
+    # formula-metered limits hash distinctly, and equal formulas are stable
+    formula = TokenLimit(tokens=1000, type="input + output")
+    assert identifier(1000) != identifier(formula)
+    assert identifier(TokenLimit(tokens=1000, type="output")) != identifier(formula)
+    assert identifier(formula) == identifier(
+        TokenLimit(tokens=1000, type="input + output")
+    )
+
+
 def test_task_identifier_with_redacted_model_args():
     model1 = get_model(
         "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
@@ -807,6 +839,7 @@ _GENERATE_CONFIG_IDENTITY_FIELDS = {
     "verbosity",
     "effort",
     "reasoning_effort",
+    "reasoning_mode",
     "reasoning_tokens",
     "reasoning_summary",
     "reasoning_history",
@@ -1715,56 +1748,65 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
 
 
 def test_eval_set_single_flush_error() -> None:
-    """A single-task run must propagate task exceptions (baseline — should already pass)."""
+    """A broken log write fails the run as a task error (never silent success)."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
     with tempfile.TemporaryDirectory() as log_dir:
         with patch.object(ZipLogFile, "flush", broken_flush):
-            with pytest.raises(Exception):
-                eval_set(
-                    tasks=[
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_a",
-                        ),
-                    ],
-                    log_dir=log_dir,
-                    model="mockllm/model",
-                    retry_attempts=0,
-                )
+            success, logs = eval_set(
+                tasks=[
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_a",
+                    ),
+                ],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+            )
+
+    assert not success
+    assert [log.status for log in logs] == ["error"]
+    assert logs[0].error is not None
+    assert "Simulated S3 write failure" in logs[0].error.message
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
 def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
-    """run_parallel must not swallow task exceptions and return success=True."""
+    """run_parallel must not swallow task errors and return success=True."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
-    # With 2 tasks run_parallel is used. The bug was that the worker caught the
-    # exception, left result as None, and eval_set got an empty list where
-    # all([]) == True, silently reporting success.
+    # With 2 tasks run_parallel is used. The original bug was that the worker
+    # caught the exception, left result as None, and eval_set got an empty list
+    # where all([]) == True, silently reporting success. A failed log write now
+    # surfaces as an errored EvalLog per task (rather than tearing down the
+    # whole run), so the run must report failure with both tasks errored.
     with tempfile.TemporaryDirectory() as log_dir:
         with patch.object(ZipLogFile, "flush", broken_flush):
-            with pytest.raises(Exception):
-                eval_set(
-                    tasks=[
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_a",
-                        ),
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_b",
-                        ),
-                    ],
-                    log_dir=log_dir,
-                    model="mockllm/model",
-                    retry_attempts=0,
-                    retry_immediate=retry_immediate,
-                )
+            success, logs = eval_set(
+                tasks=[
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_a",
+                    ),
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_b",
+                    ),
+                ],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                retry_immediate=retry_immediate,
+            )
+
+    assert not success
+    assert len(logs) == 2
+    assert all(log.status == "error" for log in logs)
 
 
 @pytest.mark.parametrize("retry_immediate", [True, None])
@@ -1923,3 +1965,84 @@ def test_carried_forward_samples_remain_condensed() -> None:
                     f"{member} in {latest.name} was written decondensed; "
                     f"carry-forward path must run condense_sample()"
                 )
+
+
+def test_eval_set_resume_preserves_buffered_sample_metadata() -> None:
+    """Crash recovery must not persist summary-thinned sample metadata."""
+    ground_truth = {f"cell-{index}": {"active": True} for index in range(80)}
+    sample = Sample(
+        id=1,
+        input="Say hello",
+        target="hello",
+        metadata={"world": ground_truth},
+    )
+    resume_task = Task(
+        dataset=[sample],
+        solver=[identity_solver()],
+        name="resume_metadata",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # Create a log with the exact task identity eval_set expects, then
+        # rewrite it as a hard-crash artifact (start journal, no header).
+        started_log = eval(
+            resume_task,
+            model="mockllm/model",
+            log_dir=log_dir,
+            run_samples=False,
+        )[0]
+        with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+            zf.writestr(
+                "_journal/start.json",
+                to_json_str_safe(
+                    LogStart(
+                        version=started_log.version,
+                        eval=started_log.eval,
+                        plan=started_log.plan,
+                    )
+                ),
+            )
+
+        # The realtime buffer stores summaries for completed samples. The
+        # summary is intentionally thinned, while SampleInitEvent still has
+        # the authoritative dataset metadata available for crash recovery.
+        buffer = SampleBufferDatabase(started_log.location)
+        try:
+            summary = EvalSampleSummary(
+                id=1,
+                epoch=1,
+                input=sample.input,
+                target=sample.target,
+                metadata=sample.metadata or {},
+                completed_at="2026-01-01T00:00:00+00:00",
+            )
+            assert summary.metadata["world"] == "Key removed from summary (> 1k)"
+            buffer.start_sample(summary)
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id=1,
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    )
+                ]
+            )
+            buffer.complete_sample(summary, sample_metadata=sample.metadata)
+            simulate_crashed_buffer_db(buffer)
+
+            success, logs = eval_set(
+                tasks=resume_task,
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                retry_cleanup=False,
+            )
+
+            assert success
+            successful_log = next(log for log in logs if log.status == "success")
+            resumed = read_eval_log(successful_log.location)
+            assert resumed.samples is not None
+            assert resumed.samples[0].metadata["world"] == ground_truth
+        finally:
+            buffer.cleanup()

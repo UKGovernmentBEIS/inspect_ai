@@ -1,6 +1,7 @@
 import asyncio
 import io
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -12,6 +13,7 @@ from inspect_ai._util._async import run_coroutine, tg_collect
 from inspect_ai._util.asyncfiles import (
     AsyncFilesystem,
     _current_async_fs,
+    _RetiredClient,
     get_async_filesystem,
 )
 
@@ -402,7 +404,8 @@ def test_write_file_streaming_s3(mock_s3: None) -> None:
 
 
 class _RetryingUploadClient:
-    def __init__(self) -> None:
+    def __init__(self, fail_times: int = 1) -> None:
+        self.fail_times = fail_times
         self.calls = 0
         self.uploaded: list[bytes] = []
 
@@ -411,7 +414,7 @@ class _RetryingUploadClient:
     ) -> None:
         self.calls += 1
         data = Fileobj.read()
-        if self.calls == 1:
+        if self.calls <= self.fail_times:
             raise ClientError(
                 cast(
                     Any,
@@ -495,6 +498,39 @@ async def test_write_file_streaming_s3_retries_stale_signature_from_start(
         await fs.write_file_streaming("s3://bucket/path/log.eval", io.BytesIO(content))
 
     assert client.calls == 2
+    assert client.uploaded == [content]
+
+
+async def test_write_file_streaming_s3_retries_stale_signature_full_budget(
+    monkeypatch,
+):
+    """All stop_after_attempt(5) attempts are available.
+
+    Note: this guards the attempt budget only. With anyio.sleep no-op'd the
+    retries run in milliseconds, so it would not catch reintroduction of a
+    wall-clock stop (stop_after_delay) — that only bites when an attempt
+    itself consumes real time.
+    """
+    client = _RetryingUploadClient(fail_times=4)
+
+    async def s3_client_async(self):
+        return client
+
+    def s3_client(self):
+        return _SyncUploadClient(client)
+
+    async def no_sleep(seconds: float) -> None:
+        pass
+
+    monkeypatch.setattr(AsyncFilesystem, "s3_client_async", s3_client_async)
+    monkeypatch.setattr(AsyncFilesystem, "s3_client", s3_client)
+    monkeypatch.setattr("inspect_ai._util.asyncfiles.anyio.sleep", no_sleep)
+
+    content = b"full eval log contents"
+    async with AsyncFilesystem() as fs:
+        await fs.write_file_streaming("s3://bucket/path/log.eval", io.BytesIO(content))
+
+    assert client.calls == 5
     assert client.uploaded == [content]
 
 
@@ -990,6 +1026,117 @@ async def test_get_async_filesystem_raises_when_none() -> None:
     """get_async_filesystem() raises RuntimeError when no filesystem exists."""
     with pytest.raises(RuntimeError, match="No AsyncFilesystem is available"):
         get_async_filesystem()
+
+
+# =============================================================================
+# Tests for async S3 client TTL refresh (credential rotation pickup)
+# =============================================================================
+
+
+class _FakeS3Client:
+    def __init__(self) -> None:
+        self.closed = False
+
+    async def __aexit__(self, *args: Any) -> None:
+        self.closed = True
+
+
+def _patch_client_factory(
+    monkeypatch: pytest.MonkeyPatch, fs: AsyncFilesystem
+) -> list[_FakeS3Client]:
+    created: list[_FakeS3Client] = []
+
+    async def fake_create(
+        anonymous: bool = False, region_name: str | None = None
+    ) -> _FakeS3Client:
+        client = _FakeS3Client()
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(fs, "_create_s3_client_async", fake_create)
+    return created
+
+
+async def test_s3_client_async_reused_within_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fs = AsyncFilesystem(client_ttl=60)
+    created = _patch_client_factory(monkeypatch, fs)
+
+    client1 = await fs.s3_client_async()
+    client2 = await fs.s3_client_async()
+
+    assert client2 is client1
+    assert len(created) == 1
+
+    await fs.close()
+    assert client1.closed
+
+
+async def test_s3_client_async_recreated_after_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fs = AsyncFilesystem(client_ttl=60)
+    created = _patch_client_factory(monkeypatch, fs)
+
+    client1 = await fs.s3_client_async()
+    fs._s3_client_async_created = time.monotonic() - 61
+    client2 = await fs.s3_client_async()
+
+    assert client2 is not client1
+    assert len(created) == 2
+    # the retired client stays open (within grace) for in-flight operations
+    assert not client1.closed
+
+    await fs.close()
+    assert client1.closed
+    assert client2.closed
+
+
+async def test_s3_client_async_retired_client_closed_after_grace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fs = AsyncFilesystem(client_ttl=60)
+    created = _patch_client_factory(monkeypatch, fs)
+
+    client1 = await fs.s3_client_async()
+    fs._s3_client_async_created = time.monotonic() - 61
+    client2 = await fs.s3_client_async()
+    assert not client1.closed
+
+    # age the retired client past the grace period and rotate again
+    fs._s3_clients_retired = [
+        _RetiredClient(retired.client, time.monotonic() - 61)
+        for retired in fs._s3_clients_retired
+    ]
+    fs._s3_client_async_created = time.monotonic() - 61
+    client3 = await fs.s3_client_async()
+
+    assert len(created) == 3
+    assert client1.closed
+    # client2 was just retired: still within grace
+    assert not client2.closed
+
+    await fs.close()
+    assert client2.closed
+    assert client3.closed
+
+
+async def test_s3_client_async_no_ttl_never_recreates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fs = AsyncFilesystem()
+    created = _patch_client_factory(monkeypatch, fs)
+
+    client1 = await fs.s3_client_async()
+    fs._s3_client_async_created = time.monotonic() - 24 * 60 * 60
+    client2 = await fs.s3_client_async()
+
+    assert client2 is client1
+    assert len(created) == 1
+
+    await fs.close()
+    assert client1.closed
 
 
 def test_run_coroutine_no_loop_uses_configured_backend(

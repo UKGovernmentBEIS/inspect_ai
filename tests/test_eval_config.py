@@ -1,17 +1,49 @@
 import os
-import subprocess
 import tempfile
 from pathlib import Path
 
 import pytest
+from click.testing import CliRunner, Result
 from pydantic import ValidationError
 
 from inspect_ai import Task, eval, task
-from inspect_ai._cli.eval import RunConfigInput
+from inspect_ai._cli.eval import RunConfigInput, eval_command, eval_retry_command
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.model import get_model
 from inspect_ai.solver import solver
+
+
+def run_eval_cli(args: list[str], env: dict[str, str | None] | None = None) -> Result:
+    """Invoke `inspect eval` in-process via CliRunner.
+
+    In-process invocation avoids the ~2s interpreter + package-import startup
+    that a fresh `inspect` subprocess pays on every call. `eval_command` is the
+    same click command `inspect eval` dispatches to, so CLI option parsing and
+    config resolution are exercised identically.
+
+    A value of `None` in `env` unsets that variable for the invocation (used to
+    clear `INSPECT_EVAL_*` overrides that would otherwise leak in from the
+    ambient environment or repo `.env`).
+    """
+    return CliRunner().invoke(eval_command, args, env=env)
+
+
+def run_eval_retry_cli(
+    args: list[str], env: dict[str, str | None] | None = None
+) -> Result:
+    """Invoke `inspect eval-retry` in-process via CliRunner.
+
+    Counterpart to `run_eval_cli` for the `eval-retry` command (see that
+    function for why we invoke the click command directly instead of spawning a
+    subprocess).
+    """
+    return CliRunner().invoke(eval_retry_command, args, env=env)
+
+
+def assert_cli_success(result: Result) -> None:
+    assert result.exit_code == 0, f"{result.output}\n{result.exception}"
 
 
 def test_run_config_rejects_unknown_top_level_field():
@@ -43,10 +75,8 @@ def test_eval_config_task():
 
 def test_eval_config_task_cli():
     with tempfile.TemporaryDirectory() as log_dir:
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--task-config",
                 config_path("task.yaml"),
@@ -66,16 +96,15 @@ def test_eval_config_task_cli():
                 "grader={model: mockllm/model, temperature: 0.5, max_tokens: 1000}",
             ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir)[0])
         check_log(log, "green", check_model_roles=True)
 
 
 def test_eval_generate_config_cli():
     with tempfile.TemporaryDirectory() as log_dir:
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--generate-config",
                 config_path("generate_config.yaml"),
@@ -85,9 +114,9 @@ def test_eval_generate_config_cli():
                 log_dir,
                 "--model",
                 "mockllm/model",
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir)[0])
         # temperature should be overridden by explicit CLI option
         assert log.plan.config.temperature == 0.9
@@ -131,10 +160,8 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "-T",
@@ -143,9 +170,9 @@ eval_config:
                 "0.9",
                 "--log-dir",
                 log_dir.as_posix(),
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.task == "eval_config_task"
         assert log.eval.task_args["epochs"] == 2
@@ -178,18 +205,16 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "--log-dir",
                 log_dir.as_posix(),
             ],
-            env={**os.environ, "INSPECT_EVAL_MODEL": "anthropic/claude-sonnet-4-6"},
-            check=True,
+            env={"INSPECT_EVAL_MODEL": "anthropic/claude-sonnet-4-6"},
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.model == "mockllm/model"
 
@@ -209,10 +234,8 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "--model",
@@ -220,9 +243,9 @@ eval_config:
                 "--log-dir",
                 log_dir.as_posix(),
             ],
-            env={**os.environ, "INSPECT_EVAL_MODEL": "mockllm/from_env"},
-            check=True,
+            env={"INSPECT_EVAL_MODEL": "mockllm/from_env"},
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.model == "mockllm/from_cli"
 
@@ -246,33 +269,20 @@ eval_config:
         # override=True when TERM_PROGRAM=vscode, which would overwrite
         # INSPECT_EVAL_MODEL from the repo .env and mask the env value
         # this test is checking).
-        test_env = {
-            k: v
-            for k, v in os.environ.items()
-            if k
-            not in (
-                "VSCODE_IPYTHON_KERNEL",
-                "VSCODE_CLI_REQUIRE_TOKEN",
-                "VSCODE_PID",
-                "VSCODE_CWD",
-            )
-        }
-        if test_env.get("TERM_PROGRAM") == "vscode":
-            test_env["TERM_PROGRAM"] = "xterm"
-        test_env["INSPECT_EVAL_MODEL"] = "mockllm/from_env"
+        env = {"INSPECT_EVAL_MODEL": "mockllm/from_env"}
+        if os.environ.get("TERM_PROGRAM") == "vscode":
+            env["TERM_PROGRAM"] = "xterm"
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "--run-config",
                 run_config.as_posix(),
                 "--log-dir",
                 log_dir.as_posix(),
             ],
-            env=test_env,
-            check=True,
+            env=env,
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.model == "mockllm/from_env"
 
@@ -298,10 +308,8 @@ eval_config:
 """.strip()
         )
 
-        subprocess.run(
+        result = run_eval_cli(
             [
-                "inspect",
-                "eval",
                 "tests/test_eval_config.py@eval_config_task",
                 "--model",
                 "mockllm/model",
@@ -309,9 +317,9 @@ eval_config:
                 run_config.as_posix(),
                 "--log-dir",
                 log_dir.as_posix(),
-            ],
-            check=True,
+            ]
         )
+        assert_cli_success(result)
         log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
         assert log.eval.task == "eval_config_task"
         assert log.eval.model == "mockllm/model"
@@ -345,19 +353,154 @@ model: mockllm/model
             ],
         ]
         for conflict in conflicts:
-            result = subprocess.run(
+            result = run_eval_cli(
                 [
-                    "inspect",
-                    "eval",
                     "--run-config",
                     run_config.as_posix(),
                     *conflict,
-                ],
-                capture_output=True,
-                text=True,
+                ]
             )
-            assert result.returncode != 0
-            assert "--run-config cannot be used with" in result.stdout
+            assert result.exit_code != 0
+            assert isinstance(result.exception, PrerequisiteError)
+            assert "--run-config cannot be used with" in str(result.exception.message)
+
+
+def test_eval_run_config_score_on_error_not_clobbered():
+    """A run-config eval_config flag must survive when the CLI flag is absent.
+
+    --score-on-error / --continue-on-fail are positive flags; an absent flag must
+    not overwrite a `true` set in --run-config.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/model
+eval_config:
+  score_on_error: true
+  continue_on_fail: true
+  limit: 1
+""".strip()
+        )
+
+        result = run_eval_cli(
+            [
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.config.score_on_error is True
+        assert log.eval.config.continue_on_fail is True
+
+
+def test_eval_cli_preserves_task_score_on_error():
+    """A task-level positive error flag must survive when the CLI flag is absent."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_error_flags_task",
+                "--model",
+                "mockllm/model",
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.config.score_on_error is True
+        assert log.eval.config.continue_on_fail is True
+
+
+def test_eval_cli_score_on_error_default_when_unset():
+    """With neither task nor CLI setting the flags, they default to off."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                "--model",
+                "mockllm/model",
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            # unset the env vars: their presence would force the flags on
+            env={
+                "INSPECT_EVAL_SCORE_ON_ERROR": None,
+                "INSPECT_EVAL_CONTINUE_ON_FAIL": None,
+            },
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert not log.eval.config.score_on_error
+        assert not log.eval.config.continue_on_fail
+
+
+def test_eval_cli_score_on_error_flag_turns_on():
+    """Explicitly passing the positive flags must still turn them on.
+
+    Guards against the default change (False -> None) silently breaking the
+    flags' ability to set the option, and confirms the CLI value overrides a
+    task that leaves them at their default.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_task",
+                "--model",
+                "mockllm/model",
+                "--log-dir",
+                log_dir.as_posix(),
+                "--score-on-error",
+                "--continue-on-fail",
+            ]
+        )
+        assert_cli_success(result)
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.config.score_on_error is True
+        assert log.eval.config.continue_on_fail is True
+
+
+def test_eval_retry_cli_preserves_error_flags_from_log():
+    """`inspect eval-retry` with the flags absent must inherit them from the log.
+
+    This is the "prior eval log being retried" path: a retry that omits the
+    flags must not clobber the values baked into the log it is retrying.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        log_dir = Path(temp_dir) / "logs"
+        # produce a retryable (errored) log whose config carries both flags
+        result = run_eval_cli(
+            [
+                "tests/test_eval_config.py@eval_config_failing_error_flags_task",
+                "--model",
+                "mockllm/model",
+                "--log-dir",
+                log_dir.as_posix(),
+            ]
+        )
+        assert_cli_success(result)
+        first = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert first.status == "error"
+        assert first.eval.config.score_on_error is True
+        assert first.eval.config.continue_on_fail is True
+
+        # retry without the flags; the retried log must preserve them
+        retry = run_eval_retry_cli([first.location, "--log-dir", log_dir.as_posix()])
+        assert_cli_success(retry)
+        logs = [read_eval_log(f) for f in list_eval_logs(log_dir.as_posix())]
+        assert len(logs) == 2  # original + retry
+        for log in logs:
+            assert log.eval.config.score_on_error is True
+            assert log.eval.config.continue_on_fail is True
 
 
 @solver
@@ -371,6 +514,34 @@ def eval_config_solver(shape="square"):
 @task
 def eval_config_task(epochs=1, color="red") -> Task:
     return Task(epochs=epochs, model_roles={"grader": get_model(role="grader")})
+
+
+@task
+def eval_config_error_flags_task() -> Task:
+    """Task that turns on the positive error flags in its own definition."""
+    return Task(score_on_error=True, continue_on_fail=True)
+
+
+@solver
+def eval_config_always_error_solver():
+    async def solve(state, generate):
+        raise RuntimeError("intentional failure for eval-retry test")
+
+    return solve
+
+
+@task
+def eval_config_failing_error_flags_task() -> Task:
+    """Always errors, with the positive error flags set in its own definition.
+
+    Produces a retryable (errored) log carrying score_on_error / continue_on_fail
+    so `inspect eval-retry` can be checked for preserving them.
+    """
+    return Task(
+        solver=[eval_config_always_error_solver()],
+        score_on_error=True,
+        continue_on_fail=True,
+    )
 
 
 def check_log(log: EvalLog, color="purple", check_model_roles=False) -> None:

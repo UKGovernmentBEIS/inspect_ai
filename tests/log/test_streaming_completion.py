@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from test_helpers.task_logger import TaskLoggerShim
 
-from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.run import log_sample
 from inspect_ai.event import (
     InfoEvent,
@@ -71,7 +71,7 @@ async def test_log_sample_returns_materialized_streaming_sample(
     )
     recorder = EvalRecorder(str(tmp_path))
     spec = _eval_spec()
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
@@ -120,7 +120,7 @@ async def test_log_sample_rebinds_timelines_to_materialized_events(tmp_path) -> 
     db.log_events([SampleEvent(id="sample", epoch=1, event=transcript_event)])
     recorder = EvalRecorder(str(tmp_path))
     spec = _eval_spec()
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
@@ -206,6 +206,28 @@ async def test_streaming_completion_eval_output_matches_materialized(tmp_path):
 
 
 @pytest.mark.anyio
+async def test_streaming_write_evicts_buffered_prior(tmp_path) -> None:
+    """A streaming re-log supersedes a buffered prior record for the same key.
+
+    The streaming path zip-writes its member immediately; a prior record
+    still in the flush buffer would otherwise be written *after* it, and the
+    readers' name-based last-entry-wins rule would resolve the finished log
+    to the stale prior (while metrics show the fresh outcome).
+    """
+    recorder, spec = await _start_eval_recorder(tmp_path)
+
+    await recorder.log_sample(spec, _sample().model_copy(update={"target": "stale"}))
+    with _history(tmp_path) as history:
+        await recorder.log_sample_streaming(spec, _sample(), history)
+
+    await _finish_eval(recorder, spec)
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].target == "answer"
+
+
+@pytest.mark.anyio
 async def test_eval_recorder_log_sample_streaming_writes_sample(
     tmp_path,
 ) -> None:
@@ -286,7 +308,7 @@ async def _log_sample_with_buffer(
 ) -> tuple[EvalSample, EvalSample]:
     db = _buffer_db(tmp_path, events)
     recorder, spec = await _start_eval_recorder(tmp_path)
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
@@ -303,11 +325,6 @@ async def _log_sample_with_buffer(
     ).samples
     assert logged_samples is not None
     return returned, logged_samples[0]
-
-
-class _TaskLoggerShim(TaskLogger):
-    def __init__(self, buffer_db: SampleBufferDatabase) -> None:
-        self._buffer_db = buffer_db
 
 
 @pytest.mark.anyio
@@ -342,7 +359,7 @@ async def test_log_sample_from_memory_writes_resident_events_without_buffer_read
     )
     db = _buffer_db(tmp_path, [_model("buffer-1", "answer")])
     recorder, spec = await _start_eval_recorder(tmp_path)
-    logger = _TaskLoggerShim(db)
+    logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1

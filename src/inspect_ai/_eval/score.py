@@ -28,7 +28,6 @@ from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     has_registry_params,
-    registry_create,
     registry_lookup,
     registry_params,
     registry_unqualified_name,
@@ -50,10 +49,11 @@ from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
+from inspect_ai.model._util import resolve_model_roles
 from inspect_ai.scorer import Metric, Scorer, Target
-from inspect_ai.scorer._metric import SampleScore, Score
+from inspect_ai.scorer._metric import SampleScore, Score, metric_create
 from inspect_ai.scorer._reducer import (
     ScoreReducer,
     ScoreReducers,
@@ -83,6 +83,8 @@ def score(
     | dict[str, list[Metric]]
     | None = None,
     epochs_reducer: ScoreReducers | None = None,
+    model: str | Model | None = None,
+    model_roles: dict[str, str | Model] | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
@@ -98,6 +100,10 @@ def score(
        epochs_reducer (ScoreReducers | None):
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
+       model: Optional. Model used for re-scoring (replaces the primary
+           model reconstructed from the log header).
+       model_roles: Optional. Named model roles used for re-scoring
+           (merged over the model roles reconstructed from the log header).
        action: Whether to append or overwrite this score
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
@@ -116,16 +122,30 @@ def score(
 
     if running_in_notebook():
         return run_coroutine(
-            score_async(log, scorers, metrics, epochs_reducer, action, copy=copy)
+            score_async(
+                log,
+                scorers,
+                metrics,
+                epochs_reducer,
+                model=model,
+                model_roles=model_roles,
+                action=action,
+                copy=copy,
+            )
         )
     else:
         return anyio.run(
-            functools.partial(score_async, copy=copy),
+            functools.partial(
+                score_async,
+                model=model,
+                model_roles=model_roles,
+                action=action,
+                copy=copy,
+            ),
             log,
             scorers,
             metrics,
             epochs_reducer,
-            action,
             backend=configured_async_backend(),
         )
 
@@ -195,6 +215,8 @@ async def score_async(
     | dict[str, list[Metric]]
     | None = None,
     epochs_reducer: ScoreReducers | None = None,
+    model: str | Model | None = None,
+    model_roles: dict[str, str | Model] | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
     copy: bool = True,
@@ -213,6 +235,10 @@ async def score_async(
        epochs_reducer (ScoreReducers  | None):
          Reducer function(s) for aggregating scores in each sample.
          Defaults to previously used reducer(s).
+       model: Optional. Model used for re-scoring (replaces the primary
+         model reconstructed from the log header).
+       model_roles: Optional. Named model roles used for re-scoring
+         (merged over the model roles reconstructed from the log header).
        action: Whether to append or overwrite this score
        display: Progress/status display
        copy: Whether to deepcopy the log before scoring.
@@ -229,6 +255,23 @@ async def score_async(
 
     # resolve scorers
     resolved_scorers = resolve_scorer(scorers)
+
+    # resolve the active model and model_roles for the scoring task context.
+    # caller-supplied overrides win; otherwise reconstruct from the log header
+    active_model = (
+        model
+        if isinstance(model, Model)
+        else get_model(model)
+        if model is not None
+        else get_model(
+            model=log.eval.model,
+            config=log.plan.config.merge(log.eval.model_generate_config),
+            base_url=log.eval.model_base_url,
+            **log.eval.model_args,
+        )
+    )
+    log_roles = model_roles_config_to_model_roles(log.eval.model_roles) or {}
+    active_roles = {**log_roles, **(resolve_model_roles(model_roles) or {})}
 
     if copy:
         # deepcopy so we don't mutate the passed log
@@ -259,6 +302,9 @@ async def score_async(
     with display_manager().progress(total=total_samples) as p:
         scorer_names: list[str] | None = None
         scores: list[dict[str, SampleScore] | None] = [None] * total_samples
+        # tally the per-sample error state as we go so an overwrite can restate
+        # completed_samples exactly rather than falling back to len(scores)
+        sample_completed: list[bool] = [False] * total_samples
 
         async def _score_sample(idx_sample: int) -> None:
             nonlocal scorer_names
@@ -275,11 +321,12 @@ async def score_async(
                 # since the sample score carries the scorer name that generated
                 # it (so using sample.scores directly isn't enough)
                 sample_score, names = await _run_score_task(
-                    log, sample, resolved_scorers, action
+                    log, sample, resolved_scorers, active_model, active_roles, action
                 )
 
             assert sample.scores is not None
             scores[idx_sample] = sample_score
+            sample_completed[idx_sample] = sample.error is None
             if scorer_names is None:
                 scorer_names = names
             p.update(1)
@@ -319,6 +366,7 @@ async def score_async(
             scorer_names,
             early_stopping=log.results.early_stopping if log.results else None,
             metadata=log.results.metadata if log.results else None,
+            completed_samples=sum(sample_completed),
         )
 
         # Update log.eval.scorers to reflect the scorers actually applied so
@@ -349,6 +397,8 @@ async def _run_score_task(
     log_header: EvalLog,
     sample: EvalSample,
     scorers: list[Scorer],
+    model: Model,
+    model_roles: dict[str, Model],
     action: ScoreAction,
 ) -> Tuple[dict[str, SampleScore], list[str]]:
     # resolve attachment:// refs so scorers see real content rather than
@@ -375,16 +425,6 @@ async def _run_score_task(
         scores=(resolved_sample.scores or {}).copy() if action == "append" else {},
         sample_uuid=resolved_sample.uuid,
     )
-
-    # get the model then initialize the async context
-    model = get_model(
-        model=log_header.eval.model,
-        config=log_header.plan.config.merge(log_header.eval.model_generate_config),
-        **log_header.eval.model_args,
-    )
-
-    # get the model roles
-    model_roles = model_roles_config_to_model_roles(log_header.eval.model_roles)
 
     # initialize active model and store
     init_task_context(model, model_roles)
@@ -481,7 +521,7 @@ def metrics_from_log_header(
 
 
 def metric_from_log(metric: EvalMetricDefinition) -> Metric:
-    return registry_create("metric", metric.name, **(metric.options or {}))
+    return metric_create(metric.name, **(metric.options or {}))
 
 
 def reducers_from_log_header(log: EvalLog) -> list[ScoreReducer] | None:

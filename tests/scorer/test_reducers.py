@@ -6,6 +6,7 @@ from functools import reduce
 from typing import Any
 
 import numpy as np
+import pytest
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
@@ -14,6 +15,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
     Score,
     ScoreReducer,
+    Value,
     ValueToFloat,
     at_least,
     match,
@@ -26,7 +28,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.scorer._reducer.reducer import pass_at, pass_k
-from inspect_ai.scorer._reducer.registry import REDUCER_NAME, reducer_log_name
+from inspect_ai.scorer._reducer.registry import reducer_log_name
 
 avg_reducer = mean_score()
 median_reducer = median_score()
@@ -75,6 +77,26 @@ def test_all_nan_simple_reducers() -> None:
     assert _is_nan(pass_k_5_threshold(simple_scores).value)
 
 
+def test_empty_simple_reducers() -> None:
+    # An empty score list reaches the reducer when a sample produced no scores;
+    # every reducer should fall back to NaN instead of raising IndexError.
+    empty_scores: list[Score] = []
+
+    assert _is_nan(avg_reducer(empty_scores).value)
+    assert _is_nan(median_reducer(empty_scores).value)
+    assert _is_nan(mode_reducer(empty_scores).value)
+    assert _is_nan(max_reducer(empty_scores).value)
+    assert _is_nan(at_least_3_reducer(empty_scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_3_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_threshhold(empty_scores).value)
+    assert _is_nan(pass_k_2_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_3_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_threshold(empty_scores).value)
+
+
 def test_list_reducers() -> None:
     _test_list_reducers_impl(include_nan=False)
 
@@ -107,6 +129,65 @@ def test_all_nan_list_reducers() -> None:
     assert_list_nan(reduced)
     reduced = pass_k_2_no_threshold(list_scores).value
     assert_list_nan(reduced)
+
+
+def test_list_reducers_mismatched_lengths_raise() -> None:
+    # Lists that differ in length across epochs can't be reduced index-by-index.
+    # Depending on which epoch came first this previously either crashed with a
+    # cryptic IndexError or silently dropped the trailing values; now it should
+    # raise a clear ValueError pointing at the inconsistency.
+    list_score_sets = [
+        [
+            Score(value=[1, 2, 3]),
+            Score(value=[1, 2]),
+        ],
+        [
+            Score(value=[1, 2]),
+            Score(value=[1, 2, 3]),
+        ],
+    ]
+
+    for list_scores in list_score_sets:
+        for reducer in [
+            avg_reducer,
+            median_reducer,
+            mode_reducer,
+            max_reducer,
+            at_least_3_reducer,
+            pass_at_2_no_threshhold,
+            pass_k_2_no_threshold,
+        ]:
+            with pytest.raises(ValueError, match="mismatched length"):
+                reducer(list_scores)
+
+
+def test_dict_reducers_mismatched_keys_raise() -> None:
+    # Dicts with different keys across epochs can't be reduced key-by-key. The
+    # missing key previously surfaced as a cryptic KeyError (or was silently
+    # ignored); now it should raise a clear ValueError.
+    dict_score_sets = [
+        [
+            Score(value={"coolness": 5, "spiciness": 1}),
+            Score(value={"coolness": 4}),
+        ],
+        [
+            Score(value={"coolness": 4}),
+            Score(value={"coolness": 5, "spiciness": 1}),
+        ],
+    ]
+
+    for dict_scores in dict_score_sets:
+        for reducer in [
+            avg_reducer,
+            median_reducer,
+            mode_reducer,
+            max_reducer,
+            at_least_3_reducer,
+            pass_at_2_no_threshhold,
+            pass_k_2_no_threshold,
+        ]:
+            with pytest.raises(ValueError, match="mismatched key"):
+                reducer(dict_scores)
 
 
 def test_nan_root_list_reducers() -> None:
@@ -243,6 +324,19 @@ def test_nan_root_first_score_dict_reducers() -> None:
 
     assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
     assert max_reducer(dict_scores).value == {"coolness": 4, "spiciness": 1}
+
+
+def test_dict_reducer_value_to_float_applied_once() -> None:
+    # A custom value_to_float should be applied once per value, like the scalar
+    # and list branches. Halving isn't idempotent, so applying it twice in the
+    # dict branch halves each value again (mean 1.5 instead of 3.0).
+    def half(value: Value) -> float:
+        assert isinstance(value, (int, float))
+        return value / 2
+
+    dict_scores = [Score(value={"x": 4}), Score(value={"x": 8})]
+    assert mean_score(value_to_float=half)(dict_scores).value == {"x": 3.0}
+    assert median_score(value_to_float=half)(dict_scores).value == {"x": 3.0}
 
 
 def test_score_unscored() -> None:
@@ -431,23 +525,18 @@ def test_create_reducers_exact_name_with_trailing_digits() -> None:
     assert create_reducers("pass_k_3")
 
 
-def test_at_least_reducer_name_includes_k() -> None:
-    # Regression: the REDUCER_NAME override inside at_least()/pass_at() was
-    # being written to the global factory wrapper rather than the returned
-    # reducer closure, so the registry name never picked up the `k` suffix
-    # and each call leaked global state onto the factory.
+def test_parameterized_reducer_log_name_includes_k() -> None:
+    # Registry metadata keeps the stable factory lookup name while log names
+    # are derived from the registered parameters.
     r3 = at_least(3)
-    assert registry_info(r3).name.endswith("at_least_3")
+    assert registry_info(r3).name.endswith("at_least")
     # creating another instance must not retroactively affect r3
     _ = at_least(7)
-    assert registry_info(r3).name.endswith("at_least_3")
-    # the factory itself should not accumulate per-call state
-    assert not hasattr(at_least, REDUCER_NAME)
-    # log name must not double-append the suffix
+    assert registry_info(r3).name.endswith("at_least")
+    # log names remain parameterized without replacing the registry key
     assert reducer_log_name(r3) == "at_least_3"
     assert reducer_log_name(pass_at(4)) == "pass_at_4"
     assert reducer_log_name(pass_k(4)) == "pass_k_4"
-    assert not hasattr(pass_k, REDUCER_NAME)
 
 
 def test_max_reducer_dict_per_key_nan_order_independent() -> None:

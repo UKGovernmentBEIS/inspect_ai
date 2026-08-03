@@ -21,7 +21,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import GenerateConfig, ResponseSchema
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import ModelOutput, ModelUsage, StopReason
 from inspect_ai.model._providers._google_computer_use import (
@@ -45,6 +45,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     web_search,
 )
+from inspect_ai.util._json import JSONSchema
 
 from .types import AgentBridge
 from .util import (
@@ -152,6 +153,19 @@ def generate_config_from_google(generation_config: dict[str, Any]) -> GenerateCo
     config.stop_seqs = generation_config.get(
         "stopSequences", generation_config.get("stop_sequences")
     )
+
+    # structured output: responseJsonSchema is standard JSON Schema; responseSchema
+    # is Gemini's OpenAPI-style Schema (uppercase types) which we normalize.
+    schema = generation_config.get("responseJsonSchema") or generation_config.get(
+        "responseSchema"
+    )
+    if schema:
+        config.response_schema = ResponseSchema(
+            name="response",
+            json_schema=JSONSchema.model_validate(
+                _google_schema_to_json_schema(schema)
+            ),
+        )
 
     # NOTE: We deliberately do NOT set config.system_message from system_instruction here.
     # The system_instruction is already converted to ChatMessageSystem messages in
@@ -294,20 +308,40 @@ def messages_from_google_contents(
             messages.extend(tool_messages)
 
         elif role == "model":
-            assistant_content, tool_calls = _extract_model_parts(parts)
-
-            pending_tool_calls.clear()
-            for tc in tool_calls:
-                if tc.function not in pending_tool_calls:
-                    pending_tool_calls[tc.function] = []
-                pending_tool_calls[tc.function].append(tc.id)
-
-            messages.append(
-                ChatMessageAssistant(
-                    content=assistant_content if assistant_content else "",
-                    tool_calls=tool_calls if tool_calls else None,
+            # localharness (Antigravity SDK) emits tool RESULTS as functionResponse
+            # parts inside a MODEL-role turn (cloudcode dialect), unlike public Gemini
+            # which carries them in a user/function turn. Re-role those into tool
+            # messages (matching the pending tool-call ids from the prior model turn)
+            # BEFORE clearing pending calls; otherwise _extract_model_parts drops them
+            # and the request ends on a model turn (Gemini 400 "Requests ending with a
+            # model turn are not supported").
+            func_response_parts = [p for p in parts if _is_function_response_part(p)]
+            if func_response_parts:
+                _, tool_messages = _extract_user_parts(
+                    func_response_parts, pending_tool_calls
                 )
-            )
+                messages.extend(tool_messages)
+
+            other_parts = [p for p in parts if not _is_function_response_part(p)]
+            assistant_content, tool_calls = _extract_model_parts(other_parts)
+
+            if tool_calls:
+                pending_tool_calls.clear()
+                for tc in tool_calls:
+                    if tc.function not in pending_tool_calls:
+                        pending_tool_calls[tc.function] = []
+                    pending_tool_calls[tc.function].append(tc.id)
+
+            # Only emit an assistant turn when it carries real content or tool calls;
+            # a pure-functionResponse model turn must NOT add an empty assistant (that
+            # empty trailing model turn is exactly what Gemini rejects).
+            if assistant_content or tool_calls:
+                messages.append(
+                    ChatMessageAssistant(
+                        content=assistant_content if assistant_content else "",
+                        tool_calls=tool_calls if tool_calls else None,
+                    )
+                )
 
     return messages
 
@@ -358,6 +392,12 @@ def _strip_system_prompt_prefix(
     return user_content
 
 
+def _is_function_response_part(part: Any) -> bool:
+    return isinstance(part, dict) and (
+        "functionResponse" in part or "function_response" in part
+    )
+
+
 def _extract_user_parts(
     parts: list[dict[str, Any]],
     pending_tool_calls: dict[str, list[str]],
@@ -385,7 +425,7 @@ def _extract_user_parts(
                     ContentImage(image=f"data:{mime_type};base64,{data}")
                 )
 
-        elif "functionResponse" in part or "function_response" in part:
+        elif _is_function_response_part(part):
             func_response = part.get(
                 "functionResponse", part.get("function_response", {})
             )
@@ -621,3 +661,25 @@ def _convert_google_enums(obj: Any) -> Any:
     elif hasattr(obj, "value"):  # Enum-like object
         return str(obj.value).lower()
     return obj
+
+
+def _google_schema_to_json_schema(schema: Any) -> Any:
+    """Normalize a Gemini OpenAPI-style Schema into a standard JSON Schema dict."""
+    return _lowercase_schema_types(_convert_google_enums(schema))
+
+
+def _lowercase_schema_types(value: Any) -> Any:
+    # Gemini emits uppercase JSON Schema `type` names like "OBJECT" / "STRING".
+    if isinstance(value, dict):
+        out: dict[str, Any] = {}
+        for k, v in value.items():
+            if k == "type" and isinstance(v, str):
+                out[k] = v.lower()
+            elif k == "type" and isinstance(v, list):
+                out[k] = [t.lower() if isinstance(t, str) else t for t in v]
+            else:
+                out[k] = _lowercase_schema_types(v)
+        return out
+    if isinstance(value, list):
+        return [_lowercase_schema_types(v) for v in value]
+    return value

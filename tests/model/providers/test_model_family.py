@@ -6,6 +6,7 @@ import pytest
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    ModelAPI,
     ModelInfo,
     ModelOutput,
     set_model_info,
@@ -70,8 +71,7 @@ def test_grok_service_model_name_controls_wire_identity() -> None:
             return "grok-4-1-fast-reasoning"
 
     api = _AliasedGrokAPI.__new__(_AliasedGrokAPI)
-    api.model_name = "custom-alias"
-    api.api_key = "test-key"
+    ModelAPI.__init__(api, model_name="custom-alias", api_key="test-key")
 
     assert api.canonical_name() == "grok/grok-4-1-fast-reasoning"
     assert api.connection_key() == "test-key:grok-4-1-fast-reasoning"

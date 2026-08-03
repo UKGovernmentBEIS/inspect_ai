@@ -226,6 +226,20 @@ services:
     assert config.services["default"].cap_drop == ["ALL"]
 
 
+def test_parse_compose_yaml_accepts_devices(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    devices:
+      - /dev/kvm
+      - /dev/snd:/dev/snd
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].devices == ["/dev/kvm", "/dev/snd:/dev/snd"]
+
+
 def test_parse_compose_yaml_accepts_security_opt(tmp_path):
     compose_file = tmp_path / "compose.yaml"
     compose_file.write_text("""

@@ -50,6 +50,7 @@ _GENERATION_PARAM_FIELDS: tuple[str, ...] = (
     "top_logprobs",
     "prompt_logprobs",
     "logit_bias",
+    "effort",
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
