@@ -476,3 +476,17 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
     df = evals_df(log_dir)
     assert df["tags"].to_list() == ["added"]
     assert df["metadata"].to_list() == ['{"key": "edited"}']
+
+
+def test_score_values_and_score_value_null_handling():
+    from inspect_ai.analysis._dataframe.extract import score_value, score_values
+
+    assert score_values(None) == {}
+    assert score_values("invalid") == {}
+    assert score_values({"acc": None}) == {"acc": None}
+    assert score_values({"acc": {"value": 0.9}}) == {"acc": 0.9}
+
+    assert score_value(None) is None
+    assert score_value("invalid") is None
+    assert score_value({}) is None
+    assert score_value({"acc": {"value": 0.9}}) == 0.9
