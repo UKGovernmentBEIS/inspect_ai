@@ -206,6 +206,19 @@ def test_cache_prompt_enabled_when_config_auto() -> None:
     assert api._cache_prompt_enabled(GenerateConfig(cache_prompt="auto")) is True
 
 
+def test_cache_prompt_enabled_when_config_prefix() -> None:
+    """`cache_prompt="prefix"` enables caching here, deliberately.
+
+    The mode's only effect on the direct anthropic provider is suppressing the
+    top-level auto-cache marker, which the API resolves onto the last content
+    block. This provider's marker scheme has no equivalent of that marker (it
+    marks system, tools, and the penultimate block only), so its placement is
+    already prefix-shaped and "prefix" must not read as disabled.
+    """
+    api = _make_api("openrouter/anthropic/claude-sonnet-4-5")
+    assert api._cache_prompt_enabled(GenerateConfig(cache_prompt="prefix")) is True
+
+
 @pytest.mark.parametrize(
     "model",
     [

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Anthropic: New `cache_prompt: "prefix"` mode keeps the explicit cache breakpoints (system, tools, lookback) but suppresses the automatic end-of-prompt marker, so prompts with a varying final block (e.g. LLM-judge rubric + item) stop paying cache writes that never read back. Warns once if the mode leaves a request with no breakpoint at all. (#4505)
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
 - Sandbox: Service method errors no longer include the host-side traceback in the response delivered into the sandbox; the traceback is logged host-side instead. (#4673)
 - Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
