@@ -88,7 +88,7 @@ Using a coding agent with Inspect? The [inspect-skills](https://github.com/merid
 /plugin marketplace add meridianlabs-ai/inspect-skills
 /plugin install inspect-skills@meridian
 
-# Other agents (see the README for the full list)
+# Other agents
 npx skills add meridianlabs-ai/inspect-skills
 ```
 :::

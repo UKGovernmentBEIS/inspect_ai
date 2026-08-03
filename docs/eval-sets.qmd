@@ -28,7 +28,7 @@ Want your coding agent to run eval sets and watch them for you? The [`babysittin
 /plugin marketplace add meridianlabs-ai/inspect-skills
 /plugin install inspect-skills@meridian
 
-# Other agents (see the README for the full list)
+# Other agents
 npx skills add meridianlabs-ai/inspect-skills
 ```
 :::

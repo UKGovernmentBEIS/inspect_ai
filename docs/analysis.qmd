@@ -24,7 +24,7 @@ Want your coding agent to answer questions about your eval results? The [`analyz
 /plugin marketplace add meridianlabs-ai/inspect-skills
 /plugin install inspect-skills@meridian
 
-# Other agents (see the README for the full list)
+# Other agents
 npx skills add meridianlabs-ai/inspect-skills
 ```
 :::
