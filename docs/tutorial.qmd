@@ -343,7 +343,7 @@ To analyze the content of transcripts more deeply (e.g. flagging refusals, evalu
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to do this analysis for you? Install the `analyzing-logs` skill from [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
+Want your coding agent to do this analysis for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
 :::
 
 ## Coding Agents {#sec-coding-agents}
@@ -404,7 +404,7 @@ See [Eval Sets](eval-sets.qmd) for the full retry and resumption model. When run
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to run evals and watch them for you? Install the `babysitting-evals` skill from [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
+Want your coding agent to run evals and watch them for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
 :::
 
 ## Scanning {#sec-scanning}

@@ -10,7 +10,7 @@ Every `inspect eval` or `inspect eval-set` process binds a local control endpoin
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to babysit running evals? The [`babysitting-evals`](https://github.com/meridianlabs-ai/inspect-skills#install) skill teaches it to diagnose stalls, cancel stuck samples, and retune concurrency via `inspect ctl`.
+Want your coding agent to babysit running evals? The [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin teaches it to diagnose stalls, cancel stuck samples, and retune concurrency via `inspect ctl`.
 
 ``` bash
 # Claude Code
@@ -112,7 +112,7 @@ To instead keep the process alive after the eval finishes — its state still qu
 
 `--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because a detached eval must be observable and cancellable while running, combining `--detach` with `--ctl-server=false` is an error.
 
-If your agent doesn't support skills (see the `babysitting-evals` skill above), paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md` to make it use this workflow for long-running evals:
+If your agent doesn't support skills (see [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) above), paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md` to make it use this workflow for long-running evals:
 
 ```markdown
 For evals that may run longer than a few minutes, do not run

@@ -172,7 +172,7 @@ To disable model API logging entirely (errors only), use `--no-log-model-api`.
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to read eval logs efficiently? The [`reading-logs`](https://github.com/meridianlabs-ai/inspect-skills#install) skill teaches it to pick the cheapest read for the question and handle very large logs safely.
+Want your coding agent to read eval logs efficiently? The [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin teaches it to pick the cheapest read for the question and handle very large logs safely.
 
 ``` bash
 # Claude Code

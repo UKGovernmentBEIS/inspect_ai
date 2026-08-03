@@ -17,7 +17,7 @@ Once an evaluation has run, Inspect provides a number of tools for inspecting, a
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to answer questions about your eval results? The [`analyzing-logs`](https://github.com/meridianlabs-ai/inspect-skills#install) skill teaches it to pick the right analysis tool for the question.
+Want your coding agent to answer questions about your eval results? The [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin teaches it to pick the right analysis tool for the question.
 
 ``` bash
 # Claude Code
