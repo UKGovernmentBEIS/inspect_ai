@@ -1,6 +1,6 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, pause and resume, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, sample requeue, pause and resume, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
@@ -22,6 +22,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 | `inspect ctl sample events` | Read one sample's transcript events. |
 | `inspect ctl sample messages` | Read one sample's current conversation. |
 | `inspect ctl sample cancel` | Cancel one running sample. |
+| `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
 | `inspect ctl model pause` | Pause one model's dispatch across the run. |
 | `inspect ctl model resume` | Resume a paused model. |
@@ -34,7 +35,7 @@ Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), pl
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly without touching in-flight work, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly without touching in-flight work, `task cancel` / `sample cancel` interrupt work explicitly, and `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -289,6 +290,24 @@ $ inspect ctl task cancel gpqa --action score
 ```
 
 Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
+
+## Requeue
+
+`inspect ctl sample requeue` re-runs one errored or cancelled sample inside the still-running eval — the recovery move when a sample failed for a transient reason (a provider incident, a flaky sandbox) and you'd rather not wait for the whole run to finish and `inspect eval-retry` it. The sample goes to the back of the sample queue and re-runs under the task's normal machinery: its prior errors ride along as retry history, a checkpointed sample resumes from its checkpoint, and the run's final log and counters reflect the fresh outcome (the superseded attempt does not count toward a fail-on-error threshold).
+
+```bash
+$ inspect ctl sample requeue gpqa 17
+```
+
+As with `sample cancel`, `EPOCH` defaults to 1 but is *required* whenever the task runs more than one epoch — a defaulted epoch would silently requeue a different attempt:
+
+```bash
+$ inspect ctl sample requeue gpqa 17 3
+```
+
+The command is idempotent: requeuing a sample whose re-run is already pending, queued, or running — or one that hasn't started yet — is a clean no-op reporting the sample's current status (`changed: false` in the `--json` detail), so a retrying script can re-issue safely without double-queueing. While the re-run waits its turn, `sample list` and `sample show` render the sample as `queued` with its prior error shown as retry history.
+
+Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
 
 ## Pause and Resume
 
