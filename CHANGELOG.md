@@ -1,10 +1,13 @@
 ## Unreleased
 
+- Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
 - Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
 - Sandbox: Service method errors no longer include the host-side traceback in the response delivered into the sandbox; the traceback is logged host-side instead. (#4673)
 - Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
+- Approval: Model inference performed inside a tool approver no longer counts against active token and turn limits.
 - Bugfix: Reading eval logs with field exclusion (e.g. header-only reads) no longer crashes under a trio event loop; the pure-Python ijson backend is now selected when the C backend's asyncio-only async parser is unavailable. (#4589)
+- Logging: Reading `.eval` logs with `exclude_fields` no longer fails with "integer overflow" when a sample contains a JSON integer larger than 2⁶³−1.
 - Control Channel: `inspect ctl sample list`/`show` now report a running sample's in-flight activity (`generating 7:12`, `bash 0:41`, `retrying in 0:45`), and `sample events` renders pending events, so long model calls and retry backoffs no longer read as silent idle.
 - Retry: Samples reused from a prior attempt no longer stay resident in memory awaiting a flush, and are written to the new attempt's log (readable by `inspect ctl` and viewers) as soon as the reuse sweep completes.
 - Control Channel: Paginating or polling a finished sample's events or messages no longer re-parses the whole sample per request (resolved terminal sources are briefly cached).
