@@ -59,9 +59,13 @@ def model_graded_fact(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
-         to `False`. Note that this parameter is only used
-         with the default `instructions` (as custom instructions
-         provide their own prompts for grades).
+         to `False`. Only affects grading under the
+         default `instructions` and default `grade_pattern`: with
+         `partial_credit=False` the default instructions never offer
+         "P", so a `GRADE: P` emitted anyway is treated as a
+         grade-parse failure (unscored) rather than silently scored
+         0.5. Custom `instructions` or an explicit `grade_pattern`
+         are authoritative and keep every grade they match.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the final grade is computed by
         majority vote. When this parameter is provided, it takes precedence
@@ -118,9 +122,13 @@ def model_graded_qa(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
-        to `False`. Note that this parameter is only used
-        with the default `instructions` (as custom instructions
-        provide their own prompts for grades).
+        to `False`. Only affects grading under the default
+        `instructions` and default `grade_pattern`: with
+        `partial_credit=False` the default instructions never offer
+        "P", so a `GRADE: P` emitted anyway is treated as a
+        grade-parse failure (unscored) rather than silently scored
+        0.5. Custom `instructions` or an explicit `grade_pattern`
+        are authoritative and keep every grade they match.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the final grade is computed by
         majority vote. When this parameter is provided, it takes precedence
@@ -166,9 +174,25 @@ def _model_graded_qa_single(
     # resolve grading template, instructions, and grade_pattern
     template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
     grading_template = resource(template)
+    using_default_instructions = not instructions
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
     )
+    default_grade_pattern = grade_pattern is None
+    resolved_grade_pattern = grade_pattern or DEFAULT_GRADE_PATTERN
+    # The grade a scorer accepts must agree with the instructions actually shown
+    # to the grader. Only reject "P" when *we* generated the default instructions
+    # with partial_credit=False (so "P" was never offered); custom instructions
+    # carry their own prompt and may legitimately offer "P", as may an explicit
+    # grade_pattern, so both keep every letter their pattern matches.
+    reject_partial = (
+        default_grade_pattern and using_default_instructions and not partial_credit
+    )
+    # The rejection happens *after* the match rather than by narrowing the
+    # pattern's character class: the pattern's leading greedy ".*" binds to the
+    # last "GRADE: X" in the completion, and a narrower class would make it
+    # backtrack onto an earlier mention in the chain of thought instead of
+    # failing to match -- scoring a partial answer as fully correct.
 
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
@@ -208,8 +232,9 @@ def _model_graded_qa_single(
         result = await model.generate([scoring_prompt])
 
         # extract the grade
-        default_grade_pattern = grade_pattern is None
-        match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
+        match = re.search(resolved_grade_pattern, result.completion)
+        if match and reject_partial and match.group(1).upper() == "P":
+            match = None
         if match:
             value = match.group(1)
             if default_grade_pattern:

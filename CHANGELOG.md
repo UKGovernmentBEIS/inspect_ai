@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
+- Scoring: `model_graded_qa`/`model_graded_fact` with `partial_credit=False` now treat a `GRADE: P` from the default grader as a grade-parse failure (unscored) instead of silently scoring 0.5; custom `instructions` and explicit `grade_pattern`s are unaffected. Under a multi-grader `mode`/reducer the rejected grader is left out of the vote rather than abstaining the sample. (#4697)
 - Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
 - Sandbox: Service method errors no longer include the host-side traceback in the response delivered into the sandbox; the traceback is logged host-side instead. (#4673)
