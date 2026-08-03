@@ -120,13 +120,13 @@ def truncate_bytes(input: bytes, max_bytes: int) -> TruncatedOutput | None:
 
     # Split bytes in half
     half_bytes = max_bytes // 2
-    start_portion = input[:half_bytes]
-    end_portion = input[-(max_bytes - half_bytes) :]
+    start_portion = input[:half_bytes].decode("utf-8", errors="ignore")
+    end_portion = input[-(max_bytes - half_bytes) :].decode("utf-8", errors="ignore")
 
     # Combine portions
-    result_bytes = start_portion + end_portion
+    result = start_portion + end_portion
 
-    return TruncatedOutput(result_bytes.decode("utf-8", errors="replace"), len(input))
+    return TruncatedOutput(result, len(input))
 
 
 def str_to_float(s: str) -> float:
