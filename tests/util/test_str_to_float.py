@@ -88,6 +88,12 @@ def test_str_to_float_mixed_fractions():
     assert str_to_float("-2½") == -2.5
     assert str_to_float("-1¼") == -1.25
 
+    # Standalone signed fraction
+    assert str_to_float("-½") == -0.5
+    assert str_to_float("+½") == 0.5
+    assert str_to_float("-⅓") == -1 / 3
+    assert str_to_float("-½²") == 0.25
+
 
 def test_str_to_float_mixed_fractions_with_exponents():
     # Fraction with exponent
