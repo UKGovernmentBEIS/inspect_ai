@@ -37,6 +37,7 @@
 - Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
 - MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
 - MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
+- OpenAI: Web search `find`/`find_in_page` actions missing a `url` or `pattern` now degrade to a search action instead of crashing the sample with a validation error. (#4119)
 - Performance: Message preparation for providers that extract tool-result media into user messages now scales linearly with conversation length rather than quadratically.
 - Smaller downloads: the wheel no longer includes the accidentally-bundled log viewer TypeScript source, and the sdist no longer includes tests, docs, or lockfiles.
 - Bugfix: OpenAI: A tool call with an oversized arguments string no longer poisons the conversation, which previously failed every subsequent request with a 400 "string too long" error. (#4682)
@@ -48,6 +49,9 @@
 - Bugfix: Anthropic: `count_tokens()` now sends `extra_headers` from the generate config (including any `anthropic-beta` values), matching `generate()`. (#4606)
 - Bugfix: Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
 - Bugfix: UTF-8 output truncation now preserves character boundaries and respects configured byte limits instead of inserting replacement characters that can exceed the limit. (#4656)
+- Bugfix: Docker sandbox startup no longer times out during a healthcheck's `start_period`, so services with a long startup grace period now start reliably. (#4698)
+- Bugfix: Fractional healthcheck durations (e.g. `1.5s`) in Docker compose files now produce the correct startup timeout instead of a silently wrong one. (#4698)
+- Dependencies: Require `agent-client-protocol` >= 0.12 (adapts to its renamed multi-select schema types and new catch-all property type).
 
 ## 0.3.251 (29 July 2026)
 
