@@ -1,7 +1,8 @@
 import os
 from logging import getLogger
-from typing import Any
+from typing import Any, Callable
 
+import anyio.to_thread
 from typing_extensions import override
 
 from inspect_ai._util.async_zip import AsyncZipReader
@@ -14,6 +15,55 @@ from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from .recorder import Recorder
 
 logger = getLogger(__name__)
+
+
+async def write_local_snapshot(
+    location: str, fsync: bool, writer: Callable[[], None]
+) -> bool:
+    """Run a blocking atomic local write in a worker thread.
+
+    The worker thread keeps the blocking write/fsync from stalling the
+    event loop; the writer's atomic temp-file + rename pattern (see
+    :mod:`inspect_ai._util.atomic_write`) means an interrupted write can't
+    corrupt the existing log on disk (#2949).
+
+    Shared local-write policy for the file recorders. ``fsync=False`` marks
+    the write as a skippable intermediate snapshot: a ``PermissionError``
+    from the atomic rename (Windows file-in-use, e.g. the viewer reading
+    the log) is logged and swallowed rather than failing the task — the
+    previous valid log is untouched and the next flush retries naturally.
+    Final writes (``fsync=True``) always raise.
+
+    The worker thread is not abandoned on cancellation (the anyio default):
+    callers may reuse resources the writer reads (e.g. the zip temp file)
+    as soon as this returns, so the thread must have finished by then.
+
+    Args:
+        location: Destination path, used in the skip warning.
+        fsync: Whether this is a durable final write (True) or a skippable
+            intermediate snapshot (False). The writer itself is responsible
+            for actually fsync'ing (or not) accordingly — snapshots skip
+            fsync since physical writeback of a large log would stall the
+            worker thread for seconds per flush, and their crash-durability
+            matches the pre-atomic-write behaviour (none).
+        writer: Blocking callable that performs the atomic write.
+
+    Returns:
+        True if the write happened, False if it was skipped.
+    """
+    try:
+        await anyio.to_thread.run_sync(writer)
+        return True
+    except PermissionError as ex:
+        # On Windows os.replace() needs DELETE access on the target,
+        # denied while a reader holds the log open.
+        if fsync:
+            raise
+        logger.warning(
+            f"Skipped intermediate log write for {location} "
+            f"(file in use by another program): {ex}"
+        )
+        return False
 
 
 class FileRecorder(Recorder):

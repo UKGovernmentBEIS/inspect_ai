@@ -211,7 +211,9 @@ async def test_model_output_from_openai_responses_basic() -> None:
             input_tokens=100,
             output_tokens=200,
             total_tokens=300,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
         incomplete_details=None,
@@ -265,7 +267,9 @@ async def test_model_output_from_openai_responses_with_reasoning() -> None:
             input_tokens=50,
             output_tokens=150,
             total_tokens=200,
-            input_tokens_details=InputTokensDetails(cached_tokens=10),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=10, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=50),
         ),
         incomplete_details=None,
@@ -320,7 +324,7 @@ async def test_model_output_from_openai_responses_dict_input() -> None:
             "input_tokens": 20,
             "output_tokens": 30,
             "total_tokens": 50,
-            "input_tokens_details": {"cached_tokens": 0},
+            "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
             "output_tokens_details": {"reasoning_tokens": 0},
         },
     }
@@ -358,7 +362,9 @@ async def test_model_output_from_openai_responses_with_refusal() -> None:
             input_tokens=10,
             output_tokens=10,
             total_tokens=20,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
         incomplete_details=None,
@@ -543,7 +549,9 @@ async def test_model_output_from_openai_responses_cache_normalization() -> None:
             input_tokens=1000,
             output_tokens=50,
             total_tokens=1050,
-            input_tokens_details=InputTokensDetails(cached_tokens=600),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=600, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )

@@ -113,6 +113,41 @@ async def test_subprocess_which_ignores_sigterm_timeout():
     assert time.time() - start_time < 5, "Process was not killed in time"
 
 
+@pytest.mark.anyio
+async def test_subprocess_registers_resizable_limiter():
+    """subprocess() tracks its resizable limiter for the control channel.
+
+    The `"subprocesses"` concurrency key is backed by a ResizableSemaphore and
+    registered with the process-global slot the `ctl config --max-subprocesses`
+    directive reads, so a mid-flight retune reaches the limiter that later
+    subprocess() calls acquire from (the registry coalesces on key).
+    """
+    from inspect_ai.util._concurrency import (
+        ResizableSemaphore,
+        init_concurrency,
+        subprocess_limiter,
+    )
+
+    init_concurrency()
+    try:
+        assert subprocess_limiter() is None
+        result = await subprocess(["python3", "-c", "print('ok')"])
+        assert result.success
+        limiter = subprocess_limiter()
+        assert isinstance(limiter, ResizableSemaphore)
+
+        # a retune sticks: later calls reuse the same registry instance
+        limiter.concurrency = 2
+        result = await subprocess(["python3", "-c", "print('ok')"])
+        assert result.success
+        assert subprocess_limiter() is limiter
+        assert limiter.concurrency == 2
+    finally:
+        # the limiter is event-loop-bound; don't leak it to other tests
+        init_concurrency()
+    assert subprocess_limiter() is None
+
+
 def _process_found(pattern: str) -> bool:
     return any(
         pattern in " ".join(p.info["cmdline"] or [])

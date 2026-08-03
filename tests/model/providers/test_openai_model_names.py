@@ -26,6 +26,10 @@ KNOWN_MODELS = [
     "gpt-5",
     "gpt-5-mini",
     "gpt-5.5",
+    "gpt-5.6",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
     "gpt-5-chat",
     "o1",
     "o1-preview",
@@ -77,7 +81,7 @@ def test_codename_models_are_latest(model_name: str) -> None:
 def test_codename_aliases_to_frontier_context_window(model_name: str) -> None:
     # input_tokens_name() aliases to the current frontier so the context window
     # resolves correctly instead of falling back to the 128K default.
-    assert _api(model_name).input_tokens_name() == "openai/gpt-5.5"
+    assert _api(model_name).input_tokens_name() == "openai/gpt-5.6"
 
 
 def test_known_model_input_tokens_name_unchanged() -> None:

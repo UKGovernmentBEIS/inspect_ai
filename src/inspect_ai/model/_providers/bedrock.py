@@ -478,6 +478,12 @@ class BedrockAPI(ModelAPI):
             return False
         if self._is_claude_4_x(7):
             return True
+        # claude 5 (e.g. anthropic.claude-opus-5, anthropic.claude-fable-5)
+        # shares the 4.7+ capability set (adaptive-thinking-only, no sampling
+        # params). names with a digit before the trailing -5 (claude-haiku-4-5)
+        # do not match.
+        if re.search(r"claude-[a-zA-Z]+-5", self.model_family()):
+            return True
         # future claude 4 minor not yet recognised
         if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
             recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
@@ -888,19 +894,29 @@ async def converse_chat_message(
         ]
     elif isinstance(message, ChatMessageAssistant):
         if message.tool_calls:
-            # The assistant is calling tools, process those
-            results: list[ConverseMessage] = []
+            # The assistant is calling tools. Preserve any text/reasoning the
+            # model emitted in the same turn (mirroring the native Anthropic
+            # provider) rather than dropping it, then append the toolUse blocks
+            # in a single assistant message. The Converse API accepts text and
+            # toolUse content blocks side by side.
+            content: list[ConverseMessageContent] = []
+            if message.content:
+                content = [
+                    c
+                    for c in await converse_contents(message.content, emulate_reasoning)
+                    if c.text != NO_CONTENT
+                ]
             for tool_call in message.tool_calls:
-                tool_use = ConverseToolUse(
-                    toolUseId=tool_call.id,
-                    name=tool_call.function,
-                    input=tool_call.arguments,
+                content.append(
+                    ConverseMessageContent(
+                        toolUse=ConverseToolUse(
+                            toolUseId=tool_call.id,
+                            name=tool_call.function,
+                            input=tool_call.arguments,
+                        )
+                    )
                 )
-                m = ConverseMessage(
-                    role="assistant", content=[ConverseMessageContent(toolUse=tool_use)]
-                )
-                results.append(m)
-            return results
+            return [ConverseMessage(role="assistant", content=content)]
         else:
             # Simple assistant message
             return [

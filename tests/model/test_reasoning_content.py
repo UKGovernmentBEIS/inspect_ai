@@ -1,8 +1,10 @@
-from typing import Literal
+from typing import Any, Literal, cast
 
 import pytest
 from test_helpers.utils import (
+    skip_if_no_cloudflare,
     skip_if_no_groq,
+    skip_if_no_moonshot,
     skip_if_no_openai,
     skip_if_no_openrouter,
     skip_if_no_together,
@@ -39,6 +41,70 @@ async def test_reasoning_content_openai():
 @skip_if_no_openrouter
 async def test_reasoning_content_openrouter_openai():
     await check_reasoning_content("openrouter/openai/o4-mini")
+
+
+def check_reasoning_round_trip(model: str) -> None:
+    """Reasoning round trip.
+
+    Verifies reasoning is parsed from responses AND replayed back to the
+    model in the raw request payload under the same field it was received
+    in (e.g. reasoning_content), on prior assistant messages.
+    """
+    task = Task(
+        dataset=[Sample(input="Solve 3*x^3-5*x=1")],
+        solver=[
+            generate(),
+            user_message("Great! Now explain what you just did."),
+            generate(),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = resolve_sample_attachments(log.samples[0])
+    model_events = [event for event in sample.events if event.event == "model"]
+
+    # reasoning was parsed from the response (internal records its source field)
+    first_content = model_events[0].output.choices[0].message.content
+    assert isinstance(first_content, list)
+    reasoning = [c for c in first_content if isinstance(c, ContentReasoning)]
+    assert reasoning
+    source_field = str(reasoning[0].internal)
+    assert source_field in ("reasoning", "reasoning_content")
+
+    # reasoning was replayed in the raw request under the same field
+    assert model_events[-1].call is not None
+    request_messages = cast(
+        list[dict[str, Any]], model_events[-1].call.request["messages"]
+    )
+    replayed = [
+        message
+        for message in request_messages
+        if message["role"] == "assistant" and message.get(source_field)
+    ]
+    assert replayed
+
+
+@pytest.mark.slow
+@skip_if_no_cloudflare
+@pytest.mark.parametrize(
+    "model",
+    [
+        # native model (returns reasoning in the 'reasoning' field)
+        "cloudflare/@cf/google/gemma-4-26b-a4b-it",
+        # gateway model (returns reasoning in the 'reasoning_content' field)
+        "cloudflare/moonshotai/kimi-k3",
+    ],
+)
+def test_reasoning_content_cloudflare(model: str):
+    check_reasoning_round_trip(model)
+
+
+@pytest.mark.slow
+@skip_if_no_moonshot
+def test_reasoning_content_moonshot():
+    check_reasoning_round_trip("moonshot/kimi-k3")
 
 
 @pytest.mark.slow
