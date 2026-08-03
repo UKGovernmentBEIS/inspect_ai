@@ -70,7 +70,12 @@ def _make_crashed_log(
     )
 
 
-def _make_sample(id: int, epoch: int = 1, scored: bool = True) -> EvalSample:
+def _make_sample(
+    id: int,
+    epoch: int = 1,
+    scored: bool = True,
+    usage: ModelUsage | None = None,
+) -> EvalSample:
     return EvalSample(
         id=id,
         epoch=epoch,
@@ -80,9 +85,8 @@ def _make_sample(id: int, epoch: int = 1, scored: bool = True) -> EvalSample:
         messages=[],
         scores={"accuracy": Score(value="C", answer="C")} if scored else None,
         model_usage={
-            "mockllm/model": ModelUsage(
-                input_tokens=10, output_tokens=5, total_tokens=15
-            )
+            "mockllm/model": usage
+            or ModelUsage(input_tokens=10, output_tokens=5, total_tokens=15)
         },
         started_at=datetime.now(timezone.utc).isoformat(),
         completed_at=datetime.now(timezone.utc).isoformat() if scored else None,
@@ -127,6 +131,30 @@ async def test_write_recovered_eval_log_stats() -> None:
             usage = log.stats.model_usage["mockllm/model"]
             assert usage.input_tokens == 20
             assert usage.output_tokens == 10
+
+
+async def test_write_recovered_eval_log_stats_all_usage_fields() -> None:
+    """Test that every ModelUsage field is carried into the stats rollup."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = os.path.join(temp_dir, "recovered.eval")
+            usage = ModelUsage(
+                input_tokens=10,
+                output_tokens=5,
+                total_tokens=15,
+                input_tokens_cache_write=2,
+                input_tokens_cache_read=1,
+                reasoning_tokens=3,
+                total_cost=0.125,
+            )
+            samples = [_make_sample(1, usage=usage), _make_sample(2, usage=usage)]
+            crashed = _make_crashed_log(temp_dir, samples=samples)
+
+            log = await write_recovered_eval_log(crashed, iter([]), output)
+
+            assert log.stats is not None
+            rollup = log.stats.model_usage["mockllm/model"]
+            assert rollup == usage + usage
 
 
 async def test_write_recovered_eval_log_mixed_scored() -> None:
