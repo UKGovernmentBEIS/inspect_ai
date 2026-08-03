@@ -21,14 +21,5 @@ If you are just getting started running evaluations, see the [`inspect eval`](op
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to run evals and watch them for you? The [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin teaches it to launch evals, monitor progress, and catch stalls and errors early.
-
-``` bash
-# Claude Code
-/plugin marketplace add meridianlabs-ai/inspect-skills
-/plugin install inspect-skills@meridian
-
-# Other agents
-npx skills add meridianlabs-ai/inspect-skills
-```
+Want your coding agent to run evals and watch them for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) to teach it to launch evals, monitor progress, and catch stalls and errors early.
 :::

@@ -40,16 +40,7 @@ You can further tailor column reading to work in whatever way you need for your 
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to run dataframe analysis for you? The [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin covers the `inspect_ai.analysis` API and keeps dataframes in memory across follow-up questions.
-
-``` bash
-# Claude Code
-/plugin marketplace add meridianlabs-ai/inspect-skills
-/plugin install inspect-skills@meridian
-
-# Other agents
-npx skills add meridianlabs-ai/inspect-skills
-```
+Want your coding agent to run dataframe analysis for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install): it covers the `inspect_ai.analysis` API and keeps dataframes in memory across follow-up questions.
 :::
 
 ## Basics

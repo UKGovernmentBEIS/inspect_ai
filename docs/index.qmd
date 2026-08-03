@@ -81,16 +81,7 @@ Inspect has built-in support for over 20 model providers as well as support for 
 ::: {.callout-tip appearance="simple"}
 #### Agent Skills Available
 
-Using a coding agent with Inspect? The [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin teaches it eval monitoring, log reading, analysis, and the package ecosystem.
-
-``` bash
-# Claude Code
-/plugin marketplace add meridianlabs-ai/inspect-skills
-/plugin install inspect-skills@meridian
-
-# Other agents
-npx skills add meridianlabs-ai/inspect-skills
-```
+Using a coding agent with Inspect? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) to teach it eval monitoring, log reading, analysis, and the package ecosystem.
 :::
 
 ## Hello, Inspect {#sec-hello-inspect}
