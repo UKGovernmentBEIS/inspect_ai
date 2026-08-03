@@ -27,6 +27,7 @@ from ._edit import (
 )
 from ._file import (
     EvalLogInfo,
+    WriteEvalLogResult,
     list_eval_logs,
     list_eval_logs_async,
     read_eval_log,
@@ -104,6 +105,7 @@ __all__ = [
     "EvalStats",
     "EvalStatus",
     "EvalLogInfo",
+    "WriteEvalLogResult",
     "Transcript",
     "TranscriptHistory",
     "TranscriptHistoryUnavailableError",

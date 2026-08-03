@@ -429,17 +429,19 @@ class EvalRecorder(FileRecorder):
         log: EvalLog,
         if_match_etag: str | None = None,
         header_only: bool = False,
-    ) -> None:
-        if filesystem(location).is_s3() and if_match_etag:
+    ) -> str | None:
+        fs = filesystem(location)
+        if fs.is_s3() and if_match_etag:
             # Use S3 conditional write
-            await cls._write_log_s3_conditional(
+            return await cls._write_log_s3_conditional(
                 location, log, if_match_etag, header_only=header_only
             )
-        else:
-            # Standard write using the recorder (so we get all of the extra streams)
-            await _write_eval_log_with_recorder(
-                log, dirname(location), location, header_only=header_only
-            )
+
+        # Standard write using the recorder (so we get all of the extra streams)
+        await _write_eval_log_with_recorder(
+            log, dirname(location), location, header_only=header_only
+        )
+        return await s3_head_etag(location) if fs.is_s3() else None
 
     @classmethod
     async def _write_log_s3_conditional(
@@ -448,7 +450,7 @@ class EvalRecorder(FileRecorder):
         log: EvalLog,
         etag: str,
         header_only: bool = False,
-    ) -> None:
+    ) -> str:
         """Perform S3 conditional write for .eval format using boto3."""
         bucket, key = _s3_bucket_and_key(location)
 
@@ -472,7 +474,7 @@ class EvalRecorder(FileRecorder):
                     log_bytes = f.read()
 
         async with AsyncFilesystem() as async_fs:
-            await _write_s3_conditional(
+            return await _write_s3_conditional(
                 async_fs,
                 bucket,
                 key,
@@ -670,7 +672,7 @@ def _s3_bucket_and_key(location: str) -> tuple[str, str]:
 
 async def _s3_conditional_put_object(
     async_fs: AsyncFilesystem, bucket: str, key: str, body: bytes, etag: str
-) -> None:
+) -> str:
     """Helper function to perform S3 conditional write with aioboto3."""
     s3_client = await async_fs.s3_client_async()
     # Preflight HEAD: some S3-compatible backends (notably moto) do not honor the
@@ -681,12 +683,13 @@ async def _s3_conditional_put_object(
         raise WriteConflictError(
             f"Log file was modified by another process. Expected ETag: {etag}"
         )
-    await s3_client.put_object(
+    response = await s3_client.put_object(
         Bucket=bucket,
         Key=key,
         Body=body,
         IfMatch=f'"{etag}"',  # S3 requires quotes around ETag
     )
+    return str(response["ETag"]).strip('"')
 
 
 async def _s3_download_with_etag(
@@ -734,7 +737,7 @@ async def _write_s3_conditional(
     etag: str,
     location: str,
     logger: logging.Logger,
-) -> None:
+) -> str:
     """Write to S3 with conditional check and error handling."""
     from botocore.exceptions import ClientError
 
@@ -742,7 +745,7 @@ async def _write_s3_conditional(
 
     with trace_action(logger, "Log Conditional Write", location):
         try:
-            await _s3_conditional_put_object(async_fs, bucket, key, body, etag)
+            return await _s3_conditional_put_object(async_fs, bucket, key, body, etag)
         except ClientError as e:
             if e.response["Error"]["Code"] == "PreconditionFailed":
                 raise WriteConflictError(
