@@ -18,6 +18,7 @@
 - Bugfix: Filestore sample buffer directories are now cleaned up after evals run under a trio event loop (cleanup previously failed with a warning).
 - Bugfix: Eval logs containing a `sample_init` event with a null state can now be re-read (the null was previously dropped on write and failed validation on read).
 - Added `list_eval_logs_async()`, an async equivalent of `list_eval_logs()` that is safe to call from any async context (including trio); calling `list_eval_logs()` with a `filter` under trio now raises an error directing to it.
+- `list_eval_logs_async()` now lists remote log directories (S3/GCS/Azure) without blocking the event loop, treats a missing S3 bucket as an empty listing, and downgrades Azure auth errors to a warning.
 - Bugfix: The `google` web search provider now returns results in search rank order rather than page-fetch completion order.
 - ACP: The transport now exposes `has_client` and `wait_for_client()`, letting agents check for or wait until a fully bound ACP client is attached.
 - Bugfix: `EvalResults.completed_samples` now counts samples that completed without error rather than scored samples, so score-on-error samples no longer inflate it. (#4602)
