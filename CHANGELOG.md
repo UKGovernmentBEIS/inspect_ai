@@ -23,6 +23,7 @@
 - Bugfix: `EvalResults.completed_samples` now counts samples that completed without error rather than scored samples, so score-on-error samples no longer inflate it. (#4602)
 - Bugfix: Solvers, tasks, scorers, and metrics that declare `**kwargs` now survive replay from logs (e.g. `eval_retry`, `inspect score`), including keyword arguments named `name`. (#4375)
 - Bugfix: Registry objects (`@solver`, `@agent`, `@tool`, …) that declare `**kwargs` no longer crash at registration when a keyword argument is named `type`, `o`, or `info`, and approval-policy params named `type`/`name` no longer collide on creation. (#4504)
+- Bugfix: Safe JSON serialization now preserves field exclusions when escaping invalid Unicode surrogates.
 - Analysis: `frontier()` no longer errors when a model release date group has only missing (NA) headline scores; those rows are now skipped instead of crashing `idxmax()`.
 - Models: bounded `count_tokens()` concurrency (adaptive, like `generate()`) so large token-count fan-outs no longer overwhelm the provider connection pool.
 - Model: `generate()` now retries the anyio transport-close race (`AttributeError: 'NoneType' object has no attribute 'call_soon'` during response cleanup) instead of failing the sample.
