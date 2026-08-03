@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Web Browser: headful macOS scale-factor detection falls back to 1 instead of crashing when `pyobjc-framework-AppKit` is missing or no display is attached.
 - Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
 - Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
