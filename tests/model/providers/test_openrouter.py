@@ -315,6 +315,7 @@ def test_apply_reported_cost_sums_upstream_for_byok() -> None:
         response={
             "usage": {
                 "cost": 0.001,
+                "is_byok": True,
                 "cost_details": {"upstream_inference_cost": 0.05},
             }
         },
@@ -324,6 +325,51 @@ def test_apply_reported_cost_sums_upstream_for_byok() -> None:
 
     assert output.usage is not None
     assert output.usage.total_cost == pytest.approx(0.051)
+
+
+def test_apply_reported_cost_does_not_double_count_non_byok() -> None:
+    """Non-BYOK: `upstream_inference_cost` is a component of `cost`, not extra.
+
+    Observed on live non-BYOK responses (`is_byok: false`), where
+    `upstream_inference_cost` equals `cost`; summing them doubled the recorded
+    spend for every non-BYOK request.
+    """
+    output = _make_output()
+    call = ModelCall(
+        request={},
+        response={
+            "usage": {
+                "cost": 0.0024486,
+                "is_byok": False,
+                "cost_details": {
+                    "upstream_inference_cost": 0.0024486,
+                    "upstream_inference_prompt_cost": 0.0024414,
+                    "upstream_inference_completions_cost": 7.2e-06,
+                },
+            }
+        },
+    )
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(0.0024486)
+
+
+def test_apply_reported_cost_ignores_upstream_when_byok_absent() -> None:
+    """No `is_byok` key at all: treat as non-BYOK and trust `cost` alone."""
+    output = _make_output()
+    call = ModelCall(
+        request={},
+        response={
+            "usage": {"cost": 0.01, "cost_details": {"upstream_inference_cost": 0.01}}
+        },
+    )
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost == pytest.approx(0.01)
 
 
 def test_apply_reported_cost_ignores_null_upstream() -> None:

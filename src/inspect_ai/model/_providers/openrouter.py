@@ -527,12 +527,15 @@ def _apply_reported_cost(output: ModelOutput, call: ModelCall | None) -> None:
     """Surface OpenRouter's reported cost on ``ModelUsage.total_cost``.
 
     OpenRouter always includes a ``cost`` field (the total amount charged to
-    your account) on the response usage object, and — for BYOK (Bring Your Own
-    Key) requests only — ``cost_details.upstream_inference_cost`` (the cost
-    billed directly by the upstream provider via your own key). The true spend
-    is the sum: for non-BYOK requests ``upstream_inference_cost`` is 0/null, so
-    it reduces to ``cost``; for BYOK requests ``cost`` is only OpenRouter's fee
-    and the inference itself is captured by ``upstream_inference_cost``.
+    your account) on the response usage object, plus a ``cost_details``
+    breakdown.
+
+    ``cost_details.upstream_inference_cost`` is only *additional* spend for BYOK
+    (Bring Your Own Key) routes, where inference is billed straight to the
+    user's own provider key and ``cost`` covers only OpenRouter's fee. On
+    non-BYOK routes it is a breakdown component already included in ``cost``
+    (empirically it equals ``cost``), so adding it would double the recorded
+    spend. Hence the ``is_byok`` gate.
 
     This value takes precedence over inspect's per-token estimate:
     ``record_and_check_model_usage`` skips the pricing-database computation when
@@ -550,9 +553,10 @@ def _apply_reported_cost(output: ModelOutput, call: ModelCall | None) -> None:
     if not isinstance(cost, (int, float)) or isinstance(cost, bool):
         return
     total = float(cost)
-    details = usage.get("cost_details")
-    if isinstance(details, dict):
-        upstream = details.get("upstream_inference_cost")
-        if isinstance(upstream, (int, float)) and not isinstance(upstream, bool):
-            total += float(upstream)
+    if usage.get("is_byok") is True:
+        details = usage.get("cost_details")
+        if isinstance(details, dict):
+            upstream = details.get("upstream_inference_cost")
+            if isinstance(upstream, (int, float)) and not isinstance(upstream, bool):
+                total += float(upstream)
     output.usage.total_cost = total
