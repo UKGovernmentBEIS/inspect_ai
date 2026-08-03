@@ -272,7 +272,7 @@ def test_buffer_pool_late_model_event_after_complete_raises(
 ) -> None:
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
     db.start_sample(sample)
-    db.complete_sample(sample)
+    db.complete_sample(sample, sample_metadata=None)
 
     with pytest.raises(RuntimeError, match="after complete_sample"):
         db.log_events(
