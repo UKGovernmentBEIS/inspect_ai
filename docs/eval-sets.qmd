@@ -21,22 +21,16 @@ Below we'll cover the various tools and techniques available for creating eval s
 ::: {.callout-tip appearance="simple"}
 #### Agent Skill Available
 
-Want your coding agent to run eval sets and watch them for you? The `babysitting-evals` skill teaches it to launch evals, monitor progress, and catch stalls and errors early.
-
-Claude Code:
-
-``` default
-/plugin marketplace add meridianlabs-ai/inspect-skills
-/plugin install inspect-skills@meridian
-```
-
-Other agents:
+Want your coding agent to run eval sets and watch them for you? The [`babysitting-evals`](https://github.com/meridianlabs-ai/inspect-skills#install) skill teaches it to launch evals, monitor progress, and catch stalls and errors early.
 
 ``` bash
+# Claude Code
+/plugin marketplace add meridianlabs-ai/inspect-skills
+/plugin install inspect-skills@meridian
+
+# Other agents (see the README for the full list)
 npx skills add meridianlabs-ai/inspect-skills
 ```
-
-See the [inspect-skills README](https://github.com/meridianlabs-ai/inspect-skills#install) for all supported agents and options.
 :::
 
 ## Running Eval Sets
