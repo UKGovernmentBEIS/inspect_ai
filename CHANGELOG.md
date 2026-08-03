@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
 - Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
@@ -153,7 +154,6 @@
 - Bugfix: Native compaction now truncates an oversized tool output before summarizing instead of crashing or silently summarizing an error when it would exceed the model's context window. (#3600)
 - Bugfix: React agent compaction now works after a checkpoint resume — the restored conversation is no longer treated as an always-preserved prefix, so compaction shrinks the context again.
 - Bugfix: Nested `score_reducer` and `task_source` values in serialized task args now restore as instances rather than their registered factories. (#4374)
-- Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Bugfix: Properly resolve relative sample file paths and file URIs on windows (#4502)
 - Viewer: log listing responses include the log dir's canonical URI (`log_dir_uri`) so the viewer can reliably scope its local cache to the directory.
 - Inspect View: Reuse one warm async S3 client and connection pool across requests — for both log reads and directory listings — instead of creating one per operation, eliminating the per-request credential/connection cold-start (e.g. `/log-headers` ~3s -> ~0.3s, `/logs` ~1.5s -> ~0.06s).
