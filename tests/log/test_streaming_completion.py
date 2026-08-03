@@ -206,6 +206,28 @@ async def test_streaming_completion_eval_output_matches_materialized(tmp_path):
 
 
 @pytest.mark.anyio
+async def test_streaming_write_evicts_buffered_prior(tmp_path) -> None:
+    """A streaming re-log supersedes a buffered prior record for the same key.
+
+    The streaming path zip-writes its member immediately; a prior record
+    still in the flush buffer would otherwise be written *after* it, and the
+    readers' name-based last-entry-wins rule would resolve the finished log
+    to the stale prior (while metrics show the fresh outcome).
+    """
+    recorder, spec = await _start_eval_recorder(tmp_path)
+
+    await recorder.log_sample(spec, _sample().model_copy(update={"target": "stale"}))
+    with _history(tmp_path) as history:
+        await recorder.log_sample_streaming(spec, _sample(), history)
+
+    await _finish_eval(recorder, spec)
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].target == "answer"
+
+
+@pytest.mark.anyio
 async def test_eval_recorder_log_sample_streaming_writes_sample(
     tmp_path,
 ) -> None:

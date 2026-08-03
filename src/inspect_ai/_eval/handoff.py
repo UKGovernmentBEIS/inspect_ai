@@ -19,8 +19,16 @@ through ``eval()``) because the handoff is a launch concern of the CLI
 process, not part of the public ``eval()`` surface. See
 ``design/ctl/control-channel.md`` → "Agent output contract" → "The launch
 handoff is load-bearing".
+
+This module also hosts the launch-time ``inspect ctl`` pointer (see
+``design/ctl/agent-discoverability.md`` §1a) — the human/agent-facing
+sibling of the handoff, printed to stderr at the same bind sites. It uses
+the same process-wide arm mechanism (:func:`set_ctl_pointer_armed`) for
+the same reason: the pointer is a launch concern of the CLI process, so a
+bare ``eval()`` call never prints it.
 """
 
+import sys
 from typing import Callable, NamedTuple
 
 
@@ -101,3 +109,77 @@ def launch_handoff_emitted() -> bool:
     for every keep-alive run.
     """
     return _emitted
+
+
+CTL_POINTER = "Monitor from another shell: inspect ctl task list   (inspect ctl --help)"
+
+_ctl_pointer_armed = False
+_ctl_pointer_printed = False
+
+
+def set_ctl_pointer_armed(armed: bool) -> None:
+    """Arm (or disarm) the launch-time ``inspect ctl`` pointer for this process.
+
+    Set by the CLI entry points (``eval`` / ``eval-set`` / ``eval-retry``)
+    around their call into ``eval()`` — mirroring the handoff listener
+    above rather than threading a parameter through ``eval()``, so a bare
+    ``eval()`` call from a notebook, script, or test never prints the
+    pointer. Arming (either way) resets the once-per-process latch.
+    """
+    global _ctl_pointer_armed, _ctl_pointer_printed
+    _ctl_pointer_armed = armed
+    _ctl_pointer_printed = False
+
+
+def print_ctl_pointer(control_socket: str | None) -> None:
+    """Print the one-line "monitor from another shell" pointer to stderr.
+
+    Called at each control-server bind site — the eval run's bind in
+    ``eval_async`` and the eval-set keep-alive park's bind — with the
+    bound socket path (``None`` when the server is disabled or its bind
+    failed: nothing to observe, so nothing prints). Prints at most once
+    per process: an eval-set with ``--no-retry-immediate`` re-binds per
+    batch retry, and the park re-binds after the run, so without the
+    latch the line would repeat. A plain unstyled stderr write (agent-
+    and pipe-safe), never on the ``--json`` stdout stream, and only when
+    the CLI armed it and the display admits it (see
+    :func:`display_admits_ctl_pointer`).
+    """
+    global _ctl_pointer_printed
+    if not _ctl_pointer_armed or _ctl_pointer_printed:
+        return
+    if control_socket is None:
+        return
+    if not display_admits_ctl_pointer():
+        return
+    _ctl_pointer_printed = True
+    print(CTL_POINTER, file=sys.stderr, flush=True)
+
+
+def display_admits_ctl_pointer() -> bool:
+    """Whether the resolved display can host the launch-time pointer.
+
+    Two gates (see ``design/ctl/agent-discoverability.md`` §1a):
+
+    - display mode ``none`` means quiet was requested — also forced by
+      ``--json`` / ``--detach``, where the ``launch`` record's ``control``
+      block already carries strictly more information;
+    - the textual full-screen app owns the terminal by the time the bind
+      happens, so a stderr write races app startup — lost to the alternate
+      screen or replayed only after the app exits — and the app itself is
+      the monitoring surface the pointer advertises.
+
+    This checks the display *implementation*, not TTY-ness: the textual
+    display is itself TTY-selected, but the primary audience — an agent
+    driving ``inspect eval`` through a shell tool — is always non-TTY,
+    resolves to ``RichDisplay``, and must never be suppressed.
+    """
+    from inspect_ai._display.core.active import active_display
+    from inspect_ai._display.textual.display import TextualDisplay
+    from inspect_ai.util._display import display_type
+
+    if display_type() == "none":
+        return False
+    if isinstance(active_display(), TextualDisplay):
+        return False
+    return True
