@@ -19,6 +19,10 @@ mistral:
       context_length: 262144
       reasoning: True
       reasoning_effort_default: none
+    mistral-large-2512:
+      display_name: Mistral Large 3
+      release_date: 2025-12-04
+      context_length: 262144
     mistral-medium-2505:
       display_name: Mistral Medium 3
       release_date: 2025-05-07
