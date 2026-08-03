@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 
 def hidden_states_to_jsonable(
-    hidden_states: tuple[tuple[Tensor]] | None,
+    hidden_states: tuple[tuple[Tensor, ...], ...] | None,
     sample_index: int | None = None,
 ) -> list[list[Any]] | None:
     """Materialize generation hidden states as JSON-serializable nested lists.
