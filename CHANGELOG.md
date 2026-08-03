@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
 - Sandbox: Service method errors no longer include the host-side traceback in the response delivered into the sandbox; the traceback is logged host-side instead. (#4673)
 - Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
@@ -35,6 +36,7 @@
 - Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
 - MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
 - MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
+- OpenAI: Web search `find`/`find_in_page` actions missing a `url` or `pattern` now degrade to a search action instead of crashing the sample with a validation error. (#4119)
 - Performance: Message preparation for providers that extract tool-result media into user messages now scales linearly with conversation length rather than quadratically.
 - Smaller downloads: the wheel no longer includes the accidentally-bundled log viewer TypeScript source, and the sdist no longer includes tests, docs, or lockfiles.
 - Bugfix: OpenAI: A tool call with an oversized arguments string no longer poisons the conversation, which previously failed every subsequent request with a 400 "string too long" error. (#4682)
