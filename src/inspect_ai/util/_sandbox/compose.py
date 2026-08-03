@@ -301,6 +301,15 @@ class ComposeService(ComposeModel):
     tmpfs: str | list[str] | None = Field(default=None)
     """Paths mounted as a tmpfs. Single path or list of paths."""
 
+    restart: str | None = Field(default=None)
+    """Restart policy (e.g. ``no``, ``always``, ``on-failure``, ``unless-stopped``)."""
+
+    stdin_open: bool | None = Field(default=None)
+    """Keep stdin open (``docker run -i``)."""
+
+    tty: bool | None = Field(default=None)
+    """Allocate a pseudo-TTY (``docker run -t``)."""
+
     deploy: ComposeDeploy | None = Field(default=None)
     """Deployment configuration including resources."""
 
