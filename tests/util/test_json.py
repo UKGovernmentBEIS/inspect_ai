@@ -1,6 +1,6 @@
 import json
 
-from inspect_ai._util.json import json_changes, to_json_str_safe
+from inspect_ai._util.json import json_changes, to_json_safe, to_json_str_safe
 from inspect_ai.dataset._sources.json import (
     json_dataset_reader,
     jsonlines_dataset_reader,
@@ -21,6 +21,15 @@ def test_json_unicode_replace():
         "nested": {"field": "Another \\ud800 bad surrogate"},
         "list": ["item1", "item with \\udfff surrogate", "item3"],
     }
+
+
+def test_json_unicode_replace_preserves_exclude():
+    result = to_json_safe(
+        {"keep": "\ud800", "drop": "excluded"},
+        exclude={"drop": True},
+    )
+
+    assert json.loads(result) == {"keep": "\\ud800"}
 
 
 def test_json_changes_tracks_replaced_value_through_array_shifts():
