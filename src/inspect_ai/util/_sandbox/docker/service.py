@@ -1,3 +1,4 @@
+import math
 import re
 from dataclasses import dataclass
 
@@ -37,13 +38,17 @@ def services_healthcheck_time(services: dict[str, ComposeService]) -> int:
 
 def service_healthcheck_time(service: ComposeService) -> int:
     """
-    Calculate the maximum time a single service's healthcheck could take.
+    Estimate the time a single service's healthcheck could take.
 
     The total time is:
-    start_period + (retries * (interval + timeout))
+    start_period + timeout + (retries * (interval + timeout))
 
     Failing probes don't count against `retries` until the start period has
-    elapsed, so the retry budget is additional to (not inclusive of) it.
+    elapsed, so the retry budget is additional to (not inclusive of) it. Docker
+    decides which side of that boundary a probe falls on from the probe's
+    *start* time, so a probe beginning just inside the grace period runs for a
+    further `timeout` uncounted; that tail is included whenever a start period
+    is configured.
 
     Default values (from Docker documentation):
     - start_period: 0s
@@ -61,10 +66,19 @@ def service_healthcheck_time(service: ComposeService) -> int:
     interval = parse_duration(healthcheck.get("interval", "30s"))
     timeout = parse_duration(healthcheck.get("timeout", "30s"))
 
-    # Calculate total time in seconds
-    total_time = start_period.seconds + retries * (interval.seconds + timeout.seconds)
+    # a probe that starts just inside the grace period is still uncounted, so
+    # the retry budget can begin up to one `timeout` after the period expires
+    grace_boundary_probe = timeout.seconds if start_period.seconds > 0 else 0.0
 
-    return int(total_time)
+    total_time = (
+        start_period.seconds
+        + grace_boundary_probe
+        + retries * (interval.seconds + timeout.seconds)
+    )
+
+    # round up, so a fractional schedule never yields a deadline shorter than
+    # the healthcheck schedule it is derived from
+    return math.ceil(total_time)
 
 
 @dataclass
