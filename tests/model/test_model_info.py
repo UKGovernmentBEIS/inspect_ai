@@ -665,3 +665,32 @@ class TestDoesNotReinstantiateProvider:
         record_and_check_model_usage(model, usage)
         # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
         assert usage.total_cost == pytest.approx(0.007)
+
+    def test_record_usage_keeps_provider_reported_cost(self):
+        """A provider-reported total_cost wins over re-pricing from the rate card.
+
+        OpenRouter bills per request and reports the exact amount; the guard
+        added for #4739 must not overwrite it with the static-rate estimate.
+        """
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelUsage
+
+        set_model_info(
+            "mockllm/model",
+            ModelInfo(
+                cost=ModelCost(
+                    input=1000.0,
+                    output=1000.0,
+                    input_cache_write=0.0,
+                    input_cache_read=0.0,
+                )
+            ),
+        )
+        model = get_model("mockllm/model")
+        usage = ModelUsage(
+            input_tokens=1, output_tokens=1, total_tokens=2, total_cost=0.0042
+        )
+
+        record_and_check_model_usage(model, usage)
+
+        assert usage.total_cost == pytest.approx(0.0042)

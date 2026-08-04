@@ -2541,7 +2541,11 @@ def record_and_check_model_usage(
     info = _get_model_info_direct(model)
     total_cost: float | None = None
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
-    if info is not None and info.cost is not None:
+    # A provider-reported cost (e.g. OpenRouter bills per request and returns
+    # the exact amount) always wins over re-pricing from the rate card.
+    if usage.total_cost is not None:
+        total_cost = usage.total_cost
+    elif info is not None and info.cost is not None:
         # providers with a configurable prompt-cache TTL (currently Anthropic)
         # expose it on the ModelAPI; longer TTLs bill cache writes at a higher rate
         total_cost = compute_model_cost(

@@ -307,6 +307,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             output, call = result
             if isinstance(output, ModelOutput):
                 _apply_cache_creation_usage(output, call)
+                _apply_reported_cost(output, call)
         return result
 
     @override
@@ -474,6 +475,33 @@ def _mark_last_content_block(msg: dict[str, Any]) -> None:
         msg["content"] = [
             {"type": "text", "text": content, "cache_control": _ephemeral()}
         ]
+
+
+def _apply_reported_cost(output: ModelOutput, call: ModelCall | None) -> None:
+    """Fold OpenRouter's reported per-call cost into ModelUsage.total_cost.
+
+    OpenRouter bills each request server-side and reports the exact amount on
+    the response usage object, which is more truthful than re-pricing from the
+    static rate card (BYOK especially, where the upstream part sits under
+    cost_details). record_model_usage only computes from the rate card when
+    total_cost is unset, so a reported value always wins.
+    """
+    if call is None or output.usage is None:
+        return
+    raw = call.response if isinstance(call.response, dict) else None
+    usage = raw.get("usage") if raw else None
+    if not isinstance(usage, dict):
+        return
+    reported = usage.get("cost")
+    cost = float(reported) if isinstance(reported, int | float) else 0.0
+    if usage.get("is_byok"):
+        details = usage.get("cost_details")
+        if isinstance(details, dict):
+            upstream = details.get("upstream_inference_cost")
+            if isinstance(upstream, int | float):
+                cost += float(upstream)
+    if cost > 0:
+        output.usage.total_cost = cost
 
 
 def _apply_cache_creation_usage(output: ModelOutput, call: ModelCall | None) -> None:

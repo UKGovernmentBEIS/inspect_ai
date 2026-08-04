@@ -11,6 +11,7 @@ from inspect_ai.model._providers.openrouter import (
     OpenRouterAPI,
     _add_anthropic_cache_markers,
     _apply_cache_creation_usage,
+    _apply_reported_cost,
 )
 
 EPHEMERAL: dict[str, str] = {"type": "ephemeral"}
@@ -510,3 +511,43 @@ async def test_messages_to_openai_replays_reasoning_content_for_deepseek_v4() ->
     payload = converted[0]
     assert payload["reasoning_content"] == "considered options"  # type: ignore[typeddict-item]
     assert "reasoning_details" in payload
+
+
+def test_apply_reported_cost_folds_openrouter_cost() -> None:
+    output = _make_output()
+    call = ModelCall(request={}, response={"usage": {"cost": 0.0042}})
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost == 0.0042
+
+
+def test_apply_reported_cost_adds_upstream_for_byok() -> None:
+    output = _make_output()
+    call = ModelCall(
+        request={},
+        response={
+            "usage": {
+                "cost": 0.0042,
+                "is_byok": True,
+                "cost_details": {"upstream_inference_cost": 0.001},
+            }
+        },
+    )
+
+    _apply_reported_cost(output, call)
+
+    assert output.usage is not None
+    assert output.usage.total_cost == 0.0052
+
+
+def test_apply_reported_cost_ignores_missing_or_zero_cost() -> None:
+    output = _make_output()
+
+    _apply_reported_cost(output, ModelCall(request={}, response={"usage": {}}))
+    _apply_reported_cost(output, ModelCall(request={}, response={"usage": {"cost": 0}}))
+    _apply_reported_cost(output, None)
+
+    assert output.usage is not None
+    assert output.usage.total_cost is None
