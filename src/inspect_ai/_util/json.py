@@ -48,6 +48,26 @@ def is_ijson_nan_inf_error(
     )
 
 
+def is_ijson_int_overflow_error(
+    ex: "ValueError | IncompleteJSONError | UnexpectedSymbol",
+) -> bool:
+    """Check if an ijson exception is due to an integer larger than 2**63 - 1.
+
+    The ijson C backend (yajl2_c) with use_float=True parses integers into a
+    C long long and raises "integer overflow" for anything bigger, even though
+    such integers are valid JSON and parse fine with the stdlib json module.
+    This helper identifies these errors so callers can fall back to json.load.
+
+    Args:
+        ex: Exception from ijson parsing (ValueError, IncompleteJSONError,
+            or UnexpectedSymbol).
+
+    Returns:
+        True if the exception is due to integer overflow.
+    """
+    return "integer overflow" in str(ex).lower()
+
+
 def get_ijson_backend() -> Any:
     """Return an ijson module compatible with the current async backend.
 
@@ -120,7 +140,11 @@ def to_json_safe(
         if "surrogates not allowed" in str(ex):
             cleaned = clean_utf8_json(normalized)
             return to_json(
-                cleaned, indent=indent, exclude_none=True, fallback=lambda _x: None
+                cleaned,
+                indent=indent,
+                exclude_none=True,
+                fallback=lambda _x: None,
+                exclude=exclude,
             )
         raise
 
