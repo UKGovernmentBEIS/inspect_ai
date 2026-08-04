@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scorers: `stderr(cluster=...)` and `grouped(all="groups")` now return 0.0 for empty score lists without emitting NumPy runtime warnings. (#4718)
 - Model: `total_cost` now bills Anthropic 1-hour prompt-cache writes at 2x the base input price rather than the 5-minute rate, so runs using `-M cache_ttl=1h` are no longer understated. (#4703)
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
 
