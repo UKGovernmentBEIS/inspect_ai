@@ -95,30 +95,42 @@ def classify_exec_failure(
     if not output:
         return None
 
-    # docker's exec stream uses CRLF; splitlines() handles both
+    # docker's exec stream uses CRLF; splitlines() handles both. every message
+    # docker itself emits here is a single line and nothing else, so a phrase
+    # arriving with company was produced by a process, not by docker.
     lines = output.splitlines()
+    if len(lines) != 1:
+        return None
     head = lines[0].strip().lower()
 
-    # a bare phrase match is weak enough that a model could produce it, so
-    # also require docker's shape: its messages here are a single line and
-    # nothing else
-    if len(lines) == 1 and _NO_CONTAINER.search(head):
+    # docker's shape exactly: the known wording as the whole line, and the
+    # exit code compose uses for it. suffixes, extra lines and other codes
+    # are model-producible; docker's own message never varies. (a false
+    # negative from a docker version changing this is the original bug
+    # returning for that version — loosen here if one ever does.)
+    if result.returncode == 1 and _NO_CONTAINER.fullmatch(head):
         return SandboxUnavailableError(
             f"The sandbox is not running and cannot execute: {output}"
         )
 
     if head.startswith(_RUNC_PREFIX):
-        not_found = _RUNC_NOT_FOUND.search(output)
+        # search the original line: the binary-name comparison is case-exact
+        not_found = _RUNC_NOT_FOUND.search(lines[0])
         if not_found is not None:
             # our own wrapper has gone missing, so nothing can run here. a
             # binary the *caller* named is their problem, and stays an
-            # ordinary result as it has always been.
-            if wrapper is not None and not_found.group(1) == wrapper.binary:
+            # ordinary result as it has always been. 127 is the code runc
+            # reports exec-not-found with.
+            if (
+                result.returncode == 127
+                and wrapper is not None
+                and not_found.group(1) == wrapper.binary
+            ):
                 return SandboxUnavailableError(
                     f"The sandbox can no longer execute commands: {output}"
                 )
             return None
-        if result.returncode == 126 and "permission denied" in output.lower():
+        if result.returncode == 126 and "permission denied" in head:
             return PermissionError(f"Permission denied executing command: {result}")
         return None
 

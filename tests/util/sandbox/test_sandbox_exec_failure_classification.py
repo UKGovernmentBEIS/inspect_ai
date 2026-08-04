@@ -190,6 +190,75 @@ def test_dind_and_multiline_output_are_not_sandbox_failures(
     assert classify_exec_failure(result, wrapper=WRAPPER) is None
 
 
+# docker's own messages never vary: known wording as the whole line, known
+# exit code, one line only. anything looser is model-producible, so shapes
+# that merely resemble docker's are rejected even where the resemblance is
+# close. pinned so a future loosening is deliberate.
+@pytest.mark.parametrize(
+    "result",
+    [
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=1,
+                stdout="",
+                stderr='service "x" is not running today, try again later',
+            ),
+            id="service_phrase_with_suffix",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=2,
+                stdout="",
+                stderr='service "x" is not running',
+            ),
+            id="service_phrase_wrong_exit_code",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=1,
+                stdout=(
+                    "OCI runtime exec failed: exec failed: unable to start "
+                    'container process: exec: "timeout": executable file not '
+                    "found in $PATH"
+                ),
+                stderr="",
+            ),
+            id="runc_not_found_wrong_exit_code",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=127,
+                stdout=(
+                    "OCI runtime exec failed: exec failed: unable to start "
+                    'container process: exec: "timeout": executable file not '
+                    "found in $PATH\nplus a second line"
+                ),
+                stderr="",
+            ),
+            id="runc_not_found_multiline",
+        ),
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=126,
+                stdout="",
+                stderr=(
+                    "timeout: failed to run command ‘bash’: Permission denied\n"
+                    "and some trailing chatter"
+                ),
+            ),
+            id="wrapper_message_multiline",
+        ),
+    ],
+)
+def test_docker_like_shapes_are_rejected(result: ExecResult[str]) -> None:
+    assert classify_exec_failure(result, wrapper=WRAPPER) is None
+
+
 @pytest.mark.parametrize(
     "named",
     [
