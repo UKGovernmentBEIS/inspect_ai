@@ -69,6 +69,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
+from inspect_ai.util._sandbox.environment import SandboxUnavailableError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
@@ -212,6 +213,12 @@ async def _execute_tools_impl(
                     )
                 else:
                     raise
+            except SandboxUnavailableError as ex:
+                # the sandbox could not run the command at all. report it as a
+                # failed call rather than letting it end the sample: whether an
+                # unusable sandbox should be terminal is an open question, and
+                # answering it here would answer it for every eval at once.
+                tool_error = ToolCallError("unknown", str(ex))
             except PermissionError as ex:
                 err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):

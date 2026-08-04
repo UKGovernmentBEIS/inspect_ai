@@ -1,0 +1,142 @@
+"""Classification of `docker compose exec` results.
+
+One exit code and one pair of streams carry two different outcomes: the
+caller's command ran and failed, or docker could not run it at all. Only the
+first is a result. The second describes docker's own failure, and returning
+it as an `ExecResult` is what made a dead sandbox look to a model like
+ordinary command output (#4709).
+
+Telling them apart is a matter of who wrote the message, since the exit codes
+collide. Exit 126 is the runtime refusing to exec a non-executable file *and*
+a shell reporting the same about the model's own script; exit 127 is a missing
+binary whether it is one Inspect injected or one the caller named.
+
+Recognition is deliberately partial, because the streams being matched are
+written by an untrusted model and telling one its working sandbox is dead is
+worse than the bug. Two consequences worth knowing:
+
+- A launch failure is attributed to the sandbox only when the binary named is
+  the wrapper `exec` injected. With no timeout there is no wrapper, so the two
+  runc-reported cases go unrecognised.
+- Only messages docker emits on the `compose exec` path are matched. Wordings
+  that only a bare `docker exec` produces are left alone: they cannot reach us,
+  and a model running docker inside its sandbox emits them verbatim. One
+  collision is accepted: a model running `docker compose exec` against a
+  stopped service of its *own* inner compose project emits the same wording we
+  match, and nothing in the result tells the two apart. The cost is bounded —
+  the model's real output is embedded in the tool error and the sample
+  continues.
+"""
+
+import re
+from typing import NamedTuple
+
+from inspect_ai.util._subprocess import ExecResult
+
+from ..environment import SandboxUnavailableError
+
+
+class InjectedWrapper(NamedTuple):
+    """Binary `exec` inserted ahead of the caller's command."""
+
+    binary: str
+    """The wrapper itself, e.g. `timeout`."""
+
+    target: str
+    """The binary the wrapper was asked to run, i.e. the caller's own."""
+
+
+# compose has no running container to exec into. This is the only wording the
+# `compose exec` path produces for it — the daemon's own "Error response from
+# daemon: … is not running" comes from a bare `docker exec`, so matching it
+# would buy nothing here while misreading a docker-in-docker model's output.
+_NO_CONTAINER = re.compile(r'^service "[^"]*" is not running\b')
+
+# containerd/runc could not start the process; it names the binary it tried
+_RUNC_PREFIX = "oci runtime exec failed"
+_RUNC_NOT_FOUND = re.compile(r'exec: "([^"]*)": executable file not found')
+
+# the binary a `timeout`-style wrapper quotes in its complaint, verbatim as
+# handed to it. GNU quotes with U+2018/U+2019, busybox with ASCII quotes.
+# anchored to the colon that follows the name in both wordings, since a bare
+# apostrophe also appears in prose ("can't execute 'bash': ...").
+_WRAPPER_QUOTED = re.compile(r"[‘']([^’']*)[’']:")
+
+
+def classify_exec_failure(
+    result: ExecResult[str], *, wrapper: InjectedWrapper | None
+) -> Exception | None:
+    """Classify a `docker compose exec` result that did not succeed.
+
+    Args:
+        result: Result of the `docker compose exec` invocation.
+        wrapper: Binary Inspect injected ahead of the caller's command, or
+            `None` if it ran the command directly. A launch failure naming the
+            wrapper means nothing can run in the sandbox; one naming the
+            caller's own binary is an ordinary result.
+
+    Returns:
+        An error to raise in place of returning `result`, or `None` when
+        `result` is an ordinary command result and should be returned.
+    """
+    # a successful exec always ran the command
+    if result.returncode == 0:
+        return None
+
+    stdout, stderr = result.stdout.strip(), result.stderr.strip()
+
+    # docker reports its own failure on one stream and nothing on the other;
+    # output on both means a process produced some of it. Which stream is not
+    # something to rely on: runc writes to stdout, GNU timeout to stderr.
+    if stdout and stderr:
+        return None
+
+    output = stdout or stderr
+    if not output:
+        return None
+
+    # docker's exec stream uses CRLF; splitlines() handles both
+    lines = output.splitlines()
+    head = lines[0].strip().lower()
+
+    # a bare phrase match is weak enough that a model could produce it, so
+    # also require docker's shape: its messages here are a single line and
+    # nothing else
+    if len(lines) == 1 and _NO_CONTAINER.search(head):
+        return SandboxUnavailableError(
+            f"The sandbox is not running and cannot execute: {output}"
+        )
+
+    if head.startswith(_RUNC_PREFIX):
+        not_found = _RUNC_NOT_FOUND.search(output)
+        if not_found is not None:
+            # our own wrapper has gone missing, so nothing can run here. a
+            # binary the *caller* named is their problem, and stays an
+            # ordinary result as it has always been.
+            if wrapper is not None and not_found.group(1) == wrapper.binary:
+                return SandboxUnavailableError(
+                    f"The sandbox can no longer execute commands: {output}"
+                )
+            return None
+        if result.returncode == 126 and "permission denied" in output.lower():
+            return PermissionError(f"Permission denied executing command: {result}")
+        return None
+
+    # the wrapper launched but could not exec what we handed it, so the
+    # sandbox's shell is unusable. requiring the quoted binary to be exactly
+    # our target keeps a model's own `timeout ./script` out of this (the
+    # wrapper quotes argv verbatim, so a mere substring match would let
+    # `./bash_helper.sh` pass for `bash`). wordings differ — GNU says "failed
+    # to run command", busybox "can't execute" — so match on the reporter and
+    # the quoted binary rather than the phrasing between them.
+    if (
+        wrapper is not None
+        and result.returncode == 126
+        and head.startswith(f"{wrapper.binary}: ")
+        and "permission denied" in output.lower()
+    ):
+        quoted = _WRAPPER_QUOTED.search(output)
+        if quoted is not None and quoted.group(1) == wrapper.target:
+            return PermissionError(f"Permission denied executing command: {result}")
+
+    return None

@@ -16,6 +16,7 @@ from .environment import (
     SandboxConnection,
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
+    SandboxUnavailableError,
 )
 from .registry import registry_find_sandboxenv
 
@@ -157,7 +158,14 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
     """
 
     async def detect_on_path(sandbox: SandboxEnvironment) -> bool:
-        return (await sandbox.exec(["which", file])).success
+        try:
+            return (await sandbox.exec(["which", file])).success
+        except SandboxUnavailableError:
+            # a sandbox we can't run anything in simply doesn't have the file;
+            # the search continues with the next one. only the exception this
+            # detector's own exec can newly raise is tolerated — anything else
+            # propagates exactly as it did before.
+            return False
 
     async def detect_file(sandbox: SandboxEnvironment) -> bool:
         return await _is_file_readable(sandbox, file)
