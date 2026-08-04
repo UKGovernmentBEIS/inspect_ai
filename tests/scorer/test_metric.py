@@ -752,6 +752,17 @@ def test_metrics_return_zero_for_empty_scores() -> None:
         var(),
         std(),
         stderr(),
+        stderr(cluster="cluster_id"),
         bootstrap_stderr(),
     ):
         assert metric_fn([]) == 0.0
+
+
+def test_grouped_metric_empty_scores() -> None:
+    # grouped() metric with all="groups" or all="samples" must return 0.0
+    # aggregate for empty scores without numpy empty-slice warnings.
+    metric_samples = grouped(mean(), group_key="group", all="samples")
+    assert metric_samples([]) == {"all": 0.0}
+
+    metric_groups = grouped(mean(), group_key="group", all="groups")
+    assert metric_groups([]) == {"all": 0.0}
