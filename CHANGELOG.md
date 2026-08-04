@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
+
 ## 0.3.252 (04 August 2026)
 
 - Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
