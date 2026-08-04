@@ -45,6 +45,8 @@ def is_ijson_nan_inf_error(
         "invalid json character" in error_msg
         or "invalid char in json text" in error_msg
         or "unexpected symbol" in error_msg
+        # yajl2 rejects the leading minus of -Infinity before seeing the token
+        or "a digit is required after the minus sign" in error_msg
     )
 
 
