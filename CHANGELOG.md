@@ -7,6 +7,7 @@
 - Scorers: `stderr(cluster=...)` and `grouped(all="groups")` now return 0.0 for empty score lists without emitting NumPy runtime warnings. (#4718)
 - Model: `total_cost` now bills Anthropic 1-hour prompt-cache writes at 2x the base input price rather than the 5-minute rate, so runs using `-M cache_ttl=1h` are no longer understated. (#4703)
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
+- Hugging Face: Model info lookups now use your `HF_TOKEN` or cached `huggingface-cli login` credentials instead of authenticating with a placeholder and being rate limited as anonymous. (#4600)
 
 ## 0.3.252 (04 August 2026)
 
@@ -69,7 +70,6 @@
 
 - Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on `ModelRetry`, so hooks can distinguish e.g. timeouts from 429s and 5xxs.
 - Agent Bridge: Forward Codex `additional_tools` declarations (used by newer OpenAI models to declare tools via input items rather than the top-level `tools` array) through the bridge as real tools, preserving each tool's original schema verbatim. Previously these declarations were dropped, so the model received no tools; reconstructing them was also lossy and broke reserved-schema tools such as codex's `collaboration.*`. (#4556)
-- Hugging Face: Model info lookups now use your `HF_TOKEN` or cached `huggingface-cli login` credentials instead of authenticating with a placeholder and being rate limited as anonymous. (#4600)
 
 ## 0.3.250 (28 July 2026)
 
