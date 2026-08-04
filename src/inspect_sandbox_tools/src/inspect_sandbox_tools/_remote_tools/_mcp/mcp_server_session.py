@@ -15,6 +15,8 @@ from mcp import (
 )
 from mcp.types import JSONRPCMessage, JSONRPCNotification
 
+from inspect_sandbox_tools._util.process_tree import terminate_process_tree
+
 # Maximum line length for reading MCP server stdout via asyncio.StreamReader.
 #
 # asyncio.StreamReader defaults to a 64KB line limit. A single JSON-RPC response
@@ -62,6 +64,7 @@ class MCPServerSession:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=errlog,
                 limit=_READLINE_LIMIT,
+                start_new_session=True,
             ),
             server_params.encoding,
             server_params.encoding_error_handler,
@@ -138,8 +141,20 @@ class MCPServerSession:
             self._process.terminate()
             await asyncio.wait_for(self._process.wait(), timeout)
         except (asyncio.TimeoutError, asyncio.CancelledError):
-            # Force kill if taking too long
             self._process.kill()
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned MCP process during shutdown."""
+        self._assert_not_terminated()
+        self._terminated = True
+
+        self._reader.cancel()
+        try:
+            await asyncio.wait_for(self._reader, 1.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
+
+        await terminate_process_tree(self._process, timeout=timeout, process_group=True)
 
     def _bytes_from_json_message(
         self, message: JSONRPCRequest | JSONRPCNotification

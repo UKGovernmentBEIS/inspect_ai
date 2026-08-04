@@ -5,6 +5,7 @@ from asyncio.subprocess import Process as AsyncIOProcess
 from typing import Literal, NamedTuple
 
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.process_tree import terminate_process_tree
 from inspect_sandbox_tools._util.user_switch import (
     get_home_dir,
     is_current_user,
@@ -190,16 +191,13 @@ class Job:
         pgid = self._process.pid
         assert pgid is not None, "Process was created without a pid"
 
-        # Try graceful termination first (SIGTERM to process group)
         try:
             os.killpg(pgid, signal.SIGTERM)
             await asyncio.wait_for(self._process.wait(), timeout=timeout)
         except asyncio.TimeoutError:
-            # Force kill if graceful termination times out (SIGKILL to process group)
             os.killpg(pgid, signal.SIGKILL)
             await self._process.wait()
         except ProcessLookupError:
-            # Process already exited
             pass
 
         await self._wait_for_readers()
@@ -208,6 +206,19 @@ class Job:
         self._acked_buffer.push((stdout, stderr))
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned job during server shutdown."""
+        if self._state != "running":
+            return
+
+        self._state = "killed"
+        try:
+            await terminate_process_tree(
+                self._process, timeout=timeout, process_group=True
+            )
+        finally:
+            await self._wait_for_readers()
 
     def _drain_buffers(
         self, final: bool = False, max_bytes: int | None = None

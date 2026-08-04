@@ -69,3 +69,38 @@ class TestControllerConcurrentPollAndKill:
 
         # cleanup should have been called exactly once, not twice.
         assert job.cleanup.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_shutdown_terminates_and_removes_all_jobs() -> None:
+    controller = Controller()
+    jobs = []
+    for pid in (41, 42):
+        job = MagicMock()
+        job.shutdown = AsyncMock()
+        job.cleanup = AsyncMock()
+        controller._jobs[pid] = job
+        jobs.append(job)
+
+    await controller.shutdown()
+
+    assert controller._jobs == {}
+    for job in jobs:
+        job.shutdown.assert_awaited_once_with()
+        job.cleanup.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_reports_failures_from_every_job() -> None:
+    controller = Controller()
+    for pid, message in ((41, "first shutdown failed"), (42, "second shutdown failed")):
+        job = MagicMock()
+        job.shutdown = AsyncMock(side_effect=RuntimeError(message))
+        job.cleanup = AsyncMock()
+        controller._jobs[pid] = job
+
+    with pytest.raises(RuntimeError) as error:
+        await controller.shutdown()
+
+    assert "first shutdown failed" in str(error.value)
+    assert "second shutdown failed" in str(error.value)

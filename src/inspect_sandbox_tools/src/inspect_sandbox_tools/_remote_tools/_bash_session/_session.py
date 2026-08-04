@@ -31,3 +31,11 @@ class Session:
         )
         self._process = new_process
         return "shell restarted successfully"
+
+    async def terminate(self, timeout: int = 30) -> None:
+        """Terminate this session's shell process."""
+        await self._process.terminate(timeout=timeout)
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned shell during server shutdown."""
+        await self._process.shutdown(timeout=timeout)

@@ -565,8 +565,8 @@ class TestProcessTreeManagement:
     def test_kill_terminates_child_processes(self, rpc_client: RpcClient) -> None:
         """Test that killing a job also kills its child processes.
 
-        The implementation uses start_new_session=True and sends SIGTERM to
-        the process group, which should terminate all child processes.
+        The implementation discovers and terminates the full process tree, so
+        descendants in their own process groups are also cleaned up.
         """
         # Start a command that spawns background children
         # The parent shell will spawn two sleep processes

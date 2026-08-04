@@ -1,3 +1,5 @@
+import asyncio
+
 from inspect_sandbox_tools._util.common_types import ToolException
 
 from ._job import Job
@@ -81,6 +83,31 @@ class Controller:
         job = self._get_job(pid)
         seq, stdout, stderr = await job.close_stdin(ack_seq)
         return CloseStdinResult(seq=seq, stdout=stdout, stderr=stderr)
+
+    async def shutdown(self) -> None:
+        """Terminate every job owned by this server."""
+        jobs = list(self._jobs.values())
+        self._jobs.clear()
+
+        async def shutdown_job(job: Job) -> None:
+            errors: list[Exception] = []
+            try:
+                await job.shutdown()
+            except Exception as ex:
+                errors.append(ex)
+            try:
+                await job.cleanup()
+            except Exception as ex:
+                errors.append(ex)
+            if errors:
+                raise RuntimeError("; ".join(str(error) for error in errors))
+
+        results = await asyncio.gather(
+            *(shutdown_job(job) for job in jobs), return_exceptions=True
+        )
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            raise RuntimeError("; ".join(str(error) for error in errors))
 
     def _get_job(self, pid: int) -> Job:
         """Get job by PID or raise error."""

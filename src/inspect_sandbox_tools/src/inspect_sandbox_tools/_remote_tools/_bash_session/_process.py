@@ -3,6 +3,7 @@ import os
 import re
 from asyncio.subprocess import Process as AsyncIOProcess
 
+from ..._util.process_tree import terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
 from ..._util.user_switch import get_home_dir, make_preexec
@@ -102,7 +103,6 @@ class Process:
         # Clean up the timeout handler
         self._send_data_event.cancel()
 
-        # Ensure the process is terminated
         try:
             self._process.terminate()
             await asyncio.wait_for(self._process.wait(), timeout=timeout)
@@ -110,10 +110,39 @@ class Process:
             self._process.kill()
             await self._process.wait()
         except ProcessLookupError:
-            # the process has already ended
             pass
 
         self._pty.cleanup()
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned shell during server shutdown."""
+        self._assert_not_terminated()
+        self._terminated = True
+        self._pty.writer.write(b"exit\n")
+        try:
+            await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
+        except (
+            BrokenPipeError,
+            ConnectionResetError,
+            TimeoutError,
+            asyncio.TimeoutError,
+        ):
+            pass
+
+        if self._read_task:
+            self._read_task.cancel()
+            try:
+                await self._read_task
+            except asyncio.CancelledError:
+                pass
+
+        self._send_data_event.cancel()
+        try:
+            await terminate_process_tree(
+                self._process, timeout=timeout, process_group=True
+            )
+        finally:
+            self._pty.cleanup()
 
     async def _read_loop(self) -> None:
         """Read decoded data from the PTY and process it."""

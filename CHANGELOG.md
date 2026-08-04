@@ -1,3 +1,7 @@
+## Unreleased
+
+- Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
+
 ## 0.3.252 (04 August 2026)
 
 - Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
