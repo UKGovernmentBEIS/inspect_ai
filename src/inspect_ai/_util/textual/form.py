@@ -32,6 +32,7 @@ from typing_extensions import override
 
 from inspect_ai.util._input._validate import (
     PropertySchema,
+    known_property,
     multiselect_options,
     string_choice_labels,
     validate_integer,
@@ -189,7 +190,9 @@ class ElicitationForm(VerticalScroll):
 
         required = set(self._schema.required or [])
         for name, prop in (self._schema.properties or {}).items():
-            row = FieldRow(name=name, prop=prop, required=name in required)
+            row = FieldRow(
+                name=name, prop=known_property(prop), required=name in required
+            )
             self._fields.append(row)
             yield row
 
