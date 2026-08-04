@@ -90,25 +90,24 @@ class Controller:
         self._jobs.clear()
 
         async def shutdown_job(job: Job) -> None:
-            first_error: Exception | None = None
+            errors: list[Exception] = []
             try:
-                await job.kill(ack_seq=0)
+                await job.shutdown()
             except Exception as ex:
-                first_error = ex
+                errors.append(ex)
             try:
                 await job.cleanup()
             except Exception as ex:
-                if first_error is None:
-                    first_error = ex
-            if first_error is not None:
-                raise first_error
+                errors.append(ex)
+            if errors:
+                raise RuntimeError("; ".join(str(error) for error in errors))
 
         results = await asyncio.gather(
             *(shutdown_job(job) for job in jobs), return_exceptions=True
         )
-        for result in results:
-            if isinstance(result, Exception):
-                raise result
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            raise RuntimeError("; ".join(str(error) for error in errors))
 
     def _get_job(self, pid: int) -> Job:
         """Get job by PID or raise error."""

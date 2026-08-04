@@ -52,7 +52,10 @@ async def test_local_sandbox_server_dir_cannot_be_overridden() -> None:
         sandbox.directory.cleanup()
 
 
-async def test_local_sandbox_does_not_inject_server_dir_into_user_commands() -> None:
+async def test_local_sandbox_does_not_inject_server_dir_into_user_commands(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("INSPECT_SANDBOX_TOOLS_DIR", raising=False)
     sandbox = LocalSandboxEnvironment()
     try:
         result = await sandbox.exec(
@@ -70,7 +73,7 @@ async def test_sample_cleanup_stops_server_before_removing_directory(
     sandbox = LocalSandboxEnvironment()
     directory = Path(sandbox.directory.name)
 
-    async def assert_directory_exists() -> None:
+    async def assert_directory_exists(*, timeout: int) -> None:
         assert directory.exists()
 
     stop_server = AsyncMock(side_effect=assert_directory_exists)
@@ -83,7 +86,9 @@ async def test_sample_cleanup_stops_server_before_removing_directory(
         interrupted=False,
     )
 
-    stop_server.assert_awaited_once_with()
+    stop_server.assert_awaited_once_with(
+        timeout=LocalSandboxEnvironment._SANDBOX_TOOLS_STOP_TIMEOUT
+    )
     assert not directory.exists()
 
 
@@ -95,7 +100,7 @@ async def test_sample_cleanup_removes_directory_when_server_stop_fails(
     stop_server = AsyncMock(side_effect=RuntimeError("shutdown failed"))
     monkeypatch.setattr(sandbox, "_stop_sandbox_tools", stop_server, raising=False)
 
-    with pytest.raises(RuntimeError, match="shutdown failed"):
+    with patch("inspect_ai.util._sandbox.local.logger") as logger:
         await LocalSandboxEnvironment.sample_cleanup(
             task_name="test",
             config=None,
@@ -104,6 +109,30 @@ async def test_sample_cleanup_removes_directory_when_server_stop_fails(
         )
 
     assert not directory.exists()
+    logger.warning.assert_called_once()
+    assert logger.warning.call_args.args == (
+        "Failed to stop local sandbox-tools server: %s",
+        stop_server.side_effect,
+    )
+
+
+async def test_interrupted_sample_cleanup_uses_short_server_stop_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sandbox = LocalSandboxEnvironment()
+    stop_server = AsyncMock()
+    monkeypatch.setattr(sandbox, "_stop_sandbox_tools", stop_server, raising=False)
+
+    await LocalSandboxEnvironment.sample_cleanup(
+        task_name="test",
+        config=None,
+        environments={"default": sandbox},
+        interrupted=True,
+    )
+
+    stop_server.assert_awaited_once_with(
+        timeout=LocalSandboxEnvironment._INTERRUPTED_SANDBOX_TOOLS_STOP_TIMEOUT
+    )
 
 
 async def test_sample_cleanup_without_server_is_idempotent() -> None:
@@ -151,7 +180,7 @@ async def test_sample_cleanup_continues_after_server_stop_failure(
     monkeypatch.setattr(failing, "_stop_sandbox_tools", failing_stop)
     monkeypatch.setattr(succeeding, "_stop_sandbox_tools", succeeding_stop)
 
-    with pytest.raises(RuntimeError, match="shutdown failed"):
+    with patch("inspect_ai.util._sandbox.local.logger") as logger:
         await LocalSandboxEnvironment.sample_cleanup(
             task_name="test",
             config=None,
@@ -159,7 +188,16 @@ async def test_sample_cleanup_continues_after_server_stop_failure(
             interrupted=True,
         )
 
-    failing_stop.assert_awaited_once_with()
-    succeeding_stop.assert_awaited_once_with()
+    failing_stop.assert_awaited_once_with(
+        timeout=LocalSandboxEnvironment._INTERRUPTED_SANDBOX_TOOLS_STOP_TIMEOUT
+    )
+    succeeding_stop.assert_awaited_once_with(
+        timeout=LocalSandboxEnvironment._INTERRUPTED_SANDBOX_TOOLS_STOP_TIMEOUT
+    )
     assert not failing_directory.exists()
     assert not succeeding_directory.exists()
+    logger.warning.assert_called_once()
+    assert logger.warning.call_args.args == (
+        "Failed to stop local sandbox-tools server: %s",
+        failing_stop.side_effect,
+    )

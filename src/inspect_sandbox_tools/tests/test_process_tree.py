@@ -88,6 +88,49 @@ async def test_terminate_process_tree_propagates_cancellation_after_cleanup() ->
 
 
 @pytest.mark.asyncio
+async def test_terminate_process_tree_defers_cancellation_until_reparented_child_exits() -> (
+    None
+):
+    child_script = (
+        "import signal,time; "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "print('ready', flush=True); "
+        "time.sleep(300)"
+    )
+    root_script = (
+        "import subprocess,sys; "
+        f"child=subprocess.Popen([sys.executable, '-c', {child_script!r}], "
+        "stdout=subprocess.PIPE, text=True); "
+        "assert child.stdout; child.stdout.readline(); "
+        "print(child.pid, flush=True)"
+    )
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        root_script,
+        stdout=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    assert process.stdout is not None
+    child_pid = int(await asyncio.wait_for(process.stdout.readline(), timeout=5))
+    await process.wait()
+
+    try:
+        terminate = asyncio.create_task(
+            terminate_process_tree(process, timeout=30, process_group=True)
+        )
+        await asyncio.sleep(0.05)
+        terminate.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await terminate
+        assert not psutil.pid_exists(child_pid)
+    finally:
+        if psutil.pid_exists(child_pid):
+            psutil.Process(child_pid).kill()
+
+
+@pytest.mark.asyncio
 async def test_terminate_process_tree_finds_children_spawned_during_grace_period() -> (
     None
 ):

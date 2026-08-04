@@ -36,35 +36,22 @@ async def terminate_process_tree(
 
     cancellation: asyncio.CancelledError | None = None
     try:
-        await asyncio.wait_for(process.wait(), timeout=timeout)
-    except (TimeoutError, asyncio.TimeoutError):
-        descendants = _refresh_processes(descendants, root, pid, process_group)
-        for child in reversed(descendants):
-            _kill(child)
-        if process_group:
-            _signal_process_group(pid, signal.SIGKILL)
-        if root is not None:
-            _kill(root)
-        await process.wait()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=timeout)
+        except (TimeoutError, asyncio.TimeoutError):
+            descendants = await _force_terminate(
+                process, descendants, root, pid, process_group
+            )
+
+        remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+        alive = await _wait_for_processes(descendants, timeout=remaining)
     except asyncio.CancelledError as ex:
         cancellation = ex
-        descendants = _refresh_processes(descendants, root, pid, process_group)
-        for child in reversed(descendants):
-            _kill(child)
-        if process_group:
-            _signal_process_group(pid, signal.SIGKILL)
-        if root is not None:
-            _kill(root)
-        await process.wait()
+        descendants = await _force_terminate(
+            process, descendants, root, pid, process_group
+        )
+        alive = await _wait_for_processes(descendants, timeout=5)
 
-    remaining = max(0.0, deadline - asyncio.get_running_loop().time())
-    _, alive = await asyncio.to_thread(
-        psutil.wait_procs, descendants, timeout=remaining
-    )
-    if alive:
-        for child in alive:
-            _kill(child)
-        _, alive = await asyncio.to_thread(psutil.wait_procs, alive, timeout=5)
     if alive:
         pids = ", ".join(str(child.pid) for child in alive)
         raise RuntimeError(f"Processes did not exit after SIGKILL: {pids}")
@@ -88,6 +75,37 @@ async def _terminate_without_pid(process: AsyncIOProcess, timeout: float) -> Non
         pass
     if cancellation is not None:
         raise cancellation
+
+
+async def _force_terminate(
+    process: AsyncIOProcess,
+    descendants: list[psutil.Process],
+    root: psutil.Process | None,
+    process_group: int,
+    include_process_group: bool,
+) -> list[psutil.Process]:
+    descendants = _refresh_processes(
+        descendants, root, process_group, include_process_group
+    )
+    for child in reversed(descendants):
+        _kill(child)
+    if include_process_group:
+        _signal_process_group(process_group, signal.SIGKILL)
+    if root is not None:
+        _kill(root)
+    await process.wait()
+    return descendants
+
+
+async def _wait_for_processes(
+    processes: list[psutil.Process], *, timeout: float
+) -> list[psutil.Process]:
+    _, alive = await asyncio.to_thread(psutil.wait_procs, processes, timeout=timeout)
+    if alive:
+        for process in alive:
+            _kill(process)
+        _, alive = await asyncio.to_thread(psutil.wait_procs, alive, timeout=5)
+    return alive
 
 
 def _children(process: psutil.Process) -> list[psutil.Process]:
@@ -141,7 +159,7 @@ def _process_group_members(
 def _signal_process_group(process_group: int, sig: signal.Signals) -> None:
     try:
         os.killpg(process_group, sig)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
 
 

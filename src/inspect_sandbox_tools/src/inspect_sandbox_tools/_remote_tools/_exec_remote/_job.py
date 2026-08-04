@@ -1,5 +1,6 @@
 import asyncio
 import os
+import signal
 from asyncio.subprocess import Process as AsyncIOProcess
 from typing import Literal, NamedTuple
 
@@ -177,8 +178,9 @@ class Job:
     async def kill(self, ack_seq: int, timeout: int = 5) -> OutputChunk:
         """Terminate the process and return any remaining buffered output.
 
-        The full process tree is discovered and terminated so descendants that
-        create their own process groups are also cleaned up.
+        Since the subprocess was started with start_new_session=True, it is the
+        leader of its own process group. We use os.killpg() to send signals to
+        the entire group, ensuring child processes are also terminated.
         """
         if self._state != "running":
             self._acked_buffer.push(("", ""))
@@ -186,7 +188,17 @@ class Job:
             return OutputChunk(seq, *self._combine_chunks(chunks))
 
         self._state = "killed"
-        await terminate_process_tree(self._process, timeout=timeout, process_group=True)
+        pgid = self._process.pid
+        assert pgid is not None, "Process was created without a pid"
+
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+            await asyncio.wait_for(self._process.wait(), timeout=timeout)
+        except asyncio.TimeoutError:
+            os.killpg(pgid, signal.SIGKILL)
+            await self._process.wait()
+        except ProcessLookupError:
+            pass
 
         await self._wait_for_readers()
 
@@ -194,6 +206,19 @@ class Job:
         self._acked_buffer.push((stdout, stderr))
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned job during server shutdown."""
+        if self._state != "running":
+            return
+
+        self._state = "killed"
+        try:
+            await terminate_process_tree(
+                self._process, timeout=timeout, process_group=True
+            )
+        finally:
+            await self._wait_for_readers()
 
     def _drain_buffers(
         self, final: bool = False, max_bytes: int | None = None
