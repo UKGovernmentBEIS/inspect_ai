@@ -118,6 +118,17 @@ DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default 
 
 Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
 
+#### Mistral
+
+Mistral reasoning models (Mistral Medium 3.5+ and Mistral Small 4+) accept a [two-level scale](https://docs.mistral.ai/capabilities/reasoning/): `high` (emit a thinking chunk before the answer) and `none`. Thinking is **off by default** — set `reasoning_effort` to turn it on. Inspect maps `reasoning_effort` as follows:
+
+| Inspect input                                   | API value |
+|-------------------------------------------------|-----------|
+| `none`                                          | `none`    |
+| `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | `high` |
+
+Non-reasoning Mistral models reject the parameter, and Inspect omits it when `reasoning_effort` is not set. (The earlier Magistral models, which thought unconditionally, were retired from the API in 2026 — requests for them are redirected to Mistral Medium 3.5 / Mistral Small 4.)
+
 #### OpenRouter
 
 Passes through to the underlying model; OpenRouter itself maps `effort` to `budget_tokens` for models that need it, using the formula `budget = clamp(max_tokens × ratio, 1024, 128000)`.

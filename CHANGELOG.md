@@ -1,9 +1,23 @@
 ## Unreleased
 
 - DeepSeek: New native `deepseek` provider with support for DeepSeek V4 models (`deepseek/deepseek-v4-pro` and `deepseek/deepseek-v4-flash`), including thinking control via `--reasoning-effort`.
+- Mistral: `--reasoning-effort` now controls thinking on current Mistral reasoning models (Mistral Medium 3.5 and Mistral Small 4), which replace the retired always-thinking Magistral models.
+- Bugfix: `exact()` now requires word order and word counts to match (previously it compared unordered word sets, so e.g. "world hello" scored as an exact match for "hello world"). Note: `exact()` scores may decrease on existing evals where answers matched only via word reordering or duplicate collapse; use `f1()` for order-insensitive scoring.
+- Bugfix: `match(numeric=True)` now recognizes LaTeX-escaped currency and formatting symbols (e.g. `\$20`, `\€20`, `1\,000`), which previously failed numeric extraction and could silently match a different number in the output. Scores may shift on affected samples (mostly upward; the previously ignored number is now the one matched).
+- Scorers: `stderr(cluster=...)` and `grouped(all="groups")` now return 0.0 for empty score lists without emitting NumPy runtime warnings. (#4718)
+- Model: `total_cost` now bills Anthropic 1-hour prompt-cache writes at 2x the base input price rather than the 5-minute rate, so runs using `-M cache_ttl=1h` are no longer understated. (#4703)
+- Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
+
+## 0.3.252 (04 August 2026)
+
+- Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
+- Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
+- Sandbox: Service method errors no longer include the host-side traceback in the response delivered into the sandbox; the traceback is logged host-side instead. (#4673)
 - Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
+- Approval: Model inference performed inside a tool approver no longer counts against active token and turn limits.
 - Bugfix: Reading eval logs with field exclusion (e.g. header-only reads) no longer crashes under a trio event loop; the pure-Python ijson backend is now selected when the C backend's asyncio-only async parser is unavailable. (#4589)
+- Logging: Reading `.eval` logs with `exclude_fields` no longer fails with "integer overflow" when a sample contains a JSON integer larger than 2⁶³−1.
 - Control Channel: `inspect ctl sample list`/`show` now report a running sample's in-flight activity (`generating 7:12`, `bash 0:41`, `retrying in 0:45`), and `sample events` renders pending events, so long model calls and retry backoffs no longer read as silent idle.
 - Retry: Samples reused from a prior attempt no longer stay resident in memory awaiting a flush, and are written to the new attempt's log (readable by `inspect ctl` and viewers) as soon as the reuse sweep completes.
 - Control Channel: Paginating or polling a finished sample's events or messages no longer re-parses the whole sample per request (resolved terminal sources are briefly cached).
@@ -23,6 +37,7 @@
 - Bugfix: `EvalResults.completed_samples` now counts samples that completed without error rather than scored samples, so score-on-error samples no longer inflate it. (#4602)
 - Bugfix: Solvers, tasks, scorers, and metrics that declare `**kwargs` now survive replay from logs (e.g. `eval_retry`, `inspect score`), including keyword arguments named `name`. (#4375)
 - Bugfix: Registry objects (`@solver`, `@agent`, `@tool`, …) that declare `**kwargs` no longer crash at registration when a keyword argument is named `type`, `o`, or `info`, and approval-policy params named `type`/`name` no longer collide on creation. (#4504)
+- Bugfix: Safe JSON serialization now preserves field exclusions when escaping invalid Unicode surrogates.
 - Analysis: `frontier()` no longer errors when a model release date group has only missing (NA) headline scores; those rows are now skipped instead of crashing `idxmax()`.
 - Models: bounded `count_tokens()` concurrency (adaptive, like `generate()`) so large token-count fan-outs no longer overwhelm the provider connection pool.
 - Model: `generate()` now retries the anyio transport-close race (`AttributeError: 'NoneType' object has no attribute 'call_soon'` during response cleanup) instead of failing the sample.
@@ -34,6 +49,7 @@
 - Inspect View: Downloads of large local log files no longer fail, and the view server stays responsive while reading or listing large local logs.
 - MCP: Support the mcp 2.0 package (in addition to mcp 1.x), whose breaking API redesign previously made all `mcp_server_*()` tools fail. (meridianlabs-ai/inspect_ai#170)
 - MCP: `mcp_server_http()` no longer ignores its `name` argument (the server was always named after the URL).
+- OpenAI: Web search `find`/`find_in_page` actions missing a `url` or `pattern` now degrade to a search action instead of crashing the sample with a validation error. (#4119)
 - Performance: Message preparation for providers that extract tool-result media into user messages now scales linearly with conversation length rather than quadratically.
 - Smaller downloads: the wheel no longer includes the accidentally-bundled log viewer TypeScript source, and the sdist no longer includes tests, docs, or lockfiles.
 - Bugfix: OpenAI: A tool call with an oversized arguments string no longer poisons the conversation, which previously failed every subsequent request with a 400 "string too long" error. (#4682)
@@ -44,6 +60,10 @@
 - Bugfix: `text_editor()` paths containing a null byte now return a tool error to the model instead of crashing the tool. (#4659)
 - Bugfix: Anthropic: `count_tokens()` now sends `extra_headers` from the generate config (including any `anthropic-beta` values), matching `generate()`. (#4606)
 - Bugfix: Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
+- Bugfix: UTF-8 output truncation now preserves character boundaries and respects configured byte limits instead of inserting replacement characters that can exceed the limit. (#4656)
+- Bugfix: Docker sandbox startup no longer times out during a healthcheck's `start_period`, so services with a long startup grace period now start reliably. (#4698)
+- Bugfix: Fractional healthcheck durations (e.g. `1.5s`) in Docker compose files now produce the correct startup timeout instead of a silently wrong one. (#4698)
+- Dependencies: Require `agent-client-protocol` >= 0.12 (adapts to its renamed multi-select schema types and new catch-all property type).
 
 ## 0.3.251 (29 July 2026)
 

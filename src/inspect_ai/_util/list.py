@@ -6,8 +6,10 @@ T = TypeVar("T")
 def remove_last_match_and_after(
     lst: list[T], predicate: Callable[[T], bool]
 ) -> list[T]:
-    last_match_index = max((i for i, x in enumerate(lst) if predicate(x)), default=-1)
-    return lst[: last_match_index + 1]
+    last_match_index = find_last_match(lst, predicate)
+    if last_match_index is not None:
+        return lst[: last_match_index + 1]
+    return lst
 
 
 def find_last_match(lst: list[T], predicate: Callable[[T], bool]) -> int | None:

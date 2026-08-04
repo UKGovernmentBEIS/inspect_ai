@@ -281,8 +281,12 @@ def skip_if_no_google(func):
 
 
 def skip_if_no_mistral(func):
+    # the mistralai SDK uses asyncio.to_thread internally, so always skip
+    # live Mistral tests under trio
     func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        skip_if_env_var("MISTRAL_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_mistral_package(func):
