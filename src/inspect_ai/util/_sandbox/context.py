@@ -161,10 +161,9 @@ def sandbox_file_detector(file: str, on_path: bool = False) -> Detector:
         try:
             return (await sandbox.exec(["which", file])).success
         except SandboxUnavailableError:
-            # a sandbox we can't run anything in simply doesn't have the file;
-            # the search continues with the next one. only the exception this
-            # detector's own exec can newly raise is tolerated — anything else
-            # propagates exactly as it did before.
+            # Treat an unavailable sandbox as no match so discovery can continue
+            # with the remaining sandboxes. Suppress only SandboxUnavailableError;
+            # other exceptions retain their previous behavior.
             return False
 
     async def detect_file(sandbox: SandboxEnvironment) -> bool:
