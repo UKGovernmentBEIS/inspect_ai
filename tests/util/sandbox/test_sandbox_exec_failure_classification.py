@@ -306,6 +306,21 @@ def test_daemon_unreachable_is_deliberately_not_classified() -> None:
             type(None),
             id="shell_refused_model_script",
         ),
+        # same, on stdout. the old sniff (126 + lowercase "permission denied"
+        # in stdout, any reporter) turned this into a PermissionError; now it
+        # is ordinary output unless runc or our wrapper reported it. pins the
+        # narrowing so it stays deliberate.
+        pytest.param(
+            ExecResult(
+                success=False,
+                returncode=126,
+                stdout="sh: 1: ./run.sh: permission denied",
+                stderr="",
+            ),
+            WRAPPER,
+            type(None),
+            id="old_sniff_shape_no_longer_matches",
+        ),
         # the binary runc cannot find is one the caller named — their
         # problem, and an ordinary result as it has always been
         pytest.param(
