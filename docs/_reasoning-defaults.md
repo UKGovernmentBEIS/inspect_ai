@@ -22,6 +22,8 @@
 | grok/grok-4.5 | high |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
+| mistral/mistral-medium-2604 | none |
+| mistral/mistral-small-2603 | none |
 | moonshotai/kimi-k3 | max |
 | openai/gpt-5 | medium |
 | openai/gpt-5-mini | medium |
