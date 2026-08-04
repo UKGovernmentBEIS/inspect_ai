@@ -472,11 +472,11 @@ class BedrockAPI(ModelAPI):
     def is_claude_3(self) -> bool:
         return (
             self.is_claude()
-            and re.search(r"claude-3-[a-zA-Z]", self.model_name) is not None
+            and re.search(r"claude-3-[a-zA-Z]", self.model_family()) is not None
         )
 
     def is_claude_3_5(self) -> bool:
-        return self.is_claude() and "claude-3-5-" in self.model_name
+        return self.is_claude() and "claude-3-5-" in self.model_family()
 
     def is_claude_4_0(self) -> bool:
         """Mirrors `is_claude_4_0` in the native anthropic provider.
@@ -504,7 +504,7 @@ class BedrockAPI(ModelAPI):
         if self._is_claude_4_x(6) or self._is_claude_4_x(7):
             return True
         # future claude 4 minor not yet recognised
-        if re.search(r"claude-[a-zA-Z]+-4-", self.model_name):
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
             recognised = self.is_claude_4_0() or any(
                 self._is_claude_4_x(x) for x in (1, 5, 6, 7)
             )
