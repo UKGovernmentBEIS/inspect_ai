@@ -34,7 +34,7 @@ import time
 from dataclasses import dataclass, field
 from logging import getLogger
 from threading import Lock
-from typing import TYPE_CHECKING, NamedTuple, Protocol
+from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol
 
 logger = getLogger(__name__)
 
@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from inspect_ai._display.core.display import TaskCancel
+    from inspect_ai._eval.task.scheduler import SampleRequeue
     from inspect_ai.log._config_update import ConfigUpdate
     from inspect_ai.log._log import EvalSample, EvalSampleSummary
     from inspect_ai.log._transcript import TranscriptHistoryProvider
@@ -226,6 +227,15 @@ class EvalState:
     (nothing is running, so there is nothing to cancel); each retry attempt
     registers its own handle, and :func:`latest_eval_for_task` resolves the
     current one."""
+
+    sample_requeue: "SampleRequeue | None" = None
+    """The running attempt's sample-requeue capability — the handle the
+    control channel's requeue directive invokes (see
+    :mod:`inspect_ai._control.requeue` and ``design/ctl/sample-requeue.md``).
+    Set by :func:`set_sample_requeue` when the attempt's sample fanout
+    starts (the scheduler it closes over doesn't exist at
+    :func:`register_eval` time); ``None`` for reused/synthetic evals, and
+    detached alongside :attr:`live` when a retry supersedes the attempt."""
 
     deferred_sample_stats: DeferredStatsProvider | None = None
     """Lazy accessor for a reused eval's summaries-derived stats
@@ -576,6 +586,56 @@ def record_sample_cancelled(
             _maybe_mark_finished(state)
 
 
+def record_sample_requeued(
+    eval_id: str, prior_status: Literal["error", "cancelled"]
+) -> None:
+    """Re-open a terminal sample's slot when a requeue is accepted.
+
+    Decrements the bucket the prior terminal outcome bumped (``errored`` or
+    ``cancelled``, per the prior record's status) — the sample re-occupies
+    its planned slot, so ``total`` never changes and the re-run bumps a
+    bucket again at its own terminal outcome (``terminal == total`` still
+    holds at the end; :func:`finalize_eval`'s shortfall fold reconciles a
+    re-run torn down before recording). Cumulative usage
+    (``total_tokens`` / ``total_messages``) is *not* rolled back — the
+    prior attempt's spend was real. Called synchronously in the requeue
+    accept path (see ``design/ctl/sample-requeue.md``). Silently no-ops if
+    the eval isn't registered.
+
+    Guarded against decrementing a bucket below zero: that would mean the
+    caller's message-based classification of the prior record diverged from
+    the bucket its terminal recording actually bumped, so fail loudly (a
+    warning naming the divergence) rather than corrupting the counters.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            bucket = "errored" if prior_status == "error" else "cancelled"
+            count = getattr(state, bucket)
+            if count <= 0:
+                logger.warning(
+                    f"requeue accepted a prior with status '{prior_status}' "
+                    f"but the eval's {bucket} count is {count} (eval "
+                    f"{eval_id}) — classification/bucket divergence; not "
+                    "decremented"
+                )
+            else:
+                setattr(state, bucket, count - 1)
+
+
+def set_sample_requeue(eval_id: str, handle: "SampleRequeue | None") -> None:
+    """Register the running attempt's sample-requeue capability.
+
+    Called by ``task_run`` when the sample fanout starts — later than
+    :func:`register_eval`, because the scheduler the handle closes over
+    doesn't exist until then. Silently no-ops if the eval isn't registered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.sample_requeue = handle
+
+
 def record_samples_added(
     eval_id: str, total: int, *, sample_ids: list[str | int] | None = None
 ) -> None:
@@ -646,12 +706,17 @@ def detach_eval_live(eval_id: str) -> None:
     that log, after which per-sample reads degrade to empty/404 (the counters
     on the state itself are unaffected).
 
+    The attempt-scoped :attr:`sample_requeue` handle is detached here too: a
+    requeue aimed at a superseded attempt's ``eval_id`` must be rejected, not
+    mutate a dead attempt's scheduler.
+
     No-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.live = None
+            state.sample_requeue = None
 
 
 def finalize_eval(eval_id: str) -> None:
@@ -723,10 +788,15 @@ def clear_all_eval_states() -> None:
 
     Called at the outermost run boundary (``eval`` / ``eval_set``) — after
     any keep-alive park — to clear the registry in one shot, since evals
-    are no longer unregistered individually.
+    are no longer unregistered individually. The terminal-source caches
+    (events / messages) are cleared in the same shot: every cached source
+    was derived from a registered eval, so none may outlive the registry.
     """
+    from inspect_ai._control.terminal_cache import clear_terminal_source_caches
+
     with _lock:
         _eval_states.clear()
+    clear_terminal_source_caches()
 
 
 def reset_run_registries() -> None:

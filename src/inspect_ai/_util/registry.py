@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import sys
 from inspect import get_annotations, isclass
 from typing import (
     TYPE_CHECKING,
@@ -79,6 +80,48 @@ class RegistryInfo(BaseModel):
     """Additional registry metadata."""
 
 
+def set_annotations(wrapper: Callable[..., Any], annotations: dict[str, Any]) -> None:
+    """Set `wrapper`'s annotations in both PEP 649 representations.
+
+    On Python 3.14+ a bare `wrapper.__annotations__ = ...` assignment sets the lazy
+    `__annotate__` to None, and mutating the dict in place doesn't update
+    `__annotate__` at all. Either way, a further `functools.wraps` layer (which
+    copies `__annotate__`, not `__annotations__`) then silently drops the
+    annotations — e.g. in user decorators that extend @task/@solver/@agent and
+    re-register their own wrapper. Setting both representations keeps annotations
+    consistent under further wrapping. Always use this instead of assigning
+    `__annotations__` directly.
+    """
+    annotations = dict(annotations)
+    wrapper.__annotations__ = annotations
+    if sys.version_info >= (3, 14):
+        from annotationlib import Format  # type: ignore[import-not-found,unused-ignore]
+
+        def __annotate__(format: Format) -> dict[str, Any]:
+            # NotImplementedError is the protocol's "format not supported" signal:
+            # PEP 749 requires it for VALUE_WITH_FAKE_GLOBALS (hand-written annotate
+            # functions can't run under fake globals), and annotationlib's consumers
+            # compute FORWARDREF/STRING themselves by falling back to VALUE. See
+            # "Format compatibility" in the annotationlib docs:
+            # https://docs.python.org/3.14/library/annotationlib.html
+            if format != Format.VALUE:
+                raise NotImplementedError(format)
+            return dict(annotations)
+
+        wrapper.__annotate__ = __annotate__  # type: ignore[attr-defined,unused-ignore]
+
+
+def set_return_annotation(wrapper: Callable[..., Any], return_type: type[Any]) -> None:
+    """Restore `wrapper`'s return annotation after `functools.wraps` clobbered it.
+
+    Decorators like @task wrap the user's function with `functools.wraps` (so name,
+    docstring, and params carry over) but need the wrapper itself to be annotated as
+    returning the registry type: `registry_create` consults the return
+    annotation to decide whether a registered callable is a factory to invoke.
+    """
+    set_annotations(wrapper, {**wrapper.__annotations__, "return": return_type})
+
+
 def registry_add(o: object, info: RegistryInfo) -> None:
     r"""Add an object to the registry.
 
@@ -107,6 +150,7 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
+    /,
     *args: Any,
     **kwargs: Any,
 ) -> None:
@@ -116,6 +160,11 @@ def registry_tag(
     add the object to the registry (call registry_add() to both
     tag and add an object to the registry). Call registry_info()
     on a tagged/registered object to retrieve its info
+
+    `type`, `o` and `info` are positional-only so that a creation keyword
+    argument sharing one of those names (e.g. a `@solver` that takes a
+    `type` **kwarg) lands in `**kwargs` instead of colliding with the
+    parameter and raising `TypeError: got multiple values for argument`.
 
     Args:
         type (T): type of object being tagged
@@ -133,9 +182,11 @@ def registry_tag(
 
 
 def extract_named_params(
-    type: Callable[..., Any], apply_defaults: bool, *args: Any, **kwargs: Any
+    type: Callable[..., Any], apply_defaults: bool, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
-    # bind arguments to params
+    # positional-only for the same collision reason documented on
+    # registry_tag: a creation keyword argument named `type` must land in
+    # **kwargs rather than in these leading parameters.
     named_params: dict[str, Any] = {}
 
     sig = inspect.signature(type)

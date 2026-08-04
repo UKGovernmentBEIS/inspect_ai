@@ -301,3 +301,149 @@ async def test_sample_summaries_dedup_on_reinit() -> None:
         assert keys == [(1, 1), (2, 1), (3, 1)], (
             f"duplicate summaries after re-init: {keys}"
         )
+
+
+@skip_if_trio
+async def test_sample_summaries_dedup_in_progress_superseded() -> None:
+    """A superseded sample must not duplicate the in-progress journal summaries.
+
+    A requeue re-logs a sample under the same (id, epoch): the prior attempt
+    lands in an earlier journal summary file than the re-run. Reading the
+    summaries of an in-progress log (no consolidated summaries.json yet) must
+    keep only the last row per (id, epoch), matching the last-entry-wins rule
+    of the sample readers.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+
+        recorder = EvalRecorder(temp_dir)
+        path = await recorder.log_init(spec)
+        await recorder.log_start(spec, EvalPlan())
+
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="stale")
+        )
+        await recorder.flush(spec)
+
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="fresh")
+        )
+        await recorder.flush(spec)
+
+        # no log_finish: read the in-progress journal summaries
+        summaries = read_eval_log_sample_summaries(path)
+        assert [(s.id, s.epoch) for s in summaries] == [(1, 1)]
+        assert summaries[0].target == "fresh"
+
+
+@skip_if_trio
+async def test_sample_supersedes_in_flush_buffer() -> None:
+    """A re-logged sample supersedes a buffered prior record before any flush.
+
+    A requeued sample's re-run can go terminal while the prior attempt is
+    still in the recorder's flush buffer (log_buffer above 1). The fresh
+    record must replace the buffered prior — one summary row per (id, epoch)
+    in the live view and the finished log, and ``buffered_sample`` serving
+    the fresh record (the requeue directive reads the prior through it, so a
+    stale read would wrongly 409 a legitimate second requeue).
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+
+        recorder = EvalRecorder(temp_dir)
+        path = await recorder.log_init(spec)
+        await recorder.log_start(spec, EvalPlan())
+
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="stale")
+        )
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="fresh")
+        )
+
+        live = await recorder.sample_summaries(spec)
+        assert live is not None
+        assert [(s.id, s.epoch, s.target) for s in live] == [(1, 1, "fresh")]
+        buffered = await recorder.buffered_sample(spec, 1, 1)
+        assert buffered is not None and buffered.target == "fresh"
+
+        await recorder.log_finish(
+            spec, "success", EvalStats(), EvalResults(), reductions=None
+        )
+        summaries = read_eval_log_sample_summaries(path)
+        assert [(s.id, s.epoch, s.target) for s in summaries] == [(1, 1, "fresh")]
+
+
+@skip_if_trio
+async def test_sample_summaries_live_view_supersedes_flushed_prior() -> None:
+    """A buffered re-run supersedes its already-flushed prior in the live view.
+
+    Between the re-run's terminal record and the next flush, the prior row
+    lives in the journalled summaries and the fresh one in the flush buffer;
+    the union must keep one row per (id, epoch) with the fresh outcome.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+
+        recorder = EvalRecorder(temp_dir)
+        await recorder.log_init(spec)
+        await recorder.log_start(spec, EvalPlan())
+
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="stale")
+        )
+        await recorder.flush(spec)
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="fresh")
+        )
+
+        live = await recorder.sample_summaries(spec)
+        assert live is not None
+        assert [(s.id, s.epoch, s.target) for s in live] == [(1, 1, "fresh")]
+
+
+@skip_if_trio
+async def test_summaries_json_reader_dedupes_duplicate_rows() -> None:
+    """The consolidated summaries.json reader keeps the last row per key.
+
+    A log finalized before the recorder superseded re-logged samples in its
+    flush buffer can carry both a requeued sample's rows; the reader dedups
+    defensively with the same last-entry-wins rule as the sample readers.
+    """
+    import json
+    from zipfile import ZipFile
+
+    from inspect_ai.log._log import EvalSampleSummary
+    from inspect_ai.log._recorders.eval import SUMMARIES_JSON
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        spec = _make_spec()
+
+        recorder = EvalRecorder(temp_dir)
+        path = await recorder.log_init(spec)
+        await recorder.log_start(spec, EvalPlan())
+        await recorder.log_sample(
+            spec, EvalSample(id=1, epoch=1, input="input 1", target="fresh")
+        )
+        await recorder.log_finish(
+            spec, "success", EvalStats(), EvalResults(), reductions=None
+        )
+
+        # append a doctored summaries.json holding both rows (name-based
+        # access resolves to this last entry)
+        rows = [
+            EvalSampleSummary(
+                id=1, epoch=1, input="input 1", target="stale"
+            ).model_dump(exclude_none=True),
+            EvalSampleSummary(
+                id=1, epoch=1, input="input 1", target="fresh"
+            ).model_dump(exclude_none=True),
+        ]
+        import warnings
+
+        with warnings.catch_warnings(), ZipFile(path, "a") as zf:
+            warnings.filterwarnings("ignore", message="Duplicate name:")
+            zf.writestr(SUMMARIES_JSON, json.dumps(rows))
+
+        summaries = read_eval_log_sample_summaries(path)
+        assert [(s.id, s.epoch, s.target) for s in summaries] == [(1, 1, "fresh")]

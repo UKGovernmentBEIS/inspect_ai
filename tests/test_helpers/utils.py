@@ -14,7 +14,7 @@ from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
 
 import anyio
 import pytest
-from _pytest.outcomes import OutcomeException
+from _pytest.outcomes import OutcomeException, Skipped, XFailed
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
@@ -73,6 +73,9 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
     """
     Decorator to retry flaky tests up to max_retries times.
 
+    Deliberate test outcomes -- ``pytest.skip()`` and ``pytest.xfail()`` --
+    are re-raised immediately rather than retried.
+
     **Use with discretion and as a last resort.** This decorator should only be used
     for tests that require specific model behavior to trigger the code under test,
     where the flakiness is due to inherent non-determinism in model responses
@@ -99,6 +102,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                 for attempt in range(max_retries + 1):
                     try:
                         return await func(*args, **kwargs)
+                    except (Skipped, XFailed):
+                        # pytest.skip()/xfail() are deliberate outcomes, not
+                        # flakiness -- honor them without retrying
+                        raise
                     except (Exception, OutcomeException) as e:
                         last_exception = e
                         if attempt < max_retries:
@@ -115,6 +122,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
+                except (Skipped, XFailed):
+                    # pytest.skip()/xfail() are deliberate outcomes, not
+                    # flakiness -- honor them without retrying
+                    raise
                 except (Exception, OutcomeException) as e:
                     last_exception = e
                     if attempt < max_retries:
@@ -270,8 +281,12 @@ def skip_if_no_google(func):
 
 
 def skip_if_no_mistral(func):
+    # the mistralai SDK uses asyncio.to_thread internally, so always skip
+    # live Mistral tests under trio
     func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        skip_if_env_var("MISTRAL_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_mistral_package(func):
@@ -314,6 +329,11 @@ def skip_if_no_fireworks(func):
 def skip_if_no_moonshot(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
+def skip_if_no_deepseek(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
 
 
 def skip_if_no_sambanova(func):
