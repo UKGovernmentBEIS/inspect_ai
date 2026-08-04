@@ -11,9 +11,9 @@ collide. Exit 126 is the runtime refusing to exec a non-executable file *and*
 a shell reporting the same about the model's own script; exit 127 is a missing
 binary whether it is one Inspect injected or one the caller named.
 
-Recognition is deliberately partial, because the streams being matched are
-written by an untrusted model and telling one its working sandbox is dead is
-worse than the bug. Two consequences worth knowing:
+Recognition is deliberately partial because the streams being matched can
+also contain output from the caller's command. Broad matching could
+misclassify a healthy sandbox as unavailable. Two consequences worth knowing:
 
 - A launch failure is attributed to the sandbox only when the binary named is
   the wrapper `exec` injected. With no timeout there is no wrapper, so the two

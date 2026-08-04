@@ -214,10 +214,10 @@ async def _execute_tools_impl(
                 else:
                     raise
             except SandboxUnavailableError as ex:
-                # the sandbox could not run the command at all. report it as a
-                # failed call rather than letting it end the sample: whether an
-                # unusable sandbox should be terminal is an open question, and
-                # answering it here would answer it for every eval at once.
+                # Preserve the tool loop's existing non-terminal behavior while
+                # surfacing sandbox unavailability as a failed tool call. Evals
+                # that need it to be terminal can enforce that policy in their
+                # agent logic.
                 tool_error = ToolCallError("unknown", str(ex))
             except PermissionError as ex:
                 err = f"{ex.strerror or str(ex)}."
