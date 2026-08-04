@@ -1,5 +1,6 @@
 import tempfile
 import warnings
+from logging import getLogger
 from pathlib import Path
 from typing import Literal, Union, overload
 
@@ -17,11 +18,17 @@ from .limits import (
 )
 from .registry import sandboxenv
 
+logger = getLogger(__name__)
+
 
 @sandboxenv(name="local")
 class LocalSandboxEnvironment(SandboxEnvironment):
+    # Also defined in inspect_sandbox_tools._util.constants — keep in sync.
     _SANDBOX_TOOLS_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
+    # The server allows up to 30s for resource termination plus bounded HTTP
+    # shutdown; the CLI waits 45s for its status, leaving this 55s host limit.
     _SANDBOX_TOOLS_STOP_TIMEOUT = 55
+    _INTERRUPTED_SANDBOX_TOOLS_STOP_TIMEOUT = 5
 
     @override
     @classmethod
@@ -42,18 +49,19 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         environments: dict[str, SandboxEnvironment],
         interrupted: bool,
     ) -> None:
-        first_error: Exception | None = None
+        stop_timeout = (
+            cls._INTERRUPTED_SANDBOX_TOOLS_STOP_TIMEOUT
+            if interrupted
+            else cls._SANDBOX_TOOLS_STOP_TIMEOUT
+        )
         for environment in environments.values():
             sandbox = environment.as_type(LocalSandboxEnvironment)
             try:
-                await sandbox._stop_sandbox_tools()
+                await sandbox._stop_sandbox_tools(timeout=stop_timeout)
             except Exception as ex:
-                if first_error is None:
-                    first_error = ex
+                logger.warning("Failed to stop local sandbox-tools server: %s", ex)
             finally:
                 sandbox.directory.cleanup()
-        if first_error is not None:
-            raise first_error
 
     def __init__(self) -> None:
         self.directory = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
@@ -101,7 +109,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         )
         return result
 
-    async def _stop_sandbox_tools(self) -> None:
+    async def _stop_sandbox_tools(self, *, timeout: int) -> None:
         if not self._sandbox_tools_used or not self._sandbox_tools_dir.exists():
             return
         if not Path(SANDBOX_CLI).exists():
@@ -110,7 +118,7 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         result = await self.exec(
             [SANDBOX_CLI, "stop-server"],
             cwd="/",
-            timeout=self._SANDBOX_TOOLS_STOP_TIMEOUT,
+            timeout=timeout,
             timeout_retry=False,
         )
         if not result.success:

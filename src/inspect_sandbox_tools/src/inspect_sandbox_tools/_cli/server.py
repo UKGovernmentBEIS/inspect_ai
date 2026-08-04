@@ -21,6 +21,7 @@ from inspect_sandbox_tools._remote_tools._mcp.json_rpc_methods import (
 from inspect_sandbox_tools._util.constants import (
     SERVER_DIR,
     SERVER_DIR_ENV,
+    SERVER_PID_PATH,
     SHUTDOWN_STATUS_PATH,
     SOCKET_PATH,
 )
@@ -68,6 +69,8 @@ if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
 @method
 async def sandbox_tools_shutdown() -> object:
     """Request graceful shutdown after the JSON-RPC response is sent."""
+    # aiohttp starts graceful response draining before this short delay fires,
+    # so the caller can receive the shutdown acknowledgement before SIGTERM.
     asyncio.get_running_loop().call_later(0.05, os.kill, os.getpid(), signal.SIGTERM)
     return Success(None)
 
@@ -111,8 +114,13 @@ def main() -> None:
     # Create server directory with permissions based on privilege level.
     # Root: 0o700 prevents the agent from accessing socket/logs.
     # Non-root: 0o777 allows any user (no privilege to escalate anyway).
+    directory_mode = 0o700 if os.getuid() == 0 else 0o777
     SERVER_DIR.mkdir(exist_ok=True)
-    os.chmod(SERVER_DIR, 0o700 if os.getuid() == 0 else 0o777)
+    os.chmod(SERVER_DIR, directory_mode)
+    # Keep the socket path short while preserving SERVER_DIR's root/non-root
+    # access policy for the socket directory.
+    SOCKET_PATH.parent.mkdir(mode=directory_mode, exist_ok=True)
+    os.chmod(SOCKET_PATH.parent, directory_mode)
 
     # Remove stale socket file
     SOCKET_PATH.unlink(missing_ok=True)
@@ -142,8 +150,16 @@ def main() -> None:
         run_app(app, sock=sock, shutdown_timeout=_HTTP_SHUTDOWN_TIMEOUT)
     finally:
         SOCKET_PATH.unlink(missing_ok=True)
+        # Publish completion before removing the PID file so stop-server cannot
+        # mistake a clean exit for a crashed daemon in the intervening instant.
         if _shutdown_complete:
             _write_shutdown_status()
+        try:
+            server_pid = json.loads(SERVER_PID_PATH.read_text()).get("pid")
+        except (FileNotFoundError, json.JSONDecodeError):
+            server_pid = None
+        if server_pid == os.getpid():
+            SERVER_PID_PATH.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

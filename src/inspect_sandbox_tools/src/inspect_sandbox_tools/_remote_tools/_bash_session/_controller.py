@@ -53,9 +53,9 @@ class Controller(SessionController[Session]):
             self._sessions.clear()
 
         results = await asyncio.gather(
-            *(session.terminate(timeout=15) for session in sessions),
+            *(session.shutdown(timeout=30) for session in sessions),
             return_exceptions=True,
         )
-        for result in results:
-            if isinstance(result, Exception):
-                raise result
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            raise RuntimeError("; ".join(str(error) for error in errors))

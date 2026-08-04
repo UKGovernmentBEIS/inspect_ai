@@ -34,12 +34,12 @@ async def shutdown() -> None:
     active_sessions = list(sessions.values())
     sessions.clear()
     results = await asyncio.gather(
-        *(session.terminate(timeout=30) for session in active_sessions),
+        *(session.shutdown(timeout=30) for session in active_sessions),
         return_exceptions=True,
     )
-    for result in results:
-        if isinstance(result, Exception):
-            raise result
+    errors = [result for result in results if isinstance(result, Exception)]
+    if errors:
+        raise RuntimeError("; ".join(str(error) for error in errors))
 
 
 @validated_json_rpc_method(SendRequestParams)

@@ -14,8 +14,11 @@ from typing import Any
 
 import psutil
 import pytest
+from aiohttp import ClientConnectionError
 from aiohttp.web import Application
+from inspect_sandbox_tools._cli import main as main_module
 from inspect_sandbox_tools._cli import server as server_module
+from inspect_sandbox_tools._util.constants import server_socket_path
 
 SERVER_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
 
@@ -108,6 +111,17 @@ def _server_pid_for_cwd(cwd: Path) -> int:
     return matches[0]
 
 
+def test_server_socket_path_is_short_and_stable_for_long_server_directory() -> None:
+    server_dir = Path("/private/var/folders/" + "segment/" * 40 + "sandbox-tools")
+
+    socket_path = server_socket_path(server_dir)
+
+    assert socket_path == server_socket_path(server_dir)
+    assert socket_path != server_socket_path(server_dir.with_name("other-tools"))
+    assert socket_path.parent.parent == Path("/tmp")
+    assert len(str(socket_path)) < 100
+
+
 @pytest.mark.usefixtures("sandbox_server_cleanup")
 def test_stop_server_without_running_server_is_idempotent() -> None:
     test_root = Path(tempfile.mkdtemp(prefix="ist-no-server-"))
@@ -115,7 +129,7 @@ def test_stop_server_without_running_server_is_idempotent() -> None:
     try:
         _run_cli("stop-server", server_dir=server_dir, cwd=test_root)
         _run_cli("stop-server", server_dir=server_dir, cwd=test_root)
-        assert not (server_dir / "sandbox-tools.sock").exists()
+        assert not server_socket_path(server_dir).exists()
         assert not (server_dir / "shutdown-status.json").exists()
     finally:
         shutil.rmtree(test_root, ignore_errors=True)
@@ -218,12 +232,12 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
         assert os.getpgid(mcp_child_pid) == mcp_pid
         owned_pids.append(("sandbox-tools server", _server_pid_for_cwd(first_cwd)))
 
-        assert (first_server_dir / "sandbox-tools.sock").exists()
+        assert server_socket_path(first_server_dir).exists()
         _run_cli("stop-server", server_dir=first_server_dir, cwd=first_cwd)
 
         for label, pid in owned_pids:
             _wait_for_exit(label, pid)
-        assert not (first_server_dir / "sandbox-tools.sock").exists()
+        assert not server_socket_path(first_server_dir).exists()
         assert json.loads((first_server_dir / "shutdown-status.json").read_text()) == {
             "errors": []
         }
@@ -282,7 +296,7 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
         output_lines = stdout.splitlines()
         assert Path(output_lines[0]) == second_cwd.resolve()
         assert output_lines[1] == "unset"
-        assert (second_server_dir / "sandbox-tools.sock").exists()
+        assert server_socket_path(second_server_dir).exists()
         assert first_server_dir != second_server_dir
     finally:
         _run_cli(
@@ -420,3 +434,85 @@ async def test_server_cleanup_runs_resource_groups_concurrently_and_records_erro
     finally:
         server_module._shutdown_errors.clear()
         server_module._shutdown_complete = False
+
+
+@pytest.mark.asyncio
+async def test_stop_server_waits_for_starting_daemon(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    socket_path = tmp_path / "sandbox-tools.sock"
+    status_path = tmp_path / "shutdown-status.json"
+    pid_path = tmp_path / "server.pid"
+    socket_path.touch()
+    checks = 0
+    calls: list[tuple[str, str]] = []
+
+    def can_connect() -> bool:
+        nonlocal checks
+        checks += 1
+        return checks > 1
+
+    async def shutdown_call(socket: str, request: str) -> str:
+        calls.append((socket, request))
+        status_path.write_text('{"errors": []}')
+        return '{"jsonrpc":"2.0","result":null,"id":668}'
+
+    monkeypatch.setattr(main_module, "SOCKET_PATH", socket_path)
+    monkeypatch.setattr(main_module, "SHUTDOWN_STATUS_PATH", status_path)
+    monkeypatch.setattr(main_module, "SERVER_PID_PATH", pid_path)
+    monkeypatch.setattr(main_module, "_can_connect_to_socket", can_connect)
+    monkeypatch.setattr(main_module, "_server_process_is_running", lambda: True)
+    monkeypatch.setattr(main_module, "json_rpc_unix_call", shutdown_call)
+
+    await main_module._stop_server()
+
+    assert checks >= 2
+    assert calls == [
+        (
+            str(socket_path),
+            '{"jsonrpc":"2.0","method":"sandbox_tools_shutdown","id":668}',
+        )
+    ]
+    assert not socket_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_stop_server_ignores_connection_loss_after_socket_probe(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    socket_path = tmp_path / "sandbox-tools.sock"
+    status_path = tmp_path / "shutdown-status.json"
+    pid_path = tmp_path / "server.pid"
+    socket_path.touch()
+    pid_path.write_text('{"pid": 99, "created_at": 1.0}')
+
+    async def shutdown_call(_socket: str, _request: str) -> str:
+        raise ClientConnectionError("server stopped")
+
+    monkeypatch.setattr(main_module, "SOCKET_PATH", socket_path)
+    monkeypatch.setattr(main_module, "SHUTDOWN_STATUS_PATH", status_path)
+    monkeypatch.setattr(main_module, "SERVER_PID_PATH", pid_path)
+    monkeypatch.setattr(main_module, "_can_connect_to_socket", lambda: True)
+    monkeypatch.setattr(main_module, "_server_process_is_running", lambda: False)
+    monkeypatch.setattr(main_module, "json_rpc_unix_call", shutdown_call)
+
+    await main_module._stop_server()
+
+    assert not socket_path.exists()
+    assert not pid_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_exec_hides_server_directory_from_in_process_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(main_module.SERVER_DIR_ENV, "/private/server-dir")
+    monkeypatch.setattr(main_module, "load_tools", lambda _module: {"in_process"})
+
+    async def dispatch(_request: str) -> str:
+        assert main_module.SERVER_DIR_ENV not in os.environ
+        return '{"jsonrpc":"2.0","result":null,"id":1}'
+
+    monkeypatch.setattr(main_module, "_dispatch_local_method", dispatch)
+
+    await main_module._exec('{"jsonrpc":"2.0","method":"in_process","id":1}')
