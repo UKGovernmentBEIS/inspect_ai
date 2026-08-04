@@ -284,8 +284,13 @@ def view_server_app(
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
 
+        # No explicit Content-Length: the file may change between
+        # get_log_size() and the read (in-progress evals are rewritten
+        # in place), and a stale size makes clients fail the download.
+        # The buffered branch lets the framework set it from the actual
+        # body; the streaming branch uses chunked transfer encoding
+        # (same rationale as /log-bytes above).
         headers = {
-            "Content-Length": str(file_size),
             "Content-Disposition": f'attachment; filename="{filename}"',
         }
 
@@ -384,7 +389,7 @@ def view_server_app(
         await _validate_list(request, eval_set_dir)
 
         # return the eval set info for this directory (async fs, not to_thread —
-        # see the fsspec/to_thread warning in CLAUDE.md)
+        # see the fsspec/to_thread warning in AGENTS.md)
         mapped = await _map_file(request, eval_set_dir)
         if fs_options:
             return read_eval_set_info(mapped, fs_options=fs_options)
@@ -413,7 +418,7 @@ def view_server_app(
         sep = filesystem(mapped_dir).sep
         flow_file = f"{mapped_dir.rstrip('/').rstrip(sep)}{sep}flow.yaml"
 
-        # async fs, not to_thread — see the fsspec/to_thread warning in CLAUDE.md
+        # async fs, not to_thread — see the fsspec/to_thread warning in AGENTS.md
         async with AsyncFilesystem() as afs:
             content = (
                 await afs.read_file(flow_file) if await afs.exists(flow_file) else None
@@ -475,7 +480,7 @@ def view_server_app(
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
-        # warning in CLAUDE.md.
+        # warning in AGENTS.md.
         buffer = sample_buffer(await _map_file(request, file))
         samples = buffer.get_samples(client_etag)
         if samples == "NotModified":
@@ -521,7 +526,7 @@ def view_server_app(
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
-        # warning in CLAUDE.md.
+        # warning in AGENTS.md.
         buffer = sample_buffer(await _map_file(request, file))
         sample_data = buffer.get_sample_data(
             id=id,

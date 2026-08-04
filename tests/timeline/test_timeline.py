@@ -103,3 +103,59 @@ def test_timeline_deep_utility() -> None:
 
 def test_timeline_parallel_heterogeneous() -> None:
     _run_and_validate(scenario_parallel_heterogeneous, validate_parallel_heterogeneous)
+
+
+def test_wrap_utility_uuidless_ids_unique() -> None:
+    """Wrapper spans for uuid-less (legacy) events get unique deterministic ids.
+
+    The JSON fixtures can't express this case — event parsing auto-assigns
+    uuids — so construct the events directly and clear them.
+    """
+    from pydantic import TypeAdapter
+
+    from inspect_ai.event import Event
+    from inspect_ai.event._timeline import (
+        TimelineEvent,
+        TimelineSpan,
+        _wrap_utility_events,
+    )
+
+    def warmup_event(ts: str) -> Event:
+        event: Event = TypeAdapter(Event).validate_python(
+            {
+                "event": "model",
+                "timestamp": ts,
+                "completed": ts,
+                "model": "mockllm/model",
+                "input": [{"role": "user", "content": "warmup"}],
+                "tools": [],
+                "tool_choice": "none",
+                "config": {"max_tokens": 1},
+                "output": {
+                    "model": "mockllm/model",
+                    "choices": [
+                        {
+                            "message": {"role": "assistant", "content": "w"},
+                            "stop_reason": "max_tokens",
+                        }
+                    ],
+                },
+            }
+        )
+        event.uuid = None
+        return event
+
+    span = TimelineSpan(
+        id="agent",
+        name="agent",
+        span_type="agent",
+        content=[
+            TimelineEvent(event=warmup_event("2026-01-01T00:00:01Z")),
+            TimelineEvent(event=warmup_event("2026-01-01T00:00:02Z")),
+        ],
+    )
+    _wrap_utility_events(span)
+
+    wrappers = [item for item in span.content if isinstance(item, TimelineSpan)]
+    assert [w.id for w in wrappers] == ["utility-agent-0", "utility-agent-1"]
+    assert all(w.utility for w in wrappers)

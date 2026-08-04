@@ -120,6 +120,25 @@ def test_metric_create() -> None:
     metric_create_assert("accuracy4", correct="C")
 
 
+@metric
+def kwargs_metric(**kwargs: Any) -> Metric:
+    def metric(scores: list[SampleScore]) -> int | float:
+        return 1
+
+    return metric
+
+
+def test_metric_create_replays_name_kwarg_without_collision() -> None:
+    """A `**kwargs` key named `name` must survive metric replay from a log (#4375).
+
+    Flat capture records such a key at the top level of the log's metric
+    options, so replaying it must not collide with metric_create's own
+    `name` parameter.
+    """
+    metric = metric_create("kwargs_metric", name="demo")
+    assert metric([]) == 1
+
+
 def test_inspect_metrics() -> None:
     registry_assert(accuracy, f"{PKG_NAME}/accuracy")
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
@@ -770,6 +789,17 @@ def test_metrics_return_zero_for_empty_scores() -> None:
         var(),
         std(),
         stderr(),
+        stderr(cluster="cluster_id"),
         bootstrap_stderr(),
     ):
         assert metric_fn([]) == 0.0
+
+
+def test_grouped_metric_empty_scores() -> None:
+    # grouped() metric with all="groups" or all="samples" must return 0.0
+    # aggregate for empty scores without numpy empty-slice warnings.
+    metric_samples = grouped(mean(), group_key="group", all="samples")
+    assert metric_samples([]) == {"all": 0.0}
+
+    metric_groups = grouped(mean(), group_key="group", all="groups")
+    assert metric_groups([]) == {"all": 0.0}

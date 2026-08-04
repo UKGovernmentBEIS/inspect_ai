@@ -36,6 +36,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    NamedTuple,
 )
 
 if TYPE_CHECKING:
@@ -68,6 +69,33 @@ logger = getLogger(__name__)
 
 SampleCancelAction = Literal["score", "error", "cancel"]
 """How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
+
+
+class ActiveSampleRetryWait(NamedTuple):
+    """A model call's retry backoff, mirrored onto the running sample.
+
+    During the backoff between retry attempts there is no pending
+    ``ModelEvent`` to observe (the failed attempt's event completed in
+    place), so without this record the control channel would read the
+    sample as silently idle for the whole wait — precisely the
+    "looks hung but is healthy" misreading the activity indicator exists
+    to fix (design/ctl/generate-progress.md). Stamped by
+    :func:`report_active_sample_retry_wait` from the model retry loop's
+    before-sleep callback; cleared by :func:`clear_active_sample_retry_wait`
+    when the retried call resolves.
+    """
+
+    model: str
+    """Model whose call is waiting to retry."""
+
+    attempt: int
+    """Number of the attempt that just failed (1-based)."""
+
+    started_at: float
+    """When the backoff started (unix ts)."""
+
+    deadline: float
+    """When the wait elapses and the next attempt begins (unix ts)."""
 
 
 class ActiveSample:
@@ -146,6 +174,13 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
+        # In-flight model retry backoff, if any (see ActiveSampleRetryWait).
+        # A single slot: concurrent generates within one sample overwrite it
+        # last-writer-wins (the control channel shows one activity per row,
+        # and pending events always take precedence over this record), and
+        # the ownership guard in clear_active_sample_retry_wait keeps a
+        # sibling's clear from dropping a live wait.
+        self.retry_wait: ActiveSampleRetryWait | None = None
         self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
@@ -558,6 +593,75 @@ def report_active_sample_retry() -> None:
         if model_event.retries is None:
             model_event.retries = 0
         model_event.retries = model_event.retries + 1
+
+
+# The retry-wait record stamped by *this* coroutine's model retry loop.
+# `ActiveSample.retry_wait` is a single shared slot; this per-context handle
+# lets `clear_active_sample_retry_wait` clear only a record its own call
+# stamped, so a generate resolving in one task can't drop a concurrent
+# sibling's still-live wait.
+_active_retry_wait: ContextVar["ActiveSampleRetryWait | None"] = ContextVar(
+    "_active_retry_wait", default=None
+)
+
+
+def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) -> None:
+    """Record that the active sample's model call is waiting to retry.
+
+    Called from the model retry loop's before-sleep callback (once per
+    backoff). Between attempts there is no pending ``ModelEvent`` to
+    observe, so this record is the only per-sample signal that the sample
+    is healthy-but-waiting rather than stalled; the control channel reads
+    it as the ``retry_wait`` activity type
+    (design/ctl/generate-progress.md).
+
+    Args:
+        model: Model whose call is waiting to retry.
+        attempt: Number of the attempt that just failed (1-based).
+        wait_time: Seconds until the next attempt begins.
+    """
+    active = sample_active()
+    if active is not None:
+        now = datetime.now(timezone.utc).timestamp()
+        record = ActiveSampleRetryWait(
+            model=model, attempt=attempt, started_at=now, deadline=now + wait_time
+        )
+        _active_retry_wait.set(record)
+        active.retry_wait = record
+
+
+def clear_active_sample_retry_wait() -> None:
+    """Clear the retry-wait record stamped by this coroutine's model call.
+
+    Called when the retried call resolves (success or final failure) so a
+    record can't outlive its call and misreport a healthy sample as
+    waiting. No-ops when a concurrent sibling call has since overwritten
+    the sample's slot — its wait is still live.
+    """
+    record = _active_retry_wait.get()
+    if record is None:
+        return
+    _active_retry_wait.set(None)
+    active = sample_active()
+    if active is not None and active.retry_wait is record:
+        active.retry_wait = None
+
+
+@contextlib.contextmanager
+def cleared_retry_wait() -> Iterator[None]:
+    """Clear this coroutine's retry-wait record when the enclosed call resolves.
+
+    Wrap the await of a tenacity-decorated model call built with
+    ``report_retry_wait=True`` (the retry loop's before-sleep callback
+    stamps the record; see :func:`report_active_sample_retry_wait`). The
+    backoff record must not outlive the call it describes — success, final
+    failure, or cancellation during the backoff sleep itself; nothing later
+    clears it.
+    """
+    try:
+        yield
+    finally:
+        clear_active_sample_retry_wait()
 
 
 _sample_active: ContextVar[ActiveSample | None] = ContextVar(

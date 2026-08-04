@@ -8,6 +8,9 @@ import time
 from typing import Any
 
 import pytest
+from inspect_sandbox_tools._util.json_rpc_chunking import (
+    JSON_RPC_RESPONSE_MAX_BYTES_ENV,
+)
 
 from tests.conftest import (
     DEFAULT_RPC_TIMEOUT,
@@ -788,8 +791,13 @@ class TestParameterValidation:
 class TestLargeOutput:
     """Tests for large output handling."""
 
-    def test_large_stdout_output(self, rpc_client: RpcClient) -> None:
+    def test_large_stdout_output(
+        self, rpc_client: RpcClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that large output is captured correctly."""
+        # This raw CLI client deliberately does not reassemble outer transport
+        # chunks; keep its response envelope above the output it validates.
+        monkeypatch.setenv(JSON_RPC_RESPONSE_MAX_BYTES_ENV, str(1024 * 1024))
         # Generate approximately 100KB of output (100 lines of 1000 chars each)
         response = rpc_client(
             {

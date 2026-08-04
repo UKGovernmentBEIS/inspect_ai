@@ -40,6 +40,7 @@ from inspect_ai._eval.handoff import (
     LaunchHandoff,
     emit_launch_handoff,
     launch_handoff_emitted,
+    print_ctl_pointer,
     reset_launch_handoff_emitted,
 )
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -926,18 +927,24 @@ async def _keep_alive_park(eval_set_id: str, log_dir: str) -> None:
         # `--json` / `--detach` consumer is waiting to hear about. Emit it
         # here (run_id None: no run happened), only when the run itself
         # emitted none, so keep-alive runs still see exactly one `launch`.
+        control_socket = (
+            str(ctl_server.socket_path) if ctl_server.socket_path is not None else None
+        )
         if not launch_handoff_emitted():
             emit_launch_handoff(
                 LaunchHandoff(
                     run_id=None,
                     pid=os.getpid(),
                     log_dir=log_dir,
-                    control_socket=str(ctl_server.socket_path)
-                    if ctl_server.socket_path is not None
-                    else None,
+                    control_socket=control_socket,
                     eval_set_id=eval_set_id,
                 )
             )
+        # unconditional (unlike the handoff): the once-per-process latch
+        # already makes this a no-op when the run's own bind printed, and in
+        # the all-reused case this park is the only bind, so it closes the
+        # same hole for console consumers that the handoff closes for --json
+        print_ctl_pointer(control_socket)
         rich.get_console().print(
             "Eval-set finished. Keeping process alive — press Ctrl+C or run "
             "`inspect ctl process release` to let it exit.",

@@ -20,9 +20,9 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     is_registry_object,
     registry_add,
-    registry_create,
     registry_info,
     registry_name,
     registry_params,
@@ -76,7 +76,13 @@ class ScoreEdit(BaseModel):
     """New explanation for the score, or UNCHANGED to keep current explanation."""
 
     metadata: dict[str, Any] | Literal["UNCHANGED"] = "UNCHANGED"
-    """New metadata for the score, or UNCHANGED to keep current metadata."""
+    """New metadata for the score, or UNCHANGED to keep current metadata.
+
+    A metadata dict *replaces* `Score.metadata` rather than merging into it, so
+    keys recorded by the scorer (e.g. `reason`, or a model grader's `grading`
+    transcript) are no longer part of the current metadata unless the edit
+    repeats them. The pre-edit dict remains available via `Score.history`.
+    """
 
     provenance: ProvenanceData | None = None
     """Provenance data for this edit. None indicates this is the original score."""
@@ -338,7 +344,7 @@ def metric_register(
     return metric
 
 
-def metric_create(name: str, **kwargs: Any) -> Metric:
+def metric_create(name: str, /, **kwargs: Any) -> Metric:
     r"""Create a Metric based on its registered name.
 
     Metrics can be functions that return a Metric or classes
@@ -351,7 +357,10 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
     Returns:
         Metric with registry info attribute
     """
-    return registry_create("metric", name, **kwargs)
+    # name is positional-only and creation args are passed as a dict so that
+    # a metric factory kwarg named `name` (replayed from a log) can't collide
+    # with our own or registry_create's `name` parameter.
+    return cast(Metric, create_registry_object("metric", name, kwargs))
 
 
 def to_metric_specs(

@@ -9,12 +9,14 @@ var t = {
 	"wicked-good-xpath": await __vitePreload(() => import("./wgxpath.install-node-Csk64Aj9.js").then(l(1)), __vite__mapDeps([2,1]), import.meta.url),
 	commander: {},
 	fs: {}
-}, n = (e) => t[e];
+};
+var n = (e) => t[e];
 globalThis.MathJax_require = n;
 var r = {
 	"mathjax/es5/adaptors/liteDOM.js": () => __vitePreload(() => import("./liteDOM-Cp0aN3bP.js"), [], import.meta.url),
 	"xyjax/build/xypic.js": () => __vitePreload(() => import("./xypic-DrMJn58R.js"), [], import.meta.url)
-}, i = (e) => r[e]();
+};
+var i = (e) => r[e]();
 globalThis.MathJax = {
 	loader: {
 		source: {},
