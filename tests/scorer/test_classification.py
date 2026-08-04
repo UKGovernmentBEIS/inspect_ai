@@ -99,3 +99,9 @@ def test_max_score_empty_target_no_index_error():
     assert max_f1_score("hello", [""]) == 0.0
     assert max_exact_score("hello", [""]) == 0.0
     assert max_f1_score("hello", ["", "hello"]) == 1.0
+
+
+def test_max_exact_score_word_order_and_duplicates():
+    # max_exact_score must preserve word order and count (not compare word sets)
+    assert max_exact_score("world hello", ["hello world"]) == 0.0
+    assert max_exact_score("hello hello", ["hello"]) == 0.0
