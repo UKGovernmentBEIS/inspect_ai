@@ -1,10 +1,10 @@
 """Classification of `docker compose exec` results.
 
-One exit code and one pair of streams carry two different outcomes: the
-caller's command ran and failed, or docker could not run it at all. Only the
-first is a result. The second describes docker's own failure, and returning
-it as an `ExecResult` is what made a dead sandbox look to a model like
-ordinary command output (#4709).
+One exit code and one pair of streams carry two different outcomes: a failure
+attributable to the caller's command, or a provider failure before the caller's
+command was reached. Only the first is a result. Returning the second as an
+`ExecResult` is what made a dead sandbox look to a model like ordinary command
+output (#4709).
 
 Telling them apart is a matter of who wrote the message, since the exit codes
 collide. Exit 126 is the runtime refusing to exec a non-executable file *and*
@@ -72,8 +72,8 @@ def classify_exec_failure(
         result: Result of the `docker compose exec` invocation.
         wrapper: Binary Inspect injected ahead of the caller's command, or
             `None` if it ran the command directly. A launch failure naming the
-            wrapper means nothing can run in the sandbox; one naming the
-            caller's own binary is an ordinary result.
+            wrapper means provider-required execution machinery is unavailable;
+            one naming the caller's own binary is an ordinary result.
 
     Returns:
         An error to raise in place of returning `result`, or `None` when
@@ -117,17 +117,18 @@ def classify_exec_failure(
         # search the original line: the binary-name comparison is case-exact
         not_found = _RUNC_NOT_FOUND.search(lines[0])
         if not_found is not None:
-            # our own wrapper has gone missing, so nothing can run here. a
-            # binary the *caller* named is their problem, and stays an
-            # ordinary result as it has always been. 127 is the code runc
-            # reports exec-not-found with.
+            # our own wrapper has gone missing, so the provider could not reach
+            # the caller's command. a binary the *caller* named is their problem,
+            # and stays an ordinary result as it has always been. 127 is the
+            # code runc reports exec-not-found with.
             if (
                 result.returncode == 127
                 and wrapper is not None
                 and not_found.group(1) == wrapper.binary
             ):
                 return SandboxUnavailableError(
-                    f"The sandbox can no longer execute commands: {output}"
+                    "The sandbox could not execute the command because required "
+                    f"execution machinery is unavailable: {output}"
                 )
             return None
         if result.returncode == 126 and "permission denied" in head:

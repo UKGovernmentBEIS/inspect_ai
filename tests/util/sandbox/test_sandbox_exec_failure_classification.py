@@ -407,8 +407,8 @@ def test_daemon_unreachable_is_deliberately_not_classified() -> None:
             type(None),
             id="runc_missing_caller_binary",
         ),
-        # the binary runc cannot find is the wrapper *we* injected, so
-        # nothing can run in this container any more
+        # the binary runc cannot find is the wrapper *we* injected, so the
+        # provider could not reach the caller's command
         pytest.param(
             RM_BIN, WRAPPER, SandboxUnavailableError, id="runc_missing_wrapper"
         ),

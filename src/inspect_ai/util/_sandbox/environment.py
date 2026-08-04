@@ -34,13 +34,13 @@ logger = logging.getLogger(__name__)
 
 
 class SandboxUnavailableError(RuntimeError):
-    """Raised when a sandbox could not run a command at all.
+    """Raised when a provider cannot initiate a sandbox exec request.
 
-    Distinct from a command that ran and failed: the provider never reached
-    the point of executing the caller's command, so the streams it would
-    otherwise return describe the provider's own failure. Callers that
-    surface `ExecResult` output to a model must not present those as the
-    command's output.
+    This indicates that the sandbox is not running or provider-required
+    execution machinery is unavailable. It is distinct from failure to find
+    a caller-specified executable, which is reported through `ExecResult`.
+    Callers that surface `ExecResult` output to a model must not present the
+    provider's own failure as the command's output.
 
     Tool calls turn this into a tool error, leaving the sample running.
     Other callers (scorers, solvers, setup code) receive it as an ordinary
@@ -161,11 +161,10 @@ class SandboxEnvironment(abc.ABC):
           Execution result (status code, stderr/stdout, etc.)
 
         Raises:
-          SandboxUnavailableError: If the sandbox could not run the command
-            at all (it is not running, or cannot start a process). Providers
-            should raise rather than reporting their own failure through the
-            returned streams, which callers present to a model as command
-            output.
+          SandboxUnavailableError: If the provider cannot initiate the exec
+            request because the sandbox is not running or provider-injected
+            execution machinery is unavailable. A missing caller-specified
+            executable is returned as an ordinary failed `ExecResult`.
           TimeoutError: If the specified `timeout` expires
             (and `timeout_retry` attempts also timeout).
           UnicodeDecodeError: May be raised if the sandbox provider
