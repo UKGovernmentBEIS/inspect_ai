@@ -5,7 +5,8 @@ import math
 import os
 import shutil
 import tempfile
-from collections.abc import Generator, Sequence
+import warnings
+from collections.abc import Generator, Iterable, Sequence
 from contextlib import contextmanager
 from functools import partial
 from io import BytesIO
@@ -40,7 +41,12 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
-from inspect_ai._util.json import is_ijson_nan_inf_error, jsonable_dict, to_json_safe
+from inspect_ai._util.json import (
+    is_ijson_int_overflow_error,
+    is_ijson_nan_inf_error,
+    jsonable_dict,
+    to_json_safe,
+)
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
@@ -519,7 +525,12 @@ def _rewrite_eval_zip_with_new_header(zip_bytes: bytes, log: EvalLog) -> bytes:
         ZipFile(BytesIO(zip_bytes), "r") as src,
         ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
     ):
-        for info in src.infolist():
+        # Dedupe by member name, last entry winning — a requeued sample's
+        # fresh record supersedes the prior one as a duplicate zip member
+        # (see _zip_writestr), and read-by-name resolves to the last entry;
+        # copying every info would write those superseded bytes twice.
+        infos = {info.filename: info for info in src.infolist()}
+        for info in infos.values():
             if info.filename == HEADER_JSON:
                 continue
             # writestr with a ZipInfo preserves the original compression
@@ -610,10 +621,7 @@ async def _read_member_json_excluding(
         IncompleteJSONError,
         UnexpectedSymbol,
     ) as ex:
-        # ijson doesn't support NaN/Inf which are valid in
-        # Python's JSON. Fall back to standard json.load
-        # and manually remove excluded fields.
-        if is_ijson_nan_inf_error(ex):
+        if is_ijson_nan_inf_error(ex) or is_ijson_int_overflow_error(ex):
             data = json.loads(await reader.read_member_fully(member))
             for field in exclude_fields:
                 data.pop(field, None)
@@ -843,6 +851,18 @@ class ZipLogFile:
     async def buffer_sample(self, sample: EvalSample) -> None:
         buffered = _BufferedSample(sample=sample, summary=sample.summary())
         async with self._lock:
+            # supersede any not-yet-flushed prior record for the same
+            # (id, epoch) — e.g. a requeued sample's re-run going terminal
+            # before the prior attempt's flush. Keeping both would journal
+            # duplicate summaries, serve the stale record from
+            # ``buffered_sample``, and (when the prior arrived via the
+            # streaming path, whose member is already zip-written) leave a
+            # stale event-less fallback in ``_streaming_samples``.
+            key = (sample.id, sample.epoch)
+            self._samples = [
+                s for s in self._samples if (s.sample.id, s.sample.epoch) != key
+            ]
+            self._streaming_samples.pop(key, None)
             self._samples.append(buffered)
 
     async def buffer_sample_write_through(self, sample: EvalSample) -> None:
@@ -914,6 +934,16 @@ class ZipLogFile:
 
             self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
 
+            # evict a buffered prior record for the same (id, epoch): its
+            # member would otherwise be flush-written *after* the streaming
+            # write above, and the readers' name-based last-entry-wins rule
+            # would resolve the log to the stale prior
+            self._samples = [
+                s
+                for s in self._samples
+                if (s.sample.id, s.sample.epoch) != (sample.id, sample.epoch)
+            ]
+
             # Retain the event-less sample so the control channel can read its
             # error detail before the next flush makes it on-disk-readable
             # (events stay in the buffer database — see ``buffered_sample``).
@@ -956,12 +986,19 @@ class ZipLogFile:
 
         Unions ``_summaries`` (already journalled) with the not-yet-flushed
         ``_samples`` so a just-completed sample isn't missed between flushes.
-        Pure list building — the buffered summaries were computed at buffer
+        A buffered sample supersedes a journalled row for the same
+        ``(id, epoch)`` (a requeued sample's re-run ahead of its flush), so
+        consumers see one row per key with the freshest outcome.
+
+        Pure dict building — the buffered summaries were computed at buffer
         time (see :class:`_BufferedSample`), so this stays cheap no matter how
         large the buffered samples are or how often the control channel polls.
         """
         async with self._lock:
-            return [*self._summaries, *(b.summary for b in self._samples)]
+            by_key = {(s.id, s.epoch): s for s in self._summaries}
+            for b in self._samples:
+                by_key[(b.summary.id, b.summary.epoch)] = b.summary
+            return list(by_key.values())
 
     async def buffered_sample(self, id: str | int, epoch: int) -> EvalSample | None:
         """A not-yet-flushed full sample by ``(id, epoch)``, or None.
@@ -1099,10 +1136,18 @@ class ZipLogFile:
     # raw unsynchronized version of write
     def _zip_writestr(self, filename: str, data: Any) -> None:
         assert self._zip
-        self._zip.writestr(
-            filename,
-            to_json_safe(data, indent=None),
-        )
+        # a repeated member name is deliberate superseding (a requeued
+        # sample's fresh record, or re-logging with clean=False): readers
+        # resolve names to the last entry, so quiet zipfile's duplicate-name
+        # UserWarning rather than surfacing it per re-log
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            self._zip.writestr(
+                filename,
+                to_json_safe(data, indent=None),
+            )
 
     @contextmanager
     def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
@@ -1173,7 +1218,12 @@ async def _read_log(
 
     if not header_only:
         samples: list[EvalSample] = []
-        for entry in entries:
+        # a re-logged sample (e.g. a requeued sample superseding its prior
+        # terminal record) appends a second member under the same name;
+        # name-based zip access resolves to the last entry, so match that
+        # here rather than yielding duplicate samples
+        unique_entries = {e.filename: e for e in entries}
+        for entry in unique_entries.values():
             if entry.filename.startswith(f"{SAMPLES_DIR}/") and entry.filename.endswith(
                 ".json"
             ):
@@ -1215,7 +1265,10 @@ def _read_log_from_bytes(
         samples_list: list[EvalSample] | None = None
         if not header_only:
             samples_list = []
-            for name in zip.namelist():
+            # namelist() repeats a re-logged member (e.g. a requeued
+            # sample); zip.open(name) resolves to the last entry, so read
+            # each unique name once rather than yielding duplicate samples
+            for name in dict.fromkeys(zip.namelist()):
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
                     with zip.open(name, "r") as f:
                         samples_list.append(
@@ -1297,6 +1350,21 @@ def _parse_summaries(data: Any, source: str) -> list[EvalSampleSummary]:
         raise ValueError(f"Expected a list of summaries when reading {source}")
 
 
+def _dedupe_summaries(
+    summaries: Iterable[EvalSampleSummary],
+) -> list[EvalSampleSummary]:
+    """Keep the last row per ``(id, epoch)``.
+
+    The same last-entry-wins rule the zip sample readers apply: a requeued
+    sample's re-run is recorded after its superseded prior attempt, so the
+    later row is the current one.
+    """
+    by_key: dict[tuple[int | str, int], EvalSampleSummary] = {}
+    for summary in summaries:
+        by_key[(summary.id, summary.epoch)] = summary
+    return list(by_key.values())
+
+
 async def _read_all_summaries_async(
     reader: AsyncZipReader,
 ) -> tuple[list[EvalSampleSummary], int]:
@@ -1304,8 +1372,13 @@ async def _read_all_summaries_async(
     entry_names = {e.filename for e in cd.entries}
     count = await _read_summary_counter(reader)
     if SUMMARIES_JSON in entry_names:
-        return _parse_summaries(
-            await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
+        # deduped defensively: the writer's in-memory list is keyed unique,
+        # but a log written before superseding-on-buffer existed can carry
+        # both a requeued sample's rows
+        return _dedupe_summaries(
+            _parse_summaries(
+                await _read_member_json(reader, SUMMARIES_JSON), SUMMARIES_JSON
+            )
         ), count
     else:
         # An in-progress log has no consolidated summaries.json; it stores one journal
@@ -1323,10 +1396,11 @@ async def _read_all_summaries_async(
         per_file = await tg_collect(
             [partial(read_summary_file, i) for i in range(1, count + 1)]
         )
-        summaries: list[EvalSampleSummary] = [
-            s for file_summaries in per_file for s in file_summaries
-        ]
-        return summaries, count
+        # tg_collect preserves the 1..count journal-file order, so the
+        # superseded prior attempt's row precedes its re-run's
+        return _dedupe_summaries(
+            summary for file_summaries in per_file for summary in file_summaries
+        ), count
 
 
 def _read_header(zip: ZipFile, location: str) -> EvalLog:
