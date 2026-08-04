@@ -317,3 +317,37 @@ async def test_numeric_any_answer_when_no_match():
 
     assert result.text == INCORRECT
     assert result.answer == "got 7 and 11"
+
+
+# --- numbers with sentence / enclosing punctuation ---------------------------
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_output",
+    [
+        "The answer is 42!",
+        "The answer is 42?",
+        "The answer is 42:",
+        "The answer is (42).",
+        "The answer is [42]",
+        'The answer is "42"',
+    ],
+)
+async def test_numeric_match_with_punctuation(model_output: str):
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "42"
+
+
+@pytest.mark.anyio
+async def test_numeric_match_any_with_punctuation():
+    scorer = match(numeric=True, location="any")
+    state = simple_task_state(model_output="The total is (42)!")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "42"
