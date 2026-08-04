@@ -4,7 +4,13 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import (
+    ClientError,
+    ConnectionClosedError,
+    ConnectTimeoutError,
+    EndpointConnectionError,
+    ReadTimeoutError,
+)
 
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, GenerateConfig
 from inspect_ai.model._chat_message import (
@@ -156,6 +162,34 @@ class TestShouldRetry:
     def test_no_retry_on_non_client_error(self):
         api = _make_api()
         assert api.should_retry(RuntimeError("boom")).retry is False
+
+    def test_retry_on_endpoint_connection_error(self):
+        api = _make_api()
+        ex = EndpointConnectionError(endpoint_url="https://runtime.sagemaker")
+        assert api.should_retry(ex).retry is True
+
+    def test_retry_on_connection_closed_error(self):
+        api = _make_api()
+        ex = ConnectionClosedError(endpoint_url="https://runtime.sagemaker")
+        assert api.should_retry(ex).retry is True
+
+    def test_retry_on_connect_timeout_error(self):
+        api = _make_api()
+        ex = ConnectTimeoutError(endpoint_url="https://runtime.sagemaker")
+        assert api.should_retry(ex).retry is True
+
+    def test_retry_on_read_timeout_error(self):
+        api = _make_api()
+        ex = ReadTimeoutError(endpoint_url="https://runtime.sagemaker")
+        assert api.should_retry(ex).retry is True
+
+    def test_transport_retry_is_transient_not_rate_limit(self):
+        api = _make_api()
+        decision = api.should_retry(
+            EndpointConnectionError(endpoint_url="https://runtime.sagemaker")
+        )
+        assert decision.retry is True
+        assert decision.kind == "transient"
 
 
 # -- Request body building tests ---------------------------------------------

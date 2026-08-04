@@ -1,3 +1,7 @@
+## Unreleased
+
+- SageMaker: Transient connection failures (endpoint connection errors, dropped connections, connect/read timeouts) are now retried instead of failing the sample.
+
 ## 0.3.252 (04 August 2026)
 
 - Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
