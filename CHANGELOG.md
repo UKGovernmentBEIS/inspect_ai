@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Logging: Model calls in running samples now show an end time and non-zero working time in the viewer, instead of an empty completion time and 0 seconds. (#4226)
 - Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
 - Sandbox: Service method errors no longer include the host-side traceback in the response delivered into the sandbox; the traceback is logged host-side instead. (#4673)
