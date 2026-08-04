@@ -1,11 +1,18 @@
 ## Unreleased
 
+- Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.
+- Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
+- Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
+- Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
+- Control Channel: New `inspect ctl task pause|resume` and `inspect ctl process pause|resume` commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with `paused`/`quiesced` reported by `inspect ctl task list`.
+- Scoring: `f1()` and `exact()` now match decimal-number answers wrapped in punctuation (e.g. "(3.14)" or a trailing period) against bare-number targets. (#4620)- DeepSeek: New native `deepseek` provider with support for DeepSeek V4 models (`deepseek/deepseek-v4-pro` and `deepseek/deepseek-v4-flash`), including thinking control via `--reasoning-effort`.
 - Mistral: `--reasoning-effort` now controls thinking on current Mistral reasoning models (Mistral Medium 3.5 and Mistral Small 4), which replace the retired always-thinking Magistral models.
 - Bugfix: `exact()` now requires word order and word counts to match (previously it compared unordered word sets, so e.g. "world hello" scored as an exact match for "hello world"). Note: `exact()` scores may decrease on existing evals where answers matched only via word reordering or duplicate collapse; use `f1()` for order-insensitive scoring.
 - Bugfix: `match(numeric=True)` now recognizes LaTeX-escaped currency and formatting symbols (e.g. `\$20`, `\€20`, `1\,000`), which previously failed numeric extraction and could silently match a different number in the output. Scores may shift on affected samples (mostly upward; the previously ignored number is now the one matched).
 - Bedrock: Claude 4.6+ now honours `reasoning_effort` and `effort` via adaptive thinking, alongside `response_schema`; `reasoning_tokens` is promoted to adaptive on Claude 4.7+. (#3765)
 - Scorers: `stderr(cluster=...)` and `grouped(all="groups")` now return 0.0 for empty score lists without emitting NumPy runtime warnings. (#4718)
 - Model: `total_cost` now bills Anthropic 1-hour prompt-cache writes at 2x the base input price rather than the 5-minute rate, so runs using `-M cache_ttl=1h` are no longer understated. (#4703)
+- Logging: Model calls in running samples now show an end time and non-zero working time in the viewer, instead of an empty completion time and 0 seconds. (#4226)
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
 - Hugging Face: Model info lookups now use your `HF_TOKEN` or cached `huggingface-cli login` credentials instead of authenticating with a placeholder and being rate limited as anonymous. (#4600)
 

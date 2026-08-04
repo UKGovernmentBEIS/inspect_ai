@@ -120,6 +120,10 @@ def _detect_org_from_model_name(model_name: str) -> str | None:
     if name.startswith("kimi"):
         return "moonshotai"
 
+    # DeepSeek models: deepseek-*
+    if name.startswith("deepseek"):
+        return "deepseek"
+
     return None
 
 
