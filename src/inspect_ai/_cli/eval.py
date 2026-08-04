@@ -20,7 +20,11 @@ from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
-from inspect_ai._eval.handoff import LaunchHandoff, set_launch_handoff_listener
+from inspect_ai._eval.handoff import (
+    LaunchHandoff,
+    set_ctl_pointer_armed,
+    set_launch_handoff_listener,
+)
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -450,7 +454,8 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "the process exits when `inspect ctl process release` is run (or POST "
             "/release is sent to the control endpoint). Without `keep` "
             "the process exits as soon as the eval body returns, taking the "
-            "control surface with it."
+            "control surface with it. Observe the run from another shell "
+            "with `inspect ctl task list`."
         ),
         envvar="INSPECT_EVAL_CTL_SERVER",
     )
@@ -949,8 +954,15 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @eval_options
 @click.pass_context
 def eval_command(ctx: click.Context, /, **params: Any) -> None:
-    """Evaluate tasks."""
-    with _json_prerequisite_errors_to_stderr(params["json_output"] or params["detach"]):
+    """Evaluate tasks.
+
+    Monitor a running eval from another shell with `inspect ctl`
+    (see `inspect ctl --help`).
+    """
+    with (
+        _armed_ctl_pointer(),
+        _json_prerequisite_errors_to_stderr(params["json_output"] or params["detach"]),
+    ):
         if params.pop("detach"):
             exec_detached(ctl_server=params["ctl_server"])
         # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*)
@@ -992,6 +1004,25 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
                 params[name] = () if isinstance(value, tuple) else None
 
         _eval_command_impl(**params)
+
+
+@contextlib.contextmanager
+def _armed_ctl_pointer() -> Iterator[None]:
+    """Arm the launch-time ``inspect ctl`` pointer for this CLI invocation.
+
+    Wraps the ``eval`` / ``eval-set`` / ``eval-retry`` command bodies:
+    the pointer (like the launch handoff whose listener these commands
+    also register) is a launch concern of the CLI process, so it is armed
+    process-wide here rather than threaded through ``eval()`` — a bare
+    ``eval()`` call never prints it. Disarming on exit only matters for
+    in-process invocations (tests via ``CliRunner``); a real CLI process
+    exits with the command.
+    """
+    set_ctl_pointer_armed(True)
+    try:
+        yield
+    finally:
+        set_ctl_pointer_armed(False)
 
 
 @contextlib.contextmanager
@@ -1439,9 +1470,15 @@ def eval_set_command(
 ) -> int:
     """Evaluate a set of tasks with retries.
 
+    Monitor a running eval from another shell with `inspect ctl`
+    (see `inspect ctl --help`).
+
     Learn more about eval sets at https://inspect.aisi.org.uk/eval-sets.html.
     """
-    with _json_prerequisite_errors_to_stderr(json_output or detach):
+    with (
+        _armed_ctl_pointer(),
+        _json_prerequisite_errors_to_stderr(json_output or detach),
+    ):
         if detach:
             exec_detached(ctl_server=ctl_server)
 
@@ -2490,7 +2527,8 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
         "enabled). Pass `false` to disable it; pass `keep` "
         "to keep the process running after the retried eval finishes so "
         "external clients (the `inspect ctl` CLI, scripted agents) can still "
-        "query its state. Run `inspect ctl process release` to release."
+        "query its state. Run `inspect ctl process release` to release. "
+        "Observe the run from another shell with `inspect ctl task list`."
     ),
     envvar="INSPECT_EVAL_CTL_SERVER",
 )
@@ -2586,8 +2624,15 @@ def eval_retry_command(
     scan_generate_config: str | None,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Retry failed evaluation(s)"""
-    with _json_prerequisite_errors_to_stderr(json_output or detach):
+    """Retry failed evaluation(s).
+
+    Monitor a running eval from another shell with `inspect ctl`
+    (see `inspect ctl --help`).
+    """
+    with (
+        _armed_ctl_pointer(),
+        _json_prerequisite_errors_to_stderr(json_output or detach),
+    ):
         if detach:
             exec_detached(ctl_server=ctl_server)
 
