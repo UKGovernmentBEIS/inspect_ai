@@ -300,16 +300,16 @@ class TestModelDataConsistency:
     def test_colliding_lookup_keys_agree_across_files(self) -> None:
         """Entries in different files that collide on a lookup key must agree.
 
-        Cross-file duplicates exist (e.g. moonshotai.yml's `moonshotai/kimi-k2.5`
-        vs together.yml's `moonshotai/Kimi-K2.5`): exact lookups are
-        unaffected, but for any other casing the winner in
-        `_build_lookup_index()` depends on filesystem glob order. That is
-        harmless while the entries agree on functional metadata; this test
-        fails if they ever drift (e.g. a regenerated together.yml bumps a
-        context length that moonshotai.yml pins). Display-only fields
-        (display_name, organization) may differ. Same-file collisions are
-        excluded: they resolve deterministically by insertion order, and the
-        recurring `latest` version key shadows earlier models by design.
+        When cross-file duplicates exist, exact lookups are unaffected, but
+        for any other casing the winner in `_build_lookup_index()` depends
+        on filesystem glob order. That is harmless while the entries agree
+        on functional metadata; this test fails if they ever drift.
+        sync_models.py excludes curated models from the generated
+        together.yml (see tests/model/test_sync_models.py), so this test now
+        mainly backstops collisions between curated files. Display-only
+        fields (display_name, organization) may differ. Same-file collisions
+        are excluded: they resolve deterministically by insertion order, and
+        the recurring `latest` version key shadows earlier models by design.
         """
         from pathlib import Path
 
