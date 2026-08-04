@@ -208,18 +208,21 @@ def test_is_claude_4_6_or_later():
     assert _make_api(NOVA_LITE).is_claude_4_6_or_later() is False
 
 
-# --- review findings: currently-failing regression tests -------------------
+# --- review-finding regressions (both fixed) -------------------------------
 #
 # Bug 1: generate() merges `_additional_model_request_fields()` (which carries
 # `output_config.format` for response_schema) with `reasoning_config()` via a
-# shallow dict union, so a reasoning-produced `output_config` silently drops
-# the structured-output format.
+# shallow dict union, so a reasoning-produced `output_config` silently dropped
+# the structured-output format. Fixed by emitting the format entry from both
+# producers (`_output_config_format`).
 #
 # Bug 2: Claude 4.0 Bedrock ids have no minor version (e.g.
 # `anthropic.claude-opus-4-20250514-v1:0`), so the "unrecognised future minor"
-# fallback in `is_claude_4_6_or_later` / `is_claude_4_7_or_later` misclassifies
-# them as 4.6+/4.7+. Adaptive thinking on these models returns a 400 from
-# Bedrock (they are budget_tokens-only per the AWS extended-thinking docs).
+# fallback in `is_claude_4_6_or_later` / `is_claude_4_7_or_later` misclassified
+# them as 4.6+/4.7+, emitting adaptive thinking on models that are
+# budget_tokens-only per the AWS extended-thinking docs (a 400 from Bedrock).
+# Fixed by including the `is_claude_4_0` date form in the recognised-minor
+# checks.
 
 from pydantic import BaseModel  # noqa: E402
 
@@ -294,14 +297,14 @@ def test_claude_40_reasoning_tokens_not_promoted_to_adaptive():
     assert fields == {"thinking": {"type": "enabled", "budget_tokens": 4096}}
 
 
-# --- review finding 3: thinking + tool use round trip (live) ---------------
+# --- thinking + tool use round trip (live) ---------------------------------
 #
 # AWS docs require the last assistant message's thinking block (with
 # signature) to be passed back during tool use, else "an error occurs".
 # The Bedrock provider replays Claude reasoning as `<think>` text
 # (`emulate_reasoning=True`) and `ConverseReasoningText` has no signature
-# field, so with thinking actually enabled the second request of a tool
-# loop is expected to fail. These tests pin the round trip working.
+# field, so one might expect the second request of a tool loop to fail with
+# thinking actually enabled. Live runs show it works; these tests pin that.
 
 from test_helpers.utils import skip_if_no_bedrock  # noqa: E402
 
@@ -362,7 +365,7 @@ async def test_bedrock_adaptive_thinking_tool_round_trip():
     assert completion
 
 
-# --- review findings 1 & 2: live confirmation -------------------------------
+# --- structured output + reasoning: live confirmation -----------------------
 
 from pydantic import ValidationError  # noqa: E402
 
@@ -372,11 +375,11 @@ from inspect_ai.model import ResponseSchema as _ResponseSchema  # noqa: E402
 @pytest.mark.anyio
 @skip_if_no_bedrock
 async def test_bedrock_response_schema_honoured_with_reasoning_effort():
-    """Bug 1: reasoning output_config must not clobber structured output.
+    """Reasoning output_config must not clobber structured output (bug 1).
 
-    With reasoning_effort set alongside response_schema, the shallow
-    additionalModelRequestFields merge drops output_config.format, so the
-    model returns prose instead of schema-conforming JSON.
+    Before the fix, reasoning_effort alongside response_schema made the
+    shallow additionalModelRequestFields merge drop output_config.format,
+    so the model returned prose instead of schema-conforming JSON.
     """
     model = get_model(
         "bedrock/us.anthropic.claude-sonnet-4-6",
