@@ -48760,7 +48760,7 @@ var e = { env: {} };
 				DENOMINATOR: T
 			};
 			function d(e) {
-				let n = u[i.tagName(e)];
+				let t = i.tagName(e), n = u[t];
 				return n ? n(e) : e.textContent;
 			}
 			function f(e, t) {
@@ -55231,7 +55231,7 @@ $2$3`).split(`\r
 					this.id = e, this.mathml = [], this.parent = null, this.type = `unknown`, this.role = `unknown`, this.font = `unknown`, this.embellished = null, this.fencePointer = ``, this.childNodes = [], this.textContent = ``, this.mathmlTree = null, this.contentNodes = [], this.annotation = {}, this.attributes = {}, this.nobreaking = !1;
 				}
 				static fromXml(e) {
-					let n = new o(parseInt(e.getAttribute(`id`), 10));
+					let t = parseInt(e.getAttribute(`id`), 10), n = new o(t);
 					return n.type = e.tagName, o.setAttribute(n, e, `role`), o.setAttribute(n, e, `font`), o.setAttribute(n, e, `embellished`), o.setAttribute(n, e, `fencepointer`, `fencePointer`), e.getAttribute(`annotation`) && n.parseAnnotation(e.getAttribute(`annotation`)), a.addAttributes(n, e), o.processChildren(n, e), n;
 				}
 				static setAttribute(e, t, n, r) {
@@ -59327,9 +59327,9 @@ $2$3`).split(`\r
 					this.nodes = e, this.primary = t, this.domNodes = [], this.domPrimary_ = null, this.allNodes = [];
 				}
 				static factory(e, t, n, a) {
-					let o = (e) => r.getBySemanticId(a, e), s = n.nodeDict, c = o(e), l = t.map(o), d = new i(t.map((function(e) {
+					let o = (e) => r.getBySemanticId(a, e), s = n.nodeDict, c = o(e), l = t.map(o), u = t.map((function(e) {
 						return s[e];
-					})), s[e]);
+					})), d = new i(u, s[e]);
 					return d.domNodes = l, d.domPrimary_ = c, d.allNodes = i.generateAllVisibleNodes_(t, l, s, a), d;
 				}
 				static generateAllVisibleNodes_(e, t, n, a) {

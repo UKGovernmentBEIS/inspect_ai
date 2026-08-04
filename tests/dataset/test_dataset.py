@@ -2,12 +2,14 @@ import json as json_module
 import os
 from pathlib import Path
 from typing import Type, TypeVar
+from unittest.mock import Mock
 
 import pytest
 from pydantic import BaseModel
 from test_helpers.utils import skip_if_github_action
 
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.file import exists
 from inspect_ai.dataset import (
     Dataset,
     FieldSpec,
@@ -34,6 +36,40 @@ dataset_md_params = [
 dataset_mcq_params = [
     (param[0], param[1].replace(".", "-mcq.")) for param in dataset_params
 ]
+
+limit_dataset_params = [
+    (csv_dataset, ".csv", '"input","target"\n"a","1"\n"b","2"\n'),
+    (
+        json_dataset,
+        ".json",
+        json_module.dumps(
+            [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("suffix", "reader", "file_argument"),
+    [
+        (".csv", "csv_dataset", "csv_file"),
+        (".json", "json_dataset", "json_file"),
+        (".jsonl", "json_dataset", "json_file"),
+    ],
+)
+def test_file_dataset_url_query_uses_path_extension(
+    suffix: str,
+    reader: str,
+    file_argument: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    url = f"https://example.test/dataset{suffix}?signature=abc123"
+    expected = object()
+    mock_reader = Mock(return_value=expected)
+    monkeypatch.setattr(f"inspect_ai.dataset._sources.file.{reader}", mock_reader)
+
+    assert file_dataset(url) is expected
+    assert mock_reader.call_args.kwargs[file_argument] == url
 
 
 # test reading a dataset using default configuration
@@ -72,6 +108,24 @@ def test_dataset_multiple_samples_fn(type: Type[T_ds], file: str):
         sample_fields=data_to_sample_multiple,
     )
     assert len(dataset) == 2
+
+
+@pytest.mark.parametrize("type,suffix,contents", limit_dataset_params)
+@pytest.mark.parametrize("limit,expected", [(None, 2), (0, 0), (1, 1)])
+def test_dataset_limit(
+    type: Type[T_ds],
+    suffix: str,
+    contents: str,
+    limit: int | None,
+    expected: int,
+    tmp_path: Path,
+) -> None:
+    dataset_file = tmp_path / f"dataset{suffix}"
+    dataset_file.write_text(contents)
+
+    dataset: Dataset = type.__call__(str(dataset_file), limit=limit)
+
+    assert len(dataset) == expected
 
 
 # test reading metadata field
@@ -172,6 +226,21 @@ def test_dataset_image_paths() -> None:
     assert isinstance(sample.input[0].content[1], ContentImage)
     image = Path(sample.input[0].content[1].image)
     assert image.exists()
+
+
+def test_dataset_image_paths_file_uri() -> None:
+    # dataset locations that are filesystem URIs should keep their scheme and
+    # still resolve relative sample files against the dataset's parent dir
+    dataset = json_dataset(Path(dataset_path("images.jsonl")).resolve().as_uri())
+    assert dataset.location is not None
+    assert dataset.location.startswith("file://")
+    sample = dataset[0]
+    assert not isinstance(sample.input, str)
+    assert isinstance(sample.input[0], ChatMessageUser)
+    content = sample.input[0].content[1]
+    assert isinstance(content, ContentImage)
+    assert content.image.startswith("file://")
+    assert exists(content.image)
 
 
 def test_dataset_auto_id() -> None:

@@ -119,8 +119,8 @@ def vllm_completions() -> type[ModelAPI]:
     return VLLMCompletionsAPI
 
 
-@modelapi(name="cf")
-def cf() -> type[ModelAPI]:
+@modelapi(name="cloudflare")
+def cloudflare() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI
 
     return CloudFlareAPI
@@ -185,6 +185,14 @@ def fireworks() -> type[ModelAPI]:
     from .fireworks import FireworksAIAPI
 
     return FireworksAIAPI
+
+
+@modelapi(name="moonshot")
+def moonshot() -> type[ModelAPI]:
+    validate_openai_client("Moonshot AI API")
+    from .moonshot import MoonshotAPI
+
+    return MoonshotAPI
 
 
 @modelapi(name="sambanova")

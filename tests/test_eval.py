@@ -103,7 +103,7 @@ def test_eval_sample_token_limit_fields_none_without_limit():
     assert sample.token_limit_usage is None
 
 
-def test_dynamic_token_limit_updates_active_sample():
+def test_dynamic_token_limit_updates_active_sample() -> None:
     from typing import Generator
 
     from inspect_ai.log._samples import sample_active
@@ -153,7 +153,7 @@ def test_dynamic_token_limit_updates_active_sample():
     ]
 
 
-def test_eval_sample_limit_values_reflect_final_retry_attempt():
+def test_eval_sample_limit_values_reflect_final_retry_attempt() -> None:
     from typing import Generator
 
     from inspect_ai.model import get_model
@@ -215,8 +215,6 @@ def _peak_model_concurrency(max_tasks: int | None) -> int:
     A `record` solver brackets its work with enter/exit markers; the peak depth
     of overlapping enter/exit pairs is how many models ran at once.
     """
-    import anyio
-
     from inspect_ai.solver import Generate, TaskState, solver
 
     events: list[str] = []
@@ -544,3 +542,256 @@ def test_failed_log_start_is_retried(
     assert len(logs) == 1
     assert logs[0].status == "success"
     assert calls["n"] == 2
+
+
+async def test_retry_sample_source_tolerates_missing_log_file(tmp_path: Path) -> None:
+    """A retry whose prior log was never written yields no reusable samples.
+
+    When a task fails in log_start() its log file never reaches disk, but the
+    errored EvalLog still carries the destination path as its location. The
+    retry's sample source must treat the missing file as "no prior sample"
+    rather than propagating FileNotFoundError (which would error the retry).
+    """
+    from inspect_ai._eval.task.run import eval_log_sample_source
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.dataset import MemoryDataset
+    from inspect_ai.log import EvalConfig, EvalDataset, EvalLog, EvalSpec
+    from inspect_ai.log._file import EvalLogInfo
+
+    missing_log = str(tmp_path / "never-written.eval")
+    eval_log = EvalLog(
+        status="error",
+        eval=EvalSpec(
+            created="2026-07-10T00:00:00+00:00",
+            task="log_write_failure_task",
+            dataset=EvalDataset(samples=1),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        location=missing_log,
+    )
+    log_info = EvalLogInfo(
+        name=missing_log,
+        type="file",
+        size=0,
+        mtime=None,
+        task="log_write_failure_task",
+        task_id="task-id",
+        suffix=None,
+    )
+    source = eval_log_sample_source(
+        eval_log, log_info, MemoryDataset([Sample(id=1, input="x", target="y")])
+    )
+
+    async with AsyncFilesystem():
+        assert await source.lookup(1, 1) is None
+
+
+def _retry_source_log_info(location: str) -> Any:
+    from inspect_ai.log._file import EvalLogInfo
+
+    return EvalLogInfo(
+        name=location,
+        type="file",
+        size=0,
+        mtime=None,
+        task="retry_probe_task",
+        task_id="task-id",
+        suffix=None,
+    )
+
+
+@pytest.fixture
+def capture_probe_warnings(caplog):
+    # attach caplog's handler directly to the emitting module logger: eval()
+    # (used to produce the prior log) reconfigures the package logger's
+    # propagation, so propagation-based capture misses these warnings
+    run_logger = logging.getLogger("inspect_ai._eval.task.run")
+    run_logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        run_logger.removeHandler(caplog.handler)
+
+
+def _write_prior_eval_log(log_dir: Path) -> tuple[Any, bytes]:
+    """Run a one-sample eval and return its log plus the .eval file bytes."""
+    task = Task(
+        dataset=[Sample(id=1, input="Say hello", target="hello")], scorer=match()
+    )
+    log = eval(task, model="mockllm/model", log_dir=str(log_dir))[0]
+    assert log.status == "success" and log.location
+    from inspect_ai._util.file import local_path
+
+    return log, Path(local_path(log.location)).read_bytes()
+
+
+def test_retry_presence_probe_retries_transient_failure(tmp_path: Path) -> None:
+    """A failed central-directory fetch is retried on the next probe.
+
+    A transient failure must not be cached as "no presence" — that would
+    silently disable the reuse read throttle for the whole sweep.
+    """
+    from inspect_ai._eval.task.run import eval_log_sample_source
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.dataset import MemoryDataset
+
+    prior_log, real_bytes = _write_prior_eval_log(tmp_path / "logs")
+    probe_path = tmp_path / "prior.eval"
+    probe_path.write_bytes(b"not a zip")
+
+    source = eval_log_sample_source(
+        prior_log,
+        _retry_source_log_info(str(probe_path)),
+        MemoryDataset([Sample(id=1, input="x", target="y")]),
+    )
+
+    async def check() -> None:
+        async with AsyncFilesystem():
+            assert await source.prior_exists(1, 1) is False
+            probe_path.write_bytes(real_bytes)
+            assert await source.prior_exists(1, 1) is True
+            assert await source.prior_exists(2, 1) is False
+
+    anyio.run(check)
+
+
+def test_retry_presence_probe_gives_up_after_max_failures(
+    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+) -> None:
+    """Persistent fetch failures stop being retried after the cap, with a warning."""
+    from inspect_ai._eval.task.run import (
+        PRIOR_PROBE_MAX_FAILURES,
+        eval_log_sample_source,
+    )
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.dataset import MemoryDataset
+
+    prior_log, real_bytes = _write_prior_eval_log(tmp_path / "logs")
+    probe_path = tmp_path / "prior.eval"
+    probe_path.write_bytes(b"not a zip")
+
+    source = eval_log_sample_source(
+        prior_log,
+        _retry_source_log_info(str(probe_path)),
+        MemoryDataset([Sample(id=1, input="x", target="y")]),
+    )
+
+    async def check() -> None:
+        async with AsyncFilesystem():
+            for _ in range(PRIOR_PROBE_MAX_FAILURES + 2):
+                assert await source.prior_exists(1, 1) is False
+            # gave up: even a now-valid log is no longer probed
+            probe_path.write_bytes(real_bytes)
+            assert await source.prior_exists(1, 1) is False
+
+    caplog = capture_probe_warnings
+    with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
+        anyio.run(check)
+
+    warnings = [r for r in caplog.records if "central directory" in r.message]
+    assert len(warnings) == 1
+
+
+def test_retry_presence_probe_concurrent_failures_respect_cap(
+    tmp_path: Path,
+    capture_probe_warnings: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Concurrent probes share the failure cap: fetch attempts and the warning stay bounded.
+
+    All run_sample coroutines probe at eval start; each must not get its own
+    fetch attempt (and warning) just because it passed the cap check while the
+    failure count was still 0.
+    """
+    from inspect_ai._eval.task.run import (
+        PRIOR_PROBE_MAX_FAILURES,
+        eval_log_sample_source,
+    )
+    from inspect_ai._util import async_zip
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.dataset import MemoryDataset
+
+    prior_log, _ = _write_prior_eval_log(tmp_path / "logs")
+    probe_path = tmp_path / "prior.eval"
+    probe_path.write_bytes(b"not a zip")
+
+    source = eval_log_sample_source(
+        prior_log,
+        _retry_source_log_info(str(probe_path)),
+        MemoryDataset([Sample(id=1, input="x", target="y")]),
+    )
+
+    fetches = 0
+    parse_central_directory = async_zip._parse_central_directory
+
+    async def counting_parse(*args: Any, **kwargs: Any) -> Any:
+        nonlocal fetches
+        fetches += 1
+        return await parse_central_directory(*args, **kwargs)
+
+    monkeypatch.setattr(async_zip, "_parse_central_directory", counting_parse)
+
+    async def check() -> None:
+        async with AsyncFilesystem():
+            results = await tg_collect(
+                [
+                    functools.partial(source.prior_exists, 1, 1)
+                    for _ in range(PRIOR_PROBE_MAX_FAILURES + 7)
+                ]
+            )
+            assert all(result is False for result in results)
+
+    caplog = capture_probe_warnings
+    with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
+        anyio.run(check)
+
+    assert fetches == PRIOR_PROBE_MAX_FAILURES
+    warnings = [r for r in caplog.records if "central directory" in r.message]
+    assert len(warnings) == 1
+
+
+def test_retry_presence_probe_missing_log_cached_without_warning(
+    tmp_path: Path, capture_probe_warnings: pytest.LogCaptureFixture
+) -> None:
+    """A missing prior log caches no-presence on the first probe, silently."""
+    from inspect_ai._eval.task.run import eval_log_sample_source
+    from inspect_ai._util.asyncfiles import AsyncFilesystem
+    from inspect_ai.dataset import MemoryDataset
+
+    prior_log, real_bytes = _write_prior_eval_log(tmp_path / "logs")
+    probe_path = tmp_path / "never-written.eval"
+
+    source = eval_log_sample_source(
+        prior_log,
+        _retry_source_log_info(str(probe_path)),
+        MemoryDataset([Sample(id=1, input="x", target="y")]),
+    )
+
+    async def check() -> None:
+        async with AsyncFilesystem():
+            assert await source.prior_exists(1, 1) is False
+            # cached as definitively absent — not re-fetched even if written
+            probe_path.write_bytes(real_bytes)
+            assert await source.prior_exists(1, 1) is False
+
+    caplog = capture_probe_warnings
+    with caplog.at_level(logging.WARNING, logger="inspect_ai._eval.task.run"):
+        anyio.run(check)
+
+    assert not [r for r in caplog.records if "central directory" in r.message]
+
+
+def test_retry_presence_probe_not_used_for_json_logs(tmp_path: Path) -> None:
+    """A .json prior log keeps the default never-probe (no zip index to read)."""
+    from inspect_ai._eval.task.run import _never_prior_exists, eval_log_sample_source
+    from inspect_ai.dataset import MemoryDataset
+
+    prior_log, _ = _write_prior_eval_log(tmp_path / "logs")
+    source = eval_log_sample_source(
+        prior_log,
+        _retry_source_log_info(str(tmp_path / "prior.json")),
+        MemoryDataset([Sample(id=1, input="x", target="y")]),
+    )
+    assert source.prior_exists is _never_prior_exists

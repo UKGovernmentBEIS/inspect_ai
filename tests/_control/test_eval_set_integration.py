@@ -38,8 +38,10 @@ from inspect_ai._cli.ctl import (
 from inspect_ai._control.discovery import list_discovered_servers
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._control.events import decode_cursor, sample_events
+from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.state import (
     current_eval_summaries,
+    current_sample_listing,
     current_sample_summaries,
     sample_error_detail,
 )
@@ -724,7 +726,7 @@ def test_keep_alive_park_entered_with_completed_state(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -784,7 +786,7 @@ def test_keep_alive_works_when_all_logs_reused(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -835,7 +837,7 @@ def test_runtime_keep_parks_eval_set_launched_without_flag(
 
     captured: dict[str, bool] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["parked"] = True
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -1560,6 +1562,16 @@ def test_ctl_samples_shows_retries_on_running_reattempt(short_data_dir: Path) ->
     detail = p.result["detail"]
     assert detail is not None
     assert detail["status"] == "running"
+    # The detail carries the running sample's summary fields (read off the
+    # same ActiveSample as its listing row), so `sample show` needs no
+    # supplemental listing fetch. Timing fields advance between the two
+    # capture reads, so assert identity-stable fields against the row and
+    # presence for the live ones.
+    row = next(r for r in p.result["rows"] if r["status"] == "running")
+    assert detail["started_at"] == row["started_at"]
+    assert detail["message_count"] == row["message_count"]
+    assert detail["total_tokens"] == row["total_tokens"]
+    assert detail["total_time"] is not None
     out2 = render(_print_sample_detail, detail, False)
     assert "running" in out2
     assert "prior attempts" in out2
@@ -1621,6 +1633,21 @@ def test_ctl_errors_and_sample_surface_prior_attempt_errors(
 
     detail = cap.error_detail("retry_task", "recABC", 1)
     assert detail is not None
+    # The detail folds in the sample's summary row, so it reports the same
+    # summary fields (timing / tokens / messages) as the listing — `sample
+    # show` needs no supplemental listing fetch.
+    row = next(r for r in rows if str(r["sample_id"]) == "recABC")
+    for field in (
+        "started_at",
+        "completed_at",
+        "total_time",
+        "total_tokens",
+        "message_count",
+        "limit",
+    ):
+        assert detail[field] == row[field], field
+    assert detail["message_count"] >= 1
+    assert detail["started_at"] is not None
     out = render(_print_sample_detail, detail, False)
     assert "prior attempts" in out
     assert "transient boom on attempt 1" in out
@@ -1839,6 +1866,17 @@ def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
     assert samples["queued"] == 0
     assert samples["in_flight"] == 0
 
+    # The per-sample detail (`ctl sample show`) agrees with the listing on
+    # the cancellation: no retry is coming, so sample 2 reads `cancelled`
+    # (not `error`) with the cancellation repr suppressed, in both views.
+    row = next(r for r in cap.eval_samples("failing") if r["sample_id"] == 2)
+    assert row["status"] == "cancelled"
+    assert row["error"] is None
+    detail = cap.error_detail("failing", 2)
+    assert detail is not None
+    assert detail["status"] == "cancelled"
+    assert detail["error"] is None
+
 
 def test_ctl_eval_finishes_when_queued_samples_are_cancelled(
     short_data_dir: Path,
@@ -1982,10 +2020,14 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
             "page": page,
             "model_only": await sample_events(eid, "1", 1, types=frozenset({"model"})),
             "resumed": await sample_events(eid, "1", 1, since=page["next"]),
-            "active_future": await current_sample_summaries(
-                eid, active_since=_time.time() + 1000
-            ),
-            "active_all": await current_sample_summaries(eid, active_since=0.0),
+            "active_future": (
+                await current_sample_listing(
+                    eid, active_since=_time.time() + 1000, limit=None
+                )
+            ).samples,
+            "active_all": (
+                await current_sample_listing(eid, active_since=0.0, limit=None)
+            ).samples,
         }
 
     with probe(ready, capture) as p:
@@ -2017,6 +2059,82 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
     # running sample shows up for active_since=0
     assert res["active_future"] == []
     assert any(r["sample_id"] == 1 for r in res["active_all"])
+
+
+# --- messages / GET /evals/<id>/sample/messages ----------------------------
+
+
+def test_ctl_messages_snapshots_running_sample_conversation(
+    short_data_dir: Path,
+) -> None:
+    """A running sample's live ``TaskState.messages`` are readable as a snapshot.
+
+    A solver runs ``generate()`` (appending the assistant reply to the
+    conversation) then parks in flight; the messages read must surface the live
+    conversation from ``ActiveSample.live_state`` — no log involved — with the
+    running ``status`` and the total ``count``, ``--tail`` must window from the
+    end, and the compact projection must carry role + content per message.
+    """
+
+    @solver
+    def gen_then_park() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            await park_now()  # hold the sample in flight after a model call
+            return state
+
+        return solve
+
+    @task
+    def task_one() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hello", target="ok")],
+            solver=[gen_then_park()],
+            name="task_one",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 1
+
+    async def capture() -> dict:
+        eid = (await current_eval_summaries(0.0))[0]["eval_id"]
+        return {
+            "page": await sample_messages(eid, "1", 1),
+            "tail": await sample_messages(eid, "1", 1, tail=1),
+        }
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[task_one()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+        )
+
+    res = p.result
+    assert res is not None, "sample never reached in-flight after generate()"
+
+    page = res["page"]
+    assert page is not None
+    assert set(page) >= {"as_of", "status", "count", "messages"}
+    # served live from TaskState.messages while the sample is parked in flight
+    assert page["status"] == "running"
+    # user prompt + assistant reply from generate()
+    assert page["count"] >= 2
+    roles = [m["role"] for m in page["messages"]]
+    assert "user" in roles and "assistant" in roles
+    assert all("content" in m and "index" in m for m in page["messages"])
+
+    # --tail windows from the end: one message, count unchanged, absolute index
+    tail = res["tail"]
+    assert tail is not None
+    assert len(tail["messages"]) == 1
+    assert tail["count"] == page["count"]
+    assert tail["messages"][0]["index"] == page["count"] - 1
 
 
 # Cross-sample channel for the transition test below: the subject sample (id 1)
@@ -2350,7 +2468,9 @@ def test_task_retry_detaches_superseded_attempt_live(
         ]
         orig_clear()
 
-    monkeypatch.setattr("inspect_ai._eval.evalset.clear_all_eval_states", spy_clear)
+    # patch the eval_state module itself: the run boundary reaches the clear
+    # through reset_run_registries(), which resolves it from module globals
+    monkeypatch.setattr(eval_state_mod, "clear_all_eval_states", spy_clear)
 
     ok, _ = eval_set(
         tasks=[task_flaky()],

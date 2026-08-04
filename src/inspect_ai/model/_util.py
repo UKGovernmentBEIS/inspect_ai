@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from typing import TYPE_CHECKING, Mapping
 
 from inspect_ai._util.error import PrerequisiteError
@@ -15,7 +16,7 @@ def resolve_model_roles(
 ) -> dict[str, Model] | None:
     if model_roles is not None:
         resolved_model_roles = {
-            k: get_model(v, memoize=False) if isinstance(v, str) else v
+            k: get_model(v, memoize=False) if isinstance(v, str) else copy(v)
             for k, v in model_roles.items()
         }
         for k, v in resolved_model_roles.items():

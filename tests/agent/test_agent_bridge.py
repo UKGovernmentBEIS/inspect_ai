@@ -196,6 +196,11 @@ def responses_web_search_agent() -> Agent:
                             "search_context_size": "low",
                         }
                     ],
+                    # forced: the question is answerable from parametric
+                    # knowledge, and under auto choice models sometimes skip
+                    # the search (the test verifies bridge translation, not
+                    # whether the model elects to search)
+                    tool_choice="required",
                     input=user_prompt(state.messages).text,
                 )
 
@@ -683,6 +688,29 @@ def google_computer_agent() -> Agent:
     return execute
 
 
+@agent
+def google_streaming_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+
+            stream = await client.aio.models.generate_content_stream(
+                model="inspect",
+                contents=[  # type: ignore[arg-type]
+                    {
+                        "role": "user",
+                        "parts": [{"text": user_prompt(state.messages).text}],
+                    }
+                ],
+            )
+            async for _ in stream:
+                pass
+
+            return bridge.state
+
+    return execute
+
+
 @task
 def bridged_task(agent: Agent):
     return Task(
@@ -1076,6 +1104,16 @@ def test_google_bridge_computer_use_incompatible_model():
     assert log.status == "error"
     assert log.error
     assert "computer use with the Google agent bridge" in log.error.message
+
+
+def test_google_bridge_streaming_not_supported():
+    log = eval(
+        bridged_task(google_streaming_agent()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "error"
+    assert log.error
+    assert "Streaming not currently supported for agent_bridge()" in log.error.message
 
 
 @skip_if_no_anthropic

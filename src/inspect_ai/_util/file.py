@@ -134,7 +134,12 @@ def write_text_atomic(path: str | Path, content: str) -> None:
 
 
 def write_atomic_text(path: str | Path, write: Callable[[TextIO], object]) -> None:
-    """Atomically write UTF-8 text with a caller-provided writer."""
+    """Atomically write UTF-8 text with a caller-provided writer.
+
+    See :mod:`inspect_ai._util.atomic_write` for the binary counterpart
+    (streaming context manager, one-shot bytes, mode preservation) used by
+    the log recorders.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
