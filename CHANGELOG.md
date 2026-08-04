@@ -1,11 +1,17 @@
 ## Unreleased
 
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
+
+## 0.3.252 (04 August 2026)
+
+- Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.
 - Analysis: string values for `bool`-typed columns now coerce via YAML, so `"false"`/`"0"`/`"no"`/`"off"` parse to `False` instead of every non-empty string becoming `True`.
 - Sandbox: Large sandbox-tool responses are transferred intact instead of corrupting JSON-RPC frames when they exceed the sandbox exec output limit.
 - Sandbox: Service method errors no longer include the host-side traceback in the response delivered into the sandbox; the traceback is logged host-side instead. (#4673)
 - Agent Bridge: Fix for `message_limit`/`token_limit`/`cost_limit` errors not being properly raised when running in a sandbox.
+- Approval: Model inference performed inside a tool approver no longer counts against active token and turn limits.
 - Bugfix: Reading eval logs with field exclusion (e.g. header-only reads) no longer crashes under a trio event loop; the pure-Python ijson backend is now selected when the C backend's asyncio-only async parser is unavailable. (#4589)
+- Logging: Reading `.eval` logs with `exclude_fields` no longer fails with "integer overflow" when a sample contains a JSON integer larger than 2⁶³−1.
 - Control Channel: `inspect ctl sample list`/`show` now report a running sample's in-flight activity (`generating 7:12`, `bash 0:41`, `retrying in 0:45`), and `sample events` renders pending events, so long model calls and retry backoffs no longer read as silent idle.
 - Retry: Samples reused from a prior attempt no longer stay resident in memory awaiting a flush, and are written to the new attempt's log (readable by `inspect ctl` and viewers) as soon as the reuse sweep completes.
 - Control Channel: Paginating or polling a finished sample's events or messages no longer re-parses the whole sample per request (resolved terminal sources are briefly cached).
@@ -49,6 +55,9 @@
 - Bugfix: Anthropic: `count_tokens()` now sends `extra_headers` from the generate config (including any `anthropic-beta` values), matching `generate()`. (#4606)
 - Bugfix: Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
 - Bugfix: UTF-8 output truncation now preserves character boundaries and respects configured byte limits instead of inserting replacement characters that can exceed the limit. (#4656)
+- Bugfix: Docker sandbox startup no longer times out during a healthcheck's `start_period`, so services with a long startup grace period now start reliably. (#4698)
+- Bugfix: Fractional healthcheck durations (e.g. `1.5s`) in Docker compose files now produce the correct startup timeout instead of a silently wrong one. (#4698)
+- Dependencies: Require `agent-client-protocol` >= 0.12 (adapts to its renamed multi-select schema types and new catch-all property type).
 
 ## 0.3.251 (29 July 2026)
 
