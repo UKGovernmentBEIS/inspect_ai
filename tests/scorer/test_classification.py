@@ -130,6 +130,7 @@ def test_remove_punc_preserves_existing_normalization():
     assert max_exact_score("don't", ["dont"]) == 1.0
     assert max_exact_score("U.S.", ["US"]) == 1.0
 
+
 def test_max_exact_score_word_order_and_duplicates():
     # max_exact_score must preserve word order and count (not compare word sets)
     assert max_exact_score("world hello", ["hello world"]) == 0.0
