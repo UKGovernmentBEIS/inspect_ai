@@ -1154,6 +1154,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.log.html#list_eval_logs_async" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">list_eval_logs_async</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#write_eval_log" class="sidebar-item-text sidebar-link">
  <span class="menu-text">write_eval_log</span></a>
   </div>
@@ -3448,6 +3454,7 @@ ul.task-list li input[type="checkbox"] {
 
 
 <p>Evaluate tasks.</p>
+<p>Monitor a running eval from another shell with <code>inspect ctl</code> (see <code>inspect ctl --help</code>).</p>
 <section id="usage" class="level4">
 <h4 class="anchored" data-anchor-id="usage">Usage</h4>
 <pre class="text"><code>inspect eval [OPTIONS] [TASKS]...</code></pre>
@@ -3677,7 +3684,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td><code>--ctl-server</code></td>
 <td>text</td>
-<td>Control-channel server for this eval process (default: enabled on an AF_UNIX socket — the endpoint the <code>inspect ctl</code> CLI, scripted agents, and TUIs query). Pass <code>false</code> to disable it. Pass <code>keep</code> to also keep the process running after the eval finishes so its state and results stay readable; the process exits when <code>inspect ctl process release</code> is run (or POST /release is sent to the control endpoint). Without <code>keep</code> the process exits as soon as the eval body returns, taking the control surface with it.</td>
+<td>Control-channel server for this eval process (default: enabled on an AF_UNIX socket — the endpoint the <code>inspect ctl</code> CLI, scripted agents, and TUIs query). Pass <code>false</code> to disable it. Pass <code>keep</code> to also keep the process running after the eval finishes so its state and results stay readable; the process exits when <code>inspect ctl process release</code> is run (or POST /release is sent to the control endpoint). Without <code>keep</code> the process exits as soon as the eval body returns, taking the control surface with it. Observe the run from another shell with <code>inspect ctl task list</code>.</td>
 <td>None</td>
 </tr>
 <tr class="even">

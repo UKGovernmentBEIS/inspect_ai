@@ -2,6 +2,8 @@
 
 Evaluate tasks.
 
+Monitor a running eval from another shell with `inspect ctl` (see `inspect ctl --help`).
+
 #### Usage
 
 ``` text
@@ -46,7 +48,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |
 | `--checkpoint` | text | Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify –checkpoint for the default (every 500k tokens), –checkpoint=token:N{k,m,b} / time:N{s,m,h,d} / <turn:N> / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig. | None |
 | `--acp-server` | text | Expose this eval via an Agent Client Protocol server for various clients (e.g. the `inspect acp` command). Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port (e.g. `--acp-server=4444`); pass `host:port` to bind on a specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a filesystem path for a custom UNIX socket. When this flag is set, all human-in-the-loop interactions (`approver: human` and the `ask_user` tool) route exclusively through attached ACP clients; the in-proc Textual panel and console handlers are bypassed. If no client is connected when an interaction fires, the eval parks until one attaches. | None |
-| `--ctl-server` | text | Control-channel server for this eval process (default: enabled on an AF_UNIX socket — the endpoint the `inspect ctl` CLI, scripted agents, and TUIs query). Pass `false` to disable it. Pass `keep` to also keep the process running after the eval finishes so its state and results stay readable; the process exits when `inspect ctl process release` is run (or POST /release is sent to the control endpoint). Without `keep` the process exits as soon as the eval body returns, taking the control surface with it. | None |
+| `--ctl-server` | text | Control-channel server for this eval process (default: enabled on an AF_UNIX socket — the endpoint the `inspect ctl` CLI, scripted agents, and TUIs query). Pass `false` to disable it. Pass `keep` to also keep the process running after the eval finishes so its state and results stay readable; the process exits when `inspect ctl process release` is run (or POST /release is sent to the control endpoint). Without `keep` the process exits as soon as the eval body returns, taking the control surface with it. Observe the run from another shell with `inspect ctl task list`. | None |
 | `--limit` | text | Limit samples to evaluate e.g. 10 or 10-20 | None |
 | `--sample-id` | text | Evaluate specific sample(s) (comma separated list of ids) | None |
 | `--sample-shuffle` | text | Shuffle order of samples (pass a seed to make the order deterministic) | None |
