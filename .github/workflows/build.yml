@@ -99,9 +99,13 @@ jobs:
         run: uv cache prune --ci
 
   # Detect whether anything outside docs changed, so the (expensive) test
-  # matrix can be skipped on documentation-only changes. A skipped job-level
-  # `if` still reports a (non-blocking) check, unlike workflow-level
-  # `paths-ignore` which would strand a required check.
+  # matrix can be skipped on documentation-only changes. For non-matrix jobs
+  # a skipped job-level `if` still reports a (non-blocking) check, unlike
+  # workflow-level `paths-ignore` which would strand a required check.
+  # Matrix jobs are the exception: a skipped matrix job reports one check
+  # run under the unexpanded job name, so required contexts named for the
+  # expanded legs never report — see the note on `test`, which gates its
+  # steps instead.
   changes:
     runs-on: ubuntu-latest
     permissions:
@@ -178,34 +182,47 @@ jobs:
 
   test:
     needs: changes
+    # `test (3.10)` and `test (3.11)` are required status checks under their
+    # expanded matrix names. The docs-only gate therefore lives on the steps,
+    # NOT on the job: a job-level `if` skip collapses the matrix and reports a
+    # single check run named `test`, the expanded contexts never report, and
+    # branch protection blocks the merge forever (docs-only and .github-only
+    # PRs could only land via admin bypass). Gated no-op legs report success
+    # under the required names and cost only a few seconds of runner time.
+    #
     # On workflow_dispatch there is no base to diff against (paths-filter
     # sees only the last commit), so manual runs always do the full build.
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       matrix:
         python-version: ["3.10", "3.11"]
+    env:
+      RUN_TESTS: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.code == 'true' }}
 
     steps:
       - uses: actions/checkout@v7
+        if: env.RUN_TESTS == 'true'
         with:
           fetch-depth: 0
           fetch-tags: true
           submodules: true
 
       - name: Install uv
+        if: env.RUN_TESTS == 'true'
         uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
+        if: env.RUN_TESTS == 'true'
         run: |-
           uv venv
           uv pip install .[dev]
 
       - name: Test with pytest
+        if: env.RUN_TESTS == 'true'
         # --timeout (thread method) dumps a traceback and fails a hung test
         # rather than letting the job hang to the job-level timeout; this works
         # even through anyio cancel shields, which the conftest async timeout
@@ -214,7 +231,7 @@ jobs:
         run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread
 
       - name: Minimize uv cache
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
         run: uv cache prune --ci
 
   # Fast, self-contained unit tests for the injected sandbox-tools package
