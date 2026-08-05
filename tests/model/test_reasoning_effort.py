@@ -591,6 +591,40 @@ def test_openai_responses_reasoning_mode_composes_with_effort():
     assert params["reasoning"]["effort"] == "high"
 
 
+# -- OpenAI Responses client-supplied reasoning passthrough --
+
+
+def test_openai_responses_client_reasoning_forwarded_verbatim():
+    # e.g. forwarded by the agent bridge in transparent mode; `context` has no
+    # GenerateConfig representation and must survive intact
+    client_reasoning = {"context": "all_turns", "effort": "max", "summary": "auto"}
+    params = _responses_params_for(
+        "gpt-5.6-sol", GenerateConfig(extra_body={"reasoning": client_reasoning})
+    )
+    assert params["reasoning"] == client_reasoning
+
+
+def test_openai_responses_client_reasoning_no_injected_summary():
+    params = _responses_params_for(
+        "gpt-5.6-sol",
+        GenerateConfig(
+            extra_body={"reasoning": {"effort": "max", "context": "all_turns"}}
+        ),
+    )
+    assert params["reasoning"] == {"effort": "max", "context": "all_turns"}
+
+
+def test_openai_responses_client_reasoning_takes_precedence_over_modelled():
+    params = _responses_params_for(
+        "gpt-5.6-sol",
+        GenerateConfig(
+            reasoning_effort="low",
+            extra_body={"reasoning": {"effort": "max", "context": "all_turns"}},
+        ),
+    )
+    assert params["reasoning"] == {"effort": "max", "context": "all_turns"}
+
+
 def test_openai_responses_pro_mode_suppresses_sampling_params():
     params = _responses_params_for(
         "gpt-5.6-sol", GenerateConfig(reasoning_mode="pro", temperature=0.7)

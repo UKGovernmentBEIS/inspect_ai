@@ -7,6 +7,8 @@
 - Control Channel: `inspect ctl` mutations with piped or captured output now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
 - Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
 - OpenAI: the OpenAI providers and agent bridge now require openai >= 3.0.0, which verifies TLS against the OS trust store instead of certifi's bundle.
+- Agent Bridge: Client-supplied HTTP headers are now forwarded through the sandbox agent-bridge model proxy to the bridged model request.
+- Agent Bridge: A bridged client's `reasoning` options now reach the model request verbatim when forwarding generation config, preserving fields like `context` that were previously dropped.
 
 ## 0.3.258 (11 August 2026)
 
