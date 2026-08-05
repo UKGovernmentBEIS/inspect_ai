@@ -49,6 +49,32 @@ test-job logs for pytest `--durations` blocks.
 - If a snapshot for today already exists, overwrite it (re-runs same day
   are fine); history keeps one file per day.
 
+## Repo slow-test policy (context for analysis and fixes)
+
+- **Definition:** any test that uses docker or hits a real (unmocked)
+  external service is by definition slow and must carry
+  `@pytest.mark.slow`. A fully-mocked test may also be marked slow when
+  its cost is inherent (e.g. crossing the S3 1000-key page boundary means
+  1001+ real HTTP PUTs to the in-process moto server) — say why in the
+  test's docstring.
+- **Where slow tests run:** they are skipped in the PR-gate `test` jobs
+  (no `--runslow`) and run every ~2 hours by the scheduled suite in
+  `meridianlabs-ai/actions` (`inspect-ai-scheduled-tests.yml`, runner
+  label `slow_test_runner`, `pytest --runslow --runapi`). Marking a test
+  slow moves its coverage there — it does not delete it. Prefer the PR
+  gate for regression guards on core logic when the test can be made
+  cheap; prefer slow for anything matching the definition above.
+- **The docker trap:** docker is preinstalled and running on GitHub
+  `ubuntu-latest`, so nothing technically stops a docker test running in
+  the PR gate — `skip_if_no_docker` does not skip in CI. The slow mark is
+  the only enforcement, by convention: `@skip_if_no_docker` and
+  `@pytest.mark.slow` belong together. When durations data shows a
+  multi-second test, check for this pairing violation first (two found so
+  far: the 38s sandbox-init test, fixed in #4760, and
+  `test_docker_read_file.py` at 42s of fixture setup). Aggregate `setup`
+  and `teardown` phases as well as `call` — fixture-heavy offenders hide
+  outside `call`.
+
 ## Phase 2 — Analyze
 
 Read the fresh snapshot plus the previous few in `design/ci-perf/history/`
@@ -75,6 +101,19 @@ only). Compute:
    before dying; jobs whose checkout/setup overhead exceeds their useful
    work; unconditional `fetch-depth: 0` where history/tags are unused;
    cache effectiveness.
+6. **Step-level breakdown of the heavy jobs — always at p90, not just
+   median.** The snapshot carries per-step timings; sum each step name's
+   median AND p90 across runs. A step can look fine in one sample and be
+   the wall-clock lottery across many: `fetch-depth: 0` checkouts fetch
+   every branch and tag at full history (a ~400MB pack here), taking 30s
+   or 4min depending on GitHub's server-side pack cache. Rule of thumb:
+   any always-run step whose p90 exceeds ~2x its median is a variance
+   problem, not a size problem — hunt for the erratic dependency
+   (pack cache, registry, external download). For checkouts specifically,
+   `filter: "blob:none"` keeps setuptools_scm working (refs + commit
+   graph) while skipping historical file contents; only jobs that read
+   old blob contents (e.g. `git diff main -- <paths>` over sources) need
+   care, and even those lazy-fetch on demand.
 
 ## Phase 3 — Report
 

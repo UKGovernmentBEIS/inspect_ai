@@ -30,6 +30,9 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          # blob:none: all refs/commits for setuptools_scm, no historical
+          # file contents (the full pack is ~400MB and fetch time is erratic)
+          filter: "blob:none"
       - name: Lint with Ruff
         uses: astral-sh/ruff-action@v4.1.0
         with:
@@ -50,6 +53,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
@@ -78,6 +82,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -142,6 +147,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
@@ -199,6 +205,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - uses: dorny/paths-filter@v4
@@ -219,6 +226,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Install uv
@@ -230,9 +238,13 @@ jobs:
 
       - name: Install dependencies
         if: env.RUN_TESTS == 'true'
+        # tests/test_package is pre-installed so ensure_test_package_installed()
+        # short-circuits instead of pip-installing it mid-run (~9s on the
+        # xdist critical path, paid by whichever test calls it first).
         run: |-
           uv venv
           uv pip install .[dev]
+          uv pip install --no-deps ./tests/test_package
 
       - name: Test with pytest
         if: env.RUN_TESTS == 'true'
@@ -559,5 +571,6 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - uses: hynek/build-and-inspect-python-package@v2
