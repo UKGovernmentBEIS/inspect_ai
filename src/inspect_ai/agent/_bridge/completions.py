@@ -12,6 +12,7 @@ from inspect_ai.model._generate_config import (
     GenerateConfig,
     ResponseSchema,
 )
+from inspect_ai.model._model import ModelName
 from inspect_ai.model._openai_convert import messages_from_openai
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
@@ -96,7 +97,7 @@ async def inspect_completions_api_request(
         messages.append(c_message)
 
     # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
+    await bridge._track_state(messages, output, str(ModelName(model)))
 
     # inspect completion to openai completion
     return ChatCompletion(
