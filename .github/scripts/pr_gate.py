@@ -169,10 +169,10 @@ def deferred_close_comment() -> str:
     return f"""{COMMENT_MARKER}
 {headline}
 
-The linked issue is labeled `deferred`, which means we've decided not to
-prioritize that area for now. That's a call about project scope and timing,
-not a judgment of your implementation. Rather than let a PR we can't act on
-sit unreviewed, we close it. Sorry to be the bearer of a process no!
+The linked issue is labeled `deferred`, which means maintainers have decided
+not to prioritize that area for now. That's a call about project scope and
+timing, not a judgment of your implementation. Rather than let a PR we can't
+act on sit unreviewed, we close it. Sorry to be the bearer of a process no!
 
 If you think the timing is wrong, the linked issue is the place to make that
 case: new evidence, a concrete use case, or signs of broader demand there are
