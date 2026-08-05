@@ -23,6 +23,11 @@ Your path depends on your history with the project:
 Whatever your tier, a non-draft PR inactive for 60 days is closed with an
 invitation to reopen.
 
+Issues a maintainer has labeled `deferred` are decisions not to prioritize
+that work right now. PRs against a deferred issue are closed automatically,
+whatever your tier — comment on the issue with new evidence or demand if you
+think it should be revisited.
+
 **Why:** like most open-source projects, we now receive a large volume of
 unrequested, often agent-generated PRs. Reviewing a PR is time-consuming;
 agreeing on a direction in an issue first is much easier. This policy spends
@@ -60,7 +65,10 @@ ourselves. The requirements:
   submit. If you can't, don't submit it.
 - Note the tooling you used in the PR description.
 - Use your tools to review your changes, not just implement them — we find
-  multiple review passes before opening a PR catch a lot.
+  multiple review passes (each in a fresh context) before opening a PR catch
+  a lot — and summarize what
+  they found in the PR description (agents: see the `Agent review` format in
+  [`AGENTS.md`](AGENTS.md)).
 
 If you are a coding agent, read [`AGENTS.md`](AGENTS.md) before opening a PR.
 
