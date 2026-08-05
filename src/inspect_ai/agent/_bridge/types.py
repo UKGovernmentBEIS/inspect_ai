@@ -1,3 +1,4 @@
+from enum import IntEnum
 from functools import lru_cache
 from typing import NamedTuple, Sequence, Set
 
@@ -96,7 +97,7 @@ class AgentBridge:
         self._initial_texts = [m.text.strip() for m in initial_messages]
         self._tracked_fps: list[_MessageFingerprint] | None = None
         self._tracked_calls = 0
-        self._tracked_descends: bool | None = None
+        self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
@@ -229,14 +230,19 @@ class AgentBridge:
           thread descends from the initial input if its non-system messages
           start with the initial input's non-system messages (verbatim, as
           their condensed ``attachment://<hash>`` references, or as decorated
-          text containing the initial message — see
-          `_descends_from_initial`). A descending
-          thread displaces a tracked non-descending thread when that thread is
-          a one-shot call (the opencode title case) or when the descending
-          call is longer than the tracked thread (the main loop reclaiming
-          tracking from a promoted sub-agent loop, below). A non-descending
-          call never directly displaces a tracked descending thread (side
-          calls, sub-agent loops).
+          text containing the initial message — see `_descends_from_initial`).
+          Descent is graded (see `_Descent`): exact/condensed anchors outrank
+          containment anchors, which outrank no anchor. A stronger-descending
+          thread displaces the tracked thread when that thread is a one-shot
+          call (the opencode title case) or when the stronger call is longer
+          than the tracked thread (the main loop reclaiming tracking from a
+          promoted sub-agent loop, below). The grading means a side call that
+          quotes the whole prompt inside a preamble message (containment
+          grade) can never outrank a verbatim-anchored main loop, while still
+          letting a decorated main loop (e.g. opencode's quote-wrapped
+          prompts) displace a non-descending title call. A weaker-descending
+          call never directly displaces the tracked thread (side calls,
+          sub-agent loops).
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
           back to the legacy length heuristic: adopt the new thread when it
@@ -270,21 +276,22 @@ class AgentBridge:
         else:
             descends = self._descends_from_initial(messages, fps)
             if (
-                descends is True
-                and self._tracked_descends is False
+                descends is not None
+                and self._tracked_descends is not None
+                and descends > self._tracked_descends
                 and (self._tracked_calls == 1 or len(messages) > len(self._tracked_fps))
             ):
-                # the real conversation displacing a non-descending thread:
+                # the real conversation displacing a weaker-anchored thread:
                 # a one-shot side call that landed first (the opencode title
                 # case) or, when longer than the tracked thread, a promoted
                 # multi-call sub-agent loop (a main loop resuming with a
                 # single final call would otherwise be parked as a candidate
                 # that nothing extends). a short stray descending one-shot
-                # still can't displace an established non-descending thread
+                # still can't displace an established weaker-anchored thread
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
             elif descends == self._tracked_descends and len(messages) > (
-                len(self._tracked_fps) if descends is True else self._last_message_count
+                len(self._tracked_fps) if descends else self._last_message_count
             ):
                 # legacy length heuristic. when both threads descend, compare
                 # against the tracked thread so a parked side call can't lower
@@ -312,8 +319,8 @@ class AgentBridge:
         """Make `messages` the tracked main thread (see `_track_state`).
 
         `calls` is the number of bridge calls attributed to the thread; a
-        descending thread may displace a non-descending one-shot (`calls == 1`)
-        thread regardless of length.
+        stronger-descending thread may displace a weaker-anchored one-shot
+        (`calls == 1`) thread regardless of length.
         """
         self.state.messages = messages
         self.state.output = output
@@ -324,8 +331,8 @@ class AgentBridge:
 
     def _descends_from_initial(
         self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]
-    ) -> bool | None:
-        """Whether a thread's non-system messages start with the initial input.
+    ) -> "_Descent | None":
+        """How a thread's non-system messages anchor on the initial input.
 
         Each initial message matches verbatim, as its condensed
         `attachment://<hash>` reference, or as decorated text that contains
@@ -340,6 +347,14 @@ class AgentBridge:
         `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial text so a trivially short
         prompt can't match a side call by coincidence.
 
+        The verdict is graded: `EXACT` when every initial message matched
+        verbatim or condensed, `CONTAINED` when any position needed the
+        containment arm, `NO` otherwise. Containment is weaker evidence — a
+        side call can legitimately contain the prompt (e.g. quoting the
+        conversation into a title-generation preamble) — so `_track_state`
+        never lets a containment-anchored thread outrank an exact-anchored
+        one.
+
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
         length heuristic).
@@ -348,18 +363,21 @@ class AgentBridge:
             return None
         non_system = [(m, fp) for m, fp in zip(messages, fps) if fp.role != "system"]
         if len(non_system) < len(self._initial_fps):
-            return False
-        return all(
-            fp == initial
-            or fp == condensed
-            or _contains_initial(message, initial, initial_text)
-            for (message, fp), initial, condensed, initial_text in zip(
-                non_system,
-                self._initial_fps,
-                self._initial_fps_condensed,
-                self._initial_texts,
-            )
-        )
+            return _Descent.NO
+        descent = _Descent.EXACT
+        for (message, fp), initial, condensed, initial_text in zip(
+            non_system,
+            self._initial_fps,
+            self._initial_fps_condensed,
+            self._initial_texts,
+        ):
+            if fp == initial or fp == condensed:
+                continue
+            elif _contains_initial(message, initial, initial_text):
+                descent = _Descent.CONTAINED
+            else:
+                return _Descent.NO
+        return descent
 
 
 @lru_cache(maxsize=100)
@@ -381,6 +399,20 @@ class _MessageFingerprint(NamedTuple):
 
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
     return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
+
+
+class _Descent(IntEnum):
+    """Graded descent-from-initial-input verdict (see `_descends_from_initial`).
+
+    Ordered by anchor strength so `_track_state` can arbitrate between two
+    descending threads: a thread carrying the initial input verbatim (or as
+    its condensed reference) outranks one that merely contains it, which
+    outranks one that doesn't anchor at all.
+    """
+
+    NO = 0
+    CONTAINED = 1
+    EXACT = 2
 
 
 _ANCHOR_CONTAINMENT_MIN_CHARS = 20
