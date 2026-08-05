@@ -1,11 +1,14 @@
+import asyncio
 import contextlib
 import os
 import sys
+import weakref
 from contextlib import AsyncExitStack
 from logging import getLogger
 from pathlib import Path
 from types import TracebackType
 from typing import Any, AsyncIterator, Callable
+from weakref import WeakKeyDictionary
 
 import anyio
 from mcp.client.session import ClientSession, SamplingFnT
@@ -23,6 +26,7 @@ from mcp.types import (
 from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
+from inspect_ai._util._async import current_async_backend
 from inspect_ai._util._json_rpc import (
     JSONRPCErrorMapper,
     JSONRPCParamsType,
@@ -86,6 +90,36 @@ class _McpErrorMapper(JSONRPCErrorMapper):
         return ToolError(message)
 
 
+def _current_task() -> object:
+    """The running task object, for use as a weak registry key.
+
+    anyio's `get_current_task()` returns a fresh `TaskInfo` per call whose hash
+    derives from `id()`, making it neither a stable nor a weak key. The backend
+    task objects are weak-referenceable and hashed by identity.
+    """
+    backend = current_async_backend()
+    if backend == "trio":
+        import trio.lowlevel
+
+        return trio.lowlevel.current_task()
+    elif backend == "asyncio":
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("MCP servers require a running asyncio task.")
+        return task
+    else:
+        raise RuntimeError("MCP servers require a running async event loop.")
+
+
+class _TaskSessions(dict[str, "MCPServerLocalSession"]):
+    """One async task's MCP sessions, keyed by server name.
+
+    A `dict` subclass so that a session can hold a weak reference back to the
+    registry it lives in: a strong one would make the two a cycle, which only
+    the collector can free, delaying the release this keying exists to give.
+    """
+
+
 class MCPServerLocal(MCPServer):
     def __init__(
         self,
@@ -118,20 +152,38 @@ class MCPServerLocal(MCPServer):
     async def tools(self) -> list[Tool]:
         return await self._task_session().tools()
 
-    # create a separate MCPServer session per async task / server name
-    _task_sessions: dict[str, "MCPServerLocalSession"] = {}
+    # create a separate MCPServer session per async task / server name, keyed
+    # by the running task OBJECT. Keying by task id would be both stale and
+    # unbounded: anyio's TaskInfo.id is id()-derived, so an id is reusable once
+    # its task is collected, and a session created but never entered (a plain
+    # solver eval only calls tools()) is never evicted. Weak keys make entries
+    # die with their task instead.
+    _task_sessions: "WeakKeyDictionary[object, _TaskSessions]" = WeakKeyDictionary()
 
     def _task_session(self) -> "MCPServerLocalSession":
-        task_id = anyio.get_current_task().id
-        session_key = f"{task_id}_{self._name}"
-        if session_key not in self._task_sessions:
-            MCPServerLocal._task_sessions[session_key] = MCPServerLocalSession(
+        task = _current_task()
+        task_sessions = MCPServerLocal._task_sessions.get(task)
+        if task_sessions is None:
+            task_sessions = _TaskSessions()
+            MCPServerLocal._task_sessions[task] = task_sessions
+        session = task_sessions.get(self._name)
+        if session is None:
+            session = MCPServerLocalSession(
                 self._client,
                 name=self._name,
                 events=self._events,
                 timeout=self._timeout,
+                registry=task_sessions,
             )
-        return MCPServerLocal._task_sessions[session_key]
+            task_sessions[self._name] = session
+        return session
+
+    def _tool_cache_scope(self) -> object:
+        # Cache token for MCPToolSourceLocal: the per-task session OBJECT. A new
+        # task gets a new session, and a session evicts itself when it closes,
+        # so the token changes exactly when tools bound to the previous session
+        # stop being valid.
+        return self._task_session()
 
 
 class MCPServerLocalSession(MCPServer):
@@ -142,6 +194,7 @@ class MCPServerLocalSession(MCPServer):
         name: str,
         events: bool,
         timeout: int | None = None,
+        registry: _TaskSessions | None = None,
     ) -> None:
         super().__init__()
         self._refcount = 0
@@ -149,6 +202,11 @@ class MCPServerLocalSession(MCPServer):
         self._name = name
         self._events = events
         self._timeout = timeout
+        # weak, because the registry dict is owned by this task's entry in
+        # MCPServerLocal._task_sessions: a strong reference back would make the
+        # two a cycle that only the collector can free, delaying the release
+        # this keying exists to guarantee
+        self._registry = weakref.ref(registry) if registry is not None else None
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
         self._cached_tool_list: list[MCPTool] | None = None
@@ -161,20 +219,30 @@ class MCPServerLocalSession(MCPServer):
         else:
             assert self._refcount == 0
             self._exit_stack = AsyncExitStack()
-            await self._exit_stack.__aenter__()
-            with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-                read, write, *_ = await self._exit_stack.enter_async_context(
-                    self._client()
-                )
-            with trace_action(logger, "MCPServer", f"create session ({self._name})"):
-                self._session = await self._exit_stack.enter_async_context(
-                    ClientSession(read, write, sampling_callback=self._sampling_fn())
-                )
-            with trace_action(
-                logger, "MCPServer", f"initialize session ({self._name})"
-            ):
-                await self._session.initialize()
-            self._refcount = 1
+            try:
+                await self._exit_stack.__aenter__()
+                with trace_action(logger, "MCPServer", f"create client ({self._name})"):
+                    read, write, *_ = await self._exit_stack.enter_async_context(
+                        self._client()
+                    )
+                with trace_action(
+                    logger, "MCPServer", f"create session ({self._name})"
+                ):
+                    self._session = await self._exit_stack.enter_async_context(
+                        ClientSession(
+                            read, write, sampling_callback=self._sampling_fn()
+                        )
+                    )
+                with trace_action(
+                    logger, "MCPServer", f"initialize session ({self._name})"
+                ):
+                    await self._session.initialize()
+                self._refcount = 1
+            except BaseException:
+                # a half-built session must not stay registered: a later
+                # tools() call in this task would adopt it
+                await self._close_and_evict()
+                raise
 
         return self
 
@@ -191,11 +259,23 @@ class MCPServerLocalSession(MCPServer):
             with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
                 assert self._session is not None
                 assert self._exit_stack is not None
-                try:
-                    await self._exit_stack.aclose()
-                finally:
-                    self._session = None
-                    self._exit_stack = None
+                await self._close_and_evict()
+
+    async def _close_and_evict(self) -> None:
+        # Close the session and drop it from its task's registry, so a later
+        # tools() call in the same task builds a fresh session rather than
+        # reusing this closed one and its stale cached tool list. The identity
+        # check leaves a replacement registered under the same name in place.
+        try:
+            if self._exit_stack is not None:
+                await self._exit_stack.aclose()
+        finally:
+            self._session = None
+            self._exit_stack = None
+            self._cached_tool_list = None
+            registry = self._registry() if self._registry is not None else None
+            if registry is not None and registry.get(self._name) is self:
+                del registry[self._name]
 
     @override
     async def tools(self) -> list[Tool]:
