@@ -4,11 +4,11 @@ import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, cast
+from unittest import mock
 
 import anyio
 import pytest
 from botocore.exceptions import ClientError
-from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import (
     Epochs,
@@ -311,20 +311,33 @@ def test_eval_approval_override():
     assert log.eval.config.approval == eval_approval
 
 
-@skip_if_no_docker
 def test_eval_sandbox_init_when_first_task_has_no_sandbox():
-    """Check that Sandbox initialization runs when ANY task has a sandbox, not just the first."""
-    results = eval(
-        tasks=[
-            Task(dataset=[Sample(input="x")], name="no_sandbox"),
-            Task(dataset=[Sample(input="x")], sandbox="docker", name="docker_sandbox"),
-        ],
-        model="mockllm/model",
-        max_tasks=2,
-    )
+    """Check that Sandbox initialization runs when ANY task has a sandbox, not just the first.
+
+    Startup is asserted via a spy rather than a docker task whose init
+    crashes when skipped: a local sandbox keeps the regression coverage
+    (the gating logic is sandbox-type agnostic) without docker's ~40s of
+    container lifecycle in CI.
+    """
+    from inspect_ai._eval.run import SandboxManager
+
+    with mock.patch.object(
+        SandboxManager, "start", autospec=True, side_effect=SandboxManager.start
+    ) as start_spy:
+        results = eval(
+            tasks=[
+                Task(dataset=[Sample(input="x")], name="no_sandbox"),
+                Task(
+                    dataset=[Sample(input="x")], sandbox="local", name="local_sandbox"
+                ),
+            ],
+            model="mockllm/model",
+            max_tasks=2,
+        )
     assert len(results) == 2
     for r in results:
         assert r.status == "success", f"{r.eval.task}: {r.error}"
+    start_spy.assert_called_once()
 
 
 # -- unconsumed task_args warning (#4194) ------------------------------------
