@@ -839,6 +839,54 @@ async def test_quote_wrapped_main_displaces_verbatim_side_call() -> None:
     assert bridge.state.messages[-1].text == "Castle"
 
 
+async def test_contained_side_call_does_not_displace_quote_wrapped_main() -> None:
+    """A longer prompt-embedding side call must not beat the quoted main call.
+
+    The inline-prompt side-call tests below use a verbatim main thread; with
+    opencode the main thread is quote-wrapped, so the side call that embeds
+    the task in its first user message must lose to it as well — including
+    on the equal-verdict length arm, which must never see this pair as a tie
+    (quote-wrap grades above generic containment).
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=f"Classify:\n{TASK}"),
+            ChatMessageUser(content="Return only the topic"),
+        ],
+        "Doctor Who",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_quote_wrapped_main_displaces_contained_side_call() -> None:
+    """Reverse order: the quoted main call reclaims tracking from the side call."""
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=f"Classify:\n{TASK}"),
+            ChatMessageUser(content="Return only the topic"),
+        ],
+        "Doctor Who",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
 async def test_decorated_prompt_anchors_descent() -> None:
     """Containment also covers scaffolds that prefix/suffix the prompt."""
     bridge = task_bridge()
