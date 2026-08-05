@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Model info lookup no longer sends its internal placeholder API key to the Hugging Face Hub when canonicalizing model names. (#4600)
 - Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
 - Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
@@ -14,6 +15,7 @@
 - Model: `total_cost` now bills Anthropic 1-hour prompt-cache writes at 2x the base input price rather than the 5-minute rate, so runs using `-M cache_ttl=1h` are no longer understated. (#4703)
 - Logging: Model calls in running samples now show an end time and non-zero working time in the viewer, instead of an empty completion time and 0 seconds. (#4226)
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
+- Hugging Face: Model info lookups now use your `HF_TOKEN` or cached `huggingface-cli login` credentials instead of authenticating with a placeholder and being rate limited as anonymous. (#4600)
 
 ## 0.3.252 (04 August 2026)
 
