@@ -17,6 +17,7 @@
 - Fixed sandbox agent bridge forwarding file inputs that are not inline `data:` URIs (e.g. host paths or URLs); such requests are now rejected.
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
+- Agent Bridge: `agent_bridge()` and `sandbox_agent_bridge()` now accept a `response_filter` for transforming model output before it is returned.
 
 ## 0.3.259 (16 August 2026)
 
