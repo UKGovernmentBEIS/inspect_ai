@@ -1049,6 +1049,62 @@ async def test_multi_message_input_with_partial_decoration_anchors_descent() -> 
     assert bridge.state.output.completion == "The columns sum to 4 and 6."
 
 
+def partially_quoted_bridge() -> tuple[
+    AgentBridge, list[ChatMessage], list[ChatMessage]
+]:
+    """Multi-message input; the main call quote-wraps only the first message.
+
+    Returns the bridge plus the main-call and side-call inputs: the main
+    thread's quote-wrap evidence sits in one aligned position (the other is
+    verbatim), while the side call copies both messages raw and appends an
+    instruction — so it is longer and anchors verbatim at every position.
+    """
+    part1 = "Here is a data file to analyze in detail:"
+    part2 = "col_a,col_b\n1,2\n3,4"
+    bridge = AgentBridge(
+        AgentState(
+            messages=[ChatMessageUser(content=part1), ChatMessageUser(content=part2)]
+        )
+    )
+    main: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content=f'"{part1}"'),
+        ChatMessageUser(content=part2),
+    ]
+    side: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a topic detector ..."),
+        ChatMessageUser(content=part1),
+        ChatMessageUser(content=part2),
+        ChatMessageUser(content="Return only the topic"),
+    ]
+    return bridge, main, side
+
+
+async def test_verbatim_side_call_does_not_displace_partially_quoted_main() -> None:
+    """Quote-wrap evidence survives positions that round-trip verbatim.
+
+    If the thread verdict collapsed to its weakest position, the partially
+    quoted main would grade the same as the raw-copy side call and the
+    longer side call would win the equal-verdict length arm.
+    """
+    bridge, main, side = partially_quoted_bridge()
+
+    await track(bridge, main, "The columns sum to 4 and 6.")
+    await track(bridge, side, "CSV analysis")
+
+    assert bridge.state.output.completion == "The columns sum to 4 and 6."
+
+
+async def test_partially_quoted_main_displaces_verbatim_side_call() -> None:
+    """Reverse order: the shorter quoted main reclaims tracking."""
+    bridge, main, side = partially_quoted_bridge()
+
+    await track(bridge, side, "CSV analysis")
+    await track(bridge, main, "The columns sum to 4 and 6.")
+
+    assert bridge.state.output.completion == "The columns sum to 4 and 6."
+
+
 async def test_short_initial_input_does_not_anchor_by_containment() -> None:
     """A trivially short prompt can't turn a side call into a descending thread.
 

@@ -350,9 +350,15 @@ class AgentBridge:
         prompt can't match a side call by coincidence.
 
         The verdict is graded per aligned position (see `_position_descent`)
-        and the thread takes its *weakest* position's grade, so `_track_state`
-        can arbitrate between two anchored threads by evidence strength (see
-        `_Descent` for the ordering rationale).
+        so `_track_state` can arbitrate between two anchored threads by
+        evidence strength (see `_Descent` for the ordering rationale). The
+        thread grades `QUOTED` when *any* position carries the quote-wrap:
+        it is a store-transform signature that a side call can't produce by
+        copying the raw input, so evidence at one position is not diluted by
+        others that round-trip verbatim (a partially transformed main thread
+        must still outrank a raw-copy side call). Weakness aggregates the
+        other way — any position that needed generic containment caps the
+        thread at `CONTAINED`.
 
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
@@ -363,7 +369,8 @@ class AgentBridge:
         non_system = [(m, fp) for m, fp in zip(messages, fps) if fp.role != "system"]
         if len(non_system) < len(self._initial_fps):
             return _Descent.NO
-        descent = _Descent.QUOTED
+        quoted = False
+        contained = False
         for (message, fp), initial, condensed, initial_text in zip(
             non_system,
             self._initial_fps,
@@ -373,8 +380,11 @@ class AgentBridge:
             position = _position_descent(message, fp, initial, condensed, initial_text)
             if position is _Descent.NO:
                 return _Descent.NO
-            descent = min(descent, position)
-        return descent
+            quoted = quoted or position is _Descent.QUOTED
+            contained = contained or position is _Descent.CONTAINED
+        if quoted:
+            return _Descent.QUOTED
+        return _Descent.CONTAINED if contained else _Descent.EXACT
 
 
 @lru_cache(maxsize=100)
