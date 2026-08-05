@@ -231,18 +231,20 @@ class AgentBridge:
           start with the initial input's non-system messages (verbatim, as
           their condensed ``attachment://<hash>`` references, or as decorated
           text containing the initial message — see `_descends_from_initial`).
-          Descent is graded (see `_Descent`): exact/condensed anchors outrank
-          containment anchors, which outrank no anchor. A stronger-descending
+          Descent is graded (see `_Descent`): quote-wrapped store-transform
+          anchors outrank verbatim/condensed anchors, which outrank generic
+          containment, which outranks no anchor. A stronger-descending
           thread displaces the tracked thread when that thread is a one-shot
           call (the opencode title case) or when the stronger call is longer
           than the tracked thread (the main loop reclaiming tracking from a
           promoted sub-agent loop, below). The grading means a side call that
           quotes the whole prompt inside a preamble message (containment
-          grade) can never outrank a verbatim-anchored main loop, while still
-          letting a decorated main loop (e.g. opencode's quote-wrapped
-          prompts) displace a non-descending title call. A weaker-descending
-          call never directly displaces the tracked thread (side calls,
-          sub-agent loops).
+          grade) can never outrank a verbatim-anchored main loop, and a side
+          call resending the raw prompt verbatim (a topic detector) can never
+          outrank opencode's quote-wrapped main loop — while a decorated main
+          loop still displaces a non-descending title call. A
+          weaker-descending call never directly displaces the tracked thread
+          (side calls, sub-agent loops).
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
           back to the legacy length heuristic: adopt the new thread when it
@@ -347,13 +349,10 @@ class AgentBridge:
         `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial text so a trivially short
         prompt can't match a side call by coincidence.
 
-        The verdict is graded: `EXACT` when every initial message matched
-        verbatim or condensed, `CONTAINED` when any position needed the
-        containment arm, `NO` otherwise. Containment is weaker evidence — a
-        side call can legitimately contain the prompt (e.g. quoting the
-        conversation into a title-generation preamble) — so `_track_state`
-        never lets a containment-anchored thread outrank an exact-anchored
-        one.
+        The verdict is graded per aligned position (see `_position_descent`)
+        and the thread takes its *weakest* position's grade, so `_track_state`
+        can arbitrate between two anchored threads by evidence strength (see
+        `_Descent` for the ordering rationale).
 
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
@@ -364,19 +363,17 @@ class AgentBridge:
         non_system = [(m, fp) for m, fp in zip(messages, fps) if fp.role != "system"]
         if len(non_system) < len(self._initial_fps):
             return _Descent.NO
-        descent = _Descent.EXACT
+        descent = _Descent.QUOTED
         for (message, fp), initial, condensed, initial_text in zip(
             non_system,
             self._initial_fps,
             self._initial_fps_condensed,
             self._initial_texts,
         ):
-            if fp == initial or fp == condensed:
-                continue
-            elif _contains_initial(message, initial, initial_text):
-                descent = _Descent.CONTAINED
-            else:
+            position = _position_descent(message, fp, initial, condensed, initial_text)
+            if position is _Descent.NO:
                 return _Descent.NO
+            descent = min(descent, position)
         return descent
 
 
@@ -404,15 +401,21 @@ def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
 class _Descent(IntEnum):
     """Graded descent-from-initial-input verdict (see `_descends_from_initial`).
 
-    Ordered by anchor strength so `_track_state` can arbitrate between two
-    descending threads: a thread carrying the initial input verbatim (or as
-    its condensed reference) outranks one that merely contains it, which
-    outranks one that doesn't anchor at all.
+    Ordered by strength of evidence that the thread is the *main*
+    conversation, so `_track_state` can arbitrate between two descending
+    threads. `QUOTED` (nothing but the initial input in literal double
+    quotes) sits above `EXACT`: quote-wrap is the scaffold's conversation-
+    store transform, so it can only come from the persisted main thread,
+    whereas a verbatim resend is also what side calls produce by copying the
+    raw input (topic detectors, title preambles). Generic containment ranks
+    below both — any call that interpolates the prompt into other text
+    produces it.
     """
 
     NO = 0
     CONTAINED = 1
     EXACT = 2
+    QUOTED = 3
 
 
 _ANCHOR_CONTAINMENT_MIN_CHARS = 20
@@ -421,40 +424,51 @@ _ANCHOR_CONTAINMENT_MIN_CHARS = 20
 Below this, a side call could contain the initial text by coincidence (e.g.
 a bash path-detection call quoting a short command prompt) and be adopted as
 the descending thread; such short prompts anchor by exact/condensed match
-or by exact quote-wrapping only (see `_contains_initial`).
+or by exact quote-wrapping only (see `_position_descent`).
 """
 
 
-def _contains_initial(
-    message: ChatMessage, initial: _MessageFingerprint, initial_text: str
-) -> bool:
-    """Whether `message` is the initial message decorated with extra text.
+def _position_descent(
+    message: ChatMessage,
+    fp: _MessageFingerprint,
+    initial: _MessageFingerprint,
+    condensed: _MessageFingerprint,
+    initial_text: str,
+) -> "_Descent":
+    """Grade how one aligned message anchors on its initial counterpart.
 
     Scaffolds decorate the prompt as it round-trips their conversation store
     (opencode wraps it in literal double quotes; others prepend headers), so
-    exact-text anchoring misses the main loop. A same-role message that
-    contains the initial text — or its condensed ``attachment://<hash>``
-    reference, since decoration composes with transcript condensation —
-    still anchors. `initial_text` is pre-stripped (in `__init__`) so
-    surrounding-whitespace trimming by the scaffold doesn't defeat
-    containment.
+    exact-text anchoring alone misses the main loop. Beyond the verbatim and
+    condensed ``attachment://<hash>`` forms, a same-role message anchors as
+    `QUOTED` when it is exactly the initial text (or its condensed
+    reference, since decoration composes with transcript condensation) in
+    double quotes, and as `CONTAINED` when it contains the initial text
+    inside other content. `initial_text` is pre-stripped (in `__init__`) so
+    surrounding-whitespace trimming by the scaffold doesn't defeat matching.
 
-    Two forms are exempt from the length floor because they can't match by
-    coincidence: a message that is exactly the initial text in double quotes
-    (opencode's observed decoration — nothing but the quoted prompt, so no
-    coincidental preamble is possible), and the condensed reference (a
-    content hash).
+    Generic containment requires `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial
+    text so a trivially short prompt can't match a side call by coincidence;
+    the quoted and condensed forms are exempt from the floor because they
+    can't match by coincidence (nothing but the quoted prompt / a content
+    hash). An attachment reference to other content is not a wildcard — only
+    the exact reference to the initial content matches.
     """
-    if message.role != initial.role:
-        return False
-    if initial_text and message.text.strip() == f'"{initial_text}"':
-        return True
+    if fp == initial or fp == condensed:
+        return _Descent.EXACT
+    if fp.role != initial.role:
+        return _Descent.NO
+    stripped = message.text.strip()
+    if stripped == f'"{ATTACHMENT_PROTOCOL}{initial.text_hash}"' or (
+        initial_text and stripped == f'"{initial_text}"'
+    ):
+        return _Descent.QUOTED
     if (
         len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
         and initial_text in message.text
-    ):
-        return True
-    return f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in message.text
+    ) or f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in message.text:
+        return _Descent.CONTAINED
+    return _Descent.NO
 
 
 def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:

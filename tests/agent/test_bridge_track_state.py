@@ -793,6 +793,52 @@ async def test_short_quote_wrapped_prompt_anchors_descent() -> None:
     assert bridge.state.output.completion == "4"
 
 
+async def test_verbatim_side_call_does_not_displace_quote_wrapped_main() -> None:
+    """A side call resending the raw task must not beat the quoted main call.
+
+    With a quote-wrapping scaffold the real call carries the *decorated*
+    prompt while a side call (e.g. a topic detector) copies the *raw* input
+    verbatim. The verbatim resend must not be mistaken for the main thread:
+    quote-wrap is the scaffold's store transform, so it is stronger evidence
+    of the persisted main conversation than a raw copy.
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "Doctor Who",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_quote_wrapped_main_displaces_verbatim_side_call() -> None:
+    """Reverse order: the quoted main call reclaims tracking from the side call."""
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "Doctor Who",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
 async def test_decorated_prompt_anchors_descent() -> None:
     """Containment also covers scaffolds that prefix/suffix the prompt."""
     bridge = task_bridge()
