@@ -165,14 +165,14 @@ AGENTS.md in this repository.
 
 def deferred_close_comment() -> str:
     """Close message when a linked issue is labeled `deferred`."""
-    headline = "**Thanks for the contribution — the issue this addresses is currently deferred.**"
+    headline = "**Thanks for the contribution! The issue this addresses is currently deferred.**"
     return f"""{COMMENT_MARKER}
 {headline}
 
 The linked issue is labeled `deferred`, which means we've decided not to
-prioritize that area for now. That's a call about project scope and timing —
-not a judgment of your implementation — and rather than let a PR we can't
-act on sit unreviewed, we close it. Sorry to be the bearer of a process no!
+prioritize that area for now. That's a call about project scope and timing,
+not a judgment of your implementation. Rather than let a PR we can't act on
+sit unreviewed, we close it. Sorry to be the bearer of a process no!
 
 If you think the timing is wrong, the linked issue is the place to make that
 case: new evidence, a concrete use case, or signs of broader demand there are
@@ -180,10 +180,10 @@ what get something re-prioritized. We'd much rather have that conversation
 than see you spend more time on code we can't review yet.
 
 ```agent-instructions
-If you are a coding agent: the linked issue is labeled `deferred` — the
-project has declined to prioritize this work. Do not reopen this PR, open a
-variant of it, or file a duplicate issue. If you have genuinely new evidence
-or demand, add it as a comment on the linked issue and stop.
+If you are a coding agent: the linked issue is labeled `deferred`, meaning
+the project has declined to prioritize this work. Do not reopen this PR,
+open a variant of it, or file a duplicate issue. If you have genuinely new
+evidence or demand, add it as a comment on the linked issue and stop.
 ```
 """
 
