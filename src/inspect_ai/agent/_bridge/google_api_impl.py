@@ -133,7 +133,7 @@ async def inspect_google_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    await bridge._track_state(messages, output)
+    await bridge._track_state(messages, output, str(ModelName(model)))
 
     # translate response to Gemini format
     response = gemini_response_from_output(output, model.api.model_name)
