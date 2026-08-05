@@ -73,6 +73,7 @@
 - Bugfix: Docker sandbox startup no longer times out during a healthcheck's `start_period`, so services with a long startup grace period now start reliably. (#4698)
 - Bugfix: Fractional healthcheck durations (e.g. `1.5s`) in Docker compose files now produce the correct startup timeout instead of a silently wrong one. (#4698)
 - Dependencies: Require `agent-client-protocol` >= 0.12 (adapts to its renamed multi-select schema types and new catch-all property type).
+- Agent Bridge: a bare model name arriving on a provider-specific bridge endpoint (`openai`/`google`/`anthropic`) now resolves to that provider (`resolve_inspect_model(..., provider=)`) instead of being rejected as unqualified, so bridge clients can send plain model names like `gpt-5.1`.
 
 ## 0.3.251 (29 July 2026)
 
