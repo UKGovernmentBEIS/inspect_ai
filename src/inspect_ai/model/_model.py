@@ -843,6 +843,7 @@ class Model:
             # to retries, so they need their timestamp updated so it accurately
             # reflects the full start/end time which we know here)
             from inspect_ai.event._model import ModelEvent
+            from inspect_ai.log._transcript import transcript
 
             assert isinstance(event, ModelEvent)
             event.timestamp = start_time
@@ -854,6 +855,10 @@ class Model:
                 if output.time is not None
                 else (completed - start_time).total_seconds()
             )
+
+            # re-emit so subscribers (e.g. the sample buffer, which serializes a
+            # snapshot at emission time) pick up the timing fields set above
+            transcript()._event_updated(event)
 
             _stamp_redacted_reasoning_tokens(output)
 
