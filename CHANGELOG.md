@@ -17,6 +17,7 @@
 - Fixed sandbox agent bridge forwarding file inputs that are not inline `data:` URIs (e.g. host paths or URLs); such requests are now rejected.
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Docs: Clarify that the sandbox `exec()` output limit is enforced by front-truncating the output streams rather than by raising `OutputLimitExceededError` (which remains the behaviour for `read_file()`). (#4778)
+- Agent Bridge: a bare model name arriving on a provider-specific bridge endpoint (`openai`/`google`/`anthropic`) now resolves to that provider (`resolve_inspect_model(..., provider=)`) instead of being rejected as unqualified, so bridge clients can send plain model names like `gpt-5.1`.
 
 ## 0.3.259 (16 August 2026)
 
