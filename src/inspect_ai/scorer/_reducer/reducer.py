@@ -1,7 +1,7 @@
 import math
 import statistics
 from collections import Counter
-from typing import Callable, cast
+from typing import Any, Callable, cast
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
@@ -34,6 +34,44 @@ def mode_score() -> ScoreReducer:
             return _count_list(scores, most_common)
         else:
             return _count_scalar(scores, most_common)
+
+    return reduce
+
+
+@score_reducer(name="majority")
+def majority_score() -> ScoreReducer:
+    r"""Take the strict majority of a panel of scores.
+
+    A value wins only if more than half of the scores carry it. Unscored
+    (NaN) scores count towards the total rather than being filtered out of
+    it, so a panel member that fails to produce a value withholds a vote
+    without lowering the bar for the remaining values. Where nothing reaches
+    a majority the reduced score is unscored, rather than being decided by
+    the order the panel was declared in.
+
+    The reduced score's metadata records the individual votes under a
+    `panel` key, since a majority is only auditable alongside what was cast.
+    """
+
+    def reduce(scores: list[Score]) -> Score:
+        panel_size = len(scores)
+
+        def strict_majority(
+            counts: Counter[str | int | float | bool],
+        ) -> str | int | float | bool:
+            value, count = counts.most_common(1)[0]
+            return value if count * 2 > panel_size else float("nan")
+
+        representative = _first_scored(scores)
+        if representative is None:
+            reduced = _nan_score(scores)
+        elif isinstance(representative.value, dict):
+            reduced = _count_dict(scores, strict_majority)
+        elif isinstance(representative.value, list):
+            reduced = _count_list(scores, strict_majority)
+        else:
+            reduced = _count_scalar(scores, strict_majority)
+        return _with_panel_metadata(reduced, scores)
 
     return reduce
 
@@ -566,6 +604,32 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
         if len(set(score.reason for score in scores)) == 1
         else None,
         metadata=scores[0].metadata,
+    )
+
+
+def _with_panel_metadata(reduced: Score, scores: list[Score]) -> Score:
+    r"""Record the votes behind a reduced panel score in its metadata.
+
+    Reduction otherwise carries over only the first score's metadata, which
+    for a panel loses what a majority has to be read against: which member
+    voted for what, and which ones didn't vote at all.
+
+    Args:
+        reduced: the reduced Score to annotate
+        scores: the list of scores that produced it
+    """
+    votes: list[Value | None] = []
+    failures: list[dict[str, Any]] = []
+    for index, score in enumerate(scores):
+        unscored = _is_unscored(score.value)
+        votes.append(None if unscored else score.value)
+        if unscored:
+            failures.append(
+                dict(index=index, reason=(score.metadata or {}).get("unscored_reason"))
+            )
+    panel = dict(votes=votes, size=len(scores), failures=failures)
+    return reduced.model_copy(
+        update=dict(metadata={**(reduced.metadata or {}), "panel": panel})
     )
 
 
