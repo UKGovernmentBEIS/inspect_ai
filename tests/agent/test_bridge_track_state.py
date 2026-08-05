@@ -1131,6 +1131,57 @@ async def test_partially_quoted_main_displaces_verbatim_side_call() -> None:
     assert bridge.state.output.completion == "The columns sum to 4 and 6."
 
 
+def store_copying_side_bridge() -> tuple[
+    AgentBridge, list[ChatMessage], list[ChatMessage]
+]:
+    """Multi-message input; the side call mixes a stored copy with embedding.
+
+    Side calls read from the scaffold's store too, so one can carry the
+    quote-wrapped form of the first initial message while merely *embedding*
+    the second — the quoted position must not lift the thread past the
+    containment cap. The main call carries both messages verbatim.
+    """
+    part1 = "Here is a data file to analyze in detail:"
+    part2 = "col_a,col_b\n1,2\n3,4\n5,6"
+    bridge = AgentBridge(
+        AgentState(
+            messages=[ChatMessageUser(content=part1), ChatMessageUser(content=part2)]
+        )
+    )
+    main: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content=part1),
+        ChatMessageUser(content=part2),
+    ]
+    side: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a topic detector ..."),
+        ChatMessageUser(content=f'"{part1}"'),
+        ChatMessageUser(content=f"Classify:\n{part2}"),
+        ChatMessageUser(content="Return only the topic"),
+    ]
+    return bridge, main, side
+
+
+async def test_store_copying_side_call_does_not_displace_exact_main() -> None:
+    """A quoted position must not lift an embedding side call past the cap."""
+    bridge, main, side = store_copying_side_bridge()
+
+    await track(bridge, main, "The columns sum to 9 and 12.")
+    await track(bridge, side, "CSV analysis")
+
+    assert bridge.state.output.completion == "The columns sum to 9 and 12."
+
+
+async def test_exact_main_displaces_store_copying_side_call() -> None:
+    """Reverse order: the exact main reclaims tracking from the side call."""
+    bridge, main, side = store_copying_side_bridge()
+
+    await track(bridge, side, "CSV analysis")
+    await track(bridge, main, "The columns sum to 9 and 12.")
+
+    assert bridge.state.output.completion == "The columns sum to 9 and 12."
+
+
 async def test_short_initial_input_does_not_anchor_by_containment() -> None:
     """A trivially short prompt can't turn a side call into a descending thread.
 

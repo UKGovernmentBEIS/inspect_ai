@@ -351,14 +351,20 @@ class AgentBridge:
 
         The verdict is graded per aligned position (see `_position_descent`)
         so `_track_state` can arbitrate between two anchored threads by
-        evidence strength (see `_Descent` for the ordering rationale). The
-        thread grades `QUOTED` when *any* position carries the quote-wrap:
-        it is a store-transform signature that a side call can't produce by
-        copying the raw input, so evidence at one position is not diluted by
-        others that round-trip verbatim (a partially transformed main thread
-        must still outrank a raw-copy side call). Weakness aggregates the
-        other way — any position that needed generic containment caps the
-        thread at `CONTAINED`.
+        evidence strength (see `_Descent` for the ordering rationale),
+        aggregated weakness-first:
+
+        - any position that needed generic containment caps the thread at
+          `CONTAINED` — side calls copy stored (possibly quote-wrapped)
+          messages too, so an interpolated position makes the whole thread
+          low-confidence no matter how its other positions anchor;
+        - otherwise quote-wrap at any position grades the thread `QUOTED`:
+          among threads whose every position matches exactly, the store
+          transform marks the persisted main conversation, and evidence at
+          one position is not diluted by others that round-trip verbatim (a
+          partially transformed main thread must still outrank a raw-copy
+          side call);
+        - otherwise `EXACT`.
 
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
@@ -382,9 +388,9 @@ class AgentBridge:
                 return _Descent.NO
             quoted = quoted or position is _Descent.QUOTED
             contained = contained or position is _Descent.CONTAINED
-        if quoted:
-            return _Descent.QUOTED
-        return _Descent.CONTAINED if contained else _Descent.EXACT
+        if contained:
+            return _Descent.CONTAINED
+        return _Descent.QUOTED if quoted else _Descent.EXACT
 
 
 @lru_cache(maxsize=100)
