@@ -49,6 +49,11 @@ def majority_score() -> ScoreReducer:
     a majority the reduced score is unscored, rather than being decided by
     the order the panel was declared in.
 
+    For dict and list values the threshold applies per key and per index, and
+    the total is still the number of scores reduced: a value missing from one
+    key (or a score that is unscored at the root) withholds a vote for that
+    key alone, or for every key, respectively.
+
     The reduced score's metadata records the individual votes under a
     `panel` key, since a majority is only auditable alongside what was cast.
     """
@@ -622,7 +627,16 @@ def _with_panel_metadata(reduced: Score, scores: list[Score]) -> Score:
     failures: list[dict[str, Any]] = []
     for index, score in enumerate(scores):
         unscored = _is_unscored(score.value)
-        votes.append(None if unscored else score.value)
+        # copy container values: the record is an audit trail of what was cast,
+        # so it must not alias (and drift with) the score it came from
+        if unscored:
+            votes.append(None)
+        elif isinstance(score.value, dict):
+            votes.append(dict(score.value))
+        elif isinstance(score.value, list):
+            votes.append(list(score.value))
+        else:
+            votes.append(score.value)
         if unscored:
             failures.append(
                 dict(index=index, reason=(score.metadata or {}).get("unscored_reason"))

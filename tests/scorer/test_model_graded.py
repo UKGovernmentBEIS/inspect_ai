@@ -490,9 +490,14 @@ def test_model_graded_panel_majority_survives_a_grader_failure():
     assert isinstance(split.value, float) and math.isnan(split.value)
 
 
-def test_model_graded_panel_order_independent_without_failures():
+def test_model_graded_panel_intact_panel_unchanged():
+    # Control: a panel where every grader votes was never order-dependent and
+    # must keep scoring as it did. This one passes before the fix too.
     assert asyncio.run(_grade_panel(["GRADE: C", "GRADE: C", "GRADE: I"])).value == (
-        asyncio.run(_grade_panel(["GRADE: I", "GRADE: C", "GRADE: C"])).value
+        CORRECT
+    )
+    assert asyncio.run(_grade_panel(["GRADE: I", "GRADE: C", "GRADE: C"])).value == (
+        CORRECT
     )
 
 

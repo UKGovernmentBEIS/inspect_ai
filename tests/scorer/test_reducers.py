@@ -699,6 +699,31 @@ def test_majority_reducer_dict_and_list_values() -> None:
     assert _is_nan(reduced_list[1])
 
 
+def test_majority_reducer_dict_unscored_counts_against_every_key() -> None:
+    # The threshold is per key, but the total is the number of scores reduced:
+    # a NaN under one key withholds a vote for that key, and a NaN at the root
+    # withholds one for every key.
+    scores = [
+        Score(value={"a": 1, "b": 1}),
+        Score(value={"a": 1, "b": float("nan")}),
+        Score(value=float("nan")),
+    ]
+    reduced = majority_reducer(scores).value
+    assert isinstance(reduced, dict)
+    assert reduced["a"] == 1  # 2 of 3
+    assert _is_nan(reduced["b"])  # 1 of 3
+
+
+def test_majority_reducer_votes_do_not_alias_reduced_scores() -> None:
+    # The recorded votes are an audit trail, so mutating one must not reach
+    # back into the score it came from (and vice versa).
+    scores = [Score(value={"a": 1}), Score(value={"a": 1}), Score(value={"a": 2})]
+    votes = majority_reducer(scores).metadata["panel"]["votes"]  # type: ignore[index]
+
+    votes[0]["a"] = 999
+    assert scores[0].value == {"a": 1}
+
+
 def test_majority_reducer_all_unscored() -> None:
     scores = [Score.unscored(), Score.unscored()]
     reduced = majority_reducer(scores)
