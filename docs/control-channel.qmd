@@ -6,6 +6,7 @@ llms-description: Launch evals from scripts and agents (inspect eval --json laun
 ## Overview
 
 Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and direct it — cancel a stalled sample or a whole task, retune concurrency limits and log buffering — without parsing log files.
+
 Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), plus a top-level `config` command:
 
 | Command | Description |

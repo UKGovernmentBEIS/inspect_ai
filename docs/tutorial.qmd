@@ -343,6 +343,7 @@ samples = samples_df("logs")    # one row per sample
 From there you can use ordinary Pandas expressions for filtering, grouping, comparison, and aggregation. See [Log Files](eval-logs.qmd) and [Log Dataframes](dataframe.qmd) for the full APIs, and [`read_eval_log()`](eval-logs.qmd) if you'd rather work with log objects directly.
 
 To analyze the content of transcripts more deeply (e.g. flagging refusals, evaluation awareness, or environment problems rather than computing metrics), use scanners; see [Scanning](#sec-scanning) below.
+
 ## Coding Agents {#sec-coding-agents}
 
 In the [Agent Evals](#sec-agents) example we assembled the agent ourselves: a `react()` loop plus the `bash()` and `python()` tools. Sometimes you instead want to evaluate an off-the-shelf coding agent like Claude Code, Codex CLI, or Gemini CLI.
@@ -397,6 +398,7 @@ success, logs = eval_set(
 This evaluates every task against every model. If a run is interrupted, re-running the same command picks up where it left off. The CLI equivalent is `inspect eval-set`.
 
 See [Eval Sets](eval-sets.qmd) for the full retry and resumption model. When running at scale you'll also want [Parallelism](parallelism.qmd) (evaluating many models, tasks, and samples in parallel), [Handling Errors](handling-errors.qmd) (failure thresholds and crash recovery), [Setting Limits](setting-limits.qmd) (time, message, token, and cost caps), and [Caching](caching.qmd) (reusing model calls).
+
 ## Scanning {#sec-scanning}
 
 After a run, **scanners** review completed transcripts to surface issues like refusals, evaluation awareness, or misconfigured environments. Scanning uses the separate [`inspect_scout`](scanners.qmd) package (`pip install inspect-scout`).

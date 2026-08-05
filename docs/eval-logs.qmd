@@ -168,6 +168,7 @@ inspect eval ctf.py --log-model-api
 To disable model API logging entirely (errors only), use `--no-log-model-api`.
 
 ## Log File API {#sec-log-file-api}
+
 ### EvalLog
 
 The `EvalLog` object returned from `eval()` provides programmatic interface to the contents of log files:
