@@ -48,6 +48,7 @@ class SandboxAgentBridge(AgentBridge):
         checkpointer: Checkpointer | None = None,
         allow_remote_mcp: bool = False,
         allow_remote_media: bool = False,
+        accumulate_conversations: bool = False,
     ) -> None:
         super().__init__(
             state,
@@ -62,6 +63,7 @@ class SandboxAgentBridge(AgentBridge):
             checkpointer=checkpointer,
             allow_remote_mcp=allow_remote_mcp,
             allow_remote_media=allow_remote_media,
+            accumulate_conversations=accumulate_conversations,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []

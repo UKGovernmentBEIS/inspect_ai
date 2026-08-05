@@ -1,4 +1,5 @@
 from enum import IntEnum
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
 
@@ -47,6 +48,7 @@ class AgentBridge:
         model_event_sink: ModelEventSink | None = None,
         forward_generation_config: bool = False,
         approval: list["ApprovalPolicy"] | None = None,
+        accumulate_conversations: bool = False,
         checkpointer: Checkpointer | None = None,
         allow_remote_mcp: bool = True,
         allow_remote_media: bool = False,
@@ -118,6 +120,19 @@ class AgentBridge:
         self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
+        # accumulation state for _accumulate_conversation (see its docstring). Adopted on
+        # ANY resume, unlike bridge_messages above: the scaffold replays only the
+        # conversation it was in, so dropping the rest would lose every earlier one for
+        # good -- and they are the whole point of accumulating. Replays do not duplicate,
+        # because a call equal to or contained in a stored conversation is absorbed rather
+        # than appended.
+        self._accumulate_conversations = accumulate_conversations
+        self._conversations: list[_Conversation] = self._cp.track(
+            "bridge_conversations",
+            lambda: self._conversations,
+            [],
+            value_type=list[_Conversation],
+        )
         self._operator_keys: set[str] = set()
 
     state: AgentState
@@ -309,7 +324,15 @@ class AgentBridge:
           loop reclaims it on resumption, by extension when it makes several
           further calls (candidate promotion) or by the longer-descending-call
           displacement above when it makes only one.
+
+        When `accumulate_conversations` is set, none of the above applies: every
+        conversation observed over the bridge is kept and concatenated instead of
+        one being chosen. See `_accumulate_conversation`.
         """
+        if self._accumulate_conversations:
+            self._accumulate_conversation(input, output)
+            await self._cp.tick()
+            return
         messages = input + [output.message]
         fps = [_message_fingerprint(m) for m in messages]
 
@@ -358,6 +381,105 @@ class AgentBridge:
 
         # tick the checkpointer
         await self._cp.tick()
+
+    def _accumulate_conversation(
+        self, input: list[ChatMessage], output: ModelOutput
+    ) -> None:
+        """Keep EVERY conversation observed over the bridge, not just the main one.
+
+        `_track_state` chooses one "main" thread because a scaffold runs one agent
+        loop and its side calls are noise. A sandbox is not a scaffold: nothing
+        constrains it to one conversation, and a human-driven or multi-invocation
+        harness routinely runs several independent ones through the same bridge (for
+        example an operator running `claude -p` several times). Choosing one then
+        silently discards the rest, and the discarded ones exist nowhere in the
+        resulting sample.
+
+        A call is matched to the conversation it CONTINUES: the one whose messages are
+        a prefix of this call's, longest first. Matching is by `(role, text)` over
+        non-system messages, because a scaffold may rewrite its system prompt per
+        request (Claude Code stamps a per-request cache token into it) and matching on
+        it would make every call a new conversation.
+
+        "Prefix" is deliberately not-strict, and re-sends are absorbed rather than
+        appended, because a repeat is not a new conversation. A call identical to one
+        already stored REPLACES it, and a call already CONTAINED in a stored
+        conversation is dropped. Requiring a strict extension instead forks a whole
+        replica on any exact repeat -- two invocations making the same deterministic
+        aux call (Claude Code's bash-path probe) fingerprint identically -- and the
+        fork can never re-merge, so it strands a permanent stale duplicate whose tail
+        then sits at the end of `state.messages`.
+
+        Only genuinely new work starts a conversation. That still admits a one-shot
+        side call, because without a session identifier a real one-shot invocation is
+        indistinguishable from an aux call and dropping it loses real work; and two
+        calls sharing a history but answering DIFFERENTLY stay separate, since merging
+        them would invent a conversation in which one prompt drew two consecutive
+        replies.
+
+        `state.output` is this call, not the last conversation's: conversations keep
+        first-seen order, so a call resuming an earlier one leaves `state.messages`
+        ending on a later conversation. Order is the property this option exists to
+        provide, so it wins, and `state.messages[-1]` is not guaranteed to be
+        `state.output`'s message. Indexing output by conversation order instead lets a
+        single late side call poison it for the rest of the run.
+        """
+        messages = input + [output.message]
+        key = _non_system([_message_fingerprint(m) for m in messages])
+        continued: int | None = None
+        for index, conversation in enumerate(self._conversations):
+            if _is_prefix(conversation.key, key) and (
+                continued is None
+                or len(conversation.key) > len(self._conversations[continued].key)
+            ):
+                continued = index
+        if continued is None:
+            # Already covered by a stored conversation (a re-send of an earlier turn):
+            # it carries nothing the longer form does not.
+            if not any(_is_prefix(key, c.key) for c in self._conversations):
+                self._conversations.append(
+                    _Conversation(key=key, messages=messages, output=output)
+                )
+        else:
+            self._conversations[continued] = _Conversation(
+                key=key, messages=messages, output=output
+            )
+            # Absorb any other conversation this one now contains, so a fork that
+            # happened before the two met cannot persist as a stale duplicate.
+            self._conversations = [
+                conversation
+                for index, conversation in enumerate(self._conversations)
+                if index == continued or not _is_prefix(conversation.key, key)
+            ]
+        self.state.messages = self._flattened_conversations()
+        self.state.output = output
+
+    def _flattened_conversations(self) -> list[ChatMessage]:
+        """Every conversation concatenated in first-seen order, with unique message ids.
+
+        Ids are allocated from message CONTENT (`_id_for_message`), and each request only
+        ever sees its own conversation, so independent conversations that repeat a turn --
+        replicas of one script, a re-asked prompt -- arrive carrying the SAME id, while
+        `ChatMessage.id` is documented unique.
+
+        A repeat is re-identified on a copy that is written BACK into its conversation, so
+        the new id is allocated once and then held. Re-deriving it per call instead would
+        hand the same message a different id on every generation, which defeats the id
+        stability `apply_message_ids` exists to provide and breaks every consumer that
+        joins on the id (`log/_condense.py`'s walk cache, `solver/_run.py`'s prefix diff,
+        matching `sample.messages` back to `ModelEvent.input`).
+        """
+        flattened: list[ChatMessage] = []
+        seen: set[str] = set()
+        for conversation in self._conversations:
+            for position, message in enumerate(conversation.messages):
+                if message.id in seen:
+                    message = message.model_copy(update={"id": uuid()})
+                    conversation.messages[position] = message
+                if message.id is not None:
+                    seen.add(message.id)
+                flattened.append(message)
+        return flattened
 
     def _adopt_thread(
         self,
@@ -568,6 +690,38 @@ def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:
     return _MessageFingerprint(
         role=fp.role, text_hash=mm3_hash(f"{ATTACHMENT_PROTOCOL}{fp.text_hash}")
     )
+
+
+@dataclass
+class _Conversation:
+    """One conversation observed over the bridge (see `_accumulate_conversation`)."""
+
+    key: list[_MessageFingerprint]
+    messages: list[ChatMessage]
+    output: ModelOutput
+
+
+def _is_prefix(
+    prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]
+) -> bool:
+    """Whether `fps` continues `prefix`, or is exactly it."""
+    return len(fps) >= len(prefix) and fps[: len(prefix)] == prefix
+
+
+def _non_system(fps: list[_MessageFingerprint]) -> list[_MessageFingerprint]:
+    """Fingerprints of the non-system messages, for conversation-continuation matching.
+
+    A scaffold may rewrite its system prompt on every request -- Claude Code stamps a
+    per-request cache token into it -- so successive calls in one conversation need not
+    share a system-message fingerprint, and matching on it would make every call look
+    like a new conversation.
+
+    Used only by `_accumulate_conversation`. Main-thread tracking keeps comparing whole
+    message lists: a system prompt still carries meaning there (two sub-agents can share
+    a user prompt while differing only in role), and its `_extends` check is backed by the
+    length and descent heuristics rather than standing alone.
+    """
+    return [fp for fp in fps if fp.role != "system"]
 
 
 def _extends(prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]) -> bool:

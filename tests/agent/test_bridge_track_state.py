@@ -1532,3 +1532,228 @@ async def test_anthropic_handler_tracks_main_thread_end_to_end() -> None:
         "please continue",
         "Castle",
     ]
+
+
+# ---------------------------------------------------------------------------
+# accumulate_conversations: keep every conversation, not just the main one
+# ---------------------------------------------------------------------------
+
+
+def accumulating_bridge() -> AgentBridge:
+    return AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+    )
+
+
+def cc_system(nonce: int) -> ChatMessageSystem:
+    """Claude Code's system prompt, which carries a per-request cache token."""
+    return ChatMessageSystem(
+        content=f"x-anthropic-billing-header: cc_version=2.1.126; cch={nonce:05x};\n\nYou are a Claude agent."
+    )
+
+
+async def test_every_conversation_is_kept_not_just_the_main_one() -> None:
+    """Two independent conversations (e.g. two `claude -p` runs) both reach the state."""
+    bridge = accumulating_bridge()
+
+    first: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out = await track(bridge, first, "castle answer")
+    await track(
+        bridge, first + [out.message, ChatMessageTool(content="t")], "castle detail"
+    )
+
+    second: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content="Unrelated second question."),
+    ]
+    await track(bridge, second, "second answer")
+
+    texts = [m.text for m in bridge.state.messages]
+    assert "castle detail" in texts
+    assert "second answer" in texts
+    assert texts.index("castle detail") < texts.index("second answer")
+    # the first conversation is kept once, in its longest form -- not once per call
+    assert texts.count("castle answer") == 1
+    # output describes the final message
+    assert bridge.state.output.completion == "second answer"
+    assert texts[-1] == "second answer"
+
+
+async def test_accumulation_survives_a_per_request_system_prompt() -> None:
+    """A growing Claude Code conversation is ONE conversation, not one per call."""
+    bridge = accumulating_bridge()
+
+    turn: list[ChatMessage] = [cc_system(1), ChatMessageUser(content=TASK)]
+    out = await track(bridge, turn, "step 1")
+    for step in range(2, 5):
+        turn = [cc_system(step), *turn[1:], out.message, ChatMessageTool(content="t")]
+        out = await track(bridge, turn, f"step {step}")
+
+    texts = [m.text for m in bridge.state.messages]
+    assert texts.count("step 1") == 1
+    assert texts.count(TASK) == 1
+    assert texts[-1] == "step 4"
+
+
+async def test_accumulation_keeps_divergent_answers_to_one_history() -> None:
+    """Two answers to an identical history stay separate rather than being merged."""
+    bridge = accumulating_bridge()
+
+    history: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    await track(bridge, history, "answer A")
+    await track(bridge, history, "answer B")
+
+    texts = [m.text for m in bridge.state.messages]
+    assert "answer A" in texts
+    assert "answer B" in texts
+
+
+async def test_main_thread_tracking_is_the_default() -> None:
+    """Without the flag the bridge still surfaces one main conversation."""
+    bridge = task_bridge()
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "castle answer")
+    await track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content="Unrelated.")], "second answer"
+    )
+
+    assert "second answer" not in [m.text for m in bridge.state.messages]
+
+
+async def test_a_repeated_call_does_not_fork_a_replica() -> None:
+    """An exact repeat is the same conversation, not a new one.
+
+    Two invocations making the same deterministic aux call (claude code's bash-path probe)
+    fingerprint identically. Requiring a strict extension forks a whole replica on each.
+    """
+    bridge = accumulating_bridge()
+
+    call: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    await track(bridge, call, "Castle")
+    await track(bridge, call, "Castle")
+
+    assert [m.text for m in bridge.state.messages] == [TASK_SYSTEM.text, TASK, "Castle"]
+
+
+async def test_a_resend_after_growth_is_absorbed_not_stranded() -> None:
+    """A re-sent earlier turn carries nothing the grown conversation does not.
+
+    Appending it instead strands a fork that can never re-merge -- every later call
+    extends the longer copy -- leaving a stale duplicate at the end of state.messages.
+    """
+    bridge = accumulating_bridge()
+
+    first: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out = await track(bridge, first, "working")
+    grown = [*first, out.message, ChatMessageTool(content="tool result")]
+    await track(bridge, grown, "Castle")
+    await track(bridge, first, "working")
+
+    texts = [m.text for m in bridge.state.messages]
+    assert texts == [TASK_SYSTEM.text, TASK, "working", "tool result", "Castle"]
+
+
+async def test_a_late_side_call_does_not_poison_the_output() -> None:
+    """state.output is the newest call, not whichever conversation started last.
+
+    Indexing it by conversation order lets one aux call landing after the main loop's
+    first turn own the output for the rest of the run -- the meridianlabs-ai/inspect_ai#140
+    failure this tracker exists to prevent.
+    """
+    bridge = accumulating_bridge()
+
+    first: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out = await track(bridge, first, "working")
+    await track(bridge, [ChatMessageUser(content="Detect paths in: ls /tmp")], "/tmp")
+    await track(bridge, [*first, out.message, ChatMessageTool(content="t")], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_accumulated_message_ids_are_unique_and_stable() -> None:
+    """Accumulated message ids must be unique AND stable.
+
+    Ids are content-derived and each request sees only its own conversation, so
+    independent conversations that repeat a turn arrive carrying the SAME id while
+    `ChatMessage.id` is documented unique.
+
+    The re-assigned id must be allocated ONCE and held: re-deriving it per call hands the
+    same message a new id every generation, defeating the stability `apply_message_ids`
+    provides and breaking every consumer that joins on the id.
+    """
+    bridge = accumulating_bridge()
+
+    await track(bridge, [ChatMessageUser(content="question one", id="collide")], "A")
+    await track(bridge, [ChatMessageUser(content="question two", id="collide")], "B")
+    first = [m.id for m in bridge.state.messages]
+
+    for index in range(3):
+        await track(bridge, [ChatMessageUser(content=f"other {index}")], f"o{index}")
+    later = [m.id for m in bridge.state.messages]
+
+    assert len(later) == len(set(later))
+    assert later[: len(first)] == first
+
+
+async def test_accumulated_conversations_keep_first_seen_order() -> None:
+    """A call resuming an earlier conversation does not move it to the end."""
+    bridge = accumulating_bridge()
+
+    first: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    out = await track(bridge, first, "first answer")
+
+    second: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content="Second question."),
+    ]
+    await track(bridge, second, "second answer")
+
+    resumed = [*first, out.message, ChatMessageTool(content="t")]
+    await track(bridge, resumed, "first conversation continues")
+
+    texts = [m.text for m in bridge.state.messages]
+    assert texts.index("first conversation continues") < texts.index("second answer")
+    # state.output is the newest work, which is the resumed conversation -- so with
+    # accumulation the last message and state.output need not be the same turn.
+    assert bridge.state.output.completion == "first conversation continues"
+    assert texts[-1] == "second answer"
+
+
+async def test_accumulated_conversations_survive_a_resume() -> None:
+    """A resumed run keeps the conversations it already saw, and a replay does not duplicate.
+
+    The scaffold replays only the conversation it was in, so dropping the rest on resume
+    would lose every earlier one -- and those are the whole point of accumulating. What
+    made dropping them look necessary was appending a replayed call as a new conversation;
+    an equal-or-contained call is now absorbed instead.
+    """
+    first = accumulating_bridge()
+    session_one: list[ChatMessage] = [TASK_SYSTEM, ChatMessageUser(content=TASK)]
+    await track(first, session_one, "session one answer")
+    session_two: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content="Second question."),
+    ]
+    out_two = await track(first, session_two, "session two answer")
+
+    # resume with that state, then let the scaffold replay session two and continue it
+    checkpointer = RecordingCheckpointer(
+        restored={"bridge_conversations": first._conversations}
+    )
+    resumed = AgentBridge(
+        AgentState(messages=[ChatMessageUser(content=TASK)]),
+        accumulate_conversations=True,
+        checkpointer=checkpointer,
+    )
+    await track(resumed, session_two, "session two answer")
+    await track(
+        resumed,
+        [*session_two, out_two.message, ChatMessageTool(content="t")],
+        "session two continues",
+    )
+
+    texts = [m.text for m in resumed.state.messages]
+    assert "session one answer" in texts
+    assert texts.count("session two answer") == 1
+    assert texts[-1] == "session two continues"
