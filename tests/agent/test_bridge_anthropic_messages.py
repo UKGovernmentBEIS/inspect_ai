@@ -5,6 +5,7 @@ from anthropic.types import ThinkingBlockParam
 
 from inspect_ai.agent._bridge.anthropic_api_impl import (
     anthropic_system_to_text,
+    anthropic_system_to_texts,
     base_64_data,
     messages_from_anthropic_input,
 )
@@ -60,6 +61,50 @@ def test_anthropic_system_to_text() -> None:
         )
         == "a\n\nb"
     )
+
+
+def test_anthropic_system_to_texts_preserves_block_boundaries() -> None:
+    """Blocks stay separate so a header block can't be glued to instructions."""
+    assert anthropic_system_to_texts(None) == []
+    assert anthropic_system_to_texts("") == []
+    assert anthropic_system_to_texts("plain") == ["plain"]
+    assert anthropic_system_to_texts(
+        [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
+    ) == ["a", "b"]
+    # empty blocks contribute no system message
+    assert anthropic_system_to_texts(
+        [{"type": "text", "text": "a"}, {"type": "text", "text": ""}]
+    ) == ["a"]
+    # non-text blocks are ignored
+    assert anthropic_system_to_texts(
+        [{"type": "image"}, {"type": "text", "text": "a"}]
+    ) == ["a"]
+
+
+def test_anthropic_system_header_block_not_glued_to_instructions() -> None:
+    """Regression: a metadata header block must not absorb the real prompt.
+
+    Claude Code's auto-mode classifier sends ``system`` as
+    ``[billing-header, monitor-prompt, session-context]``. The Anthropic API
+    consumes a system block starting with ``x-anthropic-*-header:`` as request
+    metadata and DROPS that block, so concatenating the blocks made the API
+    discard the monitor prompt too -- the classifier then had no instructions
+    and no verdict grammar, and fail-closed on every action.
+    """
+    header = "x-anthropic-billing-header: cc_version=2.1.205; cc_entrypoint=sdk-cli;"
+    prompt = "You are a security monitor for autonomous AI coding agents."
+    context = "## Session Context"
+    texts = anthropic_system_to_texts(
+        [
+            {"type": "text", "text": header},
+            {"type": "text", "text": prompt},
+            {"type": "text", "text": context},
+        ]
+    )
+    assert texts == [header, prompt, context]
+    # the header must stand alone: nothing else may ride along in its block
+    assert texts[0] == header
+    assert prompt not in texts[0]
 
 
 @pytest.mark.anyio
