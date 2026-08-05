@@ -88,14 +88,12 @@ class AgentBridge:
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
         # restores to the original input on checkpoint resume).
-        self._initial_fps = [
-            _message_fingerprint(m)
-            for m in self._compaction_prefix
-            if m.role != "system"
-        ]
+        initial_messages = [m for m in self._compaction_prefix if m.role != "system"]
+        self._initial_fps = [_message_fingerprint(m) for m in initial_messages]
         self._initial_fps_condensed = [
             _condensed_fingerprint(fp) for fp in self._initial_fps
         ]
+        self._initial_texts = [m.text.strip() for m in initial_messages]
         self._tracked_fps: list[_MessageFingerprint] | None = None
         self._tracked_calls = 0
         self._tracked_descends: bool | None = None
@@ -229,8 +227,9 @@ class AgentBridge:
           are a prefix of it, compared by role + text) always updates the state.
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
-          start with the initial input's non-system messages (verbatim or as
-          their condensed ``attachment://<hash>`` references — see
+          start with the initial input's non-system messages (verbatim, as
+          their condensed ``attachment://<hash>`` references, or as decorated
+          text containing the initial message — see
           `_descends_from_initial`). A descending
           thread displaces a tracked non-descending thread when that thread is
           a one-shot call (the opencode title case) or when the descending
@@ -269,7 +268,7 @@ class AgentBridge:
             # post-compaction conversation): promote it over the tracked thread
             self._adopt_thread(messages, output, fps, calls=2)
         else:
-            descends = self._descends_from_initial(fps)
+            descends = self._descends_from_initial(messages, fps)
             if (
                 descends is True
                 and self._tracked_descends is False
@@ -320,19 +319,26 @@ class AgentBridge:
         self.state.output = output
         self._tracked_fps = fps
         self._tracked_calls = calls
-        self._tracked_descends = self._descends_from_initial(fps)
+        self._tracked_descends = self._descends_from_initial(messages, fps)
         self._candidate_fps = None
 
-    def _descends_from_initial(self, fps: list["_MessageFingerprint"]) -> bool | None:
+    def _descends_from_initial(
+        self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]
+    ) -> bool | None:
         """Whether a thread's non-system messages start with the initial input.
 
-        Each initial message matches either verbatim or as its condensed
-        `attachment://<hash>` reference: a long prompt that rides into the
-        scaffold via inspect's transcript condensation crosses the bridge as
-        the placeholder rather than the original text (observed with opencode,
-        whose conversation store round-trips it), and the main loop must still
-        anchor. Only the exact reference to the initial content matches — an
-        attachment reference to other content is not a wildcard.
+        Each initial message matches verbatim, as its condensed
+        `attachment://<hash>` reference, or as decorated text that contains
+        the initial message. Scaffolds transform the prompt on its way
+        through their conversation store: a long prompt that rides in via
+        inspect's transcript condensation crosses the bridge as the
+        placeholder rather than the original text, and opencode round-trips
+        the prompt wrapped in literal double quotes — the main loop must
+        still anchor in both cases. Only the exact reference to the initial
+        content matches (an attachment reference to other content is not a
+        wildcard), and containment requires a same-role message and at least
+        `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial text so a trivially short
+        prompt can't match a side call by coincidence.
 
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
@@ -340,13 +346,18 @@ class AgentBridge:
         """
         if not self._initial_fps:
             return None
-        non_system = [fp for fp in fps if fp.role != "system"]
+        non_system = [(m, fp) for m, fp in zip(messages, fps) if fp.role != "system"]
         if len(non_system) < len(self._initial_fps):
             return False
         return all(
-            fp == initial or fp == condensed
-            for fp, initial, condensed in zip(
-                non_system, self._initial_fps, self._initial_fps_condensed
+            fp == initial
+            or fp == condensed
+            or _contains_initial(message, initial, initial_text)
+            for (message, fp), initial, condensed, initial_text in zip(
+                non_system,
+                self._initial_fps,
+                self._initial_fps_condensed,
+                self._initial_texts,
             )
         )
 
@@ -370,6 +381,41 @@ class _MessageFingerprint(NamedTuple):
 
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
     return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
+
+
+_ANCHOR_CONTAINMENT_MIN_CHARS = 20
+"""Minimum initial-message length for containment anchoring.
+
+Below this, a side call could contain the initial text by coincidence (e.g.
+a bash path-detection call quoting a short command prompt) and be adopted as
+the descending thread; such short prompts anchor by exact/condensed match
+only.
+"""
+
+
+def _contains_initial(
+    message: ChatMessage, initial: _MessageFingerprint, initial_text: str
+) -> bool:
+    """Whether `message` is the initial message decorated with extra text.
+
+    Scaffolds decorate the prompt as it round-trips their conversation store
+    (opencode wraps it in literal double quotes; others prepend headers), so
+    exact-text anchoring misses the main loop. A same-role message that
+    contains the initial text — or its condensed ``attachment://<hash>``
+    reference, since decoration composes with transcript condensation —
+    still anchors. `initial_text` is pre-stripped (in `__init__`) so
+    surrounding-whitespace trimming by the scaffold doesn't defeat
+    containment. The condensed reference is exempt from the length floor:
+    it is a content hash, so it can't be contained by coincidence.
+    """
+    if message.role != initial.role:
+        return False
+    if (
+        len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
+        and initial_text in message.text
+    ):
+        return True
+    return f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in message.text
 
 
 def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:

@@ -706,6 +706,141 @@ async def test_unrelated_attachment_reference_does_not_anchor_descent() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scaffold-decorated task prompts (containment anchoring)
+# ---------------------------------------------------------------------------
+
+
+async def test_quote_wrapped_prompt_anchors_descent() -> None:
+    """Opencode round-trips the prompt wrapped in literal double quotes.
+
+    Single-turn GAIA reproduction: the real task call fires first (answering
+    in one turn), then the longer title-generation call lands. Neither call
+    carries the initial text verbatim or condensed, so without containment
+    anchoring both threads are non-descending and the legacy length fallback
+    adopts the title thread as the final state (`state.output` becomes the
+    session title and the sample scores 0).
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    # the real task call (single-turn agent loop, quoted prompt)
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    # title call fires after (opencode quotes the prompt here too)
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+    assert [m.text for m in bridge.state.messages] == [
+        TASK_SYSTEM.text,
+        quoted,
+        "Castle",
+    ]
+
+
+async def test_quote_wrapped_prompt_title_call_first() -> None:
+    """Same quote-wrapping with the title call landing before the task call."""
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
+async def test_decorated_prompt_anchors_descent() -> None:
+    """Containment also covers scaffolds that prefix/suffix the prompt."""
+    bridge = task_bridge()
+    decorated = f"## Task\n\n{TASK}\n\nRespond concisely."
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=decorated)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=decorated),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_quote_wrapped_condensed_placeholder_anchors_descent() -> None:
+    """Decoration composes with condensation: a quoted placeholder anchors.
+
+    Both transformations were observed separately on the same opencode code
+    path (the prompt crossing as an `attachment://` placeholder, and the
+    prompt quote-wrapped), so a quote-wrapped placeholder must anchor too.
+    """
+    bridge = task_bridge()
+    quoted_placeholder = f'"{condensed(TASK)}"'
+
+    await track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted_placeholder)], "Castle"
+    )
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted_placeholder),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_short_initial_input_does_not_anchor_by_containment() -> None:
+    """A trivially short prompt can't turn a side call into a descending thread.
+
+    Containment anchoring requires a minimum of initial text: a side call
+    whose preamble happens to contain a short prompt must not be adopted as
+    descending (it would then displace the real one-shot answer thread).
+    """
+    short_task = "ls /tmp"
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=short_task)]))
+
+    # real thread anchors by exact match
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=short_task)], "Castle")
+
+    # longer side call whose first user message contains the short prompt
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content=f"Generate a title for: {short_task}"),
+            ChatMessageUser(content="Respond with the title only."),
+        ],
+        "Listing temporary files",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+# ---------------------------------------------------------------------------
 # Scaffolds that rewrite the input prompt (no fingerprint/descent continuity)
 # ---------------------------------------------------------------------------
 
