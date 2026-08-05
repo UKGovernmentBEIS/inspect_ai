@@ -217,7 +217,9 @@ jobs:
         # even through anyio cancel shields, which the conftest async timeout
         # cannot. The 900s budget sits above the conftest 300s per-test timeout
         # so it only fires on genuine hangs.
-        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread
+        # --durations feeds the recurring CI-performance analysis
+        # (design/ci-perf/): per-test timings are mined from these logs.
+        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread --durations=50 --durations-min=1
 
       - name: Minimize uv cache
         if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true') }}
