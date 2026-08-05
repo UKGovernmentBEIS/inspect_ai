@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scorers: Model-graded scorers with a panel of graders (`model=[...]`) now combine grades with a new `majority` reducer rather than `mode`: a grade must be returned by more than half of the panel, and the sample is unscored otherwise. A grader that returns no parseable grade previously dropped out of the vote, which could leave an even panel whose tie was broken by the order of `model`; it now withholds a vote without lowering the threshold. The individual votes are recorded in the reduced score's metadata under `panel`. Scores may change on samples where no grade held a majority (these become unscored); pass `reducer="mode"` to `model_graded_qa()`/`model_graded_fact()` to restore the previous behavior. (#4721)
 - Bugfix: Model info lookup no longer sends its internal placeholder API key to the Hugging Face Hub when canonicalizing model names. (#4600)
 - Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.
 - Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).

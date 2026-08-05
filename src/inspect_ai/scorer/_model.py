@@ -21,6 +21,7 @@ from inspect_ai.util import resource
 from ._metric import Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
+from ._reducer.types import ScoreReducer
 from ._scorer import Scorer, scorer
 from ._target import Target
 
@@ -34,6 +35,7 @@ def model_graded_fact(
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
     model_role: str | None = "grader",
+    reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
@@ -63,14 +65,21 @@ def model_graded_fact(
          with the default `instructions` (as custom instructions
          provide their own prompts for grades).
       model: Model or models to use for grading. If a list is provided,
-        each model grades independently and the final grade is computed by
-        majority vote. When this parameter is provided, it takes precedence
+        each model grades independently and the grades are combined by
+        `reducer`. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
         Ignored if `model` is provided. If specified and a model is bound to
         this role (e.g. via the `model_roles` argument to `eval()`), that model
         is used. If no role-bound model is available, the model being
         evaluated (the default model) is used.
+      reducer: How the grades of a `model` panel are combined (ignored when
+        `model` is not a list). Defaults to `"majority"`: a grade must be
+        returned by more than half of the graders, and the sample is unscored
+        otherwise, so a grader that returns no parseable grade withholds a
+        vote rather than shrinking the panel. Pass `"mode"` for the previous
+        behaviour, in which the most common grade wins and a tie is broken by
+        the order of `model`.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -80,6 +89,7 @@ def model_graded_fact(
         partial_credit=partial_credit,
         model=model,
         model_role=model_role,
+        reducer=reducer,
     )
 
 
@@ -92,6 +102,7 @@ def model_graded_qa(
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
     model_role: str | None = "grader",
+    reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task using a model.
 
@@ -122,14 +133,21 @@ def model_graded_qa(
         with the default `instructions` (as custom instructions
         provide their own prompts for grades).
       model: Model or models to use for grading. If a list is provided,
-        each model grades independently and the final grade is computed by
-        majority vote. When this parameter is provided, it takes precedence
+        each model grades independently and the grades are combined by
+        `reducer`. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
         Ignored if `model` is provided. If specified and a model is bound to
         this role (e.g. via the `model_roles` argument to `eval()`), that
         model is used. If no role-bound model is available, the model being
         evaluated (the default model) is used.
+      reducer: How the grades of a `model` panel are combined (ignored when
+        `model` is not a list). Defaults to `"majority"`: a grade must be
+        returned by more than half of the graders, and the sample is unscored
+        otherwise, so a grader that returns no parseable grade withholds a
+        vote rather than shrinking the panel. Pass `"mode"` for the previous
+        behaviour, in which the most common grade wins and a tie is broken by
+        the order of `model`.
     """
     # bind variables
     get_scorer = partial(
@@ -148,7 +166,7 @@ def model_graded_qa(
     # otherwise, use multi scorer
     assert isinstance(model, list)
     scorers = [get_scorer(model) for model in model]
-    return multi_scorer(scorers, "mode")
+    return multi_scorer(scorers, reducer)
 
 
 @scorer(metrics=[accuracy(), stderr()])
