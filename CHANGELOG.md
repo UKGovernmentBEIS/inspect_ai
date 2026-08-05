@@ -68,6 +68,7 @@
 - Control Channel: Samples resolved via `--action error` now log the error message `Sample errored: interrupted by operator` and report status `error` (previously the raw cancellation message, misreported as `cancelled`).
 - Bugfix: `text_editor()` paths containing a null byte now return a tool error to the model instead of crashing the tool. (#4659)
 - Bugfix: Anthropic: `count_tokens()` now sends `extra_headers` from the generate config (including any `anthropic-beta` values), matching `generate()`. (#4606)
+- Anthropic: A client-supplied `fallbacks` directive is now forwarded to the API verbatim instead of being dropped (skipped on bedrock/vertex/azure, which reject the field).
 - Bugfix: Compaction: Fix `CompactionEdit` clearing server-side tool uses at stale message indices when `keep_tool_inputs=False` removes client-side tool messages, which raised `IndexError` or wrote a tool use into an unrelated message. (#4528)
 - Bugfix: UTF-8 output truncation now preserves character boundaries and respects configured byte limits instead of inserting replacement characters that can exceed the limit. (#4656)
 - Bugfix: Docker sandbox startup no longer times out during a healthcheck's `start_period`, so services with a long startup grace period now start reliably. (#4698)
