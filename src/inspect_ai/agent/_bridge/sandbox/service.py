@@ -1,8 +1,8 @@
 from logging import getLogger  # noqa: E402
-from typing import Any, Awaitable, Callable, cast
+from typing import Awaitable, Callable, cast
 
 import anyio
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._call_tools import get_tools_info
@@ -21,6 +21,7 @@ from .types import SandboxAgentBridge
 logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
+JSON_VALUE_ADAPTER: TypeAdapter[JsonValue] = TypeAdapter(JsonValue)
 
 GenerateMethod = Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]
 
@@ -174,12 +175,24 @@ def list_tools(
     return execute
 
 
+def _contains_image_content(value: JsonValue) -> bool:
+    match value:
+        case {"type": "image"}:
+            return True
+        case list():
+            return any(_contains_image_content(item) for item in value)
+        case _:
+            return False
+
+
 def call_tool(
     bridge: SandboxAgentBridge,
-) -> Callable[[str, str, dict[str, Any]], Awaitable[str]]:
+) -> Callable[[str, str, dict[str, JsonValue]], Awaitable[JsonValue]]:
     """Execute a bridged tool and return result."""
 
-    async def execute(server: str, tool: str, arguments: dict[str, Any]) -> str:
+    async def execute(
+        server: str, tool: str, arguments: dict[str, JsonValue]
+    ) -> JsonValue:
         if server not in bridge.bridged_tools:
             raise ValueError(f"Unknown bridged tools server: {server}")
 
@@ -196,6 +209,12 @@ def call_tool(
         # serialized correctly — json.dumps can't handle BaseModel.
         if isinstance(result, str):
             return result
-        return to_json_str_safe(result)
+        serialized_result = to_json_str_safe(result)
+        structured_result: JsonValue = JSON_VALUE_ADAPTER.validate_json(
+            serialized_result
+        )
+        if _contains_image_content(structured_result):
+            return structured_result
+        return serialized_result
 
     return execute
