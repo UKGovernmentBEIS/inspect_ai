@@ -98,37 +98,21 @@ jobs:
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
-  # Detect whether anything outside docs changed, so the (expensive) test
-  # matrix can be skipped on documentation-only changes. A skipped job-level
-  # `if` still reports a (non-blocking) check, unlike workflow-level
-  # `paths-ignore` which would strand a required check.
+  # Detect which areas changed so conditional jobs (docs, sandbox-tools-unit)
+  # can be skipped. A skipped job-level `if` still reports a (non-blocking)
+  # check, unlike workflow-level `paths-ignore` which would strand a
+  # required check. (Docs-only detection for the test matrix lives inside
+  # the test job itself — see the comment there.)
   changes:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      code: ${{ steps.filter.outputs.code }}
       sandbox_tools: ${{ steps.areas.outputs.sandbox_tools }}
       docs: ${{ steps.areas.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
-      # 'every' is required for the negations to bite: the default 'some'
-      # quantifier matches a file against ANY pattern, and '**' matches
-      # everything, so `code` was unconditionally true and the docs-only
-      # skip never triggered. The quantifier applies to every filter in a
-      # step, so the union-of-positive-patterns filters live in their own
-      # step below (under 'every' their disjoint patterns could never all
-      # match one file).
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          predicate-quantifier: every
-          filters: |
-            code:
-              - '**'
-              - '!docs/**'
-              - '!**/*.md'
       - uses: dorny/paths-filter@v4
         id: areas
         with:
@@ -177,12 +161,11 @@ jobs:
         run: uv cache prune --ci
 
   test:
-    needs: changes
-    # On workflow_dispatch there is no base to diff against (paths-filter
-    # sees only the last commit), so manual runs always do the full build.
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
     strategy:
       matrix:
         python-version: ["3.10", "3.11"]
@@ -194,18 +177,41 @@ jobs:
           fetch-tags: true
           submodules: true
 
+      # Docs-only detection runs as a step rather than a `needs: changes`
+      # job gate so this job queues at run start instead of behind a full
+      # queue+run cycle of the changes job (~2.5 min median, ~8 min p90 of
+      # PR wall clock under runner contention). On docs-only changes the
+      # steps below no-op and the job (a required check) still succeeds.
+      # On workflow_dispatch there is no base to diff against (paths-filter
+      # sees only the last commit), so manual runs always do the full build.
+      # 'every' is required for the negations to bite: the default 'some'
+      # quantifier matches a file against ANY pattern, and '**' matches
+      # everything, so `code` would be unconditionally true.
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!**/*.md'
+
       - name: Install uv
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true'
         uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true'
         run: |-
           uv venv
           uv pip install .[dev]
 
       - name: Test with pytest
+        if: github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true'
         # --timeout (thread method) dumps a traceback and fails a hung test
         # rather than letting the job hang to the job-level timeout; this works
         # even through anyio cancel shields, which the conftest async timeout
@@ -214,7 +220,7 @@ jobs:
         run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread
 
       - name: Minimize uv cache
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true') }}
         run: uv cache prune --ci
 
   # Fast, self-contained unit tests for the injected sandbox-tools package
