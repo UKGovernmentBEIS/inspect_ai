@@ -7,7 +7,12 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
+from inspect_ai.model._model import (
+    GenerateFilter,
+    Model,
+    ModelEventSink,
+    ModelResponseFilter,
+)
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
@@ -51,6 +56,7 @@ async def sandbox_agent_bridge(
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
     checkpointer: Checkpointer | None = None,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -110,6 +116,10 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        response_filter: Filter that mutates model output after generation.
+            Called inside the refusal-retry loop, between ``model.generate()``
+            and the compaction baseline update. Return ``None`` to pass
+            through; return a ``ModelOutput`` to replace the response.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -145,6 +155,7 @@ async def sandbox_agent_bridge(
                 model_event_sink=model_event_sink,
                 forward_generation_config=forward_generation_config,
                 checkpointer=checkpointer,
+                response_filter=response_filter,
             )
 
             # register bridged tools with the bridge
