@@ -277,6 +277,19 @@ services:
     assert config.services["default"].restart == "unless-stopped"
 
 
+def test_parse_compose_yaml_accepts_unquoted_restart_no(tmp_path):
+    # YAML 1.1 resolves bare `no` to False; Compose means the string "no"
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    restart: no
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].restart == "no"
+
+
 def test_parse_compose_yaml_accepts_stdin_open_and_tty(tmp_path):
     compose_file = tmp_path / "compose.yaml"
     compose_file.write_text("""
