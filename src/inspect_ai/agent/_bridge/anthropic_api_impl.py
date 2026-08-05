@@ -138,14 +138,25 @@ async def inspect_anthropic_api_request_impl(
     await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
-    # extract generate config (hoist instructions into system_message)
+    # extract generate config (hoist instructions into system messages)
     config = generate_config_from_anthropic(json_data)
     if not bridge.forward_generation_config:
         clear_generation_params(config)
     config.extra_headers = headers
-    if config.system_message is not None:
-        messages.insert(0, ChatMessageSystem(content=config.system_message))
-        config.system_message = None
+    # Hoist the request's `system` value into leading system messages, ONE PER
+    # ANTHROPIC BLOCK. Block boundaries are load-bearing: the API consumes a
+    # system block whose text begins with an `x-anthropic-*-header:` line as
+    # request metadata, so concatenating blocks can prepend such a header to a
+    # real instruction block and the API then discards the whole block --
+    # silently dropping the instructions. Observed with Claude Code's auto-mode
+    # security classifier, which sends `system` as
+    # [billing-header, monitor-prompt, session-context]: flattened, the 106k-char
+    # prompt billed only 253 input tokens (i.e. never arrived), leaving the
+    # classifier with no instructions and no verdict grammar.
+    system_texts = anthropic_system_to_texts(json_data.get("system"))
+    for offset, system_text in enumerate(system_texts):
+        messages.insert(offset, ChatMessageSystem(content=system_text))
+    config.system_message = None
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)
@@ -191,13 +202,34 @@ def debug_log(caption: str, o: Any) -> None:
 
 def anthropic_system_to_text(value: Any) -> str:
     """Flatten an Anthropic ``system`` value (``str`` or ``list[TextBlockParam]``) to text."""
+    return "\n\n".join(anthropic_system_to_texts(value))
+
+
+def anthropic_system_to_texts(value: Any) -> list[str]:
+    """Split an Anthropic ``system`` value into one text per block.
+
+    ``system`` is either a plain string or a list of ``TextBlockParam``. Callers
+    that turn these into Inspect system messages must preserve one entry per
+    block rather than concatenating: the Anthropic API treats a system block
+    beginning with an ``x-anthropic-*-header:`` line as request metadata and
+    drops that block, so gluing a header block onto an instruction block causes
+    the instructions to be discarded server-side.
+
+    Empty blocks are omitted (they carry no instructions and would otherwise
+    become empty system messages).
+    """
+    if value is None:
+        return []
     if isinstance(value, str):
-        return value
-    return "\n\n".join(
-        str(b.get("text", ""))
-        for b in value
-        if isinstance(b, dict) and b.get("type") == "text"
-    )
+        return [value] if value else []
+    texts: list[str] = []
+    for block in value:
+        if not isinstance(block, dict) or block.get("type") != "text":
+            continue
+        text = str(block.get("text", ""))
+        if text:
+            texts.append(text)
+    return texts
 
 
 def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
