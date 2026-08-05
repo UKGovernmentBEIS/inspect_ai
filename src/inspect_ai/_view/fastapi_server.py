@@ -672,10 +672,16 @@ class OnlyDirAccessPolicy(AccessPolicy):
         fs = filesystem(path)
         stripped_path = fs.fs._strip_protocol(path)
         if fs.is_local():
-            stripped_path = os.path.normcase(stripped_path)
+            # Case-fold for case-insensitive local filesystems, but keep "/"
+            # separators: on Windows normcase also flips "/" to "\", which
+            # would defeat the "/" directory-boundary check below.
+            stripped_path = os.path.normcase(stripped_path).replace(os.sep, "/")
         return fs.path_as_uri(stripped_path).rstrip("/")
 
     def _validate_log_dir(self, file: str) -> bool:
+        # This guard is load-bearing: canonicalization below does not resolve
+        # ".." segments, so a traversal like `dir/../../etc` would otherwise
+        # pass the directory-boundary prefix check.
         if ".." in file:
             return False
 

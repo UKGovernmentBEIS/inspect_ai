@@ -1611,6 +1611,9 @@ def test_normalize_uri_preserves_windows_drive() -> None:
     assert normalize_uri(windows_uri) == windows_uri
     assert normalize_uri("file:///C:/Users/example/logs/run.eval") == windows_uri
     assert normalize_uri(urllib.parse.quote(windows_uri, safe="")) == windows_uri
+    assert normalize_uri("file://c:/Users/example/logs/run.eval") == (
+        "file://c:/Users/example/logs/run.eval"
+    )
 
 
 def test_fastapi_only_dir_access_policy_accepts_listed_file_uri(
