@@ -12,9 +12,13 @@ Devin, and similar) preparing contributions. Human contributors: see
    merged non-trivial PR in this repository (trivial documentation fixes do
    not count)? If not, a PR requires a linked issue labeled `accepted`.
    Without one, your PR will be closed automatically. Do not open it.
-2. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
+2. **Deferred check.** Is the issue you are addressing labeled `deferred`?
+   The project has decided not to prioritize it. Do not open a PR against it
+   (it will be closed automatically, whatever your account's tier). If you
+   have new evidence or demand, comment on the issue and stop.
+3. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
    docs files only, under 25 changed lines) may be opened directly by anyone.
-3. **New functionality defaults to an extension, not core.** Do not open
+4. **New functionality defaults to an extension, not core.** Do not open
    unrequested PRs adding functionality — providers, tools, scorers, metrics,
    solvers, storage backends, example evals. Some of these do belong in core,
    but that is a maintainer decision made in an issue: if an accepted issue
@@ -22,7 +26,7 @@ Devin, and similar) preparing contributions. Human contributors: see
    extension package (see https://inspect.aisi.org.uk/extensions.html),
    optionally with a one-line PR adding it to the extensions listing.
    Unrequested additions to core are closed without detailed review.
-4. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
+5. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
    does it fix a demonstrated problem, with evidence (a reproduction or a
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
