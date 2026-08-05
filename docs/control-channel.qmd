@@ -338,6 +338,20 @@ $ inspect ctl process anomalies 12345
 
 Unlike the other reads, this one opens the process's trace file directly rather than asking the process — so it works even against a process too busy or wedged to answer (the escalation path when another command reports "busy"), and even post-mortem: passing the pid of an exited process reads its trace file (kept on disk for the last 10 runs) to show what was in flight when it died, with durations dated to the file's last write. With no `PID` it reads every running Inspect process, one section per pid.
 
+## Reads Against a Busy Eval
+
+The control server is embedded in the eval process and shares its event loop, so its response latency tracks how loaded the eval is. Under heavy load a perfectly healthy server can take tens of seconds to answer — probing a ten-process eval-set sweep driving ~2400 sandboxes, the same `GET /config` returned in 2.3s, 7.9s and 79.3s on consecutive attempts. Reads therefore retry a timeout several times before giving up, and report `busy` rather than claiming the eval is gone.
+
+When the default per-attempt timeout is too short for your workload, raise it for the invocation:
+
+```bash
+INSPECT_CTL_REQUEST_TIMEOUT=120 inspect ctl task
+```
+
+The value is in seconds and is read per command, so it applies to the invocation that sets it. An unusable value (non-numeric, zero, negative) is an error rather than a silent revert to the default, so a raised timeout that never took effect cannot be mistaken for a still-unresponsive eval. Mutations get the same budget, scaled by the retry count.
+
+A command that reads *every* discovered process contacts them concurrently (in bounded waves when many are running), so one loaded process no longer delays the rest — with several evals running, a serial fan-out would spend each process's full retry budget before contacting the next. Results are still ordered by discovery, so which process answers first does not change what a command reports. If a process stays busy through its retries, escalate to `inspect ctl process anomalies <pid>`, which reads the trace file directly and does not need the process to answer.
+
 ## Configuration
 
 `inspect ctl config` shows a running eval's retunable launch configuration, and can retune it mid-run — for example to throttle an eval that is hammering a provider or overloading a machine, or to open it up when more capacity becomes available. Any `inspect eval` launch flag that can be retuned mid-flight is settable here, under the same spelling:
