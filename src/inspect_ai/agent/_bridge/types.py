@@ -103,7 +103,8 @@ class AgentBridge:
         self.approval = approval
         self._compaction = compaction
         self._compact: Compact | None = None
-        self._last_message_count = 0
+        self._last_message_counts: dict[str | None, int] = {}
+        self._primary_model: str | None = None
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
         # restores to the original input on checkpoint resume).
@@ -261,7 +262,12 @@ class AgentBridge:
 
     _message_ids: dict[str, list[str]]
 
-    async def _track_state(self, input: list[ChatMessage], output: ModelOutput) -> None:
+    async def _track_state(
+        self,
+        input: list[ChatMessage],
+        output: ModelOutput,
+        model: str | None = None,
+    ) -> None:
         """Track agent state by observing generations made through the bridge.
 
         We need to distinguish the "main" thread of generation from side /
@@ -311,6 +317,14 @@ class AgentBridge:
           displacement above when it makes only one.
         """
         messages = input + [output.message]
+        last_message_count = self._last_message_counts.get(model, 0)
+        if model is not None and self._primary_model is None:
+            self._primary_model = model
+        if model is not None and model != self._primary_model:
+            self._last_message_counts[model] = len(messages)
+            await self._cp.tick()
+            return
+
         fps = [_message_fingerprint(m) for m in messages]
 
         if self._tracked_fps is None:
@@ -341,7 +355,7 @@ class AgentBridge:
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
             elif descends == self._tracked_descends and len(messages) > (
-                len(self._tracked_fps) if descends else self._last_message_count
+                len(self._tracked_fps) if descends else last_message_count
             ):
                 # legacy length heuristic. when both threads descend, compare
                 # against the tracked thread so a parked side call can't lower
@@ -354,7 +368,7 @@ class AgentBridge:
             else:
                 self._candidate_fps = fps
 
-        self._last_message_count = len(messages)
+        self._last_message_counts[model] = len(messages)
 
         # tick the checkpointer
         await self._cp.tick()
