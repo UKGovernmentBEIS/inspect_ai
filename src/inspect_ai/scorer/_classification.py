@@ -2,7 +2,7 @@ import re
 import string
 from typing import Callable, List
 
-from inspect_ai._util.text import is_finite_number
+from inspect_ai._util.text import is_finite_number, strip_punctuation
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
@@ -120,11 +120,14 @@ def _remove_articles(text: str) -> str:
 
 
 def _remove_punc(text: str) -> str:
-    exclude = set(string.punctuation)
-    if not is_finite_number(text):
-        return "".join(ch for ch in text if ch not in exclude)
-    else:
+    if is_finite_number(text):
         return text
+    # boundary punctuation around a number (e.g. "(3.14)" or "3.14.") hides it
+    # from the finite-number check above — strip the boundary and re-check
+    stripped = strip_punctuation(text)
+    if is_finite_number(stripped):
+        return stripped
+    return "".join(ch for ch in text if ch not in string.punctuation)
 
 
 def _normalize_whitespace(text: str) -> str:
