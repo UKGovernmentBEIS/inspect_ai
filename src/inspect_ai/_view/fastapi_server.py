@@ -666,9 +666,25 @@ class OnlyDirAccessPolicy(AccessPolicy):
     def __init__(self, dir: str) -> None:
         super().__init__()
         self.dir = dir
+        self._dir_uri = self._canonical_uri(dir)
+
+    def _canonical_uri(self, path: str) -> str:
+        fs = filesystem(path)
+        stripped_path = fs.fs._strip_protocol(path)
+        if fs.is_local():
+            stripped_path = os.path.normcase(stripped_path)
+        return fs.path_as_uri(stripped_path).rstrip("/")
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        if ".." in file:
+            return False
+
+        try:
+            file_uri = self._canonical_uri(file)
+        except Exception:
+            # Access validation must fail closed for malformed filesystem URIs.
+            return False
+        return file_uri == self._dir_uri or file_uri.startswith(f"{self._dir_uri}/")
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
