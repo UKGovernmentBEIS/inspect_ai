@@ -37,10 +37,8 @@ You can further tailor column reading to work in whatever way you need for your 
 [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) is a data visualization framework built to work with the Inspect data frame functions described below. After you've explored the basics of data frames you may also want to check out Inspect Viz.
 :::
 
-::: {.callout-tip appearance="simple"}
-#### Agent Skill Available
-
-Want your coding agent to run dataframe analysis for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install): it covers the `inspect_ai.analysis` API and keeps dataframes in memory across follow-up questions.
+::: {.callout-note appearance="simple"}
+If you use a coding agent for log analysis, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it the `inspect_ai.analysis` API, including keeping dataframes in memory across follow-up questions.
 :::
 
 ## Basics

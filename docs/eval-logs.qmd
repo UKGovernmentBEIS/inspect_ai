@@ -168,13 +168,6 @@ inspect eval ctf.py --log-model-api
 To disable model API logging entirely (errors only), use `--no-log-model-api`.
 
 ## Log File API {#sec-log-file-api}
-
-::: {.callout-tip appearance="simple"}
-#### Agent Skill Available
-
-Want your coding agent to read eval logs efficiently? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) to teach it to pick the cheapest read for the question and handle very large logs safely.
-:::
-
 ### EvalLog
 
 The `EvalLog` object returned from `eval()` provides programmatic interface to the contents of log files:

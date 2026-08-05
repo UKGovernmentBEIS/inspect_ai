@@ -17,13 +17,6 @@ The `inspect eval-set` command and `eval_set()` function and provide several fac
 4.  The ability to re-run the command multiple times, with work picking up where the last invocation left off.
 
 Below we'll cover the various tools and techniques available for creating eval sets.
-
-::: {.callout-tip appearance="simple"}
-#### Agent Skill Available
-
-Want your coding agent to run eval sets and watch them for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) to teach it to launch evals, monitor progress, and catch stalls and errors early.
-:::
-
 ## Running Eval Sets
 
 Run a set of evaluations using the `inspect eval-set` command or `eval_set()` function. For example:

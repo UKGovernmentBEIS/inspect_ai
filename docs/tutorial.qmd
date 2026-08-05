@@ -20,6 +20,10 @@ Below are several examples of Inspect evaluations. Each example is standalone, s
 
 See also the complete list of [Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples) and the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) package for many more end-to-end implementations.
 
+::: {.callout-note appearance="simple"}
+If you use a coding agent alongside Inspect, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to monitor running evals, read logs efficiently, and analyze results with the dataframe API.
+:::
+
 ## Benchmarks {#sec-benchmarks}
 
 An Inspect evaluation is a `Task` that brings together three things: a **dataset** of samples, a **solver** that produces an answer for each sample, and a **scorer** that grades the answers. We'll look at two short benchmarks below: one scored by a model and one multiple choice.
@@ -339,13 +343,6 @@ samples = samples_df("logs")    # one row per sample
 From there you can use ordinary Pandas expressions for filtering, grouping, comparison, and aggregation. See [Log Files](eval-logs.qmd) and [Log Dataframes](dataframe.qmd) for the full APIs, and [`read_eval_log()`](eval-logs.qmd) if you'd rather work with log objects directly.
 
 To analyze the content of transcripts more deeply (e.g. flagging refusals, evaluation awareness, or environment problems rather than computing metrics), use scanners; see [Scanning](#sec-scanning) below.
-
-::: {.callout-tip appearance="simple"}
-#### Agent Skill Available
-
-Want your coding agent to do this analysis for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
-:::
-
 ## Coding Agents {#sec-coding-agents}
 
 In the [Agent Evals](#sec-agents) example we assembled the agent ourselves: a `react()` loop plus the `bash()` and `python()` tools. Sometimes you instead want to evaluate an off-the-shelf coding agent like Claude Code, Codex CLI, or Gemini CLI.
@@ -400,13 +397,6 @@ success, logs = eval_set(
 This evaluates every task against every model. If a run is interrupted, re-running the same command picks up where it left off. The CLI equivalent is `inspect eval-set`.
 
 See [Eval Sets](eval-sets.qmd) for the full retry and resumption model. When running at scale you'll also want [Parallelism](parallelism.qmd) (evaluating many models, tasks, and samples in parallel), [Handling Errors](handling-errors.qmd) (failure thresholds and crash recovery), [Setting Limits](setting-limits.qmd) (time, message, token, and cost caps), and [Caching](caching.qmd) (reusing model calls).
-
-::: {.callout-tip appearance="simple"}
-#### Agent Skill Available
-
-Want your coding agent to run evals and watch them for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install).
-:::
-
 ## Scanning {#sec-scanning}
 
 After a run, **scanners** review completed transcripts to surface issues like refusals, evaluation awareness, or misconfigured environments. Scanning uses the separate [`inspect_scout`](scanners.qmd) package (`pip install inspect-scout`).

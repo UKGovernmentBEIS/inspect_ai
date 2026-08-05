@@ -18,8 +18,6 @@ Once an evaluation is developed, Inspect provides a number of tools for running 
 
 If you are just getting started running evaluations, see the [`inspect eval`](options.qmd) command line interface and the `eval()` function covered in the [Welcome](index.qmd#sec-hello-inspect) tutorial.
 
-::: {.callout-tip appearance="simple"}
-#### Agent Skill Available
-
-Want your coding agent to run evals and watch them for you? Install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) to teach it to launch evals, monitor progress, and catch stalls and errors early.
+::: {.callout-note appearance="simple"}
+If you use a coding agent to run evals, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to launch evals in the background, monitor progress, and catch stalls and errors early.
 :::
