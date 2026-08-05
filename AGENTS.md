@@ -36,6 +36,25 @@ If you do open a PR: reference the accepted issue (`Fixes #NNN`); run
 involvement in the PR description; one issue per PR — no bundled drive-by
 changes; respect the open-PR limit (4 per account without write access).
 
+As part of disclosing agent involvement, include an `### Agent review`
+section in the PR description summarizing pre-PR review passes: what
+model/tool reviewed and whether the review ran in a fresh context and/or
+used a different model from the author, how many passes, and the findings
+— issues found, which
+were fixed, and which were dismissed with a one-line reason each. Multiple
+passes, each in a fresh context, often catch issues a single pass misses —
+prefer that for non-trivial changes. If no
+review pass was run, say so explicitly. Never report a review that didn't
+happen — a fabricated or content-free review claim ("reviewed, looks good")
+is worse than disclosing none. Example:
+
+```
+### Agent review
+- Reviewer: Claude Opus 5 via /code-review (fresh context), 2 passes
+- Findings: 3 — 2 fixed, 1 dismissed (flagged a missing None check that is
+  guarded upstream)
+```
+
 ## Build/Lint/Test Commands
 - Run all tests: `pytest`
 - Run a single test: `pytest tests/path/to/test_file.py::test_function_name -v`
@@ -86,11 +105,13 @@ Additional files provide context when working in specific areas:
 
 ## Pull requests
 
-Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info). Please include a sufficiently detailed description of the PR, including briefly noting the user facing experience that triggered the fix or change.
+Write the PR description using the template at `.github/pull_request_template.md` (fill in its sections — the "This PR contains" checklist, current vs. new behavior, breaking changes, other info). Include the `### Agent review` section described in the contribution policy above (put it under "Other information"). Please include a sufficiently detailed description of the PR, including briefly noting the user facing experience that triggered the fix or change.
+
+Title the PR with the user-facing outcome — the bug a user hit or the capability they gain — not the mechanism of the fix: "Fix eval hang when resuming with S3 logs", not "Add AsyncFilesystem to log recorder". A good test: would a user scanning titles recognize their problem or their feature request? PRs with no user-facing outcome (refactoring, dev tooling, docs) describe the change itself instead. CHANGELOG entries follow the same outcome-not-mechanism rule; only product-functionality changes get one (see below), so the carve-out doesn't arise there.
 
 When asked to open a PR, don't stop at creation — monitor it afterward: watch its CI checks (e.g. `gh pr checks <number> --repo <owner>/<repo> --watch`) until they complete, report the outcome, and investigate/fix any failures. If the branch has fallen behind its base (out of date), update it — merge or rebase the base branch in and push — so CI runs against current code.
 
-For changes to product functionality (not test-only or build-only changes), add a CHANGELOG entry: a single-line, single-sentence item in the `## Unreleased` section at the top of `CHANGELOG.md` (create that section if it doesn't exist), grouped with similar existing items when there are any, otherwise appended to the list. Keep it short (~25 words): state only the user-visible behavior change — what a user can now do or observe — not the mechanism, internal names, or design rationale (those belong in the PR description and `design/` docs). A merge from the base can silently relocate the entry under a released heading — the merge resolves cleanly (the entry rides along with neighboring lines that the release commit moved), so nothing flags it. Verify placement mechanically after updating a branch against its base, and again before merging any PR — even when someone else updated the branch (e.g. via GitHub's "Update branch" button): run `git diff "$(git merge-base origin/main HEAD)" HEAD -- CHANGELOG.md` and confirm every added entry line sits under `## Unreleased`; move back any that don't.
+For changes to product functionality (not test-only or build-only changes), add a CHANGELOG entry: a single-line, single-sentence item in the `## Unreleased` section at the top of `CHANGELOG.md` (create that section if it doesn't exist), grouped with similar existing items when there are any, otherwise appended to the list. Keep it short (~25 words): state only the user-visible behavior change — what a user can now do or observe — not the mechanism, internal names, or design rationale (those belong in the PR description and `design/` docs). For example: "Fixed sample buffer database growing unboundedly during long evals", not "Add periodic vacuum to buffer SQLite db". A merge from the base can silently relocate the entry under a released heading — the merge resolves cleanly (the entry rides along with neighboring lines that the release commit moved), so nothing flags it. Verify placement mechanically after updating a branch against its base, and again before merging any PR — even when someone else updated the branch (e.g. via GitHub's "Update branch" button): run `git diff "$(git merge-base origin/main HEAD)" HEAD -- CHANGELOG.md` and confirm every added entry line sits under `## Unreleased`; move back any that don't.
 
 Never change a submodule gitlink (e.g. `src/inspect_ai/_view/ts-mono`) unless the task is about that submodule. After any merge/rebase, check `git status`; if it shows the submodule modified, reset the pointer to the base and commit: `git checkout origin/main -- src/inspect_ai/_view/ts-mono`. (`git submodule update` will NOT fix this — it syncs the working tree to the already-recorded pointer, not the reverse.) When a change legitimately requires a coordinated ts-mono update (e.g. regenerated types), follow `.claude/skills/land-ts-mono/SKILL.md`.
 
