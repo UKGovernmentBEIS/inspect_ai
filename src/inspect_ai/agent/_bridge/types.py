@@ -454,8 +454,11 @@ def _position_descent(
     `QUOTED` when it is exactly the initial text (or its condensed
     reference, since decoration composes with transcript condensation) in
     double quotes, and as `CONTAINED` when it contains the initial text
-    inside other content. `initial_text` is pre-stripped (in `__init__`) so
-    surrounding-whitespace trimming by the scaffold doesn't defeat matching.
+    inside other content. `initial_text` is pre-stripped (in `__init__`) and
+    the quote *interior* is stripped before comparison: the scaffold quotes
+    the original prompt, so whitespace around the task survives inside the
+    wrapper (`"  task  "`) while trimming by the scaffold removes it —
+    neither may defeat matching.
 
     Generic containment requires `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial
     text so a trivially short prompt can't match a side call by coincidence;
@@ -469,10 +472,12 @@ def _position_descent(
     if fp.role != initial.role:
         return _Descent.NO
     stripped = message.text.strip()
-    if stripped == f'"{ATTACHMENT_PROTOCOL}{initial.text_hash}"' or (
-        initial_text and stripped == f'"{initial_text}"'
-    ):
-        return _Descent.QUOTED
+    if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+        interior = stripped[1:-1].strip()
+        if interior == f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" or (
+            initial_text and interior == initial_text
+        ):
+            return _Descent.QUOTED
     if (
         len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
         and initial_text in message.text

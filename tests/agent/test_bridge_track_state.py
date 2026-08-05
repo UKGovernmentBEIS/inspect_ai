@@ -793,6 +793,32 @@ async def test_short_quote_wrapped_prompt_anchors_descent() -> None:
     assert bridge.state.output.completion == "4"
 
 
+async def test_short_quote_wrapped_prompt_with_whitespace_anchors_descent() -> None:
+    """Whitespace inside the quotes must not defeat the quote-wrap anchor.
+
+    opencode quotes the *original* prompt, so whitespace around the task
+    survives inside the wrapper while the anchor text is stored stripped;
+    the comparison must normalize the quote interior, not just the outside.
+    """
+    short_task = "  Solve 2+2  "
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=short_task)]))
+    quoted = f'"{short_task}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "4")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Simple arithmetic",
+    )
+
+    assert bridge.state.output.completion == "4"
+
+
 async def test_verbatim_side_call_does_not_displace_quote_wrapped_main() -> None:
     """A side call resending the raw task must not beat the quoted main call.
 
