@@ -766,6 +766,33 @@ async def test_quote_wrapped_prompt_title_call_first() -> None:
     assert bridge.state.messages[-1].text == "Castle"
 
 
+async def test_short_quote_wrapped_prompt_anchors_descent() -> None:
+    """Exact quote-wrapping anchors even below the containment length floor.
+
+    With a short task, generic containment is floor-gated, so without a
+    dedicated quote-wrap arm both threads grade NO and the legacy length arm
+    adopts the longer title call (the reported opencode failure, just with a
+    short prompt).
+    """
+    short_task = "Solve 2+2"
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=short_task)]))
+    quoted = f'"{short_task}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "4")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Simple arithmetic",
+    )
+
+    assert bridge.state.output.completion == "4"
+
+
 async def test_decorated_prompt_anchors_descent() -> None:
     """Containment also covers scaffolds that prefix/suffix the prompt."""
     bridge = task_bridge()

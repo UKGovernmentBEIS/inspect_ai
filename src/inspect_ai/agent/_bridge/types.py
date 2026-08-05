@@ -421,7 +421,7 @@ _ANCHOR_CONTAINMENT_MIN_CHARS = 20
 Below this, a side call could contain the initial text by coincidence (e.g.
 a bash path-detection call quoting a short command prompt) and be adopted as
 the descending thread; such short prompts anchor by exact/condensed match
-only.
+or by exact quote-wrapping only (see `_contains_initial`).
 """
 
 
@@ -437,11 +437,18 @@ def _contains_initial(
     reference, since decoration composes with transcript condensation —
     still anchors. `initial_text` is pre-stripped (in `__init__`) so
     surrounding-whitespace trimming by the scaffold doesn't defeat
-    containment. The condensed reference is exempt from the length floor:
-    it is a content hash, so it can't be contained by coincidence.
+    containment.
+
+    Two forms are exempt from the length floor because they can't match by
+    coincidence: a message that is exactly the initial text in double quotes
+    (opencode's observed decoration — nothing but the quoted prompt, so no
+    coincidental preamble is possible), and the condensed reference (a
+    content hash).
     """
     if message.role != initial.role:
         return False
+    if initial_text and message.text.strip() == f'"{initial_text}"':
+        return True
     if (
         len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
         and initial_text in message.text
