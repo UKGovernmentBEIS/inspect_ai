@@ -7,6 +7,7 @@ from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
 from .._agent import Agent, AgentState, agent
 from .commands import human_agent_commands
+from .commands.command import HumanAgentCommandsFilter
 from .install import install_human_agent
 from .panel import HumanAgentPanel
 from .service import run_human_agent_service
@@ -21,6 +22,7 @@ def human_cli(
     user: str | None = None,
     instructions: str | None = None,
     bashrc: str | None = None,
+    commands_filter: HumanAgentCommandsFilter | None = None,
 ) -> Agent:
     """Human CLI agent for tasks that run in a sandbox.
 
@@ -43,6 +45,10 @@ def human_cli(
        user: User to login as. Defaults to the sandbox environment's default user.
        instructions: Additional instructions beyond the default task command instructions.
        bashrc: Additional content to include in the .bashrc file for the human cli shell.
+       commands_filter: Optional transform applied to the default command
+          list before it is installed (and before the instructions command is
+          built, so `task instructions` lists any added commands). Lets a caller
+          swap or append `HumanAgentCommand`s without forking this function.
 
     Returns:
        Agent: Human CLI agent.
@@ -73,6 +79,7 @@ def human_cli(
                         intermediate_scoring,
                         record_session,
                         instructions,
+                        commands_filter,
                     )
 
                     # install agent tools
