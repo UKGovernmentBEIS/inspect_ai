@@ -1,5 +1,5 @@
 from fnmatch import fnmatch
-from typing import Literal
+from typing import Literal, Protocol, runtime_checkable
 
 from inspect_ai.tool._tool_def import ToolDef
 
@@ -36,14 +36,42 @@ def mcp_tools(
         raise TypeError(f"Unexpected MCPServer type: {type(server)}")
 
 
+@runtime_checkable
+class _ToolCacheScopeProvider(Protocol):
+    def _tool_cache_scope(self) -> object: ...
+
+
+def _tool_cache_scope(server: MCPServer) -> object:
+    if isinstance(server, _ToolCacheScopeProvider):
+        return server._tool_cache_scope()
+    return server
+
+
 class MCPToolSourceLocal(ToolSource):
     def __init__(self, server: MCPServer, tools: Literal["all"] | list[str]) -> None:
         self._server = server
         self._tools = tools
         self._cached_tool_list: list[Tool] | None = None
+        self._cached_tool_scope: object | None = None
 
     async def tools(self) -> list[Tool]:
-        if self._cached_tool_list is None:
+        # Every Tool returned by the server closes over the MCPServerLocalSession
+        # that produced it, and those sessions are scoped per async task (see
+        # MCPServerLocal._task_session). A ToolSource, by contrast, is shared:
+        # inspect eval builds one per Task and every sample uses it. Caching the
+        # resolved list on the instance therefore handed later samples tools
+        # bound to the FIRST sample's session, so their tool calls executed in
+        # that sample's sandbox while their own sandbox was never touched.
+        #
+        # Re-resolve when the scope changes, so a cached list can never outlive
+        # the session it is bound to. The scope token is the per-task session
+        # OBJECT (not the raw task id): asyncio task ids are id()-based and can
+        # be reused once an earlier task is collected, so two tasks can share
+        # an id over time while their sessions remain distinct. The attribute
+        # name is retained because callers clear it to force a refetch after
+        # tool visibility changes.
+        scope = _tool_cache_scope(self._server)
+        if self._cached_tool_list is None or self._cached_tool_scope is not scope:
             # get the underlying tools
             mcp_tools = await self._server.tools()
 
@@ -57,4 +85,5 @@ class MCPToolSourceLocal(ToolSource):
             self._cached_tool_list = [
                 mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)
             ]
+            self._cached_tool_scope = scope
         return self._cached_tool_list
