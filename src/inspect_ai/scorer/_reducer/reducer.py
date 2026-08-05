@@ -55,7 +55,8 @@ def majority_score() -> ScoreReducer:
     key alone, or for every key, respectively.
 
     The reduced score's metadata records the individual votes under a
-    `panel` key, since a majority is only auditable alongside what was cast.
+    `panel` key (replacing any `panel` carried over from the first score),
+    since a majority is only auditable alongside what was cast.
     """
 
     def reduce(scores: list[Score]) -> Score:
@@ -639,7 +640,11 @@ def _with_panel_metadata(reduced: Score, scores: list[Score]) -> Score:
             votes.append(score.value)
         if unscored:
             failures.append(
-                dict(index=index, reason=(score.metadata or {}).get("unscored_reason"))
+                dict(
+                    index=index,
+                    reason=(score.metadata or {}).get("unscored_reason"),
+                    explanation=score.explanation,
+                )
             )
     panel = dict(votes=votes, size=len(scores), failures=failures)
     return reduced.model_copy(

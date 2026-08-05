@@ -663,7 +663,10 @@ def test_majority_reducer_unscored_withholds_a_vote() -> None:
 def test_majority_reducer_records_votes_in_metadata() -> None:
     scores = [
         Score(value="C", metadata=dict(grader="a")),
-        Score.unscored(metadata=dict(unscored_reason="grade_parse_failure")),
+        Score.unscored(
+            explanation="Grade not found in model output: nope",
+            metadata=dict(unscored_reason="grade_parse_failure"),
+        ),
         Score(value="C"),
     ]
     reduced = majority_reducer(scores)
@@ -673,7 +676,13 @@ def test_majority_reducer_records_votes_in_metadata() -> None:
     assert reduced.metadata["panel"] == dict(
         votes=["C", None, "C"],
         size=3,
-        failures=[dict(index=1, reason="grade_parse_failure")],
+        failures=[
+            dict(
+                index=1,
+                reason="grade_parse_failure",
+                explanation="Grade not found in model output: nope",
+            )
+        ],
     )
     # metadata carried over from the first score survives alongside it, and
     # annotating the reduced score doesn't reach back into the scores reduced
@@ -722,6 +731,9 @@ def test_majority_reducer_votes_do_not_alias_reduced_scores() -> None:
 
     votes[0]["a"] = 999
     assert scores[0].value == {"a": 1}
+
+    scores[1].value["a"] = 999  # type: ignore[index]
+    assert votes[1] == {"a": 1}
 
 
 def test_majority_reducer_all_unscored() -> None:
