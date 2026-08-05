@@ -3,8 +3,11 @@ import importlib
 import socket
 import subprocess
 import sys
+import weakref
 from pathlib import Path
+from types import TracebackType
 from typing import Any, AsyncIterator, Callable
+from uuid import uuid4
 
 import anyio
 import pytest
@@ -22,11 +25,13 @@ from inspect_ai.model import get_model
 from inspect_ai.solver import solver
 from inspect_ai.tool import (
     MCPServer,
+    Tool,
     ToolError,
     mcp_connection,
     mcp_server_stdio,
     mcp_tools,
 )
+from inspect_ai.tool._mcp.tools import MCPToolSourceLocal
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox
 
@@ -487,6 +492,157 @@ async def test_mcp_connection_refcount():
     async with mcp_connection(server):
         tools_reopen = await server.tools()
         assert len(tools_reopen) > 0
+
+
+class _ScopedToolServer(MCPServer):
+    """Server whose tools are bound to a scope token the test controls.
+
+    Stands in for MCPServerLocal, whose per-task sessions each produce their own
+    tool objects; `scope_token` plays the part of the current session.
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.scope_token: object = object()
+
+    def _tool_cache_scope(self) -> object:
+        return self.scope_token
+
+    async def tools(self) -> list[Tool]:
+        self.calls += 1
+        marker = self.calls
+
+        async def tool_a() -> int:
+            return marker
+
+        return [tool_a]
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        return None
+
+
+def _no_transport_client() -> Any:
+    raise AssertionError("these tests must not open a transport")
+
+
+async def test_mcp_tools_reresolved_when_the_scope_changes() -> None:
+    """A new session object (e.g. a new sample's task) must not see cached tools."""
+    server = _ScopedToolServer()
+    source = MCPToolSourceLocal(server, "all")
+    seen: list[str] = []
+
+    async def resolve_and_call() -> None:
+        tools = await source.tools()
+        seen.append(str(await tools[0]()))
+
+    await resolve_and_call()
+    # a fresh per-task session means a fresh scope token, and the cached list
+    # must be discarded
+    server.scope_token = object()
+    await resolve_and_call()
+
+    assert server.calls == 2, (
+        f"expected one resolution per scope, got {server.calls}; a shared cache "
+        "hands the second caller tools bound to the first caller's session"
+    )
+    assert seen[0] != seen[1], "second caller received the first caller's tool object"
+
+
+async def test_mcp_tools_cached_within_one_scope() -> None:
+    """The cache must still work inside a single scope, which is its purpose."""
+    server = _ScopedToolServer()
+    source = MCPToolSourceLocal(server, "all")
+
+    await source.tools()
+    await source.tools()
+    await source.tools()
+
+    assert server.calls == 1, (
+        f"expected a single resolution per scope, got {server.calls}"
+    )
+
+
+@skip_if_no_mcp_package
+async def test_mcp_task_session_evicted_when_it_closes() -> None:
+    """A closed session must not be handed out again within the same task.
+
+    Its cached tool list was fetched over a transport that is now gone, so the
+    next call has to build a fresh session.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocal
+
+    server = MCPServerLocal(_no_transport_client, name=f"evict-{uuid4()}", events=False)
+
+    s1 = server._task_session()
+    assert server._task_session() is s1, "session should be cached per task"
+    await s1._close_and_evict()
+    s2 = server._task_session()
+    assert s2 is not s1, "a closed session must not be handed out again"
+    await s2._close_and_evict()
+
+
+@skip_if_no_mcp_package
+async def test_mcp_close_does_not_evict_a_replacement_session() -> None:
+    """Eviction is identity guarded: closing an old session must not drop a new one."""
+    from inspect_ai.tool._mcp._local import MCPServerLocal
+
+    server = MCPServerLocal(_no_transport_client, name=f"guard-{uuid4()}", events=False)
+
+    s1 = server._task_session()
+    await s1._close_and_evict()
+    s2 = server._task_session()
+    # closing the OLD session again must leave the replacement registered
+    await s1._close_and_evict()
+    assert server._task_session() is s2, (
+        "closing a stale session evicted its replacement"
+    )
+    await s2._close_and_evict()
+
+
+@skip_if_no_mcp_package
+async def test_mcp_tool_cache_scope_tracks_the_live_session() -> None:
+    """MCPServerLocal's cache token is the session object itself."""
+    from inspect_ai.tool._mcp._local import MCPServerLocal
+
+    server = MCPServerLocal(_no_transport_client, name=f"scope-{uuid4()}", events=False)
+
+    s1 = server._task_session()
+    assert server._tool_cache_scope() is s1
+    await s1._close_and_evict()
+    token = server._tool_cache_scope()
+    assert token is not s1, "cache token still points at a closed, evicted session"
+    await server._task_session()._close_and_evict()
+
+
+@skip_if_no_mcp_package
+async def test_mcp_task_session_dies_with_its_task() -> None:
+    """A session its task never entered must not outlive that task.
+
+    Only `mcp_connection()` enters a server, so a plain solver eval that just
+    calls `tools()` never triggers the refcount eviction in `__aexit__`. Keying
+    the registry by the task object is what releases those sessions.
+    """
+    from inspect_ai.tool._mcp._local import MCPServerLocal
+
+    server = MCPServerLocal(_no_transport_client, name=f"weak-{uuid4()}", events=False)
+    session_refs: list[weakref.ref[Any]] = []
+
+    async def never_entered() -> None:
+        session_refs.append(weakref.ref(server._task_session()))
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(never_entered)
+
+    # no gc.collect(): the session holds only a weak reference back to its
+    # registry, so dropping the dead task's entry releases it by refcount
+    assert session_refs[0]() is None, (
+        "a session that was created but never entered outlived its task"
+    )
 
 
 def _free_port() -> int:
