@@ -17,7 +17,12 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import data_to_samples, record_to_sample_fn, shuffle_choices_if_requested
+from .._util import (
+    as_sample_list,
+    data_to_samples,
+    record_to_sample_fn,
+    shuffle_choices_if_requested,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -215,17 +220,42 @@ def hf_dataset(
         dataset = _call_with_hf_retry(_load) if retry else _load()
         dataset.save_to_disk(dataset_cache_dir)
 
-    # shuffle if requested
-    if shuffle:
-        dataset = dataset.shuffle(seed=seed)
+    if auto_id:
+        # Assign ids in the original dataset order (before any shuffle) so a
+        # record keeps the same id regardless of the shuffle seed, mirroring
+        # csv_dataset/json_dataset. Row order for a given seed is unchanged:
+        # the permutation comes from datasets.Dataset.shuffle, which depends
+        # only on the dataset length and seed.
+        sample_groups = [
+            as_sample_list(data_to_sample(record)) for record in dataset.to_list()
+        ]
+        next_id = 1
+        for group in sample_groups:
+            for sample in group:
+                sample.id = next_id
+                next_id += 1
+        if shuffle:
+            indices = datasets.Dataset.from_dict(
+                {"index": list(range(len(sample_groups)))}
+            ).shuffle(seed=seed)["index"]
+            sample_groups = [sample_groups[i] for i in indices]
+        if limit is not None:
+            sample_groups = sample_groups[:limit]
+        samples = [sample for group in sample_groups for sample in group]
+    else:
+        # shuffle if requested
+        if shuffle:
+            dataset = dataset.shuffle(seed=seed)
 
-    # limit if requested
-    if limit is not None:
-        dataset = dataset.select(range(limit))
+        # limit if requested
+        if limit is not None:
+            dataset = dataset.select(range(limit))
+
+        samples = data_to_samples(dataset.to_list(), data_to_sample, auto_id)
 
     # return the dataset
     memory_dataset = MemoryDataset(
-        samples=data_to_samples(dataset.to_list(), data_to_sample, auto_id),
+        samples=samples,
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
         shuffled=shuffle,

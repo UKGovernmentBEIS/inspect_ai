@@ -344,6 +344,108 @@ def test_hf_dataset_cache_key_includes_revision(tmp_path, monkeypatch) -> None:
     )
 
 
+def _install_real_datasets_from_dict(monkeypatch, tmp_path, records):
+    """Serve `records` through the real `datasets` library (Dataset.from_dict)."""
+    import datasets  # type: ignore
+
+    columns: dict = {k: [r[k] for r in records] for k in records[0]}
+
+    monkeypatch.setattr(
+        "inspect_ai.dataset._sources.hf.inspect_cache_dir",
+        lambda *_a, **_k: str(tmp_path),
+    )
+    return lambda *_a, **_k: datasets.Dataset.from_dict(columns)
+
+
+@skip_if_no_package("datasets")
+def test_hf_dataset_auto_id_stable_across_shuffle_seeds(tmp_path, monkeypatch):
+    # Regression for auto_id assigning ids to the already-shuffled order:
+    # a record must keep the same id regardless of shuffle seed, matching
+    # csv_dataset/json_dataset.
+    import sys
+
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(6)]
+    load = _install_real_datasets_from_dict(monkeypatch, tmp_path, records)
+    import datasets as real_datasets  # type: ignore
+
+    monkeypatch.setattr(real_datasets, "load_dataset", load)
+    monkeypatch.setitem(sys.modules, "datasets", real_datasets)
+
+    from inspect_ai.dataset import hf_dataset
+
+    def ids(**kwargs):
+        ds = hf_dataset(
+            path="org/ds", split="test", auto_id=True, cached=False, **kwargs
+        )
+        return {s.input: s.id for s in ds}
+
+    unshuffled = ids()
+    seed1 = ids(shuffle=True, seed=1)
+    seed2 = ids(shuffle=True, seed=2)
+
+    assert seed1 == unshuffled
+    assert seed2 == unshuffled
+
+
+@skip_if_no_package("datasets")
+def test_hf_dataset_auto_id_preserves_shuffle_order(tmp_path, monkeypatch):
+    # auto_id must not change which order a given seed produces: the row
+    # order with auto_id=True has to match auto_id=False for the same seed.
+    import sys
+
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(12)]
+    load = _install_real_datasets_from_dict(monkeypatch, tmp_path, records)
+    import datasets as real_datasets  # type: ignore
+
+    monkeypatch.setattr(real_datasets, "load_dataset", load)
+    monkeypatch.setitem(sys.modules, "datasets", real_datasets)
+
+    from inspect_ai.dataset import hf_dataset
+
+    def order(auto_id: bool):
+        ds = hf_dataset(
+            path="org/ds",
+            split="test",
+            auto_id=auto_id,
+            shuffle=True,
+            seed=42,
+            cached=False,
+        )
+        return [s.input for s in ds]
+
+    assert order(auto_id=True) == order(auto_id=False)
+
+
+@skip_if_no_package("datasets")
+def test_hf_dataset_auto_id_with_shuffle_and_limit(tmp_path, monkeypatch):
+    # limit still applies after the shuffle, and surviving samples keep
+    # their original-order ids.
+    import sys
+
+    records = [{"input": f"Q{i}", "target": f"A{i}"} for i in range(10)]
+    load = _install_real_datasets_from_dict(monkeypatch, tmp_path, records)
+    import datasets as real_datasets  # type: ignore
+
+    monkeypatch.setattr(real_datasets, "load_dataset", load)
+    monkeypatch.setitem(sys.modules, "datasets", real_datasets)
+
+    from inspect_ai.dataset import hf_dataset
+
+    ds = hf_dataset(
+        path="org/ds",
+        split="test",
+        auto_id=True,
+        shuffle=True,
+        seed=7,
+        limit=4,
+        cached=False,
+    )
+    assert len(ds) == 4
+    for sample in ds:
+        # id is the record's position in the original (unshuffled) order
+        assert sample.id == int(str(sample.input)[1:]) + 1
+
+
 def test_hf_dataset_cache_hit_does_not_invoke_retry(tmp_path, monkeypatch):
     # Regression guard: cache-hit must skip the retry wrapper, otherwise a
     # corrupted local cache would stall behind the 5-minute backoff window.
