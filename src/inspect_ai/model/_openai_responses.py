@@ -2129,6 +2129,13 @@ def is_additional_tools(
     return param.get("type") == "additional_tools"
 
 
+def is_agent_message(param: ResponseInputItemParam) -> bool:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type". The OpenAI SDK
+    # has not yet added agent_message to ResponseInputItemParam.
+    return dict(param).get("type") == "agent_message"
+
+
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
     return tool_param.get("type") == "function"
 

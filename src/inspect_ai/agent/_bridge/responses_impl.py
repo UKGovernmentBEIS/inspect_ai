@@ -103,6 +103,7 @@ from inspect_ai.model._openai_responses import (
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
     is_additional_tools,
+    is_agent_message,
     is_assistant_message_param,
     is_code_interpreter_tool_param,
     is_computer_call_output,
@@ -995,6 +996,20 @@ def messages_from_responses_input(
             # harmful: some model backends fail on tool-declaration text and
             # the model cannot call text-declared tools anyway.)
             pass
+        elif is_agent_message(item):
+            # Codex Multi-Agent V2 delivers inter-agent messages as input items.
+            # Forward plaintext input_text parts to the recipient and drop
+            # response-bound encrypted_content parts that cannot be replayed.
+            agent_message = cast(dict[str, Any], item)
+            text_parts = [
+                content["text"]
+                for content in agent_message.get("content", []) or []
+                if isinstance(content, dict)
+                and content.get("type") == "input_text"
+                and isinstance(content.get("text"), str)
+            ]
+            if text_parts:
+                messages.append(ChatMessageUser(content="\n".join(text_parts)))
         else:
             # ImageGenerationCall
             # ResponseCodeInterpreterToolCallParam
