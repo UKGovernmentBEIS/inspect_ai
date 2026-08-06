@@ -35,6 +35,12 @@ def model_info(
     import pandas as pd
 
     def transform(df: pd.DataFrame) -> pd.DataFrame:
+        if df.empty:
+            return df
+
+        if "model" not in df.columns:
+            raise ValueError("Required column 'model' not found in DataFrame")
+
         # Column mapping from DataFrame to ModelInfo field to read
         fields = {
             "model_organization_name": "organization",

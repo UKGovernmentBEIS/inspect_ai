@@ -19,6 +19,12 @@ from inspect_ai.model._model_data.model_data import (
 if TYPE_CHECKING:
     from inspect_ai.model._model import Model  # noqa: F401
 
+# Placeholder api key passed when a provider is instantiated purely to
+# canonicalize a model name (see _get_model_info). It exists so that providers
+# which require a key can still be constructed, and is not a credential:
+# providers must not send it to their underlying SDK.
+MODEL_INFO_LOOKUP_API_KEY = "__model_info_lookup__"
+
 # Custom model registry (populated by set_model_info)
 _custom_models: dict[str, ModelInfo] = {}
 
@@ -113,6 +119,10 @@ def _detect_org_from_model_name(model_name: str) -> str | None:
     # Moonshot AI models: kimi-*
     if name.startswith("kimi"):
         return "moonshotai"
+
+    # DeepSeek models: deepseek-*
+    if name.startswith("deepseek"):
+        return "deepseek"
 
     return None
 
@@ -349,7 +359,7 @@ def _resolve_model_info(
     # Fall back to full provider instantiation (requires SDK)
     # This handles cases where the model name needs provider-specific canonicalization
     try:
-        resolved = get_model(model, api_key="__model_info_lookup__")
+        resolved = get_model(model, api_key=MODEL_INFO_LOOKUP_API_KEY)
         name = resolved.canonical_name()
 
         if name in _custom_models:

@@ -1,7 +1,14 @@
 from pathlib import Path
 from typing import Any
 
-from inspect_ai.analysis import evals_df, frontier, log_viewer, prepare, task_info
+from inspect_ai.analysis import (
+    evals_df,
+    frontier,
+    log_viewer,
+    model_info,
+    prepare,
+    task_info,
+)
 from inspect_ai.analysis._dataframe.samples.table import samples_df
 from inspect_ai.analysis._prepare.score_to_float import score_to_float
 
@@ -92,6 +99,27 @@ def test_frontier_all_na_scores_in_date_group():
     # the all-NA-score date group (2024-01-01) is skipped; the later scored
     # models are each an improvement, so both are on the frontier
     assert list(out["frontier"]) == [False, False, True, True]
+
+
+def test_model_info():
+    import pandas as pd
+    import pytest
+
+    # empty DataFrame should return empty DataFrame without error
+    df_empty = pd.DataFrame()
+    out_empty = prepare(df_empty, model_info())
+    assert out_empty.empty
+
+    # missing 'model' column should raise ValueError
+    df_no_model = pd.DataFrame({"task_name": ["t1"]})
+    with pytest.raises(ValueError, match="Required column 'model' not found"):
+        prepare(df_no_model, model_info())
+
+    # normal operation with valid model column (built-in model vs custom model)
+    df = pd.DataFrame({"model": ["openai/gpt-4o", "unknown_model"]})
+    out = prepare(df, model_info())
+    assert "model_display_name" in out.columns
+    assert out["model_display_name"].to_list() == ["GPT-4o", "unknown_model"]
 
 
 def check_log_viewer(
