@@ -172,14 +172,13 @@ def _model_graded_qa_single(
 
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
-        nonlocal model
         # Order of precedence: `model` > `model_role` > default model
         if model is not None:
-            model = model if isinstance(model, Model) else get_model(model)
+            target_model = model if isinstance(model, Model) else get_model(model)
         elif model_role is not None:
-            model = get_model(role=model_role)
+            target_model = get_model(role=model_role)
         else:
-            model = get_model()
+            target_model = get_model()
 
         # metadata without grading template variables
         metadata = omit(
@@ -205,7 +204,7 @@ def _model_graded_qa_single(
         )
 
         # query the model for the score
-        result = await model.generate([scoring_prompt])
+        result = await target_model.generate([scoring_prompt])
 
         # extract the grade
         default_grade_pattern = grade_pattern is None
