@@ -534,7 +534,9 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
         explanation=scores[0].explanation
         if len(set(score.explanation for score in scores)) == 1
         else None,
-        metadata=scores[0].metadata,
+        metadata=scores[0].metadata
+        if all(score.metadata == scores[0].metadata for score in scores)
+        else None,
     )
 
 
@@ -559,7 +561,9 @@ def _nan_score(scores: list[Score]) -> Score:
         explanation=scores[0].explanation
         if len(set(score.explanation for score in scores)) == 1
         else None,
-        metadata=scores[0].metadata,
+        metadata=scores[0].metadata
+        if all(score.metadata == scores[0].metadata for score in scores)
+        else None,
     )
 
 

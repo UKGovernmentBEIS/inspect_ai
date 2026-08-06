@@ -394,7 +394,7 @@ def test_reducer_preserve_metadata() -> None:
         reduced = reducer(simple_scores)
         assert reduced.answer is None
         assert reduced.explanation is None
-        assert reduced.metadata == simple_scores[0].metadata
+        assert reduced.metadata is None
         # reduce all scores _except_ the last one
         reduced = reducer(simple_scores[:-1])
         assert reduced.answer == simple_scores[0].answer
@@ -424,6 +424,7 @@ Point = namedtuple("Point", ["x", "y"])  # noqa: F821
 
 
 def test_complex_metadata_reduce():
+    now = datetime.now(timezone.utc)
     list_scores = [
         Score(
             value=1,
@@ -435,7 +436,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": now,
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
@@ -453,7 +454,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": now,
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
@@ -471,7 +472,7 @@ def test_complex_metadata_reduce():
                 "probability": 0.75,
                 "tags": ["math", "algebra"],
                 "user": {"id": 123, "name": "John"},
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": now,
                 "difficulty": DifficultyLevel.MEDIUM,
                 "optional_data": None,
                 "stats": {"attempts": 3, "success_rate": 0.67},
