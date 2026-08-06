@@ -125,8 +125,18 @@ class ChatMessageBase(BaseModel):
         if isinstance(self.content, str):
             self.content = text
         else:
-            all_other = [content for content in self.content if content.type != "text"]
-            self.content = all_other + [ContentText(text=text)]
+            first_text_idx: int | None = None
+            new_content: list[Content] = []
+            for item in self.content:
+                if item.type == "text":
+                    if first_text_idx is None:
+                        first_text_idx = len(new_content)
+                        new_content.append(ContentText(text=text))
+                else:
+                    new_content.append(item)
+            if first_text_idx is None:
+                new_content.insert(0, ContentText(text=text))
+            self.content = new_content
 
     @property
     def content_list(self) -> list[Content]:
