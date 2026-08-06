@@ -468,6 +468,7 @@ def test_score_append_with_unavailable_metrics():
     assert "f1" in scores
 
 
+@skip_if_no_openai
 def test_score_append_preserves_existing_reductions():
     """score(action="append") must keep pre-existing scorers' reductions.
 
