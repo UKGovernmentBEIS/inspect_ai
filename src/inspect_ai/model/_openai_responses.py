@@ -145,6 +145,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -191,6 +192,24 @@ logger = getLogger(__name__)
 MESSAGE_ID = "message_id"
 MESSAGE_PHASE = "message_phase"
 REASONING_ENCRYPTED_CONTENT = "reasoning_encrypted_content"
+
+# maximum length the OpenAI Responses API accepts for a function_call
+# `arguments` string on input (it imposes no such limit on output). the API
+# limit is denominated in characters; we truncate by UTF-8 bytes, which is
+# never fewer than characters, so the result always satisfies the limit
+_MAX_FUNCTION_CALL_ARGUMENTS = 1_048_576
+
+
+def _limit_function_call_arguments(arguments: str) -> str:
+    """Middle-truncate `arguments` to fit the Responses API input limit.
+
+    OpenAI rejects input `arguments` strings longer than
+    _MAX_FUNCTION_CALL_ARGUMENTS, so sending an oversized string verbatim
+    would 400 every subsequent request. Strings within the limit are
+    returned unchanged.
+    """
+    truncated = truncate_string_to_bytes(arguments, _MAX_FUNCTION_CALL_ARGUMENTS)
+    return truncated.output if truncated is not None else arguments
 
 
 class ResponsesModelInfo(Protocol):
@@ -854,10 +873,14 @@ def _process_response_output_items(
             case ResponseFunctionToolCall():
                 has_tool_calls = True
                 if output.id is not None:
-                    assistant_internal().tool_calls[output.call_id] = cast(
+                    param = cast(
                         ResponseFunctionToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
+                    param["arguments"] = _limit_function_call_arguments(
+                        output.arguments
+                    )
+                    assistant_internal().tool_calls[output.call_id] = param
 
                 call_name, call_arguments = _responses_call_to_inspect(
                     output.name, output.arguments, tools
@@ -1214,8 +1237,9 @@ def _is_valid_openai_web_search_action(action: dict[str, Any]) -> bool:
         # ActionOpenPage requires 'url'
         return "url" in action
     elif action_type in ("find", "find_in_page"):
-        # ActionFind / ActionFindInPage require 'pattern' and 'url'
-        return "pattern" in action or "url" in action
+        # ActionFind requires both 'pattern' and 'url' ('find' is the legacy
+        # spelling of its type, renamed in parse_web_search_action)
+        return "pattern" in action and "url" in action
 
     return False
 
@@ -1248,6 +1272,11 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
             if filtered.get("type") == "search" and "query" not in filtered:
                 queries = filtered.get("queries") or []
                 filtered["query"] = queries[0] if queries else ""
+            # `ActionFind`'s type discriminator is 'find_in_page' (older SDK
+            # serializations spelled it 'find'), so rename to keep strict
+            # construction happy.
+            if filtered.get("type") == "find":
+                filtered["type"] = "find_in_page"
             return filtered
 
         # Not an OpenAI-formatted action - create a conforming search action
@@ -1591,7 +1620,7 @@ def _tool_call_items_from_assistant_message(
                 type="function_call",
                 call_id=call.id,
                 name=name,
-                arguments=arguments,
+                arguments=_limit_function_call_arguments(arguments),
             )
 
             # append the param

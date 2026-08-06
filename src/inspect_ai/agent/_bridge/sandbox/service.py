@@ -9,6 +9,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
@@ -33,9 +34,9 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `TerminateSampleError` is re-raised rather than forwarded: it should end
-    the sample (via the sandbox-service dispatch loop), not reach the
-    scaffold as a retryable API error.
+    `LimitExceededError` and `TerminateSampleError` are re-raised rather than
+    forwarded: both should end the sample (via the sandbox-service dispatch
+    loop), not reach the scaffold as a retryable API error.
     """
 
     async def generate_forwarding_errors(
@@ -43,7 +44,7 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     ) -> dict[str, JsonValue]:
         try:
             return await generate(json_data)
-        except TerminateSampleError:
+        except (LimitExceededError, TerminateSampleError):
             raise
         except Exception as ex:
             payload = provider_error_payload(ex)

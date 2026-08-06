@@ -28,6 +28,25 @@ def test_scorer_lookup():
     assert scorer
 
 
+@scorer(metrics=[accuracy()], name="test_match_kwargs")
+def match_kwargs(**kwargs) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value="C")
+
+    return score
+
+
+def test_scorer_create_replays_name_kwarg_without_collision():
+    """A `**kwargs` key named `name` must survive scorer replay from a log (#4375).
+
+    Flat capture records such a key at the top level of EvalScore.params, so
+    replaying it via scorer_create must not collide with scorer_create's own
+    `name` parameter.
+    """
+    scorer = scorer_create("test_match_kwargs", name="demo")
+    assert scorer
+
+
 def test_invalid_scorers_error():
     def not_async():
         def inner(state: TaskState, target: Target) -> Score:
