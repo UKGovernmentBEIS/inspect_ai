@@ -20,6 +20,7 @@ from inspect_ai.analysis import (
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
+from inspect_ai.analysis._dataframe.util import resolve_logs
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -476,3 +477,15 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
     df = evals_df(log_dir)
     assert df["tags"].to_list() == ["added"]
     assert df["metadata"].to_list() == ['{"key": "edited"}']
+
+
+def test_resolve_logs_empty_list():
+    assert resolve_logs([]) == []
+    assert resolve_logs(()) == []
+
+
+def test_dataframe_functions_empty_list():
+    assert len(evals_df([])) == 0
+    assert len(samples_df([])) == 0
+    assert len(messages_df([])) == 0
+    assert len(events_df([])) == 0
