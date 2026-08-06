@@ -468,7 +468,6 @@ def test_score_append_with_unavailable_metrics():
     assert "f1" in scores
 
 
-@skip_if_no_openai
 def test_score_append_preserves_existing_reductions():
     """score(action="append") must keep pre-existing scorers' reductions.
 
@@ -485,7 +484,11 @@ def test_score_append_preserves_existing_reductions():
     assert "match" in original_reducers
 
     f1_scorers = resolve_scorers(log, "f1", {})
-    scored_log = score(log=log, scorers=f1_scorers, action="append")
+    # f1 never calls a model, so name mockllm to keep this running without an
+    # API key (score() otherwise resolves the header model and would raise).
+    scored_log = score(
+        log=log, scorers=f1_scorers, action="append", model="mockllm/model"
+    )
 
     reducers = [r.scorer for r in (scored_log.reductions or [])]
     # Original reduction preserved and the new scorer's reduction appended.
