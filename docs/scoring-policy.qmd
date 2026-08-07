@@ -59,10 +59,8 @@ A failure that is a genuine statement about the model's behaviour is a score, an
 ``` python
 return Score(
     value=INCORRECT,
+    reason="invalid_response_format",
     explanation=f"Expected JSON, could not parse: {state.output.completion}",
-    metadata={
-        "reason": "invalid_response_format",
-    },
 )
 ```
 
@@ -100,12 +98,10 @@ For these, return `Score.unscored()`. This produces a `Score` whose `value` is `
 
 ``` python
 return Score.unscored(
+    reason="grader_parse_failure",
     answer=state.output.completion,
     explanation="Grader did not return a parseable verdict after 3 retries.",
-    metadata={
-        "reason": "grader_parse_failure",
-        "grader_payload": grader_output.message,
-    },
+    metadata={"grader_payload": grader_output.message},
 )
 ```
 
@@ -135,18 +131,34 @@ The `raise` vs `unscored()` line still applies within grading: the grader *API c
 
 ## Recording the reason
 
-Whatever the outcome, set `explanation` to a human-readable message, and record a machine-readable reason in `Score.metadata` so failures are filterable in the log viewer and in analysis dataframes:
+Whatever the outcome, set `explanation` to a human-readable message, and `reason` to a machine-readable one, so failures are filterable in the log viewer and in analysis dataframes (as `score_<name>_reason` columns):
 
 ``` python
 return Score(
     value=INCORRECT,
+    reason="invalid_response_format",
     answer=state.output.completion,
     explanation="Model response was not valid JSON.",
-    metadata={"reason": "invalid_response_format"},
 )
 ```
 
-A consistent vocabulary makes failures groupable across evals. For example, use `invalid_response_format` and `refusal` for model-fault outcomes, and `grader_parse_failure`, `grader_refusal`, or `grader_no_tool_call` for instrument failures. Keeping the actor in the value (a `grader_` prefix) lets a single query separate instrument failures from model failures.
+`reason` is a dedicated field on `Score` (typed `ScoreReason | str | None`), not a metadata key. Unlike `metadata`, it survives score edits, and it doesn't share a namespace with whatever keys your own scorer wants to record.
+
+`ScoreReason` is a standard, IDE-discoverable vocabulary that makes failures groupable across evals, but the field also accepts any custom string, so you're never blocked on the vocabulary covering your case:
+
+| Reason | Actor | Meaning |
+|---|---|---|
+| `invalid_response_format` | model under test | output unparsable / violates the requested format |
+| `refusal` | model under test | detected refusal to answer |
+| `no_response` | model under test | empty completion |
+| `grader_parse_failure` | grader | verdict unparsable after bounded retry |
+| `grader_refusal` | grader | grader refused to grade |
+| `grader_no_tool_call` | grader | grader made no tool call (schema-based scorers) |
+| `grader_schema_mismatch` | grader | grader payload failed schema validation |
+
+: {tbl-colwidths=[30,20,50]}
+
+The `grader_` prefix on instrument-side values lets a single query separate instrument failures from model failures.
 
 ## Recommended run settings
 

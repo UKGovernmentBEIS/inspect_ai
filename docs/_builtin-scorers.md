@@ -9,7 +9,7 @@ Inspect includes both text matching scorers as well as model graded scorers. Bel
 :   Check whether the `target` appears at a known position: `begin`, `end` (the default), or `any`. With `location="exact"` the whole output must equal the target. Ignores case and white-space by default. Pass `numeric=True` to compare numbers rather than text; currency symbols (`$`, `€`, `£`), thousands separators (`,`), and formatting markers (`*`, `_`) are stripped first.
 
 `pattern()`
-:   Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns a `NOANSWER` score when the pattern does not match.
+:   Extract the answer from model output using a regular expression, for cases where the answer is embedded in templated text. Requires at least one capture group; with multiple groups, set `match_all=True` to require every captured value to match the target (the default matches any one group). Returns `INCORRECT` (with `reason="invalid_response_format"`) when the pattern does not match.
 
 `answer()`
 :   For prompts that instruct the model to end with `ANSWER: X`. Extracts the letter, word, or remainder of the line that follows.
@@ -48,9 +48,9 @@ These scorers use the `CORRECT` and `INCORRECT` constants, which the default met
 :   Score a non-matching output `INCORRECT`, so the sample stays in the denominator as a `0.0`.
 
 `pattern()` (and `answer()`, which builds on it)
-:   Score `INCORRECT` when the pattern matches but the captured value is wrong, and `NOANSWER` when the pattern does not match at all. `NOANSWER` also converts to `0.0` by default, so it does not change accuracy; it is a distinct label for "no answer was found in the expected form" rather than "the model answered incorrectly".
+:   Score `INCORRECT` whether the pattern matches but the captured value is wrong, or the pattern does not match at all. When the pattern does not match, `Score.reason` is set to `"invalid_response_format"` — a distinct, filterable label for "no answer was found in the expected form" rather than "the model answered incorrectly", without excusing the sample from the metric denominator.
 
-Whether a failure to produce output in the expected format should count as a wrong answer (`INCORRECT`) or as no answer (`NOANSWER`) is a judgement call, since failing to follow the requested format is itself an instruction-following failure. See [Scoring Policy](scoring-policy.qmd#verdicts-on-the-model) for the distinction and how it interacts with metrics.
+Failing to follow the requested output format is itself an instruction-following failure, so it stays `INCORRECT` rather than `NOANSWER` — see [Scoring Policy](scoring-policy.qmd#verdicts-on-the-model) for the underlying attribution rule and [Recording the Reason](scoring-policy.qmd#recording-the-reason) for the `reason` field.
 
 ## Metrics
 
