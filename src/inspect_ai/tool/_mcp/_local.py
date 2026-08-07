@@ -124,14 +124,28 @@ class MCPServerLocal(MCPServer):
     def _task_session(self) -> "MCPServerLocalSession":
         task_id = anyio.get_current_task().id
         session_key = f"{task_id}_{self._name}"
-        if session_key not in self._task_sessions:
-            MCPServerLocal._task_sessions[session_key] = MCPServerLocalSession(
+        session = MCPServerLocal._task_sessions.get(session_key)
+        if session is None:
+            session = MCPServerLocalSession(
                 self._client,
                 name=self._name,
                 events=self._events,
                 timeout=self._timeout,
+                cache_key=session_key,
+                task_sessions=MCPServerLocal._task_sessions,
             )
-        return MCPServerLocal._task_sessions[session_key]
+            MCPServerLocal._task_sessions[session_key] = session
+        return session
+
+    def _tool_cache_scope(self) -> object:
+        # Cache token for MCPToolSourceLocal: the per-task session OBJECT.
+        # anyio's TaskInfo.id is id()-based on asyncio and can be reused once
+        # an earlier task is garbage collected, so a raw task id is not unique
+        # over time. Sessions evict themselves from _task_sessions when they
+        # close, so a reused task id yields a fresh session object and the
+        # tool source re-resolves rather than serving tools bound to a dead
+        # session.
+        return self._task_session()
 
 
 class MCPServerLocalSession(MCPServer):
@@ -142,6 +156,8 @@ class MCPServerLocalSession(MCPServer):
         name: str,
         events: bool,
         timeout: int | None = None,
+        cache_key: str | None = None,
+        task_sessions: dict[str, "MCPServerLocalSession"] | None = None,
     ) -> None:
         super().__init__()
         self._refcount = 0
@@ -149,6 +165,8 @@ class MCPServerLocalSession(MCPServer):
         self._name = name
         self._events = events
         self._timeout = timeout
+        self._cache_key = cache_key
+        self._task_sessions = task_sessions
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
         self._cached_tool_list: list[MCPTool] | None = None
@@ -161,20 +179,30 @@ class MCPServerLocalSession(MCPServer):
         else:
             assert self._refcount == 0
             self._exit_stack = AsyncExitStack()
-            await self._exit_stack.__aenter__()
-            with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-                read, write, *_ = await self._exit_stack.enter_async_context(
-                    self._client()
-                )
-            with trace_action(logger, "MCPServer", f"create session ({self._name})"):
-                self._session = await self._exit_stack.enter_async_context(
-                    ClientSession(read, write, sampling_callback=self._sampling_fn())
-                )
-            with trace_action(
-                logger, "MCPServer", f"initialize session ({self._name})"
-            ):
-                await self._session.initialize()
-            self._refcount = 1
+            try:
+                await self._exit_stack.__aenter__()
+                with trace_action(logger, "MCPServer", f"create client ({self._name})"):
+                    read, write, *_ = await self._exit_stack.enter_async_context(
+                        self._client()
+                    )
+                with trace_action(
+                    logger, "MCPServer", f"create session ({self._name})"
+                ):
+                    self._session = await self._exit_stack.enter_async_context(
+                        ClientSession(
+                            read, write, sampling_callback=self._sampling_fn()
+                        )
+                    )
+                with trace_action(
+                    logger, "MCPServer", f"initialize session ({self._name})"
+                ):
+                    await self._session.initialize()
+                self._refcount = 1
+            except BaseException:
+                # a partially-created session must not stay registered under
+                # the task id: a later task reusing the id would adopt it
+                await self._close_and_evict()
+                raise
 
         return self
 
@@ -191,11 +219,28 @@ class MCPServerLocalSession(MCPServer):
             with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
                 assert self._session is not None
                 assert self._exit_stack is not None
-                try:
-                    await self._exit_stack.aclose()
-                finally:
-                    self._session = None
-                    self._exit_stack = None
+                await self._close_and_evict()
+
+    async def _close_and_evict(self) -> None:
+        # Close the session and drop it from the per-task registry. Eviction
+        # matters because task ids can be reused after a task is collected
+        # (id()-based on asyncio): without it, a later task landing on a
+        # reused id would find this closed session and its stale cached tool
+        # list. The identity check guards against evicting a replacement
+        # registered under the same key.
+        try:
+            if self._exit_stack is not None:
+                await self._exit_stack.aclose()
+        finally:
+            self._session = None
+            self._exit_stack = None
+            self._cached_tool_list = None
+            if (
+                self._task_sessions is not None
+                and self._cache_key is not None
+                and self._task_sessions.get(self._cache_key) is self
+            ):
+                del self._task_sessions[self._cache_key]
 
     @override
     async def tools(self) -> list[Tool]:
