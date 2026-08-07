@@ -15,6 +15,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_role import ModelRole, as_model_role
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
@@ -33,7 +34,7 @@ def model_graded_fact(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
-    model_role: str | None = "grader",
+    model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
@@ -67,10 +68,11 @@ def model_graded_fact(
         majority vote. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
-        Ignored if `model` is provided. If specified and a model is bound to
-        this role (e.g. via the `model_roles` argument to `eval()`), that model
-        is used. If no role-bound model is available, the model being
-        evaluated (the default model) is used.
+        Pass `ModelRole(name, required=True)` to require a model to be bound
+        to the role. Ignored if `model` is provided. If specified and a model
+        is bound to this role (e.g. via the `model_roles` argument to `eval()`),
+        that model is used. If no role-bound model is available and the role
+        is not required, the model being evaluated (the default model) is used.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -91,7 +93,7 @@ def model_graded_qa(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
-    model_role: str | None = "grader",
+    model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
     """Score a question/answer task using a model.
 
@@ -126,10 +128,11 @@ def model_graded_qa(
         majority vote. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
-        Ignored if `model` is provided. If specified and a model is bound to
-        this role (e.g. via the `model_roles` argument to `eval()`), that
-        model is used. If no role-bound model is available, the model being
-        evaluated (the default model) is used.
+        Pass `ModelRole(name, required=True)` to require a model to be bound
+        to the role. Ignored if `model` is provided. If specified and a model
+        is bound to this role (e.g. via the `model_roles` argument to `eval()`),
+        that model is used. If no role-bound model is available and the role
+        is not required, the model being evaluated (the default model) is used.
     """
     # bind variables
     get_scorer = partial(
@@ -159,7 +162,7 @@ def _model_graded_qa_single(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: str | Model | None = None,
-    model_role: str | None = "grader",
+    model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
 
@@ -177,7 +180,8 @@ def _model_graded_qa_single(
         if model is not None:
             model = model if isinstance(model, Model) else get_model(model)
         elif model_role is not None:
-            model = get_model(role=model_role)
+            role = as_model_role(model_role)
+            model = get_model(role=role.name, required=role.required)
         else:
             model = get_model()
 
