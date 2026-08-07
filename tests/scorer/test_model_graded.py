@@ -18,6 +18,7 @@ from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
     PARTIAL,
+    Scorer,
     Target,
     model_graded_fact,
     model_graded_qa,
@@ -175,6 +176,87 @@ def test_model_role_precedence_for_model_graded_scorer(
     )
 
     assert grading_event.role == expected_role
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_can_require_model_role(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    task = Task(
+        scorer=scorer_factory(model_role_required=True),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert log.error.message == "Model role 'grader' is required and was not specified."
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_required_model_role_succeeds_when_bound(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=scorer_factory(model_role_required=True),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": grader_model},
+    )[0]
+
+    assert log.status == "success"
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_explicit_model_overrides_required_model_role(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=scorer_factory(model=grader_model, model_role_required=True),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "success"
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_none_model_role_ignores_required_model_role(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="2")]),
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")]),
+        ],
+    )
+    task = Task(
+        scorer=scorer_factory(model_role=None, model_role_required=True),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert log.status == "success"
 
 
 def test_model_graded_answer_set_on_grade_parse_failure():

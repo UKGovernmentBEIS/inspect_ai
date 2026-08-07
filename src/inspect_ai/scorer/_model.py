@@ -34,6 +34,7 @@ def model_graded_fact(
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
     model_role: str | None = "grader",
+    model_role_required: bool = False,
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
 
@@ -71,6 +72,9 @@ def model_graded_fact(
         this role (e.g. via the `model_roles` argument to `eval()`), that model
         is used. If no role-bound model is available, the model being
         evaluated (the default model) is used.
+      model_role_required: Require a model to be bound to `model_role`.
+        Ignored if `model` is provided or `model_role` is `None`. If `True`
+        and the role is not bound, an error is raised. Defaults to `False`.
     """
     return model_graded_qa(
         template=template if template else DEFAULT_MODEL_GRADED_FACT_TEMPLATE,
@@ -80,6 +84,7 @@ def model_graded_fact(
         partial_credit=partial_credit,
         model=model,
         model_role=model_role,
+        model_role_required=model_role_required,
     )
 
 
@@ -92,6 +97,7 @@ def model_graded_qa(
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
     model_role: str | None = "grader",
+    model_role_required: bool = False,
 ) -> Scorer:
     """Score a question/answer task using a model.
 
@@ -130,6 +136,9 @@ def model_graded_qa(
         this role (e.g. via the `model_roles` argument to `eval()`), that
         model is used. If no role-bound model is available, the model being
         evaluated (the default model) is used.
+      model_role_required: Require a model to be bound to `model_role`.
+        Ignored if `model` is provided or `model_role` is `None`. If `True`
+        and the role is not bound, an error is raised. Defaults to `False`.
     """
     # bind variables
     get_scorer = partial(
@@ -140,6 +149,7 @@ def model_graded_qa(
         include_history,
         partial_credit,
         model_role=model_role,
+        model_role_required=model_role_required,
     )
     # if only a single model is passed, return a single scorer
     if model is None or not isinstance(model, list):
@@ -160,6 +170,7 @@ def _model_graded_qa_single(
     partial_credit: bool = False,
     model: str | Model | None = None,
     model_role: str | None = "grader",
+    model_role_required: bool = False,
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
 
@@ -177,7 +188,7 @@ def _model_graded_qa_single(
         if model is not None:
             model = model if isinstance(model, Model) else get_model(model)
         elif model_role is not None:
-            model = get_model(role=model_role)
+            model = get_model(role=model_role, required=model_role_required)
         else:
             model = get_model()
 
