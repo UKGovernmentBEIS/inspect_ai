@@ -969,15 +969,6 @@ def math() -> Scorer:
                 explanation=state.output.completion,
             )
 
-        if result is None:
-            # nothing extractable from the output: an instruction-following
-            # failure charged to the model under test (see #4567)
-            return Score(
-                value=INCORRECT,
-                reason="invalid_response_format",
-                explanation=state.output.completion,
-            )
-
         return Score(
             value=INCORRECT,
             answer=str(result),
