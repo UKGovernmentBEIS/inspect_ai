@@ -18,7 +18,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
-from ._metric import Score
+from ._metric import PARTIAL, Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
@@ -59,9 +59,9 @@ def model_graded_fact(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
-         to `False`. Note that this parameter is only used
-         with the default `instructions` (as custom instructions
-         provide their own prompts for grades).
+         to `False`. Note that custom `instructions` provide their
+         own prompts for grades, but this parameter still governs
+         whether the default `grade_pattern` accepts a "P" grade.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the final grade is computed by
         majority vote. When this parameter is provided, it takes precedence
@@ -118,9 +118,9 @@ def model_graded_qa(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
-        to `False`. Note that this parameter is only used
-        with the default `instructions` (as custom instructions
-        provide their own prompts for grades).
+        to `False`. Note that custom `instructions` provide their
+        own prompts for grades, but this parameter still governs
+        whether the default `grade_pattern` accepts a "P" grade.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the final grade is computed by
         majority vote. When this parameter is provided, it takes precedence
@@ -169,6 +169,8 @@ def _model_graded_qa_single(
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
     )
+    use_default_pattern = grade_pattern is None
+    grade_pattern = grade_pattern or DEFAULT_GRADE_PATTERN
 
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
@@ -208,12 +210,22 @@ def _model_graded_qa_single(
         result = await model.generate([scoring_prompt])
 
         # extract the grade
-        default_grade_pattern = grade_pattern is None
-        match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
-        if match:
-            value = match.group(1)
-            if default_grade_pattern:
-                value = value.upper()
+        match = re.search(grade_pattern, result.completion)
+        value = match.group(1) if match else None
+        if value is not None and use_default_pattern:
+            value = value.upper()
+
+        # "P" is worth 0.5, so the default pattern must not yield one for a scorer
+        # configured without partial credit. This gates on the default pattern rather
+        # than the default instructions: a caller who supplies their own `grade_pattern`
+        # has stated what a valid grade is. The letter stays in the pattern rather than
+        # being excluded from it — dropping it would let the greedy prefix backtrack onto
+        # an earlier grade, which is what DEFAULT_GRADE_PATTERN is shaped to prevent.
+        rejected_partial = (
+            value == PARTIAL and use_default_pattern and not partial_credit
+        )
+
+        if value is not None and not rejected_partial:
             return Score(
                 value=value,
                 answer=state.output.completion,
@@ -223,6 +235,19 @@ def _model_graded_qa_single(
                         scoring_prompt,
                         result.message,
                     ]
+                ),
+            )
+        elif rejected_partial:
+            return Score.unscored(
+                answer=state.output.completion,
+                explanation="Partial grade returned without partial_credit enabled: "
+                + f"{result.completion}",
+                metadata=dict(
+                    unscored_reason="partial_credit_disabled",
+                    grading=[
+                        scoring_prompt,
+                        result.message,
+                    ],
                 ),
             )
         else:

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: With the default grading instructions, model-graded scorers no longer score a `GRADE: P` response as partial credit when `partial_credit` is disabled; the sample is left unscored instead. Custom `instructions` are unaffected. Note that accuracy may shift on existing evals where graders returned "P" against a binary scorer. (#4696)
+
 ## 0.3.253 (08 August 2026)
 
 - Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)
