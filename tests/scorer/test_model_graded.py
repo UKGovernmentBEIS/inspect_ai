@@ -562,3 +562,37 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
+
+
+def test_model_graded_qa_active_model_dynamic_resolution() -> None:
+    from inspect_ai.model import GenerateConfig
+    from inspect_ai.model._model import init_active_model
+    from inspect_ai.scorer import _model
+
+    async def run():
+        scorer = _model._model_graded_qa_single()
+        m1 = get_model("mockllm/model1")
+        m2 = get_model("mockllm/model2")
+
+        init_active_model(m1, GenerateConfig())
+        state1 = TaskState(
+            model="mockllm/model1", sample_id=1, epoch=1, input="hello", messages=[]
+        )
+        state1.output.completion = "GRADE: C"
+        await scorer(state1, Target("C"))
+
+        init_active_model(m2, GenerateConfig())
+        state2 = TaskState(
+            model="mockllm/model2", sample_id=2, epoch=1, input="hello", messages=[]
+        )
+        state2.output.completion = "GRADE: C"
+        await scorer(state2, Target("C"))
+
+        closure_models = [
+            c.cell_contents
+            for c in scorer.__closure__ or []
+            if hasattr(c.cell_contents, "name")
+        ]
+        assert not closure_models
+
+    asyncio.run(run())
