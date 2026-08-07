@@ -174,6 +174,29 @@ async def test_read_file_preserves_missing_file_error(
     copy_mock.assert_awaited_once()
 
 
+@pytest.mark.parametrize(
+    "copy_error",
+    [
+        "Could not find the file in the container",
+        "Error: No such file or directory",
+        "lstat /work/missing: no such file or directory",
+    ],
+)
+async def test_read_file_maps_missing_file_message_variants(
+    copy_error: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = _environment()
+    copy_mock = AsyncMock(side_effect=RuntimeError(copy_error))
+    monkeypatch.setattr(docker_module, "compose_cp", copy_mock)
+
+    with pytest.raises(FileNotFoundError) as ex:
+        await environment.read_file("missing")
+
+    assert ex.value.errno == errno.ENOENT
+    assert ex.value.filename == "missing"
+    copy_mock.assert_awaited_once()
+
+
 async def test_read_file_rejects_non_regular_copy_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

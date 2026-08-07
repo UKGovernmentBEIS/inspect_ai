@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: Docker `sandbox.read_file()` now raises `FileNotFoundError` for a missing file when Docker reports the POSIX "no such file or directory" message (previously only one phrasing was recognized, so callers got a `RuntimeError`). (#4686)
 - Sandbox: `ComposeService` now accepts the standard compose keys `restart`, `stdin_open`, and `tty` (previously rejected as unknown fields).
 - Bugfix: Model info lookup no longer sends its internal placeholder API key to the Hugging Face Hub when canonicalizing model names. (#4600)
 - Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.
