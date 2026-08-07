@@ -33,6 +33,7 @@ import copy
 import functools
 import inspect
 import json as json_lib
+import os
 import time
 import traceback
 from collections.abc import Callable, Iterator, Sequence
@@ -4064,6 +4065,13 @@ def _resolve_target_server(pid: int | None) -> DiscoveredControlServer:
 # healthy server can therefore miss a short read window, so reads use a
 # generous timeout and retry a timeout several times before giving up, rather
 # than silently reporting the eval as gone.
+#
+# The 15s default is not always enough. Measured against a 10-process eval-set
+# sweep driving ~2400 k8s sandboxes, a GET /config over the UDS returned a
+# correct 200 in 2.3s, 7.9s and 79.3s on three consecutive probes of two
+# different processes — so a loaded-but-healthy server can sit well beyond any
+# fixed default. `INSPECT_CTL_REQUEST_TIMEOUT` lets an operator buy patience
+# without a code change; see `_request_timeout()`.
 _REQUEST_TIMEOUT = 15.0
 _REQUEST_ATTEMPTS = 8
 
@@ -4075,6 +4083,11 @@ _REQUEST_ATTEMPTS = 8
 # does the sole-server summaries fetch (one server is no fan-out).
 _DEGRADED_READ_ATTEMPTS = 2
 
+# Cap on concurrent control reads in a full fan-out. Discovery is one process
+# per file, so this bounds threads (and open UDS connections) when a box hosts
+# many evals — 10 concurrent `tl run` sweeps is a real configuration.
+_FAN_OUT_MAX_WORKERS = 16
+
 # A mutation (flush / buffer set) is issued once — it isn't idempotent, so it
 # must not be retried — but it gets the same total wall-clock budget a retried
 # read would consume (one attempt of `_REQUEST_ATTEMPTS * _REQUEST_TIMEOUT`, ie.
@@ -4083,6 +4096,47 @@ _DEGRADED_READ_ATTEMPTS = 2
 # short rather than getting the full budget too.
 _MUTATION_TIMEOUT = _REQUEST_ATTEMPTS * _REQUEST_TIMEOUT
 _CONNECT_TIMEOUT = 10.0
+
+_REQUEST_TIMEOUT_ENV = "INSPECT_CTL_REQUEST_TIMEOUT"
+
+
+def _request_timeout() -> float:
+    """Per-attempt read timeout, in seconds.
+
+    :data:`_REQUEST_TIMEOUT` unless ``INSPECT_CTL_REQUEST_TIMEOUT`` overrides it.
+    Read per call rather than captured at import so a single invocation can be
+    given more patience (``INSPECT_CTL_REQUEST_TIMEOUT=120 inspect ctl task``)
+    against an eval whose loop is saturated — exactly when the control channel
+    is most needed and least responsive.
+
+    An unparseable or non-positive value raises, matching how the sandbox limit
+    env vars validate (`util/_sandbox/limits.py`): silently substituting the
+    default would leave an operator who set 120 waiting 15s and concluding the
+    fleet is wedged, which is the failure this override exists to end.
+    """
+    raw = os.environ.get(_REQUEST_TIMEOUT_ENV)
+    if raw is None:
+        return _REQUEST_TIMEOUT
+    try:
+        value = float(raw)
+    except ValueError:
+        raise ValueError(
+            f"{_REQUEST_TIMEOUT_ENV} must be a number of seconds, got '{raw}'."
+        )
+    if value <= 0:
+        raise ValueError(
+            f"{_REQUEST_TIMEOUT_ENV} must be a positive number of seconds, got {value}."
+        )
+    return value
+
+
+def _mutation_timeout() -> float:
+    """Total wall-clock budget for a single-shot mutation, in seconds.
+
+    Tracks :func:`_request_timeout` so raising the read timeout raises the
+    mutation budget with it — they describe the same slow server.
+    """
+    return _REQUEST_ATTEMPTS * _request_timeout()
 
 
 class _ServerUnreachable(Exception):
@@ -4160,6 +4214,7 @@ def _get_response_with_retry(
     """
     if attempts is None:
         attempts = _DEGRADED_READ_ATTEMPTS if raise_on_busy else _REQUEST_ATTEMPTS
+    timeout = _request_timeout()
     transport = httpx.HTTPTransport(uds=str(socket_path))
     last_timeout: httpx.TimeoutException | None = None
     for attempt in range(1, attempts + 1):
@@ -4167,14 +4222,14 @@ def _get_response_with_retry(
             with httpx.Client(
                 transport=transport,
                 base_url="http://localhost",
-                timeout=_REQUEST_TIMEOUT,
+                timeout=timeout,
             ) as client:
                 return client.request(method, path, params=params or {})
         except httpx.TimeoutException as exc:
             last_timeout = exc
             retrying = "; retrying…" if attempt < attempts else "."
             click.echo(
-                f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
+                f"{what}: no response after {timeout:.0f}s "
                 f"(attempt {attempt}/{attempts}) — the eval may be busy"
                 f"{retrying}",
                 err=True,
@@ -4188,7 +4243,7 @@ def _get_response_with_retry(
         )
     message = (
         f"{what}: gave up after {attempts} attempts of "
-        f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
+        f"{timeout:.0f}s each — the eval's event loop is busy; "
         "try again shortly."
     )
     click.echo(message, err=True)
@@ -4285,50 +4340,94 @@ def _fetch_summaries(
     """
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
-    for server in servers:
-        try:
-            rows = _get_with_retry(
-                server.socket_path,
-                "/tasks",
-                what=f"Reading tasks from pid {server.pid}",
-                raise_on_busy=raise_on_busy,
-                # a sole server is no fan-out — there's no wedged sibling to
-                # protect against, so ride out a stall on the full budget
-                attempts=_REQUEST_ATTEMPTS if len(servers) == 1 else None,
-                pid=server.pid,
-            )
-        except _ServerUnreachable as exc:
-            # a 404 means the process is serving a control API without this
-            # route — version skew between the CLI and the eval process —
-            # where transport errors mean the process is gone
-            cause = exc.__cause__
-            if isinstance(exc, _ServerBusy):
-                busy_pids.append(server.pid)
-                hint = f"try again shortly, or {_anomalies_pointer(server.pid)}"
-            elif (
-                isinstance(cause, httpx.HTTPStatusError)
-                and cause.response.status_code == 404
-            ):
-                hint = "it may be running a different inspect version than this CLI"
-            else:
-                hint = "it may have just exited"
-            click.echo(
-                f"Skipping pid {server.pid}: its control endpoint could not be "
-                f"read ({_unreachable_detail(exc)}) — {hint}.",
-                err=True,
-            )
-            continue
-        if isinstance(rows, list):
-            # Decorate each row with discovery-side info the server doesn't
-            # see (pid, socket_path).
-            for row in rows:
-                row["pid"] = server.pid
-                row["socket_path"] = str(server.socket_path)
-            summaries.extend(rows)
-            if stop_on_task_id is not None and any(
-                row.get("task_id") == stop_on_task_id for row in rows
-            ):
+
+    def read(server: DiscoveredControlServer) -> list[dict[str, Any]] | Any:
+        return _get_with_retry(
+            server.socket_path,
+            "/tasks",
+            what=f"Reading tasks from pid {server.pid}",
+            raise_on_busy=raise_on_busy,
+            # a sole server is no fan-out — there's no wedged sibling to
+            # protect against, so ride out a stall on the full budget
+            attempts=_REQUEST_ATTEMPTS if len(servers) == 1 else None,
+            pid=server.pid,
+        )
+
+    def collect(server: DiscoveredControlServer, rows: Any) -> bool:
+        """Fold one server's rows in. True when ``stop_on_task_id`` is satisfied."""
+        if not isinstance(rows, list):
+            return False
+        # Decorate each row with discovery-side info the server doesn't
+        # see (pid, socket_path).
+        for row in rows:
+            row["pid"] = server.pid
+            row["socket_path"] = str(server.socket_path)
+        summaries.extend(rows)
+        return stop_on_task_id is not None and any(
+            row.get("task_id") == stop_on_task_id for row in rows
+        )
+
+    def unreachable(server: DiscoveredControlServer, exc: _ServerUnreachable) -> None:
+        # a 404 means the process is serving a control API without this
+        # route — version skew between the CLI and the eval process —
+        # where transport errors mean the process is gone
+        cause = exc.__cause__
+        if isinstance(exc, _ServerBusy):
+            busy_pids.append(server.pid)
+            hint = f"try again shortly, or {_anomalies_pointer(server.pid)}"
+        elif (
+            isinstance(cause, httpx.HTTPStatusError)
+            and cause.response.status_code == 404
+        ):
+            hint = "it may be running a different inspect version than this CLI"
+        else:
+            hint = "it may have just exited"
+        click.echo(
+            f"Skipping pid {server.pid}: its control endpoint could not be "
+            f"read ({_unreachable_detail(exc)}) — {hint}.",
+            err=True,
+        )
+
+    # `stop_on_task_id` keeps the serial path: its whole point is to NOT contact
+    # the remaining servers once the target id is found, and a targeted lookup
+    # normally resolves on the first (newest) server anyway. Nothing to fan out
+    # to below two servers either (and a pool demands max_workers >= 1).
+    if stop_on_task_id is not None or len(servers) < 2:
+        for server in servers:
+            try:
+                rows = read(server)
+            except _ServerUnreachable as exc:
+                unreachable(server, exc)
+                continue
+            if collect(server, rows):
                 break
+        return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
+
+    # A full fan-out reads servers CONCURRENTLY, bounded by _FAN_OUT_MAX_WORKERS
+    # (beyond that they queue in waves). Serially, one loaded eval
+    # spends its whole attempt budget before the next is even contacted, so N
+    # processes cost N * attempts * timeout — a 10-process sweep can burn ~20
+    # minutes and still print nothing, which is how a slow-but-healthy fleet
+    # ends up looking dead. The reads are independent GETs over per-call
+    # transports, so the only shared state is the two result lists, and those
+    # are folded in on THIS thread, in discovery order, after the fan-out —
+    # keeping row order (and so resolution precedence) identical to the serial
+    # path regardless of which server answered first.
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(
+        max_workers=min(len(servers), _FAN_OUT_MAX_WORKERS)
+    ) as pool:
+        futures = [(server, pool.submit(read, server)) for server in servers]
+        results = [(server, future) for server, future in futures]
+
+    for server, future in results:
+        try:
+            rows = future.result()
+        except _ServerUnreachable as exc:
+            unreachable(server, exc)
+            continue
+        collect(server, rows)
     return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
 
 
@@ -4756,7 +4855,7 @@ def _request_json(
             with httpx.Client(
                 transport=transport,
                 base_url="http://localhost",
-                timeout=httpx.Timeout(_MUTATION_TIMEOUT, connect=_CONNECT_TIMEOUT),
+                timeout=httpx.Timeout(_mutation_timeout(), connect=_CONNECT_TIMEOUT),
             ) as client:
                 if mutate == "post":
                     response = client.post(path, params=params)
