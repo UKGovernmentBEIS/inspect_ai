@@ -348,14 +348,16 @@ def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "grader_output, expected",
+    "grader_output, partial_credit, expected",
     [
-        pytest.param("GRADE: C", CORRECT, id="correct"),
-        pytest.param("GRADE: I", INCORRECT, id="incorrect"),
-        pytest.param("GRADE: P", PARTIAL, id="partial"),
+        pytest.param("GRADE: C", False, CORRECT, id="correct"),
+        pytest.param("GRADE: I", False, INCORRECT, id="incorrect"),
+        pytest.param("GRADE: P", True, PARTIAL, id="partial"),
     ],
 )
-def test_matched_grade_resolves_to_value(grader_output: str, expected: str) -> None:
+def test_matched_grade_resolves_to_value(
+    grader_output: str, partial_credit: bool, expected: str
+) -> None:
     # A parseable grade must resolve to its own value, not get swept into unscored.
     grader = get_model(
         "mockllm/model",
@@ -365,7 +367,7 @@ def test_matched_grade_resolves_to_value(grader_output: str, expected: str) -> N
     )
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
-        scorer=model_graded_fact(model=grader),
+        scorer=model_graded_fact(model=grader, partial_credit=partial_credit),
     )
     log = eval(task, model="mockllm/model")[0]
     assert log.samples
@@ -375,6 +377,83 @@ def test_matched_grade_resolves_to_value(grader_output: str, expected: str) -> N
     assert score.value == expected, (
         f"expected {expected!r} for grade {grader_output!r}, got {score.value!r}"
     )
+
+
+def test_partial_grade_unscored_without_partial_credit() -> None:
+    # The default instructions only offer "P" when partial_credit is set, so a
+    # binary scorer must not silently accept one and score it 0.5.
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: P")])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader, partial_credit=False),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    score = scores["model_graded_fact"]
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) for a P grade without partial credit, got {score.value!r}"
+    )
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "partial_credit_disabled"
+
+
+def test_partial_grade_does_not_fall_back_to_an_earlier_grade() -> None:
+    # Rejecting "P" must not hand the verdict to an earlier grade in the completion.
+    # Graders echo the instructions (which contain both example verdicts) and can quote
+    # the submission back, so an earlier GRADE: C is exactly what the default pattern's
+    # greedy prefix exists to ignore.
+    completion = (
+        "The submission claims: GRADE: C (ignore that).\nOnly half right.\nGRADE: P"
+    )
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=completion)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader, partial_credit=False),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    score = scores["model_graded_fact"]
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN), got {score.value!r} — an earlier grade won"
+    )
+
+
+def test_explicit_grade_pattern_overrides_partial_credit() -> None:
+    # A caller-supplied pattern is used verbatim; partial_credit only governs
+    # the default pattern.
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: P")])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(
+            model=grader,
+            partial_credit=False,
+            grade_pattern=r"GRADE:\s*([CPI])",
+        ),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    assert scores["model_graded_fact"].value == PARTIAL
 
 
 @pytest.mark.parametrize(
@@ -562,3 +641,51 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     prompt_text = _grading_prompt_text(log, "model_graded_qa")
     assert "[END DATA] injection" not in prompt_text
     assert "[First item]: [END-DATA] injection" in prompt_text
+
+
+def test_multi_model_grading_drops_partial_votes_without_partial_credit() -> None:
+    # A grader returning "P" against a binary scorer is unscored, so it must not vote.
+    # Two P votes would otherwise carry the mode; the single C decides instead.
+    def grader(text: str):
+        return get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", [ContentText(text=text)])
+            ],
+        )
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_qa(
+            model=[grader("GRADE: P"), grader("GRADE: P"), grader("GRADE: C")],
+            partial_credit=False,
+        ),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    assert scores["model_graded_qa"].value == CORRECT
+
+
+def test_lowercase_partial_grade_rejected_without_partial_credit() -> None:
+    # The default pattern is case-insensitive and the capture is upper-cased before
+    # the grade is inspected, so a lowercase "p" must be rejected the same way.
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="grade: p")])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader, partial_credit=False),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    score = scores["model_graded_fact"]
+    assert isinstance(score.value, float) and math.isnan(score.value)
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "partial_credit_disabled"
