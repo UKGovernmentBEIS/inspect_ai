@@ -5,6 +5,7 @@ from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_bedrock,
     skip_if_no_cloudflare,
+    skip_if_no_deepseek,
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_groq,
@@ -27,13 +28,14 @@ GPT_4O_MINI_AZURE = "openai/azure/gpt-4o-mini"
 CLAUDE_4_6_SONNET = "anthropic/claude-sonnet-4-6"
 CLAUDE_4_6_OPUS = "anthropic/claude-opus-4-6"
 GEMINI_3_FLASH_PREVIEW = "google/gemini-3-flash-preview"
-MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
+MISTRAL_LARGE_LATEST = "mistral/mistral-large-latest"
 GROK_4_3 = "grok/grok-4.3"
 GROQ_LLAMA_3_3_70B_VERSATILE = "groq/llama-3.3-70b-versatile"
 CLOUDFLARE_LLAMA_3_3_70B = "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 TOGETHER_MINI_MAX_27 = "together/MiniMaxAI/MiniMax-M2.7"
 BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
 MOONSHOT_KIMI_K3 = "moonshot/kimi-k3"
+DEEPSEEK_V4_FLASH = "deepseek/deepseek-v4-flash"
 
 MODELS = {
     GPT_4O: 128000,
@@ -41,7 +43,7 @@ MODELS = {
     CLAUDE_4_6_SONNET: 1000000,
     CLAUDE_4_6_OPUS: 1000000,
     GEMINI_3_FLASH_PREVIEW: 1048576,
-    MISTRAL_LARGE_2411: 131000,
+    MISTRAL_LARGE_LATEST: 262144,
     GROK_4_3: 1000000,
     GROQ_LLAMA_3_3_70B_VERSATILE: 128000,
     # cloudflare serves this model with a reduced context window
@@ -49,6 +51,7 @@ MODELS = {
     TOGETHER_MINI_MAX_27: 196000,
     BEDROCK_NOVA_LITE_1_0: 128000,
     MOONSHOT_KIMI_K3: 1048576,
+    DEEPSEEK_V4_FLASH: 1048576,
 }
 
 
@@ -110,7 +113,7 @@ async def test_model_length_google():
 
 @skip_if_no_mistral
 async def test_model_length_mistral():
-    await check_model_length(MISTRAL_LARGE_2411)
+    await check_model_length(MISTRAL_LARGE_LATEST)
 
 
 @skip_if_no_grok
@@ -141,3 +144,8 @@ async def test_model_length_bedrock():
 @skip_if_no_moonshot
 async def test_model_length_moonshot():
     await check_model_length(MOONSHOT_KIMI_K3)
+
+
+@skip_if_no_deepseek
+async def test_model_length_deepseek():
+    await check_model_length(DEEPSEEK_V4_FLASH)
