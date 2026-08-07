@@ -14,7 +14,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
@@ -44,6 +44,23 @@ PARTIAL = "P"
 
 NOANSWER = "N"
 """Value to assign for no answer or refusal to answer."""
+
+ScoreReason = Literal[
+    # model under test
+    "invalid_response_format",  # output unparseable / violates requested format
+    "refusal",  # detected refusal to answer
+    "no_response",  # empty completion
+    # measurement instrument (grader model, harness)
+    "grader_parse_failure",  # grader verdict unparseable after bounded retry
+    "grader_refusal",  # grader refused to grade
+    "grader_no_tool_call",  # grader made no tool call (schema-based scorers)
+    "grader_schema_mismatch",  # grader payload failed schema validation
+]
+"""Standard machine-readable reasons for abnormal scores.
+
+The `grader_` prefix marks failures of the measurement instrument rather
+than the model under test, so a single query can separate the two.
+"""
 
 
 Value = Union[
@@ -75,6 +92,9 @@ class ScoreEdit(BaseModel):
     explanation: str | None | Literal["UNCHANGED"] = "UNCHANGED"
     """New explanation for the score, or UNCHANGED to keep current explanation."""
 
+    reason: ScoreReason | str | None | Literal["UNCHANGED"] = "UNCHANGED"
+    """New reason for the score, or UNCHANGED to keep current reason."""
+
     metadata: dict[str, Any] | Literal["UNCHANGED"] = "UNCHANGED"
     """New metadata for the score, or UNCHANGED to keep current metadata.
 
@@ -105,16 +125,39 @@ class Score(BaseModel):
     explanation: str | None = Field(default=None)
     """Explanation of score (optional)."""
 
+    reason: ScoreReason | str | None = Field(default=None)
+    """Machine-readable reason for an abnormal score (optional)."""
+
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional metadata related to the score"""
 
     history: list[ScoreEdit] = Field(default_factory=list)
     """Edit history - users can access intermediate states."""
 
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_unscored_reason(cls, data: Any) -> Any:
+        """Lift legacy ``metadata["unscored_reason"]`` into ``reason``.
+
+        Logs written before ``reason`` existed (#4048, 0.3.245+) record the
+        grade-parse failure mode in metadata. Read it into the field so new
+        readers see one channel; the metadata key is left in place so that
+        round-tripped logs don't differ.
+        """
+        if (
+            isinstance(data, dict)
+            and data.get("reason") is None
+            and isinstance(data.get("metadata"), dict)
+            and data["metadata"].get("unscored_reason") is not None
+        ):
+            data = {**data, "reason": data["metadata"]["unscored_reason"]}
+        return data
+
     @classmethod
     def unscored(
         cls,
         *,
+        reason: ScoreReason | str | None = None,
         answer: str | None = None,
         explanation: str | None = None,
         metadata: dict[str, Any] | None = None,
@@ -122,12 +165,13 @@ class Score(BaseModel):
         """Construct a Score that is preserved but excluded from metrics and reducers.
 
         Use this when a scorer cannot produce a value for a sample but you
-        still want to record context (answer, explanation, metadata). Sets
-        `value` to NaN, which is the canonical sentinel that aggregate
+        still want to record context (reason, answer, explanation, metadata).
+        Sets `value` to NaN, which is the canonical sentinel that aggregate
         metrics and reducers skip.
         """
         return cls(
             value=float("nan"),
+            reason=reason,
             answer=answer,
             explanation=explanation,
             metadata=metadata,

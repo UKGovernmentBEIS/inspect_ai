@@ -343,8 +343,10 @@ def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
     assert isinstance(score.value, float) and math.isnan(score.value), (
         f"expected unscored (NaN) for {grader_output!r}, got {score.value!r}"
     )
+    assert score.reason == "grader_parse_failure"
     assert score.metadata is not None
-    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+    assert "unscored_reason" not in score.metadata
+    assert "grading" in score.metadata
 
 
 @pytest.mark.parametrize(

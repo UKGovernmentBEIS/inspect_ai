@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Scoring: New machine-readable `Score.reason` field records why a score has an abnormal value (e.g. `invalid_response_format`, `grader_parse_failure`), is preserved across score edits, and appears as `score_<name>_reason` dataframe columns. (#4567)
+- Scoring: `pattern()` and `answer()` now score unmatched output as `INCORRECT` with `reason="invalid_response_format"` instead of `NOANSWER`, keeping format violations in the metric denominator. (#4567)
+- Scoring: `perplexity()` and `target_perplexity()` now return `Score.unscored()` with a `reason` instead of a raw NaN value when logprobs are unavailable. (#4567)
+- Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Sandbox: `ComposeService` now accepts the standard compose keys `restart`, `stdin_open`, and `tty` (previously rejected as unknown fields).
 - Bugfix: Model info lookup no longer sends its internal placeholder API key to the Hugging Face Hub when canonicalizing model names. (#4600)
 - Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.

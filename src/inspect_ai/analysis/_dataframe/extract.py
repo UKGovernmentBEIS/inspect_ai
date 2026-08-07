@@ -52,7 +52,7 @@ def score_details(x: JsonValue) -> dict[str, JsonValue]:
             continue
 
         details[key] = value.get("value")
-        for extra_field in ("answer", "explanation", "metadata"):
+        for extra_field in ("answer", "explanation", "reason", "metadata"):
             extra_value = value.get(extra_field)
             if extra_value:
                 details[f"{key}_{extra_field}"] = extra_value

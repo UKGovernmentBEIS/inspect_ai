@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+from pydantic import JsonValue
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
@@ -19,6 +20,7 @@ from inspect_ai.analysis import (
     samples_df,
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
+from inspect_ai.analysis._dataframe.extract import score_details
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
 from inspect_ai.log import (
     EvalLog,
@@ -476,3 +478,20 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
     df = evals_df(log_dir)
     assert df["tags"].to_list() == ["added"]
     assert df["metadata"].to_list() == ['{"key": "edited"}']
+
+
+def test_score_details_includes_reason() -> None:
+    scores: JsonValue = {
+        "match": {
+            "value": "I",
+            "answer": "foo",
+            "reason": "invalid_response_format",
+        },
+        "other": {"value": "C"},
+    }
+    details = score_details(scores)
+    assert details["match"] == "I"
+    assert details["match_reason"] == "invalid_response_format"
+    assert details["match_answer"] == "foo"
+    # None-safety: absent reason produces no column entry
+    assert "other_reason" not in details
