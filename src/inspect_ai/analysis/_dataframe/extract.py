@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from typing import Any, cast
+from typing import cast
 
 import shortuuid
 from pydantic import BaseModel, JsonValue
@@ -33,13 +33,18 @@ def remove_namespace(x: JsonValue) -> JsonValue:
 
 
 def score_values(x: JsonValue) -> dict[str, JsonValue]:
-    scores = cast(dict[str, Any], x)
-    return {k: v["value"] for k, v in scores.items()}
+    if not isinstance(x, dict):
+        return {}
+    return {k: v.get("value") if isinstance(v, dict) else v for k, v in x.items()}
 
 
 def score_value(x: JsonValue) -> JsonValue:
-    scores = cast(dict[str, Any], x)
-    return next(iter(scores.values()), None)
+    if not isinstance(x, dict):
+        return None
+    val = next(iter(x.values()), None)
+    if isinstance(val, dict):
+        return val.get("value")
+    return val
 
 
 def score_details(x: JsonValue) -> dict[str, JsonValue]:
