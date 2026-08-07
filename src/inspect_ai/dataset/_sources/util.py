@@ -7,7 +7,7 @@ from inspect_ai._util.content import (
     ContentImage,
     ContentVideo,
 )
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import dirname, filesystem
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
@@ -22,7 +22,7 @@ def resolve_sample_files(dataset: Dataset) -> None:
 
     # filesystem and parent for resolving paths
     fs = filesystem(dataset.location)
-    parent_dir = fs.sep.join(dataset.location.split(fs.sep)[:-1])
+    parent_dir = dirname(dataset.location)
 
     # resolve file locations
     def resolve_file(file: str) -> str:

@@ -15,6 +15,7 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._model_info import MODEL_INFO_LOOKUP_API_KEY
 
 
 @pytest.fixture
@@ -157,9 +158,21 @@ def test_hf_trust_remote_code_explicit_true(monkeypatch) -> None:
         {"model_path": "local-model", "tokenizer_path": "custom-tokenizer"},
     ],
 )
-def test_hf_explicit_api_key_reaches_model_and_tokenizer(
+@pytest.mark.parametrize(
+    ("api_key", "expected_token"),
+    [
+        ("hf-test-token", "hf-test-token"),
+        # the model info lookup placeholder is not a credential and must not be
+        # sent to the Hub: passing it makes the request unauthenticated and
+        # stops huggingface_hub falling back to HF_TOKEN or the cached login
+        (MODEL_INFO_LOOKUP_API_KEY, None),
+    ],
+)
+def test_hf_api_key_reaches_model_and_tokenizer(
     monkeypatch: pytest.MonkeyPatch,
     model_args: dict[str, str],
+    api_key: str,
+    expected_token: str | None,
 ) -> None:
     model_calls: list[dict] = []
     tokenizer_calls: list[dict] = []
@@ -197,7 +210,7 @@ def test_hf_explicit_api_key_reaches_model_and_tokenizer(
         provider_module = importlib.import_module(module_name)
         provider_module.HuggingFaceAPI(
             model_name="private/model",
-            api_key="hf-test-token",
+            api_key=api_key,
             **model_args,
         )
     finally:
@@ -205,8 +218,8 @@ def test_hf_explicit_api_key_reaches_model_and_tokenizer(
         if previous_module is not None:
             sys.modules[module_name] = previous_module
 
-    assert model_calls[0]["kwargs"]["token"] == "hf-test-token"
-    assert tokenizer_calls[0]["kwargs"]["token"] == "hf-test-token"
+    assert model_calls[0]["kwargs"]["token"] == expected_token
+    assert tokenizer_calls[0]["kwargs"]["token"] == expected_token
 
 
 @skip_if_no_transformers
@@ -254,7 +267,9 @@ def test_hf_auto_model_class_selects_alternate_loader(monkeypatch) -> None:
     AutoModelForCausalLM and must be loaded with e.g.
     AutoModelForImageTextToText.
     """
-    import transformers  # type: ignore
+    # unused-ignore is listed because the ignore is environment-dependent:
+    # it fires only when transformers is not installed.
+    import transformers  # type: ignore[import-not-found,import-untyped,unused-ignore]
 
     from inspect_ai.model._providers.hf import HuggingFaceAPI
 

@@ -5,10 +5,14 @@ import shutil
 import subprocess
 import sys
 import warnings
+from typing import TYPE_CHECKING
 
 import boto3
 import pytest
 from moto.server import ThreadedMotoServer
+
+if TYPE_CHECKING:
+    from test_helpers.chunked_corpus import ChunkedCorpus
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "helpers"))
 
@@ -65,6 +69,41 @@ def local_inspect_tools(request):
     return request.config.getoption("--local-inspect-tools")
 
 
+# Chunked-format corpora (large-samples effort): converted once per
+# session; imports are function-local so conftest stays light for runs
+# that never request them.
+
+
+@pytest.fixture(scope="session")
+def chunked_corpus(tmp_path_factory: pytest.TempPathFactory) -> "ChunkedCorpus":
+    """Chunked conversions of every test `.eval` log (default chunk size).
+
+    Realistic writer-policy corpus: most samples fit a single chunk.
+    """
+    from test_helpers.chunked_corpus import build_chunked_corpus
+
+    from inspect_ai.log._recorders.chunked.format import DEFAULT_CHUNK_SIZE
+
+    return build_chunked_corpus(
+        tmp_path_factory.mktemp("chunked_corpus"), DEFAULT_CHUNK_SIZE
+    )
+
+
+@pytest.fixture(scope="session")
+def chunked_corpus_small_chunks(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> "ChunkedCorpus":
+    """Chunked conversions with a tiny chunk size (multi-chunk samples)."""
+    from test_helpers.chunked_corpus import (
+        CORPUS_SMALL_CHUNK_SIZE,
+        build_chunked_corpus,
+    )
+
+    return build_chunked_corpus(
+        tmp_path_factory.mktemp("chunked_corpus_small"), CORPUS_SMALL_CHUNK_SIZE
+    )
+
+
 @pytest.fixture(autouse=True)
 def fast_retry_waits(request):
     """Zero out model-generate and chat-API retry backoff during tests.
@@ -92,6 +131,33 @@ def fast_retry_waits(request):
         mp.setattr(model_retry, "wait_exponential_jitter", no_wait)
         mp.setattr(chatapi, "wait_exponential_jitter", no_wait)
         yield
+
+
+@pytest.fixture
+def no_model_copyreg_reducer():
+    """Suspend any copyreg reducer registered for Model for the test's duration.
+
+    Importing inspect_scout registers ``copyreg.pickle(Model, ...)`` (so Models
+    can cross multiprocessing boundaries), but ``copyreg.dispatch_table`` is
+    also consulted by ``copy.copy()``, which then reconstructs through memoized
+    ``get_model()`` and returns a shared instance instead of a copy. Tests that
+    assert ``copy()``-produces-a-distinct-``Model`` semantics (role stamping)
+    fail whenever an earlier test in the same worker imported inspect_scout.
+    Remove the entry for the test and restore it after, since inspect_scout's
+    own pickling still needs it. Workaround until
+    https://github.com/meridianlabs-ai/inspect_scout/issues/537 scopes the
+    reducer to pickling.
+    """
+    import copyreg
+
+    from inspect_ai.model._model import Model
+
+    saved = copyreg.dispatch_table.pop(Model, None)
+    try:
+        yield
+    finally:
+        if saved is not None:
+            copyreg.dispatch_table[Model] = saved
 
 
 def pytest_configure(config):

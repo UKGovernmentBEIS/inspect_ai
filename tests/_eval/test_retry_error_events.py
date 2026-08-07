@@ -4,12 +4,13 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
+from pydantic import JsonValue
 from test_helpers.transcript import make_model_event
 
 from inspect_ai._eval.task.log import TaskLogger
 from inspect_ai._eval.task.run import _eval_retry_error, _sample_transcript_config
 from inspect_ai.event import Event, InfoEvent, ModelEvent
-from inspect_ai.log import EvalError, EventsData, Transcript
+from inspect_ai.log import EvalError, Transcript
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.transcript_history_provider import (
     BufferTranscriptHistoryProvider,
@@ -17,7 +18,7 @@ from inspect_ai.log._recorders.buffer.transcript_history_provider import (
 from inspect_ai.log._recorders.streaming import eval_retry_error_from_history
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import _transcript, init_transcript
-from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
+from inspect_ai.model import ChatMessage, ChatMessageUser, GenerateConfig, ModelOutput
 
 
 def _model(uuid: str, content: str) -> ModelEvent:
@@ -192,7 +193,8 @@ def test_buffer_provider_iter_events_streams_first_event_before_later_rows() -> 
 
     class LazyHistory:
         attachments: dict[str, str] = {}
-        events_data: EventsData = {"messages": [], "calls": []}
+        message_pool: dict[int, ChatMessage] = {}
+        call_pool: dict[int, JsonValue] = {}
 
         def iter_events(self) -> Iterator[Event]:
             yield first
