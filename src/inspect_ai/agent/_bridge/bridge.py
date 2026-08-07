@@ -15,7 +15,12 @@ from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, ModelEventSink, get_model
+from inspect_ai.model._model import (
+    GenerateFilter,
+    ModelEventSink,
+    ModelResponseFilter,
+    get_model,
+)
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai_convert import (
     messages_from_openai,
@@ -93,6 +98,7 @@ async def agent_bridge(
     code_execution: CodeExecutionProviders | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
+    response_filter: ModelResponseFilter | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -135,6 +141,10 @@ async def agent_bridge(
           parameters like the system prompt, tools, and response format are always
           forwarded). Set `True` for faithful-proxy behavior where the client's
           generation parameters are authoritative.
+       response_filter: Filter that mutates model output after generation.
+          Called inside the refusal-retry loop, between ``model.generate()``
+          and the compaction baseline update. Return ``None`` to pass
+          through; return a ``ModelOutput`` to replace the response.
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -154,6 +164,7 @@ async def agent_bridge(
         compaction,
         model_event_sink=model_event_sink,
         forward_generation_config=forward_generation_config,
+        response_filter=response_filter,
     )
 
     # set the patch config for this context and child coroutines
