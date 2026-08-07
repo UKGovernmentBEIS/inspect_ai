@@ -74,6 +74,17 @@ def job_record(run: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:
         "wait_from_run_start_seconds": seconds_between(
             run["run_started_at"], job["started_at"]
         ),
+        # Per-step timings: job-level numbers hide which step costs what
+        # (checkout vs install vs the actual work) and hide high-variance
+        # steps whose median looks fine (e.g. full-pack git fetches that
+        # take 30s or 4min depending on server pack-cache luck).
+        "steps": [
+            {
+                "name": step["name"],
+                "seconds": seconds_between(step["started_at"], step["completed_at"]),
+            }
+            for step in job.get("steps", [])
+        ],
         "id": job["id"],
     }
 
