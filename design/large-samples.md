@@ -259,6 +259,21 @@ place; affected sections carry a **⚑ amended** marker pointing back here.
   [Client data contract](#client-data-contract),
   [Data-loading architecture](#data-loading-architecture-9), Appendix A
   pattern 7, deferred issues 12/13, levers table.
+- **2026-07-28 — Format version gate resolved: chunked logs stamp version
+  3.** Resolves the JJ follow-up in [Format gate](#format-gate) in favor of
+  gating. Logs containing chunked samples carry `version: 3` in
+  `header.json` and `_journal/start.json`; today only the converter stamps
+  it (`LOG_SCHEMA_VERSION` stays 2 until the phase-3 writer flip). The
+  `.eval` reader now refuses versions above its ceiling at header-read time,
+  sharing the `.json` reader's gate. Developers working on the format raise
+  the ceiling with the undocumented `INSPECT_MAX_LOG_FILE_VERSION` env var
+  (set to `3`); released readers' ceiling flips to 3 when the format
+  freezes, ahead of any writer shipping. Per-sample shape dispatch stays
+  structural — the version field gates whole-log readability only. (The
+  repo's interim message-pool fixture, stamped `3` by an unreleased
+  2025-10 dev build, was re-stamped to `2` so corpus sweeps still read it.)
+  Affected: [Format gate](#format-gate),
+  [Forward compatibility](#forward-compatibility).
 
 ---
 
@@ -1151,13 +1166,20 @@ behavior triggers a strategy discussion first.**
 
 ## Format gate
 
-**No version bump: `.eval` extension, `LOG_SCHEMA_VERSION` stays 2.** Chunked
-samples are an additive per-sample shape detected structurally
-(central-directory dispatch). Ground truth: the `.eval` read path deliberately
-ignores the version field today (leniency norm); the `.json` reader hard-fails
-on version > 2. `.eval2` was prototype-only naming. **Marked follow-up with
-JJ**: whether the version field should ever gate this / why `.eval` reads
-ignore version.
+**⚑ amended ([Change log](#change-log), 2026-07-28).** Same `.eval`
+extension. Logs containing chunked samples stamp **format version 3** into
+`header.json`/`_journal/start.json`; `LOG_SCHEMA_VERSION` stays 2 until the
+live recorder writes the chunked shape (phase 3), so today only the
+converter writes version 3. Both readers refuse versions above their
+ceiling — the `.json` reader always did; the `.eval` reader gained the same
+gate (at header-read time) alongside the version stamp, resolving the JJ
+follow-up in favor of gating. The ceiling is `LOG_SCHEMA_VERSION`, raisable
+via the undocumented `INSPECT_MAX_LOG_FILE_VERSION` env var (dev/CI
+affordance while the format can still change); it flips to 3 for released
+readers when the format freezes, ahead of any writer shipping. Per-sample
+shape dispatch stays structural (central-directory) — the version field
+gates whole-log readability, not dispatch. `.eval2` was prototype-only
+naming.
 
 ## Converter
 
@@ -1177,9 +1199,11 @@ message does **not** mention conversion for now.
 1. Stale installs meeting a chunked log **fail loudly by construction** —
    chunk entries break their `samples/*.json` sample enumeration; nothing
    silently drops samples. No retrofit; mitigation is the read-first phasing
-   soak.
-2. Updated readers handle both per-sample shapes transparently; version
-   ignored pending the JJ follow-up.
+   soak. Installs carrying the version gate refuse cleanly by version
+   instead ([Format gate](#format-gate)).
+2. Updated readers handle both per-sample shapes transparently; readers
+   refuse versions above their ceiling (**⚑ amended** — the JJ follow-up
+   resolved in favor of gating, [Format gate](#format-gate)).
 3. The chunked shape is `.eval`-only; the `.json` log format never chunks (its
    existing version check stays).
 4. Old logs readable forever (an up-front constraint, [Constraints](#constraints-set-up-front-before-design-work-began)).
