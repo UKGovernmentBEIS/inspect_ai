@@ -24,6 +24,7 @@ class SandboxAgentBridge(AgentBridge):
         model_event_sink: ModelEventSink | None = None,
         forward_generation_config: bool = False,
         checkpointer: Checkpointer | None = None,
+        accumulate_conversations: bool = False,
     ) -> None:
         super().__init__(
             state,
@@ -35,6 +36,7 @@ class SandboxAgentBridge(AgentBridge):
             model_event_sink=model_event_sink,
             forward_generation_config=forward_generation_config,
             checkpointer=checkpointer,
+            accumulate_conversations=accumulate_conversations,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []

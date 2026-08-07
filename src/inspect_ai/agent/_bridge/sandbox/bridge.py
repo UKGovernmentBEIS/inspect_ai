@@ -51,6 +51,7 @@ async def sandbox_agent_bridge(
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
     checkpointer: Checkpointer | None = None,
+    accumulate_conversations: bool = False,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -110,6 +111,13 @@ async def sandbox_agent_bridge(
             state (messages, output, compaction prefix) for checkpoint backup
             and restore, so a checkpointed run survives resume. Defaults to
             `None` (no checkpointing).
+        accumulate_conversations: Keep every conversation observed over the bridge
+            rather than tracking a single main one. Defaults to `False`, which surfaces
+            the main agent loop and treats other traffic as side calls — right for a
+            scaffold that runs one loop. Set `True` when the sandbox may run SEVERAL
+            independent conversations (a human-driven harness, or repeated CLI
+            invocations): `state.messages` then holds each of them concatenated in the
+            order they started, instead of silently keeping only one.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -145,6 +153,7 @@ async def sandbox_agent_bridge(
                 model_event_sink=model_event_sink,
                 forward_generation_config=forward_generation_config,
                 checkpointer=checkpointer,
+                accumulate_conversations=accumulate_conversations,
             )
 
             # register bridged tools with the bridge

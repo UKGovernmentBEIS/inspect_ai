@@ -17,6 +17,7 @@
 - Logging: Model calls in running samples now show an end time and non-zero working time in the viewer, instead of an empty completion time and 0 seconds. (#4226)
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
 - Hugging Face: Model info lookups now use your `HF_TOKEN` or cached `huggingface-cli login` credentials instead of authenticating with a placeholder and being rate limited as anonymous. (#4600)
+- Agent Bridge: `sandbox_agent_bridge()` can now preserve every conversation a sandbox runs, instead of returning only one when the sandbox ran several.
 
 ## 0.3.252 (04 August 2026)
 
