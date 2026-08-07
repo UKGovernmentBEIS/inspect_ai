@@ -30,6 +30,25 @@ def _isolate_active_model() -> Iterator[None]:
         active_model_context_var.reset(token)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_terminal_source_caches() -> Iterator[None]:
+    """Keep the terminal-source caches from leaking across tests.
+
+    The events / messages readers cache resolved terminal sources for a few
+    seconds (see ``inspect_ai._control.terminal_cache``). Tests in this suite
+    reuse eval/sample ids (``e1`` / ``s1``) across monkeypatched sources, so
+    without clearing, one test's cached source (which outlives its
+    monkeypatches) would be served to the next.
+    """
+    from inspect_ai._control.terminal_cache import clear_terminal_source_caches
+
+    clear_terminal_source_caches()
+    try:
+        yield
+    finally:
+        clear_terminal_source_caches()
+
+
 @pytest.fixture
 def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Short data dir under /tmp so AF_UNIX paths fit in 104 chars.
