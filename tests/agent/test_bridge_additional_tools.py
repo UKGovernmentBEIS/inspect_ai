@@ -28,7 +28,6 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._openai_responses import (
     RESPONSES_VERBATIM,
     is_additional_tools,
-    is_agent_message,
     openai_responses_tools,
 )
 from inspect_ai.tool._tool_info import ToolInfo
@@ -74,15 +73,6 @@ def _additional_tools_item(*tools: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _agent_message_item(*content: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "type": "agent_message",
-        "author": "subagent",
-        "recipient": "parent",
-        "content": list(content),
-    }
-
-
 # 1. is_additional_tools predicate
 
 
@@ -97,75 +87,6 @@ def test_is_additional_tools_predicate() -> None:
             {"type": "message", "role": "user", "content": "hi"},
         )
     )
-
-
-# 2. agent_message items are converted to user messages
-
-
-def test_is_agent_message_predicate() -> None:
-    assert is_agent_message(
-        cast(
-            ResponseInputItemParam,
-            _agent_message_item({"type": "input_text", "text": "delegate result"}),
-        )
-    )
-    assert not is_agent_message(
-        cast(
-            ResponseInputItemParam,
-            {"type": "message", "role": "user", "content": "hi"},
-        )
-    )
-    assert not is_agent_message(cast(ResponseInputItemParam, _additional_tools_item()))
-
-
-def test_messages_from_responses_input_converts_agent_message() -> None:
-    input_items = cast(
-        list[ResponseInputItemParam],
-        [
-            {
-                "type": "message",
-                "role": "user",
-                "content": [{"type": "input_text", "text": "delegate this"}],
-            },
-            _agent_message_item({"type": "input_text", "text": "delegate result"}),
-        ],
-    )
-
-    messages = messages_from_responses_input(input_items, [], MODEL_NAME)
-
-    assert [message.text for message in messages] == [
-        "delegate this",
-        "delegate result",
-    ]
-    assert all(isinstance(message, ChatMessageUser) for message in messages)
-
-
-def test_messages_from_responses_input_drops_agent_message_encrypted_content() -> None:
-    input_items = cast(
-        list[ResponseInputItemParam],
-        [
-            _agent_message_item(
-                {"type": "input_text", "text": "Payload:"},
-                {"type": "encrypted_content", "encrypted_content": "ciphertext"},
-            )
-        ],
-    )
-
-    messages = messages_from_responses_input(input_items, [], MODEL_NAME)
-
-    assert [message.text for message in messages] == ["Payload:"]
-    assert all(isinstance(message, ChatMessageUser) for message in messages)
-
-
-def test_messages_from_responses_input_agent_message_only() -> None:
-    input_items = cast(
-        list[ResponseInputItemParam],
-        [_agent_message_item({"type": "input_text", "text": "delegate result"})],
-    )
-
-    messages = messages_from_responses_input(input_items, [], MODEL_NAME)
-
-    assert [message.text for message in messages] == ["delegate result"]
 
 
 # 2. converting input containing an additional_tools item does not raise and

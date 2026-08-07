@@ -998,18 +998,44 @@ def messages_from_responses_input(
             pass
         elif is_agent_message(item):
             # Codex Multi-Agent V2 delivers inter-agent messages as input items.
-            # Forward plaintext input_text parts to the recipient and drop
-            # response-bound encrypted_content parts that cannot be replayed.
+            # Render an author-attributed user message (Codex's own downgrade
+            # convention, so the recipient never mistakes another agent's words
+            # for the user's) and stash the original item on ContentText.internal
+            # so the OpenAI Responses provider can replay it natively --
+            # encrypted_content parts are undecryptable here but decryptable
+            # by OpenAI server-side.
             agent_message = cast(dict[str, Any], item)
+            author = str(agent_message.get("author", "agent"))
+            agent_message_parts = agent_message.get("content", []) or []
             text_parts = [
-                content["text"]
-                for content in agent_message.get("content", []) or []
-                if isinstance(content, dict)
-                and content.get("type") == "input_text"
-                and isinstance(content.get("text"), str)
+                part["text"]
+                for part in agent_message_parts
+                if isinstance(part, dict)
+                and part.get("type") == "input_text"
+                and isinstance(part.get("text"), str)
             ]
-            if text_parts:
-                messages.append(ChatMessageUser(content="\n".join(text_parts)))
+            if not text_parts and any(
+                isinstance(part, dict) and part.get("type") == "encrypted_content"
+                for part in agent_message_parts
+            ):
+                warn_once(
+                    logger,
+                    "agent_message item carries only encrypted content: it "
+                    "replays natively to OpenAI Responses targets, but other "
+                    "targets see only a placeholder.",
+                )
+                text_parts = ["[encrypted content: readable only by OpenAI]"]
+            messages.append(
+                ChatMessageUser(
+                    content=[
+                        ContentText(
+                            text=f"Agent message from {author}:\n"
+                            + "\n".join(text_parts),
+                            internal={"agent_message": agent_message},
+                        )
+                    ]
+                )
+            )
         else:
             # ImageGenerationCall
             # ResponseCodeInterpreterToolCallParam
