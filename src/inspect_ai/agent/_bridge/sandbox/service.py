@@ -4,6 +4,7 @@ from typing import Any, Awaitable, Callable, cast
 import anyio
 from pydantic import JsonValue
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -33,8 +34,9 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
 
-    `LimitExceededError` is deliberately excluded so message/token/cost limit
-    hit during generation properly end the sample.
+    `LimitExceededError` and `TerminateSampleError` are re-raised rather than
+    forwarded: both should end the sample (via the sandbox-service dispatch
+    loop), not reach the scaffold as a retryable API error.
     """
 
     async def generate_forwarding_errors(
@@ -42,7 +44,7 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     ) -> dict[str, JsonValue]:
         try:
             return await generate(json_data)
-        except LimitExceededError:
+        except (LimitExceededError, TerminateSampleError):
             raise
         except Exception as ex:
             payload = provider_error_payload(ex)

@@ -460,6 +460,7 @@ class SandboxService:
 
         # all clear, call the method
         else:
+            from inspect_ai._util.exception import TerminateSampleError
             from inspect_ai.log._samples import sample_active
             from inspect_ai.util._limit import LimitExceededError
 
@@ -479,6 +480,19 @@ class SandboxService:
                         request_id,
                         None,
                         f"Limit exceeded calling method {method_name}: {ex.message}",
+                    )
+                except TerminateSampleError as ex:
+                    # this dispatch loop runs outside the sample's call stack,
+                    # so interrupt the sample directly (mirroring limit_exceeded
+                    # above); "score" matches the in-process bridge path
+                    active = sample_active()
+                    if active is not None:
+                        active.interrupt("score")
+                    await self._write_response(
+                        request_file,
+                        request_id,
+                        None,
+                        f"Sample terminated calling method {method_name}: {ex.reason}",
                     )
             except Exception as err:
                 # Log the host-side traceback, but do NOT put it in the response.

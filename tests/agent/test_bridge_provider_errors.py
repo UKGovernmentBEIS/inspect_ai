@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.http import status_code_of
 from inspect_ai._util.registry import _registry
 from inspect_ai.agent._bridge._errors import (
@@ -160,6 +161,16 @@ async def test_forward_provider_errors_no_warn_on_provider_error(
     result = await _forward_provider_errors(boom)({})
     assert result == {PROVIDER_ERROR_KEY: {"status": 503, "message": "x"}}
     assert warnings == []
+
+
+async def test_forward_provider_errors_reraises_terminate_sample_error() -> None:
+    """A `terminate` approval decision must end the sample, not look like an API error."""
+
+    async def boom(json_data: dict[str, Any]) -> dict[str, Any]:
+        raise TerminateSampleError("approver requested termination")
+
+    with pytest.raises(TerminateSampleError):
+        await _forward_provider_errors(boom)({})
 
 
 async def test_forward_provider_errors_reraises_limit_exceeded_error() -> None:

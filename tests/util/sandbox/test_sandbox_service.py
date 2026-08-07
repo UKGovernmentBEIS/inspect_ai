@@ -13,9 +13,13 @@ from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.dataset._dataset import Sample
+from inspect_ai.log._samples import ActiveSample
+from inspect_ai.log._transcript import Transcript
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 from inspect_ai.util._background import background
+from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import (
@@ -425,6 +429,28 @@ def _service_with_dirs(
     return service
 
 
+def _make_active_sample() -> ActiveSample:
+    """Bare-bones `ActiveSample` for dispatch-loop tests."""
+    return ActiveSample(
+        task="t",
+        log_location="mem://test",
+        model="mockllm/model",
+        sample=Sample(id=1, input="hi"),
+        epoch=0,
+        message_limit=None,
+        token_limit=None,
+        cost_limit=None,
+        time_limit=None,
+        working_limit=None,
+        fails_on_error=False,
+        transcript=Transcript(),
+        sandboxes={},
+        checkpointer=_NoopCheckpointer(),
+        eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
+    )
+
+
 async def test_handle_request_oversized_raise_writes_error_and_removes_file() -> None:
     """A provider that RAISES on overflow (k8s) -> error response + removal."""
     request_id = "11111111-2222-3333-4444-555555555555"
@@ -537,6 +563,77 @@ async def test_handle_request_valid_call_uses_argv() -> None:
     assert fake.calls[0] == ["cat", "--", request_file]
     assert ["rm", "-f", "--", request_file] in fake.calls
     assert all(call[:2] not in (["bash", "-c"], ["sh", "-c"]) for call in fake.calls)
+
+
+async def test_handle_request_limit_exceeded_interrupts_active_sample() -> None:
+    """A method raising `LimitExceededError` cancels the active sample's task group."""
+    from unittest.mock import MagicMock
+
+    from inspect_ai.log._samples import _sample_active as samples_var
+    from inspect_ai.util._limit import LimitExceededError
+
+    request_id = "limit-request"
+    request_data = {"id": request_id, "method": "run", "params": {}}
+    fake = _RequestReadSandbox(cat_stdout=json.dumps(request_data))
+    service = _service_with_dirs(fake)
+
+    async def run() -> None:
+        raise LimitExceededError("token", value=100, limit=50)
+
+    service.add_method("run", run)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    active = _make_active_sample()
+    active.tg = MagicMock()
+    token = samples_var.set(active)
+    try:
+        await service._handle_request(request_file)
+    finally:
+        samples_var.reset(token)
+
+    active.tg.cancel_scope.cancel.assert_called_once()
+    assert active.limit_exceeded_error is not None
+    response = json.loads(next(iter(fake.writes.values())))
+    assert response["result"] is None
+    assert "Limit exceeded" in response["error"]
+
+
+async def test_handle_request_terminate_sample_error_interrupts_active_sample() -> None:
+    """A method raising `TerminateSampleError` interrupts the active sample.
+
+    `interrupt("score")` mirrors the in-process bridge path, where the same
+    error is scored rather than treated as a failure.
+    """
+    from unittest.mock import MagicMock
+
+    from inspect_ai._util.exception import TerminateSampleError
+    from inspect_ai.log._samples import _sample_active as samples_var
+
+    request_id = "terminate-request"
+    request_data = {"id": request_id, "method": "run", "params": {}}
+    fake = _RequestReadSandbox(cat_stdout=json.dumps(request_data))
+    service = _service_with_dirs(fake)
+
+    async def run() -> None:
+        raise TerminateSampleError("Tool call approver requested termination.")
+
+    service.add_method("run", run)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    active = _make_active_sample()
+    active.tg = MagicMock()
+    token = samples_var.set(active)
+    try:
+        await service._handle_request(request_file)
+    finally:
+        samples_var.reset(token)
+
+    active.tg.cancel_scope.cancel.assert_called_once()
+    assert active.interrupt_action == "score"
+    response = json.loads(next(iter(fake.writes.values())))
+    assert response["result"] is None
+    assert "Sample terminated" in response["error"]
+    assert "approver requested termination" in response["error"]
 
 
 @pytest.mark.parametrize(

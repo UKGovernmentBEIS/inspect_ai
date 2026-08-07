@@ -151,7 +151,7 @@ agent = react(
 )
 ```
 
-## Custom Approvers
+## Custom Approvers {#custom-approvers}
 
 Inspect includes two built-an approvers: `human` for interactive approval at the terminal and `auto` for automatically approving or rejecting specific tools. You can also create your own approvers that implement just about any scheme you can imagine.
 
@@ -230,6 +230,15 @@ Note that the human approver is last and is bound to all tools, so escalations f
 
 See the documentation on [Approver Extensions](extensions-approvers.qmd#sec-extensions-approvers) for additional details on publishing approvers within Python packages.
 
+## Bridged Agents {#sec-approval-bridge}
+
+Approval policies also apply to [bridged agents](agent-bridge.qmd). Note that:
+
+-   **Behavior under reject is somewhat different** This is by necessity, since the bridged process (not inspect) implements the tool action and controls the transcript history. If a tool call is rejected, we append a rejection message to the existing input and resample from the model. When an approved tool call is generated, we return only the agent output that was approved (removing the intervening rejection messages). This is not ideal -- since e.g. the reasoning of the final (approved) message may be responding to a rejection that is no longer in the conversation history. You can avoid this by having approval policies that only accept/modify/terminate for bridged agents.
+
+-   **Tool names are the scaffold's, not Inspect's.** A `bash` rule does not match a scaffold's native `Bash` tool.
+
+-   **Scaffold-native permission settings still apply.** Approval policies are an additional gate, useful when you want one set of rules (or a model-based monitor) across several scaffolds.
 
 ## Tool Views
 
