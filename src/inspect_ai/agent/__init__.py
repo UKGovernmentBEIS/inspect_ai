@@ -11,6 +11,7 @@ from ._bridge.context import (
     BridgeRequest,
     current_agent_bridge_context,
     current_bridge_request,
+    is_root_agent,
     is_sub_agent,
     set_agent_bridge_context,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "BridgeRequest",
     "current_agent_bridge_context",
     "current_bridge_request",
+    "is_root_agent",
     "is_sub_agent",
     "set_agent_bridge_context",
     "content_only",

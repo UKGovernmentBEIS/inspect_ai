@@ -16,6 +16,7 @@ from inspect_ai.agent._bridge.context import (
     bridged_request_scope,
     current_agent_bridge_context,
     current_bridge_request,
+    is_root_agent,
     is_sub_agent,
     set_agent_bridge_context,
 )
@@ -82,6 +83,22 @@ def test_is_sub_agent_only_for_subagent_kind() -> None:
         with bridged_request_scope(None):
             set_agent_bridge_context(AgentBridgeContext(kind, "structural"))  # type: ignore[arg-type]
             assert is_sub_agent() is expected, f"kind={kind}"
+
+
+def test_is_root_agent_semantics() -> None:
+    assert is_root_agent() is False
+    with bridged_request_scope(None):
+        assert is_root_agent() is False  # unknown default
+    expectations = [
+        ("root", True),
+        ("subagent", False),
+        ("utility", False),
+        ("unknown", False),
+    ]
+    for kind, expected in expectations:
+        with bridged_request_scope(None):
+            set_agent_bridge_context(AgentBridgeContext(kind, "structural"))  # type: ignore[arg-type]
+            assert is_root_agent() is expected, f"kind={kind}"
 
 
 def test_is_root_property() -> None:
@@ -311,6 +328,9 @@ def test_public_exports() -> None:
         current_bridge_request as public_request,
     )
     from inspect_ai.agent import (
+        is_root_agent as public_is_root_agent,
+    )
+    from inspect_ai.agent import (
         is_sub_agent as public_is_sub_agent,
     )
     from inspect_ai.agent import (
@@ -324,4 +344,5 @@ def test_public_exports() -> None:
     assert public_current is current_agent_bridge_context
     assert public_request is current_bridge_request
     assert public_is_sub_agent is is_sub_agent
+    assert public_is_root_agent is is_root_agent
     assert public_set is set_agent_bridge_context

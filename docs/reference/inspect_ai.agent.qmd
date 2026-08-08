@@ -41,6 +41,7 @@ description: Agent scaffolds and protocol.
 ### current_bridge_request
 ### BridgeRequest
 ### is_sub_agent
+### is_root_agent
 ### set_agent_bridge_context
 
 ## Filters
