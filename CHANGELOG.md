@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Inspect View: New Timeline tab in the log viewer — a time-axis chart of run activity combined with a filterable event history. (#453)
-- Inspect View: Images embedded in message content as markdown or HTML render again (safe `data:`/`file:` sources only, gated by the sanitizer and capped to the transcript column width). Thanks @rasmusfaber. (#505)
+- Inspect View: Images embedded in message content as markdown render again (safe `data:`/`file:` sources only, gated by the sanitizer and capped to the transcript column width); raw HTML in message content remains escaped as before. Thanks @rasmusfaber. (#505)
 - Inspect View: Codex Multi-Agent V2 sub-agent model events now show the inter-agent handoff as the turn boundary instead of displaying the entire forked parent context as recent messages. (#504)
 - Inspect View: Codex Code Mode `exec` calls render their JavaScript source as a highlighted, expandable input body instead of a truncated single-line header summary; header-only tool blocks no longer sit flush against their bottom edge. (#504)
 - Inspect View: Live sample summaries read from in-progress logs are deduplicated by id and epoch, so requeued samples no longer appear twice. (#476)
