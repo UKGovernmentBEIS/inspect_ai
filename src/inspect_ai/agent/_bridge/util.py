@@ -234,8 +234,9 @@ async def bridge_generate(
 
     The entire call executes within a `bridged_request_scope`: the ambient
     `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
-    `requested_model` (the scaffold's pre-alias-resolution model slug), and both
-    reset when the request completes.
+    `requested_model` (the scaffold's pre-alias-resolution model slug), or
+    returns None when no `requested_model` was provided, and both reset when
+    the request completes.
     """
     with bridged_request_scope(requested_model):
         return await _bridge_generate_impl(

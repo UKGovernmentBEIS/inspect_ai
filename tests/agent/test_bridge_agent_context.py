@@ -5,6 +5,9 @@ from typing import Any
 import anyio
 
 from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._bridge.anthropic_api_impl import (
+    inspect_anthropic_api_request_impl,
+)
 from inspect_ai.agent._bridge.context import (
     AgentBridgeContext,
     BridgeRequest,
@@ -15,7 +18,11 @@ from inspect_ai.agent._bridge.context import (
     set_agent_bridge_context,
 )
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.agent._bridge.util import (
+    bridge_generate,
+    default_code_execution_providers,
+    internal_web_search_providers,
+)
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -202,3 +209,40 @@ async def test_bridge_generate_without_requested_model() -> None:
     )
     assert seen["context"] == AgentBridgeContext("unknown", "inferred")
     assert seen["request"] is None
+
+
+# --- impl passthrough -------------------------------------------------------
+
+
+async def test_anthropic_impl_passes_requested_slug() -> None:
+    seen: dict[str, Any] = {}
+
+    async def capture_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        seen["request"] = current_bridge_request()
+        return None
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=capture_filter,
+        model="mockllm/model",
+    )
+    json_data = {
+        "model": "claude-sub-agent-slug",
+        "max_tokens": 100,
+        "messages": [{"role": "user", "content": "hi"}],
+    }
+    await inspect_anthropic_api_request_impl(
+        json_data,
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+    # the raw scaffold slug survives even though the model resolved elsewhere
+    assert seen["request"] == BridgeRequest(model="claude-sub-agent-slug")
