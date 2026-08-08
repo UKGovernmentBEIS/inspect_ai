@@ -1,15 +1,26 @@
 """Tests for the ambient agent bridge context (AgentBridgeContext)."""
 
+from typing import Any
+
 import anyio
 
+from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.context import (
     AgentBridgeContext,
+    BridgeRequest,
     bridged_request_scope,
     current_agent_bridge_context,
     current_bridge_request,
     is_sub_agent,
     set_agent_bridge_context,
 )
+from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 def test_no_context_outside_bridged_request() -> None:
@@ -90,3 +101,104 @@ async def test_concurrent_tasks_have_isolated_contexts() -> None:
     assert observed["b"] == "subagent"
     assert observed["a-model"] == "a-slug"
     assert observed["b-model"] == "b-slug"
+
+
+# --- bridge_generate integration -------------------------------------------
+
+
+async def test_bridge_generate_stamps_default_and_slug() -> None:
+    seen: dict[str, Any] = {}
+
+    async def capture_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        seen["context"] = current_agent_bridge_context()
+        seen["request"] = current_bridge_request()
+        return None
+
+    bridge = AgentBridge(state=AgentState(messages=[]), filter=capture_filter)
+    await bridge_generate(
+        bridge,
+        get_model("mockllm/model"),
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model="scaffold-slug",
+    )
+    assert seen["context"] == AgentBridgeContext("unknown", "inferred")
+    assert seen["request"] == BridgeRequest(model="scaffold-slug")
+    # scope reset after the request completes
+    assert current_agent_bridge_context() is None
+    assert current_bridge_request() is None
+
+
+async def test_filter_set_context_visible_downstream_in_sink() -> None:
+    """A context set at filter time is visible inside model.generate (sink)."""
+    seen: dict[str, Any] = {}
+
+    async def marking_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        set_agent_bridge_context(AgentBridgeContext("subagent", "structural"))
+        return None
+
+    class CaptureSink:
+        def on_pending(self, event: ModelEvent) -> None:
+            seen["pending_is_sub_agent"] = is_sub_agent()
+
+        def on_complete(self, event: ModelEvent) -> None:
+            seen["complete_context"] = current_agent_bridge_context()
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=marking_filter,
+        model_event_sink=CaptureSink(),
+    )
+    await bridge_generate(
+        bridge,
+        get_model("mockllm/model"),
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model="scaffold-slug",
+    )
+    assert seen["pending_is_sub_agent"] is True
+    assert seen["complete_context"] == AgentBridgeContext("subagent", "structural")
+    assert current_agent_bridge_context() is None
+
+
+async def test_bridge_generate_without_requested_model() -> None:
+    seen: dict[str, Any] = {}
+
+    async def capture_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        seen["context"] = current_agent_bridge_context()
+        seen["request"] = current_bridge_request()
+        return None
+
+    bridge = AgentBridge(state=AgentState(messages=[]), filter=capture_filter)
+    await bridge_generate(
+        bridge,
+        get_model("mockllm/model"),
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+    )
+    assert seen["context"] == AgentBridgeContext("unknown", "inferred")
+    assert seen["request"] is None
