@@ -484,6 +484,82 @@ def test_score_rebuilds_eval_scorers_append() -> None:
         assert _metrics_snapshot(reloaded) == before
 
 
+def test_score_append_merges_reductions() -> None:
+    """`append` extends reductions rather than replacing them.
+
+    `eval_results` returns reductions for the scorers run in the current pass
+    only. Assigning that outright dropped every pre-existing scorer's
+    reductions while results.scores kept them, so a log rescored with `append`
+    reported metrics for both scorers but carried reduced samples for only the
+    last one.
+    """
+    from inspect_ai import score
+    from inspect_ai.scorer import includes, match
+
+    task = Task(
+        dataset=[Sample(input=f"q{i}", target="x") for i in range(8)],
+        scorer=match(),
+        epochs=2,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+        assert [r.scorer for r in (log.reductions or [])] == ["match"]
+
+        rescored = score(log, includes(), action="append")
+        assert rescored.results is not None
+        assert [s.name for s in rescored.results.scores] == ["match", "includes"]
+        # reductions track results.scores rather than lagging a pass behind
+        assert [r.scorer for r in (rescored.reductions or [])] == ["match", "includes"]
+
+
+def test_score_append_reductions_use_disambiguated_names() -> None:
+    """Appending a scorer of an existing name does not collide in reductions.
+
+    `_run_score_task` derives each scorer name against the sample's existing
+    scores, so the second `match` is reduced as `match1` before it reaches the
+    merge. The merge therefore needs no renaming of its own, and reductions
+    stay aligned with results.scores.
+    """
+    from inspect_ai import score
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[Sample(input=f"q{i}", target="x") for i in range(8)],
+        scorer=match(),
+        epochs=2,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+
+        rescored = score(log, match(), action="append")
+        assert rescored.results is not None
+        assert [s.name for s in rescored.results.scores] == ["match", "match1"]
+        assert [r.scorer for r in (rescored.reductions or [])] == ["match", "match1"]
+
+
+def test_score_overwrite_replaces_reductions() -> None:
+    """`overwrite` keeps replacing reductions outright.
+
+    A guard rather than a regression test: this passes on both sides of the
+    append fix, and exists so that making append merge cannot quietly make
+    overwrite merge too.
+    """
+    from inspect_ai import score
+    from inspect_ai.scorer import includes, match
+
+    task = Task(
+        dataset=[Sample(input=f"q{i}", target="x") for i in range(8)],
+        scorer=match(),
+        epochs=2,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+        assert [r.scorer for r in (log.reductions or [])] == ["match"]
+
+        rescored = score(log, includes(), action="overwrite")
+        assert [r.scorer for r in (rescored.reductions or [])] == ["includes"]
+
+
 def test_score_append_duplicate_scorer_recompute_round_trip() -> None:
     from inspect_ai import score
     from inspect_ai.scorer import match

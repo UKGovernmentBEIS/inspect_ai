@@ -379,14 +379,29 @@ async def score_async(
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
-        log.reductions = reductions
         if action == "overwrite" or log.results is None:
             # Completely replace the results with the new results
+            log.reductions = reductions
             log.results = results
             log.eval.scorers = applied_eval_scorers
         else:
             # Only update the results with the new scores, leaving the rest
-            # of the results as they were
+            # of the results as they were. `reductions` covers just this pass,
+            # so it extends the existing entries rather than replacing them —
+            # assigning it outright dropped every pre-existing scorer's
+            # reductions while results.scores below correctly kept them.
+            #
+            # Plain concatenation is right, and does not need to disambiguate
+            # names: _run_score_task derives each scorer name against the
+            # sample's existing scores, so a scorer appended over one of the
+            # same name is already reduced under its unique name (`match1`)
+            # before it reaches here, matching results.scores.
+            #
+            # Guarded rather than `or []` on both sides so that a log with no
+            # reductions and a pass that produces none stays None instead of
+            # acquiring an empty list.
+            if reductions is not None:
+                log.reductions = (log.reductions or []) + reductions
             log.results.scores.extend(results.scores)
             log.eval.scorers = (log.eval.scorers or []) + applied_eval_scorers
 
