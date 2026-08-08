@@ -31,6 +31,13 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 
+from .context import (
+    AgentBridgeContext,
+    agent_bridge_context_scope,
+    bridged_request_scope,
+    reset_agent_bridge_context_default,
+)
+
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
 # (the scaffold computes them for its assumed --model, not the model actually
@@ -220,6 +227,7 @@ async def bridge_generate(
     tools: Sequence[ToolInfo | Tool],
     tool_choice: ToolChoice | None,
     config: GenerateConfig,
+    requested_model: str | None = None,
 ) -> tuple[ModelOutput, ChatMessageUser | None]:
     """Generate model output through the agent bridge.
 
@@ -228,7 +236,28 @@ async def bridge_generate(
     Refusals (stop_reason="content_filter") from either the filter or model will trigger
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
+
+    The entire call executes within a `bridged_request_scope`: the ambient
+    `AgentBridgeContext` defaults to unknown, `current_bridge_request()` carries
+    `requested_model` (the scaffold's pre-alias-resolution model slug), or
+    returns None when no `requested_model` was provided, and both reset when
+    the request completes.
     """
+    with bridged_request_scope(requested_model):
+        return await _bridge_generate_impl(
+            bridge, model, input, tools, tool_choice, config
+        )
+
+
+async def _bridge_generate_impl(
+    bridge: AgentBridge,
+    model: Model,
+    input: list[ChatMessage],
+    tools: Sequence[ToolInfo | Tool],
+    tool_choice: ToolChoice | None,
+    config: GenerateConfig,
+) -> tuple[ModelOutput, ChatMessageUser | None]:
+    """Implementation of bridge_generate (see wrapper)."""
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
     # claude_code re-emits an operator message as a plain user message). Done
     # before compaction/recording so the restored source persists in both the
@@ -238,7 +267,11 @@ async def bridge_generate(
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
-        input_messages, c_message = await compact.compact_input(input)
+        # compaction is the canonical "utility" kind — its own model.generate
+        # call (e.g. a summarization strategy) should read as utility rather
+        # than the ambient default.
+        with agent_bridge_context_scope(AgentBridgeContext("utility")):
+            input_messages, c_message = await compact.compact_input(input)
     else:
         input_messages = input
         c_message = None
@@ -251,6 +284,11 @@ async def bridge_generate(
 
     refusals = 0
     while True:
+        # Re-stamp the ambient context to the default so a filter-set context
+        # from a refused attempt doesn't leak into the next retry — attempt
+        # N+1 starts clean, same as attempt 1.
+        reset_agent_bridge_context_default()
+
         # Reset to original inputs for each retry
         input_messages = original_input
         tools = original_tools
