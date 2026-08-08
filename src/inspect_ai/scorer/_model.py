@@ -47,7 +47,8 @@ def model_graded_fact(
         with chain of thought reasoning) in a way that matches
         the specified `grade_pattern`, for example, the default
         `grade_pattern` looks for one of GRADE: C, GRADE: P, or
-        GRADE: I).
+        GRADE: I (with the default instructions, a "P" grade is
+        only accepted when `partial_credit` is enabled).
       grade_pattern: Regex to extract the grade from the
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
@@ -59,9 +60,9 @@ def model_graded_fact(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
-         to `False`. Note that custom `instructions` provide their
-         own prompts for grades, but this parameter still governs
-         whether the default `grade_pattern` accepts a "P" grade.
+         to `False`. Only used with the default `instructions`,
+         which offer a "P" grade to the grader when enabled and
+         reject one when not.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the final grade is computed by
         majority vote. When this parameter is provided, it takes precedence
@@ -106,7 +107,8 @@ def model_graded_qa(
         with chain of thought reasoning) in a way that matches
         the specified `grade_pattern`, for example, the default
         `grade_pattern` looks for one of GRADE: C, GRADE: P, or
-        GRADE: I.
+        GRADE: I (with the default instructions, a "P" grade is
+        only accepted when `partial_credit` is enabled).
       grade_pattern: Regex to extract the grade from the
         model response. Defaults to looking for e.g. GRADE: C
         The regex should have a single capture group that
@@ -118,9 +120,9 @@ def model_graded_qa(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
-        to `False`. Note that custom `instructions` provide their
-        own prompts for grades, but this parameter still governs
-        whether the default `grade_pattern` accepts a "P" grade.
+        to `False`. Only used with the default `instructions`,
+        which offer a "P" grade to the grader when enabled and
+        reject one when not.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the final grade is computed by
         majority vote. When this parameter is provided, it takes precedence
@@ -166,6 +168,7 @@ def _model_graded_qa_single(
     # resolve grading template, instructions, and grade_pattern
     template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
     grading_template = resource(template)
+    use_default_instructions = not instructions
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
     )
@@ -215,14 +218,18 @@ def _model_graded_qa_single(
         if value is not None and use_default_pattern:
             value = value.upper()
 
-        # "P" is worth 0.5, so the default pattern must not yield one for a scorer
-        # configured without partial credit. This gates on the default pattern rather
-        # than the default instructions: a caller who supplies their own `grade_pattern`
-        # has stated what a valid grade is. The letter stays in the pattern rather than
-        # being excluded from it — dropping it would let the greedy prefix backtrack onto
-        # an earlier grade, which is what DEFAULT_GRADE_PATTERN is shaped to prevent.
+        # The default instructions only offer "P" when partial credit is enabled, so a
+        # "P" here is a grade the grader was never asked for, and it is worth 0.5.
+        # Scoped to the default instructions and pattern: a caller who writes either of
+        # those has stated for themselves what a valid grade is. The letter stays in the
+        # pattern rather than being excluded from it — dropping it would let the greedy
+        # prefix backtrack onto an earlier grade, which is what DEFAULT_GRADE_PATTERN is
+        # shaped to prevent.
         rejected_partial = (
-            value == PARTIAL and use_default_pattern and not partial_credit
+            value == PARTIAL
+            and use_default_pattern
+            and use_default_instructions
+            and not partial_credit
         )
 
         if value is not None and not rejected_partial:

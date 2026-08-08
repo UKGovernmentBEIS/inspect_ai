@@ -689,3 +689,27 @@ def test_lowercase_partial_grade_rejected_without_partial_credit() -> None:
     assert isinstance(score.value, float) and math.isnan(score.value)
     assert score.metadata is not None
     assert score.metadata["unscored_reason"] == "partial_credit_disabled"
+
+
+def test_custom_instructions_keep_partial_grade_without_partial_credit() -> None:
+    # Rejection is scoped to the default prompt. A caller who writes their own C/P/I
+    # instructions has asked for "P" deliberately, so it must still score, even with
+    # partial_credit left at its default and no custom grade_pattern.
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: P")])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(
+            model=grader,
+            instructions="Reply with GRADE: C, GRADE: P or GRADE: I.",
+        ),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    assert scores["model_graded_fact"].value == PARTIAL
