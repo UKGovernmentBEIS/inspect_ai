@@ -134,6 +134,39 @@ def test_agent_message_attribution_uses_author_field() -> None:
     assert messages[0].text == "Agent message from parent:\ndo the subtask"
 
 
+def test_agent_message_with_null_author_uses_default_attribution() -> None:
+    # an explicit null author must not render as "Agent message from None:"
+    item = _agent_message_item(_text("delegate result"))
+    item["author"] = None
+
+    messages = messages_from_responses_input(
+        cast(list[ResponseInputItemParam], [item]), [], MODEL_NAME
+    )
+
+    assert len(messages) == 1
+    assert messages[0].text == "Agent message from agent:\ndelegate result"
+
+
+def test_agent_message_with_role_key_is_still_attributed() -> None:
+    # dispatch-order guard: is_agent_message (exact type match) must win over
+    # is_response_input_message (loose keys-based match), so an agent_message
+    # that grows a "role" key in a future Codex version keeps its attribution
+    # and verbatim stash instead of being swallowed as a plain message
+    item = _agent_message_item(_text("delegate result"))
+    item["role"] = "user"
+
+    messages = messages_from_responses_input(
+        cast(list[ResponseInputItemParam], [item]), [], MODEL_NAME
+    )
+
+    assert len(messages) == 1
+    assert messages[0].text == "Agent message from subagent:\ndelegate result"
+    content = messages[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentText)
+    assert content[0].internal == {"agent_message": item}
+
+
 def test_agent_message_joins_multiple_text_parts() -> None:
     input_items = cast(
         list[ResponseInputItemParam],
