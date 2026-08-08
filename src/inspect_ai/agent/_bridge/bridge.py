@@ -4,7 +4,15 @@ import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Type,
+    cast,
+)
 
 import httpx
 from pydantic import BaseModel, Field, ValidationError
@@ -39,6 +47,12 @@ from .util import (
     internal_web_search_providers,
     resolve_web_search_providers,
 )
+
+if TYPE_CHECKING:
+    # deferred: importing `inspect_ai.approval` at module scope here cycles
+    # through approval -> event -> scorer while `inspect_ai.agent` is still
+    # initializing. Same reason `model/_call_tools.py` defers it.
+    from inspect_ai.approval._policy import ApprovalPolicy
 
 # Headers blocked from bridge clients (exact match, case-insensitive)
 _BLOCKED_BRIDGE_HEADERS = frozenset(
@@ -93,6 +107,7 @@ async def agent_bridge(
     code_execution: CodeExecutionProviders | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
+    approval: list["ApprovalPolicy"] | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -135,6 +150,11 @@ async def agent_bridge(
           parameters like the system prompt, tools, and response format are always
           forwarded). Set `True` for faithful-proxy behavior where the client's
           generation parameters are authoritative.
+       approval: Approval policies for tool calls made by the bridged agent.
+          Temporarily replaces any active approval policies for the duration of
+          each approval. Eval-level and task-level policies already apply without
+          this. A rejected tool call is never handed to the agent: the model is
+          told it was rejected and generation is retried.
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -154,6 +174,7 @@ async def agent_bridge(
         compaction,
         model_event_sink=model_event_sink,
         forward_generation_config=forward_generation_config,
+        approval=approval,
     )
 
     # set the patch config for this context and child coroutines
