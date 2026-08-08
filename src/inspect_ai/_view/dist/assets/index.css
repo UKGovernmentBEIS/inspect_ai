@@ -537,6 +537,12 @@
   white-space: normal;
 }
 
+/* Inline data-URI images have arbitrary intrinsic width; cap them at the
+   typed ContentImage path's 800px and never wider than the container. */
+.markdown-content img {
+  max-width: min(100%, 800px);
+}
+
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }

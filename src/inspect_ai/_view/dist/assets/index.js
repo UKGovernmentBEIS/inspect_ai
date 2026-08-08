@@ -20111,6 +20111,47 @@ var parseDataUri = (value) => {
 		base64: parameters.some((parameter) => parameter.trim().toLowerCase() === "base64")
 	};
 };
+var rasterImageMimeTypes = /* @__PURE__ */ new Set([
+	"image/avif",
+	"image/bmp",
+	"image/gif",
+	"image/jpeg",
+	"image/png",
+	"image/webp",
+	"image/x-icon"
+]);
+var imageMimeAliases = /* @__PURE__ */ new Map([["image/jpg", "image/jpeg"], ["image/vnd.microsoft.icon", "image/x-icon"]]);
+var normalizedImageMimeType = (mimeType) => {
+	const normalized = mimeType.trim().toLowerCase();
+	return imageMimeAliases.get(normalized) ?? normalized;
+};
+var isRasterImageMimeType = (mimeType) => rasterImageMimeTypes.has(normalizedImageMimeType(mimeType));
+var base64DataUriMimeType = (source) => {
+	const dataUri = parseDataUri(source);
+	return dataUri?.base64 ? dataUri.mimeType : void 0;
+};
+/** Inline image data that is safe to render without a network request. */
+var isRenderableImageSource = (source) => {
+	const mimeType = base64DataUriMimeType(source);
+	return mimeType !== void 0 && isRasterImageMimeType(mimeType);
+};
+/**
+* Canonical form of a renderable inline image source, or undefined.
+*
+* Callers that gate on the source must render THIS value rather than their
+* input: validating one string and emitting another lets characters the URL
+* parser rejects (U+FEFF, U+202F) survive into the DOM, where the browser
+* reads the result as a relative path and fetches it.
+*/
+var canonicalImageSource = (source) => {
+	const trimmed = source.trim();
+	if (!isRenderableImageSource(trimmed)) return;
+	try {
+		return new URL(trimmed).href;
+	} catch {
+		return;
+	}
+};
 var parseAbsoluteHttpUrl = (value) => {
 	let url;
 	try {
@@ -56482,10 +56523,16 @@ var getMarkdownInstance = async (renderer, contentHasMath) => {
 		const token = tokens[idx];
 		if (!token) return "";
 		const source = token.attrGet("src") ?? "";
+		const alt = token.content.trim();
+		const canonicalSource = canonicalImageSource(source);
+		if (canonicalSource !== void 0) {
+			const title = token.attrGet("title");
+			const titleAttr = title ? ` title="${md.utils.escapeHtml(title)}"` : "";
+			return `<img src="${md.utils.escapeHtml(canonicalSource)}" alt="${md.utils.escapeHtml(alt)}"${titleAttr}>`;
+		}
 		const href = parseAbsoluteHttpUrl(source);
 		const dataUri = parseDataUri(source);
 		const visibleSource = href ?? (dataUri ? `data:${dataUri.mimeType}${dataUri.base64 ? ";base64" : ""},...` : source);
-		const alt = token.content.trim();
 		const label = alt ? `${alt} (${visibleSource})` : visibleSource;
 		const escapedLabel = md.utils.escapeHtml(label);
 		if (!href) return escapedLabel;
@@ -58847,7 +58894,6 @@ var FORBIDDEN_TAGS = [
 	"form",
 	"iframe",
 	"image",
-	"img",
 	"input",
 	"link",
 	"meta",
@@ -58928,6 +58974,7 @@ var SAFE_STYLE_PROPERTIES = /* @__PURE__ */ new Set([
 var UNSAFE_CSS_PATTERN = /@import|behavior\s*:|binding\s*:|expression\s*\(|javascript\s*:|vbscript\s*:|url\s*\(/i;
 var PURIFY_CONFIG = {
 	ADD_ATTR: [...MATHJAX_ATTRS, "target"],
+	ADD_DATA_URI_TAGS: ["img"],
 	ADD_TAGS: MATHJAX_TAGS,
 	ALLOW_DATA_ATTR: true,
 	ALLOW_UNKNOWN_PROTOCOLS: false,
@@ -58970,14 +59017,30 @@ var installHooks = (purify) => {
 		if (hookEvent.tagName === "style" && node instanceof Element && !isAllowedMathJaxStyleElement(node)) node.remove();
 	});
 	purify.addHook("uponSanitizeAttribute", (node, hookEvent) => {
-		if (hookEvent.attrName === "style") sanitizeStyleAttributeHook(node, hookEvent);
-		else if (URL_ATTRIBUTES.has(hookEvent.attrName) && !isSafeUrlAttribute(hookEvent.attrValue)) {
+		if (hookEvent.attrName === "style") {
+			sanitizeStyleAttributeHook(node, hookEvent);
+			return;
+		}
+		if (hookEvent.attrName === "src" && isImgElement(node)) {
+			const canonical = safeImgSrc(hookEvent.attrValue);
+			if (canonical === void 0) {
+				hookEvent.keepAttr = false;
+				node.removeAttribute(hookEvent.attrName);
+			} else hookEvent.attrValue = canonical;
+			return;
+		}
+		if (URL_ATTRIBUTES.has(hookEvent.attrName) && !isSafeUrlAttribute(hookEvent.attrValue)) {
 			hookEvent.keepAttr = false;
 			node.removeAttribute(hookEvent.attrName);
 		}
 	});
 	purify.addHook("afterSanitizeAttributes", (node) => {
-		if (node instanceof Element && node.tagName.toLowerCase() === "a" && node.getAttribute("target")?.toLowerCase() === "_blank") node.setAttribute("rel", "noopener noreferrer");
+		if (!(node instanceof Element)) return;
+		if (isImgElement(node)) {
+			if (safeImgSrc(node.getAttribute("src") ?? "") === void 0) node.remove();
+			return;
+		}
+		if (node.tagName.toLowerCase() === "a" && node.getAttribute("target")?.toLowerCase() === "_blank") node.setAttribute("rel", "noopener noreferrer");
 	});
 };
 var sanitizeStyleAttributeHook = (node, hookEvent) => {
@@ -58987,6 +59050,18 @@ var sanitizeStyleAttributeHook = (node, hookEvent) => {
 		hookEvent.keepAttr = false;
 		node.removeAttribute(hookEvent.attrName);
 	}
+};
+var isImgElement = (node) => node.tagName.toLowerCase() === "img";
+/**
+* A remote src is not unsafe by protocol, but fetching it leaks a request to an
+* attacker-chosen host, so an img src is limited to inline raster data.
+*
+* Returns the value to keep, so the attribute that lands in the DOM is the one
+* that was validated.
+*/
+var safeImgSrc = (value) => {
+	if (/[<>"'`]/.test(value.trim())) return;
+	return canonicalImageSource(value);
 };
 var isSafeUrlAttribute = (value) => {
 	const trimmed = value.trim();
@@ -66761,16 +66836,6 @@ var MediaReference = ({ source, className }) => {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/media/mediaSource.ts
-var rasterImageMimeTypes = /* @__PURE__ */ new Set([
-	"image/avif",
-	"image/bmp",
-	"image/gif",
-	"image/jpeg",
-	"image/png",
-	"image/webp",
-	"image/x-icon"
-]);
-var imageMimeAliases = /* @__PURE__ */ new Map([["image/jpg", "image/jpeg"], ["image/vnd.microsoft.icon", "image/x-icon"]]);
 var primaryAudioMimeTypes = {
 	mp3: "audio/mpeg",
 	wav: "audio/wav"
@@ -66794,18 +66859,6 @@ var videoMimeTypes = {
 	mp4: /* @__PURE__ */ new Set(["video/mp4"]),
 	mpeg: /* @__PURE__ */ new Set(["video/mpeg"])
 };
-var normalizedImageMimeType = (mimeType) => {
-	const normalized = mimeType.trim().toLowerCase();
-	return imageMimeAliases.get(normalized) ?? normalized;
-};
-var base64DataUriMimeType = (source) => {
-	const dataUri = parseDataUri(source);
-	return dataUri?.base64 ? dataUri.mimeType : void 0;
-};
-var isRenderableImageSource = (source) => {
-	const mimeType = base64DataUriMimeType(source);
-	return mimeType !== void 0 && rasterImageMimeTypes.has(normalizedImageMimeType(mimeType));
-};
 var isRenderableAudioSource = (source, format) => {
 	const mimeType = base64DataUriMimeType(source);
 	return mimeType !== void 0 && audioMimeTypes[format].has(mimeType);
@@ -66821,7 +66874,7 @@ var isRenderableImageDocument = (source, declaredMimeType) => {
 	if (sourceMimeType === void 0) return false;
 	const normalizedSource = normalizedImageMimeType(sourceMimeType);
 	const normalizedDeclared = normalizedImageMimeType(declaredMimeType);
-	return rasterImageMimeTypes.has(normalizedSource) && normalizedSource === normalizedDeclared;
+	return isRasterImageMimeType(normalizedSource) && normalizedSource === normalizedDeclared;
 };
 //#endregion
 //#region ../../node_modules/.pnpm/react-virtuoso@4.18.11_react-dom@19.2.8_react@19.2.8__react@19.2.8/node_modules/react-virtuoso/dist/index.mjs
