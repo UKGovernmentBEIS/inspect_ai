@@ -537,6 +537,39 @@ def test_score_append_reductions_use_disambiguated_names() -> None:
         assert [r.scorer for r in (rescored.reductions or [])] == ["match", "match1"]
 
 
+def test_score_append_merges_reductions_with_multiple_reducers() -> None:
+    """One scorer can hold several reduction entries; the merge must keep them all.
+
+    `eval_results` appends one entry per reduced view, so a scorer under two
+    epoch reducers occupies two entries that share `scorer` and differ only in
+    `reducer`. Concatenation preserves them; a merge keyed on the scorer name
+    would have silently dropped one, and this is the case that rules that
+    implementation out.
+    """
+    from inspect_ai import Epochs, score
+    from inspect_ai.scorer import includes, match, max_score, mean_score
+
+    task = Task(
+        dataset=[Sample(input=f"q{i}", target="x") for i in range(8)],
+        scorer=match(),
+        epochs=Epochs(2, [mean_score(), max_score()]),
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+        assert [(r.scorer, r.reducer) for r in (log.reductions or [])] == [
+            ("match", "mean"),
+            ("match", "max"),
+        ]
+
+        rescored = score(log, includes(), action="append")
+        assert [(r.scorer, r.reducer) for r in (rescored.reductions or [])] == [
+            ("match", "mean"),
+            ("match", "max"),
+            ("includes", "mean"),
+            ("includes", "max"),
+        ]
+
+
 def test_score_overwrite_replaces_reductions() -> None:
     """`overwrite` keeps replacing reductions outright.
 
