@@ -14,6 +14,7 @@
 - Bugfix: `match(numeric=True)` now recognizes LaTeX-escaped currency and formatting symbols (e.g. `\$20`, `\€20`, `1\,000`), which previously failed numeric extraction and could silently match a different number in the output. Scores may shift on affected samples (mostly upward; the previously ignored number is now the one matched).
 - Bedrock: Claude 4.6+ now honours `reasoning_effort` and `effort` via adaptive thinking, alongside `response_schema`; `reasoning_tokens` is promoted to adaptive on Claude 4.7+. (#3765)
 - Scorers: `stderr(cluster=...)` and `grouped(all="groups")` now return 0.0 for empty score lists without emitting NumPy runtime warnings. (#4718)
+- Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
 - Model: `total_cost` now bills Anthropic 1-hour prompt-cache writes at 2x the base input price rather than the 5-minute rate, so runs using `-M cache_ttl=1h` are no longer understated. (#4703)
 - Logging: Model calls in running samples now show an end time and non-zero working time in the viewer, instead of an empty completion time and 0 seconds. (#4226)
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
