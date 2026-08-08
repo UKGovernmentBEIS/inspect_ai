@@ -12,11 +12,19 @@ from inspect_ai import Task, eval
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._bridge._approval import MAX_CONSECUTIVE_REJECTIONS
+from inspect_ai.agent._bridge.anthropic_api import inspect_anthropic_api_request
 from inspect_ai.agent._bridge.bridge import agent_bridge
+from inspect_ai.agent._bridge.completions import inspect_completions_api_request
+from inspect_ai.agent._bridge.google_api import inspect_google_api_request
+from inspect_ai.agent._bridge.responses import inspect_responses_api_request
 from inspect_ai.agent._bridge.sandbox.bridge import _monitor_terminate
 from inspect_ai.agent._bridge.sandbox.types import SandboxAgentBridge
 from inspect_ai.agent._bridge.types import AgentBridge
-from inspect_ai.agent._bridge.util import bridge_generate
+from inspect_ai.agent._bridge.util import (
+    bridge_generate,
+    default_code_execution_providers,
+    internal_web_search_providers,
+)
 from inspect_ai.approval import (
     Approval,
     ApprovalPolicy,
@@ -32,6 +40,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from inspect_ai.model._compaction import CompactionTrim
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
@@ -642,3 +651,247 @@ def test_task_level_policy_reaches_a_bridged_agent() -> None:
     assert [(e.decision, e.call.function) for e in approvals] == [("reject", "bash")]
     # the recorded call still shows what the model proposed
     assert approvals[0].call.arguments == {"cmd": "rm -rf /"}
+
+
+# ---------------------------------------------------------------------------
+# wiring, and interaction with the rest of bridge_generate
+# ---------------------------------------------------------------------------
+
+
+async def test_agent_bridge_accepts_approval_policies() -> None:
+    """The `approval=` parameter must reach the bridge (pure wiring)."""
+    policies = [ApprovalPolicy(auto_approver("approve"), "*")]
+    async with agent_bridge(approval=policies) as bridge:
+        assert bridge.approval is policies
+
+
+def test_sandbox_bridge_accepts_approval_policies() -> None:
+    policies = [ApprovalPolicy(auto_approver("approve"), "*")]
+    bridge = SandboxAgentBridge(
+        state=AgentState(messages=[]),
+        filter=None,
+        retry_refusals=None,
+        compaction=None,
+        port=13131,
+        model=None,
+        approval=policies,
+    )
+    assert bridge.approval is policies
+
+
+async def test_bridge_policies_replace_ambient_ones() -> None:
+    """`approval=` is documented as replacing active policies for its duration."""
+    from inspect_ai.approval import approval as approval_context
+
+    call = ToolCall(id="1", function="bash", arguments={"cmd": "ls"})
+    with approval_context([ApprovalPolicy(auto_approver("terminate"), "*")]):
+        run = await run_bridge(
+            [tool_calls_output(call)],
+            approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+        )
+
+    assert run.generations == 1
+    assert run.output.message.tool_calls == [call]
+
+
+async def test_successive_rejections_accumulate_in_the_replayed_input() -> None:
+    """Each rejection round must add to the replay, not replace the previous one."""
+    first = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    second = ToolCall(id="2", function="bash", arguments={"cmd": "rm -rf /tmp"})
+    run = await run_bridge(
+        [
+            tool_calls_output(first, content="first attempt"),
+            tool_calls_output(second, content="second attempt"),
+            ModelOutput.from_content(model="mockllm/model", content="giving up"),
+        ],
+        approval=[
+            ApprovalPolicy(reject_approver(), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+
+    assert run.generations == 3
+    # the third input carries BOTH rejected turns and BOTH results, in order
+    assert [m.text for m in run.inputs[2] if isinstance(m, ChatMessageAssistant)] == [
+        "first attempt",
+        "second attempt",
+    ]
+    assert [r.tool_call_id for r in run.tool_results(2)] == ["1", "2"]
+
+
+async def test_refusal_retry_still_works_alongside_approval() -> None:
+    """The refusal retry shares `bridge_generate`'s loop with approval."""
+    refusal = ModelOutput(
+        model="mockllm/model",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="refused"),
+                stop_reason="content_filter",
+            )
+        ],
+    )
+    call = ToolCall(id="1", function="bash", arguments={"cmd": "ls"})
+    bridge = AgentBridge(AgentState(messages=[]), retry_refusals=1)
+    run = await run_bridge(
+        [refusal, tool_calls_output(call)],
+        approval=[ApprovalPolicy(auto_approver("approve"), "*")],
+        bridge=bridge,
+    )
+
+    assert run.generations == 2
+    assert run.output.message.tool_calls == [call]
+    # a refusal retry resets the input; it must not leave approval artifacts behind
+    assert run.tool_results(1) == []
+
+
+async def test_filter_supplied_output_is_approved() -> None:
+    """A filter can substitute the output entirely; those calls still reach the agent."""
+    unsafe = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    substituted = [tool_calls_output(unsafe)]
+
+    async def filter(
+        model: object,
+        input: list[ChatMessage],
+        tools: object,
+        tool_choice: object,
+        config: object,
+    ) -> ModelOutput | None:
+        return substituted.pop() if substituted else None
+
+    bridge = AgentBridge(AgentState(messages=[]), filter=filter)
+    run = await run_bridge(
+        [ModelOutput.from_content(model="mockllm/model", content="safer plan")],
+        approval=[
+            ApprovalPolicy(reject_approver(), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+        bridge=bridge,
+    )
+
+    # the filter's rejected call was replaced, not handed to the agent
+    assert run.output.message.tool_calls is None
+    assert run.output.message.text == "safer plan"
+
+
+# ---------------------------------------------------------------------------
+# dialects
+#
+# The hook lives in `bridge_generate`, below dialect translation, so approval
+# should behave identically whichever API the scaffold speaks. These drive each
+# dialect impl the way a scaffold's request arrives.
+# ---------------------------------------------------------------------------
+
+BRIDGE_MODEL = "inspect"
+
+
+def rejecting_bridge(outputs: list[ModelOutput]) -> AgentBridge:
+    model = get_model("mockllm/model", custom_outputs=outputs)
+    return AgentBridge(
+        AgentState(messages=[]),
+        model_aliases={BRIDGE_MODEL: model},
+        approval=[
+            ApprovalPolicy(reject_approver("Destructive command."), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+
+
+def rejected_then_safe() -> list[ModelOutput]:
+    return [
+        tool_calls_output(ToolCall(id="1", function="bash", arguments={"cmd": "rm"})),
+        ModelOutput.from_content(model="mockllm/model", content="safer plan"),
+    ]
+
+
+async def test_completions_dialect_hides_the_rejected_call() -> None:
+    bridge = rejecting_bridge(rejected_then_safe())
+    completion = await inspect_completions_api_request(
+        {"model": BRIDGE_MODEL, "messages": [{"role": "user", "content": TASK}]},
+        None,
+        bridge,
+    )
+
+    assert completion.choices[0].message.tool_calls is None
+    assert completion.choices[0].message.content == "safer plan"
+
+
+async def test_anthropic_dialect_hides_the_rejected_call() -> None:
+    bridge = rejecting_bridge(rejected_then_safe())
+    message = await inspect_anthropic_api_request(
+        {
+            "model": BRIDGE_MODEL,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": TASK}],
+        },
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    assert [b.type for b in message.content] == ["text"]
+    assert message.content[0].text == "safer plan"  # type: ignore[union-attr]
+
+
+async def test_responses_dialect_hides_the_rejected_call() -> None:
+    bridge = rejecting_bridge(rejected_then_safe())
+    response = await inspect_responses_api_request(
+        {"model": BRIDGE_MODEL, "input": TASK},
+        None,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    assert [item.type for item in response.output] == ["message"]
+    assert response.output_text == "safer plan"
+
+
+async def test_google_dialect_hides_the_rejected_call() -> None:
+    bridge = rejecting_bridge(rejected_then_safe())
+    response = await inspect_google_api_request(
+        {"contents": [{"role": "user", "parts": [{"text": TASK}]}]},
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+
+    parts = response["candidates"][0]["content"]["parts"]
+    assert not any("functionCall" in p or "function_call" in p for p in parts)
+    assert parts[0]["text"] == "safer plan"
+
+
+# ---------------------------------------------------------------------------
+# compaction
+# ---------------------------------------------------------------------------
+
+
+async def test_rejection_replay_survives_compaction() -> None:
+    """Compaction runs once before the retry loop; the replay is appended after.
+
+    Both features rewrite `bridge_generate`'s input, so this pins that a rejection
+    round-trip still reaches the model when a compaction strategy is configured.
+    """
+    unsafe = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    bridge = AgentBridge(
+        AgentState(messages=[]),
+        compaction=CompactionTrim(),
+        approval=[
+            ApprovalPolicy(reject_approver("Destructive command."), "bash"),
+            ApprovalPolicy(auto_approver("approve"), "*"),
+        ],
+    )
+    run = await run_bridge(
+        [
+            tool_calls_output(unsafe),
+            ModelOutput.from_content(model="mockllm/model", content="safer plan"),
+        ],
+        bridge=bridge,
+    )
+
+    assert run.generations == 2
+    assert run.output.message.text == "safer plan"
+    results = run.tool_results(1)
+    assert len(results) == 1
+    assert results[0].error is not None
+    assert "Destructive command." in results[0].error.message
