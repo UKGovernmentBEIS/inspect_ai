@@ -39,7 +39,7 @@ There are a few ways you can customise the default behaviour:
 
 2.  Specify `include_history = True` to include the full chat history in the presented question (by default only the original sample input is presented). With the default templates, the final assistant answer is also included in the submission field. You may optionally instead pass a function that enables customising the presentation of the chat history.
 
-3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
+3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only used with the default `instructions`, which offer a "P" grade to the grader when enabled and reject one when not.
 
 4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
 5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](models.qmd#model-roles) for details.
