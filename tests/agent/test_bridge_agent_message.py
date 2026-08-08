@@ -24,9 +24,9 @@ These tests cover the conversion helpers directly (no network).
 
 from __future__ import annotations
 
-import logging
 from typing import Any, cast
 
+import pytest
 from openai.types.responses import ResponseInputItemParam
 
 from inspect_ai._util.content import ContentText
@@ -40,6 +40,19 @@ from inspect_ai.model._openai_responses import (
 )
 
 MODEL_NAME = "openai/gpt-5.6"
+
+
+@pytest.fixture
+def _warn_once_messages() -> Any:
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted. caplog isn't reliable here because
+    # init_logger sets propagate=False on the inspect_ai logger once any
+    # earlier test triggers it.
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield _inspect_logger._warned
+    _inspect_logger._warned.clear()
 
 
 def _agent_message_item(
@@ -180,14 +193,13 @@ async def test_plain_user_message_still_emits_message_item() -> None:
 
 
 async def test_encrypted_only_agent_message_is_not_silently_dropped(
-    caplog: Any,
+    _warn_once_messages: list[str],
 ) -> None:
     original = _agent_message_item(_encrypted(), author="parent")
 
-    with caplog.at_level(logging.WARNING):
-        messages = messages_from_responses_input(
-            cast(list[ResponseInputItemParam], [original]), [], MODEL_NAME
-        )
+    messages = messages_from_responses_input(
+        cast(list[ResponseInputItemParam], [original]), [], MODEL_NAME
+    )
 
     # a message survives, attributed, with a placeholder mentioning the
     # encrypted payload (non-OpenAI targets see this text)
@@ -198,14 +210,34 @@ async def test_encrypted_only_agent_message_is_not_silently_dropped(
 
     # the warning names the degradation
     assert any(
-        "agent_message" in record.message and "encrypted" in record.message
-        for record in caplog.records
+        "agent_message" in message and "encrypted" in message
+        for message in _warn_once_messages
     )
 
     # and the verbatim payload still replays natively to OpenAI targets
     items = await openai_responses_inputs(messages)
     assert len(items) == 1
     assert dict(items[0]) == original
+
+
+def test_empty_agent_message_is_not_silently_dropped(
+    _warn_once_messages: list[str],
+) -> None:
+    # content with neither input_text nor encrypted_content parts must still
+    # produce an attributed placeholder plus a warning
+    original = _agent_message_item(author="parent")
+
+    messages = messages_from_responses_input(
+        cast(list[ResponseInputItemParam], [original]), [], MODEL_NAME
+    )
+
+    assert len(messages) == 1
+    assert isinstance(messages[0], ChatMessageUser)
+    assert messages[0].text == "Agent message from parent:\n[no readable content]"
+    assert any(
+        "agent_message" in message and "no readable content" in message
+        for message in _warn_once_messages
+    )
 
 
 def test_agent_message_carries_verbatim_item_as_internal() -> None:

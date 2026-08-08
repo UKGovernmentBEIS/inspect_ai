@@ -1014,17 +1014,25 @@ def messages_from_responses_input(
                 and part.get("type") == "input_text"
                 and isinstance(part.get("text"), str)
             ]
-            if not text_parts and any(
-                isinstance(part, dict) and part.get("type") == "encrypted_content"
-                for part in agent_message_parts
-            ):
-                warn_once(
-                    logger,
-                    "agent_message item carries only encrypted content: it "
-                    "replays natively to OpenAI Responses targets, but other "
-                    "targets see only a placeholder.",
-                )
-                text_parts = ["[encrypted content: readable only by OpenAI]"]
+            if not text_parts:
+                if any(
+                    isinstance(part, dict) and part.get("type") == "encrypted_content"
+                    for part in agent_message_parts
+                ):
+                    warn_once(
+                        logger,
+                        "agent_message item carries only encrypted content: it "
+                        "replays natively to OpenAI Responses targets, but other "
+                        "targets see only a placeholder.",
+                    )
+                    text_parts = ["[encrypted content: readable only by OpenAI]"]
+                else:
+                    warn_once(
+                        logger,
+                        "agent_message item carries no readable content: "
+                        "rendering a placeholder.",
+                    )
+                    text_parts = ["[no readable content]"]
             messages.append(
                 ChatMessageUser(
                     content=[
