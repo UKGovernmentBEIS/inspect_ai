@@ -37,7 +37,9 @@ from .responses import inspect_responses_api_request
 from .util import (
     default_code_execution_providers,
     internal_web_search_providers,
+    is_openai_raw_response_request,
     resolve_web_search_providers,
+    wrap_openai_legacy_api_response,
 )
 
 # Headers blocked from bridge clients (exact match, case-insensitive)
@@ -322,6 +324,17 @@ def init_openai_request_patch() -> None:
                 return await finalize_bridge_response(
                     self, cast_to, options, stream, stream_cls, result
                 )
+
+                if is_openai_raw_response_request(options):
+                    return wrap_openai_legacy_api_response(
+                        self,
+                        result,
+                        cast_to,
+                        options,
+                        stream=stream,
+                        stream_cls=stream_cls,
+                    )
+                return result
 
         # otherwise just delegate
         return await original_request(

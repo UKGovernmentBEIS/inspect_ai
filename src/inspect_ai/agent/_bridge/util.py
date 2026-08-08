@@ -376,3 +376,53 @@ def apply_message_ids(bridge: AgentBridge, messages: list[ChatMessage]) -> None:
     # content, but also ensuring that if an id is already used we generate a new one)
     for message in messages:
         message.id = bridge._id_for_message(message, messages)
+
+
+def is_openai_raw_response_request(options: object) -> bool:
+    """Return True when the caller used OpenAI's ``with_raw_response`` wrapper."""
+    from openai._constants import RAW_RESPONSE_HEADER
+    from openai._types import Omit
+
+    headers = getattr(options, "headers", None)
+    if not isinstance(headers, dict):
+        return False
+    for name, value in headers.items():
+        if isinstance(value, Omit):
+            continue
+        if name.lower() == RAW_RESPONSE_HEADER.lower() and value == "true":
+            return True
+    return False
+
+
+def wrap_openai_legacy_api_response(
+    client: object,
+    result: object,
+    cast_to: type[object],
+    options: object,
+    *,
+    stream: bool = False,
+    stream_cls: type[object] | None = None,
+) -> object:
+    """Wrap a bridged OpenAI result for ``with_raw_response`` callers."""
+    import httpx
+    from openai._legacy_response import LegacyAPIResponse
+
+    if hasattr(result, "model_dump_json"):
+        body = result.model_dump_json()
+    else:
+        body = to_json_str_safe(result)
+
+    httpx_response = httpx.Response(
+        status_code=200,
+        content=body.encode(),
+        headers={"content-type": "application/json"},
+        request=httpx.Request("POST", "https://bridge.inspect/v1/chat/completions"),
+    )
+    return LegacyAPIResponse(
+        raw=httpx_response,
+        cast_to=cast_to,
+        client=client,
+        stream=stream,
+        stream_cls=stream_cls,
+        options=options,
+    )
