@@ -22,6 +22,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import parse_tool_info
 
 
@@ -583,13 +584,7 @@ class TestAgentToolParallelFlag:
 
 
 class TestSingleSubagentSchema:
-    """With one subagent, `subagent_type` is dropped from the model-visible schema.
-
-    Its enum would hold exactly one legal value, so the parameter is pure ceremony the model
-    must emit on every call — and one more thing it can get wrong, since a hallucinated type
-    is a dispatch error rather than a delegation. The parameter must reappear as soon as there
-    is a real choice, which the multi-subagent test below pins.
-    """
+    """With one subagent, `subagent_type` is dropped from the model-visible schema."""
 
     def _params(self, subagents: list[Subagent], background: bool = True) -> Any:
         tt = agent_tool(subagents=subagents, background_enabled=background)
@@ -623,3 +618,32 @@ class TestSingleSubagentSchema:
         assert "Available subagent types" not in desc
         assert "subagent_type:" not in desc
         assert "**general**" in desc
+
+    def _viewer_title(
+        self, subagents: list[Subagent], arguments: dict[str, str]
+    ) -> str:
+        from inspect_ai.tool._tool_def import tool_def_fields
+
+        viewer = tool_def_fields(agent_tool(subagents=subagents)).viewer
+        assert viewer is not None
+        view = viewer(ToolCall(id="1", function="agent", arguments=arguments))
+        assert view.call is not None
+        return view.call.title or ""
+
+    def test_viewer_titles_single_dispatch_with_the_subagent_name(self) -> None:
+        # The call carries no `subagent_type`, so the name has to come from the
+        # tool's own configuration or the title degrades to a bare "agent: ".
+        title = self._viewer_title(
+            [_test_subagent("general", "General work.")], {"prompt": "Do it."}
+        )
+        assert title == "agent: general"
+
+    def test_viewer_titles_multi_dispatch_from_the_argument(self) -> None:
+        title = self._viewer_title(
+            [
+                _test_subagent("research", "Gather info."),
+                _test_subagent("general", "General work."),
+            ],
+            {"subagent_type": "research", "prompt": "Do it."},
+        )
+        assert title == "agent: research"

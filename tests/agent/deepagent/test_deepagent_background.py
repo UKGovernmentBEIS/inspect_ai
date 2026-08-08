@@ -102,9 +102,8 @@ def _spawn(
 ) -> ModelOutput:
     """A model call to the agent tool.
 
-    `subagent_type` defaults to None because most tests here configure a SINGLE subagent, and
-    the tool omits that parameter when there is only one (its enum would hold one value). Pass
-    it explicitly only for multi-subagent tools, where the choice is real.
+    Pass `subagent_type` only for multi-subagent tools — single-subagent tools
+    do not expose that parameter and reject it.
     """
     args: dict[str, object] = {"prompt": prompt, "background": background}
     if subagent_type is not None:
@@ -418,7 +417,7 @@ class TestBackgroundSpawn:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg_sa]},
             outputs=[
-                _spawn(None, "Do background work."),
+                _spawn(prompt="Do background work."),
                 _submit("parent-done"),
             ],
         )
@@ -631,7 +630,7 @@ class TestBackgroundExecution:
             ],
         )
         parent_outputs = [
-            _spawn(None, "Find X."),
+            _spawn(prompt="Find X."),
             ModelOutput.for_tool_call(
                 model="mockllm/model",
                 tool_name="_wait_test_helper",
@@ -946,7 +945,7 @@ class TestAgentStatus:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 # Wait for it first so it is completed when we check status.
                 _tool_call("agent_wait", agent_ids=["AGENT-1"]),
                 _tool_call("agent_status", agent_id="AGENT-1"),
@@ -973,7 +972,7 @@ class TestAgentStatus:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("agent_status", agent_id="AGENT-1"),
                 _submit("done"),
             ],
@@ -1052,7 +1051,7 @@ class TestAgentWait:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("agent_wait", agent_ids=["AGENT-1"], timeout=0.2),
                 _submit("done"),
             ],
@@ -1100,7 +1099,7 @@ class TestAgentWait:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("agent_wait", agent_ids=["AGENT-1", "AGENT-X"]),
                 _submit("done"),
             ],
@@ -1119,7 +1118,7 @@ class TestAgentCancel:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("agent_cancel", agent_id="AGENT-1"),
                 # Confirm via status that it is cancelled.
                 _tool_call("agent_status", agent_id="AGENT-1"),
@@ -1138,7 +1137,7 @@ class TestAgentCancel:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("agent_wait", agent_ids=["AGENT-1"]),
                 # Cancel after completion — should not error, reports completed.
                 _tool_call("agent_cancel", agent_id="AGENT-1"),
@@ -1551,7 +1550,7 @@ class TestReminderE2E:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg_run]},
             outputs=[
-                _agent_call(None),  # dispatch (counter resets to 0)
+                _agent_call(),  # dispatch (counter resets to 0)
                 _idle(),  # 1
                 _idle(),  # 2
                 _idle(),  # 3
@@ -1574,7 +1573,7 @@ class TestReminderE2E:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg_run]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _idle(),
                 _idle(),
                 _idle(),
@@ -1637,7 +1636,7 @@ class TestReminderE2E:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg_run], "on_continue": my_continue},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _idle(),
                 _idle(),
                 _idle(),
@@ -1659,7 +1658,7 @@ class TestReminderE2E:
                 "on_continue": "Carry on with the plan.",
             },
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _idle(),
                 _idle(),
                 _idle(),
@@ -1699,7 +1698,7 @@ class TestBackgroundLimits:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [capped], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(None, "go"),
+                _agent_call(prompt="go"),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _submit("done"),
             ],
@@ -1719,7 +1718,7 @@ class TestBackgroundLimits:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [worker], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(None, "go"),
+                _agent_call(prompt="go"),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _submit("done"),
             ],
@@ -1743,7 +1742,7 @@ class TestBackgroundErrors:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(None, "go"),
+                _agent_call(prompt="go"),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _submit("done"),
             ],
@@ -1784,7 +1783,7 @@ class TestForkedBackground:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [forked], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(None, "investigate"),
+                _agent_call(prompt="investigate"),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _submit("done"),
             ],
@@ -1808,7 +1807,7 @@ class TestAbandonOnExit:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [blocker]},
             outputs=[
-                _agent_call(None, "go"),
+                _agent_call(prompt="go"),
                 _submit("done"),
             ],
         )
@@ -1893,7 +1892,7 @@ class TestReminderComposition:
         blocker = _build_blocking_subagent("run_one")
         result = _eval_deepagent(
             agent_kwargs={"subagents": [blocker], "on_continue": my_continue},
-            outputs=[_agent_call(None)] + [_idle()] * 5 + [_submit("done")],
+            outputs=[_agent_call()] + [_idle()] * 5 + [_submit("done")],
         )
         user_texts = [
             m.text for m in result["messages"] if isinstance(m, ChatMessageUser)
@@ -1916,7 +1915,7 @@ class TestReminderComposition:
         blocker = _build_blocking_subagent("run_one")
         result = _eval_deepagent(
             agent_kwargs={"subagents": [blocker], "on_continue": my_continue},
-            outputs=[_agent_call(None)] + [_idle()] * 5 + [_submit("done")],
+            outputs=[_agent_call()] + [_idle()] * 5 + [_submit("done")],
         )
         assert calls["n"] >= 6
         assert _reminder_messages(result) == []
@@ -2203,7 +2202,7 @@ class TestEagerCompletionE2E:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [done], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 # _wait_test_helper is not a lifecycle tool, so it deterministically
                 # blocks until completion WITHOUT marking AGENT-1 as collected
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
@@ -2222,7 +2221,7 @@ class TestEagerCompletionE2E:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [boom], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _idle(),
                 _submit("done"),
@@ -2242,7 +2241,7 @@ class TestErroredCancelledDisplay:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("_wait_test_helper", agent_id="AGENT-1"),
                 _tool_call("agent_status", agent_id="AGENT-1"),
                 _tool_call("agent_list"),
@@ -2259,7 +2258,7 @@ class TestErroredCancelledDisplay:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [blocker]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("agent_cancel", agent_id="AGENT-1"),
                 _tool_call("agent_list"),
                 _submit("done"),
@@ -2456,7 +2455,7 @@ class TestBackgroundControlExceptionsPropagate:
             input="go",
             message_limit=15,
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("_block_helper"),
                 _submit("done"),
             ],
@@ -2487,7 +2486,7 @@ class TestAgentCancelBoundedWait:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [slow]},
             outputs=[
-                _agent_call(None),
+                _agent_call(),
                 _tool_call("agent_cancel", agent_id="AGENT-1"),
                 _submit("done"),
             ],

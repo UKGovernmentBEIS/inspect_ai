@@ -33,6 +33,7 @@ from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
     ToolCallView,
+    ToolCallViewer,
 )
 from inspect_ai.tool._tool_def import ToolDef
 
@@ -168,27 +169,39 @@ def active_background_agents() -> list[AgentFuture]:
     return list(reg.futures.values())
 
 
-def _agent_viewer(call: ToolCall) -> ToolCallView:
-    """Render an agent() dispatch as a markdown header + prompt body.
+def _agent_viewer_for(single_name: str | None) -> ToolCallViewer:
+    """Build the viewer that renders an agent() dispatch in the transcript.
 
-    The viewer's content uses ``{{key}}`` placeholders that the framework
+    The rendered content uses ``{{key}}`` placeholders that the framework
     substitutes with the actual tool arguments at render time. When the
     model provides a ``task_description``, it renders as a heading above
     the prompt; when absent, the heading is omitted (otherwise the
     literal ``{{task_description}}`` would render).
+
+    Args:
+        single_name: Name of the sole subagent, or None when there are
+            several. Single-subagent tools take no ``subagent_type``
+            argument, so the name has to come from here for the title to
+            say which subagent ran.
     """
-    subagent_type = call.arguments.get("subagent_type") or ""
-    has_description = bool(call.arguments.get("task_description"))
-    content = (
-        "### {{task_description}}\n\n{{prompt}}" if has_description else "{{prompt}}"
-    )
-    return ToolCallView(
-        call=ToolCallContent(
-            title=f"agent: {subagent_type}",
-            format="markdown",
-            content=content,
+
+    def viewer(call: ToolCall) -> ToolCallView:
+        subagent_type = call.arguments.get("subagent_type") or single_name
+        has_description = bool(call.arguments.get("task_description"))
+        content = (
+            "### {{task_description}}\n\n{{prompt}}"
+            if has_description
+            else "{{prompt}}"
         )
-    )
+        return ToolCallView(
+            call=ToolCallContent(
+                title=f"agent: {subagent_type}" if subagent_type else "agent",
+                format="markdown",
+                content=content,
+            )
+        )
+
+    return viewer
 
 
 def agent_tool(
@@ -323,11 +336,9 @@ def agent_tool(
                 child_agent, sa, dispatch_input, span_id=agent_span_id
             )
 
-    # With exactly one subagent, `subagent_type` is a required parameter whose enum holds a
-    # single legal value: ceremony the model must emit on every call, and one more thing it can
-    # get wrong (a hallucinated type is a dispatch error rather than a delegation). Omit it from
-    # the schema and resolve the name here. The parameter reappears the moment there is a real
-    # choice to make, so multi-subagent behaviour is unchanged.
+    # With one subagent there is no choice to make, so `subagent_type` is dropped from the
+    # schema and resolved here rather than asked of the model. It returns as soon as there
+    # are two.
     single_name = subagents[0].name if len(subagents) == 1 else None
 
     async def _invoke(
@@ -359,7 +370,7 @@ def agent_tool(
     if background_enabled and single_name is not None:
         only = single_name
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer)
+        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
         def agent() -> Tool:
             """Delegate a task to a specialized subagent."""
 
@@ -377,7 +388,7 @@ def agent_tool(
 
     elif background_enabled:
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer)
+        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -397,7 +408,7 @@ def agent_tool(
     elif single_name is not None:
         only = single_name
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer)
+        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -414,7 +425,7 @@ def agent_tool(
 
     else:
 
-        @tool(parallel=can_parallel, viewer=_agent_viewer)
+        @tool(parallel=can_parallel, viewer=_agent_viewer_for(single_name))
         def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
@@ -438,8 +449,7 @@ def agent_tool(
 def _build_agent_description(
     subagents: list[Subagent], background_enabled: bool = True
 ) -> str:
-    # Mirrors the schema built in `agent_tool`: with one subagent there is no `subagent_type`
-    # parameter, so listing "available types" would describe a choice the tool no longer offers.
+    # Mirrors the schema built in `agent_tool`: no `subagent_type` when there is one subagent.
     single = subagents[0] if len(subagents) == 1 else None
     lines = ["Delegate a task to a specialized subagent.\n"]
     if single is not None:
