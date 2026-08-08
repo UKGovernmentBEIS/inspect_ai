@@ -1843,3 +1843,83 @@ def test_google_credentials_arg_rejected() -> None:
             api_key=None,
             credentials=object(),
         )
+
+
+def test_model_client_reuses_one_ssl_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Repeated client construction must not rebuild the SSL context.
+
+    `Client()` is built per generate() call, and genai otherwise creates a default
+    context from the CA bundle for each one — a synchronous disk read on the event
+    loop, three times per client. Under high sandbox concurrency that blocking work
+    starves the sandbox-service RPC consumer.
+    """
+    import ssl as ssl_module
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    calls = 0
+    real = ssl_module.create_default_context
+
+    def counting(*args: Any, **kwargs: Any) -> ssl_module.SSLContext:
+        nonlocal calls
+        calls += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ssl_module, "create_default_context", counting)
+    monkeypatch.setattr("google.genai._api_client.ssl.create_default_context", counting)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    for _ in range(5):
+        api.model_client()
+
+    # one build for the whole process, not three per client
+    assert calls <= 1, f"rebuilt the SSL context {calls} times across 5 clients"
+
+
+def test_model_client_reuses_ssl_context_with_client_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bridge path passes `client_args`, which changed which dict genai reads.
+
+    genai resolves the context with a conditional that, when `client_args` is
+    non-empty, never consults `async_client_args` (google/genai/_api_client.py:
+    `args.get(verify) if args else None or async_args.get(verify) ...` parses as
+    `args.get(v) if args else ((None or async_args.get(v)) if async_args else
+    None)`). Seeding only the async dict therefore missed and genai rebuilt the
+    context ON the event loop — caught by py-spy on a live run as
+    create_default_context under bridge_generate.
+    """
+    import ssl as ssl_module
+
+    from google.genai.types import HttpOptions
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    calls = 0
+    real = ssl_module.create_default_context
+
+    def counting(*args: Any, **kwargs: Any) -> ssl_module.SSLContext:
+        nonlocal calls
+        calls += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ssl_module, "create_default_context", counting)
+    monkeypatch.setattr("google.genai._api_client.ssl.create_default_context", counting)
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash",
+        base_url=None,
+        api_key="x" * 20,
+    )
+    GoogleGenAIAPI._ssl_context.cache_clear()
+    for _ in range(5):
+        api.model_client(HttpOptions(client_args={"timeout": 30.0}))
+
+    assert calls <= 1, (
+        f"rebuilt the SSL context {calls} times across 5 clients with client_args"
+    )

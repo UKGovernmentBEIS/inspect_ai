@@ -1,3 +1,7 @@
+## Unreleased
+
+- Google: Reuse one SSL context across model clients, including bridged agent calls, instead of rebuilding it per request, removing blocking CA-bundle reads that could stall evals at high sandbox concurrency.
+
 ## 0.3.262 (02 September 2026)
 
 - Scorer (breaking): Model-graded scorers with a panel of graders now require a strict majority: samples with no majority grade (even-split ties, three-way splits, or ties after a grader returns no parseable grade) come back unscored and leave the metric denominator, rather than the most common grade winning with ties broken by grader order. Pass `reducer="mode"` to `model_graded_qa()`/`model_graded_fact()` to restore the previous behavior. (#4721)
