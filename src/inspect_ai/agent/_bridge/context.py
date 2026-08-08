@@ -21,10 +21,9 @@ class AgentBridgeContext:
     """Identity of the agent behind the current bridged model request.
 
     Read it with `current_agent_bridge_context()` from code running inside a
-    bridged request (e.g. a generate filter). The safe steering idiom for
-    mid-episode control is to act only when the context is None (not a
-    bridged request) or `kind == "root"` — "subagent", "utility" and
-    "unknown" all land on the don't-intervene side.
+    bridged request (e.g. a generate filter). For mid-episode control, prefer
+    the `is_root_agent()` gate — it is False only for requests attributed to
+    a "subagent" or "utility" thread.
     """
 
     kind: AgentBridgeContextKind
