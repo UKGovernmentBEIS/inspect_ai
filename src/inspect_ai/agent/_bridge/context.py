@@ -87,20 +87,19 @@ def is_sub_agent() -> bool:
 
 
 def is_root_agent() -> bool:
-    """Does the current bridged model request belong to the top-level agent?
+    """Should the current code treat itself as the top-level agent?
 
-    True only when the current context has `kind == "root"` — a positive
-    attribution claim. False otherwise, including outside bridged requests
-    and when attribution is `"unknown"`.
-
-    This is the strict gate for mid-episode control: act only on confirmed
-    root. Prefer it when the bridge is run by a package that provides
-    attribution (e.g. inspect_swe). When attribution may be absent (a plain
-    bridge where every request reads `"unknown"`), use `not is_sub_agent()`
-    as the permissive gate instead.
+    False only when the current bridged request is attributed to a delegated
+    agent's thread (`kind == "subagent"`) or an internal machinery call
+    (`kind == "utility"`). True otherwise — including outside bridged
+    requests and when attribution is `"unknown"` — so mid-episode control
+    keeps working on bridges with no attribution rather than silently
+    disabling itself. Consumers that require positive confirmation of root
+    should check `current_agent_bridge_context()` for `kind == "root"` (and
+    `certainty`) explicitly.
     """
     context = _agent_bridge_context.get()
-    return context is not None and context.kind == "root"
+    return context is None or context.kind not in ("subagent", "utility")
 
 
 def set_agent_bridge_context(context: AgentBridgeContext) -> None:

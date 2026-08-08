@@ -86,14 +86,16 @@ def test_is_sub_agent_only_for_subagent_kind() -> None:
 
 
 def test_is_root_agent_semantics() -> None:
-    assert is_root_agent() is False
+    # permissive gate: treat as root outside bridged requests...
+    assert is_root_agent() is True
     with bridged_request_scope(None):
-        assert is_root_agent() is False  # unknown default
+        # ...and when attribution is unknown (the unset default)
+        assert is_root_agent() is True
     expectations = [
         ("root", True),
         ("subagent", False),
         ("utility", False),
-        ("unknown", False),
+        ("unknown", True),
     ]
     for kind, expected in expectations:
         with bridged_request_scope(None):
