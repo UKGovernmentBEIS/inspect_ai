@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
+
 ## 0.3.253 (08 August 2026)
 
 - Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)
