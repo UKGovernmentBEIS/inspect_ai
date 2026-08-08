@@ -10,7 +10,6 @@ from inspect_ai.agent._bridge.anthropic_api_impl import (
 )
 from inspect_ai.agent._bridge.context import (
     AgentBridgeContext,
-    AgentBridgeContextKind,
     BridgeRequest,
     bridged_request_scope,
     current_agent_bridge_context,
@@ -311,9 +310,6 @@ def test_public_exports() -> None:
         AgentBridgeContext as PublicContext,
     )
     from inspect_ai.agent import (
-        AgentBridgeContextKind as PublicKind,
-    )
-    from inspect_ai.agent import (
         BridgeRequest as PublicRequest,
     )
     from inspect_ai.agent import (
@@ -333,7 +329,6 @@ def test_public_exports() -> None:
     )
 
     assert PublicContext is AgentBridgeContext
-    assert PublicKind is AgentBridgeContextKind
     assert PublicRequest is BridgeRequest
     assert public_current is current_agent_bridge_context
     assert public_request is current_bridge_request

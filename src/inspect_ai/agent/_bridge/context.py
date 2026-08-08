@@ -3,18 +3,6 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Iterator, Literal
 
-AgentBridgeContextKind = Literal["root", "subagent", "utility", "unknown"]
-"""Which agent a bridged model request belongs to.
-
-- "root": the top-level agent's own thread.
-- "subagent": a delegated agent with its own goal and conversation thread
-  (e.g. a Claude Code Task agent or a Codex spawned agent).
-- "utility": machinery calls serving the main agent's plumbing (compaction,
-  approval review, internal helper models) — no delegated goal or thread.
-  Matches the timeline's utility-agent concept.
-- "unknown": the bridge could not determine the calling agent.
-"""
-
 
 @dataclass(frozen=True)
 class AgentBridgeContext:
@@ -26,8 +14,17 @@ class AgentBridgeContext:
     a "subagent" or "utility" thread.
     """
 
-    kind: AgentBridgeContextKind
-    """Which agent this bridged model request belongs to."""
+    kind: Literal["root", "subagent", "utility", "unknown"]
+    """Which agent this bridged model request belongs to.
+
+    - "root": the top-level agent's own thread.
+    - "subagent": a delegated agent with its own goal and conversation thread
+      (e.g. a Claude Code Task agent or a Codex spawned agent).
+    - "utility": machinery calls serving the main agent's plumbing (compaction,
+      approval review, internal helper models) — no delegated goal or thread.
+      Matches the timeline's utility-agent concept.
+    - "unknown": the bridge could not determine the calling agent.
+    """
 
     @property
     def is_root(self) -> bool:
