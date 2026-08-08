@@ -1,11 +1,12 @@
 import contextlib
 from collections.abc import Sequence
 from logging import getLogger
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 import anyio
 from shortuuid import uuid
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -31,6 +32,12 @@ from ..util import default_code_execution_providers, internal_web_search_provide
 from .service import MODEL_SERVICE, run_model_service
 from .types import SandboxAgentBridge
 
+if TYPE_CHECKING:
+    # deferred: importing `inspect_ai.approval` at module scope here cycles
+    # through approval -> event -> scorer while `inspect_ai.agent` is still
+    # initializing. Same reason `model/_call_tools.py` defers it.
+    from inspect_ai.approval._policy import ApprovalPolicy
+
 logger = getLogger(__name__)
 
 
@@ -50,6 +57,7 @@ async def sandbox_agent_bridge(
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
+    approval: list["ApprovalPolicy"] | None = None,
     checkpointer: Checkpointer | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
@@ -105,6 +113,13 @@ async def sandbox_agent_bridge(
             parameters like the system prompt, tools, and response format are always
             forwarded). Set `True` for faithful-proxy behavior where the client's
             generation parameters are authoritative.
+        approval: Approval policies for tool calls made by the bridged agent.
+            Temporarily replaces any active approval policies for the duration of
+            each approval. Eval-level and task-level policies already apply without
+            this, but an `approval()` block entered inside the agent body does not
+            reach the sandbox service task — pass policies here instead. A rejected
+            tool call is never handed to the agent: the model is told it was
+            rejected and generation is retried.
         checkpointer: Checkpointer to drive through the bridge. When provided,
             the bridge ticks it after each generation and registers its agent
             state (messages, output, compaction prefix) for checkpoint backup
@@ -144,6 +159,7 @@ async def sandbox_agent_bridge(
                 model_aliases=model_aliases,
                 model_event_sink=model_event_sink,
                 forward_generation_config=forward_generation_config,
+                approval=approval,
                 checkpointer=checkpointer,
             )
 
@@ -189,6 +205,9 @@ async def sandbox_agent_bridge(
             # monitor proxy for unexpected death
             tg.start_soon(_monitor_proxy, proxy)
 
+            # monitor for a termination requested by a tool call approver
+            tg.start_soon(_monitor_terminate, bridge)
+
             # main agent
             try:
                 yield bridge
@@ -230,6 +249,20 @@ def _register_bridged_tools(
         type="http",
         url=f"http://localhost:{port}/mcp/{spec.name}",
         tools="all",
+    )
+
+
+async def _monitor_terminate(bridge: SandboxAgentBridge) -> None:
+    """Raise `TerminateSampleError` when a tool call approver requests termination.
+
+    Bridged generations run in the sandbox service task, whose exceptions never
+    propagate (see `SandboxAgentBridge.request_terminate`). Raising here instead puts
+    the error in the bridge's own task group, so it unwinds the agent and reaches the
+    sample runner.
+    """
+    await bridge._terminate_requested.wait()
+    raise TerminateSampleError(
+        bridge._terminate_reason or "Sample terminated by tool call approver."
     )
 
 

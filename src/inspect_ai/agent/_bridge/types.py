@@ -1,8 +1,9 @@
 from functools import lru_cache
-from typing import NamedTuple, Sequence, Set
+from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
 
 from shortuuid import uuid
 
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.agent._agent import AgentState
@@ -22,6 +23,13 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 
+if TYPE_CHECKING:
+    # deferred: `_bridge.types` is imported at the top of `inspect_ai.agent`, well
+    # before `inspect_ai.approval` can be initialized (approval -> event -> scorer
+    # cycles back through partially-initialized modules). Same reason
+    # `model/_call_tools.py` defers it.
+    from inspect_ai.approval._policy import ApprovalPolicy
+
 
 class AgentBridge:
     """Agent bridge."""
@@ -36,6 +44,7 @@ class AgentBridge:
         model_aliases: dict[str, str | Model] | None = None,
         model_event_sink: ModelEventSink | None = None,
         forward_generation_config: bool = False,
+        approval: list["ApprovalPolicy"] | None = None,
         checkpointer: Checkpointer | None = None,
     ) -> None:
         self._cp = checkpointer or _NoopCheckpointer()
@@ -82,6 +91,7 @@ class AgentBridge:
         self.model_aliases: dict[str, str | Model] = model_aliases or {}
         self.model_event_sink = model_event_sink
         self.forward_generation_config = forward_generation_config
+        self.approval = approval
         self._compaction = compaction
         self._compact: Compact | None = None
         self._last_message_count = 0
@@ -145,6 +155,28 @@ class AgentBridge:
     response format, stop sequences) are always forwarded. Set `True` to forward
     the client's generation parameters (faithful-proxy behavior).
     """
+
+    approval: list["ApprovalPolicy"] | None
+    """Approval policies for tool calls made by the bridged agent.
+
+    Applied to the tool calls in each bridged model response, replacing any ambient
+    policies for the duration of the approval. Ambient policies (eval-level and
+    task-level) already apply without this; it exists because a sandbox bridge's
+    generations run in the sandbox service task, which holds a *copy* of the context
+    taken when the bridge was entered — so an `approval()` block entered inside the
+    agent body is invisible to them. Setting policies here is the only reliable way
+    to scope approval from within the agent.
+    """
+
+    def request_terminate(self, reason: str) -> NoReturn:
+        """Terminate the sample from a bridged generation.
+
+        Raises `TerminateSampleError`, which propagates out through the agent to the
+        sample runner. `SandboxAgentBridge` overrides this: its generations run in
+        the sandbox service task, where exceptions become RPC error responses instead
+        of propagating.
+        """
+        raise TerminateSampleError(reason)
 
     def compaction(
         self, tools: Sequence[ToolInfo | Tool], model: Model

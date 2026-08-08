@@ -1,3 +1,7 @@
+## Unreleased
+
+- Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.
+
 ## 0.3.253 (08 August 2026)
 
 - Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)
