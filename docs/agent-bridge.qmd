@@ -195,6 +195,28 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
 
 This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`.
 
+## Agent Context
+
+When a bridged scaffold delegates work to sub-agents, every sub-agent's model requests flow through the same bridge — so a `filter` fires for *all* of them, not just the top-level agent's. Code that injects steering, counts turns, or ends an episode early from inside a filter should confine itself to the top-level agent. The ambient agent context tells you which agent the current request belongs to:
+
+``` python
+from inspect_ai.agent import current_agent_bridge_context
+
+async def my_filter(model, messages, tools, tool_choice, config):
+    context = current_agent_bridge_context()
+    if context is not None and not context.is_root:
+        return None   # never steer sub-agent, utility, or unattributed calls
+    ...
+```
+
+`current_agent_bridge_context()` returns `None` outside of a bridged model request. Within one, it carries a `kind` — `"root"`, `"subagent"`, `"utility"` (internal machinery calls such as compaction or approval review), or `"unknown"` — and a `certainty` of `"structural"` (protocol/config-derived) or `"inferred"` (heuristic). The convenience `is_sub_agent()` returns `True` only for `kind == "subagent"`.
+
+The safest idiom for mid-episode control is shown above: intervene only when the context is `None` or `kind == "root"`, so utility and unattributed calls land on the don't-intervene side.
+
+Bridged agent packages (e.g. `inspect_swe`) resolve and set this context via `set_agent_bridge_context()` from their own filter wrappers. In-process scaffolds that manage their own delegation can do the same — the value is scoped to the current request and resets automatically. Scaffolds that never set it leave requests reading `kind == "unknown"`.
+
+Model requests carry one additional ambient fact: `current_bridge_request()` exposes the model slug the scaffold requested (before `model_aliases` resolution), which context resolvers use to classify traffic routed through distinct model names. It is `None` when the scaffold's request carried no model.
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
