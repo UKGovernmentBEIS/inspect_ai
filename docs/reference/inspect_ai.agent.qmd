@@ -37,7 +37,6 @@ description: Agent scaffolds and protocol.
 ### current_agent_bridge_context
 ### AgentBridgeContext
 ### AgentBridgeContextKind
-### AgentBridgeContextCertainty
 ### current_bridge_request
 ### BridgeRequest
 ### is_sub_agent

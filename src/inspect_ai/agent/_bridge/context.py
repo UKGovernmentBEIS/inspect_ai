@@ -15,16 +15,6 @@ AgentBridgeContextKind = Literal["root", "subagent", "utility", "unknown"]
 - "unknown": the bridge could not determine the calling agent.
 """
 
-AgentBridgeContextCertainty = Literal["structural", "inferred"]
-"""How the kind was determined.
-
-- "structural": derived from a protocol or configuration signal (e.g. a
-  distinct requested model slug, an inter-agent message address, or a
-  scaffold with no delegation capability).
-- "inferred": derived from a heuristic (e.g. spawn-prompt matching). By
-  convention "inferred" is also used when kind is "unknown".
-"""
-
 
 @dataclass(frozen=True)
 class AgentBridgeContext:
@@ -39,9 +29,6 @@ class AgentBridgeContext:
 
     kind: AgentBridgeContextKind
     """Which agent this bridged model request belongs to."""
-
-    certainty: AgentBridgeContextCertainty
-    """How kind was determined ('structural' signal vs 'inferred' heuristic)."""
 
     @property
     def is_root(self) -> bool:
@@ -95,8 +82,8 @@ def is_root_agent() -> bool:
     requests and when attribution is `"unknown"` — so mid-episode control
     keeps working on bridges with no attribution rather than silently
     disabling itself. Consumers that require positive confirmation of root
-    should check `current_agent_bridge_context()` for `kind == "root"` (and
-    `certainty`) explicitly.
+    should check `current_agent_bridge_context()` for `kind == "root"`
+    explicitly.
     """
     context = _agent_bridge_context.get()
     return context is None or context.kind not in ("subagent", "utility")
@@ -129,7 +116,7 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     resets both on exit so no value leaks across sequential requests that
     share a task (the in-process bridge path).
     """
-    context_token = _agent_bridge_context.set(AgentBridgeContext("unknown", "inferred"))
+    context_token = _agent_bridge_context.set(AgentBridgeContext("unknown"))
     request_token = _bridge_request.set(
         BridgeRequest(model=requested_model) if requested_model is not None else None
     )

@@ -213,7 +213,6 @@ async def my_filter(model, messages, tools, tool_choice, config):
 Within a bridged request, `current_agent_bridge_context()` carries:
 
 - `kind` — `"root"` (the top-level agent's own thread), `"subagent"` (a delegated agent's thread), `"utility"` (internal machinery calls such as compaction or approval review), or `"unknown"` (no attribution available).
-- `certainty` — `"structural"` (protocol/config-derived) or `"inferred"` (heuristic). Most filters won't need it.
 
 Outside of a bridged model request it returns `None`.
 

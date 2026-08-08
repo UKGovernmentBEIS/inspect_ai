@@ -6,7 +6,6 @@ from ._as_tool import as_tool
 from ._bridge.bridge import agent_bridge, bridge
 from ._bridge.context import (
     AgentBridgeContext,
-    AgentBridgeContextCertainty,
     AgentBridgeContextKind,
     BridgeRequest,
     current_agent_bridge_context,
@@ -51,7 +50,6 @@ __all__ = [
     "BridgedToolsSpec",
     # Agent bridge context (ambient identity of the calling agent)
     "AgentBridgeContext",
-    "AgentBridgeContextCertainty",
     "AgentBridgeContextKind",
     "BridgeRequest",
     "current_agent_bridge_context",
