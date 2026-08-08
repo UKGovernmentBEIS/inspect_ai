@@ -969,6 +969,20 @@ def math() -> Scorer:
                 explanation=state.output.completion,
             )
 
+        # Parse failure: the completion contained no mathematical expression
+        # we could extract. The value stays INCORRECT (a format violation is
+        # the model failing the task, and must not inflate accuracy by
+        # leaving the denominator), but the failure mode is recorded in
+        # metadata so analysis can separate "wrong answer" from "couldn't
+        # parse an answer". See #4091 for the cross-scorer convention.
+        if result is None:
+            return Score(
+                value=INCORRECT,
+                answer=state.output.completion,
+                explanation="No mathematical expression could be extracted from the model output",
+                metadata={"reason": "invalid_response_format"},
+            )
+
         return Score(
             value=INCORRECT,
             answer=str(result),
