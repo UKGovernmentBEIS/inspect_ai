@@ -323,10 +323,62 @@ def agent_tool(
                 child_agent, sa, dispatch_input, span_id=agent_span_id
             )
 
-    if background_enabled:
+    # With exactly one subagent, `subagent_type` is a required parameter whose enum holds a
+    # single legal value: ceremony the model must emit on every call, and one more thing it can
+    # get wrong (a hallucinated type is a dispatch error rather than a delegation). Omit it from
+    # the schema and resolve the name here. The parameter reappears the moment there is a real
+    # choice to make, so multi-subagent behaviour is unchanged.
+    single_name = subagents[0].name if len(subagents) == 1 else None
+
+    async def _invoke(
+        subagent_type: str, prompt: str, background: bool
+    ) -> tuple[str, str]:
+        """Shared dispatch body for every tool variant; returns (result, agent span id)."""
+        sa, child_agent, dispatch_input, agent_span_id, from_message = (
+            _prepare_dispatch(subagent_type, prompt)
+        )
+        if background:
+            return (
+                _dispatch_background(
+                    child_agent,
+                    sa,
+                    dispatch_input,
+                    agent_span_id,
+                    sa.fork,
+                    from_message,
+                ),
+                agent_span_id,
+            )
+        return (
+            await _run_sync(
+                sa, child_agent, dispatch_input, agent_span_id, from_message
+            ),
+            agent_span_id,
+        )
+
+    if background_enabled and single_name is not None:
+        only = single_name
 
         @tool(parallel=can_parallel, viewer=_agent_viewer)
         def agent() -> Tool:
+            """Delegate a task to a specialized subagent."""
+
+            async def execute(
+                prompt: str,
+                background: bool = False,
+                task_description: str | None = None,
+            ) -> str:
+                value, span_id = await _invoke(only, prompt, background)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
+
+            execute.__doc__ = tool_description
+            return execute
+
+    elif background_enabled:
+
+        @tool(parallel=can_parallel, viewer=_agent_viewer)
+        def agent() -> Tool:  # type: ignore[no-redef]
             """Delegate a task to a specialized subagent."""
 
             async def execute(
@@ -335,40 +387,27 @@ def agent_tool(
                 background: bool = False,
                 task_description: str | None = None,
             ) -> str:
-                """Delegate a task to a specialized subagent.
+                value, span_id = await _invoke(subagent_type, prompt, background)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
 
-                Args:
-                    subagent_type: Which subagent to use.
-                    prompt: Detailed instructions for the subagent. Include
-                        all necessary context — the subagent starts with a
-                        fresh context and cannot see your conversation history
-                        unless it uses forked mode.
-                    background: When True, dispatch the subagent in the
-                        background and return immediately with an
-                        ``AGENT-N`` handle.
-                    task_description: Brief description of the task.
-                """
-                sa, child_agent, dispatch_input, agent_span_id, from_message = (
-                    _prepare_dispatch(subagent_type, prompt)
-                )
+            execute.__doc__ = tool_description
+            return execute
 
-                if background:
-                    handle = _dispatch_background(
-                        child_agent,
-                        sa,
-                        dispatch_input,
-                        agent_span_id,
-                        sa.fork,
-                        from_message,
-                    )
-                    execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
-                    return handle
+    elif single_name is not None:
+        only = single_name
 
-                result = await _run_sync(
-                    sa, child_agent, dispatch_input, agent_span_id, from_message
-                )
-                execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
-                return result
+        @tool(parallel=can_parallel, viewer=_agent_viewer)
+        def agent() -> Tool:  # type: ignore[no-redef]
+            """Delegate a task to a specialized subagent."""
+
+            async def execute(
+                prompt: str,
+                task_description: str | None = None,
+            ) -> str:
+                value, span_id = await _invoke(only, prompt, False)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
 
             execute.__doc__ = tool_description
             return execute
@@ -384,24 +423,9 @@ def agent_tool(
                 prompt: str,
                 task_description: str | None = None,
             ) -> str:
-                """Delegate a task to a specialized subagent.
-
-                Args:
-                    subagent_type: Which subagent to use.
-                    prompt: Detailed instructions for the subagent. Include
-                        all necessary context — the subagent starts with a
-                        fresh context and cannot see your conversation history
-                        unless it uses forked mode.
-                    task_description: Brief description of the task.
-                """
-                sa, child_agent, dispatch_input, agent_span_id, from_message = (
-                    _prepare_dispatch(subagent_type, prompt)
-                )
-                result = await _run_sync(
-                    sa, child_agent, dispatch_input, agent_span_id, from_message
-                )
-                execute.agent_span_id = agent_span_id  # type: ignore[attr-defined]
-                return result
+                value, span_id = await _invoke(subagent_type, prompt, False)
+                execute.agent_span_id = span_id  # type: ignore[attr-defined]
+                return value
 
             execute.__doc__ = tool_description
             return execute
@@ -414,11 +438,18 @@ def agent_tool(
 def _build_agent_description(
     subagents: list[Subagent], background_enabled: bool = True
 ) -> str:
+    # Mirrors the schema built in `agent_tool`: with one subagent there is no `subagent_type`
+    # parameter, so listing "available types" would describe a choice the tool no longer offers.
+    single = subagents[0] if len(subagents) == 1 else None
     lines = ["Delegate a task to a specialized subagent.\n"]
-    lines.append("Available subagent types:\n")
-    for sa in subagents:
-        suffix = " (has conversation context)" if sa.fork else ""
-        lines.append(f"- **{sa.name}**: {sa.description}{suffix}")
+    if single is not None:
+        suffix = " (inherits your conversation context)" if single.fork else ""
+        lines.append(f"The subagent is **{single.name}**: {single.description}{suffix}")
+    else:
+        lines.append("Available subagent types:\n")
+        for sa in subagents:
+            suffix = " (has conversation context)" if sa.fork else ""
+            lines.append(f"- **{sa.name}**: {sa.description}{suffix}")
     lines.append("")
     lines.append(
         "Delegate when the work is multi-step, benefits from tool isolation, "
@@ -435,7 +466,16 @@ def _build_agent_description(
     )
     lines.append("")
     has_forked = any(sa.fork for sa in subagents)
-    if has_forked:
+    if single is not None:
+        lines.append(
+            "The subagent inherits your full conversation context, so you do not need to "
+            "restate it: state the goal and what you need back."
+            if single.fork
+            else "The subagent starts with a fresh context and cannot see your "
+            "conversation history. Write the prompt as a self-contained brief: state the "
+            "goal, include any relevant findings or data, and specify what you need back."
+        )
+    elif has_forked:
         lines.append(
             "Non-forked subagents start with a fresh context and cannot see "
             "your conversation history. Write the prompt as a self-contained "
@@ -457,7 +497,8 @@ def _build_agent_description(
     )
     lines.append("")
     lines.append("Args:")
-    lines.append("    subagent_type: Which subagent to use.")
+    if single is None:
+        lines.append("    subagent_type: Which subagent to use.")
     lines.append(
         "    prompt: Self-contained instructions for the subagent, "
         "including all necessary context."

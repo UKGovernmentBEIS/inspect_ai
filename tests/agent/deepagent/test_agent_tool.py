@@ -1,5 +1,7 @@
 """Tests for agent() multiplexer tool."""
 
+from typing import Any
+
 from test_helpers.tool_call_utils import get_tool_event
 
 from inspect_ai import Task, eval
@@ -20,6 +22,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool._tool_info import parse_tool_info
 
 
 def _test_subagent(
@@ -77,7 +80,6 @@ class TestAgentToolDispatch:
                     model="mockllm/model",
                     tool_name="agent",
                     tool_arguments={
-                        "subagent_type": "research",
                         "prompt": "Find relevant information.",
                     },
                 ),
@@ -100,8 +102,15 @@ class TestAgentToolDispatch:
         assert tool_event.function == "agent"
 
     def test_invalid_subagent_type(self) -> None:
-        sa = _test_subagent("research", "Gather info.")
-        tt = agent_tool(subagents=[sa])
+        # TWO subagents on purpose: `subagent_type` only exists when there is a genuine
+        # choice, so a single-subagent tool would reject this call as an unknown PARAMETER
+        # and the assertion below would pass for the wrong reason.
+        tt = agent_tool(
+            subagents=[
+                _test_subagent("research", "Gather info."),
+                _test_subagent("general", "General work."),
+            ]
+        )
 
         task = Task(
             dataset=[Sample(input="Do something")],
@@ -116,7 +125,6 @@ class TestAgentToolDispatch:
                     model="mockllm/model",
                     tool_name="agent",
                     tool_arguments={
-                        "subagent_type": "nonexistent",
                         "prompt": "Do something.",
                     },
                 ),
@@ -146,10 +154,9 @@ class TestAgentToolDispatch:
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name="agent",
-                    tool_arguments={
-                        "subagent_type": "general",
-                        "prompt": "Do general work.",
-                    },
+                    # No `subagent_type`: with exactly one subagent the tool does not
+                    # expose that parameter (see TestSingleSubagentSchema).
+                    tool_arguments={"prompt": "Do general work."},
                 ),
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
@@ -357,7 +364,6 @@ class TestForkedDispatch:
                     model="mockllm/model",
                     tool_name="agent",
                     tool_arguments={
-                        "subagent_type": "forked_agent",
                         "prompt": "Continue the work.",
                     },
                 ),
@@ -574,3 +580,46 @@ class TestAgentToolParallelFlag:
         )
         tool = agent_tool(subagents=[sa_safe, sa_unsafe])
         assert self._parallel_of(tool) is False
+
+
+class TestSingleSubagentSchema:
+    """With one subagent, `subagent_type` is dropped from the model-visible schema.
+
+    Its enum would hold exactly one legal value, so the parameter is pure ceremony the model
+    must emit on every call — and one more thing it can get wrong, since a hallucinated type
+    is a dispatch error rather than a delegation. The parameter must reappear as soon as there
+    is a real choice, which the multi-subagent test below pins.
+    """
+
+    def _params(self, subagents: list[Subagent], background: bool = True) -> Any:
+        tt = agent_tool(subagents=subagents, background_enabled=background)
+        return parse_tool_info(tt).parameters
+
+    def test_single_subagent_omits_subagent_type(self) -> None:
+        params = self._params([_test_subagent("general", "General work.")])
+        assert "subagent_type" not in params.properties
+        assert params.required == ["prompt"]
+
+    def test_single_subagent_omits_subagent_type_without_background(self) -> None:
+        params = self._params(
+            [_test_subagent("general", "General work.")], background=False
+        )
+        assert "subagent_type" not in params.properties
+        assert "background" not in params.properties
+        assert params.required == ["prompt"]
+
+    def test_multiple_subagents_keep_subagent_type(self) -> None:
+        params = self._params(
+            [
+                _test_subagent("research", "Gather info."),
+                _test_subagent("general", "General work."),
+            ]
+        )
+        assert params.properties["subagent_type"].enum == ["research", "general"]
+        assert params.required == ["subagent_type", "prompt"]
+
+    def test_description_does_not_offer_a_choice_of_one(self) -> None:
+        desc = _build_agent_description([_test_subagent("general", "General work.")])
+        assert "Available subagent types" not in desc
+        assert "subagent_type:" not in desc
+        assert "**general**" in desc
