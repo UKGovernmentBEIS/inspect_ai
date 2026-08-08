@@ -17,6 +17,7 @@ from inspect_ai.agent._bridge.context import (
     is_sub_agent,
     set_agent_bridge_context,
 )
+from inspect_ai.agent._bridge.google_api_impl import inspect_google_api_request_impl
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import (
     bridge_generate,
@@ -246,3 +247,40 @@ async def test_anthropic_impl_passes_requested_slug() -> None:
     )
     # the raw scaffold slug survives even though the model resolved elsewhere
     assert seen["request"] == BridgeRequest(model="claude-sub-agent-slug")
+
+
+async def test_google_impl_reports_no_request_when_model_omitted() -> None:
+    """A Google scaffold that omits `model` must not fabricate a slug.
+
+    `bridge_model_name` still falls back to "inspect" for model *resolution*
+    (there's a model to run either way), but `current_bridge_request()` must
+    report None -- there was no scaffold-requested slug to record.
+    """
+    seen: dict[str, Any] = {}
+
+    async def capture_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        seen["request"] = current_bridge_request()
+        return None
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=capture_filter,
+        model="mockllm/model",
+    )
+    json_data = {
+        # no "model" key -- scaffold never requested a slug
+        "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+    }
+    await inspect_google_api_request_impl(
+        json_data,
+        internal_web_search_providers(),
+        default_code_execution_providers(),
+        bridge,
+    )
+    assert seen["request"] is None
