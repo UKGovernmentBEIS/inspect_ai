@@ -666,9 +666,33 @@ class OnlyDirAccessPolicy(AccessPolicy):
     def __init__(self, dir: str) -> None:
         super().__init__()
         self.dir = dir
+        # Requests name a log with the identifier the listing produced, which
+        # is `fs.unstrip_protocol(...)` of the path (see
+        # `FileSystem._file_info`). On POSIX that happens to coincide with the
+        # configured path, so comparing raw strings worked; on Windows the
+        # configured dir is `C:\...\logs` while the identifier is
+        # `file://C:/.../logs/run.eval`, which differ in both the scheme and
+        # the separators, so every log in the configured directory was denied.
+        #
+        # Canonicalise into the identifier's namespace instead. The filesystem
+        # comes from the configured directory rather than from the requested
+        # path: normalising untrusted input with a filesystem derived from that
+        # same input would let a request choose its own comparison namespace.
+        self._fs = filesystem(dir).fs
+        self._canonical_dir = self._fs.unstrip_protocol(dir).rstrip("/")
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        if ".." in file:
+            return False
+        # `unstrip_protocol` is idempotent, so this accepts a request naming
+        # the log either way round.
+        candidate = self._fs.unstrip_protocol(file)
+        # Match on a path boundary. A plain prefix test also admits a sibling
+        # directory whose name merely starts with the configured one, so a
+        # viewer scoped to `.../logs` would serve `.../logs-elsewhere/x.eval`.
+        return candidate == self._canonical_dir or candidate.startswith(
+            self._canonical_dir + "/"
+        )
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)

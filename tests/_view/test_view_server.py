@@ -28,6 +28,7 @@ import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.event_loop_monitor import event_loop_monitor
+from inspect_ai._util.file import filesystem
 from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
@@ -1601,6 +1602,39 @@ def test_fastapi_only_dir_access_policy() -> None:
     assert asyncio.run(policy.can_read(None, "/allowed/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/other/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/allowed/dir/../etc/passwd"))  # type: ignore[arg-type]
+
+
+def test_fastapi_only_dir_access_policy_canonical_identifiers(tmp_path: Path) -> None:
+    """The policy is handed the identifier the listing produced, not a raw path.
+
+    `FileSystem._file_info` names every log with `fs.unstrip_protocol(...)`, and
+    the frontend echoes that identifier back on the log-detail request. A raw
+    string prefix test does not recognise it: on Windows the configured dir is
+    `C:\...\logs` while the identifier is `file://C:/.../logs/run.eval`,
+    differing in both the scheme and the separators, so every log in the
+    configured directory was refused with 403.
+    """
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    fs = filesystem(str(log_dir)).fs
+    policy = fastapi_server.OnlyDirAccessPolicy(str(log_dir))
+
+    identifier = fs.unstrip_protocol(str(log_dir / "run.eval"))
+    assert asyncio.run(policy.can_read(None, identifier))  # type: ignore[arg-type]
+
+    # the native path form keeps working
+    assert asyncio.run(policy.can_read(None, str(log_dir / "run.eval")))  # type: ignore[arg-type]
+
+
+def test_fastapi_only_dir_access_policy_sibling_prefix(tmp_path: Path) -> None:
+    """A sibling directory sharing the configured name's prefix is not inside it."""
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    sibling = tmp_path / "logs-elsewhere"
+    sibling.mkdir()
+    policy = fastapi_server.OnlyDirAccessPolicy(str(log_dir))
+
+    assert not asyncio.run(policy.can_read(None, str(sibling / "secret.eval")))  # type: ignore[arg-type]
 
 
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
