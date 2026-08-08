@@ -92,7 +92,9 @@ def set_agent_bridge_context(context: AgentBridgeContext) -> None:
     For bridge implementers (generate-filter wrappers, in-process scaffolds
     that know their own delegation structure). The value's lifetime is
     bounded by the enclosing `bridged_request_scope` installed by
-    `bridge_generate` — it cannot leak across requests.
+    `bridge_generate` — it cannot leak across requests. Only valid while a
+    bridged request is in flight; calling it outside one leaves an unbounded
+    value in the current context.
     """
     _agent_bridge_context.set(context)
 
