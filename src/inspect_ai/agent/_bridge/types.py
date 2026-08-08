@@ -418,5 +418,18 @@ def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:
 
 
 def _extends(prefix: list[_MessageFingerprint], fps: list[_MessageFingerprint]) -> bool:
-    """Whether `fps` is a proper extension (continuation) of `prefix`."""
-    return len(fps) > len(prefix) and fps[: len(prefix)] == prefix
+    """Whether `fps` is a proper extension (continuation) of `prefix`.
+
+    Compared over non-system messages, for the same reason
+    `_descends_from_initial` drops them: a scaffold substitutes its own system
+    prompt, and some rewrite it on every request. Claude Code stamps a
+    per-request cache token into it, so no two calls in one conversation share
+    a system-message fingerprint and extension could never match at all —
+    every call fell through to the length and descent heuristics instead.
+    """
+    prefix_non_system = [fp for fp in prefix if fp.role != "system"]
+    fps_non_system = [fp for fp in fps if fp.role != "system"]
+    return (
+        len(fps_non_system) > len(prefix_non_system)
+        and fps_non_system[: len(prefix_non_system)] == prefix_non_system
+    )

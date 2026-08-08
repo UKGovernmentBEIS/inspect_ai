@@ -406,6 +406,49 @@ async def test_extension_recognized_despite_new_ids_and_metadata() -> None:
 # ---------------------------------------------------------------------------
 
 
+async def test_compaction_recovery_survives_a_per_request_system_prompt() -> None:
+    """Candidate promotion compares non-system messages.
+
+    Some scaffolds rewrite the system prompt on every request rather than once
+    per conversation: Claude Code stamps a per-request cache token into it, so
+    no two calls in one conversation share a system-message fingerprint.
+
+    Post-compaction recovery is where that bites hardest. The compacted thread
+    is shorter than the tracked one and no longer descends from the initial
+    input, so it is only parked as a candidate; extension is the sole route by
+    which it is promoted. If the prefix comparison includes the system message
+    the promotion can never fire, and the bridge keeps reporting the
+    pre-compaction thread while the agent is working on the compacted one.
+    """
+    bridge = task_bridge()
+
+    def system(token: str) -> ChatMessageSystem:
+        # cf. `x-anthropic-billing-header: ... cch=<token>`
+        return ChatMessageSystem(content=f"You are Claude Code. cch={token}")
+
+    turn1: list[ChatMessage] = [system("e7c7a"), ChatMessageUser(content=TASK)]
+    out1 = await track(bridge, turn1, "working")
+    turn2 = [system("f8278"), *turn1[1:], out1.message, ChatMessageTool(content="r1")]
+    out2 = await track(bridge, turn2, "more work")
+    turn3 = [system("a91b3"), *turn2[1:], out2.message, ChatMessageTool(content="r2")]
+    await track(bridge, turn3, "even more work")
+
+    # compaction: history replaced by a summary, so the new thread neither
+    # extends the tracked one nor descends from the initial input
+    compact1: list[ChatMessage] = [
+        system("b40cd"),
+        ChatMessageUser(content="Summary of the conversation so far: ..."),
+    ]
+    cout1 = await track(bridge, compact1, "compacted work")
+
+    # the loop continues; only extension can promote it
+    compact2 = [system("c51de"), *compact1[1:], cout1.message, ChatMessageTool(content="r3")]
+    await track(bridge, compact2, "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert len(bridge.state.messages) == len(compact2) + 1
+
+
 async def test_descent_anchor_ignores_system_prompt_replacement() -> None:
     """Descent anchors on the initial input's non-system messages.
 
