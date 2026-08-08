@@ -31,7 +31,12 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 
-from .context import bridged_request_scope
+from .context import (
+    AgentBridgeContext,
+    agent_bridge_context_scope,
+    bridged_request_scope,
+    reset_agent_bridge_context_default,
+)
 
 # Generation-tuning fields a scaffold may set on a bridged request that describe
 # *how* the underlying model generates. These are the Inspect model's province
@@ -262,7 +267,11 @@ async def _bridge_generate_impl(
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
-        input_messages, c_message = await compact.compact_input(input)
+        # compaction is the canonical "utility" kind — its own model.generate
+        # call (e.g. a summarization strategy) should read as utility rather
+        # than the ambient default.
+        with agent_bridge_context_scope(AgentBridgeContext("utility")):
+            input_messages, c_message = await compact.compact_input(input)
     else:
         input_messages = input
         c_message = None
@@ -275,6 +284,11 @@ async def _bridge_generate_impl(
 
     refusals = 0
     while True:
+        # Re-stamp the ambient context to the default so a filter-set context
+        # from a refused attempt doesn't leak into the next retry — attempt
+        # N+1 starts clean, same as attempt 1.
+        reset_agent_bridge_context_default()
+
         # Reset to original inputs for each retry
         input_messages = original_input
         tools = original_tools

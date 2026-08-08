@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: filters and downstream code can now tell which agent (root, subagent, or utility) a bridged model request belongs to. (#4791)
+
 ## 0.3.253 (08 August 2026)
 
 - Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)

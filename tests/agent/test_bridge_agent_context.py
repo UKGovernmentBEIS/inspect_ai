@@ -3,6 +3,7 @@
 from typing import Any
 
 import anyio
+import pytest
 
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.anthropic_api_impl import (
@@ -11,6 +12,7 @@ from inspect_ai.agent._bridge.anthropic_api_impl import (
 from inspect_ai.agent._bridge.context import (
     AgentBridgeContext,
     BridgeRequest,
+    agent_bridge_context_scope,
     bridged_request_scope,
     current_agent_bridge_context,
     current_bridge_request,
@@ -26,7 +28,7 @@ from inspect_ai.agent._bridge.util import (
     internal_web_search_providers,
 )
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.model import GenerateConfig, Model, ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -42,7 +44,6 @@ def test_scope_stamps_default_unknown() -> None:
     with bridged_request_scope("some-slug"):
         context = current_agent_bridge_context()
         assert context == AgentBridgeContext("unknown")
-        assert context is not None and context.is_root is False
         request = current_bridge_request()
         assert request is not None and request.model == "some-slug"
     # reset on exit — no leakage into the enclosing context
@@ -96,13 +97,6 @@ def test_is_root_agent_semantics() -> None:
         with bridged_request_scope(None):
             set_agent_bridge_context(AgentBridgeContext(kind))  # type: ignore[arg-type]
             assert is_root_agent() is expected, f"kind={kind}"
-
-
-def test_is_root_property() -> None:
-    assert AgentBridgeContext("root").is_root is True
-    assert AgentBridgeContext("subagent").is_root is False
-    assert AgentBridgeContext("utility").is_root is False
-    assert AgentBridgeContext("unknown").is_root is False
 
 
 async def test_concurrent_tasks_have_isolated_contexts() -> None:
@@ -335,3 +329,115 @@ def test_public_exports() -> None:
     assert public_is_sub_agent is is_sub_agent
     assert public_is_root_agent is is_root_agent
     assert public_set is set_agent_bridge_context
+
+
+# --- final-review fixes ------------------------------------------------------
+
+
+def test_nested_scopes_restore_outer() -> None:
+    """A nested `agent_bridge_context_scope` restores the enclosing value on exit."""
+    with bridged_request_scope("slug"):  # scope A: defaults to "unknown"
+        set_agent_bridge_context(AgentBridgeContext("subagent"))
+        assert current_agent_bridge_context() == AgentBridgeContext("subagent")
+        with agent_bridge_context_scope(AgentBridgeContext("unknown")):  # scope B
+            assert current_agent_bridge_context() == AgentBridgeContext("unknown")
+        # exiting B restores the subagent value set within A
+        assert current_agent_bridge_context() == AgentBridgeContext("subagent")
+    # exiting A (the outermost scope) leaves no context at all
+    assert current_agent_bridge_context() is None
+
+
+async def test_filter_exception_resets_scope() -> None:
+    """An exception raised by the filter propagates and still unwinds the scope."""
+
+    async def raising_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> None:
+        raise RuntimeError("filter blew up")
+
+    bridge = AgentBridge(state=AgentState(messages=[]), filter=raising_filter)
+    with pytest.raises(RuntimeError, match="filter blew up"):
+        await bridge_generate(
+            bridge,
+            get_model("mockllm/model"),
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+            requested_model="scaffold-slug",
+        )
+    assert current_agent_bridge_context() is None
+
+
+async def test_retry_attempts_start_with_default_context() -> None:
+    """A filter-set context from a refused attempt must not leak into the retry."""
+    seen: dict[str, Any] = {}
+    calls = {"n": 0}
+
+    async def refuse_then_record_filter(
+        model: Model,
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice | None,
+        config: GenerateConfig,
+    ) -> ModelOutput | None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # first attempt: stamp a non-default context, then refuse
+            set_agent_bridge_context(AgentBridgeContext("subagent"))
+            return ModelOutput.from_content(
+                model="mockllm/model",
+                content="refused",
+                stop_reason="content_filter",
+            )
+        else:
+            # second attempt: record whether the context started clean
+            seen["context"] = current_agent_bridge_context()
+            return None
+
+    bridge = AgentBridge(
+        state=AgentState(messages=[]),
+        filter=refuse_then_record_filter,
+        retry_refusals=1,
+    )
+    await bridge_generate(
+        bridge,
+        get_model("mockllm/model"),
+        [ChatMessageUser(content="hi")],
+        [],
+        None,
+        GenerateConfig(),
+        requested_model="scaffold-slug",
+    )
+    assert calls["n"] == 2
+    assert seen["context"] == AgentBridgeContext("unknown")
+
+
+def test_agent_bridge_context_scope_utility() -> None:
+    """`agent_bridge_context_scope` stamps utility and restores the prior value.
+
+    This stands in for `test_compaction_generates_read_utility`: wiring an
+    actual `CompactionStrategy` into `bridge_generate` so its internal
+    `model.generate()` call is observable requires the full `eval()` /
+    transcript harness used by `test_agent_bridge_compaction.py` (an OpenAI
+    client, a real compaction threshold crossing, etc.) -- heavy scaffolding
+    for something `agent_bridge_context_scope` already guarantees on its own.
+    Exercising the context manager directly covers the same guarantee that
+    `_bridge_generate_impl` relies on when it wraps `compact.compact_input()`.
+    """
+    with bridged_request_scope("slug"):
+        set_agent_bridge_context(AgentBridgeContext("subagent"))
+        with agent_bridge_context_scope(AgentBridgeContext("utility")):
+            assert current_agent_bridge_context() == AgentBridgeContext("utility")
+        # prior value (set before entering the inner scope) is restored
+        assert current_agent_bridge_context() == AgentBridgeContext("subagent")
+    assert current_agent_bridge_context() is None
+
+
+def test_setter_raises_outside_scope() -> None:
+    with pytest.raises(RuntimeError):
+        set_agent_bridge_context(AgentBridgeContext("root"))

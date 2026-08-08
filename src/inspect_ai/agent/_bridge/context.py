@@ -26,11 +26,6 @@ class AgentBridgeContext:
     - "unknown": the bridge could not determine the calling agent.
     """
 
-    @property
-    def is_root(self) -> bool:
-        """Is this the top-level agent's own thread?"""
-        return self.kind == "root"
-
 
 @dataclass(frozen=True)
 class BridgeRequest:
@@ -91,10 +86,22 @@ def set_agent_bridge_context(context: AgentBridgeContext) -> None:
     For bridge implementers (generate-filter wrappers, in-process scaffolds
     that know their own delegation structure). The value's lifetime is
     bounded by the enclosing `bridged_request_scope` installed by
-    `bridge_generate` — it cannot leak across requests. Only valid while a
-    bridged request is in flight; calling it outside one leaves an unbounded
-    value in the current context.
+    `bridge_generate` — it cannot leak across requests. Raises `RuntimeError`
+    when called outside a bridged request (no scope active), since the value
+    would otherwise leak, unbounded, into the current context.
+
+    Args:
+        context: Agent context for the current bridged request.
+
+    Raises:
+        RuntimeError: If called outside a bridged request (no
+            `bridged_request_scope` currently active).
     """
+    if _agent_bridge_context.get() is None:
+        raise RuntimeError(
+            "set_agent_bridge_context() is only valid while a bridged model "
+            "request is in flight."
+        )
     _agent_bridge_context.set(context)
 
 
@@ -121,3 +128,18 @@ def bridged_request_scope(requested_model: str | None) -> Iterator[None]:
     finally:
         _agent_bridge_context.reset(context_token)
         _bridge_request.reset(request_token)
+
+
+@contextmanager
+def agent_bridge_context_scope(context: AgentBridgeContext) -> Iterator[None]:
+    """Temporarily install a specific agent context (bridge internals)."""
+    token = _agent_bridge_context.set(context)
+    try:
+        yield
+    finally:
+        _agent_bridge_context.reset(token)
+
+
+def reset_agent_bridge_context_default() -> None:
+    """Re-stamp the ambient agent context to the default (bridge internals)."""
+    _agent_bridge_context.set(AgentBridgeContext("unknown"))
