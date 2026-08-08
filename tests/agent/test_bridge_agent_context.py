@@ -284,3 +284,34 @@ async def test_google_impl_reports_no_request_when_model_omitted() -> None:
         bridge,
     )
     assert seen["request"] is None
+
+
+# --- public exports ----------------------------------------------------------
+
+
+def test_public_exports() -> None:
+    from inspect_ai.agent import (
+        AgentBridgeContext as PublicContext,
+    )
+    from inspect_ai.agent import (
+        BridgeRequest as PublicRequest,
+    )
+    from inspect_ai.agent import (
+        current_agent_bridge_context as public_current,
+    )
+    from inspect_ai.agent import (
+        current_bridge_request as public_request,
+    )
+    from inspect_ai.agent import (
+        is_sub_agent as public_is_sub_agent,
+    )
+    from inspect_ai.agent import (
+        set_agent_bridge_context as public_set,
+    )
+
+    assert PublicContext is AgentBridgeContext
+    assert PublicRequest is BridgeRequest
+    assert public_current is current_agent_bridge_context
+    assert public_request is current_bridge_request
+    assert public_is_sub_agent is is_sub_agent
+    assert public_set is set_agent_bridge_context
