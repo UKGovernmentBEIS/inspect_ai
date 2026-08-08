@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Inspect View: New Timeline tab in the log viewer — a time-axis chart of run activity combined with a filterable event history. (#453)
+- Inspect View: Codex Multi-Agent V2 sub-agent model events now show the inter-agent handoff as the turn boundary instead of displaying the entire forked parent context as recent messages. (#504)
+- Inspect View: Codex Code Mode `exec` calls render their JavaScript source as a highlighted, expandable input body instead of a truncated single-line header summary; header-only tool blocks no longer sit flush against their bottom edge. (#504)
+- Inspect View: Live sample summaries read from in-progress logs are deduplicated by id and epoch, so requeued samples no longer appear twice. (#476)
+- Inspect View: Fixed a leaked keyup listener in the image lightbox. (#479)
+- Inspect View: Accessibility improvements across viewer components (jsx-a11y recommended ruleset). (#484)
 - Sandbox: `ComposeService` now accepts the standard compose keys `restart`, `stdin_open`, and `tty` (previously rejected as unknown fields).
 - Bugfix: Model info lookup no longer sends its internal placeholder API key to the Hugging Face Hub when canonicalizing model names. (#4600)
 - Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.
