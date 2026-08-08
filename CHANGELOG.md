@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.253 (08 August 2026)
 
 - Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)
 - Sandbox: `ComposeService` now accepts the standard compose keys `restart`, `stdin_open`, and `tty` (previously rejected as unknown fields).
