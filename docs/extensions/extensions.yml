@@ -186,4 +186,4 @@
   description: |
     Open standard for portable LLM evaluation datasets. Convert between Inspect AI and other eval frameworks (DeepEval, Promptfoo, LangSmith, etc.) using a portable JSON format.
   author: "[Sahi Katukojula](https://github.com/adhabnr-ux)"
-  categories: ["Tooling"]
+  categories: ["Frameworks"]
