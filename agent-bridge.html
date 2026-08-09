@@ -715,7 +715,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#agent-bridge" id="toc-agent-bridge" class="nav-link" data-scroll-target="#agent-bridge">Agent Bridge</a></li>
-  <li><a href="#sandbox-bridge" id="toc-sandbox-bridge" class="nav-link" data-scroll-target="#sandbox-bridge">Sandbox Bridge</a></li>
+  <li><a href="#sandbox-bridge" id="toc-sandbox-bridge" class="nav-link" data-scroll-target="#sandbox-bridge">Sandbox Bridge</a>
+  <ul class="collapse">
+  <li><a href="#granted-capabilities" id="toc-granted-capabilities" class="nav-link" data-scroll-target="#granted-capabilities">Granted Capabilities</a></li>
+  </ul></li>
   <li><a href="#bridged-tools" id="toc-bridged-tools" class="nav-link" data-scroll-target="#bridged-tools">Bridged Tools</a></li>
   <li><a href="#models" id="toc-models" class="nav-link" data-scroll-target="#models">Models</a></li>
   <li><a href="#generation-config" id="toc-generation-config" class="nav-link" data-scroll-target="#generation-config">Generation Config</a></li>
@@ -892,46 +895,56 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 </dl>
 <p>The <a href="https://meridianlabs-ai.github.io/inspect_swe/claude_code.html">Claude Code</a> and <a href="https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html">Codex CLI</a> agents in the Inspect SWE package provide more in-depth demonstrations of running custom agents in sandboxes.</p>
+<section id="granted-capabilities" class="level3">
+<h3 class="anchored" data-anchor-id="granted-capabilities">Granted Capabilities</h3>
+<p>Some tools a bridged agent can request are executed <em>outside</em> the sandbox — <code>web_search</code>, <code>web_fetch</code>, <code>code_execution</code>, and remote MCP servers all run at the model provider. An agent that names one of these in a request therefore reaches the network regardless of the sandbox’s own egress policy, so <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> withholds them unless the evaluation grants them:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(state, web_search<span class="op">=</span><span class="va">True</span>) <span class="im">as</span> bridge:</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Pass <code>True</code> to use the target model’s internal provider, a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#websearchproviders">WebSearchProviders</a></span> configuration to select providers explicitly, or leave the default to withhold. <code>code_execution</code> works the same way, and <code>client_mcp_servers=True</code> honors MCP servers named by the agent (prefer <a href="#bridged-tools">Bridged Tools</a> for servers you choose yourself). Whenever a declared tool is withheld a warning is logged, since an absent tool is otherwise indistinguishable from the model declining to call it.</p>
+<p>Ordinary function tools are never withheld — those are executed by the bridged agent inside the sandbox and grant it nothing it does not already have.</p>
+<p>For the same reason, image and document content in a request to a sandbox bridge must be an inline <code>data:</code> URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent’s behalf.</p>
+<p>None of this applies to the in-process <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span>, where the scaffold already runs with the host’s network and filesystem and there is no boundary to defend.</p>
+</section>
 </section>
 <section id="bridged-tools" class="level2">
 <h2 class="anchored" data-anchor-id="bridged-tools">Bridged Tools</h2>
 <p>Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the <code>bridged_tools</code> parameter. This is useful when you have Inspect tools that need to run on the host (e.g.&nbsp;tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.</p>
 <p>To bridge tools, wrap them in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridgedtoolsspec">BridgedToolsSpec</a></span> and pass to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> tool</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    Agent, AgentState, agent, sandbox_agent_bridge, BridgedToolsSpec</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> search_database():</span>
-<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(query: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
-<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Search the internal database.</span></span>
-<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
-<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="co">            query: The search query.</span></span>
-<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
-<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Runs on the host, not the sandbox</span></span>
-<span id="cb1-16"><a href="#cb1-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"Results for: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span></span>
-<span id="cb1-17"><a href="#cb1-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span>
-<span id="cb1-18"><a href="#cb1-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-19"><a href="#cb1-19" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="cb1-20"><a href="#cb1-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent() <span class="op">-&gt;</span> Agent:</span>
-<span id="cb1-21"><a href="#cb1-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
-<span id="cb1-22"><a href="#cb1-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
-<span id="cb1-23"><a href="#cb1-23" aria-hidden="true" tabindex="-1"></a>            state,</span>
-<span id="cb1-24"><a href="#cb1-24" aria-hidden="true" tabindex="-1"></a>            bridged_tools<span class="op">=</span>[</span>
-<span id="cb1-25"><a href="#cb1-25" aria-hidden="true" tabindex="-1"></a>                BridgedToolsSpec(</span>
-<span id="cb1-26"><a href="#cb1-26" aria-hidden="true" tabindex="-1"></a>                    name<span class="op">=</span><span class="st">"host_tools"</span>,</span>
-<span id="cb1-27"><a href="#cb1-27" aria-hidden="true" tabindex="-1"></a>                    tools<span class="op">=</span>[search_database()]</span>
-<span id="cb1-28"><a href="#cb1-28" aria-hidden="true" tabindex="-1"></a>                )</span>
-<span id="cb1-29"><a href="#cb1-29" aria-hidden="true" tabindex="-1"></a>            ]</span>
-<span id="cb1-30"><a href="#cb1-30" aria-hidden="true" tabindex="-1"></a>        ) <span class="im">as</span> bridge:</span>
-<span id="cb1-31"><a href="#cb1-31" aria-hidden="true" tabindex="-1"></a>            <span class="co"># bridge.mcp_server_configs contains resolved MCPServerConfigStdio</span></span>
-<span id="cb1-32"><a href="#cb1-32" aria-hidden="true" tabindex="-1"></a>            <span class="co"># objects that can be passed to CLI agents</span></span>
-<span id="cb1-33"><a href="#cb1-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
-<span id="cb1-34"><a href="#cb1-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-35"><a href="#cb1-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> tool</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    Agent, AgentState, agent, sandbox_agent_bridge, BridgedToolsSpec</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> sandbox</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> search_database():</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(query: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Search the internal database.</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co">            query: The search query.</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># Runs on the host, not the sandbox</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="ss">f"Results for: </span><span class="sc">{</span>query<span class="sc">}</span><span class="ss">"</span></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent() <span class="op">-&gt;</span> Agent:</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>            state,</span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>            bridged_tools<span class="op">=</span>[</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>                BridgedToolsSpec(</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>                    name<span class="op">=</span><span class="st">"host_tools"</span>,</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>                    tools<span class="op">=</span>[search_database()]</span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>            ]</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>        ) <span class="im">as</span> bridge:</span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>            <span class="co"># bridge.mcp_server_configs contains resolved MCPServerConfigStdio</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>            <span class="co"># objects that can be passed to CLI agents</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> bridge.state</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The bridge handles:</p>
 <ul>
 <li>Starting a host-side service that executes the Inspect tools</li>
@@ -943,7 +956,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="models">Models</h2>
 <p>As demonstrated above, communication with Inspect models is done by using the OpenAI API with <code>model="inspect"</code>. You can use the same technique to interface with other Inspect models. To do this, preface the model name with “inspect” followed by the rest of the fully qualified model name.</p>
 <p>For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="generation-config" class="level2">
 <h2 class="anchored" data-anchor-id="generation-config">Generation Config</h2>
@@ -951,33 +964,33 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>For this reason, by default the bridge does not forward client generation parameters. Instead, the resolved Inspect model configuration and the provider’s defaults govern generation. Structural parameters that express the agent’s intent — the system prompt, tools, tool choice, response format, <code>stop</code> sequences, and <code>seed</code> — are always forwarded.</p>
 <p>The generation parameters dropped by default are: <code>max_tokens</code>, <code>temperature</code>, <code>top_p</code>, <code>top_k</code>, <code>frequency_penalty</code>, <code>presence_penalty</code>, <code>n</code>/<code>num_choices</code>, <code>logprobs</code>, <code>top_logprobs</code>, <code>logit_bias</code>, and reasoning effort/tokens/summary.</p>
 <p>If you want the bridge to act as a faithful proxy where the agent’s generation parameters are authoritative, pass <code>forward_generation_config=True</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> agent_bridge(state, forward_generation_config<span class="op">=</span><span class="va">True</span>) <span class="im">as</span> bridge:</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> agent_bridge(state, forward_generation_config<span class="op">=</span><span class="va">True</span>) <span class="im">as</span> bridge:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>This option is available on both <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span>.</p>
 </section>
 <section id="tool-approval" class="level2">
 <h2 class="anchored" data-anchor-id="tool-approval">Tool Approval</h2>
 <p>Tool calls made by a bridged agent can be governed by <a href="./approval.html">approval policies</a>, even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run.</p>
 <p>Eval-level and task-level policies apply automatically; both <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> also accept an <code>approval</code> parameter:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.approval <span class="im">import</span> ApprovalPolicy, auto_approver, human_approver</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    state,</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    approval<span class="op">=</span>[</span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(human_approver(), <span class="st">"bash"</span>),</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(auto_approver(), <span class="st">"*"</span>),</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> bridge:</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.approval <span class="im">import</span> ApprovalPolicy, auto_approver, human_approver</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> sandbox_agent_bridge(</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    state,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    approval<span class="op">=</span>[</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(human_approver(), <span class="st">"bash"</span>),</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(auto_approver(), <span class="st">"*"</span>),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>) <span class="im">as</span> bridge:</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See <a href="./approval.html#bridged-agents">Bridged Agents</a> for the full semantics.</p>
 </section>
 <section id="transcript" class="level2">
 <h2 class="anchored" data-anchor-id="transcript">Transcript</h2>
 <p>Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.</p>
 <p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;spans, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

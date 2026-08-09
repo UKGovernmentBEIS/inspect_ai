@@ -131,6 +131,10 @@ fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  1
 
 Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan’s terminal solver (the agent name, e.g. `react`, for an agentic task). With `--json`, the response is an `{as_of, tasks}` envelope and each task row also carries `pid`, `socket_path`, and `log_location` (where results are being written — the handle for reading logs after the run).
 
+Two more columns appear only when they have something to report: `refusals` (model refusals) and `http_retries` (rate-limit and transient HTTP retries). Both are running totals over the task’s own samples — the finished ones plus the live counts of those still in flight — so they are readable mid-run rather than only at the end. Both are always present in the `--json` row. They count every *attempt*, so a sample retried under `retry_on_error` contributes what each attempt saw; these are counts of things that happened, not properties of a final state. Note `http_retries` is unrelated to `attempts` (whole-task retries) and to a sample’s own `retries` (failed attempts of that sample).
+
+These are the same events the TUI footer tallies, but attributed per eval rather than per process — which is what makes them usable from `inspect ctl` at all, since one process commonly runs several evals at once and a detached run has no display to print a footer. An event reported outside any sample is counted in the process-global total only, so it appears in the footer and in no task row.
+
 A task is finished exactly when `completed_at` is non-null; `status` (`running` / `completed`) is derived from it. Don’t infer completion from sample counts — a cancelled or errored eval finishes with `completed < total`.
 
 ## Selecting a Task

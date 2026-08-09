@@ -10257,6 +10257,23 @@ Return the `state` changes automatically tracked by the `bridge`.
 
 The [Claude Code](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html) and [Codex CLI](https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html) agents in the Inspect SWE package provide more in-depth demonstrations of running custom agents in sandboxes.
 
+### Granted Capabilities
+
+Some tools a bridged agent can request are executed *outside* the sandbox — `web_search`, `web_fetch`, `code_execution`, and remote MCP servers all run at the model provider. An agent that names one of these in a request therefore reaches the network regardless of the sandbox’s own egress policy, so [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) withholds them unless the evaluation grants them:
+
+``` python
+async with sandbox_agent_bridge(state, web_search=True) as bridge:
+    ...
+```
+
+Pass `True` to use the target model’s internal provider, a [WebSearchProviders](./reference/inspect_ai.tool.html.md#websearchproviders) configuration to select providers explicitly, or leave the default to withhold. `code_execution` works the same way, and `client_mcp_servers=True` honors MCP servers named by the agent (prefer [Bridged Tools](#bridged-tools) for servers you choose yourself). Whenever a declared tool is withheld a warning is logged, since an absent tool is otherwise indistinguishable from the model declining to call it.
+
+Ordinary function tools are never withheld — those are executed by the bridged agent inside the sandbox and grant it nothing it does not already have.
+
+For the same reason, image and document content in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent’s behalf.
+
+None of this applies to the in-process [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge), where the scaffold already runs with the host’s network and filesystem and there is no boundary to defend.
+
 ## Bridged Tools
 
 Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.
@@ -14944,6 +14961,10 @@ fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  1
 ```
 
 Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan’s terminal solver (the agent name, e.g. `react`, for an agentic task). With `--json`, the response is an `{as_of, tasks}` envelope and each task row also carries `pid`, `socket_path`, and `log_location` (where results are being written — the handle for reading logs after the run).
+
+Two more columns appear only when they have something to report: `refusals` (model refusals) and `http_retries` (rate-limit and transient HTTP retries). Both are running totals over the task’s own samples — the finished ones plus the live counts of those still in flight — so they are readable mid-run rather than only at the end. Both are always present in the `--json` row. They count every *attempt*, so a sample retried under `retry_on_error` contributes what each attempt saw; these are counts of things that happened, not properties of a final state. Note `http_retries` is unrelated to `attempts` (whole-task retries) and to a sample’s own `retries` (failed attempts of that sample).
+
+These are the same events the TUI footer tallies, but attributed per eval rather than per process — which is what makes them usable from `inspect ctl` at all, since one process commonly runs several evals at once and a detached run has no display to print a footer. An event reported outside any sample is counted in the process-global total only, so it appears in the footer and in no task row.
 
 A task is finished exactly when `completed_at` is non-null; `status` (`running` / `completed`) is derived from it. Don’t infer completion from sample counts — a cancelled or errored eval finishes with `completed < total`.
 
