@@ -226,3 +226,85 @@ def _long_messages() -> list[ChatMessage]:
     # End with user message so API can respond
     messages.append(ChatMessageUser(content="Please continue.", id="final_user"))
     return messages
+
+
+async def test_auto_outcome_native_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Native success reports CompactionNative and its prefix rule."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def fake_native(m: object, msgs: object, t: object) -> object:
+        return [ChatMessageAssistant(content="[COMPACTED BLOCK]", id="block")], None
+
+    monkeypatch.setattr(strategy._native, "compact", fake_native)
+
+    outcome = await strategy.compact_outcome(model, _sample_messages(), [])
+
+    assert outcome.applied == "CompactionNative"
+    assert outcome.preserve_prefix is False
+    assert outcome.fallback_reason is None
+    assert [m.id for m in outcome.input] == ["block"]
+
+
+async def test_auto_outcome_unsupported_fallback_is_silent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unsupported provider falls back to summary, records why, logs nothing."""
+    import inspect_ai.model._compaction.auto as auto_module
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        auto_module.logger, "warning", lambda msg, *a, **kw: warnings.append(str(msg))
+    )
+
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def unsupported(m: object, msgs: object, t: object) -> object:
+        raise NotImplementedError("provider does not support native compaction")
+
+    monkeypatch.setattr(strategy._native, "compact", unsupported)
+
+    outcome = await strategy.compact_outcome(model, _sample_messages(), [])
+
+    assert outcome.applied == "CompactionSummary"
+    assert outcome.preserve_prefix is True
+    assert "not supported" in (outcome.fallback_reason or "")
+    assert warnings == []
+
+
+async def test_auto_outcome_error_fallback_records_and_warns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unexpected native failure records the reason and still warns."""
+    import inspect_ai.model._compaction.auto as auto_module
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        auto_module.logger, "warning", lambda msg, *a, **kw: warnings.append(str(msg))
+    )
+
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    async def boom(m: object, msgs: object, t: object) -> object:
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(strategy._native, "compact", boom)
+
+    outcome = await strategy.compact_outcome(model, _sample_messages(), [])
+
+    assert outcome.applied == "CompactionSummary"
+    assert "kaboom" in (outcome.fallback_reason or "")
+    assert len(warnings) == 1
+
+
+async def test_auto_compact_still_returns_two_tuple() -> None:
+    """compact() keeps its public 2-tuple signature."""
+    strategy = CompactionAuto()
+    model = get_model("mockllm/model")
+
+    result, summary = await strategy.compact(model, _sample_messages(), [])
+
+    assert isinstance(result, list)
+    assert len(result) > 0
