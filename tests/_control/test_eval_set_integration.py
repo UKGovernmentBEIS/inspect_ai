@@ -1928,6 +1928,57 @@ def test_ctl_eval_reports_http_retries_per_eval(short_data_dir: Path) -> None:
     assert http_retries_count() - before == 3
 
 
+def test_ctl_eval_event_counts_survive_a_task_retry(short_data_dir: Path) -> None:
+    """The folded row keeps both attempts' event counts, not just the retry's.
+
+    Retries fold onto one row reporting the LATEST attempt's state counters; event
+    counts must not follow that rule, or the attempt whose failure caused the retry
+    contributes nothing. Emits on both sides of a real task-level retry: attempt 1
+    reports 4 then fails, attempt 2 reports 3 and succeeds, so the row must read 7.
+    """
+    from inspect_ai._util.retry import report_http_retry
+
+    calls = {"n": 0}
+
+    @solver
+    def report_then_maybe_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["n"] += 1
+            first = calls["n"] == 1
+            for _ in range(4 if first else 3):
+                report_http_retry()
+            if first:
+                raise RuntimeError("synthetic first-attempt failure")
+            return state
+
+        return solve
+
+    @task
+    def flaky() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=[report_then_maybe_fail()],
+            name="flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[flaky()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_immediate=True,
+        )
+
+    entry = cap.eval("flaky")
+    assert entry is not None
+    assert entry["attempts"] == 2, entry
+    assert entry["http_retries"] == 7, entry
+
+
 def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
     short_data_dir: Path,
 ) -> None:

@@ -544,11 +544,53 @@ def test_task_summary_adds_live_counts_to_the_eval_total(monkeypatch) -> None:
         )
         summary = _build_summary(
             latest=latest,
+            states=[latest],
             samples=[cast("Any", in_flight)],
             attempts=1,
             started_at_fallback=0.0,
         )
         assert summary["refusals"] == 3
         assert summary["http_retries"] == 11
+    finally:
+        clear_all_eval_states()
+
+
+def test_task_summary_sums_event_counts_across_retry_attempts() -> None:
+    """A task-level retry must not discard the prior attempt's tallies.
+
+    ``current_eval_summaries`` folds every attempt of a task onto ONE row, and the
+    state counters deliberately come from the latest attempt only (a retry's
+    ``completed`` already includes reused successes, so summing double-counts).
+    Event counts are the exception: they record what happened, and the attempt that
+    FAILED is the one whose retries matter most — a provider problem bad enough to
+    fail a task is what triggered the retry. With ``retry_attempts`` defaulting to
+    10, reading these off ``latest`` reset them on the default path.
+    """
+    from inspect_ai._control.eval_state import (
+        clear_all_eval_states,
+        get_eval_states,
+        record_sample_event_counts,
+        register_eval,
+    )
+    from inspect_ai._control.state import _build_summary
+
+    clear_all_eval_states()
+    try:
+        register_eval("e1", 2, task="t", task_id="tid")  # attempt 1
+        record_sample_event_counts("e1", refusals=2, http_retries=5)
+        register_eval("e2", 2, task="t", task_id="tid")  # its retry
+        record_sample_event_counts("e2", refusals=1, http_retries=3)
+        states = list(get_eval_states())
+        assert len(states) == 2
+
+        summary = _build_summary(
+            latest=states[-1],
+            states=states,
+            samples=[],
+            attempts=len(states),
+            started_at_fallback=0.0,
+        )
+        assert summary["refusals"] == 3
+        assert summary["http_retries"] == 8
     finally:
         clear_all_eval_states()
