@@ -15,6 +15,7 @@ class Controller:
 
     def __init__(self) -> None:
         self._jobs: dict[int, Job] = {}
+        self._retired_jobs: list[Job] = []
 
     async def submit(
         self,
@@ -58,6 +59,7 @@ class Controller:
         # concurrent kill() already removed the job between our await and here.
         if result.state in ("completed", "killed"):
             if self._jobs.pop(pid, None) is not None:
+                self._retired_jobs.append(job)
                 await job.cleanup()
 
         return result
@@ -69,6 +71,7 @@ class Controller:
         # Use pop to avoid KeyError if a concurrent poll() already removed the
         # job between our await and here.
         if self._jobs.pop(pid, None) is not None:
+            self._retired_jobs.append(job)
             await job.cleanup()
         return KillResult(seq=seq, stdout=stdout, stderr=stderr)
 
@@ -86,8 +89,9 @@ class Controller:
 
     async def shutdown(self) -> None:
         """Terminate every job owned by this server."""
-        jobs = list(self._jobs.values())
+        jobs = [*self._jobs.values(), *self._retired_jobs]
         self._jobs.clear()
+        self._retired_jobs.clear()
 
         async def shutdown_job(job: Job) -> None:
             errors: list[Exception] = []

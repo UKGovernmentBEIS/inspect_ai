@@ -1,15 +1,21 @@
 import asyncio
 import os
 import signal
+import time
 from asyncio.subprocess import Process as AsyncIOProcess
+from collections.abc import Iterable
 
 import psutil
 
 
 async def terminate_process_tree(
-    process: AsyncIOProcess, timeout: float = 30, *, process_group: bool = False
+    process: AsyncIOProcess,
+    timeout: float = 30,
+    *,
+    process_group: bool = False,
+    known_descendants: Iterable[psutil.Process] = (),
 ) -> None:
-    """Terminate a subprocess, discoverable descendants, and optional group members."""
+    """Terminate a subprocess, known/discoverable descendants, and optional group members."""
     pid = getattr(process, "pid", None)
     if pid is None:
         await _terminate_without_pid(process, timeout)
@@ -22,8 +28,11 @@ async def terminate_process_tree(
         except psutil.NoSuchProcess:
             pass
     descendants = _merge_processes(
-        _children(root) if root is not None else [],
-        _process_group_members(pid, exclude_pid=pid) if process_group else [],
+        _live_processes(known_descendants),
+        _merge_processes(
+            _children(root) if root is not None else [],
+            _process_group_members(pid, exclude_pid=pid) if process_group else [],
+        ),
     )
 
     deadline = asyncio.get_running_loop().time() + timeout
@@ -98,13 +107,22 @@ async def _force_terminate(
 
 
 async def _wait_for_processes(
-    processes: list[psutil.Process], *, timeout: float
+    processes: list[psutil.Process], *, timeout: float, force_terminated: bool = False
 ) -> list[psutil.Process]:
-    _, alive = await asyncio.to_thread(psutil.wait_procs, processes, timeout=timeout)
-    if alive:
+    deadline = time.monotonic() + timeout
+    alive = _live_processes(processes)
+    while alive:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        _, pending = await asyncio.to_thread(
+            psutil.wait_procs, alive, timeout=min(remaining, 0.1)
+        )
+        alive = _live_processes(pending)
+    if alive and not force_terminated:
         for process in alive:
             _kill(process)
-        _, alive = await asyncio.to_thread(psutil.wait_procs, alive, timeout=5)
+        return await _wait_for_processes(alive, timeout=5, force_terminated=True)
     return alive
 
 
@@ -113,6 +131,17 @@ def _children(process: psutil.Process) -> list[psutil.Process]:
         return process.children(recursive=True)
     except psutil.NoSuchProcess:
         return []
+
+
+def _live_processes(processes: Iterable[psutil.Process]) -> list[psutil.Process]:
+    live: list[psutil.Process] = []
+    for process in processes:
+        try:
+            if process.is_running() and process.status() != psutil.STATUS_ZOMBIE:
+                live.append(process)
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            pass
+    return live
 
 
 def _merge_processes(

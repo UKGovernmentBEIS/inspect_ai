@@ -16,8 +16,15 @@ SERVER_DIR = Path(
 )
 
 
+_MAX_UNIX_SOCKET_PATH_BYTES = 100
+
+
 def server_socket_path(server_dir: Path) -> Path:
-    """Return a short, stable Unix socket path for one server directory."""
+    """Return a private socket path, falling back only when it is too long."""
+    natural_path = server_dir / "sandbox-tools.sock"
+    if len(os.fsencode(natural_path)) <= _MAX_UNIX_SOCKET_PATH_BYTES:
+        return natural_path
+
     identity = hashlib.sha256(os.fsencode(server_dir.resolve())).hexdigest()[:16]
     return Path("/tmp") / f"inspect-sandbox-tools-{os.getuid()}" / f"{identity}.sock"
 

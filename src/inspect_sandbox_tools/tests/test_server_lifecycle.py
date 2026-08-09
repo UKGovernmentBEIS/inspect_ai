@@ -69,6 +69,11 @@ def _wait_for_exit(label: str, pid: int, timeout: float = 5) -> None:
             os.kill(pid, 0)
         except ProcessLookupError:
             return
+        try:
+            if psutil.Process(pid).status() == psutil.STATUS_ZOMBIE:
+                return
+        except psutil.NoSuchProcess:
+            return
         time.sleep(0.05)
     state = subprocess.run(
         ["ps", "-o", "pid=,ppid=,pgid=,state=,command=", "-p", str(pid)],
@@ -111,15 +116,69 @@ def _server_pid_for_cwd(cwd: Path) -> int:
     return matches[0]
 
 
-def test_server_socket_path_is_short_and_stable_for_long_server_directory() -> None:
+def test_server_socket_path_uses_private_directory_unless_it_is_too_long() -> None:
+    short_server_dir = Path("/tmp/sample/sandbox-tools")
     server_dir = Path("/private/var/folders/" + "segment/" * 40 + "sandbox-tools")
 
     socket_path = server_socket_path(server_dir)
 
+    assert (
+        server_socket_path(short_server_dir) == short_server_dir / "sandbox-tools.sock"
+    )
     assert socket_path == server_socket_path(server_dir)
     assert socket_path != server_socket_path(server_dir.with_name("other-tools"))
     assert socket_path.parent.parent == Path("/tmp")
     assert len(str(socket_path)) < 100
+
+
+def test_prepare_socket_parent_uses_private_server_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+    monkeypatch.setattr(server_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(server_module, "SOCKET_PATH", server_dir / "sandbox-tools.sock")
+
+    server_module._prepare_socket_parent()
+
+    assert not server_dir.exists()
+
+
+def test_prepare_socket_parent_creates_private_long_path_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+    fallback_dir = tmp_path / "fallback"
+    monkeypatch.setattr(server_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(server_module, "SOCKET_PATH", fallback_dir / "server.sock")
+
+    server_module._prepare_socket_parent()
+
+    assert fallback_dir.is_dir()
+    assert fallback_dir.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.parametrize("unsafe_parent", ("symlink", "file", "foreign_owner"))
+def test_prepare_socket_parent_rejects_unsafe_long_path_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unsafe_parent: str
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+    fallback_dir = tmp_path / "fallback"
+    monkeypatch.setattr(server_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(server_module, "SOCKET_PATH", fallback_dir / "server.sock")
+
+    if unsafe_parent == "symlink":
+        target = tmp_path / "target"
+        target.mkdir()
+        fallback_dir.symlink_to(target, target_is_directory=True)
+    elif unsafe_parent == "file":
+        fallback_dir.write_text("not a directory")
+    else:
+        fallback_dir.mkdir()
+        current_uid = os.getuid()
+        monkeypatch.setattr(server_module.os, "getuid", lambda: current_uid + 1)
+
+    with pytest.raises(RuntimeError, match="Unsafe sandbox-tools socket directory"):
+        server_module._prepare_socket_parent()
 
 
 @pytest.mark.usefixtures("sandbox_server_cleanup")
@@ -132,6 +191,43 @@ def test_stop_server_without_running_server_is_idempotent() -> None:
         assert not server_socket_path(server_dir).exists()
         assert not (server_dir / "shutdown-status.json").exists()
     finally:
+        shutil.rmtree(test_root, ignore_errors=True)
+
+
+@pytest.mark.usefixtures("sandbox_server_cleanup")
+def test_concurrent_server_start_uses_one_daemon() -> None:
+    test_root = Path(tempfile.mkdtemp(prefix="ist-concurrent-start-"))
+    server_dir = test_root / "sandbox-tools"
+    processes: list[subprocess.Popen[str]] = []
+    try:
+        command = [
+            sys.executable,
+            "-m",
+            "inspect_sandbox_tools._cli.main",
+            "start-server",
+        ]
+        environment = {**os.environ, SERVER_DIR_ENV: str(server_dir)}
+        processes = [
+            subprocess.Popen(
+                command,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=test_root,
+                env=environment,
+            )
+            for _ in range(2)
+        ]
+
+        results = [process.communicate(timeout=20) for process in processes]
+        assert [process.returncode for process in processes] == [0, 0], results
+        assert _server_pid_for_cwd(test_root) > 0
+    finally:
+        _run_cli("stop-server", server_dir=server_dir, cwd=test_root, check=False)
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
         shutil.rmtree(test_root, ignore_errors=True)
 
 
@@ -156,7 +252,7 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
                 "method": "exec_remote_start",
                 "params": {
                     "command": (
-                        f"sleep 300 & echo $! > {shlex.quote(str(exec_pid_file))}; wait"
+                        f"sleep 300 & echo $! > {shlex.quote(str(exec_pid_file))}"
                     )
                 },
                 "id": 1,
@@ -164,16 +260,43 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
             server_dir=first_server_dir,
             cwd=first_cwd,
         )
-        owned_pids.append(("exec_remote shell", exec_response["result"]["pid"]))
         _wait_for_file(exec_pid_file)
         owned_pids.append(("exec_remote child", int(exec_pid_file.read_text())))
+        exec_poll = _rpc(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": exec_response["result"]["pid"], "ack_seq": 0},
+                "id": 2,
+            },
+            server_dir=first_server_dir,
+            cwd=first_cwd,
+        )
+        deadline = time.monotonic() + 5
+        while exec_poll["result"]["state"] == "running":
+            assert time.monotonic() < deadline
+            time.sleep(0.05)
+            exec_poll = _rpc(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "exec_remote_poll",
+                    "params": {
+                        "pid": exec_response["result"]["pid"],
+                        "ack_seq": exec_poll["result"]["seq"],
+                    },
+                    "id": 2,
+                },
+                server_dir=first_server_dir,
+                cwd=first_cwd,
+            )
+        assert exec_poll["result"]["state"] == "completed"
 
         bash_response = _rpc(
             {
                 "jsonrpc": "2.0",
                 "method": "bash_session_new_session",
                 "params": {},
-                "id": 2,
+                "id": 3,
             },
             server_dir=first_server_dir,
             cwd=first_cwd,
@@ -191,7 +314,7 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
                     "wait_for_output": 2,
                     "idle_timeout": 0.1,
                 },
-                "id": 3,
+                "id": 4,
             },
             server_dir=first_server_dir,
             cwd=first_cwd,
@@ -202,13 +325,27 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
         child_match = re.search(r"SANDBOX_BASH_CHILD_PID=(\d+)", bash_output)
         assert child_match is not None, bash_output
         owned_pids.append(("bash child", int(child_match.group(1))))
+        _rpc(
+            {
+                "jsonrpc": "2.0",
+                "method": "bash_session",
+                "params": {
+                    "session_name": bash_response["result"]["session_name"],
+                    "restart": True,
+                },
+                "id": 5,
+            },
+            server_dir=first_server_dir,
+            cwd=first_cwd,
+        )
 
         mcp_pid_file = first_cwd / "mcp.pid"
         mcp_script = (
             "import os,subprocess; "
             "child=subprocess.Popen(['sleep', '300']); "
             f"open({str(mcp_pid_file)!r}, 'w').write("
-            "str(os.getpid()) + ' ' + str(child.pid))"
+            "str(os.getpid()) + ' ' + str(child.pid)); "
+            "import time; time.sleep(300)"
         )
         _rpc(
             {
@@ -220,7 +357,7 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
                         "args": ["-c", mcp_script],
                     }
                 },
-                "id": 4,
+                "id": 6,
             },
             server_dir=first_server_dir,
             cwd=first_cwd,
@@ -228,7 +365,6 @@ def test_per_sample_server_shutdown_terminates_resources_and_preserves_next_cwd(
         _wait_for_file(mcp_pid_file)
         mcp_pid, mcp_child_pid = (int(pid) for pid in mcp_pid_file.read_text().split())
         owned_pids.extend((("MCP server", mcp_pid), ("MCP child", mcp_child_pid)))
-        _wait_for_exit("MCP server before sandbox-tools shutdown", mcp_pid)
         assert os.getpgid(mcp_child_pid) == mcp_pid
         owned_pids.append(("sandbox-tools server", _server_pid_for_cwd(first_cwd)))
 

@@ -209,9 +209,6 @@ class Job:
 
     async def shutdown(self, timeout: int = 30) -> None:
         """Forcefully terminate this server-owned job during server shutdown."""
-        if self._state != "running":
-            return
-
         self._state = "killed"
         try:
             await terminate_process_tree(

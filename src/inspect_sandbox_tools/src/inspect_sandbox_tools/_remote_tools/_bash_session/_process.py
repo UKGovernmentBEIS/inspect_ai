@@ -3,6 +3,8 @@ import os
 import re
 from asyncio.subprocess import Process as AsyncIOProcess
 
+import psutil
+
 from ..._util.process_tree import terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
@@ -46,6 +48,7 @@ class Process:
         self._read_task = asyncio.create_task(self._read_loop())
         self._send_data_event = TimeoutEvent()
         self._idle_timeout = 0.0
+        self._known_descendants: list[psutil.Process] = []
 
     async def interact(
         self,
@@ -81,6 +84,7 @@ class Process:
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
         self._terminated = True
+        self._remember_descendants()
         self._pty.writer.write(b"exit\n")
         try:
             await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
@@ -116,33 +120,47 @@ class Process:
 
     async def shutdown(self, timeout: int = 30) -> None:
         """Forcefully terminate this server-owned shell during server shutdown."""
-        self._assert_not_terminated()
-        self._terminated = True
-        self._pty.writer.write(b"exit\n")
-        try:
-            await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
-        except (
-            BrokenPipeError,
-            ConnectionResetError,
-            TimeoutError,
-            asyncio.TimeoutError,
-        ):
-            pass
-
-        if self._read_task:
-            self._read_task.cancel()
+        self._remember_descendants()
+        if not self._terminated:
+            self._terminated = True
+            self._pty.writer.write(b"exit\n")
             try:
-                await self._read_task
-            except asyncio.CancelledError:
+                await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
+            except (
+                BrokenPipeError,
+                ConnectionResetError,
+                TimeoutError,
+                asyncio.TimeoutError,
+            ):
                 pass
 
-        self._send_data_event.cancel()
+            if self._read_task:
+                self._read_task.cancel()
+                try:
+                    await self._read_task
+                except asyncio.CancelledError:
+                    pass
+
+            self._send_data_event.cancel()
         try:
             await terminate_process_tree(
-                self._process, timeout=timeout, process_group=True
+                self._process,
+                timeout=timeout,
+                process_group=True,
+                known_descendants=self._known_descendants,
             )
         finally:
+            self._known_descendants.clear()
             self._pty.cleanup()
+
+    def _remember_descendants(self) -> None:
+        pid = self._process.pid
+        if pid is None:
+            return
+        try:
+            self._known_descendants.extend(psutil.Process(pid).children(recursive=True))
+        except psutil.NoSuchProcess:
+            pass
 
     async def _read_loop(self) -> None:
         """Read decoded data from the PTY and process it."""

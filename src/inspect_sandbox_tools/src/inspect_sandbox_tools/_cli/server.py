@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import socket
+import stat
 import sys
 
 from aiohttp.web import Application, Request, Response, run_app
@@ -101,6 +102,29 @@ def _write_shutdown_status() -> None:
     _SHUTDOWN_STATUS_TMP_PATH.replace(SHUTDOWN_STATUS_PATH)
 
 
+def _prepare_socket_parent() -> None:
+    """Create a verified private parent for only the long-path socket fallback."""
+    if SOCKET_PATH.parent == SERVER_DIR:
+        return
+
+    try:
+        status = SOCKET_PATH.parent.lstat()
+    except FileNotFoundError:
+        SOCKET_PATH.parent.mkdir(mode=0o700)
+        status = SOCKET_PATH.parent.lstat()
+
+    if (
+        not stat.S_ISDIR(status.st_mode)
+        or stat.S_ISLNK(status.st_mode)
+        or status.st_uid != os.getuid()
+    ):
+        raise RuntimeError(
+            f"Unsafe sandbox-tools socket directory: {SOCKET_PATH.parent}"
+        )
+
+    os.chmod(SOCKET_PATH.parent, 0o700)
+
+
 def main() -> None:
     global _shutdown_complete
 
@@ -117,10 +141,7 @@ def main() -> None:
     directory_mode = 0o700 if os.getuid() == 0 else 0o777
     SERVER_DIR.mkdir(exist_ok=True)
     os.chmod(SERVER_DIR, directory_mode)
-    # Keep the socket path short while preserving SERVER_DIR's root/non-root
-    # access policy for the socket directory.
-    SOCKET_PATH.parent.mkdir(mode=directory_mode, exist_ok=True)
-    os.chmod(SOCKET_PATH.parent, directory_mode)
+    _prepare_socket_parent()
 
     # Remove stale socket file
     SOCKET_PATH.unlink(missing_ok=True)

@@ -73,6 +73,43 @@ async def test_terminate_process_tree_kills_group_after_root_exits() -> None:
 
 
 @pytest.mark.asyncio
+async def test_terminate_process_tree_kills_known_descendant_after_root_exits() -> None:
+    child_script = "import time; time.sleep(300)"
+    root_script = (
+        "import subprocess,sys,time; "
+        f"child=subprocess.Popen([sys.executable, '-c', {child_script!r}], "
+        "start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); "
+        "print(child.pid, flush=True); "
+        "time.sleep(300)"
+    )
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-c",
+        root_script,
+        stdout=asyncio.subprocess.PIPE,
+        start_new_session=True,
+    )
+    assert process.stdout is not None
+    child_pid = int(await asyncio.wait_for(process.stdout.readline(), timeout=5))
+
+    try:
+        known_descendants = psutil.Process(process.pid).children(recursive=True)
+        assert [child.pid for child in known_descendants] == [child_pid]
+
+        process.terminate()
+        await process.wait()
+        await terminate_process_tree(
+            process, timeout=0.2, known_descendants=known_descendants
+        )
+
+        assert not psutil.pid_exists(child_pid)
+    finally:
+        await _ensure_stopped(process)
+        if psutil.pid_exists(child_pid):
+            psutil.Process(child_pid).kill()
+
+
+@pytest.mark.asyncio
 async def test_terminate_process_tree_propagates_cancellation_after_cleanup() -> None:
     process = await _start_signal_test_process("signal.SIG_IGN")
     try:

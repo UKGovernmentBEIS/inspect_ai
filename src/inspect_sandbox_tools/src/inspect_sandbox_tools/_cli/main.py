@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import fcntl
 import json
 import os
 import socket
@@ -193,9 +194,18 @@ async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
 
 _SERVER_STDOUT_LOG = SERVER_DIR / "server-stdout.log"
 _SERVER_STDERR_LOG = SERVER_DIR / "server-stderr.log"
+_SERVER_START_LOCK_PATH = SERVER_DIR / "server-start.lock"
 
 
 def _ensure_server_is_running() -> None:
+    """Start one server for this directory, waiting for a concurrent starter."""
+    SERVER_DIR.mkdir(parents=True, exist_ok=True)
+    with _SERVER_START_LOCK_PATH.open("a+") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        _ensure_server_is_running_locked()
+
+
+def _ensure_server_is_running_locked() -> None:
     if _can_connect_to_socket():
         return  # Server already running and responsive
 
