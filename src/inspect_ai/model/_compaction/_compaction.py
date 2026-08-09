@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import NamedTuple, Sequence
+from typing import Any, NamedTuple, Sequence
 
 import anyio
 from pydantic import BaseModel, Field
@@ -280,6 +280,20 @@ def compaction(
                 compacted_hidden = _redacted_reasoning_tokens_total(
                     state.compacted_input, target_model
                 )
+                metadata: dict[str, Any] = {
+                    "strategy": strategy.__class__.__name__,
+                    "messages_before": len(target_messages),
+                    "messages_after": len(state.compacted_input),
+                    "trigger": "forced" if force else "threshold",
+                }
+                outcome = compaction_result.outcome
+                if outcome.applied != strategy.__class__.__name__:
+                    metadata["strategy_applied"] = outcome.applied
+                if outcome.fallback_reason is not None:
+                    metadata["fallback_reason"] = outcome.fallback_reason
+                if len(set(compaction_result.passes)) > 1:
+                    metadata["passes"] = list(compaction_result.passes)
+
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,
@@ -287,12 +301,7 @@ def compaction(
                         source="inspect",
                         tokens_before=total_tokens,
                         tokens_after=compacted_tokens + compacted_hidden,
-                        metadata={
-                            "strategy": strategy.__class__.__name__,
-                            "messages_before": len(target_messages),
-                            "messages_after": len(state.compacted_input),
-                            "trigger": "forced" if force else "threshold",
-                        },
+                        metadata=metadata,
                     )
                 )
 
