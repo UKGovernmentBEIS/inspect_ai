@@ -1,3 +1,7 @@
+## Unreleased
+
+- Control Channel: `inspect ctl task list` now reports per-eval `refusals` and `http_retries`.
+
 ## 0.3.254 (08 August 2026)
 
 - Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.
