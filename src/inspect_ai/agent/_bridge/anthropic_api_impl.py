@@ -447,7 +447,7 @@ async def messages_from_anthropic_input(
                     ):
                         pending_user_content.append(c)
                     else:
-                        raise RuntimeError("Unexpected input parameter: {c}")
+                        raise RuntimeError(f"Unexpected input parameter: {c}")
 
                 flush_pending_user_content()
 
@@ -522,7 +522,7 @@ def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
     if isinstance(data, str):
         return data
     else:
-        raise RuntimeError("Unsupported image content type: {data}")
+        raise RuntimeError(f"Unsupported image content type: {data}")
 
 
 def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:

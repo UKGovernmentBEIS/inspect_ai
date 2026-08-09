@@ -201,6 +201,25 @@ async def test_cancel_sample_error_action_allowed_when_fails_on_error_false(
     sample.interrupt.assert_called_once_with("error")
 
 
+async def test_cancel_sample_cancel_action_not_gated_by_fails_on_error(
+    patch_active_samples,
+) -> None:
+    """action='cancel' accepted even when fails_on_error=True; calls interrupt.
+
+    A cancelled sample is not counted toward the fail-on-error
+    threshold, so unlike action='error' there is no polarity gate —
+    mirrors the control layer's
+    ``test_cancel_sample_cancel_action_not_gated_by_fails_on_error``,
+    which covers a separate implementation of the same rule.
+    """
+    sample = _stub_active_sample(fails_on_error=True)
+    patch_active_samples(sample)
+    h = _handler()
+    result = await h.cancel_sample(session_id="wire", action="cancel")
+    assert result == {}
+    sample.interrupt.assert_called_once_with("cancel")
+
+
 async def test_cancel_sample_allowed_on_observe_only_binding(
     patch_active_samples,
 ) -> None:

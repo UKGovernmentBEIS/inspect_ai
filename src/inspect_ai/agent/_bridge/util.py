@@ -7,6 +7,11 @@ from typing import Iterator, Sequence, cast
 from typing_extensions import TypeIs
 
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai.agent._bridge._approval import (
+    MAX_CONSECUTIVE_REJECTIONS,
+    apply_bridge_tool_approval,
+    terminate_for_repeated_rejections,
+)
 from inspect_ai.agent._bridge.types import AgentBridge, message_json_hash
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig, active_generate_config
@@ -228,6 +233,11 @@ async def bridge_generate(
     Refusals (stop_reason="content_filter") from either the filter or model will trigger
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
+
+    Tool calls in the output are approved before it is handed back to the scaffold. A
+    rejected call is not edited out of the response — instead the model is told it was
+    rejected and generation is retried, so the scaffold sees only the replacement (see
+    `_approval.apply_bridge_tool_approval`).
     """
     # restore operator provenance lost to a bridged scaffold's round-trip (e.g.
     # claude_code re-emits an operator message as a plain user message). Done
@@ -250,6 +260,7 @@ async def bridge_generate(
     original_config = config
 
     refusals = 0
+    rejections = 0
     while True:
         # Reset to original inputs for each retry
         input_messages = original_input
@@ -307,8 +318,23 @@ async def bridge_generate(
             and refusals < bridge.retry_refusals
         ):
             refusals += 1
-        else:
-            return output, c_message
+            continue
+
+        # Approve the tool calls the scaffold is about to run. A rejection comes back
+        # as the messages to replay to the model (the rejected call plus a result for
+        # every call in the response) so it can propose something else; the scaffold
+        # never sees the rejected response.
+        reviewed = await apply_bridge_tool_approval(bridge, output, input_messages)
+        if reviewed.rejection is None:
+            return reviewed.output, c_message
+
+        rejections += 1
+        if rejections >= MAX_CONSECUTIVE_REJECTIONS:
+            terminate_for_repeated_rejections(bridge, rejections)
+
+        # accumulate onto original_input (rather than input_messages) since that is
+        # what the top of the loop resets to, and any filter rewrite is per-attempt
+        original_input = original_input + reviewed.rejection
 
 
 def resolve_generate_config(

@@ -68,10 +68,10 @@ samples_df("logs")
 ``` default
 <class 'pandas.core.frame.DataFrame'>
 RangeIndex: 408 entries, 0 to 407
-Columns: 14 entries, sample_id to fallbacks
+Columns: 19 entries, sample_id to fallbacks
 ```
 
-By default, `sample_df()` reads all of the columns in the `EvalSampleSummary` data structure (13 columns), along with the `eval_id` for linking back to the parent eval log file.
+By default, `sample_df()` reads all of the columns in the `EvalSampleSummary` data structure (18 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
@@ -482,18 +482,25 @@ SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
     SampleColumn("input", path=sample_input_as_str, required=True),
+    SampleColumn("choices", path="choices", full=False),
     SampleColumn("target", path="target", required=True, value=list_as_str),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
     SampleColumn("model_usage", path="model_usage"),
+    SampleColumn("total_tokens", path=sample_total_tokens),
     SampleColumn("total_time", path="total_time"),
-    SampleColumn("working_time", path="total_time"),
-    SampleColumn("error", path="error"),
+    SampleColumn("working_time", path="working_time"),
+    SampleColumn("message_count", path="message_count", default=None),
+    SampleColumn("turn_count", path="turn_count", default=None),
+    SampleColumn("token_limit_usage", path="token_limit_usage", default=None),
+    SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),
     SampleColumn("fallbacks", path=sample_total_fallbacks),
 ]
 ```
+
+The `turn_count` column is the number of turns (top-level model generations) used by the sample, and `token_limit_usage` is the metered value of the sample's token limit, respecting the limit's type (`None` when no token limit was configured). Both are `None` for logs written by older versions of Inspect.
 
 The `fallbacks` column is the total number of generate calls served by a [fallback model](providers.qmd#anthropic-refusal-fallback) (0 if none). For the full per-pair rollup, add a custom column reading the underlying summary field: `SampleColumn("model_fallbacks", path="model_fallbacks")`.
 
