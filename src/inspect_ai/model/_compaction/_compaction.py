@@ -228,18 +228,26 @@ def compaction(
                 if c_message is not None:
                     state.processed_message_ids.add(message_id(c_message))
 
-                # Preserve prefix messages based on strategy type
-                if strategy.preserve_prefix:
-                    # Non-native strategies: prepend any prefix messages not in output
-                    input_ids = {message_id(m) for m in c_input}
-                    prepend_prefix = [
-                        m for m in prefix if message_id(m) not in input_ids
-                    ]
-                else:
-                    # Native compaction: only prepend system messages
-                    # (user content is preserved by provider or in compaction block)
-                    prepend_prefix = [m for m in prefix if m.role == "system"]
-                pre_collapse_input = prepend_prefix + c_input
+                # Filter by id in both branches: the system-only rule is safe
+                # only because native output carries no system messages, and a
+                # delegating strategy can produce summary output on the same
+                # handler.
+                input_ids = {message_id(m) for m in c_input}
+                candidates = [m for m in prefix if message_id(m) not in input_ids]
+                if not strategy.preserve_prefix:
+                    candidates = [m for m in candidates if m.role == "system"]
+
+                # Splice rather than concatenate so a restored input message
+                # cannot land ahead of a system message already in c_input.
+                lead = 0
+                while lead < len(c_input) and c_input[lead].role == "system":
+                    lead += 1
+                pre_collapse_input = (
+                    [m for m in candidates if m.role == "system"]
+                    + c_input[:lead]
+                    + [m for m in candidates if m.role != "system"]
+                    + c_input[lead:]
+                )
                 c_message_was_in_input = c_message is not None and any(
                     m is c_message for m in pre_collapse_input
                 )

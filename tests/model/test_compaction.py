@@ -64,6 +64,45 @@ class _NoPrefixStrategy(_TwoTupleStrategy):
         return False
 
 
+class _DropsInputStrategy(CompactionSummary):
+    """Summary-shaped output that omits the sample input message.
+
+    Mirrors what CompactionSummary produces once a prior native compaction
+    has already removed the source="input" message from the conversation.
+    """
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        summary = ChatMessageUser(
+            content="summary", id="summary", metadata={"summary": True}
+        )
+        system = next(m for m in messages if m.role == "system")
+        return [
+            system,
+            assistant_msg("[COMPACTED BLOCK]", "block"),
+            user_msg("Please continue working.", "continue"),
+            summary,
+        ], summary
+
+
+class _NoPrefixWithSystemStrategy(CompactionSummary):
+    """preserve_prefix=False, but the output already contains the system message."""
+
+    @property
+    def preserve_prefix(self) -> bool:
+        return False
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        system = next(m for m in messages if m.role == "system")
+        summary = ChatMessageUser(
+            content="kept", id="kept1", metadata={"summary": True}
+        )
+        return [system, summary], summary
+
+
 # Helper to create messages with IDs
 def user_msg(
     content: str, id: str, source: Literal["input", "generate"] | None = None
@@ -271,6 +310,60 @@ async def test_prefix_empty() -> None:
 
     result, summary = await compact.compact_input(messages)
     assert len(result) == 2
+
+
+async def test_prefix_restored_after_system_not_before() -> None:
+    """A restored input message must not land ahead of the system message."""
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [
+        system_msg("System prompt", "sys1"),
+        user_msg("Initial input", "input1", source="input"),
+    ]
+    compact = compaction(
+        _DropsInputStrategy(threshold=100), prefix=prefix, tools=None, model=model
+    )
+
+    messages: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("A" * 200, "msg1"),
+        user_msg("Q" * 200, "msg2"),
+    ]
+
+    result, _ = await compact.compact_input(messages)
+
+    assert [m.id for m in result] == [
+        "sys1",
+        "input1",
+        "block",
+        "continue",
+        "summary",
+    ]
+
+
+async def test_no_prefix_branch_does_not_duplicate_system() -> None:
+    """The system-only prepend must skip messages already in the output."""
+    model = get_model("mockllm/model")
+    prefix: list[ChatMessage] = [
+        system_msg("System prompt", "sys1"),
+        user_msg("Initial input", "input1", source="input"),
+    ]
+    compact = compaction(
+        _NoPrefixWithSystemStrategy(threshold=100),
+        prefix=prefix,
+        tools=None,
+        model=model,
+    )
+
+    messages: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("A" * 200, "msg1"),
+        user_msg("Q" * 200, "msg2"),
+    ]
+
+    result, _ = await compact.compact_input(messages)
+
+    assert sum(1 for m in result if m.role == "system") == 1
+    assert [m.id for m in result] == ["sys1", "kept1"]
 
 
 # ==============================================================================
