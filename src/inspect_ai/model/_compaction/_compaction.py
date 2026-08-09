@@ -249,10 +249,10 @@ def compaction(
                 if c_message is not None:
                     state.processed_message_ids.add(message_id(c_message))
 
-                # Filter by id in both branches: the system-only rule is safe
-                # only because native output carries no system messages, and a
-                # delegating strategy can produce summary output on the same
-                # handler.
+                # Filter by id in both branches — the system-only rule below
+                # would be safe if native were the only producer, but a
+                # delegating strategy can emit summary output (which does
+                # carry system messages) on the same handler.
                 input_ids = {message_id(m) for m in c_input}
                 candidates = [m for m in prefix if message_id(m) not in input_ids]
                 if not compaction_result.outcome.preserve_prefix:
