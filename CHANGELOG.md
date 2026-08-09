@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.255 (09 August 2026)
 
 - Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
 - Sandbox Agent Bridge: Agents can no longer make Inspect fetch a URL or read a host file by putting it in image or document content.
