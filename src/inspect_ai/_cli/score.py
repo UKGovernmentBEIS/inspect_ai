@@ -22,6 +22,7 @@ from inspect_ai._display.core.results import task_scores
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.loader import metric_from_spec
+from inspect_ai._eval.scan_results import import_scan_results_async
 from inspect_ai._eval.score import (
     ScoreAction,
     resolve_scorers,
@@ -70,6 +71,12 @@ from .common import CommonOptions, common_options, process_common_options
     type=str,
     envvar="INSPECT_SCORE_SCORER",
     help="Scorer to use for scoring",
+)
+@click.option(
+    "--from-scan",
+    type=str,
+    envvar="INSPECT_SCORE_FROM_SCAN",
+    help="Import completed Inspect Scout results instead of executing a scorer.",
 )
 @click.option(
     "-S",
@@ -124,6 +131,7 @@ def score_command(
     m: tuple[str, ...] | None,
     model_role: tuple[str, ...] | None,
     scorer: str | None,
+    from_scan: str | None,
     s: tuple[str, ...] | None,
     metric: tuple[str, ...] | None,
     action: ScoreAction | None,
@@ -143,6 +151,7 @@ def score_command(
             m=m,
             model_role=model_role,
             scorer=scorer,
+            from_scan=from_scan,
             s=s,
             metric=metric,
             overwrite=False if overwrite is None else overwrite,
@@ -169,17 +178,21 @@ async def score(
     m: tuple[str, ...] | None = None,
     model_role: tuple[str, ...] | None = None,
     stream: int | bool = False,
+    from_scan: str | None = None,
 ) -> None:
     platform_init()
 
     init_eval_context(log_level, None, log_refusals=True)
-    scorer_args = parse_cli_config(args=s, config=None)
-    model_args = parse_cli_args(m)
-    model_roles = parse_model_role_cli_args(model_role) if model_role else None
-    override_model: Model | None = (
-        get_model(model, base_url=model_base_url, **model_args)
-        if model is not None
-        else None
+    _validate_scan_import_options(
+        from_scan=from_scan,
+        scorer=scorer,
+        scorer_args=s,
+        metric=metric,
+        model=model,
+        model_base_url=model_base_url,
+        model_args=m,
+        model_roles=model_role,
+        stream=stream,
     )
 
     recorder = create_recorder_for_location(log_file, log_dir)
@@ -196,6 +209,29 @@ async def score(
             f"Cannot determine the number of samples to score for {log_file}"
         )
 
+    action = resolve_action(eval_log, action)
+    output_file = _resolve_output_file(
+        log_file, output_file=output_file, overwrite=overwrite
+    )
+    write_recorder = create_recorder_for_location(output_file, log_dir)
+
+    if from_scan is not None:
+        eval_log = await import_scan_results_async(
+            eval_log, from_scan, action=action, copy=False
+        )
+        await write_recorder.write_log(output_file, eval_log)
+        print_results(output_file, eval_log)
+        return
+
+    scorer_args = parse_cli_config(args=s, config=None)
+    model_args = parse_cli_args(m)
+    model_roles = parse_model_role_cli_args(model_role) if model_role else None
+    override_model: Model | None = (
+        get_model(model, base_url=model_base_url, **model_args)
+        if model is not None
+        else None
+    )
+
     scorers = resolve_scorers(eval_log, scorer, scorer_args)
     if len(scorers) == 0:
         raise ValueError(
@@ -203,12 +239,6 @@ async def score(
         )
 
     metrics = resolve_metrics(metric)
-
-    action = resolve_action(eval_log, action)
-    output_file = _resolve_output_file(
-        log_file, output_file=output_file, overwrite=overwrite
-    )
-    write_recorder = create_recorder_for_location(output_file, log_dir)
 
     read_sample = None
     if stream:
@@ -262,6 +292,39 @@ async def score(
         await recorder.write_log(output_file, eval_log)
 
     print_results(output_file, eval_log)
+
+
+def _validate_scan_import_options(
+    *,
+    from_scan: str | None,
+    scorer: str | None,
+    scorer_args: tuple[str, ...] | None,
+    metric: tuple[str, ...] | None,
+    model: str | None,
+    model_base_url: str | None,
+    model_args: tuple[str, ...] | None,
+    model_roles: tuple[str, ...] | None,
+    stream: int | bool,
+) -> None:
+    if from_scan is None:
+        return
+
+    incompatible = {
+        "--scorer": scorer is not None,
+        "-S": bool(scorer_args),
+        "--metric": bool(metric),
+        "--model": model is not None,
+        "--model-base-url": model_base_url is not None,
+        "-M": bool(model_args),
+        "--model-role": bool(model_roles),
+        "--stream": bool(stream),
+    }
+    supplied = [option for option, present in incompatible.items() if present]
+    if supplied:
+        raise ValueError(
+            "--from-scan cannot be combined with scoring option(s): "
+            + ", ".join(supplied)
+        )
 
 
 def print_results(output_file: str, eval_log: EvalLog) -> None:

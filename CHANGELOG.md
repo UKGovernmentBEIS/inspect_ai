@@ -1,3 +1,7 @@
+## Unreleased
+
+- Scoring: `inspect score --from-scan` imports completed Inspect Scout results into their source eval log without re-running scanners, preserving result context and Scout metrics while rejecting mismatched or error-bearing scans. (#4756)
+
 ## 0.3.255 (09 August 2026)
 
 - Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.

@@ -50,6 +50,22 @@ If you need to pass arguments to the scorer, you can do do using scorer args (`-
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --scorer match -S location=end
 ```
 
+### Import Inspect Scout Results
+
+If you have already run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners and selected a canonical completed scan, you can import its results without executing the scanners again:
+
+``` bash
+inspect score ./logs/my-eval.eval --from-scan ./scans/scan_id=abc123
+```
+
+Each transcript-granularity scanner result becomes an ordinary sample score, including its answer, explanation, metadata, and message or event references. Imported scores are visible in the log viewer and available through analysis functions such as `samples_df()`.
+
+Import matching is deliberately strict. Scan rows must identify the same eval and an exact sample UUID in the destination log; rows from another log, duplicate rows for one scanner and transcript, incomplete scans, and scans containing errors are rejected before the log is changed. Samples with no scanner finding are left unscored, which preserves sparse-scanner semantics.
+
+The scan's precomputed metrics are copied into the log. Scanners without declared metrics receive the same default `mean()` and `stderr()` metrics used by Scout's `as_scorer()` integration. Use `--action append` (the default for a scored log) or `--action overwrite` to control how imported scores combine with existing scores.
+
+`--from-scan` requires the optional `inspect-scout` package and cannot be combined with scorer, metric, model, or streaming options.
+
 ### Overwriting Logs
 
 When you use the `inspect score` command, you will prompted whether or not you'd like to overwrite the existing log file (with the scores added), or create a new scored log file. By default, the command will create a new log file with a `-scored` suffix to distinguish it from the original file. You may also control this using the `--overwrite` flag as follows:
