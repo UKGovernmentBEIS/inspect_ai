@@ -10,7 +10,9 @@ from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
 )
+from inspect_ai.model._compaction._compaction import compaction
 from inspect_ai.model._compaction.auto import CompactionAuto
+from inspect_ai.model._compaction.native import CompactionNative
 from inspect_ai.model._model import get_model
 
 
@@ -308,3 +310,87 @@ async def test_auto_compact_still_returns_two_tuple() -> None:
 
     assert isinstance(result, list)
     assert len(result) > 0
+
+
+def _anthropic_shaped_compact():
+    """A stub native compact() returning Anthropic's compaction shape."""
+
+    async def compact(m: object, msgs: object, t: object) -> object:
+        return [
+            ChatMessageAssistant(content="[COMPACTED BLOCK]", id="block"),
+            ChatMessageUser(content="Please continue working.", id="continue"),
+        ], None
+
+    return compact
+
+
+def _prefix() -> list[ChatMessage]:
+    return [
+        ChatMessageSystem(content="System prompt", id="sys1"),
+        ChatMessageUser(content="Initial input", id="input1", source="input"),
+    ]
+
+
+async def test_auto_native_matches_plain_native(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CompactionAuto on its native path must equal plain CompactionNative."""
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [
+        *_prefix(),
+        ChatMessageAssistant(content="A" * 200, id="msg1"),
+        ChatMessageUser(content="Q" * 200, id="msg2"),
+    ]
+
+    auto = CompactionAuto(threshold=100)
+    monkeypatch.setattr(auto._native, "compact", _anthropic_shaped_compact())
+    auto_handler = compaction(auto, prefix=_prefix(), tools=None, model=model)
+
+    native = CompactionNative(threshold=100)
+    monkeypatch.setattr(native, "compact", _anthropic_shaped_compact())
+    native_handler = compaction(native, prefix=_prefix(), tools=None, model=model)
+
+    auto_result, _ = await auto_handler.compact_input(list(messages))
+    native_result, _ = await native_handler.compact_input(list(messages))
+
+    assert [m.id for m in auto_result] == [m.id for m in native_result]
+    assert not any(m.id == "input1" for m in auto_result)
+
+
+async def test_auto_native_then_summary_fallback_restores_prompt_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After native drops the input, a later summary fallback restores it once."""
+    model = get_model("mockllm/model")
+    auto = CompactionAuto(threshold=100)
+
+    calls = {"n": 0}
+
+    async def flaky_native(m: object, msgs: object, t: object) -> object:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return [
+                ChatMessageAssistant(content="[COMPACTED BLOCK]", id="block"),
+                ChatMessageUser(content="Please continue working.", id="continue"),
+            ], None
+        raise NotImplementedError("native compaction did not trigger")
+
+    monkeypatch.setattr(auto._native, "compact", flaky_native)
+    handler = compaction(auto, prefix=_prefix(), tools=None, model=model)
+
+    # Content must be long enough that [sys1, input1, msg1] alone exceeds the
+    # threshold=100 on the very first call (200 chars only counts ~34 tokens
+    # with mockllm's tokenizer and never triggers compaction at all).
+    first, _ = await handler.compact_input(
+        [*_prefix(), ChatMessageAssistant(content="A" * 800, id="msg1")]
+    )
+    assert first[0].role == "system"
+    assert not any(m.id == "input1" for m in first)
+
+    second, _ = await handler.compact_input(
+        [*first, ChatMessageAssistant(content="B" * 800, id="msg2")]
+    )
+
+    assert second[0].role == "system"
+    assert sum(1 for m in second if m.role == "system") == 1
+    assert sum(1 for m in second if m.id == "input1") == 1

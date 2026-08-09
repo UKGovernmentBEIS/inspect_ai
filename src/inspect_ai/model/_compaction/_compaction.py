@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Sequence
+from typing import NamedTuple, Sequence
 
 import anyio
 from pydantic import BaseModel, Field
@@ -20,7 +20,7 @@ from .._model import (
 from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
-from .types import Compact, CompactionStrategy
+from .types import Compact, CompactionOutcome, CompactionStrategy
 
 logger = getLogger(__name__)
 
@@ -52,6 +52,16 @@ class _CompactionState(BaseModel):
 
     memory_warning_issued: bool = False
     """Whether a pre-compaction memory warning was issued for the window."""
+
+
+class _CompactionResult(NamedTuple):
+    """Result of `_perform_compaction`, including which strategies ran."""
+
+    outcome: CompactionOutcome
+    """Outcome of the final pass — the one that produced the returned input."""
+
+    passes: list[str]
+    """Applied strategy name for each pass, in order."""
 
 
 def compaction(
@@ -204,7 +214,7 @@ def compaction(
 
             if force or total_tokens > threshold:
                 # perform compaction (with iteration if needed)
-                c_input, c_message = await _perform_compaction(
+                compaction_result = await _perform_compaction(
                     strategy=strategy,
                     messages=target_messages,
                     tools=tools_info,
@@ -213,6 +223,8 @@ def compaction(
                     tool_tokens=tool_tokens,
                     prefix_tokens=prefix_tokens,
                 )
+                c_input = compaction_result.outcome.input
+                c_message = compaction_result.outcome.message
 
                 # track all messages that were processed in this compaction pass
                 for m in state.compacted_input + unprocessed:
@@ -229,7 +241,7 @@ def compaction(
                 # handler.
                 input_ids = {message_id(m) for m in c_input}
                 candidates = [m for m in prefix if message_id(m) not in input_ids]
-                if not strategy.preserve_prefix:
+                if not compaction_result.outcome.preserve_prefix:
                     candidates = [m for m in candidates if m.role == "system"]
 
                 # Splice rather than concatenate so a restored input message
@@ -336,7 +348,7 @@ async def _perform_compaction(
     threshold: int,
     tool_tokens: int,
     prefix_tokens: int,
-) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+) -> _CompactionResult:
     """Perform compaction, iterating if necessary to get under threshold.
 
     Args:
@@ -349,14 +361,16 @@ async def _perform_compaction(
         prefix_tokens: Token count for prefix messages (for error reporting).
 
     Returns:
-        Tuple of (compacted messages, optional summary message).
+        The final pass's outcome plus the applied strategy of each pass.
 
     Raises:
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
     MAX_ITERATIONS = 3
-    c_input, c_message = await strategy.compact(model, messages, tools)
-    compacted_tokens = await model.count_tokens(c_input)
+    passes: list[str] = []
+    outcome = await strategy.compact_outcome(model, messages, tools)
+    passes.append(outcome.applied)
+    compacted_tokens = await model.count_tokens(outcome.input)
     total_compacted = tool_tokens + compacted_tokens
 
     for _ in range(MAX_ITERATIONS):
@@ -366,8 +380,9 @@ async def _perform_compaction(
         prev_total = total_compacted
 
         # Try compacting again
-        c_input, c_message = await strategy.compact(model, list(c_input), tools)
-        compacted_tokens = await model.count_tokens(c_input)
+        outcome = await strategy.compact_outcome(model, list(outcome.input), tools)
+        passes.append(outcome.applied)
+        compacted_tokens = await model.count_tokens(outcome.input)
         total_compacted = tool_tokens + compacted_tokens
 
         # Stop if no progress (can't reduce further)
@@ -385,7 +400,7 @@ async def _perform_compaction(
             f"tool definitions and prefix."
         )
 
-    return c_input, c_message
+    return _CompactionResult(outcome=outcome, passes=passes)
 
 
 def _resolve_threshold(model: Model, threshold: int | float) -> int:
