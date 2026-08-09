@@ -118,6 +118,23 @@ def my_agent() -> Agent:
 
 The [Claude Code](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html) and [Codex CLI](https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html) agents in the Inspect SWE package provide more in-depth demonstrations of running custom agents in sandboxes.
 
+### Granted Capabilities
+
+Some tools a bridged agent can request are executed *outside* the sandbox — `web_search`, `web_fetch`, `code_execution`, and remote MCP servers all run at the model provider. An agent that names one of these in a request therefore reaches the network regardless of the sandbox's own egress policy, so `sandbox_agent_bridge()` withholds them unless the evaluation grants them:
+
+``` python
+async with sandbox_agent_bridge(state, web_search=True) as bridge:
+    ...
+```
+
+Pass `True` to use the target model's internal provider, a `WebSearchProviders` configuration to select providers explicitly, or leave the default to withhold. `code_execution` works the same way, and `client_mcp_servers=True` honors MCP servers named by the agent (prefer [Bridged Tools](#bridged-tools) for servers you choose yourself). Whenever a declared tool is withheld a warning is logged, since an absent tool is otherwise indistinguishable from the model declining to call it.
+
+Ordinary function tools are never withheld — those are executed by the bridged agent inside the sandbox and grant it nothing it does not already have.
+
+For the same reason, image and document content in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
+
+None of this applies to the in-process `agent_bridge()`, where the scaffold already runs with the host's network and filesystem and there is no boundary to defend.
+
 ## Bridged Tools
 
 Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.
