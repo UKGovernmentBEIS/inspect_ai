@@ -1,3 +1,8 @@
+## Unreleased
+
+- Sandboxed bridged agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
+- Sandboxed bridged agents can no longer make Inspect fetch a URL or read a host file by putting it in image or document content.
+
 ## 0.3.254 (08 August 2026)
 
 - Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.

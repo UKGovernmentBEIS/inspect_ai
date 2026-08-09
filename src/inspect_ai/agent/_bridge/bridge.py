@@ -45,7 +45,8 @@ from .responses import inspect_responses_api_request
 from .util import (
     default_code_execution_providers,
     internal_web_search_providers,
-    resolve_web_search_providers,
+    resolve_bridge_code_execution,
+    resolve_bridge_web_search,
 )
 
 if TYPE_CHECKING:
@@ -103,8 +104,9 @@ async def agent_bridge(
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
-    web_search: WebSearchProviders | None = None,
-    code_execution: CodeExecutionProviders | None = None,
+    web_search: WebSearchProviders | bool | None = None,
+    code_execution: CodeExecutionProviders | bool | None = None,
+    client_mcp_servers: bool | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
     approval: list["ApprovalPolicy"] | None = None,
@@ -128,17 +130,22 @@ async def agent_bridge(
        compaction: Compact the conversation when it it is close to overflowing
           the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
        web_search: Configuration for mapping model internal
-          web_search tools to Inspect. By default, will map to the
-          internal provider of the target model (supported for OpenAI,
+          web_search tools to Inspect. By default (in-process bridges), will map
+          to the internal provider of the target model (supported for OpenAI,
           Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
           configuration to use to use an external provider like
-          Tavili or Exa for models that don't support internal search.
+          Tavili or Exa for models that don't support internal search, or
+          `False` to withhold web search from the bridged agent entirely.
        code_execution: Configuration for mapping model internal
           code_execution tools to Inspect. By default, will map to the
           internal provider of the target model (supported for OpenAI,
           Anthropic, Google, and Grok). If the provider does not support
           native code execution then the bash() tool will be provided
           (note that this requires a sandbox by declared for the task).
+          Pass `False` to withhold code execution from the bridged agent.
+       client_mcp_servers: Honor MCP servers declared by the bridged client
+          (defaults to `True` for in-process bridges). When enabled, a client
+          may name any server URL and the model provider will connect to it.
        model_event_sink: Optional sink that takes ownership of `ModelEvent`
           emission for calls routed through the bridge. When set, the bridge
           installs it around `model.generate()` so the sink decides when and
@@ -159,9 +166,13 @@ async def agent_bridge(
     # ensure one time init
     init_bridge_request_patch()
 
-    # resolve web search config
-    web_search = resolve_web_search_providers(web_search)
-    code_execution = code_execution or default_code_execution_providers()
+    # resolve granted capabilities (in-process bridges grant by default: the
+    # scaffold already shares the host's network, so withholding buys nothing)
+    web_search_grant = resolve_bridge_web_search(web_search, default_grant=True)
+    code_execution_grant = resolve_bridge_code_execution(
+        code_execution, default_grant=True
+    )
+    allow_remote_mcp = True if client_mcp_servers is None else client_mcp_servers
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -175,14 +186,15 @@ async def agent_bridge(
         model_event_sink=model_event_sink,
         forward_generation_config=forward_generation_config,
         approval=approval,
+        allow_remote_mcp=allow_remote_mcp,
     )
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(
         PatchConfig(
             enabled=True,
-            web_search=web_search,
-            code_execution=code_execution,
+            web_search=web_search_grant,
+            code_execution=code_execution_grant,
             bridge=bridge,
         )
     )
@@ -198,10 +210,10 @@ _patch_initialised: bool = False
 @dataclass
 class PatchConfig:
     enabled: bool = field(default=False)
-    web_search: WebSearchProviders = field(
+    web_search: WebSearchProviders | None = field(
         default_factory=internal_web_search_providers
     )
-    code_execution: CodeExecutionProviders = field(
+    code_execution: CodeExecutionProviders | None = field(
         default_factory=default_code_execution_providers
     )
     bridge: AgentBridge = field(

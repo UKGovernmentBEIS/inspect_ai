@@ -28,7 +28,7 @@ from inspect_ai.util._sandbox.exec_remote import (
 )
 
 from ..._agent import AgentState
-from ..util import default_code_execution_providers, internal_web_search_providers
+from ..util import resolve_bridge_code_execution, resolve_bridge_web_search
 from .service import MODEL_SERVICE, run_model_service
 from .types import SandboxAgentBridge
 
@@ -52,8 +52,9 @@ async def sandbox_agent_bridge(
     compaction: CompactionStrategy | None = None,
     sandbox: str | None = None,
     port: int = 13131,
-    web_search: WebSearchProviders | None = None,
-    code_execution: CodeExecutionProviders | None = None,
+    web_search: WebSearchProviders | bool | None = None,
+    code_execution: CodeExecutionProviders | bool | None = None,
+    client_mcp_servers: bool | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
@@ -85,18 +86,24 @@ async def sandbox_agent_bridge(
             the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
         sandbox: Sandbox to run model proxy server within.
         port: Port to run proxy server on.
-        web_search: Configuration for mapping model internal
-            web_search tools to Inspect. By default, will map to the
-            internal provider of the target model (supported for OpenAI,
-            Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
-            configuration to use to use an external provider like
-            Tavily or Exa for models that don't support internal search.
-        code_execution: Configuration for mapping model internal
-            code_execution tools to Inspect. By default, will map to the
-            internal provider of the target model (supported for OpenAI,
-            Anthropic, Google, and Grok). If the provider does not support
+        web_search: Configuration for mapping model internal web_search tools to
+            Inspect. Withheld by default: a sandboxed agent that names the native
+            tool in a request would otherwise reach the web through the model
+            provider, bypassing the sandbox's own network policy. Pass `True` to
+            map to the internal provider of the target model (supported for
+            OpenAI, Anthropic, Gemini, Grok, and Perplexity), or a configuration
+            to use an external provider like Tavily or Exa for models that don't
+            support internal search.
+        code_execution: Configuration for mapping model internal code_execution
+            tools to Inspect. Withheld by default (see `web_search`). Pass `True`
+            to map to the internal provider of the target model (supported for
+            OpenAI, Anthropic, Google, and Grok); if the provider does not support
             native code execution then the bash() tool will be provided
             (note that this requires a sandbox by declared for the task).
+        client_mcp_servers: Honor MCP servers declared by the sandboxed agent
+            (defaults to `False`). When enabled, the agent may name any server URL
+            and the model provider will connect to it. Prefer `bridged_tools` for
+            exposing tools you choose.
         bridged_tools: Host-side Inspect tools to expose to the sandboxed agent
             via MCP protocol. Each BridgedToolsSpec creates an MCP server that
             makes the specified tools available to the agent. The resolved
@@ -132,9 +139,15 @@ async def sandbox_agent_bridge(
     # resolve sandbox
     sandbox_env = await sandbox_with_injected_tools(sandbox_name=sandbox)
 
-    # resolve internal services
-    web_search = web_search or internal_web_search_providers()
-    code_execution = code_execution or default_code_execution_providers()
+    # resolve granted capabilities. These default to withheld: the sandboxed agent
+    # can otherwise obtain them just by naming the native tool in a request, which
+    # reaches the web through the model provider even when the sandbox has no
+    # network egress of its own.
+    web_search_grant = resolve_bridge_web_search(web_search, default_grant=False)
+    code_execution_grant = resolve_bridge_code_execution(
+        code_execution, default_grant=False
+    )
+    allow_remote_mcp = False if client_mcp_servers is None else client_mcp_servers
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -161,6 +174,7 @@ async def sandbox_agent_bridge(
                 forward_generation_config=forward_generation_config,
                 approval=approval,
                 checkpointer=checkpointer,
+                allow_remote_mcp=allow_remote_mcp,
             )
 
             # register bridged tools with the bridge
@@ -179,8 +193,8 @@ async def sandbox_agent_bridge(
             tg.start_soon(
                 run_model_service,
                 sandbox_env,
-                web_search,
-                code_execution,
+                web_search_grant,
+                code_execution_grant,
                 bridge,
                 instance,
                 started,
