@@ -357,18 +357,12 @@ def _compaction_metadata(log: EvalLog) -> dict[str, Any]:
 
 
 # Threshold for tests that exercise CompactionSummary's real (model-calling)
-# summarization path. threshold=200, as originally specified, is below the
-# fixed react overhead alone (tool schemas + prefix already total ~220
-# tokens), so compaction triggers on the very first call, before any of the
-# "X"/"Y" conversation content exists. CompactionSummary then summarizes by
-# calling `model.generate()` a second time — against mockllm, that call
-# consumes the *next* queued custom output verbatim as the "summary" text.
-# With only "X" then "Y" queued, each compaction pass re-embeds another
-# full-size block, so `_perform_compaction` never gets under threshold and
-# raises "Compaction insufficient" instead of succeeding. Raising the
-# threshold to 1000 keeps compaction from firing until both "X" and "Y" have
-# actually entered the conversation, at which point it fires once and
-# consumes the trailing "filler" output as its summary text.
+# summarization path. react's fixed overhead (tool schemas + prefix) is
+# roughly 220 tokens on its own, so the threshold must sit above that or
+# compaction fires before any conversation content exists. The trailing
+# "filler" mock output in `_long_conversation_model` exists because
+# CompactionSummary's own `model.generate()` call consumes from the same
+# mockllm output queue as the conversation turns.
 _SUMMARY_THRESHOLD = 1000
 
 
@@ -415,7 +409,7 @@ def test_compaction_event_records_native_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When native succeeds, the event names it and carries no fallback reason."""
-    auto = CompactionAuto(threshold=200)
+    auto = CompactionAuto(threshold=_SUMMARY_THRESHOLD)
 
     async def fake_native(
         m: Model, msgs: list[ChatMessage], t: list[ToolInfo]
@@ -458,7 +452,11 @@ def test_compaction_event_omits_provenance_for_plain_strategy() -> None:
 
 
 class _FlipFlopStrategy(CompactionStrategy):
-    """Reports a different applied strategy on each pass."""
+    """Reports a different applied strategy on each pass.
+
+    Relies on the dataset having a single sample: the call counter is
+    instance state, so it's only deterministic across one sample's events.
+    """
 
     def __init__(self) -> None:
         super().__init__(type="summary", threshold=200, memory=False)

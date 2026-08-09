@@ -65,6 +65,7 @@ description: Model interface and providers.
 ### compaction
 ### Compact
 ### CompactionStrategy
+### CompactionOutcome
 ### CompactionAuto
 ### CompactionNative
 ### CompactionEdit
