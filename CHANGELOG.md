@@ -1,7 +1,8 @@
 ## Unreleased
 
-- Sandboxed bridged agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
-- Sandboxed bridged agents can no longer make Inspect fetch a URL or read a host file by putting it in image or document content.
+- Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
+- Sandbox Agent Bridge: Agents can no longer make Inspect fetch a URL or read a host file by putting it in image or document content.
+- Control Channel: `inspect ctl task list` now reports per-eval `refusals` and `http_retries`.
 
 ## 0.3.254 (08 August 2026)
 
