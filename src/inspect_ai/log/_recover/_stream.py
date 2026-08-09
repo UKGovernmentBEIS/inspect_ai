@@ -6,7 +6,7 @@ import json as json_module
 import re
 import tempfile
 from logging import getLogger
-from typing import IO
+from typing import IO, Any
 
 from pydantic import JsonValue
 
@@ -23,7 +23,7 @@ from inspect_ai.event._pool import (
 )
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
-from inspect_ai.event._validate import validate_chat_messages
+from inspect_ai.event._validate import validate_chat_messages, validate_events
 from inspect_ai.log._condense import (
     WalkContext,
     condense_event,
@@ -45,7 +45,6 @@ from ._attachments import StreamingAttachmentStore, write_attachments_field
 from ._reconstruct import (
     EventVersionCollapser,
     MessageAccumulator,
-    _deserialize_events,
     _summary_with_uuid_fallback,
 )
 
@@ -79,7 +78,7 @@ def _write_sample_streaming(
     eval_spec: EvalSpec,
     is_in_progress: bool = False,
     include_events: bool = True,
-) -> EvalSampleSummary:
+) -> tuple[EvalSampleSummary, dict[str, Any] | None]:
     """Stream-process a single sample's segments and write to a ZIP entry.
 
     Two-pass per sample: first walk segments to accumulate pools /
@@ -90,9 +89,9 @@ def _write_sample_streaming(
     the collapsed rows, run attachment walking / pool dedup, and write
     condensed events followed by walked messages / output / attachments.
 
-    Returns the summary for stats accumulation. Samples with no flushed
-    event data are still written with empty events/messages so summaries
-    and sample files stay consistent.
+    Returns the summary for stats accumulation and the full metadata written
+    to the sample. Samples with no flushed event data are still written with
+    empty events/messages so summaries and sample files stay consistent.
 
     All fields declared on ``EvalSample`` are emitted unconditionally
     (``null`` or pydantic default when we have no source). Note: the key
@@ -128,6 +127,7 @@ def _write_sample_streaming(
     # Per-sample reconstruction state captured from raw events
     sample_init: SampleInitEvent | None = None
     sample_limit_event: SampleLimitEvent | None = None
+    sample_metadata = buffer.read_sample_metadata(summary.id, summary.epoch, manifest)
 
     # Build the error field
     error: EvalError | None = None
@@ -228,7 +228,7 @@ def _write_sample_streaming(
 
             deduped_event_data = collapser.events()
 
-            raw_events = _deserialize_events([ed.event for ed in deduped_event_data])
+            raw_events = validate_events([ed.event for ed in deduped_event_data])
 
             for ev in raw_events:
                 if sample_init is None and isinstance(ev, SampleInitEvent):
@@ -306,7 +306,14 @@ def _write_sample_streaming(
             _write_json_field(stream, "setup", setup_value, comma=True)
 
             # Summary-derived scalars
-            _write_json_field(stream, "metadata", summary.metadata, comma=True)
+            if sample_metadata is None:
+                sample_metadata = (
+                    sample_init.sample.metadata
+                    if sample_init is not None
+                    and sample_init.sample.metadata is not None
+                    else summary.metadata
+                )
+            _write_json_field(stream, "metadata", sample_metadata, comma=True)
             _write_json_field(stream, "scores", summary.scores, comma=True)
 
             # Store: parity with DB recovery path (defaults to {}).
@@ -316,6 +323,14 @@ def _write_sample_streaming(
             _write_json_field(stream, "role_usage", summary.role_usage, comma=True)
             _write_json_field(
                 stream, "model_fallbacks", summary.model_fallbacks, comma=True
+            )
+            _write_json_field(stream, "turn_count", summary.turn_count, comma=True)
+            _write_json_field(stream, "token_limit", summary.token_limit, comma=True)
+            _write_json_field(
+                stream, "token_limit_type", summary.token_limit_type, comma=True
+            )
+            _write_json_field(
+                stream, "token_limit_usage", summary.token_limit_usage, comma=True
             )
             _write_json_field(stream, "started_at", summary.started_at, comma=True)
             _write_json_field(stream, "completed_at", summary.completed_at, comma=True)
@@ -348,4 +363,4 @@ def _write_sample_streaming(
 
     summary.completed = True
 
-    return summary
+    return summary, sample_metadata

@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, cast
 
 import pytest
@@ -5,6 +6,7 @@ from pydantic import BaseModel
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
@@ -25,6 +27,7 @@ from inspect_ai.scorer._metric import (
     MetricDeprecated,
     MetricProtocol,
     SampleScore,
+    ScoreEdit,
     metric_create,
     value_to_float,
 )
@@ -117,6 +120,25 @@ def test_metric_create() -> None:
     metric_create_assert("accuracy4", correct="C")
 
 
+@metric
+def kwargs_metric(**kwargs: Any) -> Metric:
+    def metric(scores: list[SampleScore]) -> int | float:
+        return 1
+
+    return metric
+
+
+def test_metric_create_replays_name_kwarg_without_collision() -> None:
+    """A `**kwargs` key named `name` must survive metric replay from a log (#4375).
+
+    Flat capture records such a key at the top level of the log's metric
+    options, so replaying it must not collide with metric_create's own
+    `name` parameter.
+    """
+    metric = metric_create("kwargs_metric", name="demo")
+    assert metric([]) == 1
+
+
 def test_inspect_metrics() -> None:
     registry_assert(accuracy, f"{PKG_NAME}/accuracy")
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
@@ -154,6 +176,40 @@ def test_list_metric() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
+
+
+@pytest.mark.parametrize(
+    "value,leaf",
+    [
+        (float("nan"), lambda v: v),
+        (float("inf"), lambda v: v),
+        ([float("nan"), 1.0], lambda v: v[0]),
+        ({"a": float("nan"), "b": 1.0}, lambda v: v["a"]),
+        ({"a": float("-inf"), "b": 1.0}, lambda v: v["a"]),
+    ],
+)
+def test_score_non_finite_value_round_trip(value: Value, leaf: Any) -> None:
+    """Non-finite score values survive JSON serialization in every shape.
+
+    Serialized as JSON constants (NaN/Infinity) rather than null, via both
+    model_dump_json and the to_json_safe log write path.
+    """
+    score = Score(value=value)
+    for wire in (score.model_dump_json(exclude_none=True), to_json_str_safe(score)):
+        assert "null" not in wire
+        restored = Score.model_validate_json(wire)
+        original, roundtripped = leaf(score.value), leaf(restored.value)
+        if math.isnan(original):
+            assert math.isnan(roundtripped)
+        else:
+            assert roundtripped == original
+
+
+def test_score_edit_non_finite_value_round_trip() -> None:
+    edit = ScoreEdit(value=[float("nan"), 1.0])
+    restored = ScoreEdit.model_validate_json(edit.model_dump_json())
+    assert isinstance(restored.value, list)
+    assert math.isnan(cast(float, restored.value[0]))
 
 
 def test_dict_metric() -> None:
@@ -712,3 +768,38 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+def test_metrics_return_zero_for_empty_scores() -> None:
+    # Every built-in numeric metric must handle an empty score list by
+    # returning 0.0 rather than nan (with numpy empty-slice warnings). See the
+    # empty-input guards documented in accuracy()/std()/var().
+    from inspect_ai.scorer import (
+        accuracy,
+        bootstrap_stderr,
+        mean,
+        std,
+        stderr,
+        var,
+    )
+
+    for metric_fn in (
+        accuracy(),
+        mean(),
+        var(),
+        std(),
+        stderr(),
+        stderr(cluster="cluster_id"),
+        bootstrap_stderr(),
+    ):
+        assert metric_fn([]) == 0.0
+
+
+def test_grouped_metric_empty_scores() -> None:
+    # grouped() metric with all="groups" or all="samples" must return 0.0
+    # aggregate for empty scores without numpy empty-slice warnings.
+    metric_samples = grouped(mean(), group_key="group", all="samples")
+    assert metric_samples([]) == {"all": 0.0}
+
+    metric_groups = grouped(mean(), group_key="group", all="groups")
+    assert metric_groups([]) == {"all": 0.0}

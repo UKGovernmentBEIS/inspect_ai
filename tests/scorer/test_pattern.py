@@ -133,3 +133,16 @@ async def test_multiple_match_group_returns_none():
 
     assert result.answer is None
     assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_match_all_unmatched_optional_group_is_not_correct():
+    # A regex whose only capture group is optional and does not capture
+    # (so `match.groups()` is `(None,)`). With `match_all=True` this must not
+    # be scored CORRECT, because nothing was extracted from the model output.
+    scorer = pattern(r"ANSWER:\s*(\d+)?", match_all=True)
+    state = simple_task_state(model_output="ANSWER: ")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == INCORRECT
+    assert result.answer is None

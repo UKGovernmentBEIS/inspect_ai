@@ -1,9 +1,10 @@
 import importlib
 import inspect
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Protocol
 
 import pytest
-from httpx import Response
 from starlette.testclient import TestClient
 from starlette.types import ASGIApp
 
@@ -56,7 +57,19 @@ def _app(tmp_path: Path, policy: ViewerNetworkPolicy) -> tuple[ASGIApp, Path]:
     return app, log_dir
 
 
-def _assert_framing_headers(response: Response) -> None:
+class _ResponseLike(Protocol):
+    """The slice of a client response the framing assertions need.
+
+    Structural rather than `httpx.Response` because starlette's TestClient
+    returns httpx2 responses when the httpx2 package is installed (pulled in
+    by recent fastapi/mcp releases), and the two Response types don't unify.
+    """
+
+    @property
+    def headers(self) -> Mapping[str, str]: ...
+
+
+def _assert_framing_headers(response: _ResponseLike) -> None:
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
     assert response.headers["x-frame-options"] == "DENY"
 

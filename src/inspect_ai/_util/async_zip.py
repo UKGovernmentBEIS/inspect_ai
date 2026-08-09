@@ -21,6 +21,10 @@ from .zip_common import ZipCompressionMethod, ZipEntry
 # Default chunk size for streaming compressed data (1MB)
 DEFAULT_CHUNK_SIZE = 1024 * 1024
 
+# Maximum archive comment length and minimum EOCD record size per the ZIP format
+_MAX_ZIP_COMMENT_SIZE = (1 << 16) - 1
+_MIN_EOCD_SIZE = 22
+
 
 @dataclass
 class CentralDirectoryLocation:
@@ -69,7 +73,9 @@ async def _find_central_directory(
     Raises:
         ValueError: If EOCD signature not found or ZIP64 structure is corrupt
     """
-    suffix = await filesystem.read_file_suffix(filename, 65536)
+    suffix = await filesystem.read_file_suffix(
+        filename, _MAX_ZIP_COMMENT_SIZE + _MIN_EOCD_SIZE
+    )
     tail = suffix.data
     tail_start = suffix.file_size - len(tail)
 

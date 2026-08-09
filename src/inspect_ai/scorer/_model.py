@@ -18,7 +18,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
-from ._metric import INCORRECT, Score
+from ._metric import Score
 from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
@@ -226,16 +226,16 @@ def _model_graded_qa_single(
                 ),
             )
         else:
-            return Score(
-                value=INCORRECT,
+            return Score.unscored(
                 answer=state.output.completion,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
                 metadata=dict(
+                    unscored_reason="grade_parse_failure",
                     grading=[
                         scoring_prompt,
                         result.message,
-                    ]
+                    ],
                 ),
             )
 

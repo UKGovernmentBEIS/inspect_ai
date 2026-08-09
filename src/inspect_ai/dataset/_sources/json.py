@@ -1,5 +1,4 @@
 import json
-import os
 from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
@@ -7,7 +6,7 @@ from typing import Any
 import jsonlines
 
 from inspect_ai._util.asyncfiles import is_s3_filename
-from inspect_ai._util.file import file
+from inspect_ai._util.file import absolute_file_path, file
 
 from .._dataset import (
     Dataset,
@@ -87,7 +86,7 @@ def json_dataset(
                 dataset_reader(f, **reader_kwargs), data_to_sample, auto_id
             ),
             name=name,
-            location=os.path.abspath(json_file),
+            location=absolute_file_path(json_file),
         )
 
         # resolve relative file paths
@@ -100,7 +99,7 @@ def json_dataset(
         shuffle_choices_if_requested(dataset, shuffle_choices)
 
         # limit if requested
-        if limit:
+        if limit is not None:
             return dataset[0:limit]
 
     return dataset

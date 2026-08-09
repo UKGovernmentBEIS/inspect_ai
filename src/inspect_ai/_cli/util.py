@@ -262,7 +262,13 @@ def parse_model_role_cli_args(
                 raise ValueError(
                     f"Invalid config for model role '{role_name}': {e}"
                 ) from e
-            parsed_args[role_name] = get_model(model_name, config=config, **model_args)
+            # memoize=False so that each role gets a distinct Model instance;
+            # otherwise roles sharing the same model/config/args collapse onto one
+            # cached object and per-role usage is misattributed (see #4450). This
+            # mirrors the string-role path in resolve_model_roles().
+            parsed_args[role_name] = get_model(
+                model_name, config=config, memoize=False, **model_args
+            )
         # else assume it is just a model name and leave it as a string
     return parsed_args
 

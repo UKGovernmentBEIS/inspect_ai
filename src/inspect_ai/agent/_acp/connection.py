@@ -19,7 +19,7 @@ import asyncio
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from acp.connection import Connection
 from acp.exceptions import RequestError
@@ -70,7 +70,7 @@ if TYPE_CHECKING:
         ElicitationRequest,
         ElicitationResponse,
     )
-    from inspect_ai.log._samples import ActiveSample
+    from inspect_ai.log._samples import ActiveSample, SampleCancelAction
 
 logger = getLogger(__name__)
 
@@ -597,13 +597,15 @@ class ConnectionHandler:
     async def cancel_sample(
         self,
         session_id: str,
-        action: Literal["score", "error"],
+        action: SampleCancelAction,
     ) -> dict[str, Any]:
         """Terminate the bound sample via :meth:`ActiveSample.interrupt`.
 
         ``action`` selects the post-cancel outcome:
 
         - ``"score"`` — run the scorer on whatever work landed.
+        - ``"cancel"`` — record the sample as cancelled (transcript
+          preserved, no scoring, not counted as an error).
         - ``"error"`` — mark the sample errored. Gated to mirror the
           in-proc ``--display full`` TUI's
           ``cancel_with_error.display = not sample.fails_on_error``
@@ -631,8 +633,8 @@ class ConnectionHandler:
                 {
                     "reason": (
                         "action='error' not permitted when sample is "
-                        "configured to fail on errors "
-                        "(fails_on_error=True — use action='score')"
+                        "configured to fail on errors (fails_on_error=True "
+                        "— use action='score' or action='cancel')"
                     )
                 }
             )

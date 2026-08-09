@@ -262,6 +262,31 @@ class AcpTransport(Protocol):
         """
         ...
 
+    @property
+    def has_client(self) -> bool:
+        """Whether at least one fully bound ACP client is attached.
+
+        A client is considered bound only after transcript replay and
+        post-bind setup have completed. The no-op transport always returns
+        ``False``.
+
+        Scoped to the agent-loop lifetime (like :attr:`is_interactive`):
+        after the agent loop exits, the client registries are cleared while
+        scoring runs, so this returns ``False`` during the scoring window
+        even though a client may still be connected and receiving score
+        events. ``False`` there does not mean no client ever attached.
+        """
+        ...
+
+    async def wait_for_client(self) -> None:
+        """Wait until a fully bound ACP client is attached.
+
+        Returns immediately when a client is already bound. Raises
+        :class:`RuntimeError` if the transport closes before one attaches,
+        or when called on the no-op transport.
+        """
+        ...
+
     def publish(self, update: AcpUpdate) -> None:
         """Fan ``update`` out to every attached subscriber.
 

@@ -88,7 +88,7 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
     """
     # Match <think> tag with any attributes
     pattern = r"<think([^>]*)>(.*?)</think>"
-    match = re.search(pattern, content, re.DOTALL)
+    match = _find_nested_think_block(content) or re.search(pattern, content, re.DOTALL)
 
     if match:
         attrs_str = match.group(1)
@@ -122,6 +122,27 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
         )
     else:
         return content, None
+
+
+def _find_nested_think_block(content: str) -> re.Match[str] | None:
+    start: int | None = None
+    depth = 0
+    pattern = re.compile(r"<think([^>]*)>(.*)</think>", re.DOTALL)
+
+    for match in re.finditer(r"<think([^>]*)>|</think>", content, re.DOTALL):
+        tag = match.group(0)
+        if tag.startswith("<think"):
+            if start is None:
+                start = match.start()
+                depth = 1
+            else:
+                depth += 1
+        elif start is not None:
+            depth -= 1
+            if depth == 0:
+                return pattern.search(content, start, match.end())
+
+    return None
 
 
 def _parse_attr(attrs_str: str, name: str) -> str | None:

@@ -275,6 +275,25 @@ def test_output_token_limit_string_form():
     assert log.eval.config.token_limit_type == "output"
 
 
+def test_formula_token_limit():
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(input_tokens=100, output_tokens=2, total_tokens=102)
+    model = get_model("mockllm/model", custom_outputs=repeat_forever(output))
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=looping_solver(),
+        scorer=match(),
+        # meters input*0.1 + output; per generation = 10 + 2 = 12
+        token_limit=TokenLimit(tokens=20, type="(input * 0.1) + output"),
+    )
+
+    log = eval(task, model=model)[0]
+    # gen 1: 12 (<=20); gen 2: 24 (>20) -> trips
+    check_limit_event(log, "token")
+    assert log.eval.config.token_limit == 20
+    assert log.eval.config.token_limit_type == "(input * 0.1) + output"
+
+
 def test_token_limit_type_absent_for_int_limit():
     model = get_model(
         "mockllm/model",
