@@ -68,7 +68,10 @@ def _discoverable_function_tool() -> dict[str, Any]:
 
 def test_tool_from_responses_tool_tool_search() -> None:
     tool = tool_from_responses_tool(
-        _tool_search_tool_param(), WEB_SEARCH_PROVIDERS, CODE_EXECUTION_PROVIDERS
+        _tool_search_tool_param(),
+        WEB_SEARCH_PROVIDERS,
+        CODE_EXECUTION_PROVIDERS,
+        allow_remote_mcp=True,
     )
     assert isinstance(tool, ToolInfo)
     assert tool.name == TOOL_SEARCH_NAME
@@ -83,7 +86,10 @@ def test_tool_from_responses_tool_tool_search() -> None:
 
 def test_maybe_tool_search_tool_emits_native_param() -> None:
     tool = tool_from_responses_tool(
-        _tool_search_tool_param(), WEB_SEARCH_PROVIDERS, CODE_EXECUTION_PROVIDERS
+        _tool_search_tool_param(),
+        WEB_SEARCH_PROVIDERS,
+        CODE_EXECUTION_PROVIDERS,
+        allow_remote_mcp=True,
     )
     assert isinstance(tool, ToolInfo)
 
