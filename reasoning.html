@@ -975,6 +975,60 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>xAI documents an <code>xhigh</code> effort for <code>grok-4.20-multi-agent</code> (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above <code>high</code>, so <code>xhigh</code> and <code>max</code> clamp to <code>high</code> for that model as well.</p>
 </section>
+<section id="deepseek" class="level4">
+<h4 class="anchored" data-anchor-id="deepseek">DeepSeek</h4>
+<p>DeepSeek V4 models (<code>deepseek-v4-pro</code> and <code>deepseek-v4-flash</code>) think by default (at <code>high</code> effort) and document a <a href="https://api-docs.deepseek.com/guides/thinking_mode">three-level effort scale</a> of <code>low</code> / <code>high</code> / <code>max</code>. Inspect maps <code>reasoning_effort</code> as follows:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Inspect input</th>
+<th>API value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>none</code></td>
+<td>thinking disabled</td>
+</tr>
+<tr class="even">
+<td><code>minimal</code> / <code>low</code></td>
+<td><code>low</code></td>
+</tr>
+<tr class="odd">
+<td><code>medium</code> / <code>high</code></td>
+<td><code>high</code></td>
+</tr>
+<tr class="even">
+<td><code>xhigh</code> / <code>max</code></td>
+<td><code>max</code></td>
+</tr>
+</tbody>
+</table>
+<p>Note that <code>deepseek-v4-pro</code> currently runs <code>low</code> effort requests at <code>high</code> effort server-side (DeepSeek has indicated this will change in a future update).</p>
+</section>
+<section id="mistral" class="level4">
+<h4 class="anchored" data-anchor-id="mistral">Mistral</h4>
+<p>Mistral reasoning models (Mistral Medium 3.5+ and Mistral Small 4+) accept a <a href="https://docs.mistral.ai/capabilities/reasoning/">two-level scale</a>: <code>high</code> (emit a thinking chunk before the answer) and <code>none</code>. Thinking is <strong>off by default</strong> — set <code>reasoning_effort</code> to turn it on. Inspect maps <code>reasoning_effort</code> as follows:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Inspect input</th>
+<th>API value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>none</code></td>
+<td><code>none</code></td>
+</tr>
+<tr class="even">
+<td><code>minimal</code> / <code>low</code> / <code>medium</code> / <code>high</code> / <code>xhigh</code> / <code>max</code></td>
+<td><code>high</code></td>
+</tr>
+</tbody>
+</table>
+<p>Non-reasoning Mistral models reject the parameter, and Inspect omits it when <code>reasoning_effort</code> is not set. (The earlier Magistral models, which thought unconditionally, were retired from the API in 2026 — requests for them are redirected to Mistral Medium 3.5 / Mistral Small 4.)</p>
+</section>
 <section id="openrouter" class="level4">
 <h4 class="anchored" data-anchor-id="openrouter">OpenRouter</h4>
 <p>Passes through to the underlying model; OpenRouter itself maps <code>effort</code> to <code>budget_tokens</code> for models that need it, using the formula <code>budget = clamp(max_tokens × ratio, 1024, 128000)</code>.</p>
@@ -1103,6 +1157,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>no effort scale</td>
 </tr>
 <tr class="even">
+<td>deepseek/deepseek-v4-flash</td>
+<td>high</td>
+</tr>
+<tr class="odd">
+<td>deepseek/deepseek-v4-pro</td>
+<td>high</td>
+</tr>
+<tr class="even">
 <td>google/gemini-3-flash-preview</td>
 <td>medium</td>
 </tr>
@@ -1153,6 +1215,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="even">
 <td>mistral/magistral-small-2506</td>
 <td>no effort scale</td>
+</tr>
+<tr class="odd">
+<td>mistral/mistral-medium-2604</td>
+<td>none</td>
+</tr>
+<tr class="even">
+<td>mistral/mistral-small-2603</td>
+<td>none</td>
 </tr>
 <tr class="odd">
 <td>moonshotai/kimi-k3</td>

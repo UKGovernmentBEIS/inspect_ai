@@ -3407,7 +3407,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-  
+\
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -3890,14 +3890,22 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek
 
-[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
+To use the [DeepSeek](https://www.deepseek.com/) provider, install the `openai` package (which the DeepSeek service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
-export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model deepseek/deepseek-v4-pro
 ```
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](./reasoning.html.md#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use). Note that the legacy `deepseek-chat` and `deepseek-reasoner` model names were retired from the DeepSeek API on July 24th, 2026.
+
+The following environment variables are supported by the DeepSeek provider
+
+| Variable | Description |
+|----|----|
+| `DEEPSEEK_API_KEY` | API key credentials (required). |
+| `DEEPSEEK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.deepseek.com`). |
 
 ## Moonshot AI
 
@@ -4824,7 +4832,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model openai-api/deepseek/deepseek-v4-flash
 ```
 
 ### Responses API
@@ -6055,6 +6063,30 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 
 xAI documents an `xhigh` effort for `grok-4.20-multi-agent` (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above `high`, so `xhigh` and `max` clamp to `high` for that model as well.
 
+#### DeepSeek
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
+
+| Inspect input     | API value         |
+|-------------------|-------------------|
+| `none`            | thinking disabled |
+| `minimal` / `low` | `low`             |
+| `medium` / `high` | `high`            |
+| `xhigh` / `max`   | `max`             |
+
+Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
+
+#### Mistral
+
+Mistral reasoning models (Mistral Medium 3.5+ and Mistral Small 4+) accept a [two-level scale](https://docs.mistral.ai/capabilities/reasoning/): `high` (emit a thinking chunk before the answer) and `none`. Thinking is **off by default** — set `reasoning_effort` to turn it on. Inspect maps `reasoning_effort` as follows:
+
+| Inspect input                                           | API value |
+|---------------------------------------------------------|-----------|
+| `none`                                                  | `none`    |
+| `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | `high`    |
+
+Non-reasoning Mistral models reject the parameter, and Inspect omits it when `reasoning_effort` is not set. (The earlier Magistral models, which thought unconditionally, were retired from the API in 2026 — requests for them are redirected to Mistral Medium 3.5 / Mistral Small 4.)
+
 #### OpenRouter
 
 Passes through to the underlying model; OpenRouter itself maps `effort` to `budget_tokens` for models that need it, using the formula `budget = clamp(max_tokens × ratio, 1024, 128000)`.
@@ -6098,6 +6130,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
+| deepseek/deepseek-v4-flash           | high            |
+| deepseek/deepseek-v4-pro             | high            |
 | google/gemini-3-flash-preview        | medium          |
 | google/gemini-3-pro                  | high            |
 | google/gemini-3.1-flash-lite-preview | medium          |
@@ -6111,6 +6145,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | grok/grok-4.5                        | high            |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
+| mistral/mistral-medium-2604          | none            |
+| mistral/mistral-small-2603           | none            |
 | moonshotai/kimi-k3                   | max             |
 | openai/gpt-5                         | medium          |
 | openai/gpt-5-mini                    | medium          |
@@ -10298,6 +10334,27 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
 
 This option is available on both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge).
 
+## Tool Approval
+
+Tool calls made by a bridged agent can be governed by [approval policies](./approval.html.md), even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run.
+
+Eval-level and task-level policies apply automatically; both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) also accept an `approval` parameter:
+
+``` python
+from inspect_ai.approval import ApprovalPolicy, auto_approver, human_approver
+
+async with sandbox_agent_bridge(
+    state,
+    approval=[
+        ApprovalPolicy(human_approver(), "bash"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ],
+) as bridge:
+    ...
+```
+
+Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See [Bridged Agents](./approval.html.md#bridged-agents) for the full semantics.
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
@@ -13131,6 +13188,49 @@ agent = react(
     approval=[ApprovalPolicy(human_approver(), "*")]
 )
 ```
+
+## Bridged Agents
+
+Agents integrated via the [Agent Bridge](./agent-bridge.html.md) run their own tool loop, so Inspect never executes their tool calls. Approval policies are applied instead to the tool calls in each model response, before that response is handed back to the agent. This covers both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge), and every API dialect they support.
+
+Eval-level and task-level policies apply automatically. You can also scope policies to a bridge directly:
+
+``` python
+async with sandbox_agent_bridge(
+    state,
+    approval=[
+        ApprovalPolicy(human_approver(), "bash"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ],
+) as bridge:
+    ...
+```
+
+For a sandbox bridge this parameter is the only reliable way to set policy from inside the agent: bridged generations run in the sandbox service task, which doesn’t see an [approval()](./reference/inspect_ai.approval.html.md#approval) [context manager](#approval-context) entered within the agent body.
+
+Decisions behave as follows:
+
+| Decision | Behavior for a bridged agent |
+|----|----|
+| approve | The call is passed to the agent, which executes it as normal. |
+| modify | The modified arguments are passed to the agent (the function name is not substituted, since the agent dispatches on it). |
+| reject | The call is never given to the agent. The model is told it was rejected and asked to generate again; the agent sees only the replacement response. |
+| terminate | The sample is terminated. |
+| escalate | Passed to the next approver in the chain, as elsewhere. |
+
+Two behaviors are specific to bridged agents:
+
+1.  **A rejection discards every tool call in the same response.** Each call gets a result explaining what happened, and the calls that weren’t themselves rejected are told which call caused it so the model can re-issue them on their own. This differs from Inspect-executed tools, where each call is handled independently.
+
+2.  **Three consecutive rejected responses terminate the sample.** Without this a model that keeps proposing rejected calls would retry indefinitely.
+
+Because Inspect doesn’t execute these tool calls, no tool event is recorded for them — the transcript shows the approval decision rather than a tool call with an approval attached. Two things follow from that when reading a log:
+
+- Calls are approved in order and evaluation stops at the first rejection, so a call approved just before a rejected sibling has an approval recorded even though it never ran. An approval decision for a bridged agent records that the call was *permitted*, not that it was executed.
+
+- Automatic approvals by the `auto` approver are not shown at all. If you want a visible record of every decision, use an approver other than `auto`.
+
+A `modify` decision leaves the original call intact in the log: the recorded model output and approval event show what the model proposed, and the approval event’s `modified` field shows what was substituted.
 
 ## Custom Approvers
 

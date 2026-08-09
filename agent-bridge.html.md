@@ -204,6 +204,27 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
 
 This option is available on both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge).
 
+## Tool Approval
+
+Tool calls made by a bridged agent can be governed by [approval policies](./approval.html.md), even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run.
+
+Eval-level and task-level policies apply automatically; both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) also accept an `approval` parameter:
+
+``` python
+from inspect_ai.approval import ApprovalPolicy, auto_approver, human_approver
+
+async with sandbox_agent_bridge(
+    state,
+    approval=[
+        ApprovalPolicy(human_approver(), "bash"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ],
+) as bridge:
+    ...
+```
+
+Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See [Bridged Agents](./approval.html.md#bridged-agents) for the full semantics.
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.

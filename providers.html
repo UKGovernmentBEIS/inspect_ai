@@ -976,7 +976,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini <span class="dt">\ </span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>   <span class="ex">-M</span> responses_api=true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Or from Python:</p>
-<div id="26346463" class="cell">
+<div id="2fb5011e" class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
@@ -1445,11 +1445,34 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="deepseek" class="level2">
 <h2 class="anchored" data-anchor-id="deepseek">DeepSeek</h2>
-<p><a href="https://www.deepseek.com/">DeepSeek</a> provides an OpenAI compatible API endpoint which you can use with Inspect via the <code>openai-api</code> provider. To do this, define the <code>DEEPSEEK_API_KEY</code> and <code>DEEPSEEK_BASE_URL</code> environment variables then refer to models with <code>openai-api/deepseek/&lt;model-name&gt;</code>. For example:</p>
+<p>To use the <a href="https://www.deepseek.com/">DeepSeek</a> provider, install the <code>openai</code> package (which the DeepSeek service provides a compatible backend for), set your credentials, and specify a model using the <code>--model</code> option:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
 <span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
-<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_BASE_URL</span><span class="op">=</span>https://api.deepseek.com</span>
-<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-reasoner</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> deepseek/deepseek-v4-pro</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>DeepSeek V4 models (<code>deepseek-v4-pro</code> and <code>deepseek-v4-flash</code>) think by default. Use <code>--reasoning-effort</code> to control thinking (<code>none</code> disables it entirely) — see <a href="./reasoning.html#reasoning-effort">Reasoning Effort</a> for details. While thinking is enabled the API rejects forced tool choice, so the <code>deepseek</code> provider submits forced tool choices as <code>"auto"</code> (disable thinking to force tool use). Note that the legacy <code>deepseek-chat</code> and <code>deepseek-reasoner</code> model names were retired from the DeepSeek API on July 24th, 2026.</p>
+<p>The following environment variables are supported by the DeepSeek provider</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 38%">
+<col style="width: 61%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>DEEPSEEK_API_KEY</code></td>
+<td>API key credentials (required).</td>
+</tr>
+<tr class="even">
+<td><code>DEEPSEEK_BASE_URL</code></td>
+<td>Base URL for requests (optional, defaults to <code>https://api.deepseek.com</code>).</td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="moonshot-ai" class="level2">
 <h2 class="anchored" data-anchor-id="moonshot-ai">Moonshot AI</h2>
@@ -2404,7 +2427,7 @@ Note
 <p>Here is how you would access DeepSeek using the <code>openai-api</code> provider:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb110"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb110-1"><a href="#cb110-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_API_KEY</span><span class="op">=</span>your-deepseek-api-key</span>
 <span id="cb110-2"><a href="#cb110-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DEEPSEEK_BASE_URL</span><span class="op">=</span>https://api.deepseek.com</span>
-<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-reasoner</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb110-3"><a href="#cb110-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai-api/deepseek/deepseek-v4-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="responses-api-1" class="level3">
 <h3 class="anchored" data-anchor-id="responses-api-1">Responses API</h3>

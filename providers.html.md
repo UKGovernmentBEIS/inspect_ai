@@ -11,7 +11,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-  
+\
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -494,14 +494,22 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek
 
-[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
+To use the [DeepSeek](https://www.deepseek.com/) provider, install the `openai` package (which the DeepSeek service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
-export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model deepseek/deepseek-v4-pro
 ```
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](./reasoning.html.md#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use). Note that the legacy `deepseek-chat` and `deepseek-reasoner` model names were retired from the DeepSeek API on July 24th, 2026.
+
+The following environment variables are supported by the DeepSeek provider
+
+| Variable | Description |
+|----|----|
+| `DEEPSEEK_API_KEY` | API key credentials (required). |
+| `DEEPSEEK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.deepseek.com`). |
 
 ## Moonshot AI
 
@@ -1428,7 +1436,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model openai-api/deepseek/deepseek-v4-flash
 ```
 
 ### Responses API

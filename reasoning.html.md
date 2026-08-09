@@ -100,6 +100,30 @@ Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reaso
 
 xAI documents an `xhigh` effort for `grok-4.20-multi-agent` (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above `high`, so `xhigh` and `max` clamp to `high` for that model as well.
 
+#### DeepSeek
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
+
+| Inspect input     | API value         |
+|-------------------|-------------------|
+| `none`            | thinking disabled |
+| `minimal` / `low` | `low`             |
+| `medium` / `high` | `high`            |
+| `xhigh` / `max`   | `max`             |
+
+Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
+
+#### Mistral
+
+Mistral reasoning models (Mistral Medium 3.5+ and Mistral Small 4+) accept a [two-level scale](https://docs.mistral.ai/capabilities/reasoning/): `high` (emit a thinking chunk before the answer) and `none`. Thinking is **off by default** — set `reasoning_effort` to turn it on. Inspect maps `reasoning_effort` as follows:
+
+| Inspect input                                           | API value |
+|---------------------------------------------------------|-----------|
+| `none`                                                  | `none`    |
+| `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | `high`    |
+
+Non-reasoning Mistral models reject the parameter, and Inspect omits it when `reasoning_effort` is not set. (The earlier Magistral models, which thought unconditionally, were retired from the API in 2026 — requests for them are redirected to Mistral Medium 3.5 / Mistral Small 4.)
+
 #### OpenRouter
 
 Passes through to the underlying model; OpenRouter itself maps `effort` to `budget_tokens` for models that need it, using the formula `budget = clamp(max_tokens × ratio, 1024, 128000)`.
@@ -143,6 +167,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | anthropic/claude-sonnet-5            | high            |
 | deepseek/deepseek-reasoner           | no effort scale |
+| deepseek/deepseek-v4-flash           | high            |
+| deepseek/deepseek-v4-pro             | high            |
 | google/gemini-3-flash-preview        | medium          |
 | google/gemini-3-pro                  | high            |
 | google/gemini-3.1-flash-lite-preview | medium          |
@@ -156,6 +182,8 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | grok/grok-4.5                        | high            |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
+| mistral/mistral-medium-2604          | none            |
+| mistral/mistral-small-2603           | none            |
 | moonshotai/kimi-k3                   | max             |
 | openai/gpt-5                         | medium          |
 | openai/gpt-5-mini                    | medium          |
