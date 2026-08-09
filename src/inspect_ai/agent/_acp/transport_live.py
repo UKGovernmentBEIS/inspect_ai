@@ -581,6 +581,10 @@ class LiveAcpTransport:
         # Unsubscribe handle for the channel turn-state observer
         # registered during :meth:`maybe_bind`; ``None`` when not bound.
         self._unsubscribe_turn_state: Callable[[], None] | None = None
+        # Current snapshot of the bound channel's turn scope. Updated before
+        # transition subscribers fire so late-bound clients can subscribe,
+        # read, then follow without a race.
+        self._turn_active: bool = False
         # Per-connection subscribers fired when the bound channel's
         # :meth:`AgentChannel.turn_scope` transitions ("started" /
         # "ended" / "cancelled"). The :class:`Forwarders` instance for
@@ -678,6 +682,7 @@ class LiveAcpTransport:
             self._unsubscribe_turn_state = channel.subscribe_turn_state(
                 self._on_channel_turn_state
             )
+            self._turn_active = channel.turn_active
             # Mark the channel "live" iff an ACP server is up and
             # accepting external connections — i.e. iff ``--acp-server``
             # is enabled for this eval. Local import to avoid a
@@ -705,6 +710,7 @@ class LiveAcpTransport:
             if self._unsubscribe_turn_state is not None:
                 self._unsubscribe_turn_state()
                 self._unsubscribe_turn_state = None
+            self._turn_active = False
             if self._clear_live is not None:
                 self._clear_live()
                 self._clear_live = None
@@ -732,6 +738,7 @@ class LiveAcpTransport:
         the agent's task; exceptions are swallowed so a broken
         subscriber cannot stall the agent loop.
         """
+        self._turn_active = state == "started"
         for cb in list(self._turn_state_subscribers):
             try:
                 cb(state)
@@ -855,6 +862,7 @@ class LiveAcpTransport:
         """
         from inspect_ai.log._samples import sample_active
 
+        self._turn_active = False
         active = sample_active()
         bound = active is not None and active.acp_transport is self
         if bound:
@@ -1136,6 +1144,11 @@ class LiveAcpTransport:
         Returns an idempotent unsubscribe callable.
         """
         return self._interrupt.subscribe_prompt_resolved(callback)
+
+    @property
+    def turn_active(self) -> bool:
+        """Whether the bound channel is currently inside its turn scope."""
+        return self._turn_active
 
     def subscribe_turn_state(
         self, callback: Callable[[str], None]

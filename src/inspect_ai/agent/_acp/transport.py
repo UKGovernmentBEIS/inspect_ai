@@ -382,6 +382,16 @@ class AcpTransport(Protocol):
         """
         ...
 
+    @property
+    def turn_active(self) -> bool:
+        """Whether the bound agent is currently inside its turn scope.
+
+        Read after :meth:`subscribe_turn_state` to obtain a race-free current
+        snapshot followed by every subsequent transition. The no-op transport
+        always returns ``False``.
+        """
+        ...
+
     def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a callback fired on every :meth:`cancel_current_turn`.
 

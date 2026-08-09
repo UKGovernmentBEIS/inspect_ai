@@ -325,6 +325,15 @@ async def test_subscribe_turn_state_fires_started_then_ended() -> None:
     assert states == ["started", "ended"]
 
 
+async def test_turn_active_snapshots_current_scope() -> None:
+    """The snapshot is true only while the channel owns an active turn scope."""
+    ch = AgentChannel()
+    assert ch.turn_active is False
+    with ch.turn_scope():
+        assert ch.turn_active is True
+    assert ch.turn_active is False
+
+
 async def test_subscribe_turn_state_fires_cancelled_on_interrupt() -> None:
     """An operator interrupt fires "cancelled" (not "ended") on exit."""
     ch = AgentChannel()

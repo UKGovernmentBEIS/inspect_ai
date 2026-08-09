@@ -223,6 +223,16 @@ class AgentChannel:
             raise AgentInterrupted()
         self._fire_turn_state("ended")
 
+    @property
+    def turn_active(self) -> bool:
+        """Whether the agent is currently inside :meth:`turn_scope`.
+
+        Consumers subscribe before reading this snapshot so a transition
+        cannot be missed between observing the current value and attaching
+        the transition callback.
+        """
+        return self._scope is not None
+
     def _drain(self) -> list[ChannelItem]:
         """Pop and return all currently-queued items (non-blocking).
 

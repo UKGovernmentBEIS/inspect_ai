@@ -248,17 +248,57 @@ async def _initialize(
     await client.request("initialize", params)
 
 
-async def _drain_bind_preamble(client: _RpcClient) -> None:
-    """Drain the two notifications every successful bind emits.
+async def _drain_bind_preamble(
+    client: _RpcClient, *, replay_notifications: int = 0
+) -> list[dict[str, Any]]:
+    """Drain notifications emitted before live forwarding starts.
 
     1. ``AgentMessageChunk`` — picker confirmation from ``_notify_binding``
     2. ``SessionInfoUpdate`` — Phase 2 title from ``_send_session_info_title``
+    3. Zero or more replayed ``session/update`` notifications
+    4. ``inspect/turn_state`` — current turn snapshot from the forwarder
 
-    Replaces the older single ``next_notification()  # drain bind
-    confirmation`` pattern that no longer covers all bind-time output.
+    The helper sessions are idle; a dedicated test covers an active snapshot.
     """
     await client.next_notification()  # AgentMessageChunk
     await client.next_notification()  # SessionInfoUpdate
+    replay = [await client.next_notification() for _ in range(replay_notifications)]
+    turn_state = await client.next_notification()
+    assert turn_state["method"] == "inspect/turn_state"
+    assert turn_state["params"]["state"] == "ended"
+    return replay
+
+
+@skip_if_trio
+@unix_only
+async def test_bind_mid_turn_emits_started_snapshot(
+    short_data_dir: Path, register_target
+) -> None:
+    """A client attaching during a turn immediately learns it is active."""
+    from inspect_ai.agent import AgentChannel
+
+    session, _tr = _make_live_session_with_transcript()
+    channel = AgentChannel()
+    ref = channel._ref()
+    with channel.turn_scope():
+        assert session.maybe_bind(channel, ref) is True
+        register_target(
+            _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+        )
+        async with acp_server(eval_id="evt-turn-snapshot", transport=True) as server:
+            assert server is not None
+            client = await _connect(server)
+            try:
+                await _initialize(client)
+                await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+                await client.next_notification()  # picker confirmation
+                await client.next_notification()  # session title
+                turn_state = await client.next_notification()
+                assert turn_state["method"] == "inspect/turn_state"
+                assert turn_state["params"]["state"] == "started"
+            finally:
+                await client.close()
+    session.unbind(ref)
 
 
 # ---------------------------------------------------------------------------
@@ -862,13 +902,9 @@ async def test_replay_emits_recent_history_before_live(
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(client, replay_notifications=3)
 
-            # Now read replayed notifications.
-            texts: list[str] = []
-            for _ in range(3):
-                notif = await client.next_notification()
-                texts.append(notif["params"]["update"]["content"]["text"])
+            texts = [notif["params"]["update"]["content"]["text"] for notif in replay]
             assert texts == ["chunk-0", "chunk-1", "chunk-2"]
         finally:
             await client.close()
@@ -894,20 +930,15 @@ async def test_replay_caps_to_max_events(short_data_dir: Path, register_target) 
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(
+                client, replay_notifications=REPLAY_MAX_EVENTS
+            )
 
-            # Drain everything available with a short timeout.
             received: list[str] = []
-            try:
-                while True:
-                    notif = await client.next_notification(timeout=0.5)
-                    if notif["method"] != "session/update":
-                        continue
-                    update = notif["params"]["update"]
-                    if update.get("sessionUpdate") == "agent_message_chunk":
-                        received.append(update["content"]["text"])
-            except asyncio.TimeoutError:
-                pass
+            for notif in replay:
+                update = notif["params"]["update"]
+                if update.get("sessionUpdate") == "agent_message_chunk":
+                    received.append(update["content"]["text"])
             # Replay surfaces last REPLAY_MAX_EVENTS events.
             assert len(received) == REPLAY_MAX_EVENTS
             # First replayed is the (total - REPLAY_MAX_EVENTS)-th event.
@@ -940,9 +971,9 @@ async def test_replay_applies_plan_policy(
         try:
             await _initialize(client, client_name="zed")
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(client, replay_notifications=1)
 
-            notif = await client.next_notification()
+            notif = replay[0]
             update = notif["params"]["update"]
             assert update["sessionUpdate"] == "plan"
             assert update["entries"][0]["content"] == "replayed step"
@@ -973,9 +1004,8 @@ async def test_replay_notifications_carry_replay_meta_marker(
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
-            for _ in range(2):
-                notif = await client.next_notification()
+            replay = await _drain_bind_preamble(client, replay_notifications=2)
+            for notif in replay:
                 meta = notif["params"].get("_meta") or {}
                 assert meta.get(REPLAY_META_KEY) is True, (
                     f"replay notification missing marker: {notif}"
@@ -1037,7 +1067,7 @@ async def test_replay_then_live_ordering(short_data_dir: Path, register_target) 
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
+            replay = await _drain_bind_preamble(client, replay_notifications=2)
 
             # Publish a LIVE notification immediately after bind. The
             # client's first two semantic notifications should still
@@ -1048,10 +1078,9 @@ async def test_replay_then_live_ordering(short_data_dir: Path, register_target) 
                 )
             )
 
-            seen: list[str] = []
-            for _ in range(3):
-                notif = await client.next_notification()
-                seen.append(notif["params"]["update"]["content"]["text"])
+            seen = [notif["params"]["update"]["content"]["text"] for notif in replay]
+            notif = await client.next_notification()
+            seen.append(notif["params"]["update"]["content"]["text"])
             assert seen == ["historical-1", "historical-2", "live-1"]
         finally:
             await client.close()
@@ -1579,7 +1608,8 @@ async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> Non
 
     async def _gated_send(method: str, payload: dict[str, Any]) -> None:
         send_calls.append((method, payload))
-        await release.wait()
+        if method == "session/update":
+            await release.wait()
 
     fake_conn = AsyncMock()
     fake_conn.send_notification = _gated_send
@@ -1695,7 +1725,8 @@ async def test_forwarders_drain_waits_for_in_flight_item() -> None:
 
     async def _gated_send(method: str, payload: dict[str, Any]) -> None:
         send_calls.append((method, payload))
-        await release.wait()
+        if method == "session/update":
+            await release.wait()
 
     fake_conn = AsyncMock()
     fake_conn.send_notification = _gated_send

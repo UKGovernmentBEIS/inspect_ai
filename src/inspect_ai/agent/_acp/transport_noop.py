@@ -145,6 +145,11 @@ class NoOpAcpTransport:
         """No-op session has no lifecycle to complete."""
         return False
 
+    @property
+    def turn_active(self) -> bool:
+        """No-op sessions never have an active agent turn."""
+        return False
+
     def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
         """No-op subscribe — no cancels can fire on the no-op session."""
 

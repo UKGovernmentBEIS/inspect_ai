@@ -240,12 +240,6 @@ class Forwarders:
         # Register as an approver client so the configured
         # ``human_approver`` can route tool-approval prompts here.
         self._approver_unsub = target.attach_approver_client(self._approver_client)
-        # Subscribe to turn-scope transitions so the client gets an
-        # exact "agent is working" signal via ``inspect/turn_state``.
-        # The callback fires synchronously from the agent's task on
-        # the same event loop; schedule the send as a fire-and-forget
-        # task so it can't stall the agent's turn boundary.
-        self._turn_state_unsub = target.subscribe_turn_state(self._on_turn_state)
         # Register as an elicitation client only when the peer
         # advertised ``elicitation.form`` capability — clients without
         # that capability would silently drop ``elicitation/create``.
@@ -273,6 +267,13 @@ class Forwarders:
         if replay_status.should_exit:
             await self.stop()
             return
+
+        # Subscribe before reading the current snapshot. Both operations are
+        # synchronous on the agent event loop, so no transition can land in
+        # between; replay is already complete, so the snapshot cannot overtake
+        # historical notifications on the wire.
+        self._turn_state_unsub = target.subscribe_turn_state(self._on_turn_state)
+        await self._send_turn_state("started" if target.turn_active else "ended")
 
         # LIVE forwarders — drain the buffers that have been filling
         # since attach.

@@ -437,9 +437,24 @@ async def test_turn_state_relays_from_bound_channel_to_subscribers() -> None:
             assert acp.maybe_bind(ch, ch._ref()) is True
             states: list[str] = []
             acp.subscribe_turn_state(lambda s: states.append(s))
+            assert acp.turn_active is False
             with ch.turn_scope():
                 assert states == ["started"]
+                assert acp.turn_active is True
             assert states == ["started", "ended"]
+            assert acp.turn_active is False
+
+
+async def test_turn_active_is_snapshotted_when_transport_binds_mid_turn() -> None:
+    """A transport binding inside a running turn sees it as active immediately."""
+    from inspect_ai.agent._channel import agent_channel
+
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            with ch.turn_scope():
+                assert acp.maybe_bind(ch, ch._ref()) is True
+                assert acp.turn_active is True
+            assert acp.turn_active is False
 
 
 async def test_turn_state_unbind_drops_channel_subscription() -> None:
@@ -461,6 +476,7 @@ async def test_turn_state_unbind_drops_channel_subscription() -> None:
 def test_noop_session_subscribe_turn_state_is_noop() -> None:
     noop = current_acp_transport()
     assert noop.session_id == "noop"
+    assert noop.turn_active is False
     unsub = noop.subscribe_turn_state(lambda s: None)
     unsub()
     unsub()
