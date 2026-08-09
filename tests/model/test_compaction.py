@@ -25,6 +25,7 @@ from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._trim import partition_messages, strip_citations
@@ -41,6 +42,26 @@ class ConsecutiveUserCompaction(CompactionSummary):
             metadata={"summary": True},
         )
         return [user_msg("input", "input", source="input"), summary], summary
+
+
+class _TwoTupleStrategy(CompactionStrategy):
+    """Third-party shape: overrides only compact(), returns a 2-tuple."""
+
+    def __init__(self) -> None:
+        super().__init__(type="trim", threshold=10_000, memory=False)
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return [messages[-1]], None
+
+
+class _NoPrefixStrategy(_TwoTupleStrategy):
+    """Strategy that withholds the prefix, like CompactionNative."""
+
+    @property
+    def preserve_prefix(self) -> bool:
+        return False
 
 
 # Helper to create messages with IDs
@@ -1752,3 +1773,64 @@ def test_truncate_middle_marker_at_seam() -> None:
     # a multibyte char split at the seam decodes as U+FFFD (replacement char)
     trimmed_back = back.lstrip("\ufffd")
     assert trimmed_back and text.endswith(trimmed_back)
+
+
+# ==============================================================================
+# CompactionStrategy.compact_outcome() tests
+# ==============================================================================
+
+
+async def test_compact_outcome_default_reports_own_values() -> None:
+    """The default compact_outcome() wraps compact() and reports self."""
+    strategy = _TwoTupleStrategy()
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [system_msg("s", "sys1"), user_msg("u", "u1")]
+
+    outcome = await strategy.compact_outcome(model, messages, [])
+
+    assert [m.id for m in outcome.input] == ["u1"]
+    assert outcome.message is None
+    assert outcome.preserve_prefix is True
+    assert outcome.applied == "_TwoTupleStrategy"
+    assert outcome.fallback_reason is None
+
+
+async def test_compact_outcome_default_reads_preserve_prefix_override() -> None:
+    """A strategy that withholds the prefix reports preserve_prefix=False."""
+    strategy = _NoPrefixStrategy()
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [system_msg("s", "sys1"), user_msg("u", "u1")]
+
+    outcome = await strategy.compact_outcome(model, messages, [])
+
+    assert outcome.preserve_prefix is False
+    assert outcome.applied == "_NoPrefixStrategy"
+
+
+async def test_third_party_delegating_wrapper_still_unpacks_two_values() -> None:
+    """A wrapper that unpacks an inner compact() must keep working.
+
+    This is the compatibility case the additive method exists to protect:
+    a delegating strategy written against the 2-tuple contract, which is
+    the shape CompactionAuto itself uses.
+    """
+
+    class _Wrapper(CompactionStrategy):
+        def __init__(self, inner: CompactionStrategy) -> None:
+            super().__init__(type="trim", threshold=10_000, memory=False)
+            self._inner = inner
+
+        async def compact(
+            self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+        ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+            input, message = await self._inner.compact(model, messages, tools)
+            return list(input), message
+
+    strategy = _Wrapper(_TwoTupleStrategy())
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [system_msg("s", "sys1"), user_msg("u", "u1")]
+
+    outcome = await strategy.compact_outcome(model, messages, [])
+
+    assert [m.id for m in outcome.input] == ["u1"]
+    assert outcome.applied == "_Wrapper"
