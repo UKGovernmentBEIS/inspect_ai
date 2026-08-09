@@ -149,9 +149,10 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         One dict per task_id group, sorted by start time
         (oldest first). Each entry includes ``log_location`` (where this
         attempt's results are written), a nested ``samples`` block:
-        ``{total, completed, errored, in_flight, queued}``, and an
+        ``{total, completed, errored, in_flight, queued}``, an
         ``attempts`` count (1 for tasks without retries, >1 when
-        retries occurred).
+        retries occurred), and the running ``refusals`` / ``http_retries``
+        tallies for this eval's samples.
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
@@ -278,6 +279,10 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 },
                 "total_tokens": sum(s.total_tokens for s in samples),
                 "total_messages": sum(s.total_messages for s in samples),
+                # No eval total to add: this path is the pre-registration window,
+                # where the only samples that exist are the live ones.
+                "refusals": sum(s.refusals for s in samples),
+                "http_retries": sum(s.http_retries for s in samples),
             }
         )
 
@@ -1141,6 +1146,13 @@ def _build_summary(
     total_messages = latest.total_messages + sum(
         s.total_messages for s in in_flight_samples
     )
+    # Same two-term shape, and for the same reason: the eval total covers samples
+    # that have left `active_samples`, the live sum covers the ones still in it.
+    # Reading these live matters more than it does for usage — a refusal or a
+    # retry storm is worth knowing about while the run can still be steered, and
+    # on a long-episode benchmark no sample may finish for hours.
+    refusals = latest.refusals + sum(s.refusals for s in in_flight_samples)
+    http_retries = latest.http_retries + sum(s.http_retries for s in in_flight_samples)
 
     return {
         "run_id": run_id,
@@ -1175,4 +1187,6 @@ def _build_summary(
         },
         "total_tokens": total_tokens,
         "total_messages": total_messages,
+        "refusals": refusals,
+        "http_retries": http_retries,
     }

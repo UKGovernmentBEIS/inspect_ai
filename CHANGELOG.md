@@ -1,3 +1,7 @@
+## Unreleased
+
+- Control Channel: `inspect ctl task list` now reports per-eval `refusals` and `http_retries`. Previously these were tallied only in process-global counters that the TUI footer reads, so they were unavailable to a detached run (no display) and not attributable to a task (one process runs many evals). Both are running totals — finished samples plus the live counts of those still in flight — so they are readable mid-run; columns appear only when non-zero, and the `--json` row always carries both keys.
+
 ## 0.3.254 (08 August 2026)
 
 - Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.
