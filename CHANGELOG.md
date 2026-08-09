@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.254 (08 August 2026)
 
 - Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.
 - Deepagent: Remove the `subagent_type` parameter from the `agent()` tool when there is only one subagent type.
