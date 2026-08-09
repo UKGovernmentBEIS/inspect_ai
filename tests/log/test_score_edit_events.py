@@ -1,12 +1,17 @@
 """Tests for ScoreEditEvent span integration."""
 
+import math
+from typing import cast
+
 import pytest
 
 from inspect_ai import Task, eval_async, task
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.event._score_edit import ScoreEditEvent
 from inspect_ai.event._span import SpanEndEvent
 from inspect_ai.event._tree import event_tree, walk_node_spans
+from inspect_ai.event._validate import validate_events_json
 from inspect_ai.log._score import edit_score
 from inspect_ai.scorer import Score, Target, mean, scorer
 from inspect_ai.scorer._metric import ScoreEdit
@@ -29,6 +34,20 @@ def test_task():
         plan=[],
         scorer=test_scorer(),
     )
+
+
+def test_score_edit_event_preserves_non_finite_list_value() -> None:
+    event = ScoreEditEvent(
+        score_name="test_scorer",
+        edit=ScoreEdit(value=[float("nan"), 1.0]),
+    )
+
+    [restored] = validate_events_json(f"[{to_json_str_safe(event)}]")
+
+    assert isinstance(restored, ScoreEditEvent)
+    value = restored.edit.value
+    assert isinstance(value, list)
+    assert math.isnan(cast(float, value[0]))
 
 
 @pytest.mark.anyio

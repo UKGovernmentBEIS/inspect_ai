@@ -319,6 +319,10 @@ def test_resolve_value_type_coercion() -> None:
 
     # YAML string coercion
     assert _resolve_value("true", bool) is True
+    assert _resolve_value("false", bool) is False
+    assert _resolve_value("no", bool) is False
+    assert _resolve_value("0", bool) is False
+    assert _resolve_value("off", bool) is False
     assert _resolve_value("42", int) == 42
     assert _resolve_value("3.14", float) == 3.14
 

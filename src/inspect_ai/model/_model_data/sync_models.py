@@ -4,6 +4,16 @@
 This script fetches model information from the TogetherAI API and writes it
 to a YAML file organized by model creator (not data source).
 
+Models that are curated by hand in one of the sibling YAML files are skipped
+(matched on the case-normalized org/model lookup key, including aliases and
+versions): the lookup index in _model_info.py resolves colliding keys by
+file-load order, so a bare auto-generated entry would otherwise shadow the
+richer curated one.
+
+This script must stay self-contained (stdlib + pyyaml + requests only, no
+inspect_ai imports): the sync workflow runs it without installing the package
+(see .github/workflows/sync_model_data.yml).
+
 Usage:
     python -m inspect_ai.model._model_data.sync_models
 
@@ -27,9 +37,8 @@ import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import AbstractSet, Any, cast
 
-import requests  # type: ignore
 import yaml
 
 TOGETHER_API_URL = "https://api.together.xyz/v1/models"
@@ -68,6 +77,43 @@ def get_org_display_name(org_id: str) -> str:
     return ORG_DISPLAY_NAMES.get(org_id, org_id)
 
 
+def _normalize_for_lookup(name: str) -> str:
+    """Normalize a model name for case-insensitive lookup.
+
+    Mirror of inspect_ai.model._model_info._normalize_for_lookup, duplicated
+    because this script must run with no inspect_ai install (see the module
+    docstring); tests/model/test_sync_models.py asserts the two stay in sync.
+    """
+    return name.lower().replace("_", "-")
+
+
+def load_curated_model_keys(data_dir: Path) -> set[str]:
+    """Collect normalized org/model lookup keys defined by the curated files.
+
+    Scans every YAML file in `data_dir` except the auto-generated together.yml
+    and expands each model to the full set of names the lookup index will see:
+    the model key itself, its aliases, and its version names and aliases.
+    """
+    keys: set[str] = set()
+    for info_file in sorted(data_dir.glob("*.yml")):
+        if info_file.name == OUTPUT_FILE.name:
+            continue
+        with open(info_file) as f:
+            data = yaml.safe_load(f) or {}
+        for org, org_data in data.items():
+            for model_name, model_def in (org_data.get("models") or {}).items():
+                model_def = model_def or {}
+                names = [model_name, *(model_def.get("aliases") or [])]
+                for version_name, version_data in (
+                    model_def.get("versions") or {}
+                ).items():
+                    version_data = version_data or {}
+                    names.append(version_name)
+                    names.extend(version_data.get("aliases") or [])
+                keys.update(_normalize_for_lookup(f"{org}/{name}") for name in names)
+    return keys
+
+
 def parse_model_id(model_id: str) -> tuple[str, str] | None:
     """Parse a model ID into (organization, model_name).
 
@@ -104,6 +150,10 @@ def generate_display_name(model_name: str) -> str:
 
 def fetch_together_models() -> list[dict[str, Any]]:
     """Fetch model list from TogetherAI API."""
+    # Imported here so the module stays importable (e.g. by tests) in
+    # environments where requests is not installed.
+    import requests  # type: ignore
+
     api_key = os.environ.get("TOGETHER_API_KEY")
     if not api_key:
         print("Error: TOGETHER_API_KEY environment variable not set")
@@ -120,11 +170,17 @@ def fetch_together_models() -> list[dict[str, Any]]:
         sys.exit(1)
 
 
-def process_models(models: list[dict[str, Any]]) -> dict[str, Any]:
+def process_models(
+    models: list[dict[str, Any]],
+    curated_keys: AbstractSet[str] = frozenset(),
+) -> dict[str, Any]:
     """Process raw model data into organized YAML structure.
 
     Args:
         models: List of model dictionaries from the API
+        curated_keys: Normalized org/model keys curated in other data files;
+            colliding API models are skipped so the curated entries keep
+            winning the case-normalized lookup.
 
     Returns:
         Dictionary organized by organization for YAML output.
@@ -142,6 +198,10 @@ def process_models(models: list[dict[str, Any]]) -> dict[str, Any]:
 
         # Skip models without context length
         if context_length is None:
+            continue
+
+        # Skip models curated by hand in another data file
+        if _normalize_for_lookup(f"{org_id}/{model_name}") in curated_keys:
             continue
 
         # Initialize organization if needed
@@ -239,6 +299,32 @@ def merge_models(
     return merged, added, updated, preserved
 
 
+def remove_curated_models(
+    data: dict[str, Any], curated_keys: AbstractSet[str]
+) -> tuple[dict[str, Any], int]:
+    """Remove entries that collide with curated models from other data files.
+
+    Backstop for entries already present in together.yml before a model
+    became curated (merge_models preserves models no longer in the API, so
+    skipping in process_models alone would never remove them).
+
+    Returns:
+        Tuple of (filtered copy of data, number of models removed).
+    """
+    filtered: dict[str, Any] = {}
+    removed = 0
+    for org_id, org_data in data.items():
+        models = {
+            model_name: model_info
+            for model_name, model_info in org_data.get("models", {}).items()
+            if _normalize_for_lookup(f"{org_id}/{model_name}") not in curated_keys
+        }
+        removed += len(org_data.get("models", {})) - len(models)
+        if models:
+            filtered[org_id] = {**org_data, "models": models}
+    return filtered, removed
+
+
 def backup_existing_file() -> Path | None:
     """Create a backup of the existing YAML file if it exists."""
     if OUTPUT_FILE.exists():
@@ -276,8 +362,11 @@ def main() -> None:
     models = fetch_together_models()
     print(f"Fetched {len(models)} models")
 
+    curated_keys = load_curated_model_keys(OUTPUT_FILE.parent)
+    print(f"Loaded {len(curated_keys)} curated model keys to skip")
+
     print("Processing models...")
-    new_data = process_models(models)
+    new_data = process_models(models, curated_keys=curated_keys)
     new_model_count = sum(len(org["models"]) for org in new_data.values())
     print(f"Processed {new_model_count} models from {len(new_data)} organizations")
 
@@ -293,6 +382,11 @@ def main() -> None:
         print(f"  {total} total models")
     else:
         data = new_data
+
+    # Drop any previously synced entries that have since become curated
+    data, removed = remove_curated_models(data, curated_keys)
+    if removed:
+        print(f"  {removed} models removed (curated in other data files)")
 
     # Backup existing file
     backup_path = backup_existing_file()

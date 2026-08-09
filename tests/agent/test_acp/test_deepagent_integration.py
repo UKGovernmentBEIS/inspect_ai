@@ -129,7 +129,6 @@ def test_deepagent_agent_dispatch_emits_agent_boundary_span() -> None:
                 model="mockllm/model",
                 tool_name="agent",
                 tool_arguments={
-                    "subagent_type": "custom_sub",
                     "prompt": "Inner: do the thing.",
                 },
             ),
@@ -225,7 +224,6 @@ def test_deepagent_outer_gets_live_subagent_gets_noop() -> None:
                 model="mockllm/model",
                 tool_name="agent",
                 tool_arguments={
-                    "subagent_type": "custom_sub",
                     "prompt": "Capture your session and submit.",
                 },
             ),
@@ -319,7 +317,6 @@ def test_deepagent_subagent_events_are_nested_inside_agent_span() -> None:
                 model="mockllm/model",
                 tool_name="agent",
                 tool_arguments={
-                    "subagent_type": "custom_sub",
                     "prompt": "Inner: just submit.",
                 },
             ),
@@ -488,7 +485,6 @@ def test_deepagent_cancel_propagates_through_subagent_dispatch() -> None:
                 model="mockllm/model",
                 tool_name="agent",
                 tool_arguments={
-                    "subagent_type": "custom_sub",
                     "prompt": "Just submit.",
                 },
             ),
