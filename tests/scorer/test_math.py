@@ -1,6 +1,9 @@
 import importlib.metadata
 import json
 import math as stdlib_math
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -418,52 +421,38 @@ async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> N
     assert result.metadata == {"math_scorer_status": "answer_timeout"}
 
 
-async def test_target_worker_crash_is_contextual_scorer_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def broken_run_sync(*_args: Any, **_kwargs: Any) -> None:
-        raise anyio.BrokenWorkerProcess
+def test_scorer_runs_under_unguarded_top_level_entry() -> None:
+    # Regression: the scorer must not run its work in a way that re-executes the
+    # caller's __main__ (as anyio.to_process did), which crashed the worker when
+    # the entry point was an unguarded console script or a top-level
+    # anyio.run(...). Run exactly that shape in a fresh interpreter.
+    script = textwrap.dedent(
+        r"""
+        import anyio
+        from test_helpers.utils import simple_task_state
+        from inspect_ai.scorer import Target, math
 
-    monkeypatch.setattr(math_module, "run_sync", broken_run_sync)
+        async def _main():
+            score = await math()(
+                simple_task_state(model_output=r"\boxed{42}"), Target(["42"])
+            )
+            print("RESULT", score.value)
 
-    with pytest.raises(
-        RuntimeError,
-        match="worker process exited unexpectedly while parsing the target",
-    ) as exc_info:
-        await math()(
-            simple_task_state(model_output="42"),
-            Target(["42"]),
-        )
-
-    assert isinstance(exc_info.value.__cause__, anyio.BrokenWorkerProcess)
-    assert math_module._math_worker_context().started is False
-
-
-async def test_answer_worker_crash_is_contextual_scorer_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = 0
-
-    async def staged_run_sync(*_args: Any, **_kwargs: Any) -> None:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            return None
-        raise anyio.BrokenWorkerProcess
-
-    monkeypatch.setattr(math_module, "run_sync", staged_run_sync)
-
-    with pytest.raises(
-        RuntimeError,
-        match="worker process exited unexpectedly while scoring the model answer",
-    ) as exc_info:
-        await math()(
-            simple_task_state(model_output="42"),
-            Target(["42"]),
-        )
-
-    assert isinstance(exc_info.value.__cause__, anyio.BrokenWorkerProcess)
-    assert math_module._math_worker_context().started is False
+        anyio.run(_main)
+        """
+    )
+    tests_dir = Path(__file__).parents[1]
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        cwd=str(tests_dir),
+    )
+    assert result.returncode == 0, result.stderr
+    assert "RESULT C" in result.stdout, (
+        f"stdout={result.stdout!r} stderr={result.stderr!r}"
+    )
 
 
 async def test_worker_queue_time_is_not_expression_timeout(

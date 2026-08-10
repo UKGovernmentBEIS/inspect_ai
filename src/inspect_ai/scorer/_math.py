@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 import anyio
 from anyio.lowlevel import RunVar
-from anyio.to_process import run_sync
+from anyio.to_thread import run_sync
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai.solver._task_state import TaskState
@@ -158,8 +158,11 @@ class _WorkerScore:
 
 @dataclass
 class _MathWorkerContext:
+    # `queue` bounds concurrent scorings; `thread_limiter` caps the worker
+    # threads (including any abandoned on timeout) so slow parses can't spawn an
+    # unbounded number of background threads.
     queue: anyio.CapacityLimiter
-    process_limiter: anyio.CapacityLimiter
+    thread_limiter: anyio.CapacityLimiter
     started: bool = False
 
 
@@ -172,7 +175,7 @@ def _math_worker_context() -> _MathWorkerContext:
     except LookupError:
         context = _MathWorkerContext(
             queue=anyio.CapacityLimiter(_MATH_WORKERS),
-            process_limiter=anyio.CapacityLimiter(_MATH_WORKERS),
+            thread_limiter=anyio.CapacityLimiter(_MATH_WORKERS),
         )
         _MATH_WORKER_CONTEXT.set(context)
         return context
@@ -1177,8 +1180,8 @@ def math() -> Scorer:
                     target_error = await run_sync(
                         _parse_targets_worker,
                         targets,
-                        cancellable=True,
-                        limiter=worker.process_limiter,
+                        abandon_on_cancel=True,
+                        limiter=worker.thread_limiter,
                     )
             worker.started = True
         except TimeoutError:
@@ -1187,12 +1190,6 @@ def math() -> Scorer:
                 explanation="Mathematical target exceeded the parsing time limit.",
                 metadata=_status_metadata("target_timeout"),
             )
-        except anyio.BrokenWorkerProcess as ex:
-            worker.started = False
-            raise RuntimeError(
-                "math() scorer worker process exited unexpectedly while parsing "
-                "the target."
-            ) from ex
 
         if target_error is not None:
             return Score.unscored(
@@ -1207,8 +1204,8 @@ def math() -> Scorer:
                         _score_answer_worker,
                         state.output.completion,
                         targets,
-                        cancellable=True,
-                        limiter=worker.process_limiter,
+                        abandon_on_cancel=True,
+                        limiter=worker.thread_limiter,
                     )
         except TimeoutError:
             worker.started = False
@@ -1217,12 +1214,6 @@ def math() -> Scorer:
                 explanation="Mathematical answer exceeded the scoring time limit.",
                 metadata=_status_metadata("answer_timeout"),
             )
-        except anyio.BrokenWorkerProcess as ex:
-            worker.started = False
-            raise RuntimeError(
-                "math() scorer worker process exited unexpectedly while scoring "
-                "the model answer."
-            ) from ex
 
         if result.status == "correct":
             return Score(
