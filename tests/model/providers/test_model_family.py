@@ -181,8 +181,21 @@ def test_bedrock_alias_uses_family_for_capabilities() -> None:
 
     assert api.is_claude()
     assert api.is_claude_4_7_or_later()
+    assert api.is_claude_4_6_or_later()
+    assert api.is_thinking_model()
     assert not api.is_nova()
     assert api.model_name == "custom-alias"
+
+
+def test_bedrock_alias_uses_family_for_thinking_detection() -> None:
+    set_model_info("custom-alias", ModelInfo(family="claude-3-5-sonnet-20241022"))
+    api = BedrockAPI.__new__(BedrockAPI)
+    api.model_name = "custom-alias"
+
+    assert api.is_claude()
+    assert api.is_claude_3_5()
+    assert not api.is_thinking_model()
+    assert not api.is_claude_4_6_or_later()
 
 
 def test_bedrock_alias_uses_family_for_default_max_tokens() -> None:
