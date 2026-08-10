@@ -1,3 +1,7 @@
+## Unreleased
+
+- Security: Parse `math()` scorer answers with a non-evaluating grammar and bounded worker process, preventing model output from executing Python on the evaluator host.
+
 ## 0.3.255 (09 August 2026)
 
 - Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
@@ -273,7 +277,6 @@
 
 ## 0.3.242 (29 June 2026)
 
-- Security: Parse `math()` scorer answers with a non-evaluating grammar and bounded worker process, preventing model output from executing Python on the evaluator host.
 - Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Log: Reading sample summaries from an in-progress `.eval` on a remote filesystem (e.g. S3) now fetches the per-sample journal summary files concurrently, reducing load time for logs with many samples.
 - Log: Sample event condensing is now linear, not quadratic, in conversation length.
