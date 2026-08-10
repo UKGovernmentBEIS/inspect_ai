@@ -59,7 +59,7 @@ These events bracket the execution of evaluations. A single `eval()` (or `eval_r
 | `on_eval_set_end` | `EvalSetEnd` | When an eval set finishes. |
 | `on_run_start` | `RunStart` | At the start of a single `eval()` / `eval_retry()` invocation (`data.task_names` lists the tasks to run). |
 | `on_run_end` | `RunEnd` | At the end of a run — `data.exception` and `data.logs` carry the outcome. |
-| `on_task_start` | `TaskStart` | When a task begins executing (`data.spec` is the `EvalSpec`). |
+| `on_task_start` | `TaskStart` | When a task begins executing (`data.spec` is the `EvalSpec`; `data.plan` is the resolved `EvalPlan`, including any `Task.setup` steps). |
 | `on_task_end` | `TaskEnd` | When a task completes (`data.log` is the `EvalLog`). |
 
 ### Sample

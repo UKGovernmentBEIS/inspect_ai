@@ -940,9 +940,10 @@ async def log_start(
     logger: TaskLogger,
     plan: Plan,
     config: GenerateConfig,
-) -> None:
+) -> EvalPlan:
     eval_plan = plan_to_eval_plan(plan, config)
     await logger.log_start(eval_plan)
+    return eval_plan
 
 
 def collect_eval_data(stats: EvalStats) -> None:

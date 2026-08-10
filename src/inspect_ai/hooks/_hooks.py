@@ -18,7 +18,13 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.event import Event
 from inspect_ai.hooks._legacy import override_api_key_legacy
-from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.log._log import (
+    EvalLog,
+    EvalPlan,
+    EvalSample,
+    EvalSampleSummary,
+    EvalSpec,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
@@ -94,6 +100,12 @@ class TaskStart:
     """The globally unique identifier for this task execution."""
     spec: EvalSpec
     """Specification of the task."""
+    plan: EvalPlan
+    """Solvers that will run, in order.
+
+    `Task.setup` steps are unrolled into the front of the plan by `resolve_plan`,
+    so they appear here too and are not distinguishable from solver steps.
+    """
 
 
 @dataclass(frozen=True)
@@ -646,12 +658,13 @@ async def emit_run_end(
     await _emit_to_all(lambda hook: hook.on_run_end(data))
 
 
-async def emit_task_start(logger: TaskLogger) -> None:
+async def emit_task_start(logger: TaskLogger, plan: EvalPlan) -> None:
     data = TaskStart(
         eval_set_id=logger.eval.eval_set_id,
         run_id=logger.eval.run_id,
         eval_id=logger.eval.eval_id,
         spec=logger.eval,
+        plan=plan,
     )
     await _emit_to_all(lambda hook: hook.on_task_start(data))
 
