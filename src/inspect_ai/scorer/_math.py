@@ -158,9 +158,18 @@ class _WorkerScore:
 
 @dataclass
 class _MathWorkerContext:
-    # `queue` bounds concurrent scorings; `thread_limiter` caps the worker
-    # threads (including any abandoned on timeout) so slow parses can't spawn an
-    # unbounded number of background threads.
+    # `queue` bounds the number of concurrent scorings; `thread_limiter` is
+    # passed to `to_thread.run_sync` to bound steady-state worker-thread
+    # concurrency.
+    #
+    # Neither bounds threads abandoned on timeout: with `abandon_on_cancel=True`,
+    # anyio's asyncio backend releases the limiter token as soon as `fail_after`
+    # cancels the await, while the worker thread keeps running. An input that
+    # passes the static complexity limits but still makes SymPy `.equals()` spin
+    # therefore leaves one CPU-bound thread running past the deadline, with no
+    # cap on how many accumulate; the static limits reduce but do not eliminate
+    # this. A real bound would need in-worker synchronization or a killable
+    # subprocess pool.
     queue: anyio.CapacityLimiter
     thread_limiter: anyio.CapacityLimiter
     started: bool = False
