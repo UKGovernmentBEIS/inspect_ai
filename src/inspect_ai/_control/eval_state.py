@@ -324,6 +324,23 @@ class EvalState:
     total_messages: int = 0
     """Cumulative message count, accumulated like :attr:`total_tokens`."""
 
+    refusals: int = 0
+    """Cumulative model refusals reported by this eval's finished samples.
+
+    Accumulated by :func:`record_sample_event_counts` as each sample leaves
+    ``active_samples``; the control endpoint adds the in-flight samples' live
+    counts on top, exactly as it does for :attr:`total_tokens`.
+
+    UNLIKE the usage totals, this counts every *attempt*: a sample retried under
+    ``retry_on_error`` contributes the refusals of each attempt, because these are
+    counts of events that happened rather than a property of the final state. That
+    also keeps them consistent with the process-global counters the TUI footer
+    shows, which likewise count every occurrence."""
+
+    http_retries: int = 0
+    """Cumulative HTTP retries (rate-limit and transient), accumulated like
+    :attr:`refusals` — every attempt, not just the final one."""
+
     def observe_started(self, started: float | None) -> None:
         """Fold a sample's start time into :attr:`started_at` (running minimum).
 
@@ -654,6 +671,33 @@ def record_samples_added(
             state.total += total
             if sample_ids:
                 state.sample_ids.extend(sample_ids)
+
+
+def record_sample_event_counts(
+    eval_id: str, *, refusals: int = 0, http_retries: int = 0
+) -> None:
+    """Accumulate a finished sample's refusal / HTTP-retry counts onto the eval.
+
+    Separate from the ``record_sample_*`` family, and called from a different
+    place, because it answers a different question. Those fire once per sample at
+    its *final* outcome and carry that outcome's usage; this fires as each
+    *attempt* leaves ``active_samples``, since a retried attempt's refusals and
+    retries really did happen and are usually the very thing being watched (see
+    :attr:`EvalState.refusals`).
+
+    Called with the counts rather than the sample so this module keeps no
+    dependency on the log package (it is imported during eval bootstrap, before
+    the log package finishes initializing). Silently no-ops if the eval isn't
+    registered, and short-circuits when there is nothing to add — the common case,
+    since most samples neither refuse nor retry.
+    """
+    if not refusals and not http_retries:
+        return
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.refusals += refusals
+            state.http_retries += http_retries
 
 
 def latest_eval_for_task(task_id: str) -> "EvalState | None":

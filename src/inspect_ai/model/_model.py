@@ -843,6 +843,7 @@ class Model:
             # to retries, so they need their timestamp updated so it accurately
             # reflects the full start/end time which we know here)
             from inspect_ai.event._model import ModelEvent
+            from inspect_ai.log._transcript import transcript
 
             assert isinstance(event, ModelEvent)
             event.timestamp = start_time
@@ -854,6 +855,10 @@ class Model:
                 if output.time is not None
                 else (completed - start_time).total_seconds()
             )
+
+            # re-emit so subscribers (e.g. the sample buffer, which serializes a
+            # snapshot at emission time) pick up the timing fields set above
+            transcript()._event_updated(event)
 
             _stamp_redacted_reasoning_tokens(output)
 
@@ -2542,7 +2547,11 @@ def record_and_check_model_usage(
     total_cost: float | None = None
     # Note that we handle info=None here because None is currently a valid output of get_model_info (e.g. for mock models)
     if info is not None and info.cost is not None:
-        total_cost = compute_model_cost(info.cost, usage)
+        # providers with a configurable prompt-cache TTL (currently Anthropic)
+        # expose it on the ModelAPI; longer TTLs bill cache writes at a higher rate
+        total_cost = compute_model_cost(
+            info.cost, usage, getattr(model.api, "cache_ttl", None)
+        )
         usage.total_cost = total_cost
 
     # record usage
@@ -2657,12 +2666,24 @@ sample_role_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
 )
 
 
-def compute_model_cost(cost_data: ModelCost, usage: ModelUsage) -> float:
+# Anthropic bills 1-hour cache writes at 2x the base input price, against 1.25x
+# for the default 5-minute writes, so a 1-hour write costs 2 / 1.25 times what
+# `ModelCost.input_cache_write` (the 5-minute rate) records.
+# https://platform.claude.com/docs/en/build-with-claude/prompt-caching#pricing
+CACHE_WRITE_1H_MULTIPLIER = 2.0 / 1.25
+
+
+def compute_model_cost(
+    cost_data: ModelCost, usage: ModelUsage, cache_ttl: str | None = None
+) -> float:
     """Compute cost for a model call based on usage and cost data.
 
     Args:
         cost_data: Per-token pricing for the model.
         usage: Token counts for the call.
+        cache_ttl: Prompt cache TTL used for the call (e.g. `"1h"`), for
+            providers that bill longer-lived cache writes at a higher rate.
+            `None` (the default) bills cache writes at `input_cache_write`.
 
     Returns:
         Cost in dollars.
@@ -2671,7 +2692,10 @@ def compute_model_cost(cost_data: ModelCost, usage: ModelUsage) -> float:
     cost += usage.output_tokens * cost_data.output / 1_000_000
 
     if usage.input_tokens_cache_write is not None:
-        cost += usage.input_tokens_cache_write * cost_data.input_cache_write / 1_000_000
+        input_cache_write = cost_data.input_cache_write
+        if cache_ttl == "1h":
+            input_cache_write *= CACHE_WRITE_1H_MULTIPLIER
+        cost += usage.input_tokens_cache_write * input_cache_write / 1_000_000
     if usage.input_tokens_cache_read is not None:
         cost += usage.input_tokens_cache_read * cost_data.input_cache_read / 1_000_000
 

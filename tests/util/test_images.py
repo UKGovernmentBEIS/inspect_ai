@@ -57,7 +57,7 @@ def test_anthropic_images():
 
 @skip_if_no_mistral
 def test_mistral_images():
-    check_images("mistral/pixtral-12b-2409")
+    check_images("mistral/mistral-small-latest")
 
 
 @skip_if_no_grok
