@@ -16,7 +16,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from .native import CompactionNative
 from .summary import CompactionSummary
-from .types import CompactionOutcome, CompactionStrategy
+from .types import CompactionResult, CompactionStrategy
 
 logger = getLogger(__name__)
 
@@ -84,7 +84,7 @@ class CompactionAuto(CompactionStrategy):
 
     async def _delegate_outcome(
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
-    ) -> CompactionOutcome:
+    ) -> CompactionResult:
         """Run native compaction, falling back to summary."""
         try:
             return await self._native.compact_outcome(model, messages, tools)
@@ -120,7 +120,7 @@ class CompactionAuto(CompactionStrategy):
     @override
     async def compact_outcome(
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
-    ) -> CompactionOutcome:
+    ) -> CompactionResult:
         """Compact using native compaction, falling back to summary.
 
         Reports the delegate that actually ran so the orchestrator applies

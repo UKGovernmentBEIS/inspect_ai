@@ -20,7 +20,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._compaction import (
     CompactionEdit,
-    CompactionOutcome,
+    CompactionResult,
     CompactionStrategy,
     CompactionSummary,
     CompactionTrim,
@@ -470,17 +470,17 @@ class _FlipFlopStrategy(CompactionStrategy):
 
     async def compact_outcome(
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
-    ) -> CompactionOutcome:
+    ) -> CompactionResult:
         self.calls += 1
         if self.calls == 1:
             # still over threshold, so _perform_compaction runs another pass
-            return CompactionOutcome(
+            return CompactionResult(
                 input=[ChatMessageAssistant(content="B" * 2000, id="big")],
                 message=None,
                 preserve_prefix=True,
                 applied="AlphaStrategy",
             )
-        return CompactionOutcome(
+        return CompactionResult(
             input=[ChatMessageAssistant(content="small", id="small")],
             message=None,
             preserve_prefix=True,
