@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Literal, Type, TypeVar, cast
 
@@ -100,7 +100,7 @@ class TaskStart:
     """The globally unique identifier for this task execution."""
     spec: EvalSpec
     """Specification of the task."""
-    plan: EvalPlan = field(default_factory=EvalPlan)
+    plan: EvalPlan
     """Solvers that will be run, in order, including setup solvers."""
 
 
