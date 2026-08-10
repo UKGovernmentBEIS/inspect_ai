@@ -1,6 +1,6 @@
 import pytest
 
-from inspect_ai._util.git import _redact_url_credentials
+from inspect_ai._util.git import redact_url_credentials
 
 
 @pytest.mark.parametrize(
@@ -38,5 +38,5 @@ from inspect_ai._util.git import _redact_url_credentials
         "empty",
     ],
 )
-def test_redact_url_credentials(url: str, expected: str) -> None:
-    assert _redact_url_credentials(url) == expected
+def testredact_url_credentials(url: str, expected: str) -> None:
+    assert redact_url_credentials(url) == expected

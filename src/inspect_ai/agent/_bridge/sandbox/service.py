@@ -1,5 +1,5 @@
 from logging import getLogger  # noqa: E402
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, cast
 
 import anyio
 from pydantic import JsonValue
@@ -8,8 +8,10 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
+from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
 from ..anthropic_api import inspect_anthropic_api_request
 from ..completions import inspect_completions_api_request
 from ..google_api import inspect_google_api_request
@@ -20,11 +22,51 @@ logger = getLogger(__name__)
 
 MODEL_SERVICE = "bridge_model_service"
 
+GenerateMethod = Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]
+
+
+def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
+    """Convert a failed generate into a forwardable provider-error result.
+
+    Any exception from the wrapped generate is returned (not raised) under
+    `PROVIDER_ERROR_KEY` so the sandbox service RPC delivers it via the `result`
+    channel. This lets the model proxy emit a provider-dialect error response
+    and stay up, instead of the RPC `error` channel triggering a fatal exit.
+
+    `LimitExceededError` is deliberately excluded so message/token/cost limit
+    hit during generation properly end the sample.
+    """
+
+    async def generate_forwarding_errors(
+        json_data: dict[str, JsonValue],
+    ) -> dict[str, JsonValue]:
+        try:
+            return await generate(json_data)
+        except LimitExceededError:
+            raise
+        except Exception as ex:
+            payload = provider_error_payload(ex)
+            # A payload with no recoverable HTTP status almost always means the
+            # failure came from our own request translation rather than the
+            # provider (a provider error carries a status). Log it with a
+            # traceback so a real bug isn't silently masked by forwarding it to
+            # the client as an error response.
+            if payload["status"] is None:
+                logger.warning(
+                    "Agent bridge model request failed with a non-provider error "
+                    "(forwarding to the client as an error response): %s",
+                    ex,
+                    exc_info=True,
+                )
+            return {PROVIDER_ERROR_KEY: cast(JsonValue, payload)}
+
+    return generate_forwarding_errors
+
 
 async def run_model_service(
     sandbox: SandboxEnvironment,
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
     instance: str,
     started: anyio.Event,
@@ -32,14 +74,18 @@ async def run_model_service(
     await sandbox_service(
         name=MODEL_SERVICE,
         methods={
-            "generate_completions": generate_completions(bridge),
-            "generate_responses": generate_responses(
-                web_search, code_execution, bridge
+            "generate_completions": _forward_provider_errors(
+                generate_completions(bridge)
             ),
-            "generate_anthropic": generate_anthropic(
-                web_search, code_execution, bridge
+            "generate_responses": _forward_provider_errors(
+                generate_responses(web_search, code_execution, bridge)
             ),
-            "generate_google": generate_google(web_search, code_execution, bridge),
+            "generate_anthropic": _forward_provider_errors(
+                generate_anthropic(web_search, code_execution, bridge)
+            ),
+            "generate_google": _forward_provider_errors(
+                generate_google(web_search, code_execution, bridge)
+            ),
             "list_tools": list_tools(bridge),
             "call_tool": call_tool(bridge),
         },
@@ -63,8 +109,8 @@ def generate_completions(
 
 
 def generate_responses(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -77,8 +123,8 @@ def generate_responses(
 
 
 def generate_anthropic(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -91,8 +137,8 @@ def generate_anthropic(
 
 
 def generate_google(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:

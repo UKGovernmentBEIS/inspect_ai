@@ -1,0 +1,11 @@
+{
+  "description": "Empty event sequence produces an empty skeleton.",
+  "events": [],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 0, "models": 0},
+    "spans": [],
+    "notables": [],
+    "overflow": {}
+  }
+}

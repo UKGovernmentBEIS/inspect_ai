@@ -116,10 +116,8 @@ def test_call_pool_index_prefix_match() -> None:
 
 def test_call_pool_index_prefix_breaks_on_mismatch() -> None:
     index = CallPoolIndex()
-    index.set_prev(
-        [{"content": "a"}, {"content": "b"}, {"content": "c"}],
-        [0, 1, 2],
-    )
+    prev: list[JsonValue] = [{"content": "a"}, {"content": "b"}, {"content": "c"}]
+    index.set_prev(prev, [0, 1, 2])
     # element 1 differs -> only index 0 reused, regardless of later equality
     result: list[JsonValue] = [{"content": "a"}, {"content": "X"}, {"content": "c"}]
     assert index.match_prefix(result) == [0]
@@ -219,9 +217,11 @@ def test_call_pool_index_set_prev_snapshots_message_values() -> None:
     msg["content"] = "b"
     # a new event whose content equals the mutated value must NOT match the
     # prefix: position 0 pooled "a", not "b"
-    assert index.match_prefix([{"role": "user", "content": "b"}]) == []
+    mutated_query: list[JsonValue] = [{"role": "user", "content": "b"}]
+    assert index.match_prefix(mutated_query) == []
     # and the genuine re-send of the originally pooled value still matches
-    assert index.match_prefix([{"role": "user", "content": "a"}]) == [0]
+    original_query: list[JsonValue] = [{"role": "user", "content": "a"}]
+    assert index.match_prefix(original_query) == [0]
 
 
 def test_call_pool_index_carry_forward_only_snapshots_divergent_tail() -> None:
@@ -245,13 +245,17 @@ def test_call_pool_index_carry_forward_only_snapshots_divergent_tail() -> None:
 
     # mutating the tail dict that was just snapshotted must not leak in
     second[1]["content"] = "c"
-    assert index.match_prefix(
-        [{"role": "user", "content": "a"}, {"role": "assistant", "content": "c"}]
-    ) == [0]
+    divergent: list[JsonValue] = [
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "c"},
+    ]
+    assert index.match_prefix(divergent) == [0]
     # the snapshotted tail value still matches its real re-send
-    assert index.match_prefix(
-        [{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"}]
-    ) == [0, 1]
+    resent: list[JsonValue] = [
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "b"},
+    ]
+    assert index.match_prefix(resent) == [0, 1]
 
 
 # ---------------------------------------------------------------------------

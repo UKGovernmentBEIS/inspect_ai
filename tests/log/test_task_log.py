@@ -1,3 +1,4 @@
+import types
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, cast
@@ -13,11 +14,14 @@ from inspect_ai._eval.run import eval_run
 from inspect_ai._eval.task import log as task_log_module
 from inspect_ai._eval.task.log import (
     TaskLogger,
-    resolve_external_registry_package_version,
+    resolve_package_revision,
+    resolve_task_distribution,
 )
 from inspect_ai._util.background import background_task_group, set_background_task_group
-from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.git import GitContext
+from inspect_ai._util.package import DirectUrl, VcsInfo
 from inspect_ai.dataset import Sample
+from inspect_ai.log import EvalRevision
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -34,86 +38,48 @@ from inspect_ai.log._recorders.recorder import Recorder
 from inspect_ai.model import get_model
 
 
-def test_external_package_version_logged():
-    task = Task()
-
-    # Imaginary package `eval_registry` v1.0.0
-    with (
-        patch.object(
-            type(task),
-            "registry_name",
-            property(lambda self: "eval_registry/my_task"),
-        ),
-        patch(
-            "inspect_ai._eval.task.log.importlib_metadata.version",
-            return_value="1.0.0",
-        ),
-    ):
-        [log] = eval(task, model="mockllm/model")
-
-    assert "eval_registry" in log.eval.packages
-    assert log.eval.packages["eval_registry"] == "1.0.0"
+def _fake_dist(name: str, version: str = "1.0.0") -> types.SimpleNamespace:
+    return types.SimpleNamespace(name=name, version=version)
 
 
-class TestResolveExternalRegistryPackageVersion:
+class TestResolveTaskDistribution:
     def test_returns_none_when_task_registry_name_is_none(self):
-        assert resolve_external_registry_package_version(None) is None
+        assert resolve_task_distribution(None) is None
 
-    def test_returns_none_when_registry_package_name_returns_none(self):
-        with patch(
-            "inspect_ai._eval.task.log.registry_package_name", return_value=None
-        ):
-            result = resolve_external_registry_package_version("some_task")
+    def test_returns_none_when_task_not_in_registry(self):
+        with patch("inspect_ai._eval.task.log.registry_lookup", return_value=None):
+            assert resolve_task_distribution("pkg/some_task") is None
 
-        assert result is None
-
-    def test_returns_none_when_package_is_internal(self):
-        # i.e. if the task happened to live in `inspect_ai`
-        with patch(
-            "inspect_ai._eval.task.log.registry_package_name", return_value=PKG_NAME
-        ):
-            result = resolve_external_registry_package_version("inspect_ai/some_task")
-
-        assert result is None
-
-    def test_returns_package_name_and_version_for_external_package(self):
+    def test_returns_none_when_no_distribution_for_object(self):
         with (
+            patch("inspect_ai._eval.task.log.registry_lookup", return_value=object()),
             patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="external_package",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.importlib_metadata.version",
-                return_value="1.2.3",
+                "inspect_ai._eval.task.log.get_distribution_for_object",
+                return_value=None,
             ),
         ):
-            result = resolve_external_registry_package_version(
-                "external_package/some_task"
-            )
+            assert resolve_task_distribution("pkg/some_task") is None
 
-        assert result is not None
-        assert result == ("external_package", "1.2.3")
-
-    def test_returns_none_when_package_not_found(self):
-        from importlib import metadata as importlib_metadata
-
+    def test_returns_none_for_inspect_ai_itself(self):
         with (
+            patch("inspect_ai._eval.task.log.registry_lookup", return_value=object()),
             patch(
-                "inspect_ai._eval.task.log.registry_package_name",
-                return_value="nonexistent_package",
-            ),
-            patch(
-                "inspect_ai._eval.task.log.importlib_metadata.version",
-                side_effect=importlib_metadata.PackageNotFoundError(
-                    "nonexistent_package"
-                ),
+                "inspect_ai._eval.task.log.get_distribution_for_object",
+                return_value=_fake_dist("inspect-ai"),
             ),
         ):
-            result = resolve_external_registry_package_version(
-                "nonexistent_package/some_task"
-            )
+            assert resolve_task_distribution("inspect_ai/some_task") is None
 
-        assert result is None
+    def test_returns_distribution_for_external_task(self):
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+        with (
+            patch("inspect_ai._eval.task.log.registry_lookup", return_value=object()),
+            patch(
+                "inspect_ai._eval.task.log.get_distribution_for_object",
+                return_value=dist,
+            ),
+        ):
+            assert resolve_task_distribution("harder_tasks/judge_run") is dist
 
 
 @pytest.mark.anyio
@@ -199,7 +165,9 @@ class _FlushRecorder:
             self.fail_times -= 1
             raise RuntimeError("flush failed")
 
-    async def log_sample(self, eval_spec: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(
+        self, eval_spec: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
         pass
 
 
@@ -207,9 +175,14 @@ class _FlushBufferDB:
     def __init__(self) -> None:
         self.removed: list[tuple[str | int, int]] = []
         self.removed_samples = anyio.Event()
+        self.completed_metadata: list[dict[str, Any] | None] = []
 
-    def complete_sample(self, summary: EvalSampleSummary) -> None:
-        pass
+    def complete_sample(
+        self,
+        summary: EvalSampleSummary,
+        sample_metadata: dict[str, Any] | None = None,
+    ) -> None:
+        self.completed_metadata.append(sample_metadata)
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
         self.removed.extend(samples)
@@ -217,6 +190,21 @@ class _FlushBufferDB:
 
     def cleanup(self) -> None:
         pass
+
+
+class _FinishRecorder(_FlushRecorder):
+    """A flush recorder whose ``log_finish`` can be paused mid-call."""
+
+    def __init__(self, location: str = "test.eval") -> None:
+        super().__init__(location)
+        self.log_finish_entered = anyio.Event()
+        self.allow_log_finish = anyio.Event()
+        self.allow_log_finish.set()
+
+    async def log_finish(self, *args: Any, **kwargs: Any) -> Any:
+        self.log_finish_entered.set()
+        await self.allow_log_finish.wait()
+        return None
 
 
 def _flush_logger(
@@ -230,6 +218,8 @@ def _flush_logger(
     logger.eval = _eval_spec()
     logger.flush_buffer = flush_buffer
     logger.flush_pending = []
+    logger.flush_quiet = []
+    logger.flush_quiet_retry = False
     logger._samples_completed = 0
     return logger
 
@@ -267,6 +257,20 @@ async def test_task_logger_flushes_pending_samples_at_threshold() -> None:
     assert recorder.flush_count == 1
     assert logger.flush_pending == []
     assert buffer_db.removed == [("sample", 1), ("sample-2", 1)]
+
+
+@pytest.mark.anyio
+async def test_task_logger_forwards_full_metadata_to_buffer() -> None:
+    recorder = _FlushRecorder()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(buffer_db=buffer_db, recorder=recorder)
+    metadata = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+
+    await logger.complete_sample(
+        _sample().model_copy(update={"metadata": metadata}), flush=False
+    )
+
+    assert buffer_db.completed_metadata == [metadata]
 
 
 @pytest.mark.parametrize(
@@ -337,6 +341,75 @@ async def test_task_logger_threshold_flush_cancels_scheduled_stale_flush() -> No
     assert recorder.flush_count == 1
     assert logger.flush_pending == []
     assert buffer_db.removed == [("sample", 1), ("sample-2", 1)]
+
+
+async def _call_log_finish(logger: TaskLogger) -> None:
+    await logger.log_finish("success", EvalStats())
+
+
+@pytest.mark.anyio
+async def test_log_finish_cancels_stale_timer_rearmed_by_racing_flush() -> None:
+    # Repro: an on-demand flush_samples() is mid-flush (holding _flush_lock) when
+    # a new sample appends to pending; log_finish() runs concurrently. The flush
+    # re-arms the stale-flush timer *outside* _flush_lock — after log_finish's
+    # pre-lock stop — so without a second stop the timer would survive finish
+    # (armed scope + empty pending). log_finish must cancel it.
+    recorder = _FinishRecorder()
+    recorder.allow_flush = anyio.Event()
+    recorder.allow_log_finish = anyio.Event()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=10, buffer_db=buffer_db, recorder=recorder)
+    logger.header_only = False
+    logger._stale_flush_interval = 60
+    logger.flush_pending = [("sample", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(logger.flush_samples)
+            await recorder.flush_started.wait()
+
+            # a sample completes during the flush → the flush re-arms a timer
+            # for the leftover pending sample once it releases _flush_lock
+            logger.flush_pending.append(("sample-2", 1))
+
+            tg.start_soon(_call_log_finish, logger)
+            recorder.allow_flush.set()
+
+            # finish is now parked inside recorder.log_finish (holding _flush_lock,
+            # _finished not yet set); wait for the racing re-arm to land
+            await recorder.log_finish_entered.wait()
+            while logger._stale_flush_cancel_scope is None:
+                await anyio.sleep(0)
+
+            recorder.allow_log_finish.set()
+
+        # both tasks joined: finish must have cancelled the racing timer
+        assert logger._finished is True
+        assert logger.flush_pending == []
+        assert logger._stale_flush_cancel_scope is None
+
+
+@pytest.mark.anyio
+async def test_flush_samples_failure_rearms_stale_timer() -> None:
+    # an on-demand flush stops the stale timer before flushing; if the flush
+    # fails it must re-arm so below-threshold pending samples are still retried
+    # automatically (not stranded until the next sample completes), and the
+    # error still propagates to the caller.
+    recorder = _FlushRecorder()
+    recorder.fail_times = 1
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=10, buffer_db=buffer_db, recorder=recorder)
+    logger._stale_flush_interval = 60
+    logger.flush_pending = [("sample", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        with pytest.raises(RuntimeError, match="flush failed"):
+            await logger.flush_samples()
+
+        # samples weren't dropped, and a stale timer is now armed to retry them
+        assert logger.flush_pending == [("sample", 1)]
+        assert buffer_db.removed == []
+        assert logger._stale_flush_cancel_scope is not None
 
 
 @pytest.mark.anyio
@@ -719,6 +792,175 @@ async def test_task_logger_reinit_waits_for_in_flight_stale_flush_and_restarts(
 
 
 @pytest.mark.anyio
+async def test_task_logger_quiet_samples_skip_threshold_and_timer() -> None:
+    # reused samples are re-logged with flush=False: they land in flush_quiet,
+    # never count toward the flush_buffer threshold, and never arm the
+    # stale-flush timer on their own
+    recorder = _FlushRecorder()
+    logger = _flush_logger(flush_buffer=2, recorder=recorder)
+
+    async with _running_stale_flush_timer(logger, start=False):
+        for i in range(3):
+            await logger.complete_sample(
+                _sample().model_copy(update={"id": f"reused-{i}"}),
+                flush=False,
+                write_through=True,
+            )
+        assert recorder.flush_count == 0
+        assert logger._stale_flush_cancel_scope is None
+
+    assert logger.flush_pending == []
+    assert logger.flush_quiet == [("reused-0", 1), ("reused-1", 1), ("reused-2", 1)]
+
+
+@pytest.mark.anyio
+async def test_flush_samples_drains_quiet_only_state() -> None:
+    # `inspect ctl task log-flush` regression: with only reused (quiet)
+    # samples buffered, the on-demand flush used to no-op and report 0
+    recorder = _FlushRecorder()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.flush_quiet = [("reused", 1), ("reused-2", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        flushed = await logger.flush_samples()
+
+    assert flushed == 2
+    assert recorder.flush_count == 1
+    assert logger.flush_quiet == []
+
+
+@pytest.mark.anyio
+async def test_flush_pending_samples_drains_both_lists_and_counts_both() -> None:
+    recorder = _FlushRecorder()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=10, buffer_db=buffer_db, recorder=recorder)
+    logger.flush_pending = [("live", 1)]
+    logger.flush_quiet = [("reused", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        flushed = await logger._flush_pending_samples()
+
+    assert flushed == 2
+    assert logger.flush_pending == []
+    assert logger.flush_quiet == []
+    # reused samples never had a buffer-db row, so only live ones are removed
+    assert buffer_db.removed == [("live", 1)]
+
+
+@pytest.mark.anyio
+async def test_task_logger_flush_preserves_quiet_tail() -> None:
+    recorder = _FlushRecorder()
+    recorder.allow_flush = anyio.Event()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.flush_quiet = [("reused", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(logger._flush_pending_samples)
+            await recorder.flush_started.wait()
+            logger.flush_quiet.append(("reused-late", 1))
+            recorder.allow_flush.set()
+
+    assert recorder.flush_count == 1
+    assert logger.flush_quiet == [("reused-late", 1)]
+
+
+@pytest.mark.anyio
+async def test_schedule_quiet_flush_writes_reused_samples() -> None:
+    recorder = _FlushRecorder()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.flush_quiet = [("reused", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        logger.schedule_quiet_flush()
+        with anyio.fail_after(5):
+            while logger.flush_quiet:
+                await anyio.sleep(0.01)
+
+    assert recorder.flush_count == 1
+    assert logger.flush_quiet == []
+    assert logger.flush_quiet_retry is False
+
+
+@pytest.mark.anyio
+async def test_schedule_quiet_flush_noop_when_nothing_quiet() -> None:
+    recorder = _FlushRecorder()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+
+    async with _running_stale_flush_timer(logger, start=False):
+        logger.schedule_quiet_flush()
+        await anyio.sleep(0.05)
+
+    assert recorder.flush_count == 0
+
+
+@pytest.mark.anyio
+async def test_quiet_settle_flush_failure_arms_sticky_retry_timer() -> None:
+    # a failed settle flush must arm the stale timer for quiet-only pending
+    # state, and the permit must be sticky: a second failure re-arms the
+    # retry rather than dying after one attempt
+    recorder = _FlushRecorder()
+    recorder.fail_times = 2
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.flush_quiet = [("reused", 1)]
+    logger._stale_flush_interval = 0.01
+
+    async with _running_stale_flush_timer(logger, start=False):
+        logger.schedule_quiet_flush()
+        with anyio.fail_after(5):
+            while logger.flush_quiet:
+                await anyio.sleep(0.01)
+
+    # settle flush failed (arming the retry timer), the timer's flush failed
+    # again (sticky flag re-armed it), and the third attempt wrote
+    assert recorder.flush_count == 3
+    assert logger.flush_quiet == []
+    assert logger.flush_quiet_retry is False
+
+
+@pytest.mark.anyio
+async def test_log_finish_clears_quiet_pending_state() -> None:
+    recorder = _FinishRecorder()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.header_only = False
+    logger.flush_quiet = [("reused", 1)]
+    logger.flush_quiet_retry = True
+
+    async with _running_stale_flush_timer(logger, start=False):
+        await logger.log_finish("success", EvalStats())
+
+    assert logger._finished is True
+    assert logger.flush_quiet == []
+    assert logger.flush_quiet_retry is False
+
+
+@pytest.mark.anyio
+async def test_reinit_clears_quiet_pending_state(monkeypatch, tmp_path) -> None:
+    recorder = _FlushRecorder(str(tmp_path / "reinit-quiet.eval"))
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.flush_quiet = [("reused", 1)]
+    logger.flush_quiet_retry = True
+    monkeypatch.setattr(
+        task_log_module, "SampleBufferDatabase", lambda **kwargs: _FlushBufferDB()
+    )
+
+    async with _running_stale_flush_timer(logger, start=False):
+        await logger.reinit()
+
+    assert logger.flush_quiet == []
+    assert logger.flush_quiet_retry is False
+
+
+def test_buffer_config_pending_includes_quiet() -> None:
+    logger = _flush_logger(flush_buffer=10)
+    logger._buffer_db = None
+    logger.flush_pending = [("live", 1)]
+    logger.flush_quiet = [("reused", 1), ("reused-2", 1)]
+
+    assert logger.buffer_config().pending == 3
+
+
+@pytest.mark.anyio
 async def test_task_logger_log_finish_stops_stale_flush_timer(tmp_path) -> None:
     recorder = EvalRecorder(str(tmp_path))
     spec = _eval_spec()
@@ -743,3 +985,155 @@ async def test_task_logger_log_finish_stops_stale_flush_timer(tmp_path) -> None:
         assert task_logger._stale_flush_cancel_scope is None
 
     assert task_logger._buffer_db is None
+
+
+class TestResolvePackageRevision:
+    def test_returns_none_for_none_distribution(self):
+        assert resolve_package_revision(None) is None
+
+    def test_returns_none_when_not_a_vcs_install(self):
+        dist = _fake_dist("external-package")
+        direct_url = DirectUrl(url="https://example.com/external_package-1.0.0.tar.gz")
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
+        ):
+            assert resolve_package_revision(dist) is None
+
+    def test_returns_revision_for_git_install(self):
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+        direct_url = DirectUrl(
+            url="https://github.com/METR/harder-tasks",
+            vcs_info=VcsInfo(
+                vcs="git", commit_id="523c14f000000000000000000000000000000000"
+            ),
+        )
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
+        ):
+            assert resolve_package_revision(dist) == EvalRevision(
+                type="git",
+                origin="https://github.com/METR/harder-tasks",
+                commit="523c14f000000000000000000000000000000000",
+            )
+
+    def test_strips_git_plus_prefix_from_origin(self):
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+        direct_url = DirectUrl(
+            url="git+https://github.com/METR/harder-tasks",
+            vcs_info=VcsInfo(
+                vcs="git", commit_id="523c14f000000000000000000000000000000000"
+            ),
+        )
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
+        ):
+            result = resolve_package_revision(dist)
+        assert result is not None
+        assert result.origin == "https://github.com/METR/harder-tasks"
+
+    def test_redacts_credentials_in_origin(self):
+        # a private package installed from an authenticated git URL records the
+        # credentialed URL in direct_url.json; it must not leak into the log
+        dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+        direct_url = DirectUrl(
+            url="git+https://x-access-token:ghs_secret@github.com/METR/harder-tasks",
+            vcs_info=VcsInfo(
+                vcs="git", commit_id="523c14f000000000000000000000000000000000"
+            ),
+        )
+        with patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
+        ):
+            result = resolve_package_revision(dist)
+        assert result is not None
+        assert result.origin == "https://github.com/METR/harder-tasks"
+        assert "ghs_secret" not in result.origin
+
+
+def test_package_and_revision_logged_for_git_install():
+    task = Task()
+    dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+    direct_url = DirectUrl(
+        url="https://github.com/METR/harder-tasks",
+        vcs_info=VcsInfo(
+            vcs="git", commit_id="523c14f000000000000000000000000000000000"
+        ),
+    )
+    with (
+        patch("inspect_ai._eval.task.log.resolve_task_distribution", return_value=dist),
+        patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
+        ),
+    ):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.packages["harder-tasks-judge-run"] == "0.1.0"
+    assert log.eval.revision is not None
+    assert log.eval.revision.origin == "https://github.com/METR/harder-tasks"
+    assert log.eval.revision.commit == "523c14f000000000000000000000000000000000"
+
+
+def test_package_revision_preferred_over_cwd_git_context():
+    task = Task()
+    dist = _fake_dist("harder-tasks-judge-run", "0.1.0")
+    direct_url = DirectUrl(
+        url="https://github.com/METR/harder-tasks",
+        vcs_info=VcsInfo(
+            vcs="git", commit_id="523c14f000000000000000000000000000000000"
+        ),
+    )
+    with (
+        patch("inspect_ai._eval.task.log.resolve_task_distribution", return_value=dist),
+        patch(
+            "inspect_ai._eval.task.log.get_distribution_direct_url",
+            return_value=direct_url,
+        ),
+        patch(
+            "inspect_ai._eval.task.log.git_context",
+            return_value=GitContext(
+                origin="https://github.com/some/cwd-repo",
+                commit="cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0",
+                dirty=False,
+            ),
+        ),
+    ):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.revision is not None
+    assert log.eval.revision.origin == "https://github.com/METR/harder-tasks"
+    assert log.eval.revision.commit == "523c14f000000000000000000000000000000000"
+
+
+def test_revision_none_when_task_not_from_package():
+    task = Task()
+    with patch(
+        "inspect_ai._eval.task.log.resolve_task_distribution", return_value=None
+    ):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.revision is None
+
+
+def test_falls_back_to_cwd_git_context_when_no_package_revision():
+    task = Task()
+    with (
+        patch("inspect_ai._eval.task.log.resolve_task_distribution", return_value=None),
+        patch(
+            "inspect_ai._eval.task.log.git_context",
+            return_value=GitContext(
+                origin="https://github.com/some/cwd-repo",
+                commit="cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0cwd0",
+                dirty=True,
+            ),
+        ),
+    ):
+        [log] = eval(task, model="mockllm/model")
+
+    assert log.eval.revision is not None
+    assert log.eval.revision.origin == "https://github.com/some/cwd-repo"
+    assert log.eval.revision.dirty is True

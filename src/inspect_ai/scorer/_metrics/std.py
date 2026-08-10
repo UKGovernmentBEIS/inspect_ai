@@ -36,6 +36,11 @@ def bootstrap_stderr(
         import numpy as np
 
         values = [to_float(score.score.value) for score in scores]
+        if not values:
+            # No scores to resample; return 0 rather than nan (and avoid the
+            # numpy empty-slice warnings from the resampling loop), mirroring
+            # the insufficient-data guards in stderr()/std()/var().
+            return 0.0
         std = np.std(
             [
                 np.mean(np.random.choice(values, len(values), replace=True))
@@ -90,7 +95,6 @@ def stderr(
             value_list.append(to_float(sample_score.score.value))
         clusters = np.array(cluster_list)
         values = np.array(value_list)
-        mean = float(np.mean(values))
 
         # Convert to numpy arrays and get unique clusters
         unique_clusters = np.unique(clusters)
@@ -101,6 +105,8 @@ def stderr(
         # than NaN/inf when there is only a single cluster.
         if cluster_count < 2:
             return 0.0
+
+        mean = float(np.mean(values))
 
         # Compute clustered variance using NumPy operations
         clustered_variance = 0.0

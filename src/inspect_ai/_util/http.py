@@ -9,6 +9,21 @@ def is_retryable_http_status(status_code: int) -> bool:
     return status_code in [408, 429] or (500 <= status_code < 600)
 
 
+def status_code_of(ex: BaseException) -> int | None:
+    """Best-effort HTTP status code extraction from a provider/model exception.
+
+    Checks the attribute names used across provider SDKs and Inspect's own
+    wrappers: `status_code` (Anthropic/OpenAI SDKs, `ModelGenerateError`) and
+    `code` (google-genai `APIError`). Returns None when no integer status is
+    found.
+    """
+    for attr in ("status_code", "code"):
+        value = getattr(ex, attr, None)
+        if isinstance(value, int):
+            return value
+    return None
+
+
 # Provider-specific reset-window headers (used as fallback when Retry-After is absent).
 # OpenAI / Groq / Azure OpenAI use the `x-ratelimit-reset-*` family; Anthropic
 # uses an `anthropic-ratelimit-*` family of its own (per

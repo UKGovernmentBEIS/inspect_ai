@@ -42,9 +42,15 @@ def frontier(
             # Filter out models with missing release dates for frontier calculation
             task_group_with_dates = task_group.dropna(subset=[date_column])
 
-            # For each release date, keep only the highest scoring model
-            best_per_date = task_group_with_dates.dropna(subset=[score_column]).loc[
-                task_group_with_dates.groupby(date_column)[score_column].idxmax()
+            # For each release date, keep only the highest scoring model.
+            # Drop rows with a missing score *before* grouping so that a
+            # release-date group whose scores are all missing is skipped
+            # rather than crashing: groupby(...).idxmax() raises (pandas >= 3)
+            # or yields NaN (pandas < 3, breaking the subsequent .loc) when a
+            # group contains only NA values.
+            scored_with_dates = task_group_with_dates.dropna(subset=[score_column])
+            best_per_date = scored_with_dates.loc[
+                scored_with_dates.groupby(date_column)[score_column].idxmax()
             ]
 
             # Sort by model_release_date to process chronologically

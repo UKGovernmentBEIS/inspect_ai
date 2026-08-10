@@ -204,6 +204,28 @@ def test_custom_headers_forwarded(tmp_path: Path) -> None:
     assert stream_mock.calls[0]["headers"] == headers
 
 
+def test_default_timeout_forwarded(tmp_path: Path) -> None:
+    content = b"data"
+    dest = tmp_path / "f.bin"
+
+    stream_mock = _stream_factory(_FakeStream(200, content))
+    with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+        download("http://example.com/x", _sha256(content), dest)
+
+    assert stream_mock.calls[0]["timeout"] == 5.0
+
+
+def test_custom_timeout_forwarded(tmp_path: Path) -> None:
+    content = b"data"
+    dest = tmp_path / "f.bin"
+
+    stream_mock = _stream_factory(_FakeStream(200, content))
+    with patch("inspect_ai._util.download.httpx.stream", stream_mock):
+        download("http://example.com/x", _sha256(content), dest, timeout=30)
+
+    assert stream_mock.calls[0]["timeout"] == 30
+
+
 def test_creates_parent_directory(tmp_path: Path) -> None:
     content = b"nested"
     dest = tmp_path / "deep" / "nested" / "f.bin"

@@ -1,1 +1,1 @@
-Token usage (using `total_tokens` of `ModelUsage`) is automatically recorded for all models. Token limits are checked whenever `generate()` is called.
+Token usage (using `total_tokens` of `ModelUsage`) is automatically recorded for all models. Token limits are checked whenever `generate()` is called. By default token limits meter all tokens; use a limit with type `"output"` to meter only output tokens (which include reasoning tokens), or an arithmetic formula to meter a weighted mix (see below).

@@ -290,14 +290,12 @@ class TestCustomSubagents:
         result = _eval_deepagent(
             agent_kwargs={"subagents": [custom]},
             outputs=[
-                # 1. Model delegates to custom subagent
+                # 1. Model delegates to custom subagent (a single subagent, so
+                # the tool takes no `subagent_type`)
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
                     tool_name="agent",
-                    tool_arguments={
-                        "subagent_type": "analyzer",
-                        "prompt": "Analyze this data.",
-                    },
+                    tool_arguments={"prompt": "Analyze this data."},
                 ),
                 # 2. Analyzer submits
                 ModelOutput.for_tool_call(
@@ -310,6 +308,15 @@ class TestCustomSubagents:
             ],
         )
         assert result["status"] == "success"
+        # Status alone stays "success" when the dispatch fails to parse, which
+        # would leave this test asserting nothing about dispatch.
+        agent_events = [
+            e
+            for e in result["events"]
+            if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
 
 
 class TestInstructionsInPrompt:

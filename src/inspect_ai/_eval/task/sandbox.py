@@ -1,6 +1,7 @@
 import base64
 import contextlib
 import os
+from logging import getLogger
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
@@ -18,11 +19,16 @@ from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import FileSystem, file, filesystem
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
-from inspect_ai.util._concurrency import concurrency
+from inspect_ai.util._concurrency import (
+    concurrency,
+    get_or_create_semaphore,
+    register_sandbox_limiter,
+)
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
@@ -39,6 +45,42 @@ from inspect_ai.util._sandbox.environment import (
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
+logger = getLogger(__name__)
+
+
+async def ensure_sandbox_limiter(
+    sandboxenv_type: type[SandboxEnvironment],
+    sandbox_type: str,
+    max_sandboxes: int | None,
+) -> int | None:
+    """Resolve a sandbox type's concurrency limit and pre-register its limiter.
+
+    The effective limit is ``max_sandboxes`` (the eval config value) or the
+    provider's ``default_concurrency()``; when one is in effect, the
+    process-global ``sandboxes/<type>`` semaphore is created (or fetched — the
+    registry coalesces on key) and tracked for the control channel. Called
+    *eagerly* by the run-level sandbox startup — before ``task_init``'s image
+    pulls — so a ``ctl config --max-sandboxes`` issued during startup lands
+    instead of being dropped, and idempotently by the per-sample acquire path
+    (covering per-sample sandbox overrides the startup pass can't see).
+    Returns the resolved limit, or ``None`` when no limit is in effect.
+    """
+    if max_sandboxes is None:
+        default_concurrency_fn = cast(
+            Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
+        )
+        max_sandboxes = default_concurrency_fn()
+    if max_sandboxes is not None:
+        semaphore = await get_or_create_semaphore(
+            sandbox_type,
+            max_sandboxes,
+            f"sandboxes/{sandbox_type}",
+            True,
+            resizable=True,
+        )
+        register_sandbox_limiter(sandbox_type, semaphore)
+    return max_sandboxes
+
 
 @contextlib.asynccontextmanager
 async def sandboxenv_context(
@@ -49,19 +91,18 @@ async def sandboxenv_context(
     sample: Sample,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
-    sandbox = await resolve_sandbox(sandbox, sample)
+    sandbox = await resolve_sandbox(sandbox, sample, task_name)
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
     # get sandboxenv_type
     sandboxenv_type = registry_find_sandboxenv(sandbox.type)
 
-    # see if there is a max_sandboxes in play (passed or from type)
-    if max_sandboxes is None:
-        default_concurrency_fn = cast(
-            Callable[[], int | None], getattr(sandboxenv_type, "default_concurrency")
-        )
-        max_sandboxes = default_concurrency_fn()
+    # per-sample sandbox overrides aren't visible to the run-level startup
+    # pass, so they get their limiter registered here on first use
+    max_sandboxes = await ensure_sandbox_limiter(
+        sandboxenv_type, sandbox.type, max_sandboxes
+    )
 
     # if we are enforcing max_sandboxes, then when samples are scheduled they may
     # not get interleaved properly across tasks (because the first task will come
@@ -70,9 +111,16 @@ async def sandboxenv_context(
     if max_sandboxes is not None:
         await anyio.sleep(random())
 
-    # enforce concurrency if required
+    # enforce concurrency if required. `resizable=True` backs it with a
+    # ResizableLimiter so the control channel's modify-limits directive can
+    # retune max_sandboxes mid-eval (see design/ctl/control-channel.md phase 3).
     sandboxes_cm = (
-        concurrency(sandbox.type, max_sandboxes, f"sandboxes/{sandbox.type}")
+        concurrency(
+            sandbox.type,
+            max_sandboxes,
+            f"sandboxes/{sandbox.type}",
+            resizable=True,
+        )
         if max_sandboxes is not None
         else contextlib.nullcontext()
     )
@@ -204,7 +252,7 @@ async def resolve_sandbox_for_task_and_sample(
     # (sandboxenv_context() -> resolve_sandbox()), so that the set of sandboxes we
     # initialize here matches what each sample actually uses at runtime -- including
     # docker-compatible per-sample configs (e.g. a per-sample ComposeConfig).
-    sandbox = await resolve_sandbox(sandbox, sample)
+    sandbox = await resolve_sandbox(sandbox, sample, task.name)
     if sandbox is not None:
         # see if there are environment variables required for init of this sample
         run_dir = task_run_dir(task)
@@ -225,6 +273,7 @@ async def resolve_sandbox_for_task_and_sample(
 async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
+    task_name: str | None = None,
 ) -> SandboxEnvironmentSpec | None:
     # resolved sandbox
     resolved_sandbox: SandboxEnvironmentSpec | None = None
@@ -250,6 +299,23 @@ async def resolve_sandbox(
             sandbox_config: SandboxEnvironmentConfigType | None = sample.sandbox.config
         else:
             sandbox_config = task_sandbox.config
+            # a docker-compatible sample config only reaches this branch when
+            # the task's sandbox type differs and isn't docker-compatible
+            if (
+                sample.sandbox is not None
+                and sample.sandbox.config is not None
+                and is_docker_compatible_config(sample.sandbox.config)
+            ):
+                subject = f"A sample in task '{task_name}'" if task_name else "A sample"
+                warn_once(
+                    logger,
+                    f"{subject} declares sandbox '{sample.sandbox.type}' with a "
+                    "Dockerfile/compose.yaml configuration, but the effective "
+                    f"sandbox type is '{task_sandbox.type}', which does not "
+                    "support that configuration. The sample's compose services, "
+                    "packages, and tools will not be available in the "
+                    f"'{task_sandbox.type}' sandbox.",
+                )
         resolved_sandbox = SandboxEnvironmentSpec(task_sandbox.type, sandbox_config)
     elif sample.sandbox is not None:
         resolved_sandbox = sample.sandbox

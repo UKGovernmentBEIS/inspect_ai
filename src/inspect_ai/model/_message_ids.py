@@ -41,11 +41,10 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
         hash_bytes = mmh3.hash_bytes(json_str.encode())
         return hash_bytes.hex()
 
-    def get_id(message: ChatMessage, conversation: list[ChatMessage]) -> str:
+    def get_id(message: ChatMessage, conversation_ids: set[str]) -> str:
         """Get stable ID for message, avoiding duplicates within conversation."""
         msg_hash = hash_message(message)
         existing_ids = hash_to_ids.get(msg_hash, [])
-        conversation_ids = {m.id for m in conversation if m.id}
 
         # Reuse existing ID if not already in this conversation
         for existing_id in existing_ids:
@@ -57,26 +56,30 @@ def stable_message_ids() -> Callable[[Sequence[ChatMessage] | ModelEvent], None]
         hash_to_ids.setdefault(msg_hash, []).append(new_id)
         return new_id
 
-    def apply_ids_to_messages(messages: Sequence[ChatMessage]) -> None:
-        """Apply stable IDs to a list of messages."""
-        processed: list[ChatMessage] = []
+    def apply_ids_to_messages(messages: Sequence[ChatMessage]) -> set[str]:
+        """Apply stable IDs to a list of messages, returning the assigned IDs."""
+        # Maintain the set of assigned IDs incrementally and pass it into
+        # get_id(). Avoids get_id() rebuilding it from the message list
+        # on every call (which would mean O(n^2) ID assignment).
+        conversation_ids: set[str] = set()
         for msg in messages:
-            msg.id = get_id(msg, processed)
-            processed.append(msg)
+            msg.id = get_id(msg, conversation_ids)
+            conversation_ids.add(msg.id)
+        return conversation_ids
 
     def apply_ids(target: Sequence[ChatMessage] | ModelEvent) -> None:
         """Apply stable IDs to messages or a ModelEvent."""
         # Use duck typing to check for ModelEvent (avoid circular import)
         if hasattr(target, "event") and getattr(target, "event") == "model":
             input_messages = list(target.input)  # type: ignore[union-attr]
-            apply_ids_to_messages(input_messages)
+            conversation_ids = apply_ids_to_messages(input_messages)
             output = target.output  # type: ignore[union-attr]
             if (
                 isinstance(output, ModelOutput)
                 and output.choices
                 and len(output.choices) > 0
             ):
-                output.message.id = get_id(output.message, input_messages)
+                output.message.id = get_id(output.message, conversation_ids)
         else:
             apply_ids_to_messages(target)  # type: ignore[arg-type]
 

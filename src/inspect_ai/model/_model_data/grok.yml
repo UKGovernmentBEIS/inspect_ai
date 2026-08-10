@@ -129,6 +129,15 @@ grok:
       versions:
         grok-4.3-latest:
           snapshot: latest
+    grok-4.5:
+      display_name: "Grok 4.5"
+      release_date: 2026-07-08
+      context_length: 500000
+      reasoning: True
+      # Grok 4.5 accepts reasoning_effort (low/medium/high) and defaults to
+      # `high`; reasoning cannot be disabled.
+      # https://docs.x.ai/developers/grok-4-5
+      reasoning_effort_default: high
     grok-3:
       display_name: "Grok 3"
       release_date: 2025-02-17

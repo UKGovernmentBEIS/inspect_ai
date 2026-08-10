@@ -637,7 +637,7 @@ async def test_score_model_roles_override():
 
 
 @pytest.mark.anyio
-async def test_score_resolves_attachments_for_scorer_state_and_transcript():
+async def test_score_resolves_attachments_for_scorer_state_and_transcript() -> None:
     from inspect_ai._eval.score import _run_score_task
     from inspect_ai.log import EvalLog
     from inspect_ai.log._log import (
@@ -747,7 +747,7 @@ async def test_score_resolves_attachments_for_scorer_state_and_transcript():
     }
 
 
-async def test_score_restores_sample_timelines():
+async def test_score_restores_sample_timelines() -> None:
     """Re-scoring should expose stored ``sample.timelines`` to scorers.
 
     During a live eval, solvers populate ``transcript().timelines`` via

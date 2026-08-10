@@ -192,18 +192,27 @@ div.ap-player div.ap-control-bar * {
 div.ap-control-bar svg.ap-icon path {
   fill: var(--term-color-foreground);
 }
-div.ap-control-bar span.ap-button {
+div.ap-control-bar button.ap-button {
   display: flex;
   flex: 0 0 auto;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
 }
-div.ap-control-bar span.ap-playback-button {
+div.ap-control-bar button.ap-playback-button {
   width: 12px;
   height: 12px;
   padding: 10px;
   margin: 0 0 0 2px;
 }
-div.ap-control-bar span.ap-playback-button svg {
+div.ap-control-bar button.ap-playback-button svg {
   height: 12px;
   width: 12px;
 }
@@ -266,61 +275,61 @@ div.ap-control-bar .ap-progressbar .ap-bar .ap-gutter-full {
 div.ap-control-bar.ap-seekable .ap-progressbar .ap-bar {
   cursor: pointer;
 }
-div.ap-control-bar .ap-fullscreen-button {
+div.ap-control-bar button.ap-fullscreen-button {
   width: 14px;
   height: 14px;
   padding: 9px;
   margin: 0 2px 0 4px;
 }
-div.ap-control-bar .ap-fullscreen-button svg {
+div.ap-control-bar button.ap-fullscreen-button svg {
   width: 14px;
   height: 14px;
 }
-div.ap-control-bar .ap-fullscreen-button svg.ap-icon-fullscreen-on {
+div.ap-control-bar button.ap-fullscreen-button svg.ap-icon-fullscreen-on {
   display: inline;
 }
-div.ap-control-bar .ap-fullscreen-button svg.ap-icon-fullscreen-off {
+div.ap-control-bar button.ap-fullscreen-button svg.ap-icon-fullscreen-off {
   display: none;
 }
-div.ap-control-bar .ap-fullscreen-button .ap-tooltip {
+div.ap-control-bar button.ap-fullscreen-button .ap-tooltip {
   right: 5px;
   left: initial;
   transform: none;
 }
-div.ap-control-bar .ap-kbd-button {
+div.ap-control-bar button.ap-kbd-button {
   height: 14px;
   padding: 9px;
   margin: 0 0 0 4px;
 }
-div.ap-control-bar .ap-kbd-button svg {
+div.ap-control-bar button.ap-kbd-button svg {
   width: 26px;
   height: 14px;
 }
-div.ap-control-bar .ap-kbd-button .ap-tooltip {
+div.ap-control-bar button.ap-kbd-button .ap-tooltip {
   right: 5px;
   left: initial;
   transform: none;
 }
-div.ap-control-bar .ap-speaker-button {
+div.ap-control-bar button.ap-speaker-button {
   width: 19px;
   padding: 6px 9px;
   margin: 0 0 0 4px;
   position: relative;
 }
-div.ap-control-bar .ap-speaker-button svg {
+div.ap-control-bar button.ap-speaker-button svg {
   width: 19px;
 }
-div.ap-control-bar .ap-speaker-button .ap-tooltip {
+div.ap-control-bar button.ap-speaker-button .ap-tooltip {
   left: -50%;
   transform: none;
 }
 div.ap-wrapper.ap-hud .ap-control-bar {
   opacity: 1;
 }
-div.ap-wrapper:fullscreen .ap-fullscreen-button svg.ap-icon-fullscreen-on {
+div.ap-wrapper:fullscreen button.ap-fullscreen-button svg.ap-icon-fullscreen-on {
   display: none;
 }
-div.ap-wrapper:fullscreen .ap-fullscreen-button svg.ap-icon-fullscreen-off {
+div.ap-wrapper:fullscreen button.ap-fullscreen-button svg.ap-icon-fullscreen-off {
   display: inline;
 }
 span.ap-progressbar span.ap-marker-container {
@@ -441,6 +450,48 @@ span.ap-marker-container:hover span.ap-marker {
   background-color: var(--term-color-foreground);
   padding: 0.5em 0.75em;
   text-transform: uppercase;
+}
+.ap-player .ap-overlay-keystrokes {
+  position: absolute;
+  top: auto;
+  left: auto;
+  right: 20px;
+  bottom: var(--ap-keystrokes-bottom);
+  z-index: 20;
+  width: auto;
+  height: auto;
+  font-size: 18px;
+  text-align: right;
+  padding: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35em;
+  pointer-events: none;
+}
+.ap-player .ap-overlay-keystrokes .ap-keystroke-pill {
+  font-family: var(--term-font-family);
+  font-size: inherit;
+  opacity: 1;
+  transition: opacity 80ms ease;
+}
+.ap-player .ap-overlay-keystrokes .ap-keystroke-pill kbd {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 1.2em;
+  color: var(--term-color-background);
+  background-color: var(--term-color-foreground);
+  padding: 0.3em 0.5em;
+  border-radius: 0.2em;
+  font-family: inherit;
+  font-size: 0.85em;
+  font-weight: 600;
+  border: none;
+  margin: 0;
+}
+.ap-player .ap-overlay-keystrokes .ap-keystroke-pill.fading {
+  opacity: 0;
+  transition: opacity 700ms ease;
 }
 .ap-player .ap-overlay-help {
   background-color: rgba(0, 0, 0, 0.8);

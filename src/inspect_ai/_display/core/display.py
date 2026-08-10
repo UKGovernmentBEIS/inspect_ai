@@ -39,7 +39,15 @@ class TaskSpec:
     agent: str | None
 
 
-CancelType = Literal["abort", "retry"] | None
+CancelType = Literal["abort", "retry", "score", "error"] | None
+"""How a task cancel resolves.
+
+``abort`` and ``retry`` tear the task's cancel scope down (the classic
+user-cancel paths). ``score`` and ``error`` are graceful sample resolutions:
+the scope is left alone — in-flight samples are interrupted with the matching
+``ActiveSample.interrupt`` action, queued samples are abandoned, and the task
+runs to natural completion (see ``inspect_ai._control.cancel.cancel_task``).
+"""
 
 
 @dataclass
