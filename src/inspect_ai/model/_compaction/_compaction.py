@@ -260,13 +260,27 @@ def compaction(
                     + [m for m in candidates if m.role != "system"]
                     + c_input[lead:]
                 )
-                c_message_was_in_input = c_message is not None and any(
-                    m is c_message for m in pre_collapse_input
-                )
+                # #3886 nulls c_message when a collapse absorbs the summary:
+                # the merged message inherits the summary metadata and stays
+                # replaceable, so the caller must not append a second copy.
+                # That holds only when the strategy's own output caused the
+                # merge. When a prefix message we spliced in absorbed the
+                # summary, the caller still needs to record it.
+                strategy_absorbed_c_message = False
+                if c_message is not None and any(
+                    m is c_message for m in compaction_result.outcome.input
+                ):
+                    collapsed_output = collapse_consecutive_messages_for_api(
+                        list(compaction_result.outcome.input), target_model.api
+                    )
+                    strategy_absorbed_c_message = not any(
+                        m is c_message for m in collapsed_output
+                    )
+
                 c_input = collapse_consecutive_messages_for_api(
                     pre_collapse_input, target_model.api
                 )
-                if c_message_was_in_input and not any(m is c_message for m in c_input):
+                if strategy_absorbed_c_message:
                     c_message = None
 
                 # update input
