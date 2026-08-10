@@ -104,8 +104,12 @@ def bundle_log_dir(
     if output_dir == "":
         raise PrerequisiteError("You must provide an 'output_dir'")
 
-    # ensure output_dir is not a subdirectory of log_dir (inapplicable to
-    # Hugging Face targets, which are uploaded rather than written locally)
+    # Bundling copies log_dir into output_dir, so an output_dir inside
+    # log_dir would make the bundle part of its own input on the next run.
+    # Skip the check for Hugging Face targets: they are assembled in a temp
+    # dir and uploaded, so there is no local output path to contain — and
+    # resolving 'hf/...' as a relative local path here is what produced the
+    # spurious subdirectory error in #4743.
     if not is_hf_target(output_dir):
         log_fs = filesystem(log_dir, fs_options)
         log_dir_abs = absolute_file_path(log_dir).rstrip(log_fs.sep) + log_fs.sep
