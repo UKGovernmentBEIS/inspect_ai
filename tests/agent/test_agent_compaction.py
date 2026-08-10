@@ -402,7 +402,12 @@ def test_compaction_event_records_summary_fallback() -> None:
 
     assert metadata["strategy"] == "CompactionAuto"
     assert metadata["strategy_applied"] == "CompactionSummary"
-    assert "not supported" in metadata["fallback_reason"]
+    fallback_reason = metadata["fallback_reason"]
+    assert "not supported" in fallback_reason
+    # Pins FIX 3: the provider's own message must appear (not be dropped by
+    # a doubly-nested repr), and exactly once (not doubled).
+    provider_message = "MockLLM does not support native compaction."
+    assert fallback_reason.count(provider_message) == 1
 
 
 def test_compaction_event_records_native_path(
@@ -449,6 +454,7 @@ def test_compaction_event_omits_provenance_for_plain_strategy() -> None:
     assert metadata["strategy"] == "CompactionSummary"
     assert "strategy_applied" not in metadata
     assert "fallback_reason" not in metadata
+    assert "passes" not in metadata
 
 
 class _FlipFlopStrategy(CompactionStrategy):
