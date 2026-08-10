@@ -65,6 +65,15 @@ class _CompactionRun(NamedTuple):
     passes: list[str]
     """Applied strategy name for each pass, in order."""
 
+    fallback_reason: str | None
+    """First fallback reason across all passes, not just the final one.
+
+    A run can fall back on an early pass and then succeed on its preferred
+    delegate later, leaving the final outcome with no reason recorded. The
+    fallback still happened and still cost a generate, so it is reported at
+    run level.
+    """
+
 
 def compaction(
     strategy: CompactionStrategy,
@@ -312,8 +321,11 @@ def compaction(
                 outcome = compaction_result.outcome
                 if outcome.applied != strategy.__class__.__name__:
                     metadata["strategy_applied"] = outcome.applied
-                if outcome.fallback_reason is not None:
-                    metadata["fallback_reason"] = outcome.fallback_reason
+                # Run level, not final-pass level: a run that fell back on an
+                # early pass and then succeeded natively still paid for the
+                # fallback, and the final outcome carries no reason.
+                if compaction_result.fallback_reason is not None:
+                    metadata["fallback_reason"] = compaction_result.fallback_reason
                 if len(set(compaction_result.passes)) > 1:
                     metadata["passes"] = list(compaction_result.passes)
 
@@ -485,8 +497,10 @@ async def _perform_compaction(
     """
     MAX_ITERATIONS = 3
     passes: list[str] = []
+    fallback_reason: str | None = None
     outcome = await strategy.compact_outcome(model, messages, tools)
     passes.append(outcome.applied)
+    fallback_reason = fallback_reason or outcome.fallback_reason
     compacted_tokens = await model.count_tokens(outcome.input)
     # Surviving messages may still carry redacted-reasoning cost that
     # `count_tokens` (and `usage.input_tokens`) doesn't see; include it
@@ -503,6 +517,7 @@ async def _perform_compaction(
         # Try compacting again
         outcome = await strategy.compact_outcome(model, list(outcome.input), tools)
         passes.append(outcome.applied)
+        fallback_reason = fallback_reason or outcome.fallback_reason
         compacted_tokens = await model.count_tokens(outcome.input)
         hidden_tokens = _redacted_reasoning_tokens_total(outcome.input, model)
         total_compacted = tool_tokens + compacted_tokens + hidden_tokens
@@ -523,7 +538,9 @@ async def _perform_compaction(
             f"tool definitions and prefix."
         )
 
-    return _CompactionRun(outcome=outcome, passes=passes)
+    return _CompactionRun(
+        outcome=outcome, passes=passes, fallback_reason=fallback_reason
+    )
 
 
 def _resolve_threshold(model: Model, threshold: int | float) -> int:

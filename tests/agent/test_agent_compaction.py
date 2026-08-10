@@ -519,3 +519,63 @@ def test_compaction_event_records_differing_passes() -> None:
 
     assert metadata["passes"] == ["AlphaStrategy", "BetaStrategy"]
     assert metadata["strategy_applied"] == "BetaStrategy"
+
+
+class _FallbackThenNativeStrategy(CompactionStrategy):
+    """Falls back on its first pass, then succeeds natively on the second.
+
+    Relies on the dataset having a single sample: the call counter is
+    instance state, so it's only deterministic across one sample's events.
+    """
+
+    def __init__(self) -> None:
+        # See _SUMMARY_THRESHOLD: must clear react's fixed overhead.
+        super().__init__(type="summary", threshold=500, memory=False)
+        self.calls = 0
+
+    async def compact_outcome(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> CompactionResult:
+        self.calls += 1
+        if self.calls == 1:
+            # still over threshold, so _perform_compaction runs another pass
+            return CompactionResult(
+                input=[ChatMessageAssistant(content="B" * 4000, id="big")],
+                message=None,
+                preserve_prefix=True,
+                applied="CompactionSummary",
+                fallback_reason="native compaction not supported: nope",
+            )
+        return CompactionResult(
+            input=[ChatMessageAssistant(content="small", id="small")],
+            message=None,
+            preserve_prefix=True,
+            applied="CompactionNative",
+        )
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        outcome = await self.compact_outcome(model, messages, tools)
+        return outcome.input, outcome.message
+
+
+def test_compaction_event_reports_fallback_from_an_earlier_pass() -> None:
+    """A fallback on an early pass survives a later success on the final pass.
+
+    Reading `fallback_reason` off the final outcome alone would lose it: that
+    pass carries no reason, but the summarization it fell back to still ran
+    and still cost a generate.
+    """
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=_FallbackThenNativeStrategy()),
+    )
+
+    log = eval(task, model=_long_conversation_model())[0]
+    assert log.status == "success"
+    metadata = _compaction_metadata(log)
+
+    assert metadata["strategy_applied"] == "CompactionNative"
+    assert "not supported" in metadata["fallback_reason"]
+    assert metadata["passes"] == ["CompactionSummary", "CompactionNative"]
