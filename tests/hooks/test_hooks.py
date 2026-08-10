@@ -189,10 +189,9 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
 def test_task_start_carries_plan_including_setup_steps(
     mock_hooks: MockHooks,
 ) -> None:
-    eval(
-        Task(dataset=[Sample("sample_1")], setup=_setup_marker_solver()),
-        model="mockllm/model",
-    )
+    task = Task(dataset=[Sample("sample_1")], setup=_setup_marker_solver())
+
+    eval(task, model="mockllm/model")
 
     assert len(mock_hooks.task_start_events) == 1
     steps = [step.solver for step in mock_hooks.task_start_events[0].plan.steps]
