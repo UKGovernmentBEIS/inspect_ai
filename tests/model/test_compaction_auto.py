@@ -13,7 +13,8 @@ from inspect_ai.model import (
 from inspect_ai.model._compaction._compaction import compaction
 from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.model._compaction.native import CompactionNative
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import Model, get_model
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 def _sample_messages() -> list[ChatMessage]:
@@ -394,3 +395,50 @@ async def test_auto_native_then_summary_fallback_restores_prompt_once(
     assert second[0].role == "system"
     assert sum(1 for m in second if m.role == "system") == 1
     assert sum(1 for m in second if m.id == "input1") == 1
+
+
+class _MarkerAuto(CompactionAuto):
+    """A CompactionAuto subclass overriding compact() with a post-processing step.
+
+    Third-party shape: this is the pattern the orchestrator's per-call switch
+    to compact_outcome() must not silently bypass.
+    """
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        result, message = await super().compact(model, messages, tools)
+        marker = ChatMessageUser(content="MARKER", id="marker")
+        return [*result, marker], message
+
+
+async def test_auto_subclass_compact_override_runs_through_orchestrator() -> None:
+    """A subclass overriding compact() is not bypassed by compact_outcome()."""
+    model = get_model("mockllm/model")
+    strategy = _MarkerAuto(threshold=100)
+    handler = compaction(strategy, prefix=_prefix(), tools=None, model=model)
+
+    messages: list[ChatMessage] = [
+        *_prefix(),
+        ChatMessageAssistant(content="A" * 200, id="msg1"),
+        ChatMessageUser(content="Q" * 200, id="msg2"),
+    ]
+
+    result, _ = await handler.compact_input(messages)
+
+    assert any(m.id == "marker" for m in result)
+
+
+async def test_auto_subclass_compact_outcome_direct_call_terminates() -> None:
+    """compact_outcome() on a compact()-overriding subclass must not recurse.
+
+    Reports `applied` as the subclass name since the subclass has replaced
+    the delegation logic and per-delegate provenance can't be known.
+    """
+    model = get_model("mockllm/model")
+    strategy = _MarkerAuto(threshold=100)
+
+    outcome = await strategy.compact_outcome(model, _sample_messages(), [])
+
+    assert any(m.id == "marker" for m in outcome.input)
+    assert outcome.applied == "_MarkerAuto"
