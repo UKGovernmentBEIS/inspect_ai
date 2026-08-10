@@ -94,6 +94,35 @@ Hooks run within the evaluation, so keep them fast and resilient. Events from di
 
 In addition to these lifecycle events, two non-event methods let you control hook behaviour: [`enabled()`](#disabling-hooks) gates whether a hook is active, and [`override_api_key()`](#api-key-override) can rewrite model API keys. Both are covered below.
 
+## Hook Object Lifecycle
+
+The `@hooks` decorator instantiates your class **once**, when the decorator runs (i.e. when the defining module is imported), and registers that single instance. Inspect never creates a second instance and never destroys it---the registry holds it for the lifetime of the process, and there is no teardown event. Do per-run cleanup in `on_run_end` or `on_eval_set_end`, as the Weights & Biases example above does with `wandb.finish()`.
+
+Because there is exactly one instance, `self` is shared by every eval set, run, task, sample, and epoch in the process:
+
+-   State stored on `self` by one sample is visible to all the others. Key per-sample state by `data.sample_id` and remove it in `on_sample_end`, otherwise it accumulates for the life of the process.
+-   Samples run concurrently on a single event loop, so a call for one sample can begin at any `await` in an in-flight call for another. Don't assume one call completes before the next begins. (Within a single sample, `on_sample_event` calls are serialized.)
+-   `__init__` runs at registration, before eval configuration is resolved. Whether an event loop is running at that point depends on how the hook is packaged and how the eval was started---an entry-point package loaded by the `inspect eval` CLI is initialized before the loop starts, whereas a hook defined alongside a task in a task file is imported during the eval, on the loop. Never assume either: defer event-loop-bound setup (async clients, `anyio` primitives) to `on_run_start`.
+
+For example, to time each sample:
+
+``` python
+@hooks(name="sample_timer", description="Records sample durations")
+class SampleTimer(Hooks):
+    def __init__(self) -> None:
+        # safe: plain data, no event loop needed
+        self.started_at: dict[str, float] = {}
+
+    async def on_sample_start(self, data: SampleStart) -> None:
+        self.started_at[data.sample_id] = time.monotonic()
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        # pop, not read: leaving entries behind leaks for the whole process
+        started_at = self.started_at.pop(data.sample_id, None)
+        if started_at is not None:
+            print(f"{data.sample_id} took {time.monotonic() - started_at:.1f}s")
+```
+
 ## Registration
 
 Packages that provide hooks should register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads the extension at startup.
