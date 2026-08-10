@@ -353,6 +353,31 @@ def test_consume_compaction_event_flags_a_fallback() -> None:
     )
 
 
+def test_consume_compaction_event_flags_a_fallback_that_later_recovered() -> None:
+    """A run that fell back early then succeeded natively is still flagged.
+
+    The orchestrator reports ``fallback_reason`` at run level rather than
+    from the final pass, so the summarization it paid for stays visible even
+    though the last pass was native.
+    """
+    state = SessionState()
+    state.consume_compaction_event(
+        _compaction_payload(
+            metadata={
+                "strategy": "CompactionAuto",
+                "strategy_applied": "CompactionNative",
+                "fallback_reason": "native compaction not supported: ...",
+                "passes": ["CompactionSummary", "CompactionNative"],
+            }
+        )
+    )
+    chip = state.items[0]
+    assert isinstance(chip, EventChip)
+    assert (
+        chip.header_summary == "compaction · native (fell back) · tokens 12.3k → 4.1k"
+    )
+
+
 def test_consume_compaction_event_keeps_discriminator_without_provenance() -> None:
     """A non-delegating strategy emits no strategy_applied; chip is unchanged."""
     state = SessionState()
