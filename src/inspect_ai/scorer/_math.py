@@ -642,6 +642,13 @@ def _parse_plain_expression(candidate: str, sympy: Any) -> Any | None:
     text = candidate.strip()
     text = text.replace("\u00d7", "*").replace("\u00f7", "/").replace("^", "**")
 
+    # A bare grouped-thousands number (e.g. "1,234", "12,345,678") would parse
+    # as a tuple; strip the separators so it reads as a single number, matching
+    # the LaTeX path. Anchored to the whole token so structured answers like
+    # "(1,2)" or "{1,2,3}" keep their commas and stay tuples/sets.
+    if _LATEX_COMMA_NUMBER.fullmatch(text):
+        text = text.replace(",", "")
+
     equation = _split_plain_equation(text)
     if equation is not None:
         left_text, right_text = equation

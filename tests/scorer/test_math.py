@@ -191,6 +191,32 @@ def test_constant_tuple_self_match_is_correct() -> None:
 
 
 @pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("1,234", "1234"),
+        ("12,345,678", "12345678"),
+        ("1,234.5", "1234.5"),
+        ("-8,192", "-8192"),
+        ("1,000,000", "1000000"),
+    ],
+)
+def test_grouped_thousands_are_treated_as_numbers(answer: str, target: str) -> None:
+    result = _score_answer_worker(answer, (target,))
+    assert result.status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["(1,2)", "(1, 2)", "{1,2,3}", "[1,2]", "1,23", "1,2345"],
+)
+def test_grouped_thousands_normalization_leaves_structures_intact(answer: str) -> None:
+    # The thousands rule must not collapse tuples/sets or ill-formed groupings
+    # into a single number; each of these self-matches rather than becoming an int.
+    assert _score_answer_worker(answer, (answer,)).status == "correct"
+    assert _score_answer_worker(answer, ("12",)).status == "incorrect"
+
+
+@pytest.mark.parametrize(
     "version",
     ["4.9.3", "4.11.0", "4.11.1", "4.13.2"],
 )
