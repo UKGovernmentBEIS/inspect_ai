@@ -1,6 +1,7 @@
 import importlib.metadata
 import json
 import math as stdlib_math
+import re
 import subprocess
 import sys
 import textwrap
@@ -9,7 +10,7 @@ from typing import Any
 
 import anyio
 import pytest
-from test_helpers.utils import simple_task_state
+from test_helpers.utils import simple_task_state, skip_if_no_package
 
 import inspect_ai.scorer._math as math_module
 from inspect_ai import Task, eval
@@ -20,6 +21,7 @@ from inspect_ai.scorer import CORRECT, INCORRECT, Target, math
 from inspect_ai.scorer._math import (
     _answer_candidates,
     _MathLimitError,
+    _MathParseError,
     _parse_candidate,
     _score_answer_worker,
 )
@@ -108,6 +110,71 @@ def test_plain_and_latex_parsers_do_not_call_parse_expr(
         "sqrt(2) + sqrt(2)",
     ):
         assert _parse_candidate(expression)
+
+
+@pytest.mark.slow
+@skip_if_no_package("datasets")
+def test_math_scorer_matches_real_answer_corpus() -> None:
+    """Scale check on the public MATH-500 gold answers (see PR #4361).
+
+    Exercises answer extraction/representation across every real answer plus the
+    grouped-thousands and assignment-target fixes, which the handful of unit
+    cases cannot cover at scale. Prose-wrapped extraction has a small legitimate
+    tail (negative-number edge cases) and is left to the unit tests above.
+    """
+    from datasets import load_dataset  # type: ignore[import-untyped]
+
+    from inspect_ai.scorer._math import _boxed_candidates
+
+    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test")
+    answers = [
+        boxes[-1].strip()
+        for row in dataset
+        if (boxes := _boxed_candidates(row["solution"]))
+    ]
+    assert len(answers) >= 400
+
+    # Every gold answer self-matches (extraction + representation coverage).
+    self_fail = [
+        a for a in answers if _score_answer_worker(a, (a,)).status != "correct"
+    ]
+    assert not self_fail, f"self-match failures: {self_fail[:10]}"
+
+    integers = [a for a in answers if re.fullmatch(r"[+-]?\d+", a)]
+    # A grouped-thousands rendering of an integer answer matches the plain target.
+    thousands_fail = [
+        a
+        for a in integers
+        if abs(int(a)) >= 1000
+        and _score_answer_worker(f"{int(a):,}", (a,)).status != "correct"
+    ]
+    assert not thousands_fail, f"thousands failures: {thousands_fail[:10]}"
+    # A bare integer answer matches an assignment-form target ("x = N").
+    assignment_fail = [
+        a for a in integers if _score_answer_worker(a, (f"x={a}",)).status != "correct"
+    ]
+    assert not assignment_fail, f"assignment failures: {assignment_fail[:10]}"
+
+
+def test_reported_subclasses_escape_never_reaches_parse_expr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The reported RCE: on the pre-fix scorer `().__class__.__base__.__subclasses__()`
+    # flowed into sympy's parse_expr and evaluated to live Python classes. Pin that
+    # this exact payload is rejected without ever reaching an evaluating parser.
+    import latex2sympy2_extended.latex2sympy2 as parser  # type: ignore[import-untyped]
+    import sympy.parsing.sympy_parser as sympy_parser  # type: ignore[import-untyped]
+
+    def fail_parse_expr(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("unsafe parse_expr() called")
+
+    monkeypatch.setattr(parser, "parse_expr", fail_parse_expr)
+    monkeypatch.setattr(sympy_parser, "parse_expr", fail_parse_expr)
+
+    payload = "().__class__.__base__.__subclasses__()"
+    with pytest.raises(_MathParseError):
+        _parse_candidate(payload)
+    assert _score_answer_worker(payload, ("0",)).status == "answer_parse_error"
 
 
 @pytest.mark.parametrize(
