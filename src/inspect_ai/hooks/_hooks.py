@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Awaitable, Callable, Literal, Type, TypeVar, cast
 
@@ -100,12 +100,8 @@ class TaskStart:
     """The globally unique identifier for this task execution."""
     spec: EvalSpec
     """Specification of the task."""
-    plan: EvalPlan
-    """Solvers that will run, in order.
-
-    `Task.setup` steps are unrolled into the front of the plan by `resolve_plan`,
-    so they appear here too and are not distinguishable from solver steps.
-    """
+    plan: EvalPlan = field(default_factory=EvalPlan)
+    """Solvers that will be run, in order, including setup solvers."""
 
 
 @dataclass(frozen=True)

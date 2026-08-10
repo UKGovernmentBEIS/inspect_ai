@@ -23,7 +23,6 @@ from inspect_ai.log._log import (
     EvalDataset,
     EvalLog,
     EvalMetric,
-    EvalPlan,
     EvalResults,
     EvalSample,
     EvalScore,
@@ -198,7 +197,6 @@ async def test_task_lifecycle(mlflow_env):
                 run_id="run-001",
                 eval_id="eval-001",
                 spec=spec,
-                plan=EvalPlan(),
             )
         )
 
@@ -264,13 +262,7 @@ async def test_sample_scores_logged_as_step_metrics(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None,
-                run_id="run-001",
-                eval_id="eval-001",
-                spec=spec,
-                plan=EvalPlan(),
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         sample_0 = _make_sample(
@@ -380,13 +372,7 @@ async def test_sample_event_model_call(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None,
-                run_id="run-001",
-                eval_id="eval-001",
-                spec=spec,
-                plan=EvalPlan(),
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         model_event = ModelEvent(
@@ -433,13 +419,7 @@ async def test_sample_event_tool_call(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None,
-                run_id="run-001",
-                eval_id="eval-001",
-                spec=spec,
-                plan=EvalPlan(),
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         tool_event = ToolEvent(
@@ -514,13 +494,7 @@ async def test_event_counts_logged_on_task_end(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None,
-                run_id="run-001",
-                eval_id="eval-001",
-                spec=spec,
-                plan=EvalPlan(),
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         # Send 2 model events and 1 tool event
@@ -594,13 +568,7 @@ async def test_artifact_logging_sample_table(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None,
-                run_id="run-001",
-                eval_id="eval-001",
-                spec=spec,
-                plan=EvalPlan(),
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         samples = [
@@ -671,13 +639,7 @@ async def test_artifact_logging_disabled(mlflow_env, monkeypatch: pytest.MonkeyP
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None,
-                run_id="run-001",
-                eval_id="eval-001",
-                spec=spec,
-                plan=EvalPlan(),
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         log = EvalLog(
@@ -716,13 +678,7 @@ async def test_artifact_logging_no_samples(mlflow_env):
             RunStart(eval_set_id=None, run_id="run-001", task_names=["test_task"])
         )
         await hook.on_task_start(
-            TaskStart(
-                eval_set_id=None,
-                run_id="run-001",
-                eval_id="eval-001",
-                spec=spec,
-                plan=EvalPlan(),
-            )
+            TaskStart(eval_set_id=None, run_id="run-001", eval_id="eval-001", spec=spec)
         )
 
         log = EvalLog(

@@ -185,7 +185,7 @@ from .images import (
     state_without_base64_content,
     states_with_base64_content,
 )
-from .log import TaskLogger, collect_eval_data, log_start
+from .log import TaskLogger, collect_eval_data, log_start, plan_to_eval_plan
 from .results import eval_results
 from .sample_source import (
     SampleEnqueuer,
@@ -687,7 +687,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     ) as td:
         # start the log (do this outside fo the try b/c the try/except assumes
         # that the log is initialized)
-        eval_plan = await log_start(logger, plan, generate_config)
+        eval_plan = plan_to_eval_plan(plan, generate_config)
+        await log_start(logger, eval_plan)
 
         try:
             # return immediately if we are not running samples

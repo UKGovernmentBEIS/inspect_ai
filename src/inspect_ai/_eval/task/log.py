@@ -938,12 +938,9 @@ def plan_to_eval_plan(plan: Plan, config: GenerateConfig) -> EvalPlan:
 
 async def log_start(
     logger: TaskLogger,
-    plan: Plan,
-    config: GenerateConfig,
-) -> EvalPlan:
-    eval_plan = plan_to_eval_plan(plan, config)
-    await logger.log_start(eval_plan)
-    return eval_plan
+    plan: EvalPlan,
+) -> None:
+    await logger.log_start(plan)
 
 
 def collect_eval_data(stats: EvalStats) -> None:
