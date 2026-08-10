@@ -14,18 +14,16 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
-    Model,
-    ModelOutput,
-    get_model,
-)
-from inspect_ai.model._compaction import (
+    CompactionAuto,
     CompactionEdit,
     CompactionResult,
     CompactionStrategy,
     CompactionSummary,
     CompactionTrim,
+    Model,
+    ModelOutput,
+    get_model,
 )
-from inspect_ai.model._compaction.auto import CompactionAuto
 from inspect_ai.scorer import includes
 from inspect_ai.tool import Tool, ToolInfo, tool
 from inspect_ai.tool._tools._memory import memory
@@ -426,8 +424,9 @@ def test_compaction_event_records_native_path(
 
     monkeypatch.setattr(auto._native, "compact", fake_native)
 
+    task_prompt = "UNIQUE-TASK-PROMPT"
     task = Task(
-        dataset=[Sample(input="Test", target="done")],
+        dataset=[Sample(input=task_prompt, target="done")],
         solver=react(compaction=auto),
     )
 
@@ -438,6 +437,15 @@ def test_compaction_event_records_native_path(
     assert metadata["strategy"] == "CompactionAuto"
     assert metadata["strategy_applied"] == "CompactionNative"
     assert "fallback_reason" not in metadata
+
+    # The provenance above and the prefix rule are separate fields consumed at
+    # separate call sites, so assert the user-facing outcome too: native
+    # withholds the sample input, and it must not be re-prepended.
+    assert log.samples
+    model_inputs = [e.input for e in log.samples[0].events if e.event == "model"]
+    assert not any(
+        m.role == "user" and task_prompt in m.text for m in model_inputs[-1]
+    ), "sample input was re-sent after native compaction"
 
 
 def test_compaction_event_omits_provenance_for_plain_strategy() -> None:
@@ -465,7 +473,11 @@ class _FlipFlopStrategy(CompactionStrategy):
     """
 
     def __init__(self) -> None:
-        super().__init__(type="summary", threshold=200, memory=False)
+        # Must exceed react's ~220 token fixed overhead (tool schemas +
+        # prefix), or compaction fires before any conversation content exists
+        # and the run dies on "Compaction insufficient" instead of testing
+        # anything.
+        super().__init__(type="summary", threshold=500, memory=False)
         self.calls = 0
 
     async def compact_outcome(
@@ -475,7 +487,7 @@ class _FlipFlopStrategy(CompactionStrategy):
         if self.calls == 1:
             # still over threshold, so _perform_compaction runs another pass
             return CompactionResult(
-                input=[ChatMessageAssistant(content="B" * 2000, id="big")],
+                input=[ChatMessageAssistant(content="B" * 4000, id="big")],
                 message=None,
                 preserve_prefix=True,
                 applied="AlphaStrategy",
