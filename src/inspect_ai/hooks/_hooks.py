@@ -105,9 +105,10 @@ class TaskStart:
     write, so changing it here corrupts the written log header.
     """
     plan: EvalPlan
-    """All solvers that will be run, in order. Note that a ``finish`` solver is
-    reported both in ``finish`` and as the last entry of ``steps``, so read one
-    or the other, not both.
+    """All solvers that will be run, in order.
+
+    Note that a ``finish`` solver is reported both in ``finish`` and as the
+    last entry of ``steps``, so read one or the other, not both.
 
     Do not mutate: this is the object the recorder holds until the final log
     write, so changing it here corrupts the written log header.
