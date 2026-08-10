@@ -115,24 +115,26 @@ def test_plain_and_latex_parsers_do_not_call_parse_expr(
 @pytest.mark.slow
 @skip_if_no_package("datasets")
 def test_math_scorer_matches_real_answer_corpus() -> None:
-    """Scale check on the public MATH-500 gold answers (see PR #4361).
+    """Scale check on the full 5,000-row MATH test split (see PR #4361).
 
-    Exercises answer extraction/representation across every real answer plus the
-    grouped-thousands and assignment-target fixes, which the handful of unit
-    cases cannot cover at scale. Prose-wrapped extraction has a small legitimate
-    tail (negative-number edge cases) and is left to the unit tests above.
+    This is the split `inspect_evals/math` uses. It exercises answer
+    extraction/representation across every real gold answer plus the
+    grouped-thousands, assignment-target, and multiline-final fixes, which the
+    handful of unit cases cannot cover at scale. Prose-wrapped extraction has a
+    small legitimate tail (negative-number edge cases) and is left to the unit
+    tests above.
     """
-    from datasets import load_dataset  # type: ignore[import-untyped]
+    from datasets import load_dataset  # type: ignore
 
     from inspect_ai.scorer._math import _boxed_candidates
 
-    dataset = load_dataset("HuggingFaceH4/MATH-500", split="test")
+    dataset = load_dataset("DigitalLearningGmbH/MATH-lighteval", split="test")
     answers = [
         boxes[-1].strip()
         for row in dataset
         if (boxes := _boxed_candidates(row["solution"]))
     ]
-    assert len(answers) >= 400
+    assert len(answers) >= 4900
 
     # Every gold answer self-matches (extraction + representation coverage).
     self_fail = [
@@ -154,6 +156,14 @@ def test_math_scorer_matches_real_answer_corpus() -> None:
         a for a in integers if _score_answer_worker(a, (f"x={a}",)).status != "correct"
     ]
     assert not assignment_fail, f"assignment failures: {assignment_fail[:10]}"
+    # An integer answer on the final line of a reasoning trace is extracted.
+    multiline_fail = [
+        a
+        for a in integers
+        if _score_answer_worker(f"First compute the answer.\n{a}", (a,)).status
+        != "correct"
+    ]
+    assert not multiline_fail, f"multiline-final failures: {multiline_fail[:10]}"
 
 
 def test_reported_subclasses_escape_never_reaches_parse_expr(
@@ -162,8 +172,8 @@ def test_reported_subclasses_escape_never_reaches_parse_expr(
     # The reported RCE: on the pre-fix scorer `().__class__.__base__.__subclasses__()`
     # flowed into sympy's parse_expr and evaluated to live Python classes. Pin that
     # this exact payload is rejected without ever reaching an evaluating parser.
-    import latex2sympy2_extended.latex2sympy2 as parser  # type: ignore[import-untyped]
-    import sympy.parsing.sympy_parser as sympy_parser  # type: ignore[import-untyped]
+    import latex2sympy2_extended.latex2sympy2 as parser
+    import sympy.parsing.sympy_parser as sympy_parser
 
     def fail_parse_expr(*_args: Any, **_kwargs: Any) -> None:
         raise AssertionError("unsafe parse_expr() called")
