@@ -7,7 +7,7 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_info import ToolInfo
 
 
-class CompactionOutcome(NamedTuple):
+class CompactionResult(NamedTuple):
     """Result of a single `compact()` call.
 
     `preserve_prefix` and `applied` describe the strategy that actually
@@ -96,7 +96,7 @@ class CompactionStrategy(abc.ABC):
 
     async def compact_outcome(
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
-    ) -> CompactionOutcome:
+    ) -> CompactionResult:
         """Compact messages and report which strategy applied.
 
         The default implementation calls `compact()` and reports this
@@ -113,7 +113,7 @@ class CompactionStrategy(abc.ABC):
             of the strategy that produced it.
         """
         input, message = await self.compact(model, messages, tools)
-        return CompactionOutcome(
+        return CompactionResult(
             input=input,
             message=message,
             preserve_prefix=self.preserve_prefix,
