@@ -217,6 +217,72 @@ def test_grouped_thousands_normalization_leaves_structures_intact(answer: str) -
 
 
 @pytest.mark.parametrize(
+    "answer,target",
+    [(r"1\,234", "1234"), (r"12\,345\,678", "12345678"), (r"1\,234.5", "1234.5")],
+)
+def test_latex_thin_space_thousands_are_numbers(answer: str, target: str) -> None:
+    assert _score_answer_worker(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("99999999999", "100000000000"),
+        ("100000000000000000000", "100000000001000000000"),
+        ("12345678901", "12345678902"),
+    ],
+)
+def test_exact_large_integers_are_not_approximated(answer: str, target: str) -> None:
+    # Exact integers must compare exactly; float tolerance previously accepted
+    # off-by-one values above ~1e11.
+    assert _score_answer_worker(answer, (target,)).status == "incorrect"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [("0.5", "1/2"), ("1.4142135623730951", r"\sqrt{2}"), ("0.335", r"33.5\%")],
+)
+def test_approximate_values_still_match(answer: str, target: str) -> None:
+    # The exact-comparison guard must not disturb genuinely approximate matches.
+    assert _score_answer_worker(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [("2", "x=2"), ("x=2", "2"), ("x=2", "2=x"), ("2", "y = 2")],
+)
+def test_assignment_targets_accept_their_value(answer: str, target: str) -> None:
+    # An assignment-form value like "x = 2" matches the bare answer "2"
+    # regardless of which side carries the equality.
+    assert _score_answer_worker(answer, (target,)).status == "correct"
+
+
+@pytest.mark.parametrize(
+    "answer,target",
+    [
+        ("The answer is 42 because geometry proves it", "42"),
+        ("42 because geometry proves it", "42"),
+        ("First compute 6*7.\n42", "42"),
+        ("Final answer: 42", "42"),
+    ],
+)
+def test_prose_wrapped_numeric_answers_are_extracted(answer: str, target: str) -> None:
+    assert _score_answer_worker(answer, (target,)).status == "correct"
+
+
+def test_prose_fallback_does_not_manufacture_false_matches() -> None:
+    # The fallback only fires for a target that genuinely equals an extracted
+    # candidate; an incidental number in prose must not count as correct.
+    assert _score_answer_worker("The perimeter is 7", ("42",)).status == "incorrect"
+
+
+def test_text_answer_is_not_overridden_by_subexpression() -> None:
+    # A legitimate text answer ("odd $n$") must self-match and not be replaced
+    # by a stray sub-expression like "n".
+    assert _score_answer_worker(r"odd $n$", (r"odd $n$",)).status == "correct"
+
+
+@pytest.mark.parametrize(
     "version",
     ["4.9.3", "4.11.0", "4.11.1", "4.13.2"],
 )

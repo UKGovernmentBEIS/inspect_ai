@@ -64,6 +64,8 @@ _PERCENT_SUFFIX = re.compile(
 )
 _LATEX_NUMBER = re.compile(r"[+-]?(?:\d+|\d*\.\d+)(?:E[+-]?\d+)?\Z")
 _LATEX_COMMA_NUMBER = re.compile(r"\s*-?\d{1,3}(?:,\d{3})+(?:\.\d+)?\s*\Z")
+# LaTeX thin-space digit grouping, e.g. "1\,234" — a thousands separator.
+_LATEX_THIN_SPACE_NUMBER = re.compile(r"\s*-?\d{1,3}(?:\\,\d{3})+(?:\.\d+)?\s*\Z")
 _DIGIT_RUN = re.compile(r"\d+")
 _COMMAND = re.compile(r"\\[A-Za-z]+")
 _WORD = re.compile(r"[A-Za-z]{2,}")
@@ -711,6 +713,11 @@ def _parse_latex_expression(candidate: str, sympy: Any) -> Any:
         ),
     )
 
+    # Fold thin-space grouping ("1\,234") into the comma form the grouped-number
+    # path already handles, so it reads as 1234 rather than being mis-parsed.
+    if _LATEX_THIN_SPACE_NUMBER.fullmatch(normalized_candidate):
+        normalized_candidate = normalized_candidate.replace(r"\,", ",")
+
     if _LATEX_COMMA_NUMBER.fullmatch(normalized_candidate):
         return _parse_latex_number(normalized_candidate, sympy)
 
@@ -906,14 +913,54 @@ def _parse_first(candidates: list[str]) -> _ParsedValue:
     raise parse_error or _MathParseError("could not extract mathematical answer")
 
 
+def _matching_expression_candidate(
+    candidates: list[str],
+    parsed_targets: list["_ParsedValue"],
+    sympy: Any,
+) -> "_ParsedValue | None":
+    """Find an expression-valued candidate that matches a target.
+
+    Used only as a fallback when the primary answer parsed as opaque text (a
+    prose wrapper like "42 because ...") and did not match, so a bare number on
+    the last line can still be recognized. Unsafe/over-limit candidates abort.
+    """
+    for candidate in candidates:
+        try:
+            parsed = _parse_candidate(candidate)
+        except (_MathLimitError, _MathUnsafeError):
+            raise
+        except _MathParseError:
+            continue
+        if parsed.expression is not None and any(
+            _expression_equivalent(target_value, parsed, sympy)
+            for target_value in parsed_targets
+        ):
+            return parsed
+    return None
+
+
 def _is_numeric_expression(expression: Any, sympy: Any) -> bool:
     return isinstance(expression, sympy.Expr) and not expression.free_symbols
+
+
+def _is_exact_number(expression: Any, sympy: Any) -> bool:
+    # Values SymPy can compare exactly (rationals, and algebraic combinations
+    # thereof such as sqrt(2) or 1/3). These must never fall through to the
+    # floating-point tolerance below, which would accept nearby-but-wrong
+    # answers (e.g. 99999999999 vs 100000000000).
+    return bool(getattr(expression, "is_number", False)) and bool(
+        getattr(expression, "is_algebraic", False)
+    )
 
 
 def _numeric_equivalent(left: Any, right: Any, sympy: Any) -> bool:
     if not (
         _is_numeric_expression(left, sympy) and _is_numeric_expression(right, sympy)
     ):
+        return False
+    # Exact operands are only equal if SymPy's exact comparison said so (checked
+    # by the caller before reaching here); do not approximate them.
+    if _is_exact_number(left, sympy) and _is_exact_number(right, sympy):
         return False
     try:
         left_value = complex(sympy.N(left, 30))
@@ -946,16 +993,20 @@ def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) 
     if left_expression is None or right_expression is None:
         return False
 
-    if isinstance(right_expression, sympy.Equality) and not bool(
-        getattr(left_expression, "is_Relational", False)
+    # An assignment-form value like "x = 2" should match the bare answer "2"
+    # regardless of which side carries the equality. Unwrap an Equality to its
+    # RHS when the other side is a non-relational scalar.
+    def _is_relational(expression: Any) -> bool:
+        return bool(getattr(expression, "is_Relational", False))
+
+    if isinstance(right_expression, sympy.Equality) and not _is_relational(
+        left_expression
     ):
-        right = _ParsedValue(
-            right_expression.rhs,
-            None,
-            right.source,
-            right.expensive,
-        )
-        right_expression = right.expression
+        right_expression = right_expression.rhs
+    elif isinstance(left_expression, sympy.Equality) and not _is_relational(
+        right_expression
+    ):
+        left_expression = left_expression.rhs
 
     try:
         if left_expression == right_expression:
@@ -1038,6 +1089,16 @@ def _score_answer_worker(completion: str, targets: tuple[str, ...]) -> _WorkerSc
             _expression_equivalent(target_value, answer, sympy)
             for target_value in parsed_targets
         )
+        # If the primary answer was opaque text that didn't match (a prose
+        # wrapper such as "42 because ..."), fall back to an expression-valued
+        # candidate — the bare last line / last number — that the text masked.
+        if not correct and answer.expression is None:
+            fallback = _matching_expression_candidate(
+                _answer_candidates(completion), parsed_targets, sympy
+            )
+            if fallback is not None:
+                correct = True
+                answer = fallback
         return _WorkerScore(
             "correct" if correct else "incorrect",
             answer.source[:_MAX_CANDIDATE_CHARS],
