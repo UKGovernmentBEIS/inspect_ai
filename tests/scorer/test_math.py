@@ -54,6 +54,24 @@ async def test_math_scorer_uses_last_boxed_answer() -> None:
     assert result.value == INCORRECT
 
 
+async def test_final_boxed_answer_survives_a_flood_of_earlier_boxes() -> None:
+    # The most recent \boxed{...} must win even after more boxes than any fixed
+    # scan cap, so a genuine final answer can't be buried (also a gaming vector).
+    scorer = math()
+    flood = " ".join(r"\boxed{9}" for _ in range(400))
+    state = simple_task_state(model_output=f"{flood} \\boxed{{42}}")
+    result = await scorer(state, Target(["42"]))
+    assert result is not None
+    assert result.value == CORRECT
+
+
+@pytest.mark.parametrize("target", ["x=2", "2=x", "2 = y", "z = 2"])
+def test_assignment_target_matches_either_orientation(target: str) -> None:
+    # Unwrapping an assignment-form target to its value side must work whether
+    # the value is on the left or the right of the equality.
+    assert _score_answer_worker("2", (target,)).status == "correct"
+
+
 async def test_math_scorer_uses_valid_target_alternative() -> None:
     scorer = math()
     state = simple_task_state(model_output=r"\boxed{42}")

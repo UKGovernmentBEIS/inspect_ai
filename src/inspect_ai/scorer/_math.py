@@ -229,9 +229,13 @@ def _balanced_content(text: str, opening: int) -> tuple[str, int] | None:
 
 
 def _boxed_candidates(text: str) -> list[str]:
-    candidates: list[str] = []
+    # Scan the whole (length-bounded) completion and keep only the most recent
+    # \boxed{...}. Capping the scan at a fixed count would take that Nth box as
+    # "last" and miss a genuine final answer placed after a flood of earlier
+    # boxes — a correctness gap and a gaming vector.
+    last: str | None = None
     position = 0
-    while len(candidates) < _MAX_COMMANDS:
+    while True:
         match = _BOX_START.search(text, position)
         if match is None:
             break
@@ -239,9 +243,8 @@ def _boxed_candidates(text: str) -> list[str]:
         if parsed is None:
             position = match.end()
             continue
-        content, position = parsed
-        candidates.append(content)
-    return candidates
+        last, position = parsed
+    return [last] if last is not None else []
 
 
 def _last_single_dollar_math(text: str) -> str | None:
@@ -996,20 +999,28 @@ def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) 
     if left_expression is None or right_expression is None:
         return False
 
-    # An assignment-form value like "x = 2" should match the bare answer "2"
-    # regardless of which side carries the equality. Unwrap an Equality to its
-    # RHS when the other side is a non-relational scalar.
+    # An assignment-form value like "x = 2" (or "2 = x") should match the bare
+    # answer "2" regardless of which side carries the equality. Unwrap an
+    # Equality to its value side (the side that is not a bare symbol) when the
+    # other operand is a non-relational scalar.
     def _is_relational(expression: Any) -> bool:
         return bool(getattr(expression, "is_Relational", False))
+
+    def _equality_value(equality: Any) -> Any:
+        lhs_is_symbol = bool(getattr(equality.lhs, "is_Symbol", False))
+        rhs_is_symbol = bool(getattr(equality.rhs, "is_Symbol", False))
+        if rhs_is_symbol and not lhs_is_symbol:
+            return equality.lhs
+        return equality.rhs
 
     if isinstance(right_expression, sympy.Equality) and not _is_relational(
         left_expression
     ):
-        right_expression = right_expression.rhs
+        right_expression = _equality_value(right_expression)
     elif isinstance(left_expression, sympy.Equality) and not _is_relational(
         right_expression
     ):
-        left_expression = left_expression.rhs
+        left_expression = _equality_value(left_expression)
 
     try:
         if left_expression == right_expression:

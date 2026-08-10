@@ -190,5 +190,11 @@
     "output": "\\boxed{74°}",
     "target": "74^\\circ",
     "expected": "C"
+  },
+  {
+    "source": "hard exact equivalence",
+    "output": "\\frac{6\\sqrt{1789-240\\sqrt{21}}+8\\sqrt{1236-240\\sqrt{21}}}{5}",
+    "target": "96-10\\sqrt{21}",
+    "expected": "C"
   }
 ]
