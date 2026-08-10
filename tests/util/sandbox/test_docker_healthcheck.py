@@ -31,6 +31,18 @@ def test_parse_duration_milliseconds():
     assert parse_duration("1s500ms").seconds == 1.5
 
 
+def test_parse_duration_microseconds():
+    assert parse_duration("500us").seconds == 0.0005
+    assert parse_duration("500µs").seconds == 0.0005
+
+
+def test_parse_duration_fractional():
+    assert parse_duration("5.0s").seconds == 5.0
+    assert parse_duration("1.5s").seconds == 1.5
+    assert parse_duration(".5s").seconds == 0.5
+    assert parse_duration("1.5m30.5s").seconds == 120.5
+
+
 def test_parse_duration_empty():
     assert parse_duration("").seconds == 0.0
 
@@ -40,6 +52,18 @@ def test_parse_duration_invalid():
         parse_duration("invalid")
     with pytest.raises(ValueError):
         parse_duration("30x")  # invalid unit
+    with pytest.raises(ValueError):
+        parse_duration("30")  # missing unit
+    with pytest.raises(ValueError):
+        parse_duration("30s bogus")  # trailing garbage
+    with pytest.raises(ValueError):
+        parse_duration("1.2.3s")  # malformed number (previously parsed as 3s)
+    with pytest.raises(ValueError):
+        parse_duration("-5s")  # negative (previously parsed as +5s)
+    with pytest.raises(ValueError):
+        parse_duration("30s@bogus")  # trailing garbage (previously parsed as 30s)
+    with pytest.raises(ValueError):
+        parse_duration("   ")  # whitespace only
 
 
 # Service Healthcheck Time Tests
@@ -68,7 +92,39 @@ def test_service_with_custom_values() -> None:
             "retries": 5,
         },
     }
-    assert service_healthcheck_time(service) == 40.0
+    # 10s start period + 3s for a probe crossing its boundary + 5 * (5s + 3s)
+    assert service_healthcheck_time(service) == 53.0
+
+
+def test_service_with_long_start_period() -> None:
+    # the grace period dominates the retry budget: a service that becomes
+    # healthy at t=200s must not be timed out (see #4698)
+    service: ComposeService = {
+        "image": "nginx",
+        "healthcheck": {
+            "start_period": "300s",
+            "interval": "5s",
+            "timeout": "30s",
+            "retries": 3,
+        },
+    }
+    # worst case, the last uncounted probe starts at t=300 and fails at t=330,
+    # after which the three counted probes run to t=435
+    assert service_healthcheck_time(service) == 435.0
+
+
+def test_service_with_fractional_durations() -> None:
+    # the budget must never round below the schedule it comes from: the single
+    # probe here may not finish until t=1.2s
+    service: ComposeService = {
+        "image": "nginx",
+        "healthcheck": {
+            "interval": "0.6s",
+            "timeout": "600ms",
+            "retries": 1,
+        },
+    }
+    assert service_healthcheck_time(service) == 2.0
 
 
 def test_service_with_partial_custom_values() -> None:
@@ -79,7 +135,7 @@ def test_service_with_partial_custom_values() -> None:
             "timeout": "3s",
         },
     }
-    assert service_healthcheck_time(service) == 99.0
+    assert service_healthcheck_time(service) == 112.0
 
 
 # Total Healthcheck Time Tests
@@ -119,7 +175,7 @@ def test_total_time_multiple_services() -> None:
             },
         },
     }
-    assert services_healthcheck_time(services) == 45.0
+    assert services_healthcheck_time(services) == 80.0
 
 
 def test_total_time_mixed_services() -> None:
@@ -137,4 +193,4 @@ def test_total_time_mixed_services() -> None:
             "image": "postgres",
         },
     }
-    assert services_healthcheck_time(services) == 40.0
+    assert services_healthcheck_time(services) == 53.0

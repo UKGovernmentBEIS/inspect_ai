@@ -9,6 +9,8 @@
 | anthropic/claude-sonnet-4-6 | adaptive |
 | anthropic/claude-sonnet-5 | high |
 | deepseek/deepseek-reasoner | no effort scale |
+| deepseek/deepseek-v4-flash | high |
+| deepseek/deepseek-v4-pro | high |
 | google/gemini-3-flash-preview | medium |
 | google/gemini-3-pro | high |
 | google/gemini-3.1-flash-lite-preview | medium |
@@ -22,6 +24,8 @@
 | grok/grok-4.5 | high |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
+| mistral/mistral-medium-2604 | none |
+| mistral/mistral-small-2603 | none |
 | moonshotai/kimi-k3 | max |
 | openai/gpt-5 | medium |
 | openai/gpt-5-mini | medium |

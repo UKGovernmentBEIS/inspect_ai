@@ -180,12 +180,11 @@ def test_truncate_string_to_bytes_zero_means_no_truncation():
 
 def test_truncate_string_to_bytes_utf8_characters():
     """Test truncation with UTF-8 characters like emoji."""
-    # Test with emoji that might get broken by byte truncation
-    result = truncate_string_to_bytes("🌍🌎🌏", 5)
+    result = truncate_string_to_bytes("a🌍b🌎c", 5)
     assert result is not None
-    assert result.original_bytes == 12  # 3 emoji * 4 bytes each
-    # The result should be valid (no assertion on exact output due to broken UTF-8)
-    assert isinstance(result.output, str)
+    assert result.output == "ac"
+    assert result.original_bytes == 11
+    assert len(result.output.encode("utf-8")) <= 5
 
 
 def test_truncate_string_to_bytes_mixed_content():

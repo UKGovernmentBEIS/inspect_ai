@@ -11,6 +11,11 @@ The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are
 applied to the page *after* slicing, and ``next`` advances past every event
 *scanned* (not just matched) so a sparse filter never re-walks or skips. The
+``tail`` seed is the one place that counts *matched* events: it scans the
+trailing page-bounded window and keeps the last ``tail`` matches, so a recent
+tail under the default high-signal filter surfaces a useful window rather
+than the few matches hiding in the last N raw events (a live transcript is
+dominated by structural state / store / span events). The
 nonce identifies one *attempt* of a sample — the sample uuid (``EvalSample
 .uuid`` == ``TaskState.uuid``) plus the attempt count (see :func:`_attempt_
 nonce`). Both the running and terminal sources derive it the same way, so a
@@ -30,6 +35,11 @@ import json
 from collections.abc import Callable, Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple
+
+from inspect_ai._control.terminal_cache import (
+    TerminalSourceCache,
+    invalidate_terminal_sources,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.event._event import Event
@@ -93,6 +103,15 @@ DEFAULT_PAGE_LIMIT = 500
 # Compact-projection truncation width for free-text / serialized fields.
 _TRUNCATE = 256
 
+# Short-TTL cache of resolved terminal sources. A flushed sample's transcript
+# is immutable, but resolving it re-reads and re-validates the entire sample
+# per page request (see _resolve_logged_source) — O(N²/limit) aggregate work
+# for a client paginating an N-event transcript, and a full parse per poll
+# even when no new events can ever arrive. See terminal_cache for the
+# staleness bounds (insertion-time TTL, running-attempt invalidation,
+# cleared with the eval-state registry).
+_terminal_sources: TerminalSourceCache[EventsSource] = TerminalSourceCache()
+
 
 def encode_cursor(nonce: str, offset: int) -> str:
     """Opaque cursor token for ``(source nonce, absolute offset)``."""
@@ -139,7 +158,10 @@ async def sample_events(
         sample_id: The sample's id (string; matched against running + logged).
         epoch: The sample epoch.
         since: Cursor token from a prior page (resume after it). Exclusive.
-        tail: When ``since`` is absent, start ``tail`` events from the end.
+        tail: When ``since`` is absent, show the last ``tail`` events that
+            match the type/time filters: the trailing ``limit``-bounded
+            window is scanned and the filtered page keeps its last ``tail``
+            entries.
         types: Event-type filter; ``None`` = the high-signal tier; a set
             containing ``"all"`` or ``"*"`` means everything (safe magic
             values — no event type carries either name). Applied after the
@@ -151,7 +173,13 @@ async def sample_events(
         limit: Max events scanned per page.
     """
     source = _running_source(eval_id, sample_id, epoch)
-    if source is None:
+    if source is not None:
+        # a running attempt (a retry) supersedes any cached terminal source
+        # for this sample — drop it (from every projection's cache, not just
+        # this endpoint's) so the attempt's own terminal source is resolved
+        # fresh once it finishes (see terminal_cache)
+        invalidate_terminal_sources((eval_id, sample_id, epoch))
+    else:
         source = await _logged_source(eval_id, sample_id, epoch)
     if source is None:
         return None
@@ -161,12 +189,22 @@ async def sample_events(
     # Resolve the start offset: resume from the cursor (reset to 0 if the nonce
     # is from a different source), else a tail window, else the beginning.
     cursor_nonce, cursor_offset = decode_cursor(since)
+    # When set, slice the filtered page down to its last `tail_count` events.
+    tail_count: int | None = None
     if since is not None and cursor_nonce == nonce:
         offset = max(0, cursor_offset)
     elif since is not None:
         offset = 0  # stale/foreign cursor → restart
     elif tail is not None:
-        offset = max(0, total - tail)
+        # A tail read means "the last `tail` events the caller will see" —
+        # counted after the type/time filters, not over the raw sequence.
+        # Slicing the raw sequence under-delivered badly with the default
+        # high-signal filter: a live transcript is dominated by structural
+        # state/store/span events, so the last N raw events could contain a
+        # single match. Seed at one page bound from the end and keep the
+        # last `tail` matches after filtering (below).
+        offset = max(0, total - limit)
+        tail_count = max(0, tail)
     else:
         offset = 0
 
@@ -179,10 +217,28 @@ async def sample_events(
     # stream. `next` advances by what was actually served, so a fetch that
     # returns short (eg. a buffer that lags the in-memory tail) never skips
     # events — the next poll picks them up.
-    scanned = list(fetch(offset, limit))
+    from inspect_ai.log._transcript import TranscriptHistoryUnavailableError
+
+    try:
+        scanned = list(fetch(offset, limit))
+    except TranscriptHistoryUnavailableError:
+        if tail_count is None:
+            raise
+        # The matched-tail scan window reached below a bounded transcript's
+        # resident window with no provider to recover it (not a production
+        # configuration). Degrade to the raw-event tail seed — the resident
+        # window stays readable — rather than failing the default read.
+        offset = max(0, total - tail_count) if tail_count > 0 else total
+        tail_count = None
+        scanned = list(fetch(offset, limit))
     next_offset = offset + len(scanned)
 
     matched = _filter(scanned, types, since_time, until)
+    if tail_count is not None:
+        # Keep the most recent matches; earlier matches inside the scanned
+        # window are intentionally dropped (the read is seeded "near the
+        # end") while `next` still advances past everything scanned.
+        matched = matched[-tail_count:] if tail_count > 0 else []
     return {
         "events": [_project(e, full) for e in matched],
         "next": encode_cursor(nonce, next_offset),
@@ -247,6 +303,22 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> EventsSource | 
 async def _logged_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> EventsSource | None:
+    """The terminal source for a sample, resolved through the short-TTL cache.
+
+    A terminal attempt's transcript is immutable, so the resolved source is
+    reused across the paginating / polling requests that dominate this
+    endpoint's traffic instead of re-paying the full-sample parse per request
+    (see ``_terminal_sources`` and ``TerminalSourceCache.get_or_resolve``).
+    """
+    return await _terminal_sources.get_or_resolve(
+        (eval_id, sample_id, epoch),
+        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
+
+
+async def _resolve_logged_source(
+    eval_id: str, sample_id: str, epoch: int
+) -> EventsSource | None:
     """The terminal source for a sample (recorder buffer, then on-disk log).
 
     Always ``done`` (no more events will come); ``None`` when the eval/sample
@@ -309,9 +381,10 @@ async def _logged_source(
                 # the page fetch gets the same degrade contract as the
                 # event_count read above: a teardown landing between the two
                 # serves a short (empty) page instead of failing the request.
-                # `next` advances only by what was served, so the client's
-                # retry re-resolves the source (recorder / on-disk log)
-                # without skipping events.
+                # `next` advances only by what was served, so no events are
+                # skipped — the client's retry re-resolves the source
+                # (recorder / on-disk log) once the cached entry expires
+                # (see _terminal_sources).
                 def fetch_buffered(start: int, limit: int) -> Sequence["Event"]:
                     try:
                         return resolved_provider.events_from(start, limit)
