@@ -99,12 +99,15 @@ class TaskStart:
     eval_id: str
     """The globally unique identifier for this task execution."""
     spec: EvalSpec
-    """Specification of the task."""
-    plan: EvalPlan
-    """All solvers that will be run, in order.
+    """Specification of the task.
 
-    A ``finish`` solver appears both in ``finish`` and as the last entry of
-    ``steps``, so iterating ``steps`` counts it twice.
+    Do not mutate: this is the object the recorder holds until the final log
+    write, so changing it here corrupts the written log header.
+    """
+    plan: EvalPlan
+    """All solvers that will be run, in order. Note that a ``finish`` solver is
+    reported both in ``finish`` and as the last entry of ``steps``, so read one
+    or the other, not both.
 
     Do not mutate: this is the object the recorder holds until the final log
     write, so changing it here corrupts the written log header.
