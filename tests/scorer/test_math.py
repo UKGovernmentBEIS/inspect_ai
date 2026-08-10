@@ -32,13 +32,17 @@ CASES = json.loads(
 )
 
 
-async def test_math_scorer_compatibility_cases() -> None:
+@pytest.mark.parametrize(
+    "case",
+    CASES,
+    ids=[f"{index}-{case['source']}" for index, case in enumerate(CASES)],
+)
+async def test_math_scorer_compatibility_cases(case: dict[str, str]) -> None:
     scorer = math()
-    for case in CASES:
-        state = simple_task_state(model_output=case["output"])
-        result = await scorer(state, Target([case["target"]]))
-        assert result is not None
-        assert result.value == case["expected"], case
+    state = simple_task_state(model_output=case["output"])
+    result = await scorer(state, Target([case["target"]]))
+    assert result is not None
+    assert result.value == case["expected"], case
 
 
 async def test_math_scorer_uses_last_boxed_answer() -> None:
@@ -128,6 +132,46 @@ def test_plain_and_latex_parsers_do_not_call_parse_expr(
         "sqrt(2) + sqrt(2)",
     ):
         assert _parse_candidate(expression)
+
+
+def test_parsers_never_call_string_sympify(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Beyond parse_expr, the PR also promises answer/target text never reaches a
+    # string sympify() — the other eval-capable entry point, which the
+    # latex2sympy2-extended set/logic internals could hide. Fail on any sympify
+    # call with a str argument (a non-str sympify of an already-parsed object is
+    # fine).
+    import latex2sympy2_extended.logic as parser_logic  # type: ignore[import-untyped]
+    import latex2sympy2_extended.sets as parser_sets  # type: ignore[import-untyped]
+    import sympy  # type: ignore[import-untyped]
+
+    def guard(original: Any) -> Any:
+        def wrapped(value: Any, *args: Any, **kwargs: Any) -> Any:
+            if isinstance(value, str):
+                raise AssertionError(f"unsafe string sympify() called: {value!r}")
+            return original(value, *args, **kwargs)
+
+        return wrapped
+
+    for module in (sympy, parser_sets, parser_logic):
+        monkeypatch.setattr(module, "sympify", guard(module.sympify))
+
+    # Exercise the parser forms most likely to route through set/logic sympify.
+    for expression in (
+        r"\frac{1}{2}",
+        r"\sqrt[3]{8}",
+        r"\{1,2,3\}",
+        r"x \in \{1,2,3\}",
+        r"x<y<z",
+        r"(-\infty,-8)\cup(8,\infty)",
+        r"\begin{pmatrix}1&2\\3&4\end{pmatrix}",
+        r"\binom{100}{50}",
+        "1,234.5",
+        "().__class__.__base__.__subclasses__()",
+    ):
+        try:
+            _parse_candidate(expression)
+        except _MathParseError:
+            pass  # rejection is fine; reaching a string sympify() is not
 
 
 @pytest.mark.slow
