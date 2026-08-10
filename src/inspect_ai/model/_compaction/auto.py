@@ -82,34 +82,20 @@ class CompactionAuto(CompactionStrategy):
         params["memory"] = self._memory_setting
         return params
 
-    @override
-    async def compact_outcome(
+    async def _delegate_outcome(
         self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
     ) -> CompactionOutcome:
-        """Compact using native compaction, falling back to summary.
-
-        Reports the delegate that actually ran so the orchestrator applies
-        that delegate's prefix rule rather than this wrapper's.
-
-        Args:
-            model: Target model for compaction.
-            messages: Full message history to compact.
-            tools: Available tools.
-
-        Returns:
-            The delegate's outcome, with `fallback_reason` set when native
-            compaction was not used.
-        """
+        """Run native compaction, falling back to summary."""
         try:
             return await self._native.compact_outcome(model, messages, tools)
         except NotImplementedError as ex:
-            reason = f"native compaction not supported: {exception_message(ex)}"
+            reason = f"native compaction not supported: {str(ex)}"
         except Exception as ex:
             logger.warning(
                 f"Native compaction failed: {exception_message(ex)}. "
                 "Falling back to summary compaction."
             )
-            reason = f"native compaction failed: {exception_message(ex)}"
+            reason = f"native compaction failed: {str(ex)}"
 
         outcome = await self._summary.compact_outcome(model, messages, tools)
         return outcome._replace(fallback_reason=reason)
@@ -128,5 +114,36 @@ class CompactionAuto(CompactionStrategy):
         Returns:
             Tuple of (compacted messages, supplemental message or None).
         """
-        outcome = await self.compact_outcome(model, messages, tools)
+        outcome = await self._delegate_outcome(model, messages, tools)
         return outcome.input, outcome.message
+
+    @override
+    async def compact_outcome(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> CompactionOutcome:
+        """Compact using native compaction, falling back to summary.
+
+        Reports the delegate that actually ran so the orchestrator applies
+        that delegate's prefix rule rather than this wrapper's.
+
+        A subclass that overrides `compact()` expects it to be the seam the
+        orchestrator calls, so when that's the case this defers to the base
+        `CompactionStrategy.compact_outcome()`, which calls back into
+        `compact()` and lets the override run. Such a subclass forfeits
+        per-delegate provenance: `applied` and `preserve_prefix` describe
+        this class, not the delegate, since we cannot know which delegate ran
+        once the subclass has replaced the body. That matches the behaviour
+        such a subclass had before `compact_outcome()` existed.
+
+        Args:
+            model: Target model for compaction.
+            messages: Full message history to compact.
+            tools: Available tools.
+
+        Returns:
+            The delegate's outcome, with `fallback_reason` set when native
+            compaction was not used.
+        """
+        if type(self).compact is not CompactionAuto.compact:
+            return await super().compact_outcome(model, messages, tools)
+        return await self._delegate_outcome(model, messages, tools)
