@@ -101,7 +101,14 @@ class TaskStart:
     spec: EvalSpec
     """Specification of the task."""
     plan: EvalPlan
-    """Solvers that will be run, in order, including setup solvers."""
+    """Solvers that will be run, in order, including setup solvers.
+
+    A ``finish`` solver appears both in ``finish`` and as the last entry of
+    ``steps``, so iterating ``steps`` counts it twice.
+
+    Do not mutate: this is the object the recorder holds until the final log
+    write, so changing it here corrupts the written log header.
+    """
 
 
 @dataclass(frozen=True)
