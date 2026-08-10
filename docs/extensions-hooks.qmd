@@ -96,12 +96,9 @@ In addition to these lifecycle events, two non-event methods let you control hoo
 
 ## Hook Object Lifecycle
 
-The `@hooks` decorator instantiates your class **once**, when the decorator runs (i.e. when the defining module is imported), and registers that single instance. Inspect never creates a second instance and never destroys it---the registry holds it for the lifetime of the process, and there is no teardown event. Do per-run cleanup in `on_run_end` or `on_eval_set_end`, as the Weights & Biases example above does with `wandb.finish()`.
+The `@hooks` decorator instantiates your class **once**, and that single instance is reused for the lifetime of the process. There is no teardown event, so do per-run cleanup in `on_run_end` or `on_eval_set_end`, as the Weights & Biases example above does with `wandb.finish()`.
 
-Because there is exactly one instance, `self` is shared by every eval set, run, task, sample, and epoch in the process:
-
--   State stored on `self` by one sample is visible to all the others. Key per-sample state by `data.sample_id` and remove it in `on_sample_end`, otherwise it accumulates for the life of the process.
--   Samples run concurrently on a single event loop, so a call for one sample can begin at any `await` in an in-flight call for another. Don't assume one call completes before the next begins. (Within a single sample, `on_sample_event` calls are serialized.)
+Consequently `self` is shared by every eval set, run, task, sample, and epoch, and calls for concurrent samples interleave at `await` points. Key per-sample state by `data.sample_id` and remove it in `on_sample_end`, and don't create event-loop-bound resources (async clients, `anyio` primitives) in `__init__` --- create them in `on_run_start`. See the [`Hooks`](reference/inspect_ai.hooks.qmd) reference for the full details.
 
 ## Registration
 
