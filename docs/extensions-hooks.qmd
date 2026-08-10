@@ -102,7 +102,6 @@ Because there is exactly one instance, `self` is shared by every eval set, run, 
 
 -   State stored on `self` by one sample is visible to all the others. Key per-sample state by `data.sample_id` and remove it in `on_sample_end`, otherwise it accumulates for the life of the process.
 -   Samples run concurrently on a single event loop, so a call for one sample can begin at any `await` in an in-flight call for another. Don't assume one call completes before the next begins. (Within a single sample, `on_sample_event` calls are serialized.)
--   `__init__` runs at registration, before eval configuration is resolved. Whether an event loop is running at that point depends on how the hook is packaged and how the eval was started---an entry-point package loaded by the `inspect eval` CLI is initialized before the loop starts, whereas a hook defined alongside a task in a task file is imported during the eval, on the loop. Never assume either: defer event-loop-bound setup (async clients, `anyio` primitives) to `on_run_start`.
 
 For example, to time each sample:
 

@@ -364,11 +364,6 @@ class Hooks:
       can begin at any ``await`` in an in-flight call for another. Don't assume
       one call completes before the next begins. (Within a single sample,
       ``on_sample_event`` calls are serialized.)
-    - ``__init__`` runs at registration, before eval configuration is resolved.
-      Whether an event loop is running at that point depends on how the hook is
-      packaged and how the eval was started, so never assume either: defer
-      event-loop-bound setup (async clients, ``anyio`` primitives) to
-      ``on_run_start``.
 
     #### Ownership of hook event data
 
