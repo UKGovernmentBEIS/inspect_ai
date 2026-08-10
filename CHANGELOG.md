@@ -25,6 +25,8 @@
 - Agent Bridge: A bridged Anthropic client now sees conflict, timeout, and billing errors as such instead of as generic server errors.
 - Agent Bridge: Sandboxed agents now receive exhausted provider errors with their original status and error details.
 - Dependencies: Require `nest_asyncio2` >= 1.7.4, fixing cancel scope errors (e.g. from Mistral streaming) after Inspect is called synchronously from a notebook or another running event loop.
+- Fixed duplicated task prompt and redundant context sent to the model when using `CompactionAuto` with providers that support native compaction.
+- Transcripts now show which compaction strategy actually ran, and flag when `CompactionAuto` fell back from native to summary compaction.
 
 ## 0.3.277 (06 October 2026)
 
@@ -292,7 +294,6 @@
 - Bugfix: Transcript markdown now reliably escapes HTML outside code blocks, so unusual code fences or line separators can no longer inject raw HTML into the rendered transcript.
 - Bugfix: Hugging Face and nnterp providers now record `hidden_states` (from `-M hidden_states`) as JSON-serializable nested lists instead of silently dropping them to `None` in the log; the batched Hugging Face path now records each sample's own activations rather than the whole batch's. Note: code reading `ModelOutput.metadata["hidden_states"]` live (in a solver or scorer) now receives nested lists rather than tensors — wrap with `torch.tensor(...)` if tensor operations are needed. (#2860)
 - Sandbox Tools: Injection now fails with a clear error when the tools directory already exists but is not a private directory owned by the tools user (an earlier rootless install is tightened to 0700 and reused).
-- Fixed duplicated task prompt and redundant context sent to the model when using `CompactionAuto` with providers that support native compaction.
 
 ## 0.3.262 (02 September 2026)
 
