@@ -113,7 +113,7 @@ def test_plain_and_latex_parsers_do_not_call_parse_expr(
 
 
 @pytest.mark.slow
-@skip_if_no_package("datasets")
+@skip_if_no_package("huggingface_hub")
 def test_math_scorer_matches_real_answer_corpus() -> None:
     """Scale check on the full 5,000-row MATH test split (see PR #4361).
 
@@ -123,15 +123,24 @@ def test_math_scorer_matches_real_answer_corpus() -> None:
     handful of unit cases cannot cover at scale. Prose-wrapped extraction has a
     small legitimate tail (negative-number edge cases) and is left to the unit
     tests above.
+
+    Reads the parquet with huggingface_hub + pyarrow (both dev dependencies)
+    rather than the `datasets` package, which is not installed in CI.
     """
-    from datasets import load_dataset  # type: ignore
+    import pyarrow.parquet as pq
+    from huggingface_hub import hf_hub_download
 
     from inspect_ai.scorer._math import _boxed_candidates
 
-    dataset = load_dataset("DigitalLearningGmbH/MATH-lighteval", split="test")
+    parquet_path = hf_hub_download(
+        repo_id="DigitalLearningGmbH/MATH-lighteval",
+        filename="data/test-00000-of-00001.parquet",
+        repo_type="dataset",
+    )
+    solutions = pq.read_table(parquet_path, columns=["solution"]).to_pylist()
     answers = [
         boxes[-1].strip()
-        for row in dataset
+        for row in solutions
         if (boxes := _boxed_candidates(row["solution"]))
     ]
     assert len(answers) >= 4900
