@@ -101,7 +101,7 @@ class TaskStart:
     spec: EvalSpec
     """Specification of the task."""
     plan: EvalPlan
-    """Solvers that will be run, in order, including setup solvers.
+    """All solvers that will be run, in order.
 
     A ``finish`` solver appears both in ``finish`` and as the last entry of
     ``steps``, so iterating ``steps`` counts it twice.
