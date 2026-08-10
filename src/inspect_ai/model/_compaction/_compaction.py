@@ -22,7 +22,7 @@ from .._model import (
 from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
-from .types import Compact, CompactionOutcome, CompactionStrategy
+from .types import Compact, CompactionResult, CompactionStrategy
 
 logger = getLogger(__name__)
 
@@ -56,10 +56,10 @@ class _CompactionState(BaseModel):
     """Whether a pre-compaction memory warning was issued for the window."""
 
 
-class _CompactionResult(NamedTuple):
+class _CompactionRun(NamedTuple):
     """Result of `_perform_compaction`, including which strategies ran."""
 
-    outcome: CompactionOutcome
+    outcome: CompactionResult
     """Outcome of the final pass — the one that produced the returned input."""
 
     passes: list[str]
@@ -465,7 +465,7 @@ async def _perform_compaction(
     threshold: int,
     tool_tokens: int,
     prefix_tokens: int,
-) -> _CompactionResult:
+) -> _CompactionRun:
     """Perform compaction, iterating if necessary to get under threshold.
 
     Args:
@@ -523,7 +523,7 @@ async def _perform_compaction(
             f"tool definitions and prefix."
         )
 
-    return _CompactionResult(outcome=outcome, passes=passes)
+    return _CompactionRun(outcome=outcome, passes=passes)
 
 
 def _resolve_threshold(model: Model, threshold: int | float) -> int:
