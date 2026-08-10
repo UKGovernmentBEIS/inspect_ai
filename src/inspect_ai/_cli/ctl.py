@@ -5481,6 +5481,12 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     any_errors = any((s.get("samples") or {}).get("errored", 0) > 0 for s in summaries)
     any_retries = any(int(s.get("attempts", 1) or 1) > 1 for s in summaries)
     any_solver = any(s.get("solver") for s in summaries)
+    # Same "only when there is something to report" rule as errors/attempts. Zero
+    # is the overwhelmingly common value for both, and a permanent pair of 0
+    # columns would push the columns that always matter off a narrow terminal.
+    # `or 0` also covers an older server, which reports neither key.
+    any_refusals = any((s.get("refusals") or 0) > 0 for s in summaries)
+    any_http_retries = any((s.get("http_retries") or 0) > 0 for s in summaries)
     # shown only when some task is paused, so a paused run doesn't read as
     # stalled (the cell names the holding latch; `quiesced` = nothing left
     # in flight — the safe-to-kill signal)
@@ -5501,6 +5507,15 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         cells.append(_format_samples(samples))
         if any_errors:
             cells.append(str(samples.get("errored", 0)))
+        # Blank, not 0, when the key is absent — the same rule the samples table
+        # uses for an unknown turn count. A row from an older server does not
+        # report these, and printing 0 there would assert "none happened" about a
+        # task that may well have had plenty. Only reachable in a mixed-version
+        # fleet, which is exactly when a false zero would mislead.
+        if any_refusals:
+            cells.append(_format_count(s.get("refusals")))
+        if any_http_retries:
+            cells.append(_format_count(s.get("http_retries")))
         if any_paused:
             cells.append(_format_paused(s))
         cells.append(_format_started(s.get("started_at", 0)))
@@ -5514,6 +5529,12 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     headers_list.append("samples")
     if any_errors:
         headers_list.append("errors")
+    if any_refusals:
+        headers_list.append("refusals")
+    if any_http_retries:
+        # Spelled out rather than "retries": the `attempts` column is also a
+        # retry count (of whole task attempts), and these are HTTP-level.
+        headers_list.append("http_retries")
     if any_paused:
         headers_list.append("paused")
     headers_list.append("started")
@@ -5521,6 +5542,15 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         headers_list.append("attempts")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _format_count(value: Any) -> str:
+    """A count cell: the number, or blank when the server didn't report it.
+
+    ``None`` (key absent) and ``0`` (reported, nothing happened) are different
+    claims and must not render the same way.
+    """
+    return "" if value is None else str(value)
 
 
 def _format_paused(summary: dict[str, Any]) -> str:
