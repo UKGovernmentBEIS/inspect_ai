@@ -86,6 +86,25 @@ class _DropsInputStrategy(CompactionSummary):
         ], summary
 
 
+class _DropsInputAndMergesStrategy(CompactionSummary):
+    """Summary-shaped output that omits the sample input message.
+
+    Unlike `_DropsInputStrategy`, the output is just `[system, summary]` — no
+    intervening messages — so restoring the prefix's `source="input"` message
+    lands it immediately before the summary, and a provider that collapses
+    consecutive user messages merges the two.
+    """
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        summary = ChatMessageUser(
+            content="summary", id="summary", metadata={"summary": True}
+        )
+        system = next(m for m in messages if m.role == "system")
+        return [system, summary], summary
+
+
 class _NoPrefixWithSystemStrategy(CompactionSummary):
     """preserve_prefix=False, but the output already contains the system message."""
 
@@ -1079,6 +1098,52 @@ async def test_compaction_collapse_does_not_accumulate_old_summaries(
     assert result[0] is summary
     assert "SUMMARY1" not in result[0].text
     assert "SUMMARY2" in result[0].text
+
+
+async def test_compaction_preserves_summary_when_spliced_prefix_absorbs_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A prefix message we splice in must not swallow the summary's return.
+
+    The strategy's own output ([system, summary]) does not collapse by
+    itself. Only after the orchestrator restores the prefix's
+    `source="input"` message ahead of the summary does a collapsing provider
+    merge them. Unlike the #3886 case, the caller must still be told a
+    summary was produced.
+    """
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: True)
+
+    prefix: list[ChatMessage] = [
+        system_msg("System prompt", "sys1"),
+        user_msg("Initial input", "input1", source="input"),
+    ]
+    compact = compaction(
+        _DropsInputAndMergesStrategy(threshold=100),
+        prefix=prefix,
+        tools=None,
+        model=model,
+    )
+
+    messages: list[ChatMessage] = [
+        *prefix,
+        assistant_msg("A" * 200, "msg1"),
+        user_msg("Q" * 200, "msg2"),
+    ]
+
+    result, summary = await compact.compact_input(messages)
+
+    assert summary is not None
+    assert summary.id == "summary"
+    # the summary itself was absorbed by the collapse (it is not returned as
+    # a standalone message), but its content must survive in the merge
+    merged = [
+        m
+        for m in result
+        if m.metadata is not None and "summary" in m.metadata.get("combined_from", [])
+    ]
+    assert len(merged) == 1
+    assert "summary" in merged[0].text
 
 
 # ==============================================================================
