@@ -2,6 +2,7 @@
 
 - Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
 - Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
+- Scoring: `score(action="append")` now merges `log.reductions` with the reductions already in the log instead of replacing them, so reductions from previously-run scorers are no longer dropped.
 
 ## 0.3.255 (09 August 2026)
 

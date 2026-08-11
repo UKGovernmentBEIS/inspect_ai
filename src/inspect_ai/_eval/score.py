@@ -44,7 +44,7 @@ from inspect_ai.log import (
     EvalLog,
 )
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.log._log import EvalMetricDefinition, EvalSample
+from inspect_ai.log._log import EvalMetricDefinition, EvalSample, EvalSampleReductions
 from inspect_ai.log._resolve import rebind_sample_timelines
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
@@ -168,6 +168,46 @@ def _get_updated_scores(
         updated_scores[new_key] = score.score
 
     return updated_scores
+
+
+def _get_updated_reductions(
+    existing: list[EvalSampleReductions] | None,
+    reductions: list[EvalSampleReductions] | None,
+    action: ScoreAction,
+) -> list[EvalSampleReductions] | None:
+    """Merge the reductions produced by this scoring pass into the log's.
+
+    A scoring pass only computes reductions for the scorers it ran, so for
+    "append" the pre-existing entries have to be carried over. Without this,
+    results.scores keeps an entry for every scorer while reductions keeps only
+    the last pass's, and the two disagree about which scorers the log contains.
+
+    A reduction is identified by (scorer, reducer): the same scorer reduced two
+    different ways is two entries, so both fields take part in the key. When a
+    pass recomputes a pair that is already present, the fresh entry replaces the
+    old one in place rather than being appended beside it, which keeps the list
+    usable as a lookup by scorer.
+    """
+    if action == "overwrite":
+        return reductions
+
+    if not existing:
+        return reductions
+    if not reductions:
+        return existing
+
+    merged = list(existing)
+    positions = {(r.scorer, r.reducer): i for i, r in enumerate(merged)}
+    for reduction in reductions:
+        key = (reduction.scorer, reduction.reducer)
+        index = positions.get(key)
+        if index is None:
+            positions[key] = len(merged)
+            merged.append(reduction)
+        else:
+            merged[index] = reduction
+
+    return merged
 
 
 def _get_updated_events(
@@ -379,7 +419,7 @@ async def score_async(
         # Since the metrics calculation above is only be done using the scorers
         # and scores that were generated during this scoring run, we need to process
         # the results carefully, depending upon whether the action was "append" or "overwrite"
-        log.reductions = reductions
+        log.reductions = _get_updated_reductions(log.reductions, reductions, action)
         if action == "overwrite" or log.results is None:
             # Completely replace the results with the new results
             log.results = results

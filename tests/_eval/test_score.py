@@ -11,6 +11,7 @@ from inspect_ai import score
 from inspect_ai._eval.score import (
     ScoreAction,
     _get_updated_events,
+    _get_updated_reductions,
     _get_updated_scores,
     resolve_scorers,
     score_async,
@@ -23,6 +24,8 @@ from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.log import (
     EvalSample,
+    EvalSampleReductions,
+    EvalSampleScore,
     Transcript,
 )
 from inspect_ai.log._file import read_eval_log, read_eval_log_async
@@ -99,6 +102,102 @@ def test_get_updated_scores(test_case: UpdatedScoresTestCase):
     )
 
     assert updated_scores == test_case.expected_scores
+
+
+def _reduction(scorer: str, reducer: str | None, value: float) -> EvalSampleReductions:
+    return EvalSampleReductions(
+        scorer=scorer,
+        reducer=reducer,
+        samples=[EvalSampleScore(value=value, sample_id="1")],
+    )
+
+
+class UpdatedReductionsTestCase(pydantic.BaseModel):
+    action: ScoreAction
+    existing: list[EvalSampleReductions] | None
+    new: list[EvalSampleReductions] | None
+    expected: list[EvalSampleReductions] | None
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        pytest.param(
+            UpdatedReductionsTestCase(
+                action="append",
+                existing=[_reduction("scorer_a", "mean", 0.1)],
+                new=[_reduction("scorer_b", "mean", 0.5)],
+                expected=[
+                    _reduction("scorer_a", "mean", 0.1),
+                    _reduction("scorer_b", "mean", 0.5),
+                ],
+            ),
+            id="append-keeps-pre-existing-scorer",
+        ),
+        pytest.param(
+            UpdatedReductionsTestCase(
+                action="append",
+                existing=[
+                    _reduction("scorer_a", "mean", 0.1),
+                    _reduction("scorer_b", "mean", 0.2),
+                ],
+                new=[_reduction("scorer_a", "mean", 0.9)],
+                expected=[
+                    _reduction("scorer_a", "mean", 0.9),
+                    _reduction("scorer_b", "mean", 0.2),
+                ],
+            ),
+            id="append-replaces-recomputed-pair-in-place",
+        ),
+        pytest.param(
+            UpdatedReductionsTestCase(
+                action="append",
+                existing=[_reduction("scorer_a", "mean", 0.1)],
+                new=[_reduction("scorer_a", "max", 0.3)],
+                expected=[
+                    _reduction("scorer_a", "mean", 0.1),
+                    _reduction("scorer_a", "max", 0.3),
+                ],
+            ),
+            id="append-keys-on-scorer-and-reducer",
+        ),
+        pytest.param(
+            UpdatedReductionsTestCase(
+                action="append",
+                existing=[_reduction("scorer_a", "mean", 0.1)],
+                new=None,
+                expected=[_reduction("scorer_a", "mean", 0.1)],
+            ),
+            id="append-with-nothing-new-keeps-existing",
+        ),
+        pytest.param(
+            UpdatedReductionsTestCase(
+                action="append",
+                existing=None,
+                new=[_reduction("scorer_a", "mean", 0.1)],
+                expected=[_reduction("scorer_a", "mean", 0.1)],
+            ),
+            id="append-with-no-existing",
+        ),
+        pytest.param(
+            UpdatedReductionsTestCase(
+                action="overwrite",
+                existing=[_reduction("scorer_a", "mean", 0.1)],
+                new=[_reduction("scorer_b", "mean", 0.5)],
+                expected=[_reduction("scorer_b", "mean", 0.5)],
+            ),
+            id="overwrite-drops-pre-existing",
+        ),
+    ],
+)
+def test_get_updated_reductions(test_case: UpdatedReductionsTestCase):
+    updated = _get_updated_reductions(
+        test_case.existing,
+        test_case.new,
+        action=test_case.action,
+    )
+
+    assert updated == test_case.expected
 
 
 class UpdatedEventsTestCase(pydantic.BaseModel):
