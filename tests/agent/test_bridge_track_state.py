@@ -706,6 +706,571 @@ async def test_unrelated_attachment_reference_does_not_anchor_descent() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scaffold-decorated task prompts (containment anchoring)
+# ---------------------------------------------------------------------------
+
+
+async def test_quote_wrapped_prompt_anchors_descent() -> None:
+    """Opencode round-trips the prompt wrapped in literal double quotes.
+
+    Single-turn GAIA reproduction: the real task call fires first (answering
+    in one turn), then the longer title-generation call lands. Neither call
+    carries the initial text verbatim or condensed, so without containment
+    anchoring both threads are non-descending and the legacy length fallback
+    adopts the title thread as the final state (`state.output` becomes the
+    session title and the sample scores 0).
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    # the real task call (single-turn agent loop, quoted prompt)
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    # title call fires after (opencode quotes the prompt here too)
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+    assert [m.text for m in bridge.state.messages] == [
+        TASK_SYSTEM.text,
+        quoted,
+        "Castle",
+    ]
+
+
+async def test_quote_wrapped_prompt_title_call_first() -> None:
+    """Same quote-wrapping with the title call landing before the task call."""
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
+async def test_short_quote_wrapped_prompt_anchors_descent() -> None:
+    """Exact quote-wrapping anchors even below the containment length floor.
+
+    With a short task, generic containment is floor-gated, so without a
+    dedicated quote-wrap arm both threads grade NO and the legacy length arm
+    adopts the longer title call (the reported opencode failure, just with a
+    short prompt).
+    """
+    short_task = "Solve 2+2"
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=short_task)]))
+    quoted = f'"{short_task}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "4")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Simple arithmetic",
+    )
+
+    assert bridge.state.output.completion == "4"
+
+
+async def test_short_quote_wrapped_prompt_with_whitespace_anchors_descent() -> None:
+    """Whitespace inside the quotes must not defeat the quote-wrap anchor.
+
+    opencode quotes the *original* prompt, so whitespace around the task
+    survives inside the wrapper while the anchor text is stored stripped;
+    the comparison must normalize the quote interior, not just the outside.
+    """
+    short_task = "  Solve 2+2  "
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=short_task)]))
+    quoted = f'"{short_task}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "4")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted),
+        ],
+        "Simple arithmetic",
+    )
+
+    assert bridge.state.output.completion == "4"
+
+
+async def test_verbatim_side_call_does_not_displace_quote_wrapped_main() -> None:
+    """A side call resending the raw task must not beat the quoted main call.
+
+    With a quote-wrapping scaffold the real call carries the *decorated*
+    prompt while a side call (e.g. a topic detector) copies the *raw* input
+    verbatim. The verbatim resend must not be mistaken for the main thread:
+    quote-wrap is the scaffold's store transform, so it is stronger evidence
+    of the persisted main conversation than a raw copy.
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "Doctor Who",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_quote_wrapped_main_displaces_verbatim_side_call() -> None:
+    """Reverse order: the quoted main call reclaims tracking from the side call."""
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=TASK),
+        ],
+        "Doctor Who",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
+async def test_bare_quoted_side_call_displaces_exact_main() -> None:
+    """Pins the accepted losing side of the `QUOTED` > `EXACT` ordering.
+
+    Under a scaffold that does *not* quote-wrap its store, a side call whose
+    whole aligned message is exactly the quoted prompt presents the same
+    observables as the two tests above — one QUOTED one-shot vs one EXACT
+    one-shot — so any static ordering fails exactly one of the two shapes
+    (see `_Descent`). The ordering favors the observed opencode shape, so
+    this constructed side call wins here. If this test starts failing the
+    trade has been re-decided: re-verify
+    `test_verbatim_side_call_does_not_displace_quote_wrapped_main`,
+    `test_quote_wrapped_main_displaces_verbatim_side_call`, and the
+    partially-quoted pair below, which break under a QUOTED == EXACT tie.
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who",
+    )
+
+    # pinned trade-off, not desired behavior: the bare-quoted side call
+    # outranks the verbatim one-shot main
+    assert bridge.state.output.completion == "Doctor Who"
+
+
+async def test_bare_quoted_side_call_arriving_first_retains_tracking() -> None:
+    """Reverse order of the pinned trade: the exact main cannot reclaim.
+
+    The bare-quoted side call is adopted first (best information so far);
+    the verbatim main's weaker `EXACT` anchor cannot displace it and, as a
+    one-shot, is parked as a candidate nothing extends. A multi-turn main
+    still reclaims tracking via candidate promotion — exposure is limited
+    to one-shot mains.
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle")
+
+    # pinned trade-off, not desired behavior (see
+    # test_bare_quoted_side_call_displaces_exact_main)
+    assert bridge.state.output.completion == "Doctor Who"
+
+
+async def test_contained_side_call_does_not_displace_quote_wrapped_main() -> None:
+    """A longer prompt-embedding side call must not beat the quoted main call.
+
+    The inline-prompt side-call tests below use a verbatim main thread; with
+    opencode the main thread is quote-wrapped, so the side call that embeds
+    the task in its first user message must lose to it as well — including
+    on the equal-verdict length arm, which must never see this pair as a tie
+    (quote-wrap grades above generic containment).
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=f"Classify:\n{TASK}"),
+            ChatMessageUser(content="Return only the topic"),
+        ],
+        "Doctor Who",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_quote_wrapped_main_displaces_contained_side_call() -> None:
+    """Reverse order: the quoted main call reclaims tracking from the side call."""
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=f"Classify:\n{TASK}"),
+            ChatMessageUser(content="Return only the topic"),
+        ],
+        "Doctor Who",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
+async def test_decorated_prompt_anchors_descent() -> None:
+    """Containment also covers scaffolds that prefix/suffix the prompt."""
+    bridge = task_bridge()
+    decorated = f"## Task\n\n{TASK}\n\nRespond concisely."
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=decorated)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=decorated),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_quote_wrapped_condensed_placeholder_anchors_descent() -> None:
+    """Decoration composes with condensation: a quoted placeholder anchors.
+
+    Both transformations were observed separately on the same opencode code
+    path (the prompt crossing as an `attachment://` placeholder, and the
+    prompt quote-wrapped), so a quote-wrapped placeholder must anchor too.
+    """
+    bridge = task_bridge()
+    quoted_placeholder = f'"{condensed(TASK)}"'
+
+    await track(
+        bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted_placeholder)], "Castle"
+    )
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=quoted_placeholder),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_inline_prompt_quoting_side_call_does_not_displace_exact_thread() -> None:
+    """A side call quoting the prompt inside its first message must not win.
+
+    A hypothetical scaffold could interpolate the whole prompt into the title
+    call's first non-system message; that call then anchors by containment.
+    Containment is weaker evidence than the main loop's exact anchor, so the
+    longer title call must not displace the tracked one-shot answer.
+    """
+    bridge = task_bridge()
+
+    # real task call carries the prompt verbatim (exact anchor)
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle")
+
+    # longer title call with the prompt inlined into its preamble message
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content=f"Generate a title for this conversation:\n{TASK}"),
+            ChatMessageUser(content="Respond with the title only."),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_exact_thread_displaces_inline_prompt_quoting_side_call() -> None:
+    """The exact-anchored task call reclaims tracking from an inlined title call.
+
+    When the prompt-inlining title call lands first it is adopted (best
+    information so far) with a containment anchor; the real task call's
+    stronger exact anchor must displace it even though the task call is
+    shorter.
+    """
+    bridge = task_bridge()
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content=f"Generate a title for this conversation:\n{TASK}"),
+            ChatMessageUser(content="Respond with the title only."),
+        ],
+        "Doctor Who Series 9 setting",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle")
+
+    assert bridge.state.output.completion == "Castle"
+    assert bridge.state.messages[-1].text == "Castle"
+
+
+async def test_assistant_message_containing_prompt_does_not_anchor() -> None:
+    """Containment requires role parity with the initial message.
+
+    A side call whose first non-system message is an *assistant* message
+    quoting the prompt (e.g. a compaction/summary replay) must not anchor:
+    against a containment-anchored (quote-wrapped) main thread it would
+    otherwise tie the descent verdict and win on length.
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    # quote-wrapped one-shot main loop (containment anchor)
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=quoted)], "Castle")
+
+    # longer side call led by an assistant message that contains the prompt
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a summarizer ..."),
+            ChatMessageAssistant(content=f"Earlier the user asked: {TASK}"),
+            ChatMessageUser(content="Summarize the conversation so far."),
+        ],
+        "The user asked about Doctor Who.",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+async def test_multi_message_input_with_partial_decoration_anchors_descent() -> None:
+    """Per-position matching: one decorated message, one verbatim."""
+    part1 = "Here is a data file to analyze in detail:"
+    part2 = "col_a,col_b\n1,2\n3,4"
+    bridge = AgentBridge(
+        AgentState(
+            messages=[ChatMessageUser(content=part1), ChatMessageUser(content=part2)]
+        )
+    )
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content="Generate a title for this conversation:\n"),
+            ChatMessageUser(content=f'"{part1}"'),
+        ],
+        "CSV analysis session",
+    )
+
+    # first input message quote-wrapped, second verbatim
+    await track(
+        bridge,
+        [
+            TASK_SYSTEM,
+            ChatMessageUser(content=f'"{part1}"'),
+            ChatMessageUser(content=part2),
+        ],
+        "The columns sum to 4 and 6.",
+    )
+
+    assert bridge.state.output.completion == "The columns sum to 4 and 6."
+
+
+def partially_quoted_bridge() -> tuple[
+    AgentBridge, list[ChatMessage], list[ChatMessage]
+]:
+    """Multi-message input; the main call quote-wraps only the first message.
+
+    Returns the bridge plus the main-call and side-call inputs: the main
+    thread's quote-wrap evidence sits in one aligned position (the other is
+    verbatim), while the side call copies both messages raw and appends an
+    instruction — so it is longer and anchors verbatim at every position.
+    """
+    part1 = "Here is a data file to analyze in detail:"
+    part2 = "col_a,col_b\n1,2\n3,4"
+    bridge = AgentBridge(
+        AgentState(
+            messages=[ChatMessageUser(content=part1), ChatMessageUser(content=part2)]
+        )
+    )
+    main: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content=f'"{part1}"'),
+        ChatMessageUser(content=part2),
+    ]
+    side: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a topic detector ..."),
+        ChatMessageUser(content=part1),
+        ChatMessageUser(content=part2),
+        ChatMessageUser(content="Return only the topic"),
+    ]
+    return bridge, main, side
+
+
+async def test_verbatim_side_call_does_not_displace_partially_quoted_main() -> None:
+    """Quote-wrap evidence survives positions that round-trip verbatim.
+
+    If the thread verdict collapsed to its weakest position, the partially
+    quoted main would grade the same as the raw-copy side call and the
+    longer side call would win the equal-verdict length arm.
+    """
+    bridge, main, side = partially_quoted_bridge()
+
+    await track(bridge, main, "The columns sum to 4 and 6.")
+    await track(bridge, side, "CSV analysis")
+
+    assert bridge.state.output.completion == "The columns sum to 4 and 6."
+
+
+async def test_partially_quoted_main_displaces_verbatim_side_call() -> None:
+    """Reverse order: the shorter quoted main reclaims tracking."""
+    bridge, main, side = partially_quoted_bridge()
+
+    await track(bridge, side, "CSV analysis")
+    await track(bridge, main, "The columns sum to 4 and 6.")
+
+    assert bridge.state.output.completion == "The columns sum to 4 and 6."
+
+
+def store_copying_side_bridge() -> tuple[
+    AgentBridge, list[ChatMessage], list[ChatMessage]
+]:
+    """Multi-message input; the side call mixes a stored copy with embedding.
+
+    Side calls read from the scaffold's store too, so one can carry the
+    quote-wrapped form of the first initial message while merely *embedding*
+    the second — the quoted position must not lift the thread past the
+    containment cap. The main call carries both messages verbatim.
+    """
+    part1 = "Here is a data file to analyze in detail:"
+    part2 = "col_a,col_b\n1,2\n3,4\n5,6"
+    bridge = AgentBridge(
+        AgentState(
+            messages=[ChatMessageUser(content=part1), ChatMessageUser(content=part2)]
+        )
+    )
+    main: list[ChatMessage] = [
+        TASK_SYSTEM,
+        ChatMessageUser(content=part1),
+        ChatMessageUser(content=part2),
+    ]
+    side: list[ChatMessage] = [
+        ChatMessageSystem(content="You are a topic detector ..."),
+        ChatMessageUser(content=f'"{part1}"'),
+        ChatMessageUser(content=f"Classify:\n{part2}"),
+        ChatMessageUser(content="Return only the topic"),
+    ]
+    return bridge, main, side
+
+
+async def test_store_copying_side_call_does_not_displace_exact_main() -> None:
+    """A quoted position must not lift an embedding side call past the cap."""
+    bridge, main, side = store_copying_side_bridge()
+
+    await track(bridge, main, "The columns sum to 9 and 12.")
+    await track(bridge, side, "CSV analysis")
+
+    assert bridge.state.output.completion == "The columns sum to 9 and 12."
+
+
+async def test_exact_main_displaces_store_copying_side_call() -> None:
+    """Reverse order: the exact main reclaims tracking from the side call."""
+    bridge, main, side = store_copying_side_bridge()
+
+    await track(bridge, side, "CSV analysis")
+    await track(bridge, main, "The columns sum to 9 and 12.")
+
+    assert bridge.state.output.completion == "The columns sum to 9 and 12."
+
+
+async def test_short_initial_input_does_not_anchor_by_containment() -> None:
+    """A trivially short prompt can't turn a side call into a descending thread.
+
+    Containment anchoring requires a minimum of initial text: a side call
+    whose preamble happens to contain a short prompt must not be adopted as
+    descending (it would then displace the real one-shot answer thread).
+    """
+    short_task = "ls /tmp"
+    bridge = AgentBridge(AgentState(messages=[ChatMessageUser(content=short_task)]))
+
+    # real thread anchors by exact match
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=short_task)], "Castle")
+
+    # longer side call whose first user message contains the short prompt
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a title generator ..."),
+            ChatMessageUser(content=f"Generate a title for: {short_task}"),
+            ChatMessageUser(content="Respond with the title only."),
+        ],
+        "Listing temporary files",
+    )
+
+    assert bridge.state.output.completion == "Castle"
+
+
+# ---------------------------------------------------------------------------
 # Scaffolds that rewrite the input prompt (no fingerprint/descent continuity)
 # ---------------------------------------------------------------------------
 
@@ -713,11 +1278,14 @@ async def test_unrelated_attachment_reference_does_not_anchor_descent() -> None:
 def rewritten_task(call: int | None = None) -> ChatMessageUser:
     """The task message as rewritten by the scaffold.
 
-    Mirrors e.g. claude code's system-reminder injection; `call` varies the
-    text per call.
+    Mirrors a scaffold that paraphrases/truncates the prompt; `call` varies
+    the text per call. The rewritten text must not *contain* the original
+    prompt — these tests exercise the paths where descent never anchors
+    (a containing rewrite would anchor via containment; see the
+    scaffold-decorated prompt tests above).
     """
     reminder = f"<system-reminder>call {call}</system-reminder>" if call else ""
-    return ChatMessageUser(content=f"{TASK}\n{reminder}")
+    return ChatMessageUser(content=f"{TASK[:30]}... (see attached brief)\n{reminder}")
 
 
 async def test_rewriting_scaffold_tracks_via_legacy_heuristic() -> None:
