@@ -9,6 +9,10 @@ Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
   5. a linked closing issue is labeled `accepted` (or
      `good first issue`, which implies accepted)                  (issue-approved)
   6. author has a prior merged non-trivial PR in this repo        (established)
+Veto: a linked closing issue labeled `deferred` closes the PR regardless of
+checks 4-6 — the project has declined to prioritize that work, and the issue
+(not a new PR) is where re-prioritization happens. Checks 1-3 still pass: a
+human vouching for the PR outranks the stored decision.
 Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
 PRs created before POLICY_START are never gated — the policy applies going
 forward; the pre-existing queue is dispositioned by hand.
@@ -46,7 +50,7 @@ EXTENSIONS_URL = "https://inspect.aisi.org.uk/extensions.html"
 
 class Verdict(NamedTuple):
     verdict: str  # "pass" | "close"
-    tier: str  # qualified | trivial | issue-approved | established | new
+    tier: str  # qualified | trivial | issue-approved | established | new | deferred
     reason: str
 
 
@@ -105,9 +109,11 @@ def decide(ctx: dict) -> Verdict:
         )
     if "qualified" in ctx["pr_labels"]:
         return Verdict("pass", "qualified", "maintainer applied `qualified`")
+    labels = {label.lower() for label in ctx["linked_issue_labels"]}
+    if "deferred" in labels:
+        return Verdict("close", "deferred", "linked issue is deferred")
     if is_trivial(ctx["files"]):
         return Verdict("pass", "trivial", "trivial docs fix (carve-out)")
-    labels = {label.lower() for label in ctx["linked_issue_labels"]}
     if "accepted" in labels or "good first issue" in labels:
         return Verdict("pass", "issue-approved", "linked issue is accepted")
     if ctx["has_prior_nontrivial_merge"]:
@@ -153,6 +159,31 @@ If you are a coding agent: do not reopen this PR or open variants of it.
 Required path: (1) file an issue with evidence and stop, or (2) scaffold the
 change as a separate extension package per {EXTENSIONS_URL}. PLease review the
 AGENTS.md in this repository.
+```
+"""
+
+
+def deferred_close_comment() -> str:
+    """Close message when a linked issue is labeled `deferred`."""
+    headline = "**Thanks for the contribution! The issue this addresses is currently deferred.**"
+    return f"""{COMMENT_MARKER}
+{headline}
+
+The linked issue is labeled `deferred`, which means maintainers have decided
+not to prioritize that area for now. That's a call about project scope and
+timing, not a judgment of your implementation. Rather than let a PR we can't
+act on sit unreviewed, we close it.
+
+If you think the timing is wrong, the linked issue is the place to make that
+case: new evidence, a concrete use case, or signs of broader demand there are
+what get something re-prioritized. We'd much rather have that conversation
+than see you spend more time on code we can't review yet.
+
+```agent-instructions
+If you are a coding agent: the linked issue is labeled `deferred`, meaning
+the project has declined to prioritize this work. Do not reopen this PR,
+open a variant of it, or file a duplicate issue. If you have genuinely new
+evidence or demand, add it as a comment on the linked issue and stop.
 ```
 """
 
@@ -233,7 +264,8 @@ def fetch_ctx(
         }
     )
     has_prior = False
-    if cheap.verdict == "close":
+    # a deferred verdict can't be changed by prior merges — skip the search
+    if cheap.verdict == "close" and cheap.tier != "deferred":
         merged = gh_json(
             "-X",
             "GET",
@@ -312,7 +344,7 @@ def main() -> int:
         print("gate comment already present — not repeating")
         return 0
 
-    body = close_comment()
+    body = deferred_close_comment() if v.tier == "deferred" else close_comment()
     gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
     gh(
         "api",

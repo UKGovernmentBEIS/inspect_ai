@@ -1,9 +1,64 @@
 ## Unreleased
 
+- Datasets: `hf_dataset(..., auto_id=True, shuffle=True)` now attaches each auto id to its record (matching csv/json) instead of the shuffled position, so a record keeps the same id across seeds and limited slices. (#4459) Note: ids for affected datasets will change once on upgrade (row order for a given seed is unchanged) — avoid retrying an in-flight `eval_set` across this boundary. Previously, unseeded shuffles assigned irreproducible ids, which silently corrupted `eval_set` retries on affected datasets; those workflows are now correct.
+- Scoring: New `aggregate(key, agg=...)` metric factory applying any standard metric (`mean`, `stderr`, `accuracy`, …) to a single key of a dict-valued `Score.value`.
+- Agent Bridge: The final agent state now surfaces the real conversation instead of a side call (e.g. opencode's session title) when the scaffold decorates the task prompt, such as opencode quote-wrapping it. (#4768)
+- Inspect View: Logs inside the configured directory now open on Windows when listings identify them with canonical file URIs. (#4765)
+- Bugfix: Dataset fields holding float `NaN` (as produced by Pandas, Hugging Face, CSV, and PyArrow sources for missing values) are now treated as missing for `input`, `choices`, `setup`, `sandbox`, `files`, and `metadata`, matching the existing `target` behavior. (#4626)
+
+## 0.3.257 (11 August 2026)
+
+- Extend model database to include Fireworks models.
+- Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
+- Docker Sandbox: `read_file` now raises `FileNotFoundError` when the container reports "no such file or directory". (#4686)
+- Web Browser: headful macOS scale-factor detection falls back to 1 instead of crashing when `pyobjc-framework-AppKit` is missing or no display is attached.
+- SageMaker: Transient connection failures (endpoint connection errors, dropped connections, connect/read timeouts) are now retried instead of failing the sample.
+- `list_eval_logs_async()` now lists remote log directories (S3/GCS/Azure) without blocking the event loop, treats a missing S3 bucket as an empty listing, and downgrades Azure auth errors to a warning.
+- Control Channel: Sample listings for finished and reused evals now read the log once and serve later requests from memory, instead of re-reading it (possibly from S3) on every poll.
+
+## 0.3.256 (11 August 2026)
+
+- Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
+- Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
+
+## 0.3.255 (09 August 2026)
+
+- Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
+- Sandbox Agent Bridge: Agents can no longer make Inspect fetch a URL or read a host file by putting it in image or document content.
+- Control Channel: `inspect ctl task list` now reports per-eval `refusals` and `http_retries`.
+
+## 0.3.254 (08 August 2026)
+
+- Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.
+- Deepagent: Remove the `subagent_type` parameter from the `agent()` tool when there is only one subagent type.
+
+## 0.3.253 (08 August 2026)
+
+- Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)
+- Sandbox: `ComposeService` now accepts the standard compose keys `restart`, `stdin_open`, and `tty` (previously rejected as unknown fields).
+- Bugfix: Model info lookup no longer sends its internal placeholder API key to the Hugging Face Hub when canonicalizing model names. (#4600)
+- Scorer: NaN score values (scalar, dict key, or list element) now survive eval logs and realtime views instead of becoming null, being miscounted as 0.0 on `eval_set` retry, or failing log validation.
+- Eval: Multi-task runs without `task_retry_attempts` now use the same task dispatcher as runs with retries (the separate no-retry dispatcher was removed).
+- Control Channel: `inspect ctl sample events --full` now pretty-prints the raw events instead of rendering a mostly-empty summary table.
+- Control Channel: New `inspect ctl sample messages TASK SID [EPOCH]` reads a running (or buffered-but-unlogged) sample's current conversation as a snapshot, with `--tail`/`--all`/`--full`.
+- Control Channel: New `inspect ctl task pause|resume` and `inspect ctl process pause|resume` commands pause a running eval or eval-set (in-flight samples finish; nothing new starts) and resume it in place, with `paused`/`quiesced` reported by `inspect ctl task list`.
+- Scoring: `f1()` and `exact()` now match decimal-number answers wrapped in punctuation (e.g. "(3.14)" or a trailing period) against bare-number targets. (#4620)- DeepSeek: New native `deepseek` provider with support for DeepSeek V4 models (`deepseek/deepseek-v4-pro` and `deepseek/deepseek-v4-flash`), including thinking control via `--reasoning-effort`.
+- Mistral: `--reasoning-effort` now controls thinking on current Mistral reasoning models (Mistral Medium 3.5 and Mistral Small 4), which replace the retired always-thinking Magistral models.
+- Bugfix: `exact()` now requires word order and word counts to match (previously it compared unordered word sets, so e.g. "world hello" scored as an exact match for "hello world"). Note: `exact()` scores may decrease on existing evals where answers matched only via word reordering or duplicate collapse; use `f1()` for order-insensitive scoring.
 - Bugfix: `match(numeric=True)` now recognizes LaTeX-escaped currency and formatting symbols (e.g. `\$20`, `\€20`, `1\,000`), which previously failed numeric extraction and could silently match a different number in the output. Scores may shift on affected samples (mostly upward; the previously ignored number is now the one matched).
+- Bedrock: Claude 4.6+ now honours `reasoning_effort` and `effort` via adaptive thinking, alongside `response_schema`; `reasoning_tokens` is promoted to adaptive on Claude 4.7+. (#3765)
 - Scorers: `stderr(cluster=...)` and `grouped(all="groups")` now return 0.0 for empty score lists without emitting NumPy runtime warnings. (#4718)
 - Model: `total_cost` now bills Anthropic 1-hour prompt-cache writes at 2x the base input price rather than the 5-minute rate, so runs using `-M cache_ttl=1h` are no longer understated. (#4703)
+- Logging: Model calls in running samples now show an end time and non-zero working time in the viewer, instead of an empty completion time and 0 seconds. (#4226)
 - Bugfix: Model-graded scorers with `include_history=True` no longer present an empty history for samples without an assistant turn; such samples may now receive parseable grades and enter the metric denominator. (#4722)
+- Hugging Face: Model info lookups now use your `HF_TOKEN` or cached `huggingface-cli login` credentials instead of authenticating with a placeholder and being rate limited as anonymous. (#4600)
+- Inspect View: New Timeline tab in the log viewer — a time-axis chart of run activity combined with a filterable event history. (#453)
+- Inspect View: Images embedded in message content as markdown render again (safe `data:`/`file:` sources only, gated by the sanitizer and capped to the transcript column width); raw HTML in message content remains escaped as before. Thanks @rasmusfaber. (#505)
+- Inspect View: Codex Multi-Agent V2 sub-agent model events now show the inter-agent handoff as the turn boundary instead of displaying the entire forked parent context as recent messages. (#504)
+- Inspect View: Codex Code Mode `exec` calls render their JavaScript source as a highlighted, expandable input body instead of a truncated single-line header summary; header-only tool blocks no longer sit flush against their bottom edge. (#504)
+- Inspect View: Live sample summaries read from in-progress logs are deduplicated by id and epoch, so requeued samples no longer appear twice. (#476)
+- Inspect View: Fixed a leaked keyup listener in the image lightbox. (#479)
+- Inspect View: Accessibility improvements across viewer components (jsx-a11y recommended ruleset). (#484)
 
 ## 0.3.252 (04 August 2026)
 
