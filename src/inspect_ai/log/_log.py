@@ -25,6 +25,7 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
+from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
@@ -372,7 +373,7 @@ class EvalSampleSummary(BaseModel):
         return self
 
     # allow field model_usage
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), ser_json_inf_nan="constants")
 
 
 class EvalRetryError(BaseModel):
@@ -652,7 +653,7 @@ class EvalSample(BaseModel):
         return sample
 
     # allow field model_usage
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), ser_json_inf_nan="constants")
 
 
 class EvalEvents(BaseModel):
@@ -770,6 +771,8 @@ class EvalSampleReductions(BaseModel):
 
     samples: list[EvalSampleScore]
     """List of reduced scores"""
+
+    model_config = ConfigDict(ser_json_inf_nan="constants")
 
 
 class EvalResults(BaseModel):
@@ -1153,6 +1156,9 @@ class EvalLog(BaseModel):
     log_updates: list[LogUpdate] | None = Field(default=None)
     """Post-eval edits to tags and metadata."""
 
+    config_updates: list[ConfigUpdate] | None = Field(default=None)
+    """Mid-run configuration changes applied via the control channel (`inspect ctl config`)."""
+
     tags: list[str] = Field(default_factory=list)
     """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
 
@@ -1170,6 +1176,8 @@ class EvalLog(BaseModel):
 
     etag: str | None = Field(default=None, exclude=True)
     """ETag from S3 for conditional writes."""
+
+    model_config = ConfigDict(ser_json_inf_nan="constants")
 
     @model_validator(mode="after")
     def _validate_tags_and_metadata(self) -> "EvalLog":

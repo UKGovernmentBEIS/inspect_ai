@@ -55,7 +55,7 @@ def prepare_discovery_dir(
 
     1. Create the directory if missing.
     2. Lock it to 0700 (defence-in-depth — see "Security model" in
-       design/control-channel.md).
+       design/ctl/control-channel.md).
     3. Sweep any stale ``<pid>.json`` entries left behind by processes
        that crashed without cleaning up, plus their orphan socket
        nodes.

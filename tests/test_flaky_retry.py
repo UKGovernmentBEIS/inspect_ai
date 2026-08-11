@@ -59,6 +59,51 @@ class TestFlakyRetry:
 
         assert call_count == 1
 
+    def test_skip_not_retried(self):
+        """Test that pytest.skip() is honored immediately, not retried."""
+        call_count = 0
+
+        @flaky_retry(max_retries=3)
+        def skip_immediately():
+            nonlocal call_count
+            call_count += 1
+            pytest.skip("deliberate skip")
+
+        with pytest.raises(pytest.skip.Exception):
+            skip_immediately()
+
+        assert call_count == 1
+
+    def test_xfail_not_retried(self):
+        """Test that pytest.xfail() is honored immediately, not retried."""
+        call_count = 0
+
+        @flaky_retry(max_retries=3)
+        def xfail_immediately():
+            nonlocal call_count
+            call_count += 1
+            pytest.xfail("deliberate xfail")
+
+        with pytest.raises(pytest.xfail.Exception):
+            xfail_immediately()
+
+        assert call_count == 1
+
+    async def test_async_skip_not_retried(self):
+        """Test that pytest.skip() in an async test is honored immediately."""
+        call_count = 0
+
+        @flaky_retry(max_retries=3)
+        async def skip_immediately():
+            nonlocal call_count
+            call_count += 1
+            pytest.skip("deliberate skip")
+
+        with pytest.raises(pytest.skip.Exception):
+            await skip_immediately()
+
+        assert call_count == 1
+
     def test_preserves_function_metadata(self):
         """Test that decorator preserves original function metadata."""
 

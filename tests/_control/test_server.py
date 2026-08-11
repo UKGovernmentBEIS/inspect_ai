@@ -558,6 +558,57 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert missing.status_code == 404
 
 
+async def test_sample_messages_endpoint_round_trips_and_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample-messages route passes `tail`/`full`, round-trips a reserved id, 404s.
+
+    `GET /evals/<id>/sample/messages`: `sample_id` as a query param (so
+    reserved chars address), `tail`/`full` forwarded, and a missing sample →
+    404. The helper logic is unit-tested in test_messages.py; this pins the
+    route wiring.
+    """
+    from inspect_ai._control import server as server_mod
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        sample_id: str,
+        epoch: int,
+        *,
+        tail: object,
+        full: object,
+    ) -> dict[str, object] | None:
+        seen["sample_id"] = sample_id
+        seen["tail"] = tail
+        seen["full"] = full
+        if sample_id == "missing":
+            return None
+        return {"as_of": 1.0, "status": "running", "count": 0, "messages": []}
+
+    monkeypatch.setattr(server_mod, "sample_messages", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.get(
+            "/evals/e1/sample/messages",
+            params={"sample_id": "case/001", "tail": 5, "full": "true"},
+        )
+        assert ok.status_code == 200, ok.text
+        assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
+        assert seen["tail"] == 5
+        assert seen["full"] is True
+
+        missing = await client.get(
+            "/evals/e1/sample/messages", params={"sample_id": "missing"}
+        )
+        assert missing.status_code == 404
+
+
 async def test_samples_endpoint_parses_filter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -820,7 +871,7 @@ def test_eval_set_park_skipped_when_intent_off() -> None:
     reset_keep_alive()
     try:
         request_release()  # intent off
-        asyncio.run(asyncio.wait_for(_keep_alive_park("set-1"), timeout=5))
+        asyncio.run(asyncio.wait_for(_keep_alive_park("set-1", "/logs"), timeout=5))
     finally:
         reset_keep_alive()
 
@@ -1001,3 +1052,124 @@ def test_start_advertises_api_version_in_discovery(
         asyncio.run(run())
     finally:
         shutil.rmtree(dirpath, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# Peer credential (SO_PEERCRED / LOCAL_PEERCRED) check
+# ---------------------------------------------------------------------------
+
+
+def test_peer_uid_reports_own_uid_over_socketpair() -> None:
+    """``peer_uid`` reads this process's euid off an AF_UNIX socketpair."""
+    import os
+    import socket
+
+    from inspect_ai._util.sockets import peer_uid
+
+    if not hasattr(socket, "AF_UNIX"):
+        pytest.skip("AF_UNIX not available on this platform")
+
+    a, b = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        assert peer_uid(a) == os.geteuid()
+        assert peer_uid(b) == os.geteuid()
+    finally:
+        a.close()
+        b.close()
+
+
+def test_peer_uid_unpacks_high_uids_unsigned() -> None:
+    """``uid_t`` is unsigned: peer uids >= 2**31 must not unpack negative.
+
+    Regression: unpacking Linux ``struct ucred`` with a signed format mapped
+    nfsnobody-style uids (4294967294) to -2, so the same-user comparison
+    failed and the server dropped that user's own connection.
+    """
+    import socket
+    import struct
+    import sys
+    from typing import cast
+
+    from inspect_ai._util.sockets import peer_uid
+
+    if sys.platform != "linux":
+        pytest.skip("SO_PEERCRED struct ucred layout is Linux-specific")
+
+    high_uid = 4294967294  # nfsnobody on older RHEL
+
+    class FakeSocket:
+        family = socket.AF_UNIX
+
+        def getsockopt(self, level: int, optname: int, buflen: int = 0) -> bytes:
+            assert level == socket.SOL_SOCKET and optname == socket.SO_PEERCRED
+            return struct.pack("iII", 1234, high_uid, high_uid)
+
+    assert peer_uid(cast(socket.socket, FakeSocket())) == high_uid
+
+
+def test_control_server_rejects_mismatched_peer_uid(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir
+) -> None:
+    """A connection whose peer UID differs from the server's is dropped.
+
+    The SO_PEERCRED / LOCAL_PEERCRED hardening: the connection must die at
+    the transport layer (no HTTP response at all), not merely 4xx — a
+    foreign-UID peer gets no protocol surface whatsoever. Forcing a real
+    mismatch needs a second user, so the credential reader is stubbed; the
+    genuine same-UID path is covered end-to-end by the acceptance test
+    below.
+    """
+    import os
+
+    import inspect_ai._control.server as server_mod
+    from inspect_ai._control.server import control_server
+
+    monkeypatch.setattr(server_mod, "peer_uid", lambda sock: os.geteuid() + 1)
+
+    async def run() -> None:
+        async with control_server(run_id="run-peercred-reject") as srv:
+            assert srv is not None and srv.socket_path is not None
+            transport = httpx.AsyncHTTPTransport(uds=str(srv.socket_path))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://control"
+            ) as client:
+                with pytest.raises(httpx.TransportError):
+                    await client.get("/tasks")
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "stub_uid",
+    [None, "own"],
+    ids=["credential-unavailable-fails-open", "same-uid"],
+)
+def test_control_server_accepts_peer(
+    monkeypatch: pytest.MonkeyPatch, short_data_dir, stub_uid
+) -> None:
+    """Same-UID peers are served; an unreadable credential fails open.
+
+    ``same-uid`` runs the real credential read end-to-end over the bound
+    socket. ``credential-unavailable`` stubs ``peer_uid`` to ``None``
+    (platform without the API / failed getsockopt) and must still serve —
+    the check is defence-in-depth on top of the filesystem permissions, so
+    an indeterminate credential allows rather than bricking the surface.
+    """
+    from inspect_ai._control.server import control_server
+
+    if stub_uid is None:
+        import inspect_ai._control.server as server_mod
+
+        monkeypatch.setattr(server_mod, "peer_uid", lambda sock: None)
+
+    async def run() -> None:
+        async with control_server(run_id="run-peercred-accept") as srv:
+            assert srv is not None and srv.socket_path is not None
+            transport = httpx.AsyncHTTPTransport(uds=str(srv.socket_path))
+            async with httpx.AsyncClient(
+                transport=transport, base_url="http://control"
+            ) as client:
+                response = await client.get("/tasks")
+            assert response.status_code == 200
+
+    asyncio.run(run())

@@ -11,6 +11,7 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_t
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
+from inspect_ai.util._sandbox.limits import SandboxEnvironmentLimits
 
 from .._tool import Tool, ToolParsingError, tool
 
@@ -216,6 +217,7 @@ def bash_session(
         timing: dict[str, object] = {
             "wait_for_output": wait_for_output,
             "idle_timeout": DEFAULT_IDLE_TIME,
+            "max_output_bytes": SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE,
         }
         action_specific: dict[str, dict[str, object]] = {
             "type": {"input": input, **timing},

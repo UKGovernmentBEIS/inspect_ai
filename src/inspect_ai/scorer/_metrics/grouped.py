@@ -87,9 +87,12 @@ def grouped(
                 all_group_metric = metric_protocol(scores)
             elif all == "groups":
                 # group means the overall score is the mean of all the group scores
-                all_group_metric = np.mean(
-                    [value_to_float(val) for val in grouped_scores.values()]
-                ).item()
+                if not grouped_scores:
+                    all_group_metric = 0.0
+                else:
+                    all_group_metric = np.mean(
+                        [value_to_float(val) for val in grouped_scores.values()]
+                    ).item()
 
             return cast(Value, {**grouped_scores, all_label: all_group_metric})
 

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
@@ -27,6 +28,7 @@ from inspect_ai.scorer._metric import (
     MetricDeprecated,
     MetricProtocol,
     SampleScore,
+    ScoreEdit,
     metric_create,
 )
 from inspect_ai.scorer._metrics import aggregate, grouped
@@ -118,6 +120,25 @@ def test_metric_create() -> None:
     metric_create_assert("accuracy4", correct="C")
 
 
+@metric
+def kwargs_metric(**kwargs: Any) -> Metric:
+    def metric(scores: list[SampleScore]) -> int | float:
+        return 1
+
+    return metric
+
+
+def test_metric_create_replays_name_kwarg_without_collision() -> None:
+    """A `**kwargs` key named `name` must survive metric replay from a log (#4375).
+
+    Flat capture records such a key at the top level of the log's metric
+    options, so replaying it must not collide with metric_create's own
+    `name` parameter.
+    """
+    metric = metric_create("kwargs_metric", name="demo")
+    assert metric([]) == 1
+
+
 def test_inspect_metrics() -> None:
     registry_assert(accuracy, f"{PKG_NAME}/accuracy")
     registry_assert(accuracy(), f"{PKG_NAME}/accuracy")
@@ -155,6 +176,40 @@ def test_list_metric() -> None:
     # normal eval
     log = eval(tasks=task, model="mockllm/model")[0]
     check_log(log)
+
+
+@pytest.mark.parametrize(
+    "value,leaf",
+    [
+        (float("nan"), lambda v: v),
+        (float("inf"), lambda v: v),
+        ([float("nan"), 1.0], lambda v: v[0]),
+        ({"a": float("nan"), "b": 1.0}, lambda v: v["a"]),
+        ({"a": float("-inf"), "b": 1.0}, lambda v: v["a"]),
+    ],
+)
+def test_score_non_finite_value_round_trip(value: Value, leaf: Any) -> None:
+    """Non-finite score values survive JSON serialization in every shape.
+
+    Serialized as JSON constants (NaN/Infinity) rather than null, via both
+    model_dump_json and the to_json_safe log write path.
+    """
+    score = Score(value=value)
+    for wire in (score.model_dump_json(exclude_none=True), to_json_str_safe(score)):
+        assert "null" not in wire
+        restored = Score.model_validate_json(wire)
+        original, roundtripped = leaf(score.value), leaf(restored.value)
+        if math.isnan(original):
+            assert math.isnan(roundtripped)
+        else:
+            assert roundtripped == original
+
+
+def test_score_edit_non_finite_value_round_trip() -> None:
+    edit = ScoreEdit(value=[float("nan"), 1.0])
+    restored = ScoreEdit.model_validate_json(edit.model_dump_json())
+    assert isinstance(restored.value, list)
+    assert math.isnan(cast(float, restored.value[0]))
 
 
 def test_dict_metric() -> None:
@@ -443,6 +498,61 @@ def test_clustered_stderr_single_cluster():
         ]
     )
     assert se == 0.0
+
+
+def test_clustered_stderr_matches_pairwise_definition():
+    # The clustered variance is defined as sum_i sum_j (s_i - mean)(s_j - mean)
+    # within each cluster. Pin the value against that definition, evaluated
+    # directly, on a lopsided split so no cluster size is representative.
+    values = [float(i % 5) for i in range(200)]
+    cluster_of = ["big" if i < 180 else f"small{i}" for i in range(200)]
+    scores = [
+        SampleScore(
+            score=Score(value=v), sample_metadata={"my_cluster": c}, sample_id=str(i)
+        )
+        for i, (v, c) in enumerate(zip(values, cluster_of))
+    ]
+
+    mean_value = sum(values) / len(values)
+    clustered_variance = 0.0
+    for cluster_id in set(cluster_of):
+        deviations = [
+            v - mean_value for v, c in zip(values, cluster_of) if c == cluster_id
+        ]
+        clustered_variance += sum(a * b for a in deviations for b in deviations)
+    cluster_count = len(set(cluster_of))
+    expected = (clustered_variance * cluster_count / (cluster_count - 1)) ** 0.5 / len(
+        scores
+    )
+
+    se = stderr(cluster="my_cluster")(scores)
+    assert se == pytest.approx(expected, rel=1e-12)
+
+
+def test_clustered_stderr_preserves_nan_cluster_behavior():
+    scores = [
+        SampleScore(
+            score=Score(value=1.0), sample_metadata={"my_cluster": float("nan")}
+        )
+        for _ in range(50)
+    ] + [
+        SampleScore(score=Score(value=0.0), sample_metadata={"my_cluster": 0.0})
+        for _ in range(50)
+    ]
+
+    # NaN identifiers count as a cluster for the finite-cluster correction,
+    # but their samples did not match the old per-cluster mask and therefore
+    # did not contribute to the variance.
+    assert stderr(cluster="my_cluster")(scores) == pytest.approx((1250.0**0.5) / 100.0)
+
+
+def test_clustered_stderr_single_sample_missing_metadata_raises():
+    # A single sample without the cluster key is a misconfigured eval, and the
+    # ValueError is how that surfaces. Guarding a short score list before
+    # validating it would silently return 0.0 instead.
+    metric = stderr(cluster="my_cluster")
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        metric([SampleScore(score=Score(value=1.0), sample_metadata={})])
 
 
 def test_grouped_mean_single():
@@ -932,6 +1042,17 @@ def test_metrics_return_zero_for_empty_scores() -> None:
         var(),
         std(),
         stderr(),
+        stderr(cluster="cluster_id"),
         bootstrap_stderr(),
     ):
         assert metric_fn([]) == 0.0
+
+
+def test_grouped_metric_empty_scores() -> None:
+    # grouped() metric with all="groups" or all="samples" must return 0.0
+    # aggregate for empty scores without numpy empty-slice warnings.
+    metric_samples = grouped(mean(), group_key="group", all="samples")
+    assert metric_samples([]) == {"all": 0.0}
+
+    metric_groups = grouped(mean(), group_key="group", all="groups")
+    assert metric_groups([]) == {"all": 0.0}

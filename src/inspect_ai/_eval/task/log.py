@@ -72,6 +72,7 @@ _STALE_FLUSH_INTERVAL: float = 60
 
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import BufferConfig
+    from inspect_ai.log._config_update import ConfigUpdate
     from inspect_ai.log._recorders.buffer.history import SampleHistory
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
@@ -171,6 +172,7 @@ class TaskLogger:
         viewer: ViewerConfig | None,
         recorder: Recorder,
         header_only: bool,
+        dynamic_dataset: bool = False,
     ) -> None:
         packages = {
             PKG_NAME: importlib_metadata.version(PKG_NAME),
@@ -195,7 +197,10 @@ class TaskLogger:
             [
                 sample.id
                 for sample in slice_dataset(
-                    dataset, eval_config.limit, eval_config.sample_id
+                    dataset,
+                    eval_config.limit,
+                    eval_config.sample_id,
+                    dynamic=dynamic_dataset,
                 )
             ],
         )
@@ -279,6 +284,18 @@ class TaskLogger:
         if high_throughput and eval_config.log_buffer is None:
             eval_config.log_buffer = self.flush_buffer
         self.flush_pending: list[tuple[str | int, int]] = []
+        # completed samples re-logged with flush=False (a retry's reused
+        # samples): tracked so every flush path drains them, but not counted
+        # toward the flush_buffer threshold and never arming the stale-flush
+        # timer on their own (one deterministic flush is scheduled when the
+        # reuse sweep settles — see schedule_quiet_flush)
+        self.flush_quiet: list[tuple[str | int, int]] = []
+        # sticky permit for the stale-flush timer to arm with only quiet
+        # samples pending: set when a flush fails with flush_quiet non-empty,
+        # cleared when flush_quiet fully drains. Sticky state rather than a
+        # one-shot argument so the timer's own failure re-arm (and
+        # flush_samples()'s except re-arm) keep retrying a quiet-only flush.
+        self.flush_quiet_retry = False
         self._init_stale_flush_state()
 
         # set once log_finish() has finalized and torn down the recorder. The
@@ -290,6 +307,10 @@ class TaskLogger:
 
         # sample buffer db
         self._buffer_db: SampleBufferDatabase | None = None
+
+        # how many of the run's process-scoped ctl config updates this log
+        # has recorded (see record_inherited_config_updates)
+        self._process_updates_recorded = 0
 
     def _init_stale_flush_state(self) -> None:
         # `_flush_lock` serializes every path that writes the log via the
@@ -312,6 +333,12 @@ class TaskLogger:
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
 
+        # process-scoped ctl retunes applied earlier in this run (before a
+        # retry attempt or a later eval-set child started) still govern this
+        # fresh log's eval — snapshot them so the log records the overrides
+        # it runs under (marked inherited via provenance.metadata)
+        await self.record_inherited_config_updates()
+
         if self.eval.config.log_realtime is False:
             return
 
@@ -333,7 +360,12 @@ class TaskLogger:
         self.eval = self.eval.model_copy(update=dict(eval_id=uuid(), created=iso_now()))
         self._samples_completed = 0
         self.flush_pending = []
+        self.flush_quiet = []
+        self.flush_quiet_retry = False
         self._finished = False
+        # the retry attempt gets a fresh log, which must re-record the run's
+        # full accumulated process-scoped updates in init() below
+        self._process_updates_recorded = 0
         # normally log_finish() has already cleaned up the buffer db, but if
         # the attempt failed before finishing its log (e.g. the log_start()
         # write failed) it is still live — clean it up so the new attempt
@@ -460,8 +492,10 @@ class TaskLogger:
 
         return BufferTranscriptHistoryProvider(self._buffer_db, id, epoch)
 
-    async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
-        await self.recorder.log_sample(self.eval, sample)
+    async def complete_sample(
+        self, sample: EvalSample, *, flush: bool, write_through: bool = False
+    ) -> None:
+        await self.recorder.log_sample(self.eval, sample, write_through=write_through)
         await self._finalize_sample(sample, flush=flush)
 
     async def complete_sample_streaming(
@@ -472,7 +506,9 @@ class TaskLogger:
 
     async def _finalize_sample(self, sample: EvalSample, *, flush: bool) -> None:
         if self._buffer_db is not None:
-            self._buffer_db.complete_sample(sample.summary())
+            self._buffer_db.complete_sample(
+                sample.summary(), sample_metadata=sample.metadata
+            )
 
         if flush:
             async with self._flush_pending_lock:
@@ -485,6 +521,9 @@ class TaskLogger:
                 await self._flush_pending_samples()
             elif was_empty:
                 await self._start_stale_flush_timer_if_needed()
+        else:
+            async with self._flush_pending_lock:
+                self.flush_quiet.append((sample.id, sample.epoch))
 
         if sample.error is None:
             self._samples_completed += 1
@@ -494,11 +533,15 @@ class TaskLogger:
     ) -> int:
         """Flush buffered completed samples to the log; return the count written.
 
-        Shared by every flush path — the buffer-full flush and the stale-flush
-        timer (which ignore the return) and the on-demand ``flush_samples()``.
-        Serialized via :attr:`_flush_lock`; a no-op returning 0 once the eval
-        has finished (``log_finish`` has written everything and torn the
-        recorder down, so reaching into it would raise).
+        Shared by every flush path — the buffer-full flush, the stale-flush
+        timer, and the reuse-sweep settle flush (which ignore the return) and
+        the on-demand ``flush_samples()``. Drains ``flush_pending`` and
+        ``flush_quiet`` alike, proceeding when *either* is non-empty (so
+        ``inspect ctl task log-flush`` works when only reused samples are
+        buffered), and the returned count covers samples drained from both
+        lists. Serialized via :attr:`_flush_lock`; a no-op returning 0 once
+        the eval has finished (``log_finish`` has written everything and torn
+        the recorder down, so reaching into it would raise).
         """
         reschedule_stale_flush = False
         flushed = 0
@@ -507,18 +550,33 @@ class TaskLogger:
                 return 0
             async with self._flush_pending_lock:
                 pending = list(self.flush_pending)
-                if not pending:
+                quiet = list(self.flush_quiet)
+                if not pending and not quiet:
                     return 0
 
-            await self.recorder.flush(self.eval)
-            flushed = len(pending)
+            try:
+                await self.recorder.flush(self.eval)
+            except BaseException:
+                # quiet samples never arm the stale timer on their own, so a
+                # failed write would otherwise leave a quiet-only state with
+                # no automatic retry: permit the timer to arm for them
+                if self.flush_quiet:
+                    self.flush_quiet_retry = True
+                raise
+            flushed = len(pending) + len(quiet)
 
             async with self._flush_pending_lock:
                 if self._buffer_db is not None:
+                    # quiet (reused) samples never had a buffer-db row (the
+                    # reuse path doesn't call start_sample), so only live
+                    # pending samples need removal
                     self._buffer_db.remove_samples(pending)
 
                 # Items appended during the flush are at the tail; drop the flushed prefix.
                 del self.flush_pending[: len(pending)]
+                del self.flush_quiet[: len(quiet)]
+                if not self.flush_quiet:
+                    self.flush_quiet_retry = False
                 current_generation = self._stale_flush_generation
                 reschedule_stale_flush = bool(self.flush_pending) and (
                     stale_flush_generation is None
@@ -535,7 +593,8 @@ class TaskLogger:
         Completed samples normally accumulate until ``log_buffer`` of them queue
         up (or the stale-flush timer fires) before a (possibly remote) write.
         This forces that write now — so the samples become readable in the log
-        without waiting — and returns the number written (0 if none were
+        without waiting — and returns the number written, counting quiet
+        (retry-reused) samples as well as live completions (0 if none were
         pending, or the eval has finished). Handed to the control channel via
         ``register_eval`` so ``inspect ctl task log-flush`` can push a long-running
         eval's results out to S3 on demand.
@@ -552,6 +611,45 @@ class TaskLogger:
             # own on-failure re-arm). The error still propagates to the caller.
             await self._arm_stale_flush_timer()
             raise
+
+    def schedule_quiet_flush(self) -> None:
+        """Schedule one background destination flush of quiet pending samples.
+
+        Called by ``task_run`` when the retry reuse sweep settles (every
+        planned sample has resolved its prior-attempt lookup). Reused samples
+        are re-logged with ``flush=False`` and neither count toward the
+        ``flush_buffer`` threshold nor arm the stale-flush timer, so without
+        this one deterministic write they would stay unflushed until an
+        unrelated trigger — on a retry whose remaining samples are
+        long-running, possibly hours or never. A no-op when nothing quiet is
+        pending (fresh eval, nothing reused) or the eval has finished.
+
+        May fire during teardown (cancelled ``run_sample``s still settle the
+        sweep countdown): benign — the flush serializes with ``log_finish``
+        on ``_flush_lock`` and no-ops once ``_finished`` is set.
+        """
+        if self._finished or not self.flush_quiet:
+            return
+        try:
+            run_in_background(self._quiet_settle_flush)
+        except Exception as ex:
+            # background spawn unavailable (e.g. torn-down task group during
+            # teardown): log_finish's own final write drains the samples
+            logger.warning(
+                "Unable to schedule reused-sample flush: %s", ex, exc_info=ex
+            )
+
+    async def _quiet_settle_flush(self) -> None:
+        try:
+            # shield the write like the stale-timer path: a teardown that
+            # cancels the background group must not abandon a half-written log
+            with anyio.CancelScope(shield=True):
+                await self._flush_pending_samples()
+        except Exception as ex:
+            logger.warning("Reused-sample settle flush failed: %s", ex, exc_info=ex)
+            # retry fallback: the failed flush set flush_quiet_retry, which
+            # extends the arming predicate to quiet-only pending state
+            await self._arm_stale_flush_timer()
 
     def buffer_config(
         self, log_buffer: int | None = None, log_shared: int | None = None
@@ -589,11 +687,79 @@ class TaskLogger:
             self._buffer_db.set_sync_interval(log_shared)
         return BufferConfig(
             log_buffer=self.flush_buffer,
-            pending=len(self.flush_pending),
+            pending=len(self.flush_pending) + len(self.flush_quiet),
             log_shared=self._buffer_db.shared_sync_interval
             if self._buffer_db is not None
             else None,
         )
+
+    async def record_inherited_config_updates(self) -> None:
+        """Record process-scoped ctl retunes this log hasn't yet captured.
+
+        A watermark (``_process_updates_recorded``) tracks how far into the
+        run's accumulated process-scoped updates this log has recorded.
+        Called at the two points that bracket the gap between "logger
+        exists" and "logger is a live fan-out target": from :meth:`init`, to
+        snapshot retunes that predate the log (a retry attempt or a later
+        eval-set child); and from ``task_run`` immediately before
+        ``register_eval``, because all of a run's initial loggers are
+        init()ed up front in ``prepare_options`` while retunes fan out only
+        to *registered* evals — without the catch-up, a task queued behind
+        ``--max-tasks`` would never record a retune applied while it waited,
+        even though the process-global override still governs it. The
+        catch-up must precede ``register_eval``: both run on the eval's
+        single event loop and ``register_eval`` is sync, so no retune can
+        land between the final watermark check here and registration (after
+        which fan-out reaches this logger directly).
+
+        Recorded copies keep their original provenance/timestamps and are
+        marked ``inherited`` via ``provenance.metadata``. Recording is
+        bookkeeping, never control: a failure degrades to a warning (and
+        advances the watermark — no retry) rather than blocking the task.
+        """
+        from inspect_ai._control.config_record import (
+            inherited_config_updates,
+            process_config_update_count,
+        )
+
+        # re-check the count after each batch: recording awaits the recorder,
+        # and a retune can land during those awaits
+        while self._process_updates_recorded < process_config_update_count():
+            updates = inherited_config_updates(self._process_updates_recorded)
+            self._process_updates_recorded += len(updates)
+            for update in updates:
+                try:
+                    await self.log_config_update(update)
+                except Exception as ex:
+                    logger.warning(
+                        "Could not record inherited config update in eval log %s: %s",
+                        self._location,
+                        ex,
+                    )
+
+    async def log_config_update(self, update: "ConfigUpdate") -> bool:
+        """Record a mid-run config change into this eval's log.
+
+        Handed to the control channel via ``register_eval`` so applied
+        ``inspect ctl config`` retunes are persisted (see
+        ``EvalLog.config_updates``). Missing ``previous`` values are filled
+        from this log's launch config before recording, so each affected log
+        reports its own honest "before". Returns ``False`` (recording
+        nothing) once ``log_finish`` has torn the recorder down — a finished
+        log's record is complete, and under ``--ctl-server=keep`` the logger
+        stays attached to the eval's state after finishing.
+
+        Serialized under ``_flush_lock`` with the other recorder-touching
+        paths so it can't interleave with a flush or the finish teardown.
+        """
+        from inspect_ai.log._config_update import fill_previous_from_launch
+
+        async with self._flush_lock:
+            if self._finished:
+                return False
+            update = fill_previous_from_launch(update, self.eval)
+            await self.recorder.log_config_update(self.eval, update)
+            return True
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         if self._buffer_db is not None:
@@ -611,7 +777,11 @@ class TaskLogger:
             if generation is not None and generation != self._stale_flush_generation:
                 return
 
-            should_start = 0 < len(self.flush_pending) < self.flush_buffer
+            # quiet (reused) samples arm the timer only after a failed flush
+            # set the retry permit — the settle flush is their primary drain
+            should_start = (0 < len(self.flush_pending) < self.flush_buffer) or (
+                self.flush_quiet_retry and len(self.flush_quiet) > 0
+            )
             already_started = self._stale_flush_cancel_scope is not None
             if not should_start or already_started:
                 return
@@ -726,6 +896,8 @@ class TaskLogger:
             self._finished = True
             async with self._flush_pending_lock:
                 self.flush_pending.clear()
+                self.flush_quiet.clear()
+                self.flush_quiet_retry = False
 
             # cleanup the events db
             if self._buffer_db is not None:
@@ -762,15 +934,6 @@ def plan_to_eval_plan(plan: Plan, config: GenerateConfig) -> EvalPlan:
     if plan.finish:
         eval_plan.steps.append(eval_plan_step(plan.finish))
     return eval_plan
-
-
-async def log_start(
-    logger: TaskLogger,
-    plan: Plan,
-    config: GenerateConfig,
-) -> None:
-    eval_plan = plan_to_eval_plan(plan, config)
-    await logger.log_start(eval_plan)
 
 
 def collect_eval_data(stats: EvalStats) -> None:

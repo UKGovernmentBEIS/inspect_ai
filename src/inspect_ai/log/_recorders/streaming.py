@@ -41,10 +41,11 @@ def eval_retry_error_from_history(
         elif suffix:
             suffix.append(event)
 
+    events_data = history.events_data
     events = materialize_pooled_events(
         suffix,
-        history.events_data["messages"],
-        history.events_data["calls"],
+        events_data["messages"],
+        events_data["calls"],
     )
 
     return EvalRetryError(

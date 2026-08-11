@@ -12,6 +12,7 @@ import anyio
 from anyio.abc import TaskGroup
 
 from inspect_ai._control.eval_state import reset_run_registries
+from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -20,7 +21,11 @@ from inspect_ai._control.server import (
     resolve_ctl_server,
     wait_for_shutdown_async,
 )
-from inspect_ai._eval.handoff import LaunchHandoff, emit_launch_handoff
+from inspect_ai._eval.handoff import (
+    LaunchHandoff,
+    emit_launch_handoff,
+    print_ctl_pointer,
+)
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -802,6 +807,14 @@ async def _eval_async_inner(
 
         resolve_model_costs(resolved_tasks, cost_limit)
 
+        # make every resolved task's model addressable by the model pause
+        # directives up-front: with parallel == 1 the run loop below hands
+        # the dispatcher one sequence group at a time, so the dispatcher's
+        # own registration would lag behind the run. This is also the first
+        # dispatch_model_name call, so the latch's name snapshots are taken
+        # here — before any generate can rewrite a provider's model name
+        note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])
+
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
             model_count = len(resolved_model_names(resolved_tasks))
@@ -960,7 +973,7 @@ async def _eval_async_inner(
         # live-eval read / direct / event-subscription operations to
         # `inspect ctl` CLI clients, TUIs, and agents. Bind failures are
         # logged and swallowed — eval correctness never depends on the
-        # control channel coming up. See design/control-channel.md
+        # control channel coming up. See design/ctl/control-channel.md
         # "Implementation notes".
         #
         ctl = resolve_ctl_server(ctl_server)
@@ -997,17 +1010,21 @@ async def _eval_async_inner(
             # emitted here — after the control-server bind, before any task
             # work — so a listener that has seen the handoff can rely on the
             # control surface existing (or being definitively absent)
+            control_socket = (
+                str(_ctl_server.socket_path)
+                if _ctl_server is not None and _ctl_server.socket_path is not None
+                else None
+            )
             emit_launch_handoff(
                 LaunchHandoff(
                     run_id=run_id,
                     pid=os.getpid(),
                     log_dir=log_dir,
-                    control_socket=str(_ctl_server.socket_path)
-                    if _ctl_server is not None and _ctl_server.socket_path is not None
-                    else None,
+                    control_socket=control_socket,
                     eval_set_id=eval_set_id,
                 )
             )
+            print_ctl_pointer(control_socket)
             with scan_cm:
                 # The one place eval_run is invoked for a batch of tasks. The
                 # initial tasks run as the first loop iteration below; tasks
@@ -1138,7 +1155,7 @@ async def _eval_async_inner(
                 await wait_for_shutdown_async(_ctl_server)
 
         # cleanup sample buffers if required
-        cleanup_sample_buffers(log_dir)
+        await cleanup_sample_buffers(log_dir)
 
         try:
             await emit_run_end(eval_set_id, run_id, logs)
