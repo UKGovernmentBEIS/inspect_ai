@@ -55,6 +55,10 @@ inspect eval simpleqa.py --model hf/meta-llama/Llama-2-7b-chat-hf
 
 Inspect has built-in support for over 20 model providers as well as support for local inference with HuggingFace, vLLM, and SGLang. See the documentation on [Model Providers](./providers.html.md) for details on all supported providers.
 
+> **NOTE:**
+>
+> If you use a coding agent alongside Inspect, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to monitor running evals, read logs efficiently, and analyze results.
+
 ## Hello, Inspect
 
 An Inspect evaluation is a [Task](./tasks.html.md) that brings together three things:

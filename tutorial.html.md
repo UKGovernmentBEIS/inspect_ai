@@ -17,6 +17,10 @@ Below are several examples of Inspect evaluations. Each example is standalone, s
 
 See also the complete list of [Examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples) and the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) package for many more end-to-end implementations.
 
+> **NOTE:**
+>
+> If you use a coding agent alongside Inspect, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to monitor running evals, read logs efficiently, and analyze results.
+
 ## Benchmarks
 
 An Inspect evaluation is a [Task](./reference/inspect_ai.html.md#task) that brings together three things: a **dataset** of samples, a **solver** that produces an answer for each sample, and a **scorer** that grades the answers. We’ll look at two short benchmarks below: one scored by a model and one multiple choice.

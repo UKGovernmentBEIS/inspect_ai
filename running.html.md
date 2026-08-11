@@ -13,3 +13,7 @@ Once an evaluation is developed, Inspect provides a number of tools for running 
 | [Tracing](./tracing.html.md) | Diagnose runtime issues with advanced execution tracing tools. |
 
 If you are just getting started running evaluations, see the [`inspect eval`](./options.html.md) command line interface and the [eval()](./reference/inspect_ai.html.md#eval) function covered in the [Welcome](./index.html.md#sec-hello-inspect) tutorial.
+
+> **NOTE:**
+>
+> If you use a coding agent to run evals, the [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install) plugin provides skills that teach it to launch evals in the background, monitor progress, and catch stalls and errors early.
