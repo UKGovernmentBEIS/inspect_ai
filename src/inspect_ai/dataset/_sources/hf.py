@@ -17,7 +17,12 @@ from .._dataset import (
     MemoryDataset,
     RecordToSample,
 )
-from .._util import data_to_samples, record_to_sample_fn, shuffle_choices_if_requested
+from .._util import (
+    as_sample_list,
+    data_to_samples,
+    record_to_sample_fn,
+    shuffle_choices_if_requested,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -217,22 +222,40 @@ def hf_dataset(
 
     # Assigning auto ids once shuffling is involved needs care: an id must
     # track its *record* (mirroring csv/json), not the record's shuffled
-    # position (#4459). A custom RecordToSample may emit multiple samples per
-    # record, so there an id depends on every preceding record's sample count
-    # and can only be assigned against the full unshuffled order -- forcing us
-    # to materialize the split and shuffle in memory. For the common case
-    # (sample_fields is None or a FieldSpec, a 1:1 record->sample mapping) we
-    # instead tag each row with its original index before shuffling and recover
-    # the id afterwards, keeping HF's lazy shuffle(seed).select(limit) ordering
-    # (and materializing only `limit` rows) intact.
+    # position (#4459). For the common case (sample_fields is None or a
+    # FieldSpec, a 1:1 record->sample mapping) we tag each row with its
+    # original index before shuffling and recover the id afterwards, keeping
+    # HF's lazy shuffle(seed).select(limit) ordering (and materializing only
+    # `limit` rows) intact. A custom RecordToSample may emit multiple samples
+    # per record, so there an id depends on every preceding record's sample
+    # count and can only be assigned against the full unshuffled order --
+    # forcing us to materialize the split and replay the shuffle in memory.
     custom_mapping = sample_fields is not None and not isinstance(
         sample_fields, FieldSpec
     )
     materialize_for_ids = auto_id and shuffle and custom_mapping
 
     if materialize_for_ids:
-        # assign auto ids over the unshuffled records, then shuffle in memory
-        samples = data_to_samples(dataset.to_list(), data_to_sample, auto_id)
+        # Assign auto ids over the unshuffled records, then reorder whole
+        # record groups by the same permutation `datasets.Dataset.shuffle`
+        # would apply -- it depends only on dataset length and seed -- so the
+        # row order (and which records a limit selects) for a given seed is
+        # identical to the lazy path below.
+        groups = [
+            as_sample_list(data_to_sample(record)) for record in dataset.to_list()
+        ]
+        next_id = 1
+        for group in groups:
+            for group_sample in group:
+                group_sample.id = next_id
+                next_id += 1
+        permutation = datasets.Dataset.from_dict(
+            {"index": list(range(len(groups)))}
+        ).shuffle(seed=seed)["index"]
+        groups = [groups[index] for index in permutation]
+        if limit is not None:
+            groups = groups[:limit]
+        samples = [group_sample for group in groups for group_sample in group]
     else:
         index_col = "__inspect_auto_id_index__"
         recover_ids = auto_id and shuffle  # implies a 1:1 mapping here
@@ -252,20 +275,13 @@ def hf_dataset(
         else:
             samples = data_to_samples(records, data_to_sample, auto_id)
 
-    memory_dataset: Dataset = MemoryDataset(
+    memory_dataset = MemoryDataset(
         samples=samples,
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
         shuffled=shuffle,
     )
 
-    if materialize_for_ids:
-        # ids travel with their records
-        memory_dataset.shuffle(seed=seed)
-
     shuffle_choices_if_requested(memory_dataset, shuffle_choices)
-
-    if materialize_for_ids and limit is not None:
-        memory_dataset = memory_dataset[0:limit]
 
     return memory_dataset
