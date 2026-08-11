@@ -865,6 +865,67 @@ async def test_quote_wrapped_main_displaces_verbatim_side_call() -> None:
     assert bridge.state.messages[-1].text == "Castle"
 
 
+async def test_bare_quoted_side_call_displaces_exact_main() -> None:
+    """Pins the accepted losing side of the `QUOTED` > `EXACT` ordering.
+
+    Under a scaffold that does *not* quote-wrap its store, a side call whose
+    whole aligned message is exactly the quoted prompt presents the same
+    observables as the two tests above — one QUOTED one-shot vs one EXACT
+    one-shot — so any static ordering fails exactly one of the two shapes
+    (see `_Descent`). The ordering favors the observed opencode shape, so
+    this constructed side call wins here. If this test starts failing the
+    trade has been re-decided: re-verify
+    `test_verbatim_side_call_does_not_displace_quote_wrapped_main`,
+    `test_quote_wrapped_main_displaces_verbatim_side_call`, and the
+    partially-quoted pair below, which break under a QUOTED == EXACT tie.
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle")
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who",
+    )
+
+    # pinned trade-off, not desired behavior: the bare-quoted side call
+    # outranks the verbatim one-shot main
+    assert bridge.state.output.completion == "Doctor Who"
+
+
+async def test_bare_quoted_side_call_arriving_first_retains_tracking() -> None:
+    """Reverse order of the pinned trade: the exact main cannot reclaim.
+
+    The bare-quoted side call is adopted first (best information so far);
+    the verbatim main's weaker `EXACT` anchor cannot displace it and, as a
+    one-shot, is parked as a candidate nothing extends. A multi-turn main
+    still reclaims tracking via candidate promotion — exposure is limited
+    to one-shot mains.
+    """
+    bridge = task_bridge()
+    quoted = f'"{TASK}"'
+
+    await track(
+        bridge,
+        [
+            ChatMessageSystem(content="You are a topic detector ..."),
+            ChatMessageUser(content=quoted),
+        ],
+        "Doctor Who",
+    )
+
+    await track(bridge, [TASK_SYSTEM, ChatMessageUser(content=TASK)], "Castle")
+
+    # pinned trade-off, not desired behavior (see
+    # test_bare_quoted_side_call_displaces_exact_main)
+    assert bridge.state.output.completion == "Doctor Who"
+
+
 async def test_contained_side_call_does_not_displace_quote_wrapped_main() -> None:
     """A longer prompt-embedding side call must not beat the quoted main call.
 

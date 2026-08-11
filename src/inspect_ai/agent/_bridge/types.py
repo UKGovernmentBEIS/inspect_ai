@@ -426,6 +426,23 @@ class _Descent(IntEnum):
     raw input (topic detectors, title preambles). Generic containment ranks
     below both — any call that interpolates the prompt into other text
     produces it.
+
+    `QUOTED` > `EXACT` is a deliberate trade with a mirrored residual
+    ambiguity: under a scaffold that does *not* quote-wrap its store, a
+    side call whose whole aligned message is exactly the quoted prompt
+    presents the same observables as opencode's quote-wrapped main vs a
+    raw-copy side call (one QUOTED one-shot, one EXACT one-shot), so any
+    static ordering fails exactly one of the two shapes. This ordering
+    sacrifices the bare-quoted side call — a constructed shape, no scaffold
+    observed producing it — to protect the observed opencode failure;
+    demoting QUOTED to tie EXACT breaks the observed shape in three test
+    pairs while still failing one order of the constructed one. Exposure is
+    one-shot mains only (the calls/length gate in `_track_state` protects
+    established threads, and a multi-turn main reclaims tracking via
+    candidate promotion); the losing side is pinned by the
+    `test_bare_quoted_side_call_*` tests. Resolving the pair outright
+    requires out-of-band knowledge of the scaffold's store transform (a
+    bridge-caller declaration) rather than more signal at this layer.
     """
 
     NO = 0
