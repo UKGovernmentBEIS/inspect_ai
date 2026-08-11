@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 import time
 import traceback
 from contextlib import contextmanager
@@ -14,7 +15,7 @@ from typing import Any, Callable, Generator, Literal, TextIO
 
 import anyio
 import jsonlines
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, Field, JsonValue, ValidationError
 from shortuuid import uuid
 
 from .appdirs import inspect_data_dir
@@ -268,14 +269,41 @@ def list_trace_files(trace_dir: Path | None = None) -> list[TraceFile]:
 
 
 def read_trace_file(file: Path) -> list[TraceRecord]:
+    """Read the trace records from ``file`` (transparently handling ``.gz``).
+
+    Records that fail to parse or validate are skipped rather than failing
+    the read (validation skips get a stderr note): trace files are read live
+    (a reader can catch the writer between ``write()`` syscalls, seeing a
+    partial final line), post-mortem (a hard kill or full disk truncates the
+    final line), and across versions (a newer inspect may write event types
+    this one doesn't recognize) — in every case the intact records hold the
+    answer the reader needs.
+    """
+
     def read_file(f: TextIO) -> list[TraceRecord]:
         jsonlines_reader = jsonlines.Reader(f)
         trace_records: list[TraceRecord] = []
-        for trace in jsonlines_reader.iter(type=dict):
-            if "action" in trace:
-                trace_records.append(ActionTraceRecord(**trace))
-            else:
-                trace_records.append(SimpleTraceRecord(**trace))
+        skipped = 0
+        first_error = ""
+        for trace in jsonlines_reader.iter(type=dict, skip_invalid=True):
+            try:
+                if "action" in trace:
+                    trace_records.append(ActionTraceRecord(**trace))
+                else:
+                    trace_records.append(SimpleTraceRecord(**trace))
+            except ValidationError as ex:
+                skipped += 1
+                if not first_error:
+                    err = ex.errors()[0]
+                    loc = ".".join(str(part) for part in err["loc"])
+                    first_error = f"{loc}: {err['msg']}"
+        if skipped:
+            print(
+                f"note: skipped {skipped} trace record(s) in {file.name} that "
+                "failed validation (the file may have been written by a newer "
+                f"version of inspect): {first_error}",
+                file=sys.stderr,
+            )
         return trace_records
 
     if file.name.endswith(".gz"):

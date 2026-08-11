@@ -154,7 +154,7 @@ async def write_recovered_eval_log(
                     f"Recovering sample {processed}/{total_streaming} "
                     f"id={summary.id} epoch={summary.epoch} segments={seg_count}"
                 )
-                written_summary = _write_sample_streaming(
+                written_summary, sample_metadata = _write_sample_streaming(
                     zip_log,
                     streaming_buffer,
                     summary,
@@ -173,7 +173,7 @@ async def write_recovered_eval_log(
                             name: SampleScore(
                                 score=score,
                                 sample_id=written_summary.id,
-                                sample_metadata=written_summary.metadata,
+                                sample_metadata=sample_metadata,
                             )
                             for name, score in written_summary.scores.items()
                         }
@@ -211,6 +211,9 @@ async def write_recovered_eval_log(
             reducers=reducers,
             scorers=scorers_info,
             metrics=metrics,
+            # failed_count covers errored and still-in-progress samples, so
+            # the remainder is exactly the samples that completed cleanly
+            completed_samples=sample_count - failed_count,
         )
     except Exception as ex:
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
@@ -232,6 +235,7 @@ async def write_recovered_eval_log(
         results,
         reductions,
         error=error,
+        config_updates=crashed.config_updates or None,
     )
 
 

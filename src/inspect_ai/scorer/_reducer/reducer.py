@@ -5,7 +5,7 @@ from typing import Callable, cast
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
-from .registry import REDUCER_NAME, score_reducer
+from .registry import score_reducer
 from .types import ScoreReducer
 
 
@@ -113,7 +113,6 @@ def at_least(
         else:
             return _count_scalar(scores, gte_n)
 
-    setattr(reduce, REDUCER_NAME, f"at_least_{k}")
     return reduce
 
 
@@ -159,7 +158,6 @@ def pass_at(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_at_k)
 
-    setattr(reduce, REDUCER_NAME, f"pass_at_{k}")
     return reduce
 
 
@@ -199,7 +197,6 @@ def pass_k(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_k_k)
 
-    setattr(reduce, REDUCER_NAME, f"pass_k_{k}")
     return reduce
 
 

@@ -284,6 +284,26 @@ class TestGrokCanonicalName:
             del os.environ["XAI_API_KEY"]
 
 
+class TestMoonshotCanonicalName:
+    """Tests for Moonshot provider canonical_name()."""
+
+    def test_moonshotai_prefix(self, monkeypatch):
+        """Test Moonshot model canonical name includes moonshotai/ prefix."""
+        from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+        monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
+        api = MoonshotAPI(model_name="kimi-k3")
+        assert api.canonical_name() == "moonshotai/kimi-k3"
+
+    def test_kimi_k2(self, monkeypatch):
+        """Test Kimi K2.x model canonical name."""
+        from inspect_ai.model._providers.moonshot import MoonshotAPI
+
+        monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
+        api = MoonshotAPI(model_name="kimi-k2.5")
+        assert api.canonical_name() == "moonshotai/kimi-k2.5"
+
+
 class TestOpenRouterFirstPartyDetection:
     """Tests for OpenRouter first-party provider detection."""
 
@@ -416,14 +436,18 @@ class TestGoogleCanonicalName:
         """Test Google model canonical name includes google/ prefix."""
         from inspect_ai.model._providers.google import GoogleGenAIAPI
 
-        api = GoogleGenAIAPI(model_name="gemini-1.5-pro", base_url=None, api_key=None)
+        api = GoogleGenAIAPI(
+            model_name="gemini-1.5-pro", base_url=None, api_key="test-key"
+        )
         assert api.canonical_name() == "google/gemini-1.5-pro"
 
     def test_gemini_flash(self):
         """Test Gemini Flash model."""
         from inspect_ai.model._providers.google import GoogleGenAIAPI
 
-        api = GoogleGenAIAPI(model_name="gemini-2.0-flash", base_url=None, api_key=None)
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+        )
         assert api.canonical_name() == "google/gemini-2.0-flash"
 
 
@@ -431,7 +455,7 @@ class TestCloudFlareCanonicalName:
     """Tests for CloudFlare provider canonical_name()."""
 
     def test_strips_cf_prefix(self):
-        """Test that @cf/ prefix added by constructor is stripped."""
+        """Test that the user-supplied @cf/ prefix is stripped."""
         import os
 
         from inspect_ai.model._providers.cloudflare import CloudFlareAPI
@@ -439,16 +463,15 @@ class TestCloudFlareCanonicalName:
         os.environ["CLOUDFLARE_ACCOUNT_ID"] = "test-account"
         os.environ["CLOUDFLARE_API_TOKEN"] = "test-token"
         try:
-            # Constructor adds @cf/ prefix, so pass name without it
-            api = CloudFlareAPI(model_name="meta/llama-3.1-8b-instruct")
+            api = CloudFlareAPI(model_name="@cf/meta/llama-3.1-8b-instruct")
             # canonical_name() should strip the @cf/ prefix
             assert api.canonical_name() == "meta/llama-3.1-8b-instruct"
         finally:
             del os.environ["CLOUDFLARE_ACCOUNT_ID"]
             del os.environ["CLOUDFLARE_API_TOKEN"]
 
-    def test_with_single_component_name(self):
-        """Test with a simple model name."""
+    def test_gateway_model_name_unchanged(self):
+        """Test that gateway model names (no @cf/ prefix) pass through."""
         import os
 
         from inspect_ai.model._providers.cloudflare import CloudFlareAPI
@@ -456,9 +479,8 @@ class TestCloudFlareCanonicalName:
         os.environ["CLOUDFLARE_ACCOUNT_ID"] = "test-account"
         os.environ["CLOUDFLARE_API_TOKEN"] = "test-token"
         try:
-            api = CloudFlareAPI(model_name="llama-3.1-8b-instruct")
-            # @cf/llama-3.1-8b-instruct → llama-3.1-8b-instruct
-            assert api.canonical_name() == "llama-3.1-8b-instruct"
+            api = CloudFlareAPI(model_name="moonshotai/kimi-k3")
+            assert api.canonical_name() == "moonshotai/kimi-k3"
         finally:
             del os.environ["CLOUDFLARE_ACCOUNT_ID"]
             del os.environ["CLOUDFLARE_API_TOKEN"]
@@ -468,7 +490,7 @@ class TestFireworksCanonicalName:
     """Tests for Fireworks provider canonical_name()."""
 
     def test_strips_accounts_prefix(self):
-        """Test that accounts/fireworks/models/ prefix is stripped."""
+        """Test that accounts/fireworks/models/ prefix is replaced by the org."""
         import os
 
         from inspect_ai.model._providers.fireworks import FireworksAIAPI
@@ -478,12 +500,12 @@ class TestFireworksCanonicalName:
             api = FireworksAIAPI(
                 model_name="accounts/fireworks/models/llama-v3p1-8b-instruct"
             )
-            assert api.canonical_name() == "llama-v3p1-8b-instruct"
+            assert api.canonical_name() == "fireworks/llama-v3p1-8b-instruct"
         finally:
             del os.environ["FIREWORKS_API_KEY"]
 
     def test_preserves_name_without_prefix(self):
-        """Test that names without accounts prefix are preserved."""
+        """Test that names without accounts prefix are still org-qualified."""
         import os
 
         from inspect_ai.model._providers.fireworks import FireworksAIAPI
@@ -491,7 +513,43 @@ class TestFireworksCanonicalName:
         os.environ["FIREWORKS_API_KEY"] = "test-key"
         try:
             api = FireworksAIAPI(model_name="llama-v3p1-8b-instruct")
-            assert api.canonical_name() == "llama-v3p1-8b-instruct"
+            assert api.canonical_name() == "fireworks/llama-v3p1-8b-instruct"
+        finally:
+            del os.environ["FIREWORKS_API_KEY"]
+
+    def test_input_tokens_name_uses_synced_catalog(self):
+        """A model in fireworks.yml resolves to Fireworks' own context length."""
+        import os
+
+        from inspect_ai.model._model_info import _get_model_info_direct
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        os.environ["FIREWORKS_API_KEY"] = "test-key"
+        try:
+            api = FireworksAIAPI(
+                model_name="accounts/fireworks/models/deepseek-r1-0528"
+            )
+            assert api.input_tokens_name() == "fireworks/deepseek-r1-0528"
+            info = _get_model_info_direct(api.input_tokens_name())
+            assert info is not None
+            # Fireworks serves the open weights at 160K; DeepSeek's own API
+            # entry for the same model name is 64K
+            assert info.input_tokens == 163840
+        finally:
+            del os.environ["FIREWORKS_API_KEY"]
+
+    def test_input_tokens_name_falls_back_when_uncatalogued(self):
+        """A model missing from fireworks.yml falls back to the bare name."""
+        import os
+
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        os.environ["FIREWORKS_API_KEY"] = "test-key"
+        try:
+            api = FireworksAIAPI(
+                model_name="accounts/fireworks/models/not-a-real-model"
+            )
+            assert api.input_tokens_name() == "not-a-real-model"
         finally:
             del os.environ["FIREWORKS_API_KEY"]
 

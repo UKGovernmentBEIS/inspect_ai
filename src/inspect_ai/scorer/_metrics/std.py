@@ -95,7 +95,6 @@ def stderr(
             value_list.append(to_float(sample_score.score.value))
         clusters = np.array(cluster_list)
         values = np.array(value_list)
-        mean = float(np.mean(values))
 
         # Convert to numpy arrays and get unique clusters
         unique_clusters = np.unique(clusters)
@@ -107,15 +106,15 @@ def stderr(
         if cluster_count < 2:
             return 0.0
 
-        # Compute clustered variance using NumPy operations
+        mean = float(np.mean(values))
+
+        # sum_i sum_j (s_i - mean)(s_j - mean) over a cluster is the square
+        # of that cluster's deviation sum. Computing the identity directly
+        # avoids materialising a k-by-k outer product for every cluster.
         clustered_variance = 0.0
         for cluster_id in unique_clusters:
-            # get a data vector for this cluster
             cluster_data = values[clusters == cluster_id]
-            # this computes X' \Omega X = \sum_i \sum_j (s_{i,c} - mean) * (s_{j,c} - mean)
-            clustered_variance += np.outer(
-                cluster_data - mean, cluster_data - mean
-            ).sum()
+            clustered_variance += ((cluster_data - mean).sum()) ** 2
 
         # Multiply by C / (C - 1) to unbias the variance estimate
         standard_error = np.sqrt(

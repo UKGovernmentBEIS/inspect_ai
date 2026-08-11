@@ -18,6 +18,8 @@ from inspect_ai.event._pool import (
     resolve_model_event_calls,
     resolve_model_event_inputs,
 )
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._validate import validate_events
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import (
     CallPoolData,
@@ -56,6 +58,7 @@ def reconstruct_eval_sample(
     summary: EvalSampleSummary,
     sample_data: SampleData,
     *,
+    sample_metadata: dict[str, Any] | None = None,
     cancelled: bool = False,
     include_events: bool = True,
 ) -> EvalSample:
@@ -64,6 +67,7 @@ def reconstruct_eval_sample(
     Args:
         summary: Sample summary from the buffer DB samples table.
         sample_data: Events and attachments from buffer.get_sample_data().
+        sample_metadata: Full metadata stored separately from the thinned summary.
         cancelled: If True, synthesize a cancellation EvalError
             (for in-progress samples interrupted by a crash).
         include_events: If False, return an empty events list and no
@@ -78,9 +82,14 @@ def reconstruct_eval_sample(
 
     deduped_event_data = collapse_event_versions(sample_data.events)
 
-    events = _deserialize_events(
-        [event_data.event for event_data in deduped_event_data]
-    )
+    events = validate_events([event_data.event for event_data in deduped_event_data])
+
+    if sample_metadata is None:
+        sample_init = next(
+            (event for event in events if isinstance(event, SampleInitEvent)), None
+        )
+        if sample_init is not None:
+            sample_metadata = sample_init.sample.metadata
 
     # Buffer-DB rows store events condensed; without resolving here,
     # _extract_messages_from_events sees empty ModelEvent.input and drops
@@ -120,7 +129,7 @@ def reconstruct_eval_sample(
         input=summary.input,
         choices=summary.choices,
         target=summary.target,
-        metadata=summary.metadata,
+        metadata=sample_metadata if sample_metadata is not None else summary.metadata,
         messages=messages,
         output=output,
         scores=summary.scores,
@@ -143,9 +152,6 @@ def reconstruct_eval_sample(
     )
 
 
-_LIST_EVENT_ADAPTER: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
-
-
 def _deserialize_message_pool(
     entries: list[MessagePoolData],
 ) -> list[ChatMessage]:
@@ -161,15 +167,6 @@ def _deserialize_call_pool(entries: list[CallPoolData]) -> list[JsonValue]:
     if not entries:
         return []
     return [json.loads(entry.data) for entry in sorted(entries, key=lambda e: e.id)]
-
-
-def _deserialize_events(event_dicts: list[dict[str, Any]]) -> list[Event]:
-    """Deserialize event JSON dicts into typed Event objects."""
-    if not event_dicts:
-        return []
-    return _LIST_EVENT_ADAPTER.validate_python(
-        event_dicts, context=get_deserializing_context()
-    )
 
 
 class EventVersionCollapser:

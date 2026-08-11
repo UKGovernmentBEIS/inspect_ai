@@ -1,4 +1,5 @@
 from .accuracy import accuracy
+from .aggregate import aggregate
 from .categorical import categorical, frequency
 from .grouped import grouped
 from .krippendorff import krippendorff_alpha
@@ -8,11 +9,12 @@ from .std import bootstrap_stderr, std, stderr, var
 
 __all__ = [
     "accuracy",
-    "krippendorff_alpha",
+    "aggregate",
     "categorical",
     "frequency",
     "mean",
     "grouped",
+    "krippendorff_alpha",
     "perplexity_per_token",
     "perplexity_per_seq",
     "bootstrap_stderr",
