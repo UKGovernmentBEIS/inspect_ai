@@ -50,8 +50,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._samples import active_samples
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
-# `_isolate_active_model` (autouse) and `short_data_dir` come from
-# tests/_control/conftest.py.
+# `isolate_active_model` (autouse) comes from tests/conftest.py, and
+# `short_data_dir` from tests/_control/conftest.py.
 
 # --- ls / GET /evals: per-eval listing -------------------------------------
 

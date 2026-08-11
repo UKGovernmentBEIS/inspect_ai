@@ -70,6 +70,7 @@ For more detail on the different methods of configuration, see [Configuration](t
 | `--model-base-url` | Base URL for for model API                   |
 | `--model-config`   | Model specific arguments (JSON or YAML file) |
 | `-M`               | Model specific arguments (`key=value`).      |
+| `--model-spec`     | Model with its own generation config, model args, and base url (inline JSON or YAML, same fields as `--model-role`). Repeat for several models. Cannot be combined with the four options above, nor with the `model` field of `--run-config`. See [Multiple Models](models.qmd#multiple-models). |
 | `--model-role`     | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.qmd#model-roles). |
 
 ## Model Generation
