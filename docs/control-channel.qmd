@@ -1,13 +1,13 @@
 ---
 title: Control Channel
-llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, pause and resume, launch-config retuning, log flushing, and keep-alive.
+llms-description: Launch evals from scripts and agents (inspect eval --json launch handoff, and --detach to run an eval in the background, detached from the terminal), then observe and direct them from another process with the inspect ctl commands - live task and sample status, error and retry detail, transcript events, conversation snapshots, stall diagnosis from trace logs, task and sample cancellation, sample requeue, pause and resume, launch-config retuning, log flushing, and keep-alive.
 ---
 
 ## Overview
 
 Every `inspect eval` or `inspect eval-set` process binds a local control endpoint that exposes the live state of the run. The `inspect ctl` commands connect to it from another terminal, so you can check on a long-running eval — progress, stalled samples, errors, transcript activity — and direct it — cancel a stalled sample or a whole task, retune concurrency limits and log buffering — without parsing log files.
 
-Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-level `config` command:
+Commands are grouped by resource noun (`task`, `sample`, `model`, `process`), plus a top-level `config` command:
 
 | Command | Description |
 |----|----|
@@ -22,7 +22,10 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 | `inspect ctl sample events` | Read one sample's transcript events. |
 | `inspect ctl sample messages` | Read one sample's current conversation. |
 | `inspect ctl sample cancel` | Cancel one running sample. |
+| `inspect ctl sample requeue` | Re-run one errored or cancelled sample inside the live run. |
 | `inspect ctl config` | View or retune launch configuration mid-flight. |
+| `inspect ctl model pause` | Pause one model's dispatch across the run. |
+| `inspect ctl model resume` | Resume a paused model. |
 | `inspect ctl process list` | List running Inspect processes. |
 | `inspect ctl process anomalies` | Show in-flight and anomalous actions from a process's trace log. |
 | `inspect ctl process keep` | Make a process stay alive after its eval finishes. |
@@ -32,7 +35,7 @@ Commands are grouped by resource noun (`task`, `sample`, `process`), plus a top-
 
 : {tbl-colwidths=[35,65]}
 
-A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume` and `process pause`/`resume` stop and restart dispatch reversibly without touching in-flight work, and `task cancel` / `sample cancel` interrupt work explicitly (idempotently, with `--dry-run` support).
+A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and likewise for `sample` and `process`. All commands accept `--json` for structured output, which makes them straightforward to use from scripts and from coding agents like Claude Code. The `list` / `show` / `errors` / `events` / `messages` / `anomalies` commands are read-only. The others direct the run deliberately: `config` retunes launch parameters (never interrupting in-flight work), `task log-flush` forces a log write that would happen anyway, `process keep`/`release` only affect what happens after the eval finishes, `task pause`/`resume`, `model pause`/`resume`, and `process pause`/`resume` stop and restart dispatch reversibly without touching in-flight work, `task cancel` / `sample cancel` interrupt work explicitly, and `sample requeue` re-runs an errored or cancelled sample (all three idempotently, with `--dry-run` support).
 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
@@ -94,7 +97,7 @@ To instead keep the process alive after the eval finishes — its state still qu
 
 `--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because a detached eval must be observable and cancellable while running, combining `--detach` with `--ctl-server=false` is an error.
 
-To make an agent (Claude Code or similar) use this workflow for long-running evals, paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
+To make an agent (Claude Code or similar) use this workflow for long-running evals, install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install), or paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
 
 ```markdown
 For evals that may run longer than a few minutes, do not run
@@ -133,6 +136,10 @@ fR8mWn2cQspD  inspect_evals/humaneval     anthropic/claude-sonnet-5  generate  1
 
 Each row is one task: retried tasks stay on a single row (with an `attempts` column showing how many attempts have run), and an `errors` column appears when any samples have errored. The `solver` column shows the plan's terminal solver (the agent name, e.g. `react`, for an agentic task). With `--json`, the response is an `{as_of, tasks}` envelope and each task row also carries `pid`, `socket_path`, and `log_location` (where results are being written — the handle for reading logs after the run).
 
+Two more columns appear only when they have something to report: `refusals` (model refusals) and `http_retries` (rate-limit and transient HTTP retries). Both are running totals over the task's own samples — the finished ones plus the live counts of those still in flight — so they are readable mid-run rather than only at the end. Both are always present in the `--json` row. They count every *attempt*, so a sample retried under `retry_on_error` contributes what each attempt saw; these are counts of things that happened, not properties of a final state. Note `http_retries` is unrelated to `attempts` (whole-task retries) and to a sample's own `retries` (failed attempts of that sample).
+
+These are the same events the TUI footer tallies, but attributed per eval rather than per process — which is what makes them usable from `inspect ctl` at all, since one process commonly runs several evals at once and a detached run has no display to print a footer. An event reported outside any sample is counted in the process-global total only, so it appears in the footer and in no task row.
+
 A task is finished exactly when `completed_at` is non-null; `status` (`running` / `completed`) is derived from it. Don't infer completion from sample counts — a cancelled or errored eval finishes with `completed < total`.
 
 ## Selecting a Task
@@ -151,16 +158,18 @@ On *reads* (`sample list`, `sample errors`) the selector is a filter: omitting i
 $ inspect ctl sample list gpqa
 inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5  ·  running  ·  12/40 (3 running)
 
-sample  epoch  status     time   idle  tokens  messages  turns
-------  -----  ---------  -----  ----  ------  --------  -----
-14      1      running    12:40  0:03  48210   22        11
-17      1      running    8:12   6:51  31055   14        7
-21      1      running    0:45   0:01  2150    3         1
-1       1      completed  4:02         18021   9         4
+sample  epoch  status     time   idle  activity         tokens  messages  turns
+------  -----  ---------  -----  ----  ---------------  ------  --------  -----
+14      1      running    12:40  0:03  bash 0:41        48210   22        11
+17      1      running    8:12   6:51  generating 6:51  31055   14        7
+21      1      running    0:45   0:33  generating 0:33  2150    3         1
+1       1      completed  4:02                          18021   9         4
 ...
 ```
 
-The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. (Note that a single in-flight model request produces no events until it returns, so idle time also accumulates during one long model call.)
+The `idle` column shows how long since a running sample last produced a transcript event. A long-running sample with high idle time is the cheap signal that it may be stalled. A single in-flight model request produces no events until it returns, so idle time still accumulates during one long model call — the `activity` column is what distinguishes that healthy case from a genuine stall.
+
+The `activity` column (shown when any running sample has an in-flight operation) names what the sample is doing right now and for how long: `generating 6:51` for an in-flight model call (with `(2 retries)` appended when the provider SDK has retried within the call), `bash 0:41` or `2 tools 1:10` for pending tool calls, and `retrying in 0:45` when a model call is waiting out a retry backoff (e.g. rate limiting) between attempts. The `--json` rows carry the underlying `activity` object — `type` (`model` / `tool` / `retry_wait`), `count`, `started_at`, `detail` (model name or tool function), `retries`, and `deadline` (when a retry wait elapses) — null on rows with nothing pending.
 
 The `turns` column counts top-level model generations (blank when unknown, e.g. for samples logged by older versions of Inspect). When any listed sample has a token limit configured, `limit usage` and `limit total` columns are also shown: the metered value for that limit — respecting its type (`all`, `output`, or a formula) — against the configured ceiling. The `--json` rows carry these as `turn_count`, `token_limit_usage`, `token_limit_total`, and `token_limit_type`.
 
@@ -190,7 +199,7 @@ sample  epoch  status   retries  error
 17      1      running  1
 ```
 
-`inspect ctl sample show` drills into one sample: its status, timing, token usage, and score, plus its full error history — including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--traceback` for full tracebacks:
+`inspect ctl sample show` drills into one sample: its status, timing, token usage, in-flight activity, and score, plus its full error history — including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--traceback` for full tracebacks:
 
 ```bash
 $ inspect ctl sample show gpqa 9 --traceback
@@ -206,11 +215,13 @@ time      event  summary
 --------  -----  -------------------------------------------------
 14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
 14:09:04  tool   bash(ls /data) → README.md results.csv
-14:09:11  model  openai/gpt-5 · 2105 tok · stop · Based on the...
+14:09:11  model  openai/gpt-5 · generating 2:31
 
 3 events  ·  more
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
 ```
+
+An in-flight operation appears as a pending event at the transcript tail — `generating 2:31` for a model call still awaiting its response, `running 0:41` for an executing tool call — so the tail shows what the sample is doing now, not just what it last finished. The event is completed in place when the call returns: a fresh tail read then shows the finished row, but an incremental `--cursor` poll that already consumed the pending row does not re-serve it (`pending: true` in the `--json` row is the "still in flight when read" marker).
 
 The first (unseeded) call returns the recent tail (the last 20 events; widen with `--tail N`, or start from the first event with `--from-start`). Reads are incremental: each page ends with a `next` cursor, and passing it back via `--cursor` returns only events that arrived after it. A polling loop reads a page, stores the cursor, and repeats; when the page reports `done` the sample has finished and no more events will come. Cursors are scoped to one attempt of a sample — if the sample is retried, a stale cursor restarts the read from the beginning rather than misreading the new attempt's transcript. If the eval process is momentarily too busy to answer, the command fails (non-zero exit, message on stderr) rather than serving an empty page — treat that as "try again shortly", not as the sample or eval being gone.
 
@@ -284,20 +295,40 @@ $ inspect ctl task cancel gpqa --action score
 
 Both commands are idempotent — cancelling something already finished (or already cancelling) is a clean no-op, reported as `changed: false` in the `--json` detail, the abort escalation above being the one exception — and both accept `--dry-run` to report what would be cancelled without doing it. Two cases are rejected rather than no-opped: a task *between attempts*, whose last attempt errored and whose retry is queued but not yet started, has nothing running to cancel — but is not finished either, so `task cancel` errors and asks you to re-issue once the retry starts; and a sample that is still *queued* (it appears in `sample list` but has not started), which `sample cancel` rejects — only a running sample can be cancelled.
 
+## Requeue
+
+`inspect ctl sample requeue` re-runs one errored or cancelled sample inside the still-running eval — the recovery move when a sample failed for a transient reason (a provider incident, a flaky sandbox) and you'd rather not wait for the whole run to finish and `inspect eval-retry` it. The sample goes to the back of the sample queue and re-runs under the task's normal machinery: its prior errors ride along as retry history, a checkpointed sample resumes from its checkpoint, and the run's final log and counters reflect the fresh outcome (the superseded attempt does not count toward a fail-on-error threshold).
+
+```bash
+$ inspect ctl sample requeue gpqa 17
+```
+
+As with `sample cancel`, `EPOCH` defaults to 1 but is *required* whenever the task runs more than one epoch — a defaulted epoch would silently requeue a different attempt:
+
+```bash
+$ inspect ctl sample requeue gpqa 17 3
+```
+
+The command is idempotent: requeuing a sample whose re-run is already pending, queued, or running — or one that hasn't started yet — is a clean no-op reporting the sample's current status (`changed: false` in the `--json` detail), so a retrying script can re-issue safely without double-queueing. While the re-run waits its turn, `sample list` and `sample show` render the sample as `queued` with its prior error shown as retry history.
+
+Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
+
 ## Pause and Resume
 
 Pause is the missing state between "running" and "cancelled": it stops a run from *starting* new work while keeping the process, its queue, and this control surface alive, and it is non-destructive, idempotent, and reversible. The pause applies to dispatch, not to execution — think pausing a job queue, not suspending a process: samples already running (including model calls in flight) are never frozen or interrupted; they run to completion while new work holds. Typical uses: ride out a provider incident without feeding more samples into it, stop spending while a cost question is decided, yield shared rate-limit capacity to a more urgent eval, or hold a run steady while you investigate a suspicious transcript (the read commands keep answering while paused).
 
 ```bash
-$ inspect ctl process pause     # pause the whole run (eval or eval-set)
-$ inspect ctl process resume    # pick up exactly where it left off
+$ inspect ctl process pause                    # pause the whole run (eval or eval-set)
+$ inspect ctl process resume                   # pick up exactly where it left off
+$ inspect ctl model pause openai/gpt-5-nano    # pause just one model's work
+$ inspect ctl model resume openai/gpt-5-nano   # the rest of the run kept going
 ```
 
 Under a pause, in-flight samples finish naturally — solving, scoring, and log writes complete under their original limits — but no new samples leave the queue, no task retries start, and (for an eval set) no further tasks dispatch. Held samples spend none of their time limits: they are exactly as resumable as before the pause. Quiesce time is therefore bounded by the longest in-flight work: a long-running agentic sample, or a batched generate call awaiting a provider batch, holds the run semi-active until it completes. When in-flight work must wind down faster than that, compose pause with `inspect ctl config --max-connections` (throttle in-flight demand without discarding progress) or a targeted `inspect ctl sample cancel`.
 
-`inspect ctl task pause` / `resume` scope the same thing to one task of an eval set. Task and process pauses are independent latches — `process resume` does not clear a task-level pause (and vice versa), so resuming a run after an incident never silently un-pauses a task you paused for its own reasons. Both verbs accept `--dry-run` and report `changed: false` on an idempotent repeat. Pause never blocks teardown: cancel works unchanged on a paused task, config retunes compose with it, and — unlike `task cancel` — pausing a task that is *between attempts* works, parking the queued retry.
+`inspect ctl task pause` / `resume` scope the same thing to one task of an eval set, and `inspect ctl model pause MODEL` / `resume MODEL` to one model of a multi-model run: every task whose *primary* model matches holds — including eval-set tasks that haven't started yet, which task-level pause can't reach — while other models' work continues (in-flight samples, including other tasks' role/grader calls to the paused model, still finish naturally). `MODEL` is the exact name shown by `inspect ctl task list`. The task, model, and process pauses are independent latches — resuming one never clears another, so resuming a run after an incident never silently un-pauses a task (or model) you paused for its own reasons. All the verbs accept `--dry-run` and report `changed: false` on an idempotent repeat. Pause never blocks teardown: cancel works unchanged on a paused task, config retunes compose with it, and — unlike `task cancel` — pausing a task that is *between attempts* works, parking the queued retry.
 
-`inspect ctl task list` shows which latch holds a paused task (`task`, `process`, or `both`) — including one paused *between attempts*, whose row keeps its paused marker while the gate parks the queued retry — and reports `quiesced` once nothing is left in flight (a dispatched sample counts from the instant it leaves the queue, so one still initializing its sandbox holds off `quiesced` too). A quiesced task has auto-flushed its completed samples to the log, which makes pause the clean way to stop for a process restart: pause, wait for `quiesced`, kill the process, and later re-invoke `inspect eval-set` on the same log dir — the standard eval-set resume logic re-runs only what didn't complete. Pause state itself is in-memory only: a restarted process starts unpaused.
+`inspect ctl task list` shows which latches hold a paused task (any combination of `task`, `model`, and `process`) — including one paused *between attempts*, whose row keeps its paused marker while the gate parks the queued retry — and reports `quiesced` once nothing is left in flight (a dispatched sample counts from the instant it leaves the queue, so one still initializing its sandbox holds off `quiesced` too). Paused models are also listed in the footer, so a model latch whose tasks are all still queued (no rows yet) stays visible. A quiesced task has auto-flushed its completed samples to the log, which makes pause the clean way to stop for a process restart: pause, wait for `quiesced`, kill the process, and later re-invoke `inspect eval-set` on the same log dir — the standard eval-set resume logic re-runs only what didn't complete. Pause state itself is in-memory only: a restarted process starts unpaused.
 
 Note the distinction with keep-alive: `process resume` resumes a *paused* run; `process release` ends a keep-alive *park* after the eval finishes. A paused run never finishes — resume (or cancel) it rather than waiting for it to exit.
 

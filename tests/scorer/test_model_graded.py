@@ -61,6 +61,26 @@ def test_model_graded_include_history():
     )
 
 
+def test_chat_history_without_assistant_turn():
+    # Regression for #4722: a sample with no assistant messages (e.g. a
+    # partial state scored under score_on_error) must yield the user
+    # messages, not an empty history that leaves the grader's Question
+    # section blank.
+    from inspect_ai.scorer._model import chat_history
+
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="Who wrote 'The 39 Steps'?",
+        messages=[ChatMessageUser(content="Who wrote 'The 39 Steps'?")],
+    )
+
+    history = chat_history(state)
+
+    assert "The 39 Steps" in history
+
+
 def test_model_graded_multimodal():
     # grab the ballons image from the images tests dataset
     dataset = json_dataset(

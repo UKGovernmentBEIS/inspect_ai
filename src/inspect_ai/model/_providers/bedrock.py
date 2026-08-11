@@ -469,6 +469,49 @@ class BedrockAPI(ModelAPI):
             re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_family()) is not None
         )
 
+    def is_claude_3(self) -> bool:
+        return (
+            self.is_claude()
+            and re.search(r"claude-3-[a-zA-Z]", self.model_family()) is not None
+        )
+
+    def is_claude_3_5(self) -> bool:
+        return self.is_claude() and "claude-3-5-" in self.model_family()
+
+    def is_claude_4_0(self) -> bool:
+        """Mirrors `is_claude_4_0` in the native anthropic provider.
+
+        Claude 4.0 ids carry a release date where later minors carry a minor
+        version (`anthropic.claude-opus-4-20250514-v1:0` vs
+        `anthropic.claude-sonnet-4-6-20260101-v1:0`), so they must be matched
+        on the date form or the "unrecognised future minor" fallbacks below
+        misclassify them as 4.6+/4.7+ and emit adaptive thinking on a model
+        that only accepts `budget_tokens`.
+        """
+        return self._is_claude_4_x(0) or (
+            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
+        )
+
+    def is_claude_4_6_or_later(self) -> bool:
+        """Mirrors `is_claude_frontier` in the native anthropic provider.
+
+        Claude 4.6 was the first Claude on which Bedrock supports adaptive
+        thinking (`{"thinking": {"type": "adaptive"}}` + `output_config`).
+        Assume future unrecognised claude-4 minor versions keep adaptive.
+        """
+        if not self.is_claude():
+            return False
+        if self._is_claude_4_x(6) or self._is_claude_4_x(7):
+            return True
+        # future claude 4 minor not yet recognised
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
+            recognised = self.is_claude_4_0() or any(
+                self._is_claude_4_x(x) for x in (1, 5, 6, 7)
+            )
+            if not recognised:
+                return True
+        return False
+
     def is_claude_4_7_or_later(self) -> bool:
         # mirrors the gating used in the native anthropic provider:
         # claude 4.7+ runs adaptive-thinking-only and rejects temperature /
@@ -478,12 +521,62 @@ class BedrockAPI(ModelAPI):
             return False
         if self._is_claude_4_x(7):
             return True
+        # claude 5 (e.g. anthropic.claude-opus-5, anthropic.claude-fable-5)
+        # shares the 4.7+ capability set (adaptive-thinking-only, no sampling
+        # params). names with a digit before the trailing -5 (claude-haiku-4-5)
+        # do not match.
+        if re.search(r"claude-[a-zA-Z]+-5", self.model_family()):
+            return True
         # future claude 4 minor not yet recognised
         if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
-            recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
+            recognised = self.is_claude_4_0() or any(
+                self._is_claude_4_x(x) for x in (1, 5, 6)
+            )
             if not recognised:
                 return True
         return False
+
+    def is_thinking_model(self) -> bool:
+        """Mirrors the native anthropic provider — claude-3 / claude-3.5 don't think."""
+        return self.is_claude() and not self.is_claude_3() and not self.is_claude_3_5()
+
+    def is_using_thinking(self, config: GenerateConfig) -> bool:
+        """Mirrors anthropic.is_using_thinking for Bedrock.
+
+        Thinking is active when the model supports thinking AND either
+        `reasoning_tokens` is set or `reasoning_effort` resolves to a non-None
+        adaptive effort.
+        """
+        if not self.is_thinking_model():
+            return False
+        if config.reasoning_tokens is not None:
+            return True
+        return self.effort_from_reasoning_effort(config) is not None
+
+    def effort_from_reasoning_effort(self, config: GenerateConfig) -> str | None:
+        """Mirrors anthropic.effort_from_reasoning_effort for Bedrock.
+
+        Returns a `low|medium|high|xhigh|max` effort string when
+        `reasoning_effort` is set on a Claude model that supports adaptive
+        thinking (4.6+). Otherwise None.
+        """
+        if (
+            config.reasoning_effort is not None
+            and config.reasoning_effort != "none"
+            and self.is_claude_4_6_or_later()
+        ):
+            match config.reasoning_effort:
+                case "low" | "minimal":
+                    return "low"
+                case "medium":
+                    return "medium"
+                case "high":
+                    return "high"
+                case "xhigh":
+                    return "xhigh" if self.is_claude_4_7_or_later() else "high"
+                case "max":
+                    return "max"
+        return None
 
     async def generate(
         self,
@@ -523,9 +616,13 @@ class BedrockAPI(ModelAPI):
             )
 
             # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
-            # parameters; only maxTokens is accepted. Mirror the gating used
-            # in the native anthropic provider. See issue #3766.
-            forbid_sampling_params = self.is_claude_4_7_or_later()
+            # parameters; other thinking-enabled Claude models also reject
+            # sampling params while thinking is on. Mirror the gating used
+            # in the native anthropic provider (see anthropic.py L773-L775).
+            # See issues #3765, #3766.
+            forbid_sampling_params = self.is_claude_4_7_or_later() or (
+                self.is_claude() and self.is_using_thinking(config)
+            )
 
             # additional model request fields
             additionalModelRequestFields = self._additional_model_request_fields(
@@ -635,20 +732,10 @@ class BedrockAPI(ModelAPI):
             else:
                 fields["top_k"] = config.top_k
 
-        # Structured output: Claude on Bedrock honours `output_config.format`,
-        # the Converse-API analogue of the native Anthropic provider's
-        # `output_format`. Other Bedrock models don't support it, so warn
-        # rather than silently dropping the user's schema.
         if config.response_schema is not None:
-            if self.is_claude():
-                schema = config.response_schema.json_schema.model_copy(deep=True)
-                _lock_object_additional_properties(schema)
-                fields.setdefault("output_config", {})["format"] = {
-                    "type": "json_schema",
-                    "schema": json_schema_dump(
-                        schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS
-                    ),
-                }
+            schema_format = self._output_config_format(config)
+            if schema_format is not None:
+                fields.setdefault("output_config", {})["format"] = schema_format
             else:
                 warn_once(
                     logger,
@@ -658,18 +745,36 @@ class BedrockAPI(ModelAPI):
 
         return fields
 
+    def _output_config_format(self, config: GenerateConfig) -> dict[str, Any] | None:
+        """Build `output_config.format` from `config.response_schema`.
+
+        Claude on Bedrock honours `output_config.format`, the Converse-API
+        analogue of the native Anthropic provider's `output_format`. Other
+        Bedrock models don't support it, so None is returned for them (and for
+        a config carrying no schema) and the caller warns rather than silently
+        dropping the user's schema.
+
+        `output_config` is also where reasoning writes `effort`, and the two
+        field dicts are combined with a shallow union in `generate()`. Both
+        producers therefore emit the format entry so that neither wins the
+        union at the other's expense. See issue #4097 and PR #4020.
+        """
+        if config.response_schema is None or not self.is_claude():
+            return None
+
+        schema = config.response_schema.json_schema.model_copy(deep=True)
+        _lock_object_additional_properties(schema)
+        return {
+            "type": "json_schema",
+            "schema": json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS),
+        }
+
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():
             if config.reasoning_effort is not None:
                 return {"reasoning_effort": config.reasoning_effort}
         elif self.is_claude():
-            if config.reasoning_tokens is not None:
-                return {
-                    "reasoning_config": {
-                        "type": "enabled",
-                        "budget_tokens": config.reasoning_tokens,
-                    }
-                }
+            return self._claude_reasoning_config(config)
         elif self.is_nova():
             if config.reasoning_effort is not None:
                 return {
@@ -680,6 +785,77 @@ class BedrockAPI(ModelAPI):
                 }
 
         return {}
+
+    def _claude_reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
+        """Build the Claude `additionalModelRequestFields` for thinking + effort.
+
+        Mirrors the native anthropic provider (see `anthropic.py` ~L800-L825):
+
+        - Adaptive thinking (`{"thinking": {"type": "adaptive"},
+          "output_config": {"effort": ...}}`) on Claude 4.6+ whenever
+          `reasoning_effort` resolves to an adaptive effort.
+        - Budgeted thinking (`{"thinking": {"type": "enabled",
+          "budget_tokens": N}}`) on pre-4.6 Claude when `reasoning_tokens`
+          is set.
+        - Claude 4.7+ deprecates manual `budget_tokens` thinking; if
+          `reasoning_tokens` is set on 4.7+, promote to adaptive with
+          `effort="high"`.
+        - `config.effort` independently emits `output_config.effort` with
+          the same version-gated `max`/`xhigh` -> `high` demotions used by
+          the native anthropic provider.
+
+        Claude 4.0 ids are budget-only and never emit adaptive thinking; they
+        carry a date rather than a minor version, so `is_claude_4_0` matches
+        them explicitly (see `is_claude_4_6_or_later`).
+
+        Whenever an `output_config` is emitted it also carries the structured
+        output `format`, since `output_config` is shared with
+        `_additional_model_request_fields` and the two are shallow-merged.
+
+        The wrapper key is `"thinking"` (not `"reasoning_config"`).
+        AWS Bedrock's Anthropic passthrough expects `"thinking"`; the prior
+        `"reasoning_config"` wrapper was silently ignored. See issue #3765.
+        """
+        fields: dict[str, Any] = {}
+
+        # effort (independent of thinking)
+        if config.effort is not None:
+            effort = config.effort
+            if effort == "max" and not self.is_claude_4_6_or_later():
+                effort = "high"
+            if effort == "xhigh" and not self.is_claude_4_7_or_later():
+                effort = "high"
+            fields["output_config"] = {"effort": effort}
+
+        # thinking
+        if self.is_using_thinking(config):
+            reasoning_effort = self.effort_from_reasoning_effort(config)
+            if reasoning_effort is not None:
+                # adaptive: claude 4.6+ with reasoning_effort
+                fields["thinking"] = {"type": "adaptive"}
+                # reasoning_effort takes precedence over effort (matches
+                # anthropic.py L815-L816)
+                fields["output_config"] = {"effort": reasoning_effort}
+            elif config.reasoning_tokens is not None:
+                if self.is_claude_4_7_or_later():
+                    # 4.7+ rejects budget_tokens thinking; promote to adaptive.
+                    fields["thinking"] = {"type": "adaptive"}
+                    fields.setdefault("output_config", {"effort": "high"})
+                else:
+                    fields["thinking"] = {
+                        "type": "enabled",
+                        "budget_tokens": config.reasoning_tokens,
+                    }
+
+        # `generate()` shallow-merges these fields over the ones built by
+        # `_additional_model_request_fields()`, so an `output_config` carrying
+        # only `effort` would replace the structured-output entry wholesale.
+        if "output_config" in fields:
+            schema_format = self._output_config_format(config)
+            if schema_format is not None:
+                fields["output_config"]["format"] = schema_format
+
+        return fields
 
 
 async def converse_messages(

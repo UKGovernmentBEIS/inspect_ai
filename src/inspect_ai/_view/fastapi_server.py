@@ -284,8 +284,13 @@ def view_server_app(
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
 
+        # No explicit Content-Length: the file may change between
+        # get_log_size() and the read (in-progress evals are rewritten
+        # in place), and a stale size makes clients fail the download.
+        # The buffered branch lets the framework set it from the actual
+        # body; the streaming branch uses chunked transfer encoding
+        # (same rationale as /log-bytes above).
         headers = {
-            "Content-Length": str(file_size),
             "Content-Disposition": f'attachment; filename="{filename}"',
         }
 
@@ -466,7 +471,7 @@ def view_server_app(
         "/pending-samples", response_model=Samples, response_class=InspectJsonResponse
     )
     async def api_pending_samples(
-        request: Request, response: Response, log: str = Query(...)
+        request: Request, log: str = Query(...)
     ) -> Samples | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
@@ -483,8 +488,10 @@ def view_server_app(
         elif samples is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
-            response.headers["ETag"] = samples.etag
-            return samples
+            return InspectJsonResponse(
+                content=samples.model_dump(mode="json", by_alias=True),
+                headers={"ETag": samples.etag},
+            )
 
     @app.post("/log-message")
     async def api_log_message(

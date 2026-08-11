@@ -15,9 +15,10 @@ from acp.schema import (
     ElicitationIntegerPropertySchema,
     ElicitationMultiSelectPropertySchema,
     ElicitationNumberPropertySchema,
+    ElicitationOtherPropertySchema,
     ElicitationStringPropertySchema,
+    StringMultiSelectItems,
     TitledMultiSelectItems,
-    UntitledMultiSelectItems,
 )
 
 PropertySchema = Union[
@@ -27,6 +28,20 @@ PropertySchema = Union[
     ElicitationBooleanPropertySchema,
     ElicitationMultiSelectPropertySchema,
 ]
+
+
+def known_property(
+    prop: PropertySchema | ElicitationOtherPropertySchema,
+) -> PropertySchema:
+    """Narrow away ACP's catch-all for custom/future property types.
+
+    The built-in console and Textual handlers can only render the known
+    property types; the ACP passthrough handler forwards the schema without
+    narrowing (a remote client may support custom types).
+    """
+    if isinstance(prop, ElicitationOtherPropertySchema):
+        raise ValueError(f"Unsupported property type: {prop.type!r}")
+    return prop
 
 
 def validate_string(
@@ -97,7 +112,7 @@ def multiselect_options(
     """Resolve `(const, display_label)` pairs from a multi-select property."""
     if isinstance(prop.items, TitledMultiSelectItems):
         return [(opt.const, opt.title) for opt in prop.items.any_of]
-    if isinstance(prop.items, UntitledMultiSelectItems):
+    if isinstance(prop.items, StringMultiSelectItems):
         return [(v, v) for v in prop.items.enum]
     raise ValueError(f"Unsupported multi-select items: {type(prop.items).__name__}")
 

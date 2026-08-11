@@ -87,6 +87,30 @@ class TestGetModelInfo:
         assert info.organization == "Moonshot AI"
         assert info.context_length == 1048576
 
+    def test_known_deepseek_v4_model(self):
+        """Test lookup of a known DeepSeek V4 model."""
+        info = get_model_info("deepseek/deepseek-v4-pro")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.context_length == 1048576
+        assert info.output_tokens == 393216
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
+    def test_deepseek_v4_flash_snapshot(self):
+        """Test lookup of a DeepSeek V4 Flash versioned snapshot."""
+        info = get_model_info("deepseek/DeepSeek-V4-Flash-0731")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.snapshot == "0731"
+
+    def test_deepseek_org_detection_on_hosting_provider(self):
+        """Test deepseek-* org detection for hosting providers (e.g. azureai)."""
+        info = get_model_info("azureai/deepseek-v4-flash")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.context_length == 1048576
+
     def test_unknown_model_returns_none(self):
         """Test that unknown models return None."""
         info = get_model_info("unknown-provider/unknown-model-xyz")
@@ -276,16 +300,16 @@ class TestModelDataConsistency:
     def test_colliding_lookup_keys_agree_across_files(self) -> None:
         """Entries in different files that collide on a lookup key must agree.
 
-        Cross-file duplicates exist (e.g. moonshotai.yml's `moonshotai/kimi-k2.5`
-        vs together.yml's `moonshotai/Kimi-K2.5`): exact lookups are
-        unaffected, but for any other casing the winner in
-        `_build_lookup_index()` depends on filesystem glob order. That is
-        harmless while the entries agree on functional metadata; this test
-        fails if they ever drift (e.g. a regenerated together.yml bumps a
-        context length that moonshotai.yml pins). Display-only fields
-        (display_name, organization) may differ. Same-file collisions are
-        excluded: they resolve deterministically by insertion order, and the
-        recurring `latest` version key shadows earlier models by design.
+        When cross-file duplicates exist, exact lookups are unaffected, but
+        for any other casing the winner in `_build_lookup_index()` depends
+        on filesystem glob order. That is harmless while the entries agree
+        on functional metadata; this test fails if they ever drift.
+        sync_models.py excludes curated models from the generated
+        together.yml (see tests/model/test_sync_models.py), so this test now
+        mainly backstops collisions between curated files. Display-only
+        fields (display_name, organization) may differ. Same-file collisions
+        are excluded: they resolve deterministically by insertion order, and
+        the recurring `latest` version key shadows earlier models by design.
         """
         from pathlib import Path
 
@@ -349,6 +373,41 @@ class TestModelDataConsistency:
                         )
 
 
+class TestProviderScopedOrgs:
+    """Provider-scoped catalogs are exact-match only.
+
+    `fireworks.yml` is keyed by the hosting provider rather than the model
+    creator, so its entries are authoritative for a `fireworks/...` lookup but
+    must never win a fuzzy match against another provider's bare model name.
+    """
+
+    def test_exact_lookup_uses_the_fireworks_catalog(self):
+        info = get_model_info("fireworks/deepseek-r1-0528")
+        assert info is not None
+        assert info.context_length == 163840
+
+    def test_case_insensitive_lookup_still_reaches_the_catalog(self):
+        info = get_model_info("fireworks/DeepSeek-R1-0528")
+        assert info is not None
+        assert info.context_length == 163840
+
+    def test_bare_name_does_not_fuzzy_match_a_fireworks_entry(self):
+        """A bare `kimi-k3` (e.g. from Groq) keeps resolving to Moonshot AI.
+
+        "fireworks" is shorter than "moonshotai", so without the exclusion it
+        would outscore the curated entry.
+        """
+        info = get_model_info("kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+
+    def test_bare_name_resolution_is_unchanged_for_shadowed_models(self):
+        """Adding fireworks/deepseek-r1-0528 must not alter the bare lookup."""
+        info = get_model_info("deepseek-r1-0528")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+
+
 class TestGetModelInputTokens:
     """Tests for get_model_input_tokens function."""
 
@@ -361,6 +420,12 @@ class TestGetModelInputTokens:
     def test_claude_opus_4_6(self):
         """Test that Claude Opus 4.6 reports 1MM input tokens."""
         model = get_model("anthropic/claude-opus-4-6")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_opus_5(self):
+        """Test that Claude Opus 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5")
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
