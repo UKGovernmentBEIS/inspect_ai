@@ -94,8 +94,10 @@ CALL_WALK_CACHE_SLOTS = 8
 Each generate stream produces two lineages per turn (the raw request at
 call-registration/completion, and the transcript-condensed form the
 timestamp update re-notifies), so 8 slots cover ~4 interleaved streams
-(fork()/collect()/parallel tools funnel into one sample transcript).
-Exhaustion degrades to a full walk — today's behavior — never worse.
+with distinct request prefixes (fork()/collect()/parallel tools funnel
+into one sample transcript). Streams sharing a pre-fork history prefix may
+merge lineages, paying a full tail re-walk per stream. Exhaustion degrades
+to a full walk — today's behavior — never worse.
 """
 
 
