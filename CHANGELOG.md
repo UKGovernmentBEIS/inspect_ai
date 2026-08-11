@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Scorer: `pattern()` now falls back to the full regex match when the pattern contains no explicit capture groups.
+
 - Datasets: `hf_dataset(..., auto_id=True, shuffle=True)` now attaches each auto id to its record (matching csv/json) instead of the shuffled position, so a record keeps the same id across seeds and limited slices. (#4459) Note: ids for affected datasets will change once on upgrade (row order for a given seed is unchanged) — avoid retrying an in-flight `eval_set` across this boundary. Previously, unseeded shuffles assigned irreproducible ids, which silently corrupted `eval_set` retries on affected datasets; those workflows are now correct.
 - Scoring: New `aggregate(key, agg=...)` metric factory applying any standard metric (`mean`, `stderr`, `accuracy`, …) to a single key of a dict-valued `Score.value`.
 - Agent Bridge: The final agent state now surfaces the real conversation instead of a side call (e.g. opencode's session title) when the scaffold decorates the task prompt, such as opencode quote-wrapping it. (#4768)
