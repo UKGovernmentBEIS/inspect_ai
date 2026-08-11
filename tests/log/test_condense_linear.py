@@ -666,3 +666,57 @@ def test_transcript_call_condense_is_linear(monkeypatch: pytest.MonkeyPatch) -> 
         f"transcript call condense is superlinear: {hashes['n']} hashes "
         f"for {N_EVENTS} events"
     )
+
+
+def test_buffer_condense_linear_across_notification_shape(
+    db: SampleBufferDatabase, hash_counter: HashCounter
+) -> None:
+    """The realistic per-turn shape: pending, registration, completion, stamping.
+
+    The buffer sees raw and transcript-condensed call forms alternately;
+    prefix reuse must hold for both lineages. This guard fails on a
+    single-slot CallPoolIndex (the 2026-08-11 timeout-storm mechanism)
+    even though per-event condensing is individually linear.
+    """
+    db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
+    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+
+    history: list[ChatMessage] = []
+    wire: list[dict[str, JsonValue]] = []
+    payload = "y" * 150
+    for i in range(N_EVENTS):
+        history.append(ChatMessageUser(content=f"message {i}"))
+        wire.append({"role": "user", "content": f"{payload} {i}"})
+        event = ModelEvent(
+            model="test",
+            input=list(history),
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+            pending=True,
+        )
+        tr._event(event)  # 1: pending
+        event.call = ModelCall(
+            request={"model": "test", "messages": [dict(m) for m in wire]}
+        )
+        tr._event_updated(event)  # 2: call registration (raw)
+        event.output = ModelOutput.from_content("test", "response")
+        event.call = ModelCall(
+            request={"model": "test", "messages": [dict(m) for m in wire]},
+            response={"id": f"r{i}"},
+        )
+        event.pending = None
+        tr._event_updated(event)  # 3: completion (raw + response)
+        tr._event_updated(event)  # 4: timestamp stamping (condensed form)
+
+    budget = 12 * N_EVENTS
+    assert hash_counter.msg_hashes <= budget, (
+        f"message hashing superlinear across notification shape: "
+        f"{hash_counter.msg_hashes} for {N_EVENTS} turns"
+    )
+    assert hash_counter.call_hashes <= budget, (
+        f"call hashing superlinear across notification shape: "
+        f"{hash_counter.call_hashes} for {N_EVENTS} turns"
+    )

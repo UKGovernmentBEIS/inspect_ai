@@ -258,6 +258,74 @@ def test_call_pool_index_carry_forward_only_snapshots_divergent_tail() -> None:
     assert index.match_prefix(resent) == [0, 1]
 
 
+def test_call_pool_index_multi_slot_alternating_forms() -> None:
+    """Raw and condensed request lineages must both keep prefix-matching.
+
+    The buffer sees each logical request in raw form (call registration,
+    completion) and transcript-condensed form (timestamp update) alternately;
+    a single retained slot thrashes to zero prefix hits.
+    """
+    index = CallPoolIndex()
+    raw: list[JsonValue] = [{"role": "user", "content": "raw long content"}]
+    condensed: list[JsonValue] = [{"role": "user", "content": "attachment://abc"}]
+    index.set_prev(raw, [0])
+    index.set_prev(condensed, [10])
+
+    raw2: list[JsonValue] = raw + [{"role": "assistant", "content": "raw reply"}]
+    assert index.match_prefix(raw2) == [0]
+    index.set_prev(raw2, [0, 1], prefix_len=1)
+
+    condensed2: list[JsonValue] = condensed + [
+        {"role": "assistant", "content": "attachment://def"}
+    ]
+    assert index.match_prefix(condensed2) == [10]
+    index.set_prev(condensed2, [10, 11], prefix_len=1)
+
+    # both lineages continue to extend
+    assert index.match_prefix(raw2) == [0, 1]
+    assert index.match_prefix(condensed2) == [10, 11]
+
+
+def test_call_pool_index_carry_forward_uses_matched_slot() -> None:
+    """Carried snapshots must come from the slot that matched.
+
+    Not the most-recent slot — a wrong-slot carry retains snapshots
+    claiming pool indices for content never pooled at those positions.
+    """
+    index = CallPoolIndex()
+    index.set_prev([{"content": "lineage-a"}], [0])
+    index.set_prev([{"content": "lineage-b"}], [10])
+
+    grown_a: list[JsonValue] = [{"content": "lineage-a"}, {"content": "a-2"}]
+    prefix = index.match_prefix(grown_a)
+    assert prefix == [0]
+    index.set_prev(grown_a, [0, 1], prefix_len=len(prefix))
+
+    assert index.match_prefix([{"content": "lineage-a"}]) == [0]
+    assert index.match_prefix([{"content": "lineage-b"}]) == [10]
+    assert index.match_prefix(grown_a) == [0, 1]
+
+
+def test_call_pool_index_evicts_oldest_slot_beyond_cap() -> None:
+    index = CallPoolIndex()
+    for i in range(5):  # slot cap is 4
+        index.set_prev([{"content": f"lineage-{i}"}], [i])
+    assert index.match_prefix([{"content": "lineage-0"}]) == []
+    for i in range(1, 5):
+        assert index.match_prefix([{"content": f"lineage-{i}"}]) == [i]
+
+
+def test_call_pool_index_restore_drops_all_slots() -> None:
+    index = CallPoolIndex()
+    index.set_prev([{"content": "a"}], [0])
+    mark = index.mark()
+    index.set_prev([{"content": "b"}], [1])
+    index.restore(mark)
+    # required, not just permitted: any slot may reference rolled-back rows
+    assert index.match_prefix([{"content": "a"}]) == []
+    assert index.match_prefix([{"content": "b"}]) == []
+
+
 # ---------------------------------------------------------------------------
 # condense_model_event_with_indices tests
 # ---------------------------------------------------------------------------
