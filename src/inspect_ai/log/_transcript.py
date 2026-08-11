@@ -8,6 +8,7 @@ from logging import getLogger
 from typing import (
     TYPE_CHECKING,
     Literal,
+    NamedTuple,
     Protocol,
     TypeVar,
     overload,
@@ -31,10 +32,11 @@ from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
     WalkContext,
-    attachment_refs_from_value,
+    attachment_refs_from_object,
     events_attachment_fn,
     walk_model_call,
 )
+from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 if TYPE_CHECKING:
@@ -50,6 +52,16 @@ ET = TypeVar("ET", bound=BaseEvent)
 class _TranscriptSubscription:
     id: int
     callback: Callable[[Event], None]
+
+
+class _EventRefs(NamedTuple):
+    """Result of scanning one event for attachment references."""
+
+    refs: set[str]
+    """Attachment hashes the event references."""
+
+    message_ids: set[str]
+    """`ChatMessage.id`s encountered during the scan (memo lifetime sidecar)."""
 
 
 def transcript_bounded_enabled() -> bool:
@@ -425,6 +437,17 @@ class Transcript:
         self._attachments: dict[str, str] = {}
         self._attachment_refcount: dict[str, int] = {}
         self._event_attachment_refs: dict[str, set[str]] = {}
+        # Per-message attachment-ref memo (bounded mode). Buckets are lists
+        # because one msg.id can hold content variants (raw agent-state vs
+        # condensed restored-event message after a resume). Lifetime rides the
+        # same event-diff/eviction machinery as _event_attachment_refs via
+        # _event_message_ids/_message_id_refcount, so departed messages age
+        # out with their referencing events instead of pinning evicted memory.
+        self._message_refs_cache: dict[
+            str, list[tuple[ChatMessageBase, frozenset[str]]]
+        ] = {}
+        self._event_message_ids: dict[str, set[str]] = {}
+        self._message_id_refcount: dict[str, int] = {}
         self._timelines: list[Timeline] = []
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[str] = set()
@@ -675,7 +698,8 @@ class Transcript:
 
         event_key = self._event_key(event)
         previous_refs = self._event_attachment_refs.get(event_key, set())
-        current_refs = self._attachment_refs(event)
+        event_refs = self._attachment_refs(event)
+        current_refs = event_refs.refs
         for ref in previous_refs - current_refs:
             self._decrement_attachment_ref(ref)
         for ref in current_refs - previous_refs:
@@ -685,8 +709,48 @@ class Transcript:
         else:
             self._event_attachment_refs.pop(event_key, None)
 
-    def _attachment_refs(self, event: Event) -> set[str]:
-        return attachment_refs_from_value(event.model_dump(mode="python"))
+        previous_ids = self._event_message_ids.get(event_key, set())
+        current_ids = event_refs.message_ids
+        for msg_id in previous_ids - current_ids:
+            self._decrement_message_id_ref(msg_id)
+        for msg_id in current_ids - previous_ids:
+            self._message_id_refcount[msg_id] = (
+                self._message_id_refcount.get(msg_id, 0) + 1
+            )
+        if current_ids:
+            self._event_message_ids[event_key] = current_ids
+        else:
+            self._event_message_ids.pop(event_key, None)
+
+    def _attachment_refs(self, event: Event) -> _EventRefs:
+        message_ids: set[str] = set()
+
+        def message_refs(msg: ChatMessageBase) -> frozenset[str] | None:
+            msg_id = msg.id
+            if msg_id is None:
+                return None
+            message_ids.add(msg_id)
+            bucket = self._message_refs_cache.get(msg_id)
+            if bucket is not None:
+                for cached_msg, cached_refs in bucket:
+                    if cached_msg is msg:
+                        return cached_refs
+                # identity miss: an ==-equal clone reuses the entry WITHOUT
+                # being inserted (per-event model_copy clones would otherwise
+                # grow the bucket unboundedly). == is cheap here: clones share
+                # field objects, so comparisons short-circuit on identity.
+                for cached_msg, cached_refs in bucket:
+                    if cached_msg == msg:
+                        return cached_refs
+            refs = frozenset(attachment_refs_from_object(msg))
+            if bucket is not None:
+                bucket.append((msg, refs))
+            else:
+                self._message_refs_cache[msg_id] = [(msg, refs)]
+            return refs
+
+        refs = attachment_refs_from_object(event, message_refs=message_refs)
+        return _EventRefs(refs=refs, message_ids=message_ids)
 
     def _decrement_attachment_ref(self, ref: str) -> None:
         count = self._attachment_refcount.get(ref, 0) - 1
@@ -695,6 +759,14 @@ class Transcript:
         else:
             self._attachment_refcount.pop(ref, None)
             self._attachments.pop(ref, None)
+
+    def _decrement_message_id_ref(self, msg_id: str) -> None:
+        count = self._message_id_refcount.get(msg_id, 0) - 1
+        if count > 0:
+            self._message_id_refcount[msg_id] = count
+        else:
+            self._message_id_refcount.pop(msg_id, None)
+            self._message_refs_cache.pop(msg_id, None)
 
     def _prune_unreferenced_attachments(self) -> None:
         if not self._bounded:
@@ -780,6 +852,11 @@ class Transcript:
                 continue
             for ref in self._event_attachment_refs.pop(event_key):
                 self._decrement_attachment_ref(ref)
+        for event_key in list(self._event_message_ids):
+            if event_key in resident_event_keys:
+                continue
+            for msg_id in self._event_message_ids.pop(event_key):
+                self._decrement_message_id_ref(msg_id)
 
     def _is_resident(self, event: Event) -> bool:
         return event.uuid is not None and event.uuid in self._resident_event_ids

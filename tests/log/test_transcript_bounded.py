@@ -917,3 +917,84 @@ def test_history_events_from_with_pinned_event_and_no_provider_raises() -> None:
         transcript.history.events_from(6)
     # the trailing window itself is fine
     assert _data(transcript.history.events_from(7)) == [7, 8, 9]
+
+
+def test_bounded_transcript_prunes_message_refs_cache_on_eviction() -> None:
+    tr = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    shared = ChatMessageUser(content="shared question")
+    first = _model_event_with_call_payload("event-1", "first payload" * 100)
+    first.input = [shared]
+    second = _model_event_with_call_payload("event-2", "second payload" * 100)
+
+    tr._event(first)
+    assert shared.id is not None
+    assert shared.id in tr._message_refs_cache
+
+    tr._event(second)  # resident_tail=1 evicts event-1
+
+    assert shared.id not in tr._message_refs_cache
+    assert shared.id not in tr._message_id_refcount
+
+
+def test_message_refs_cache_distinguishes_same_id_variants() -> None:
+    # resume shape: agent-state message (raw, no refs) and restored-event
+    # message (condensed, refs) legitimately share one msg.id
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    raw = ChatMessageUser(content="long raw content " * 20)
+    condensed = raw.model_copy(update={"content": "attachment://abc123"})
+    assert raw.id == condensed.id
+
+    ev_condensed = _model_event_with_call_payload("event-1", "p" * 200)
+    ev_condensed.input = [condensed]
+    ev_raw = _model_event_with_call_payload("event-2", "q" * 200)
+    ev_raw.input = [raw]
+    tr._event(ev_condensed)
+    tr._event(ev_raw)
+
+    assert raw.id is not None
+    bucket = tr._message_refs_cache[raw.id]
+    assert len(bucket) == 2
+    refsets = {cached_refs for _, cached_refs in bucket}
+    assert frozenset() in refsets
+    assert frozenset({"abc123"}) in refsets
+    # and the condensed variant's ref was refcounted
+    assert tr._attachment_refcount.get("abc123", 0) >= 1
+
+
+def test_message_refs_cache_does_not_grow_for_equal_clones() -> None:
+    # resolve_tool_model_input model_copies every message per generate; an
+    # ==-equal clone must reuse the cached entry, not append a new one
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    original = ChatMessageUser(content="question")
+    e1 = _model_event_with_call_payload("event-1", "p" * 200)
+    e1.input = [original]
+    tr._event(e1)
+
+    clone = original.model_copy()
+    assert clone is not original
+    e2 = _model_event_with_call_payload("event-2", "q" * 200)
+    e2.input = [clone]
+    tr._event(e2)
+
+    assert original.id is not None
+    assert len(tr._message_refs_cache[original.id]) == 1
+
+
+def test_set_attachment_refs_does_not_model_dump(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai.event._base import BaseEvent
+
+    calls = {"n": 0}
+    original = BaseEvent.model_dump
+
+    def counting(self, *args, **kwargs):
+        calls["n"] += 1
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(BaseEvent, "model_dump", counting)
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    for i in range(5):
+        tr._event(_model_event_with_call_payload(f"event-{i}", f"payload {i}" * 100))
+        tr._event_updated(tr._events[-1])
+    assert calls["n"] == 0
