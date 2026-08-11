@@ -1,6 +1,14 @@
 ## Unreleased
 
+- Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
+- Docker Sandbox: `read_file` now raises `FileNotFoundError` when the container reports "no such file or directory". (#4686)
+- Web Browser: headful macOS scale-factor detection falls back to 1 instead of crashing when `pyobjc-framework-AppKit` is missing or no display is attached.
 - SageMaker: Transient connection failures (endpoint connection errors, dropped connections, connect/read timeouts) are now retried instead of failing the sample.
+
+## 0.3.256 (11 August 2026)
+
+- Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
+- Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
 
 ## 0.3.255 (09 August 2026)
 
