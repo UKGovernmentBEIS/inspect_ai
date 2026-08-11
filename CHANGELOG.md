@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.256 (11 August 2026)
 
 - Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
 - Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
