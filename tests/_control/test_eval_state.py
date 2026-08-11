@@ -141,6 +141,68 @@ def test_detach_eval_live_clears_live_data() -> None:
     detach_eval_live("never-registered")
 
 
+def test_retry_sweep_removes_log_and_invalidates_summaries_memo(tmp_path) -> None:
+    """Deleting a superseded attempt's log also drops its summaries memo.
+
+    ``EvalState.log_sample_summaries`` holds data read from the attempt's own
+    log, so it stays valid through ``detach_eval_live`` — but must not outlive
+    the file: once the retry sweep removes it, listings must degrade to empty
+    (matching per-request reads' ``FileNotFoundError`` handling) rather than
+    serve memoized rows whose samples 404 on detail reads.
+    """
+    from types import SimpleNamespace
+    from typing import cast
+
+    from inspect_ai._eval.evalset import Log, latest_completed_task_eval_logs
+    from inspect_ai.log import EvalLog, EvalSampleSummary
+    from inspect_ai.log._file import EvalLogInfo
+
+    older = tmp_path / "older.eval"
+    newer = tmp_path / "newer.eval"
+    older.touch()
+    newer.touch()
+
+    def _log(path: Any, eval_id: str, mtime: float, status: str) -> Log:
+        return Log(
+            info=EvalLogInfo(
+                name=str(path),
+                type="file",
+                size=0,
+                mtime=mtime,
+                task="t",
+                task_id="tid",
+                suffix=None,
+            ),
+            # only status / eval.task_id / eval.eval_id are consulted
+            header=cast(
+                EvalLog,
+                SimpleNamespace(
+                    status=status,
+                    eval=SimpleNamespace(task_id="tid", eval_id=eval_id),
+                ),
+            ),
+            task_identifier="tid",
+        )
+
+    state = register_eval("attempt-1", 1, log_location=str(older))
+    state.log_sample_summaries = [
+        EvalSampleSummary(id="s1", epoch=1, input="i", target="t", completed=True)
+    ]
+
+    latest = latest_completed_task_eval_logs(
+        logs=[
+            _log(older, "attempt-1", mtime=1.0, status="error"),
+            _log(newer, "attempt-2", mtime=2.0, status="success"),
+        ],
+        cleanup_older=True,
+    )
+
+    assert [log.header.eval.eval_id for log in latest] == ["attempt-2"]
+    assert not older.exists()
+    assert newer.exists()
+    assert state.log_sample_summaries is None
+
+
 async def test_summary_carries_registration_metadata() -> None:
     """Registration metadata (model, solver, epochs) flows through to /evals summaries.
 
