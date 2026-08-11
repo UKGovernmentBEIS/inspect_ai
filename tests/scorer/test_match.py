@@ -339,6 +339,7 @@ async def test_numeric_match_with_punctuation(model_output: str):
     state = simple_task_state(model_output=model_output)
     result = await scorer(state, Target(["42"]))
 
+    assert result is not None
     assert result.text == CORRECT
     assert result.answer == "42"
 
@@ -349,5 +350,6 @@ async def test_numeric_match_any_with_punctuation():
     state = simple_task_state(model_output="The total is (42)!")
     result = await scorer(state, Target(["42"]))
 
+    assert result is not None
     assert result.text == CORRECT
     assert result.answer == "42"
