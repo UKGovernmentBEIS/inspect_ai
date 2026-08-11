@@ -23,6 +23,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     DeferredSampleStats,
+    invalidate_log_sample_summaries,
     register_completed_eval,
     reset_run_registries,
 )
@@ -1239,6 +1240,9 @@ def latest_completed_task_eval_logs(
                 try:
                     if id_log.header.status != "started":
                         fs.rm(id_log.info.name)
+                        # the attempt's EvalState may have memoized this log's
+                        # sample summaries; the memo must not outlive the file
+                        invalidate_log_sample_summaries(id_log.header.eval.eval_id)
                 except Exception as ex:
                     logger.warning(f"Error attempt to remove '{id_log[0].name}': {ex}")
 

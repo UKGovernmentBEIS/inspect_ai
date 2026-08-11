@@ -490,7 +490,7 @@ class TestFireworksCanonicalName:
     """Tests for Fireworks provider canonical_name()."""
 
     def test_strips_accounts_prefix(self):
-        """Test that accounts/fireworks/models/ prefix is stripped."""
+        """Test that accounts/fireworks/models/ prefix is replaced by the org."""
         import os
 
         from inspect_ai.model._providers.fireworks import FireworksAIAPI
@@ -500,12 +500,12 @@ class TestFireworksCanonicalName:
             api = FireworksAIAPI(
                 model_name="accounts/fireworks/models/llama-v3p1-8b-instruct"
             )
-            assert api.canonical_name() == "llama-v3p1-8b-instruct"
+            assert api.canonical_name() == "fireworks/llama-v3p1-8b-instruct"
         finally:
             del os.environ["FIREWORKS_API_KEY"]
 
     def test_preserves_name_without_prefix(self):
-        """Test that names without accounts prefix are preserved."""
+        """Test that names without accounts prefix are still org-qualified."""
         import os
 
         from inspect_ai.model._providers.fireworks import FireworksAIAPI
@@ -513,7 +513,43 @@ class TestFireworksCanonicalName:
         os.environ["FIREWORKS_API_KEY"] = "test-key"
         try:
             api = FireworksAIAPI(model_name="llama-v3p1-8b-instruct")
-            assert api.canonical_name() == "llama-v3p1-8b-instruct"
+            assert api.canonical_name() == "fireworks/llama-v3p1-8b-instruct"
+        finally:
+            del os.environ["FIREWORKS_API_KEY"]
+
+    def test_input_tokens_name_uses_synced_catalog(self):
+        """A model in fireworks.yml resolves to Fireworks' own context length."""
+        import os
+
+        from inspect_ai.model._model_info import _get_model_info_direct
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        os.environ["FIREWORKS_API_KEY"] = "test-key"
+        try:
+            api = FireworksAIAPI(
+                model_name="accounts/fireworks/models/deepseek-r1-0528"
+            )
+            assert api.input_tokens_name() == "fireworks/deepseek-r1-0528"
+            info = _get_model_info_direct(api.input_tokens_name())
+            assert info is not None
+            # Fireworks serves the open weights at 160K; DeepSeek's own API
+            # entry for the same model name is 64K
+            assert info.input_tokens == 163840
+        finally:
+            del os.environ["FIREWORKS_API_KEY"]
+
+    def test_input_tokens_name_falls_back_when_uncatalogued(self):
+        """A model missing from fireworks.yml falls back to the bare name."""
+        import os
+
+        from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+        os.environ["FIREWORKS_API_KEY"] = "test-key"
+        try:
+            api = FireworksAIAPI(
+                model_name="accounts/fireworks/models/not-a-real-model"
+            )
+            assert api.input_tokens_name() == "not-a-real-model"
         finally:
             del os.environ["FIREWORKS_API_KEY"]
 

@@ -1,9 +1,21 @@
 ## Unreleased
 
-- New `--model-spec` option for `inspect eval` and `inspect eval-set` runs several models in one command, each with its own generation config, model args, and base url.
+- Datasets: `hf_dataset(..., auto_id=True, shuffle=True)` now attaches each auto id to its record (matching csv/json) instead of the shuffled position, so a record keeps the same id across seeds and limited slices. (#4459) Note: ids for affected datasets will change once on upgrade (row order for a given seed is unchanged) — avoid retrying an in-flight `eval_set` across this boundary. Previously, unseeded shuffles assigned irreproducible ids, which silently corrupted `eval_set` retries on affected datasets; those workflows are now correct.
+- Scoring: New `aggregate(key, agg=...)` metric factory applying any standard metric (`mean`, `stderr`, `accuracy`, …) to a single key of a dict-valued `Score.value`.
+- Agent Bridge: The final agent state now surfaces the real conversation instead of a side call (e.g. opencode's session title) when the scaffold decorates the task prompt, such as opencode quote-wrapping it. (#4768)
+- Inspect View: Logs inside the configured directory now open on Windows when listings identify them with canonical file URIs. (#4765)
+- Bugfix: Dataset fields holding float `NaN` (as produced by Pandas, Hugging Face, CSV, and PyArrow sources for missing values) are now treated as missing for `input`, `choices`, `setup`, `sandbox`, `files`, and `metadata`, matching the existing `target` behavior. (#4626)
+- Models: New `--model-spec` option runs several models in one `inspect eval` or `inspect eval-set` command, each with its own generation config, model args, and base url.
+
+## 0.3.257 (11 August 2026)
+
+- Extend model database to include Fireworks models.
 - Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
 - Docker Sandbox: `read_file` now raises `FileNotFoundError` when the container reports "no such file or directory". (#4686)
 - Web Browser: headful macOS scale-factor detection falls back to 1 instead of crashing when `pyobjc-framework-AppKit` is missing or no display is attached.
+- SageMaker: Transient connection failures (endpoint connection errors, dropped connections, connect/read timeouts) are now retried instead of failing the sample.
+- `list_eval_logs_async()` now lists remote log directories (S3/GCS/Azure) without blocking the event loop, treats a missing S3 bucket as an empty listing, and downgrades Azure auth errors to a warning.
+- Control Channel: Sample listings for finished and reused evals now read the log once and serve later requests from memory, instead of re-reading it (possibly from S3) on every poll.
 
 ## 0.3.256 (11 August 2026)
 
