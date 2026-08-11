@@ -1,22 +1,159 @@
 import os
 
+from pydantic import BaseModel, ConfigDict
+
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import ContentImage
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai._util.json import JsonChange
+from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event._event import Event
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._store import StoreEvent
+from inspect_ai.event._subtask import SubtaskEvent
 from inspect_ai.log import EvalRetryError, EvalSample
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
+    attachment_refs_from_object,
     attachment_refs_from_value,
     condense_event,
     condense_sample,
     resolve_sample_attachments,
 )
 from inspect_ai.log._file import read_eval_log
-from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParams
+
+
+def _refs_via_dump(event: Event) -> set[str]:
+    return attachment_refs_from_value(event.model_dump(mode="python"))
+
+
+def _model_event_with_refs_everywhere() -> ModelEvent:
+    return ModelEvent(
+        model="m",
+        input=[
+            ChatMessageUser(content="attachment://in-msg"),
+            ChatMessageAssistant(
+                content="plain text",
+                tool_calls=[
+                    ToolCall(
+                        id="tc1",
+                        function="fn",
+                        # ToolCall is a pydantic *dataclass*, not a BaseModel —
+                        # a BaseModel-only walker would miss this ref
+                        arguments={"arg": "attachment://tool-arg"},
+                    )
+                ],
+            ),
+        ],
+        tools=[
+            ToolInfo(
+                name="t",
+                description="attachment://tool-desc",
+                parameters=ToolParams(),
+            )
+        ],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("m", "attachment://out-msg"),
+        call=ModelCall.create(
+            {"messages": [{"role": "user", "content": "attachment://call-req"}]},
+            {"content": "attachment://call-resp"},
+        ),
+    )
+
+
+def test_attachment_refs_from_object_model_event_parity() -> None:
+    event = _model_event_with_refs_everywhere()
+    refs = attachment_refs_from_object(event)
+    assert refs == _refs_via_dump(event)
+    assert refs == {
+        "in-msg",
+        "tool-arg",
+        "tool-desc",
+        "out-msg",
+        "call-req",
+        "call-resp",
+    }
+
+
+def test_attachment_refs_from_object_other_event_types_parity() -> None:
+    events: list[Event] = [
+        InfoEvent(data={"k": "attachment://info-ref"}),
+        StoreEvent(
+            changes=[
+                JsonChange(op="replace", path="/k", value="attachment://store-ref")
+            ]
+        ),
+        SampleInitEvent(
+            sample=Sample(input=[ChatMessageUser(content="attachment://sample-msg")]),
+            state={"s": "attachment://state-ref"},
+        ),
+    ]
+    for event in events:
+        assert attachment_refs_from_object(event) == _refs_via_dump(event)
+        assert attachment_refs_from_object(event)  # non-empty: refs were found
+
+
+def test_attachment_refs_from_object_extras_parity() -> None:
+    # extra="allow" models store extras in __pydantic_extra__, outside
+    # __dict__, and dumps include them (e.g. CheckpointEvent round-trips
+    # checkpoint-file extras)
+    class ExtraModel(BaseModel):
+        model_config = ConfigDict(extra="allow")
+
+        name: str
+
+    event = InfoEvent(data="ok")
+    event.metadata = {
+        "extra": ExtraModel.model_validate(
+            {"name": "n", "x_extra": "attachment://extra-ref"}
+        )
+    }
+    assert attachment_refs_from_object(event) == {"extra-ref"}
+    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+
+
+def test_attachment_refs_from_object_any_slot_live_message() -> None:
+    # SubtaskEvent.result is Any and receives raw (un-jsonable-ized) values
+    event = SubtaskEvent(name="sub", input={})
+    event.result = {"m": ChatMessageUser(content="attachment://sub-msg")}
+    assert attachment_refs_from_object(event) == {"sub-msg"}
+    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+
+
+def test_attachment_refs_from_object_terminates_on_cycle() -> None:
+    # today attachment_refs_from_value(model_dump(...)) raises RecursionError
+    # on a cyclic metadata value (pydantic embeds the original cyclic object
+    # in the dump); the object scanner must terminate and collect the ref
+    cyc: dict[str, object] = {"ref": "attachment://cyc-ref"}
+    cyc["self"] = cyc
+    event = InfoEvent(data="ok")
+    event.metadata = {"cyc": cyc}
+    assert attachment_refs_from_object(event) == {"cyc-ref"}
+
+
+def test_attachment_refs_from_object_shared_subtree() -> None:
+    shared = {"ref": "attachment://shared-ref"}
+    event = InfoEvent(data="ok")
+    event.metadata = {"a": shared, "b": shared}
+    assert attachment_refs_from_object(event) == {"shared-ref"}
+
+
+def test_attachment_refs_from_object_dict_keys_not_scanned() -> None:
+    # parity: attachment_refs_from_value scans dict values only
+    event = InfoEvent(data="ok")
+    event.metadata = {"attachment://key-ref": "plain"}
+    assert attachment_refs_from_object(event) == set()
+    assert attachment_refs_from_object(event) == _refs_via_dump(event)
 
 
 def test_log_attachments_condense():

@@ -1,3 +1,4 @@
+import dataclasses
 import json
 from collections.abc import Mapping, MutableMapping
 from logging import getLogger
@@ -7,7 +8,7 @@ from typing import (
     Sequence,
 )
 
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
@@ -35,7 +36,11 @@ from inspect_ai.event._pool import (
     resolve_model_event_inputs,
 )
 from inspect_ai.event._validate import validate_chat_messages, validate_events_json
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageBase,
+)
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_call import ToolCall
@@ -92,6 +97,79 @@ def attachment_refs_from_value(value: object) -> set[str]:
                 collect(item)
 
     collect(value)
+    return refs
+
+
+def attachment_refs_from_object(
+    value: object,
+    message_refs: Callable[["ChatMessageBase"], frozenset[str] | None] | None = None,
+) -> set[str]:
+    """Collect ``attachment://`` refs by walking a live object graph.
+
+    Equivalent to ``attachment_refs_from_value(obj.model_dump(mode="python"))``
+    without materializing the dump — for a ``ModelEvent`` the dump deep-copies
+    the entire conversation on every call, which made per-update refcounting
+    O(conversation) on the event loop.
+
+    Traversal mirrors what a python-mode dump exposes to the value scanner:
+    ``BaseModel`` fields (``__dict__`` plus ``__pydantic_extra__`` for
+    ``extra="allow"`` models such as ``CheckpointEvent``), dataclasses
+    (``ToolCall`` and friends genuinely carry refs), dict values (keys are
+    never scanned), and list/tuple/set items. Arbitrary non-model objects are
+    left opaque, exactly as the dump leaves them; ``__pydantic_private__`` is
+    excluded from dumps and is correctly never reached via ``__dict__``.
+
+    Unlike the dump-based path, cyclic values (reachable via ``metadata`` or
+    ``SubtaskEvent.result``) terminate cleanly instead of raising
+    ``RecursionError``: container nodes are visited once by identity.
+
+    Args:
+        value: Root object (typically an ``Event``).
+        message_refs: Optional hook consulted for every ``ChatMessageBase``
+            encountered. Returning a ``frozenset`` supplies that message's
+            refs without traversing it (memoization); returning ``None``
+            falls through to inline scanning.
+
+    Returns:
+        Referenced attachment hashes (``attachment://`` prefix stripped).
+    """
+    refs: set[str] = set()
+    prefix_len = len(ATTACHMENT_PROTOCOL)
+    seen: set[int] = set()
+    stack: list[object] = [value]
+    while stack:
+        v = stack.pop()
+        if isinstance(v, str):
+            if v.startswith(ATTACHMENT_PROTOCOL):
+                refs.add(v[prefix_len:])
+        elif isinstance(v, BaseModel):
+            if id(v) in seen:
+                continue
+            seen.add(id(v))
+            if message_refs is not None and isinstance(v, ChatMessageBase):
+                cached = message_refs(v)
+                if cached is not None:
+                    refs.update(cached)
+                    continue
+            stack.extend(v.__dict__.values())
+            extra = v.__pydantic_extra__
+            if extra:
+                stack.extend(extra.values())
+        elif isinstance(v, dict):
+            if id(v) in seen:
+                continue
+            seen.add(id(v))
+            stack.extend(v.values())
+        elif isinstance(v, (list, tuple, set)):
+            if id(v) in seen:
+                continue
+            seen.add(id(v))
+            stack.extend(v)
+        elif dataclasses.is_dataclass(v) and not isinstance(v, type):
+            if id(v) in seen:
+                continue
+            seen.add(id(v))
+            stack.extend(vars(v).values())
     return refs
 
 
