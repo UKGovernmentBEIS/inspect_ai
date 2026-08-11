@@ -25854,13 +25854,17 @@ var syncListing = async (api, engine) => {
 	if (localFiles.length > 0 && mtime === 0) {
 		const serverLogs = await api.get_logs(0, 0);
 		const localNames = new Set(localFiles.map((file) => file.name));
-		if (serverLogs.files.length !== localFiles.length || serverLogs.files.some((file) => !localNames.has(file.name))) return engine.applyListing({
-			listing: serverLogs.files,
-			invalidated: localFiles.map((file) => file.name),
-			deleted: [],
-			persistListing: false,
-			epoch
-		});
+		if (serverLogs.files.length !== localFiles.length || serverLogs.files.some((file) => !localNames.has(file.name))) {
+			const serverNames = new Set(serverLogs.files.map((file) => file.name));
+			const deleted = localFiles.filter((file) => !serverNames.has(file.name)).map((file) => file.name);
+			return engine.applyListing({
+				listing: serverLogs.files,
+				invalidated: serverLogs.files.map((file) => file.name),
+				deleted,
+				persistListing: true,
+				epoch
+			});
+		}
 		return engine.applyListing({
 			listing: localFiles,
 			invalidated: [],
@@ -27006,6 +27010,14 @@ function getNextPageParam(options, { pages, pageParams }) {
 function getPreviousPageParam(options, { pages, pageParams }) {
 	return pages.length > 0 ? options.getPreviousPageParam?.(pages[0], pages, pageParams[0], pageParams) : void 0;
 }
+function hasNextPage(options, data) {
+	if (!data) return false;
+	return getNextPageParam(options, data) != null;
+}
+function hasPreviousPage(options, data) {
+	if (!data || !options.getPreviousPageParam) return false;
+	return getPreviousPageParam(options, data) != null;
+}
 //#endregion
 //#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/query.js
 var Query = class extends Removable {
@@ -27722,6 +27734,61 @@ function shouldAssignObserverCurrentProperties(observer, optimisticResult) {
 	if (!shallowEqualObjects(observer.getCurrentResult(), optimisticResult)) return true;
 	return false;
 }
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/infiniteQueryObserver.js
+var InfiniteQueryObserver = class extends QueryObserver {
+	constructor(client, options) {
+		super(client, options);
+	}
+	bindMethods() {
+		super.bindMethods();
+		this.fetchNextPage = this.fetchNextPage.bind(this);
+		this.fetchPreviousPage = this.fetchPreviousPage.bind(this);
+	}
+	setOptions(options) {
+		options._type = "infinite";
+		super.setOptions(options);
+	}
+	getOptimisticResult(options) {
+		options._type = "infinite";
+		return super.getOptimisticResult(options);
+	}
+	fetchNextPage(options) {
+		return this.fetch({
+			...options,
+			meta: { fetchMore: { direction: "forward" } }
+		});
+	}
+	fetchPreviousPage(options) {
+		return this.fetch({
+			...options,
+			meta: { fetchMore: { direction: "backward" } }
+		});
+	}
+	createResult(query, options) {
+		const { state } = query;
+		const parentResult = super.createResult(query, options);
+		const { isFetching, isRefetching, isError, isRefetchError } = parentResult;
+		const fetchDirection = state.fetchMeta?.fetchMore?.direction;
+		const isFetchNextPageError = isError && fetchDirection === "forward";
+		const isFetchingNextPage = isFetching && fetchDirection === "forward";
+		const isFetchPreviousPageError = isError && fetchDirection === "backward";
+		const isFetchingPreviousPage = isFetching && fetchDirection === "backward";
+		return {
+			...parentResult,
+			fetchNextPage: this.fetchNextPage,
+			fetchPreviousPage: this.fetchPreviousPage,
+			hasNextPage: hasNextPage(options, state.data),
+			hasPreviousPage: hasPreviousPage(options, state.data),
+			isFetchNextPageError,
+			isFetchingNextPage,
+			isFetchPreviousPageError,
+			isFetchingPreviousPage,
+			isRefetchError: isRefetchError && !isFetchNextPageError && !isFetchPreviousPageError,
+			isRefetching: isRefetching && !isFetchingNextPage && !isFetchingPreviousPage
+		};
+	}
+};
 //#endregion
 //#region ../../node_modules/.pnpm/@tanstack+query-core@5.101.4/node_modules/@tanstack/query-core/build/modern/mutation.js
 var Mutation = class extends Removable {
@@ -28620,6 +28687,11 @@ function useMutation(options, queryClient) {
 		mutate,
 		mutateAsync: result.mutate
 	};
+}
+//#endregion
+//#region ../../node_modules/.pnpm/@tanstack+react-query@5.101.4_react@19.2.8/node_modules/@tanstack/react-query/build/modern/useInfiniteQuery.js
+function useInfiniteQuery(options, queryClient) {
+	return useBaseQuery(options, InfiniteQueryObserver, queryClient);
 }
 //#endregion
 //#region ../../packages/react/src/hooks/useAsyncDataFromQuery.ts
@@ -56670,8 +56742,8 @@ var markdownRenderers = {
 };
 var renderMarkdown = (markdown, renderer = defaultMarkdownRenderer) => markdownRenderers[renderer](markdown);
 //#endregion
-//#region ../../node_modules/.pnpm/dompurify@3.4.12/node_modules/dompurify/dist/purify.es.mjs
-/*! @license DOMPurify 3.4.12 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.12/LICENSE */
+//#region ../../node_modules/.pnpm/dompurify@3.4.13/node_modules/dompurify/dist/purify.es.mjs
+/*! @license DOMPurify 3.4.13 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.13/LICENSE */
 function _arrayLikeToArray(r, a) {
 	(null == a || a > r.length) && (a = r.length);
 	for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
@@ -57629,7 +57701,7 @@ var _resolveSetOption = function _resolveSetOption(cfg, key, fallback, options) 
 function createDOMPurify() {
 	let window = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : getGlobal();
 	const DOMPurify = (root) => createDOMPurify(root);
-	DOMPurify.version = "3.4.12";
+	DOMPurify.version = "3.4.13";
 	DOMPurify.removed = [];
 	if (!window || !window.document || window.document.nodeType !== NODE_TYPE.document || !window.Element) {
 		DOMPurify.isSupported = false;
@@ -57653,6 +57725,7 @@ function createDOMPurify() {
 	const getAttributes = lookupGetter(ElementPrototype, "attributes");
 	const getNodeType = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeType") : null;
 	const getNodeName = Node && Node.prototype ? lookupGetter(Node.prototype, "nodeName") : null;
+	const getOwnerDocument = Node && Node.prototype ? lookupGetter(Node.prototype, "ownerDocument") : null;
 	if (typeof HTMLTemplateElement === "function") {
 		const template = document.createElement("template");
 		if (template.content && template.content.ownerDocument) document = template.content.ownerDocument;
@@ -58293,7 +58366,8 @@ function createDOMPurify() {
 	* @return The created NodeIterator
 	*/
 	const _createNodeIterator = function _createNodeIterator(root) {
-		return createNodeIterator.call(root.ownerDocument || root, root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_PROCESSING_INSTRUCTION | NodeFilter.SHOW_CDATA_SECTION, null);
+		const doc = getOwnerDocument ? getOwnerDocument(root) : root.ownerDocument;
+		return createNodeIterator.call(doc || root, root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_TEXT | NodeFilter.SHOW_PROCESSING_INSTRUCTION | NodeFilter.SHOW_CDATA_SECTION, null);
 	};
 	/**
 	* Replace template expression syntax (mustache, ERB, template
@@ -58331,7 +58405,8 @@ function createDOMPurify() {
 	const _scrubTemplateExpressions2 = function _scrubTemplateExpressions(node) {
 		var _node$querySelectorAl;
 		node.normalize();
-		const walker = createNodeIterator.call(node.ownerDocument || node, node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION, null);
+		const doc = getOwnerDocument ? getOwnerDocument(node) : node.ownerDocument;
+		const walker = createNodeIterator.call(doc || node, node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT | NodeFilter.SHOW_CDATA_SECTION | NodeFilter.SHOW_PROCESSING_INSTRUCTION, null);
 		let currentNode = walker.nextNode();
 		while (currentNode) {
 			currentNode.data = _stripTemplateExpressions(currentNode.data);
@@ -58438,7 +58513,7 @@ function createDOMPurify() {
 	* @param tagName the node's transformCaseFunc'd tag name
 	* @return true if the node was removed, false if kept
 	*/
-	const _sanitizeDisallowedNode = function _sanitizeDisallowedNode(currentNode, tagName) {
+	const _sanitizeDisallowedNode = function _sanitizeDisallowedNode(currentNode, tagName, root) {
 		if (!FORBID_TAGS[tagName] && _isBasicCustomElement(tagName)) {
 			if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof RegExp && regExpTest(CUSTOM_ELEMENT_HANDLING.tagNameCheck, tagName)) return false;
 			if (CUSTOM_ELEMENT_HANDLING.tagNameCheck instanceof Function && CUSTOM_ELEMENT_HANDLING.tagNameCheck(tagName)) return false;
@@ -58449,13 +58524,31 @@ function createDOMPurify() {
 			if (childNodes && parentNode) {
 				const childCount = childNodes.length;
 				for (let i = childCount - 1; i >= 0; --i) {
-					const hoisted = IN_PLACE ? childNodes[i] : cloneNode(childNodes[i], true);
+					const hoisted = currentNode === root ? cloneNode(childNodes[i], true) : childNodes[i];
 					parentNode.insertBefore(hoisted, getNextSibling(currentNode));
 				}
 			}
 		}
 		_forceRemove(currentNode);
 		return true;
+	};
+	/**
+	* Fork a hook-mutable allowlist off its shared binding the first time a
+	* (possibly lazily-installed) uponSanitize* hook is about to see it, so the
+	* hook cannot widen the per-instance default or the setConfig binding by
+	* reference and leak past the call. Returns the set unchanged once it is
+	* already call-local, so repeated calls across elements are idempotent.
+	*
+	* @param hookList the uponSanitize* hook array for this event
+	* @param set the current ALLOWED_TAGS / ALLOWED_ATTR binding
+	* @param defaultSet the per-instance DEFAULT_ALLOWED_* constant
+	* @param setConfigSet the captured setConfig() binding, or null
+	* @return a call-local clone if a hook is present and set is still shared,
+	*   else set unchanged
+	*/
+	const _forkSharedAllowlist = function _forkSharedAllowlist(hookList, set, defaultSet, setConfigSet) {
+		if (hookList.length === 0) return set;
+		return set === defaultSet || set === setConfigSet ? clone$1(set) : set;
 	};
 	/**
 	* _sanitizeElements
@@ -58468,23 +58561,30 @@ function createDOMPurify() {
 	*/
 	const _sanitizeElements = function _sanitizeElements(currentNode, root) {
 		_executeHooks(hooks.beforeSanitizeElements, currentNode, null);
-		if (currentNode !== root && getParentNode(currentNode) === null) return true;
+		if (currentNode !== root && getParentNode(currentNode) === null) {
+			if (IN_PLACE) _neutralizeSubtree(currentNode);
+			return true;
+		}
 		if (_isClobbered(currentNode)) {
 			_forceRemove(currentNode);
 			return true;
 		}
 		const tagName = transformCaseFunc(getNodeName ? getNodeName(currentNode) : currentNode.nodeName);
+		ALLOWED_TAGS = _forkSharedAllowlist(hooks.uponSanitizeElement, ALLOWED_TAGS, DEFAULT_ALLOWED_TAGS, SET_CONFIG_ALLOWED_TAGS);
 		_executeHooks(hooks.uponSanitizeElement, currentNode, {
 			tagName,
 			allowedTags: ALLOWED_TAGS
 		});
-		if (currentNode !== root && getParentNode(currentNode) === null) return true;
+		if (currentNode !== root && getParentNode(currentNode) === null) {
+			if (IN_PLACE) _neutralizeSubtree(currentNode);
+			return true;
+		}
 		if (_isUnsafeNode(currentNode, tagName)) {
 			_forceRemove(currentNode);
 			return true;
 		}
 		if (FORBID_TAGS[tagName] || !(EXTRA_ELEMENT_HANDLING.tagCheck instanceof Function && EXTRA_ELEMENT_HANDLING.tagCheck(tagName)) && !ALLOWED_TAGS[tagName]) {
-			const removed = _sanitizeDisallowedNode(currentNode, tagName);
+			const removed = _sanitizeDisallowedNode(currentNode, tagName, root);
 			if (removed === false) _executeHooks(hooks.afterSanitizeElements, currentNode, null);
 			return removed;
 		}
@@ -58608,6 +58708,7 @@ function createDOMPurify() {
 		_executeHooks(hooks.beforeSanitizeAttributes, currentNode, null);
 		const attributes = currentNode.attributes;
 		if (!attributes || _isClobbered(currentNode)) return;
+		ALLOWED_ATTR = _forkSharedAllowlist(hooks.uponSanitizeAttribute, ALLOWED_ATTR, DEFAULT_ALLOWED_ATTR, SET_CONFIG_ALLOWED_ATTR);
 		const hookEvent = {
 			attrName: "",
 			attrValue: "",
@@ -58798,8 +58899,8 @@ function createDOMPurify() {
 		}
 		if (body && FORCE_BODY) _forceRemove(body.firstChild);
 		const walkRoot = inPlace ? dirty : body;
-		const nodeIterator = _createNodeIterator(walkRoot);
 		try {
+			const nodeIterator = _createNodeIterator(walkRoot);
 			while (currentNode = nodeIterator.nextNode()) {
 				_sanitizeElements(currentNode, walkRoot);
 				_sanitizeAttributes(currentNode);
@@ -66055,6 +66156,13 @@ var normalizeContent$2 = (content) => {
 };
 //#endregion
 //#region ../../packages/inspect-components/src/chat/rowsModel.ts
+/**
+* Whether a row renders the message with this id — as its head message or
+* as one of its folded tool messages. The deep-link target scan and the
+* data layer's target drain must agree on this, so it lives with the row
+* type.
+*/
+var rowContainsMessage = (row, messageId) => row.resolved.message.id === messageId || row.resolved.toolMessages.some((tm) => tm.id === messageId);
 /**
 * Fold options from a view's tool options — the one place the fold
 * defaults ("complete", collapse on) are defined. Data-layer folds and
@@ -74074,12 +74182,13 @@ var ChatItem = ({ children, ...props }) => {
 };
 var chatComponents = { Item: ChatItem };
 var kChatScrollPaddingStart = -15;
+var kLoadMoreMarginRows = 20;
 /**
 * The chat list over prebuilt rows — hosts that source rows from a data
 * layer render through this; the message-array wrapper below covers callers
 * that still hold raw messages.
 */
-var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtualList({ id, rows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
+var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtualList({ id, rows, hasMoreRows, onLoadMoreRows, initialMessageId, followRequested, className, scrollRef, running, backfilling, scrollToTopOnFinish = true, onNativeFindChanged, display, labels, linking, tools }) {
 	const listHandle = (0, import_react.useRef)(null);
 	const [navOwned] = (0, import_react.useState)(() => !!initialMessageId);
 	(0, import_react.useEffect)(() => {
@@ -74090,12 +74199,16 @@ var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtua
 		scrollRef,
 		itemCount: rows.length
 	});
+	const handleVisibleRangeChange = (0, import_react.useCallback)((range) => {
+		if (hasMoreRows && onLoadMoreRows && range.endIndex >= rows.length - kLoadMoreMarginRows) onLoadMoreRows();
+	}, [
+		hasMoreRows,
+		onLoadMoreRows,
+		rows.length
+	]);
 	const initialMessageIndex = (0, import_react.useMemo)(() => {
 		if (initialMessageId === null || initialMessageId === void 0) return;
-		const index = rows.findIndex((row) => {
-			if (row.resolved.message.id === initialMessageId) return true;
-			if (row.resolved.toolMessages.find((tm) => tm.id === initialMessageId)) return true;
-		});
+		const index = rows.findIndex((row) => rowContainsMessage(row, initialMessageId));
 		return index !== -1 ? index : void 0;
 	}, [initialMessageId, rows]);
 	const maxLabelLength = (0, import_react.useMemo)(() => computeMaxLabelLength(labels?.messageLabels), [labels?.messageLabels]);
@@ -74154,7 +74267,9 @@ var ChatViewRowsVirtualList = (0, import_react.memo)(function ChatViewRowsVirtua
 		scrollToTopOnFinish,
 		components: chatComponents,
 		smoothScroll: false,
-		itemSearchText: rowSearchText
+		itemSearchText: rowSearchText,
+		showProgress: hasMoreRows,
+		onVisibleRangeChange: handleVisibleRangeChange
 	});
 });
 (0, import_react.memo)(function ChatViewVirtualList({ messages, tools, ...rest }) {
@@ -74425,26 +74540,48 @@ var useMessagesExport = (sampleData) => (0, import_react.useMemo)(() => {
 		return parts;
 	};
 }, [sampleData]);
-//#endregion
-//#region src/log_data/messageRowsQuery.ts
+var kNoLoadMore = () => {};
+/** A feed over rows that are already everything there is. */
+var unpagedFeed = (rows) => ({
+	rows,
+	hasMore: false,
+	loadMore: kNoLoadMore
+});
+var kLoadingFeed = unpagedFeed(loading$2);
 /**
-* The settled conversation's rows for a sample, held in react-query.
-* Which feed backs them — inline monolith messages or the windowed source
-* over a chunked sample's conversation — is selected behind the
-* SampleMessagesData seam (`sampleMessagesSource`). This stage reads the
-* whole row space in one getRows call (the chat list renders prebuilt
-* rows); everything below the seam — scanning, chunk fetches, folding —
-* serves that request the same way it will serve real pages when the
-* list virtualizes over them.
+* The settled conversation's rows for a sample, read through react-query's
+* infinite query. Which feed backs them — inline monolith messages or the
+* windowed source over a chunked sample's conversation — is selected behind
+* the SampleMessagesData seam (`sampleMessagesSource`). Chunked samples
+* read in kMessageRowsPageSize pages, so the tab's first paint costs one
+* page even on a huge conversation and scrolling extends the loaded prefix
+* page by page; monolith samples serve the whole row space in one read,
+* exactly like the pre-paging feed — a TEMPORARY gate, because behaviors
+* built on a fully loaded list (find scope, the live-finish row swap)
+* aren't paging-aware yet and customers' non-chunked evals must not lose
+* them. Once those work over a paged prefix, the gate can drop. Pages are
+* forward-contiguous from row 0 (offset cursors); there is deliberately no
+* eviction — `maxPages` would punch holes in the flattened prefix the list
+* renders.
 *
 * Returns undefined while there is no settled conversation to read (a
 * live streaming sample, a sample still fetching, the Messages tab never
-* activated); loading while one is materializing; the caller owns what
-* covers those states (streaming rows, waiting/loading affordances).
+* activated); a loading feed while the first page is materializing; the
+* caller owns what covers those states (streaming rows, waiting/loading
+* affordances).
+*
+* `targetMessageId` is a `?message=` deep link's target: pages drain in
+* serially until a loaded row renders that message (or the conversation
+* is exhausted), and the feed reports loading until then — the list
+* honors its initial scroll index at mount, so it must mount with the
+* target resident. The prefix cost is deliberate: pages are
+* forward-contiguous, so the covering prefix is the minimum the list can
+* render anyway.
 */
-var useMessageRows = (handle, sampleData, activated) => {
+var useMessageRows = (handle, sampleData, activated, targetMessageId) => {
 	const source = sampleMessagesSource(sampleData);
-	const rows = useAsyncDataFromQuery({
+	const paged = sampleData.chunked !== void 0;
+	const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
 		queryKey: [
 			"log_data",
 			"message-rows",
@@ -74452,13 +74589,13 @@ var useMessageRows = (handle, sampleData, activated) => {
 			handle?.id ?? null,
 			handle?.epoch ?? null
 		],
-		queryFn: activated && source && handle ? async () => {
-			return (await source.getRows({
-				cursor: null,
-				direction: "forward",
-				limit: Number.MAX_SAFE_INTEGER
-			})).rows;
-		} : skipToken,
+		queryFn: activated && source && handle ? ({ pageParam }) => source.getRows({
+			cursor: pageParam === 0 ? null : { offset: pageParam },
+			direction: "forward",
+			limit: paged ? 100 : Number.MAX_SAFE_INTEGER
+		}) : skipToken,
+		initialPageParam: 0,
+		getNextPageParam: (last) => last.nextCursor?.offset,
 		gcTime: kSampleGcTimeMs,
 		staleTime: Infinity,
 		retry: false,
@@ -74466,13 +74603,51 @@ var useMessageRows = (handle, sampleData, activated) => {
 		refetchOnReconnect: false,
 		structuralSharing: false
 	});
+	const pages = data?.pages;
+	const rows = (0, import_react.useMemo)(() => pages?.flatMap((page) => page.rows), [pages]);
+	const fetchNext = (0, import_react.useCallback)(() => {
+		if (hasNextPage && !isFetchingNextPage) fetchNextPage({ cancelRefetch: false }).catch(() => void 0);
+	}, [
+		hasNextPage,
+		isFetchingNextPage,
+		fetchNextPage
+	]);
+	const targetLoaded = (0, import_react.useMemo)(() => targetMessageId == null || (rows?.some((row) => rowContainsMessage(row, targetMessageId)) ?? false), [rows, targetMessageId]);
+	(0, import_react.useEffect)(() => {
+		if (!targetLoaded && !isError) fetchNext();
+	}, [
+		rows,
+		targetLoaded,
+		isError,
+		fetchNext
+	]);
+	const hasSource = source !== void 0;
 	return (0, import_react.useMemo)(() => {
-		if (!activated || source === void 0) return;
-		return rows;
+		if (!activated || !hasSource) return;
+		if (isPending) return kLoadingFeed;
+		if (isError) return unpagedFeed({
+			error,
+			loading: false
+		});
+		if (!targetLoaded && hasNextPage) return kLoadingFeed;
+		return {
+			rows: {
+				data: rows ?? [],
+				loading: false
+			},
+			hasMore: hasNextPage,
+			loadMore: fetchNext
+		};
 	}, [
 		activated,
-		source,
-		rows
+		hasSource,
+		isPending,
+		isError,
+		error,
+		targetLoaded,
+		hasNextPage,
+		rows,
+		fetchNext
 	]);
 };
 //#endregion
@@ -74587,20 +74762,27 @@ var useStreamingRowsLatch = (active, relieved, runningEvents, sampleKey) => {
 };
 /**
 * The Messages tab's one entry point: the settled conversation's rows read
-* through `useMessageRows`, with the live event stream serving rows until
+* through `useMessageRows` — a paged feed whose loaded prefix the list
+* extends by scrolling — with the live event stream serving rows until
 * a settled feed exists. The view consumes the result and reports two
 * gates it owns: `active` (the tab is open — the settled read and chunked
 * hydration are activation-latched on it, so neither is ever paid at
 * sample open) and `running` (live samples surface "waiting", not
 * "loading", before their first poll lands).
 *
-* `data` is the rows to render (settled, streaming, or an empty settled
-* conversation); `loading` means data that will produce messages is still
-* in flight (monolith fetch, chunked hydration, rows materialization);
-* `error` means the conversation failed to materialize. On loading and
-* error the view renders that affordance, never "No messages".
+* `rows.data` is the rows to render (a settled prefix, streaming rows, or
+* an empty settled conversation); `rows.loading` means data that will
+* produce messages is still in flight (monolith fetch, chunked hydration,
+* first-page materialization); `rows.error` means the conversation failed
+* to materialize. On loading and error the view renders that affordance,
+* never "No messages". Streaming rows are never paged (`hasMore` false):
+* the event feed always renders whole.
+*
+* `targetMessageId` (a `?message=` deep link) keeps the settled feed on
+* loading until the target's covering page prefix is resident — see
+* `useMessageRows`.
 */
-var useSampleMessages = (handle, sampleData, active, running) => {
+var useSampleMessages = (handle, sampleData, active, running, targetMessageId) => {
 	const sampleKey = handle ? `${handle.logFile}|${handle.id}|${handle.epoch}` : null;
 	const [latch, setLatch] = (0, import_react.useState)({
 		key: null,
@@ -74614,27 +74796,20 @@ var useSampleMessages = (handle, sampleData, active, running) => {
 		key: sampleKey,
 		activated: true
 	});
-	const settled = useMessageRows(handle, sampleData, active || latch.key === sampleKey && latch.activated);
-	const streamingRows = useStreamingRowsLatch(active, settled?.data !== void 0 || settled?.error !== void 0, sampleData.running, sampleKey);
+	const settled = useMessageRows(handle, sampleData, active || latch.key === sampleKey && latch.activated, targetMessageId);
+	const streamingRows = useStreamingRowsLatch(active, settled?.rows.data !== void 0 || settled?.rows.error !== void 0, sampleData.running, sampleKey);
 	const status = sampleData.status;
 	return (0, import_react.useMemo)(() => {
-		if (settled?.error !== void 0) return {
-			error: settled.error,
-			loading: false
-		};
-		if (settled?.data !== void 0) return {
-			data: settled.data,
-			loading: false
-		};
-		if (streamingRows !== void 0) return {
+		if (settled?.rows.error !== void 0 || settled?.rows.data !== void 0) return settled;
+		if (streamingRows !== void 0) return unpagedFeed({
 			data: streamingRows,
 			loading: false
-		};
-		if (settled?.loading || status === "loading" && !running) return loading$2;
-		return {
+		});
+		if (settled?.rows.loading || status === "loading" && !running) return unpagedFeed(loading$2);
+		return unpagedFeed({
 			data: kNoRows$1,
 			loading: false
-		};
+		});
 	}, [
 		settled,
 		streamingRows,
@@ -113214,7 +113389,9 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 	}, [clearSampleTab]);
 	const effectiveSelectedTab = sampleTabId || selectedTab;
 	const selectedSampleHandle = useStore((state) => state.log.selectedSampleHandle);
-	const sampleMessages = useSampleMessages(selectedSampleHandle, sampleData, effectiveSelectedTab === kSampleMessagesTabId, running);
+	const messagesTabOpen = effectiveSelectedTab === kSampleMessagesTabId;
+	const sampleDetailNavigation = useSampleDetailNavigation();
+	const sampleMessages = useSampleMessages(selectedSampleHandle, sampleData, messagesTabOpen, running, messagesTabOpen ? sampleDetailNavigation.message : null);
 	const exportMessages = useMessagesExport(sampleData);
 	(0, import_react.useEffect)(() => {
 		if (!focusOnLoad) return;
@@ -113431,7 +113608,6 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 		subtle: true
 	}, "sample-print-tool"));
 	const scrollToTopOnFinish = !sample?.error && !selectedSampleSummary?.error && logDetails?.status !== "error" && logDetails?.status !== "cancelled";
-	const sampleDetailNavigation = useSampleDetailNavigation();
 	const displayModeContext = (0, import_react.useMemo)(() => ({ displayMode: displayMode ?? "rendered" }), [displayMode]);
 	const mountsAtDeepLink = !!(sampleDetailNavigation.event || sampleDetailNavigation.message);
 	const { hidden: headerCollapsed, resetAnchor: headerResetAnchor, setHidden: headerSetHidden, navOwnsRef: chromeNavOwnsRef } = useChromeNavOwnership(scrollRef, {
@@ -113591,12 +113767,14 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 								rail: hasRail ? railNode : void 0,
 								panel: hasRail ? railPanel : void 0,
 								label: railLabel,
-								children: sampleMessages.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ErrorPanel, {
+								children: sampleMessages.rows.error ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ErrorPanel, {
 									title: "An error occurred while loading messages.",
-									error: sampleMessages.error
+									error: sampleMessages.rows.error
 								}) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ChatViewRowsVirtualList, {
 									id: chatListId,
-									rows: sampleMessages.data ?? kNoMessageRows,
+									rows: sampleMessages.rows.data ?? kNoMessageRows,
+									hasMoreRows: sampleMessages.hasMore,
+									onLoadMoreRows: sampleMessages.loadMore,
 									initialMessageId: sampleDetailNavigation.message,
 									followRequested: sampleDetailNavigation.follow,
 									display: chatDisplay,
@@ -113606,7 +113784,7 @@ var SampleDisplay = ({ id, scrollRef, showActivity, focusOnLoad }) => {
 									scrollRef,
 									tools: chatTools,
 									running,
-									backfilling: backfilling || sampleMessages.loading,
+									backfilling: backfilling || sampleMessages.rows.loading,
 									scrollToTopOnFinish,
 									className: SampleDisplay_module_default.fullWidth
 								}, chatListId)
