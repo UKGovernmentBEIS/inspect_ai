@@ -1,6 +1,11 @@
 ## Unreleased
 
-- Dataset: `read_sandbox()` and sample initialization now accept dictionaries, JSON object strings, `SandboxEnvironmentSpec` instances, and tuple/list specifications. (#4810)
+- Datasets: `read_sandbox()` and sample initialization now accept dictionaries, JSON object strings, `SandboxEnvironmentSpec` instances, and tuple or list specifications.
+- Datasets: `hf_dataset(..., auto_id=True, shuffle=True)` now attaches each auto id to its record (matching csv/json) instead of the shuffled position, so a record keeps the same id across seeds and limited slices. (#4459) Note: ids for affected datasets will change once on upgrade (row order for a given seed is unchanged) — avoid retrying an in-flight `eval_set` across this boundary. Previously, unseeded shuffles assigned irreproducible ids, which silently corrupted `eval_set` retries on affected datasets; those workflows are now correct.
+- Scoring: New `aggregate(key, agg=...)` metric factory applying any standard metric (`mean`, `stderr`, `accuracy`, …) to a single key of a dict-valued `Score.value`.
+- Agent Bridge: The final agent state now surfaces the real conversation instead of a side call (e.g. opencode's session title) when the scaffold decorates the task prompt, such as opencode quote-wrapping it. (#4768)
+- Inspect View: Logs inside the configured directory now open on Windows when listings identify them with canonical file URIs. (#4765)
+- Bugfix: Dataset fields holding float `NaN` (as produced by Pandas, Hugging Face, CSV, and PyArrow sources for missing values) are now treated as missing for `input`, `choices`, `setup`, `sandbox`, `files`, and `metadata`, matching the existing `target` behavior. (#4626)
 
 ## 0.3.255 (09 August 2026)
 

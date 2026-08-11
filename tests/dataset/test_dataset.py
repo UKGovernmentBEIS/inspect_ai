@@ -275,6 +275,37 @@ def test_dataset_nan_target_treated_as_missing() -> None:
     assert sample_num.target == "4"
 
 
+def test_dataset_nan_fields_treated_as_missing() -> None:
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+
+    # NaN input should raise ValueError("No input in dataset")
+    with pytest.raises(ValueError, match="No input in dataset"):
+        rec2sample({"input": float("nan"), "target": "4"})
+
+    # NaN choices, setup, sandbox, files, metadata should be treated as missing (None)
+    sample = rec2sample(
+        {
+            "input": "x",
+            "target": "y",
+            "choices": float("nan"),
+            "setup": float("nan"),
+            "sandbox": float("nan"),
+            "files": float("nan"),
+            "metadata": float("nan"),
+        }
+    )
+    assert not isinstance(sample, list)
+    assert sample.choices is None, f"expected None for choices, got {sample.choices!r}"
+    assert sample.setup is None, f"expected None for setup, got {sample.setup!r}"
+    assert sample.sandbox is None, f"expected None for sandbox, got {sample.sandbox!r}"
+    assert sample.files is None, f"expected None for files, got {sample.files!r}"
+    assert sample.metadata is None, (
+        f"expected None for metadata, got {sample.metadata!r}"
+    )
+
+
 def test_dataset_zero_seed() -> None:
     dataset1 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
     dataset2 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
