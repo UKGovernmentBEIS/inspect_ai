@@ -258,7 +258,7 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
 
 
 @score_reducer(name="collect")
-def collect() -> ScoreReducer:
+def collect_score() -> ScoreReducer:
     r"""Collect each score's value into a list, preserving every value.
 
     Keeps the individual values intact instead of aggregating them into one.

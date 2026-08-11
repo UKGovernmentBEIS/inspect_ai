@@ -18,7 +18,7 @@ from inspect_ai.scorer import (
     Value,
     ValueToFloat,
     at_least,
-    collect,
+    collect_score,
     match,
     max_score,
     mean_score,
@@ -46,7 +46,7 @@ pass_k_2_no_threshold = pass_k(2)
 pass_k_3_threshold = pass_k(3, 2)
 pass_k_5_no_threshold = pass_k(5)
 pass_k_5_threshold = pass_k(5, 2)
-collect_reducer = collect()
+collect_reducer = collect_score()
 
 
 def test_simple_reducers() -> None:
