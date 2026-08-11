@@ -253,6 +253,17 @@ class SampleBufferDatabase(SampleBuffer):
         # Prevent late ModelEvents from restarting indices at 0 after completion.
         self._completed_samples: set[tuple[str, int]] = set()
 
+        # Attachment hashes already inserted per (str(id), epoch) — an
+        # optimization over INSERT OR IGNORE so duplicate content isn't
+        # re-shipped into SQLite on every event update. str(id): SQLite TEXT
+        # affinity collides 5/'5' in the UNIQUE constraint, so the in-memory
+        # key must too. No lock: all writers run on the event-loop thread
+        # (see the _get_connection invariants above); marks are applied only
+        # after the batch's transaction commits (_pending_seen_hashes), so a
+        # rollback cannot leave stale marks.
+        self._inserted_attachment_hashes: dict[tuple[str, int], set[str]] = {}
+        self._pending_seen_hashes: list[tuple[tuple[str, int], str]] | None = None
+
         self._sample_read_leases: dict[tuple[str, int], int] = {}
         self._pending_sample_removals: set[tuple[str, int]] = set()
         self._cleanup_pending = False
@@ -303,41 +314,50 @@ class SampleBufferDatabase(SampleBuffer):
                     if call_index is not None:
                         call_index.restore(call_mark)
 
-        with self._get_connection(
-            write=True, on_rollback=restore_index_snapshots
-        ) as conn:
-            # collect the values for all events
-            values: list[str | int] = []
-            for event in events:
-                if isinstance(event.event, ModelEvent):
-                    key = (str(event.id), event.epoch)
-                    if key not in index_snapshots:
-                        msg_index = self._msg_indices.get(key)
-                        call_index = self._call_indices.get(key)
-                        index_snapshots[key] = (
-                            None if msg_index is None else msg_index.mark(),
-                            None if call_index is None else call_index.mark(),
+        pending_seen: list[tuple[tuple[str, int], str]] = []
+        self._pending_seen_hashes = pending_seen
+        try:
+            with self._get_connection(
+                write=True, on_rollback=restore_index_snapshots
+            ) as conn:
+                # collect the values for all events
+                values: list[str | int] = []
+                for event in events:
+                    if isinstance(event.event, ModelEvent):
+                        key = (str(event.id), event.epoch)
+                        if key not in index_snapshots:
+                            msg_index = self._msg_indices.get(key)
+                            call_index = self._call_indices.get(key)
+                            index_snapshots[key] = (
+                                None if msg_index is None else msg_index.mark(),
+                                None if call_index is None else call_index.mark(),
+                            )
+
+                    event = self._condense_event(conn, event)
+                    values.extend(
+                        (
+                            event.event.uuid or uuid(),
+                            str(event.id),
+                            event.epoch,
+                            to_json_str_safe(event.event),
                         )
-
-                event = self._condense_event(conn, event)
-                values.extend(
-                    (
-                        event.event.uuid or uuid(),
-                        str(event.id),
-                        event.epoch,
-                        to_json_str_safe(event.event),
                     )
-                )
 
-            # dynamically create the SQL query
-            placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
-            sql = f"""
-            INSERT INTO events (event_id, sample_id, sample_epoch, data)
-            VALUES {placeholders}
-            """
+                # dynamically create the SQL query
+                placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
+                sql = f"""
+                INSERT INTO events (event_id, sample_id, sample_epoch, data)
+                VALUES {placeholders}
+                """
 
-            # Insert all rows
-            conn.execute(sql, values)
+                # Insert all rows
+                conn.execute(sql, values)
+        finally:
+            self._pending_seen_hashes = None
+        # seen-marks apply only after the transaction committed: a rolled-back
+        # batch must not leave hashes marked (the retry would skip real content)
+        for key, attachment_hash in pending_seen:
+            self._inserted_attachment_hashes.setdefault(key, set()).add(attachment_hash)
 
     def complete_sample(
         self,
@@ -380,6 +400,7 @@ class SampleBufferDatabase(SampleBuffer):
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)
             self._completed_samples.add(key)
+            self._inserted_attachment_hashes.pop(key, None)
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
@@ -416,6 +437,7 @@ class SampleBufferDatabase(SampleBuffer):
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)
             self._completed_samples.discard(key)
+            self._inserted_attachment_hashes.pop(key, None)
 
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -1569,7 +1591,7 @@ class SampleBufferDatabase(SampleBuffer):
         )[0]
 
         # insert attachments
-        self._insert_attachments(conn, event.id, event.epoch, attachments)
+        self._insert_event_attachments(conn, event.id, event.epoch, attachments)
         return event
 
     def _condense_model_event(
@@ -1624,7 +1646,7 @@ class SampleBufferDatabase(SampleBuffer):
 
         # walk the remainder (input now [], call request without messages)
         condensed_event = walk_events([condensed], content_fn, context)[0]
-        self._insert_attachments(conn, event.id, event.epoch, attachments)
+        self._insert_event_attachments(conn, event.id, event.epoch, attachments)
         return SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
 
     def _resolve_event_attachments(
@@ -1673,6 +1695,31 @@ class SampleBufferDatabase(SampleBuffer):
             """,
             parameters,
         )
+
+    def _insert_event_attachments(
+        self, conn: Connection, id: int | str, epoch: int, attachments: dict[str, str]
+    ) -> None:
+        """Insert a logged event's attachments, skipping already-inserted content.
+
+        Purely an optimization over ``INSERT OR IGNORE`` (which already
+        collapses duplicates — but only after the full duplicate content has
+        crossed into SQLite, which event updates re-trigger every turn). Only
+        the ``log_events`` path uses this: its seen-marks are staged and
+        applied post-commit. The ``start_sample``/``complete_sample`` sample
+        condense path keeps plain ``_insert_attachments`` (no rollback hook
+        there, and it runs once per sample).
+        """
+        key = (str(id), epoch)
+        seen = self._inserted_attachment_hashes.get(key)
+        if seen:
+            attachments = {
+                h: content for h, content in attachments.items() if h not in seen
+            }
+        if not attachments:
+            return
+        self._insert_attachments(conn, id, epoch, attachments)
+        if self._pending_seen_hashes is not None:
+            self._pending_seen_hashes.extend((key, h) for h in attachments)
 
     def _insert_message_pool_entry(
         self,

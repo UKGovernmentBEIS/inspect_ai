@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Generator, Iterator, cast
 
 import pytest
+from test_helpers.transcript import make_model_event
 
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
@@ -22,6 +23,7 @@ from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._model_call import ModelCall
 
 
 @pytest.fixture
@@ -848,3 +850,76 @@ def test_open_connection_closes_conn_on_non_operational_error(
 
     # the half-open connection was closed before the error propagated
     assert closed
+
+
+def test_event_attachments_shipped_once(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Re-logging an event must not re-ship identical attachment content.
+
+    Updates re-log the event on every notification. The long payload lives in
+    the event's output rather than the call request: call-request messages
+    are already deduped by the call-pool prefix cache before this filter
+    ever runs (a same-content retry there produces no new attachment
+    content), so a payload placed there wouldn't exercise the filter. An
+    unchanged ``ModelEvent.output`` has no such cache -- it's re-walked from
+    scratch by ``_condense_model_event``'s trailing full-event walk on every
+    call, which is the path this filter guards.
+    """
+    db.start_sample(sample)
+
+    shipped: list[dict[str, str]] = []
+    original = SampleBufferDatabase._insert_attachments
+
+    def recording(self, conn, id, epoch, attachments):
+        shipped.append(dict(attachments))
+        return original(self, conn, id, epoch, attachments)
+
+    monkeypatch.setattr(SampleBufferDatabase, "_insert_attachments", recording)
+
+    event = make_model_event(
+        [ChatMessageUser(content="q")], uuid="e1", content="z" * 150
+    )
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+
+    total_pairs = sum(len(s) for s in shipped)
+    unique_hashes = {h for s in shipped for h in s}
+    assert total_pairs == len(unique_hashes), (
+        f"duplicate attachment content shipped: {total_pairs} pairs, "
+        f"{len(unique_hashes)} unique hashes"
+    )
+    # content still stored and resolvable
+    with db._get_connection() as conn:
+        stored = list(db._get_attachments(conn, sample.id, 1))
+    assert any(a.content.startswith("z") for a in stored)
+
+
+def test_removed_sample_reinserts_attachments(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """A retry's attachment content must survive a stale seen-mark.
+
+    Sample retry removes then re-logs the same (id, epoch).
+    """
+
+    def log_payload_event(uuid: str) -> None:
+        event = make_model_event([ChatMessageUser(content="q")], uuid=uuid, content="a")
+        event.call = ModelCall.create(
+            {"messages": [{"role": "user", "content": "w" * 150}]}, None
+        )
+        db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+
+    db.start_sample(sample)
+    log_payload_event("e1")
+    db.remove_samples([(sample.id, 1)])
+
+    db.start_sample(sample)
+    log_payload_event("e2")
+    with db._get_connection() as conn:
+        stored = list(db._get_attachments(conn, sample.id, 1))
+    assert any(a.content.startswith("w") for a in stored), (
+        "retry's attachment content was skipped by a stale seen-mark"
+    )
