@@ -149,9 +149,10 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         One dict per task_id group, sorted by start time
         (oldest first). Each entry includes ``log_location`` (where this
         attempt's results are written), a nested ``samples`` block:
-        ``{total, completed, errored, in_flight, queued}``, and an
+        ``{total, completed, errored, in_flight, queued}``, an
         ``attempts`` count (1 for tasks without retries, >1 when
-        retries occurred).
+        retries occurred), and the running ``refusals`` / ``http_retries``
+        tallies for this eval's samples.
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
@@ -231,6 +232,8 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         summaries.append(
             _build_summary(
                 latest=latest,
+                # every attempt, for the event counters only (see _build_summary)
+                states=group_states,
                 samples=group_samples,
                 attempts=attempts,
                 started_at_fallback=started_at,
@@ -278,6 +281,10 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 },
                 "total_tokens": sum(s.total_tokens for s in samples),
                 "total_messages": sum(s.total_messages for s in samples),
+                # No eval total to add: this path is the pre-registration window,
+                # where the only samples that exist are the live ones.
+                "refusals": sum(s.refusals for s in samples),
+                "http_retries": sum(s.http_retries for s in samples),
             }
         )
 
@@ -299,7 +306,8 @@ async def current_sample_summaries(
     - **completed** ← the recorder's in-memory summaries while the eval
       runs (gap-free, ahead of disk; via ``EvalState.live.sample_summaries``),
       falling back to the finalized on-disk log once the recorder is gone
-      (eval finished / torn down).
+      (eval finished / torn down) — read once and memoized on the state
+      (see :func:`_sample_summaries_from_log`).
     - **pending** ← synthesized from the eval's registered planned
       ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``)
       that aren't yet running or done — no live source holds these.
@@ -590,7 +598,7 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     # set it before any sample runs), so there's no need to also consult
     # active_samples.
     if state is not None and state.log_location:
-        return await _sample_summaries_from_log(state.log_location, will_retry)
+        return await _sample_summaries_from_log(state)
     return []
 
 
@@ -827,27 +835,39 @@ def _error_dict(error: Any) -> dict[str, Any]:
     }
 
 
-async def _sample_summaries_from_log(
-    location: str, will_retry: bool = False
-) -> list[dict[str, Any]]:
-    """Completed-sample summaries read from the on-disk log.
+async def _sample_summaries_from_log(state: "EvalState") -> list[dict[str, Any]]:
+    """Completed-sample summaries read from the on-disk log, memoized.
 
     Only reached when the live recorder is unavailable (a reused eval, a
     finished eval whose recorder was torn down, or a superseded retry
-    attempt whose providers were detached), so the log is finalized. It may
-    however no longer *exist*: the retry sweep (``retry_cleanup``) deletes
-    superseded attempts' logs while their EvalStates persist through any
-    keep-alive park — degrade to an empty listing rather than failing the
-    request. Any other read error is unexpected and propagates to the API
-    entry point.
-    """
-    from inspect_ai.log._file import read_eval_log_sample_summaries_async
+    attempt whose providers were detached), so the log is finalized and
+    immutable — the first request's read (possibly against S3, with
+    ``EvalSampleSummary`` validation per sample) is cached on the state
+    (``EvalState.log_sample_summaries``) and later requests are served from
+    memory; a keep-alive-parked process polled every 30s must not re-pay it
+    per poll. Concurrent first requests may each read (benign: identical
+    immutable data, no await between the read completing and the memo
+    write). The memo write needs no registry lock for the same reason
+    ``_build_summary``'s ``observe_started`` fold doesn't: all writers run
+    on the eval's loop.
 
-    try:
-        summaries = await read_eval_log_sample_summaries_async(location)
-    except FileNotFoundError:
-        return []
-    return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
+    The log may however no longer *exist*: the retry sweep
+    (``retry_cleanup``) deletes superseded attempts' logs while their
+    EvalStates persist through any keep-alive park (clearing the memo as it
+    does — see ``invalidate_log_sample_summaries``) — degrade to an empty
+    listing, without memoizing it, rather than failing the request. Any
+    other read error is unexpected and propagates to the API entry point.
+    """
+    summaries = state.log_sample_summaries
+    if summaries is None:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        try:
+            summaries = await read_eval_log_sample_summaries_async(state.log_location)
+        except FileNotFoundError:
+            return []
+        state.log_sample_summaries = summaries
+    return [_summary_from_eval_sample_summary(s, state.will_retry) for s in summaries]
 
 
 def _cancellation_status(will_retry: bool) -> str:
@@ -1066,6 +1086,7 @@ def _iso_to_timestamp(value: str | None) -> float | None:
 def _build_summary(
     *,
     latest: "EvalState",
+    states: list["EvalState"],
     samples: list["ActiveSample"],
     attempts: int,
     started_at_fallback: float,
@@ -1078,6 +1099,15 @@ def _build_summary(
     would double-count. ``errored`` likewise reflects the latest
     attempt only (a sample that errored on attempt 1 and succeeded on
     attempt 2 shouldn't read as "errored" in the surface).
+
+    ``refusals`` / ``http_retries`` are the exception and are summed over
+    ``states`` (every attempt of this task). They count things that HAPPENED
+    rather than describing current state, so a retry must not discard the prior
+    attempt's tally — and it is the failed attempt whose retries you most want to
+    see, since a provider problem bad enough to fail a task is what triggered the
+    retry. Summing is safe where it isn't for ``completed`` because the attempts
+    are disjoint: a reused sample is never re-run, so it emits no new events, and
+    nothing seeds these from a reused log (they are not recorded in one).
     """
     first_sample = samples[0] if samples else None
     task_name = first_sample.task if first_sample else latest.task
@@ -1141,6 +1171,18 @@ def _build_summary(
     total_messages = latest.total_messages + sum(
         s.total_messages for s in in_flight_samples
     )
+    # Same two-term shape, and for the same reason: the eval totals cover samples
+    # that have left `active_samples`, the live sum covers the ones still in it.
+    # Reading these live matters more than it does for usage — a refusal or a
+    # retry storm is worth knowing about while the run can still be steered, and
+    # on a long-episode benchmark no sample may finish for hours. Note the totals
+    # are summed over EVERY attempt, not read off `latest` (see the docstring).
+    refusals = sum(s.refusals for s in states) + sum(
+        s.refusals for s in in_flight_samples
+    )
+    http_retries = sum(s.http_retries for s in states) + sum(
+        s.http_retries for s in in_flight_samples
+    )
 
     return {
         "run_id": run_id,
@@ -1175,4 +1217,6 @@ def _build_summary(
         },
         "total_tokens": total_tokens,
         "total_messages": total_messages,
+        "refusals": refusals,
+        "http_retries": http_retries,
     }

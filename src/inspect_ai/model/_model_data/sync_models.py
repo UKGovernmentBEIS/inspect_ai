@@ -1,48 +1,73 @@
 #!/usr/bin/env python3
 """Sync model data from external sources.
 
-This script fetches model information from the TogetherAI API and writes it
-to a YAML file organized by model creator (not data source).
+This script fetches model information from inference provider APIs and writes
+one YAML file per source:
+
+- `together.yml` is organized by model creator. Together serves
+  HuggingFace-style `org/model` names, which already match the database's
+  creator-keyed format.
+- `fireworks.yml` is a single `fireworks` organization. Fireworks model names
+  carry no creator component (`accounts/fireworks/models/deepseek-r1-0528`), so
+  `FireworksAIAPI.canonical_name()` keys them under the provider instead. The
+  context length Fireworks reports is authoritative for what Fireworks serves,
+  which can differ from the creator's own deployment of the same weights
+  (DeepSeek's API served R1-0528 at 64K; Fireworks serves it at 160K).
 
 Models that are curated by hand in one of the sibling YAML files are skipped
 (matched on the case-normalized org/model lookup key, including aliases and
 versions): the lookup index in _model_info.py resolves colliding keys by
 file-load order, so a bare auto-generated entry would otherwise shadow the
-richer curated one.
+richer curated one. This is also the escape hatch for restoring metadata the
+provider APIs don't report (e.g. `reasoning`) on a specific model: curate it in
+a sibling file and the sync leaves it alone.
 
 This script must stay self-contained (stdlib + pyyaml + requests only, no
 inspect_ai imports): the sync workflow runs it without installing the package
 (see .github/workflows/sync_model_data.yml).
 
 Usage:
-    python -m inspect_ai.model._model_data.sync_models
+    python -m inspect_ai.model._model_data.sync_models [--source SOURCE]
+
+    SOURCE is `together`, `fireworks`, or `all` (the default).
 
 Requirements:
-    - TOGETHER_API_KEY environment variable must be set
-
-The output file (together.yml) is organized by model creator:
-    meta-llama:
-      display_name: Meta
-      models:
-        Llama-3.1-8B-Instruct:
-          context_length: 131072
+    - TOGETHER_API_KEY environment variable (for the together source)
+    - FIREWORKS_API_KEY environment variable (for the fireworks source)
 """
 
 from __future__ import annotations
 
+import argparse
 import copy
 import os
 import re
 import shutil
 import sys
+import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import AbstractSet, Any, cast
+from typing import AbstractSet, Any, Callable, NamedTuple, cast
 
 import yaml
 
+DATA_DIR = Path(__file__).parent
+
 TOGETHER_API_URL = "https://api.together.xyz/v1/models"
-OUTPUT_FILE = Path(__file__).parent / "together.yml"
+TOGETHER_OUTPUT_FILE = DATA_DIR / "together.yml"
+
+# Fireworks' control-plane API (not the OpenAI-compatible inference API, which
+# omits context lengths). Records come back complete, so no per-model fetch.
+FIREWORKS_API_URL = "https://api.fireworks.ai/v1/accounts/fireworks/models"
+FIREWORKS_OUTPUT_FILE = DATA_DIR / "fireworks.yml"
+FIREWORKS_MODEL_PREFIX = "accounts/fireworks/models/"
+FIREWORKS_ORG = "fireworks"
+FIREWORKS_PAGE_SIZE = 200
+# 10k models at the page size above; guards against a pagination loop
+FIREWORKS_MAX_PAGES = 50
+
+# Files this script generates. Never treated as a source of curated keys.
+GENERATED_FILES = {TOGETHER_OUTPUT_FILE.name, FIREWORKS_OUTPUT_FILE.name}
 
 
 # Known organization display names
@@ -69,6 +94,7 @@ ORG_DISPLAY_NAMES: dict[str, str] = {
     "Snowflake": "Snowflake",
     "scb10x": "SCB 10X",
     "cognitivecomputations": "Cognitive Computations",
+    FIREWORKS_ORG: "Fireworks AI",
 }
 
 
@@ -90,13 +116,13 @@ def _normalize_for_lookup(name: str) -> str:
 def load_curated_model_keys(data_dir: Path) -> set[str]:
     """Collect normalized org/model lookup keys defined by the curated files.
 
-    Scans every YAML file in `data_dir` except the auto-generated together.yml
-    and expands each model to the full set of names the lookup index will see:
-    the model key itself, its aliases, and its version names and aliases.
+    Scans every YAML file in `data_dir` except the auto-generated ones and
+    expands each model to the full set of names the lookup index will see: the
+    model key itself, its aliases, and its version names and aliases.
     """
     keys: set[str] = set()
     for info_file in sorted(data_dir.glob("*.yml")):
-        if info_file.name == OUTPUT_FILE.name:
+        if info_file.name in GENERATED_FILES:
             continue
         with open(info_file) as f:
             data = yaml.safe_load(f) or {}
@@ -148,16 +174,11 @@ def generate_display_name(model_name: str) -> str:
     return name.strip()
 
 
-def fetch_together_models() -> list[dict[str, Any]]:
+def fetch_together_models(api_key: str) -> list[dict[str, Any]]:
     """Fetch model list from TogetherAI API."""
     # Imported here so the module stays importable (e.g. by tests) in
     # environments where requests is not installed.
     import requests  # type: ignore
-
-    api_key = os.environ.get("TOGETHER_API_KEY")
-    if not api_key:
-        print("Error: TOGETHER_API_KEY environment variable not set")
-        sys.exit(1)
 
     headers = {"Authorization": f"Bearer {api_key}"}
 
@@ -170,11 +191,42 @@ def fetch_together_models() -> list[dict[str, Any]]:
         sys.exit(1)
 
 
-def process_models(
+def fetch_fireworks_models(api_key: str) -> list[dict[str, Any]]:
+    """Fetch the public model list from the Fireworks control-plane API."""
+    import requests  # type: ignore
+
+    headers = {"Authorization": f"Bearer {api_key}"}
+    models: list[dict[str, Any]] = []
+    page_token: str | None = None
+
+    try:
+        for _ in range(FIREWORKS_MAX_PAGES):
+            params: dict[str, Any] = {"pageSize": FIREWORKS_PAGE_SIZE}
+            if page_token:
+                params["pageToken"] = page_token
+            response = requests.get(
+                FIREWORKS_API_URL, headers=headers, params=params, timeout=30
+            )
+            response.raise_for_status()
+            payload = response.json()
+            page = payload.get("models") or []
+            models.extend(page)
+            page_token = payload.get("nextPageToken")
+            if not page_token or not page:
+                return models
+    except requests.RequestException as e:
+        print(f"Error fetching models from Fireworks API: {e}")
+        sys.exit(1)
+
+    print(f"Warning: stopped paging Fireworks models after {FIREWORKS_MAX_PAGES} pages")
+    return models
+
+
+def process_together_models(
     models: list[dict[str, Any]],
     curated_keys: AbstractSet[str] = frozenset(),
 ) -> dict[str, Any]:
-    """Process raw model data into organized YAML structure.
+    """Process raw Together model data into organized YAML structure.
 
     Args:
         models: List of model dictionaries from the API
@@ -223,16 +275,119 @@ def process_models(
     return dict(sorted(organizations.items()))
 
 
-def load_existing_data() -> dict[str, Any]:
+def process_fireworks_models(
+    models: list[dict[str, Any]],
+    curated_keys: AbstractSet[str] = frozenset(),
+) -> dict[str, Any]:
+    """Process raw Fireworks model data into organized YAML structure.
+
+    Everything lands under a single `fireworks` organization, matching the key
+    `FireworksAIAPI.canonical_name()` produces (see the module docstring).
+
+    Args:
+        models: List of model records from the control-plane API
+        curated_keys: Normalized org/model keys curated in other data files.
+
+    Returns:
+        Dictionary with the single `fireworks` organization, or empty if no
+        model qualified.
+    """
+    entries: dict[str, Any] = {}
+
+    for model in models:
+        name = model.get("name", "")
+        if not name.startswith(FIREWORKS_MODEL_PREFIX):
+            continue
+        model_name = name[len(FIREWORKS_MODEL_PREFIX) :]
+        if not model_name:
+            continue
+
+        # Anything not READY is still importing or has failed
+        if model.get("state") != "READY":
+            continue
+
+        # A missing or zero contextLength covers draft addons, Flumina
+        # (image/audio) models, and records Fireworks hasn't calibrated
+        context_length = model.get("contextLength")
+        if not context_length:
+            continue
+
+        if _normalize_for_lookup(f"{FIREWORKS_ORG}/{model_name}") in curated_keys:
+            continue
+
+        entries[model_name] = {
+            "display_name": model.get("displayName")
+            or generate_display_name(model_name),
+            "context_length": context_length,
+        }
+
+    if not entries:
+        return {}
+
+    return {
+        FIREWORKS_ORG: {
+            "display_name": get_org_display_name(FIREWORKS_ORG),
+            "models": dict(sorted(entries.items())),
+        }
+    }
+
+
+class Source(NamedTuple):
+    """A provider API the script can sync from."""
+
+    name: str
+    api_url: str
+    api_key_env: str
+    output_file: Path
+    title: str
+    organization_note: str
+    fetch: Callable[[str], list[dict[str, Any]]]
+    process: Callable[[list[dict[str, Any]], AbstractSet[str]], dict[str, Any]]
+
+
+SOURCES: dict[str, Source] = {
+    "together": Source(
+        name="together",
+        api_url=TOGETHER_API_URL,
+        api_key_env="TOGETHER_API_KEY",
+        output_file=TOGETHER_OUTPUT_FILE,
+        title="Together AI Model Database",
+        organization_note=(
+            "Models are organized by their creator organization, not by the "
+            "inference provider."
+        ),
+        fetch=fetch_together_models,
+        process=process_together_models,
+    ),
+    "fireworks": Source(
+        name="fireworks",
+        api_url=FIREWORKS_API_URL,
+        api_key_env="FIREWORKS_API_KEY",
+        output_file=FIREWORKS_OUTPUT_FILE,
+        title="Fireworks AI Model Database",
+        organization_note=(
+            "Fireworks model names carry no creator component, so models are "
+            "organized under a single `fireworks` organization matching the "
+            "key FireworksAIAPI.canonical_name() produces. Context lengths are "
+            "what Fireworks serves, which can differ from the creator's own "
+            "deployment of the same weights."
+        ),
+        fetch=fetch_fireworks_models,
+        process=process_fireworks_models,
+    ),
+}
+
+
+def load_existing_data(output_file: Path) -> dict[str, Any]:
     """Load existing model data from the YAML file.
 
     Returns:
         Dictionary of existing org/model data, or empty dict if file doesn't exist.
     """
-    if not OUTPUT_FILE.exists():
+    if not output_file.exists():
         return {}
 
-    with open(OUTPUT_FILE) as f:
+    with open(output_file) as f:
         content = yaml.safe_load(f)
 
     return cast(dict[str, Any], content) if content else {}
@@ -304,9 +459,9 @@ def remove_curated_models(
 ) -> tuple[dict[str, Any], int]:
     """Remove entries that collide with curated models from other data files.
 
-    Backstop for entries already present in together.yml before a model
+    Backstop for entries already present in the generated file before a model
     became curated (merge_models preserves models no longer in the API, so
-    skipping in process_models alone would never remove them).
+    skipping in the process step alone would never remove them).
 
     Returns:
         Tuple of (filtered copy of data, number of models removed).
@@ -325,53 +480,52 @@ def remove_curated_models(
     return filtered, removed
 
 
-def backup_existing_file() -> Path | None:
+def backup_existing_file(output_file: Path) -> Path | None:
     """Create a backup of the existing YAML file if it exists."""
-    if OUTPUT_FILE.exists():
+    if output_file.exists():
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        backup_path = OUTPUT_FILE.with_suffix(f".{timestamp}.bak")
-        shutil.copy(OUTPUT_FILE, backup_path)
+        backup_path = output_file.with_suffix(f".{timestamp}.bak")
+        shutil.copy(output_file, backup_path)
         return backup_path
     return None
 
 
-def write_yaml(data: dict[str, Any]) -> None:
-    """Write data to YAML file with header comment."""
+def write_yaml(data: dict[str, Any], source: Source) -> None:
+    """Write data to the source's YAML file with header comment."""
+    note = textwrap.fill(
+        source.organization_note, width=76, initial_indent="# ", subsequent_indent="# "
+    )
     header = f"""\
-# Together AI Model Database
+# {source.title}
 # Auto-generated by sync_models.py on {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")} UTC
-# Source: {TOGETHER_API_URL}
+# Source: {source.api_url}
 #
-# This file contains model information fetched from the TogetherAI API.
-# Models are organized by their creator organization, not by the inference provider.
+{note}
 #
 # To regenerate this file:
-#   TOGETHER_API_KEY=your_key python -m inspect_ai.model._model_data.sync_models
+#   {source.api_key_env}=your_key python -m inspect_ai.model._model_data.sync_models --source {source.name}
 
 """
-    with open(OUTPUT_FILE, "w") as f:
+    with open(source.output_file, "w") as f:
         f.write(header)
         yaml.dump(
             data, f, default_flow_style=False, allow_unicode=True, sort_keys=False
         )
 
 
-def main() -> None:
-    """Main entry point for the sync script."""
-    print(f"Fetching models from {TOGETHER_API_URL}...")
-    models = fetch_together_models()
+def sync_source(source: Source, api_key: str, curated_keys: AbstractSet[str]) -> None:
+    """Fetch, merge and write model data for a single source."""
+    print(f"Fetching models from {source.api_url}...")
+    models = source.fetch(api_key)
     print(f"Fetched {len(models)} models")
 
-    curated_keys = load_curated_model_keys(OUTPUT_FILE.parent)
-    print(f"Loaded {len(curated_keys)} curated model keys to skip")
-
     print("Processing models...")
-    new_data = process_models(models, curated_keys=curated_keys)
+    new_data = source.process(models, curated_keys)
     new_model_count = sum(len(org["models"]) for org in new_data.values())
     print(f"Processed {new_model_count} models from {len(new_data)} organizations")
 
     # Load existing data and merge
-    existing_data = load_existing_data()
+    existing_data = load_existing_data(source.output_file)
     if existing_data:
         print("Merging with existing model data...")
         data, added, updated, preserved = merge_models(existing_data, new_data)
@@ -389,13 +543,48 @@ def main() -> None:
         print(f"  {removed} models removed (curated in other data files)")
 
     # Backup existing file
-    backup_path = backup_existing_file()
+    backup_path = backup_existing_file(source.output_file)
     if backup_path:
         print(f"Backed up existing file to {backup_path}")
 
     # Write new file
-    write_yaml(data)
-    print(f"Wrote {OUTPUT_FILE}")
+    write_yaml(data, source)
+    print(f"Wrote {source.output_file}")
+
+
+def main() -> None:
+    """Main entry point for the sync script."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source",
+        choices=[*SOURCES, "all"],
+        default="all",
+        help="Provider catalog to sync (default: all)",
+    )
+    args = parser.parse_args()
+
+    sources = list(SOURCES.values()) if args.source == "all" else [SOURCES[args.source]]
+
+    # Validate credentials up front so a partial sync can't leave one file
+    # updated and another stale
+    api_keys: dict[str, str] = {}
+    missing: list[str] = []
+    for source in sources:
+        api_key = os.environ.get(source.api_key_env)
+        if api_key:
+            api_keys[source.name] = api_key
+        else:
+            missing.append(source.api_key_env)
+    if missing:
+        print(f"Error: environment variable(s) not set: {', '.join(missing)}")
+        sys.exit(1)
+
+    curated_keys = load_curated_model_keys(DATA_DIR)
+    print(f"Loaded {len(curated_keys)} curated model keys to skip")
+
+    for source in sources:
+        print(f"\n=== {source.name} ===")
+        sync_source(source, api_keys[source.name], curated_keys)
 
 
 if __name__ == "__main__":
