@@ -8,7 +8,9 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from inspect_sandbox_tools._remote_tools._exec_remote import _job as job_module
 from inspect_sandbox_tools._remote_tools._exec_remote._controller import Controller
+from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 from inspect_sandbox_tools._remote_tools._exec_remote.tool_types import PollResult
 
 
@@ -104,3 +106,29 @@ async def test_shutdown_reports_failures_from_every_job() -> None:
 
     assert "first shutdown failed" in str(error.value)
     assert "second shutdown failed" in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_retired_job_shutdown_uses_only_its_captured_processes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = await asyncio.create_subprocess_exec("true")
+    await process.wait()
+    job = Job(process)
+    captured_child = MagicMock(pid=99)
+    capture_group = MagicMock(return_value=[captured_child])
+    terminate = AsyncMock()
+    monkeypatch.setattr(job_module, "process_group_members", capture_group)
+    monkeypatch.setattr(job_module, "terminate_process_tree", terminate)
+
+    job.retire()
+    await job.shutdown()
+
+    assert process.pid is not None
+    capture_group.assert_called_once_with(process.pid, exclude_pid=process.pid)
+    terminate.assert_awaited_once_with(
+        process,
+        timeout=30,
+        process_group=False,
+        known_descendants=[captured_child],
+    )

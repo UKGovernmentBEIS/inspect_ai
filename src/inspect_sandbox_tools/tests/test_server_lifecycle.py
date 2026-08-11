@@ -18,6 +18,13 @@ from aiohttp import ClientConnectionError
 from aiohttp.web import Application
 from inspect_sandbox_tools._cli import main as main_module
 from inspect_sandbox_tools._cli import server as server_module
+from inspect_sandbox_tools._remote_tools._bash_session import (
+    json_rpc_methods as bash_session_methods,
+)
+from inspect_sandbox_tools._remote_tools._exec_remote import (
+    json_rpc_methods as exec_remote_methods,
+)
+from inspect_sandbox_tools._remote_tools._mcp import json_rpc_methods as mcp_methods
 from inspect_sandbox_tools._util.constants import server_socket_path
 
 SERVER_DIR_ENV = "INSPECT_SANDBOX_TOOLS_DIR"
@@ -107,7 +114,7 @@ def _server_pid_for_cwd(cwd: Path) -> int:
                     "inspect_sandbox_tools._cli.main",
                     "server",
                 ]
-                and Path(process.cwd()) == cwd
+                and Path(process.cwd()).resolve() == cwd.resolve()
             ):
                 matches.append(process.pid)
         except (psutil.AccessDenied, psutil.NoSuchProcess):
@@ -150,6 +157,30 @@ def test_prepare_socket_parent_creates_private_long_path_fallback(
     fallback_dir = tmp_path / "fallback"
     monkeypatch.setattr(server_module, "SERVER_DIR", server_dir)
     monkeypatch.setattr(server_module, "SOCKET_PATH", fallback_dir / "server.sock")
+
+    server_module._prepare_socket_parent()
+
+    assert fallback_dir.is_dir()
+    assert fallback_dir.stat().st_mode & 0o777 == 0o700
+
+
+def test_prepare_socket_parent_tolerates_concurrent_fallback_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server_dir = tmp_path / "sandbox-tools"
+    fallback_dir = tmp_path / "fallback"
+    monkeypatch.setattr(server_module, "SERVER_DIR", server_dir)
+    monkeypatch.setattr(server_module, "SOCKET_PATH", fallback_dir / "server.sock")
+
+    original_mkdir = Path.mkdir
+
+    def concurrent_mkdir(path: Path, *args: object, **kwargs: object) -> None:
+        if path == fallback_dir:
+            original_mkdir(path, *args, **kwargs)
+            raise FileExistsError
+        original_mkdir(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "mkdir", concurrent_mkdir)
 
     server_module._prepare_socket_parent()
 
@@ -544,20 +575,12 @@ async def test_server_cleanup_runs_resource_groups_concurrently_and_records_erro
             raise RuntimeError("cleanup failed")
 
     monkeypatch.setattr(
-        server_module.exec_remote_controller,  # type: ignore[attr-defined]
-        "shutdown",
-        lambda: cleanup("exec_remote"),
+        exec_remote_methods.controller, "shutdown", lambda: cleanup("exec_remote")
     )
     monkeypatch.setattr(
-        server_module.bash_session_controller,  # type: ignore[attr-defined]
-        "shutdown",
-        lambda: cleanup("bash_session"),
+        bash_session_methods.controller, "shutdown", lambda: cleanup("bash_session")
     )
-    monkeypatch.setattr(
-        server_module,
-        "shutdown_mcp_sessions",
-        lambda: cleanup("mcp"),
-    )
+    monkeypatch.setattr(mcp_methods, "shutdown", lambda: cleanup("mcp"))
 
     server_module._shutdown_errors.clear()
     server_module._shutdown_complete = False

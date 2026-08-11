@@ -31,7 +31,7 @@ async def terminate_process_tree(
         _live_processes(known_descendants),
         _merge_processes(
             _children(root) if root is not None else [],
-            _process_group_members(pid, exclude_pid=pid) if process_group else [],
+            process_group_members(pid, exclude_pid=pid) if process_group else [],
         ),
     )
 
@@ -163,15 +163,15 @@ def _refresh_processes(
         existing,
         _merge_processes(
             _children(root) if root is not None else [],
-            _process_group_members(process_group, exclude_pid=process_group)
+            process_group_members(process_group, exclude_pid=process_group)
             if include_process_group
             else [],
         ),
     )
 
 
-def _process_group_members(
-    process_group: int, *, exclude_pid: int
+def process_group_members(
+    process_group: int, *, exclude_pid: int | None = None
 ) -> list[psutil.Process]:
     members: list[psutil.Process] = []
     for process in psutil.process_iter():

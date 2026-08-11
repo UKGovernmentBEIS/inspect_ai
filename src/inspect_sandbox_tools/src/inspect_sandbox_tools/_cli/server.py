@@ -10,15 +10,6 @@ import sys
 from aiohttp.web import Application, Request, Response, run_app
 from jsonrpcserver import Success, async_dispatch, method
 
-from inspect_sandbox_tools._remote_tools._bash_session.json_rpc_methods import (
-    controller as bash_session_controller,
-)
-from inspect_sandbox_tools._remote_tools._exec_remote.json_rpc_methods import (
-    controller as exec_remote_controller,
-)
-from inspect_sandbox_tools._remote_tools._mcp.json_rpc_methods import (
-    shutdown as shutdown_mcp_sessions,
-)
 from inspect_sandbox_tools._util.constants import (
     SERVER_DIR,
     SERVER_DIR_ENV,
@@ -79,6 +70,18 @@ async def sandbox_tools_shutdown() -> object:
 async def _cleanup_remote_resources(_app: Application) -> None:
     global _shutdown_complete
 
+    # These modules load remote-tool dependencies such as MCP and Pydantic. The
+    # server module is also imported by every short-lived `exec` invocation.
+    from inspect_sandbox_tools._remote_tools._bash_session.json_rpc_methods import (
+        controller as bash_session_controller,
+    )
+    from inspect_sandbox_tools._remote_tools._exec_remote.json_rpc_methods import (
+        controller as exec_remote_controller,
+    )
+    from inspect_sandbox_tools._remote_tools._mcp.json_rpc_methods import (
+        shutdown as shutdown_mcp_sessions,
+    )
+
     cleanups = (
         ("exec_remote", exec_remote_controller.shutdown),
         ("bash_session", bash_session_controller.shutdown),
@@ -110,14 +113,14 @@ def _prepare_socket_parent() -> None:
     try:
         status = SOCKET_PATH.parent.lstat()
     except FileNotFoundError:
-        SOCKET_PATH.parent.mkdir(mode=0o700)
+        try:
+            SOCKET_PATH.parent.mkdir(mode=0o700)
+        except FileExistsError:
+            # Another long-path sample created the shared per-user directory.
+            pass
         status = SOCKET_PATH.parent.lstat()
 
-    if (
-        not stat.S_ISDIR(status.st_mode)
-        or stat.S_ISLNK(status.st_mode)
-        or status.st_uid != os.getuid()
-    ):
+    if not stat.S_ISDIR(status.st_mode) or status.st_uid != os.getuid():
         raise RuntimeError(
             f"Unsafe sandbox-tools socket directory: {SOCKET_PATH.parent}"
         )

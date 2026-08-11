@@ -5,7 +5,7 @@ from asyncio.subprocess import Process as AsyncIOProcess
 
 import psutil
 
-from ..._util.process_tree import terminate_process_tree
+from ..._util.process_tree import process_group_members, terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
 from ..._util.user_switch import get_home_dir, make_preexec
@@ -49,6 +49,7 @@ class Process:
         self._send_data_event = TimeoutEvent()
         self._idle_timeout = 0.0
         self._known_descendants: list[psutil.Process] = []
+        self._retired = False
 
     async def interact(
         self,
@@ -116,11 +117,13 @@ class Process:
         except ProcessLookupError:
             pass
 
+        self._retired = True
         self._pty.cleanup()
 
     async def shutdown(self, timeout: int = 30) -> None:
         """Forcefully terminate this server-owned shell during server shutdown."""
-        self._remember_descendants()
+        if not self._retired:
+            self._remember_descendants()
         if not self._terminated:
             self._terminated = True
             self._pty.writer.write(b"exit\n")
@@ -142,12 +145,13 @@ class Process:
                     pass
 
             self._send_data_event.cancel()
+        known_descendants = [*self._known_descendants]
         try:
             await terminate_process_tree(
                 self._process,
                 timeout=timeout,
-                process_group=True,
-                known_descendants=self._known_descendants,
+                process_group=not self._retired,
+                known_descendants=known_descendants,
             )
         finally:
             self._known_descendants.clear()
@@ -161,6 +165,7 @@ class Process:
             self._known_descendants.extend(psutil.Process(pid).children(recursive=True))
         except psutil.NoSuchProcess:
             pass
+        self._known_descendants.extend(process_group_members(pid, exclude_pid=pid))
 
     async def _read_loop(self) -> None:
         """Read decoded data from the PTY and process it."""

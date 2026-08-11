@@ -5,6 +5,7 @@ import sys
 from asyncio.subprocess import Process
 from typing import Literal, TextIO
 
+import psutil
 import pydantic
 from mcp import (
     ErrorData,
@@ -15,7 +16,10 @@ from mcp import (
 )
 from mcp.types import JSONRPCMessage, JSONRPCNotification
 
-from inspect_sandbox_tools._util.process_tree import terminate_process_tree
+from inspect_sandbox_tools._util.process_tree import (
+    process_group_members,
+    terminate_process_tree,
+)
 
 # Maximum line length for reading MCP server stdout via asyncio.StreamReader.
 #
@@ -80,6 +84,8 @@ class MCPServerSession:
         self._encoding = encoding
         self._encoding_error_handler = encoding_error_handler
         self._terminated = False
+        self._retired = False
+        self._known_descendants: list[psutil.Process] = []
         self._requests = dict[
             str | int, asyncio.Future[JSONRPCResponse | JSONRPCError]
         ]()
@@ -130,6 +136,7 @@ class MCPServerSession:
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
         self._terminated = True
+        self._remember_descendants()
 
         self._reader.cancel()
         try:
@@ -142,6 +149,8 @@ class MCPServerSession:
             await asyncio.wait_for(self._process.wait(), timeout)
         except (asyncio.TimeoutError, asyncio.CancelledError):
             self._process.kill()
+        finally:
+            self._retired = True
 
     async def shutdown(self, timeout: int = 30) -> None:
         """Forcefully terminate this server-owned MCP process during shutdown."""
@@ -153,7 +162,23 @@ class MCPServerSession:
             except (asyncio.TimeoutError, asyncio.CancelledError):
                 pass
 
-        await terminate_process_tree(self._process, timeout=timeout, process_group=True)
+        if not self._retired:
+            self._remember_descendants()
+        known_descendants = [*self._known_descendants]
+        try:
+            await terminate_process_tree(
+                self._process,
+                timeout=timeout,
+                process_group=not self._retired,
+                known_descendants=known_descendants,
+            )
+        finally:
+            self._known_descendants.clear()
+
+    def _remember_descendants(self) -> None:
+        pid = getattr(self._process, "pid", None)
+        if pid is not None:
+            self._known_descendants.extend(process_group_members(pid, exclude_pid=pid))
 
     def _bytes_from_json_message(
         self, message: JSONRPCRequest | JSONRPCNotification

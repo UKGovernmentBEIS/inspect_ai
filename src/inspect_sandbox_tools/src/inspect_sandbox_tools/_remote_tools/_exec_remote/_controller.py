@@ -59,6 +59,7 @@ class Controller:
         # concurrent kill() already removed the job between our await and here.
         if result.state in ("completed", "killed"):
             if self._jobs.pop(pid, None) is not None:
+                job.retire()
                 self._retired_jobs.append(job)
                 await job.cleanup()
 
@@ -71,6 +72,7 @@ class Controller:
         # Use pop to avoid KeyError if a concurrent poll() already removed the
         # job between our await and here.
         if self._jobs.pop(pid, None) is not None:
+            job.retire()
             self._retired_jobs.append(job)
             await job.cleanup()
         return KillResult(seq=seq, stdout=stdout, stderr=stderr)
