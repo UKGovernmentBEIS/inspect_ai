@@ -1,3 +1,5 @@
+from typing import Literal
+
 from inspect_ai.event._pool import (
     resolve_model_event_calls,
     resolve_model_event_inputs,
@@ -44,3 +46,16 @@ def rebind_sample_timelines(sample: EvalSample) -> EvalSample:
             ],
         }
     )
+
+
+def resolve_sample_for_read(
+    sample: EvalSample,
+    resolve_attachments: bool | Literal["full", "core"],
+) -> EvalSample:
+    """Apply read-time event resolution and bind timelines to final events."""
+    from ._condense import resolve_sample_attachments
+
+    sample = resolve_sample_events_data(sample)
+    if resolve_attachments:
+        sample = resolve_sample_attachments(sample, resolve_attachments)
+    return rebind_sample_timelines(sample)

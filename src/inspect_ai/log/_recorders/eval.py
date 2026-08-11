@@ -21,6 +21,7 @@ from typing import (
     BinaryIO,
     Generic,
     Iterator,
+    Literal,
     NamedTuple,
     SupportsIndex,
     TypeVar,
@@ -70,7 +71,11 @@ from .._log import (
     EventsData,
     sort_samples,
 )
-from .._resolve import rebind_sample_timelines, resolve_sample_events_data
+from .._resolve import (
+    rebind_sample_timelines,
+    resolve_sample_events_data,
+    resolve_sample_for_read,
+)
 from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
@@ -109,6 +114,11 @@ class EvalRecorder(FileRecorder):
     @classmethod
     def handles_location(cls, location: str) -> bool:
         return location.endswith(".eval")
+
+    @override
+    @classmethod
+    def supports_sample_workers(cls) -> bool:
+        return True
 
     @override
     @classmethod
@@ -312,6 +322,7 @@ class EvalRecorder(FileRecorder):
         header_only: bool = False,
         exclude_fields: set[str] | None = None,
         sample_workers: int = 1,
+        resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> EvalLog:
         async with AsyncFilesystem() as async_fs:
             # if the log is not stored in the local filesystem then download it
@@ -354,6 +365,7 @@ class EvalRecorder(FileRecorder):
                     exclude_fields,
                     sample_workers,
                     local_zip,
+                    resolve_attachments,
                 )
 
                 if etag is not None:
@@ -1221,6 +1233,7 @@ async def _read_log(
     exclude_fields: set[str] | None = None,
     sample_workers: int = 1,
     local_zip: str | None = None,
+    resolve_attachments: bool | Literal["full", "core"] = False,
 ) -> EvalLog:
     entry_names = {e.filename for e in entries}
 
@@ -1256,7 +1269,10 @@ async def _read_log(
             and current_async_backend() == "asyncio"
         ):
             samples = await _read_samples_parallel(
-                local_zip, [e.filename for e in sample_entries], sample_workers
+                local_zip,
+                [e.filename for e in sample_entries],
+                sample_workers,
+                resolve_attachments,
             )
         else:
             samples = []
@@ -1281,7 +1297,10 @@ async def _read_log(
 
 
 async def _read_samples_parallel(
-    zip_path: str, member_names: list[str], sample_workers: int
+    zip_path: str,
+    member_names: list[str],
+    sample_workers: int,
+    resolve_attachments: bool | Literal["full", "core"],
 ) -> list[EvalSample]:
     # split into more chunks than workers so a chunk of unusually large
     # samples doesn't leave the other workers idle at the end
@@ -1296,21 +1315,30 @@ async def _read_samples_parallel(
     ) as pool:
         results = await asyncio.gather(
             *(
-                loop.run_in_executor(pool, _read_samples_chunk, zip_path, chunk)
+                loop.run_in_executor(
+                    pool, _read_samples_chunk, zip_path, chunk, resolve_attachments
+                )
                 for chunk in chunks
             )
         )
     return [sample for chunk_samples in results for sample in chunk_samples]
 
 
-def _read_samples_chunk(zip_path: str, member_names: list[str]) -> list[EvalSample]:
+def _read_samples_chunk(
+    zip_path: str,
+    member_names: list[str],
+    resolve_attachments: bool | Literal["full", "core"],
+) -> list[EvalSample]:
     samples: list[EvalSample] = []
     with ZipFile(zip_path, mode="r") as zip:
         for name in member_names:
             with zip.open(name, "r") as f:
                 samples.append(
-                    EvalSample.model_validate(
-                        json.load(f), context=get_deserializing_context()
+                    resolve_sample_for_read(
+                        EvalSample.model_validate(
+                            json.load(f), context=get_deserializing_context()
+                        ),
+                        resolve_attachments,
                     )
                 )
     return samples

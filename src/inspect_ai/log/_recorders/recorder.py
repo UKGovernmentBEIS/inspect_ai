@@ -1,5 +1,5 @@
 import abc
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, Literal
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
@@ -125,6 +125,10 @@ class Recorder(abc.ABC):
     ) -> EvalLog: ...
 
     @classmethod
+    def supports_sample_workers(cls) -> bool:
+        return False
+
+    @classmethod
     @abc.abstractmethod
     async def read_log(
         cls,
@@ -132,6 +136,7 @@ class Recorder(abc.ABC):
         header_only: bool = False,
         exclude_fields: set[str] | None = None,
         sample_workers: int = 1,
+        resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> EvalLog: ...
 
     @classmethod

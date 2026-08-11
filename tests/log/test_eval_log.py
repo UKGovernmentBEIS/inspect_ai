@@ -171,6 +171,14 @@ def test_read_samples_parallel():
     assert parallel.model_dump() == serial.model_dump()
 
 
+def test_read_samples_parallel_resolved():
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    serial = read_eval_log(log_file, resolve_attachments="full")
+    parallel = read_eval_log(log_file, resolve_attachments="full", sample_workers=2)
+    assert parallel.samples
+    assert parallel.model_dump() == serial.model_dump()
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)

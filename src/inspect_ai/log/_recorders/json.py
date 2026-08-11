@@ -1,6 +1,6 @@
 from functools import partial
 from logging import getLogger
-from typing import IO, Any, get_args
+from typing import IO, Any, Literal, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
@@ -216,6 +216,7 @@ class JSONRecorder(FileRecorder):
         header_only: bool = False,
         exclude_fields: set[str] | None = None,
         sample_workers: int = 1,
+        resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> EvalLog:
         fs = filesystem(location)
 

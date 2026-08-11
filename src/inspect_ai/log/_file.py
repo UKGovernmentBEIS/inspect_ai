@@ -24,9 +24,8 @@ from inspect_ai._util.file import (
     filesystem,
 )
 from inspect_ai._util.json import to_json_safe
-from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
+from inspect_ai.log._resolve import resolve_sample_for_read
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -372,9 +371,9 @@ def read_eval_log(
           samples (e.g. {"messages", "events", "store", "attachments"}).
           Ignored for .json format logs (only applies to .eval logs). Has no
           effect when header_only is True or when log_file is an IO[bytes] stream.
-       sample_workers: Number of worker processes used to read and validate
-          samples (defaults to 1, reading in-process). Only applies to full
-          reads of .eval logs; ignored when header_only is True, when
+       sample_workers: Number of worker processes used to read, validate,
+          and resolve samples (defaults to 1, reading in-process). Only applies
+          to full reads of .eval logs; ignored when header_only is True, when
           exclude_fields is set, or when log_file is an IO[bytes] stream.
 
     Returns:
@@ -424,9 +423,9 @@ async def read_eval_log_async(
           samples (e.g. {"messages", "events", "store", "attachments"}).
           Ignored for .json format logs (only applies to .eval logs). Has no
           effect when header_only is True or when log_file is an IO[bytes] stream.
-       sample_workers: Number of worker processes used to read and validate
-          samples (defaults to 1, reading in-process). Only applies to full
-          reads of .eval logs; ignored when header_only is True, when
+       sample_workers: Number of worker processes used to read, validate,
+          and resolve samples (defaults to 1, reading in-process). Only applies
+          to full reads of .eval logs; ignored when header_only is True, when
           exclude_fields is set, or when log_file is an IO[bytes] stream.
 
     Returns:
@@ -442,6 +441,7 @@ async def read_eval_log_async(
 
         logger.debug("Reading eval log from stream")
         log = await recorder_type.read_log_bytes(log_bytes, header_only)
+        workers_resolve = False
     else:
         # resolve to file path
         log_file = (
@@ -461,13 +461,26 @@ async def read_eval_log_async(
 
         exclude_fields = _normalize_excluded_fields(exclude_fields)
 
+        # when the recorder reads samples in worker processes it also applies
+        # read-time resolution there, so the pass below must not run again
+        workers_resolve = (
+            sample_workers > 1
+            and not header_only
+            and exclude_fields is None
+            and current_async_backend() == "asyncio"
+            and recorder_type.supports_sample_workers()
+        )
         log = await recorder_type.read_log(
-            log_file, header_only, exclude_fields, sample_workers
+            log_file,
+            header_only,
+            exclude_fields,
+            sample_workers=sample_workers if workers_resolve else 1,
+            resolve_attachments=resolve_attachments if workers_resolve else False,
         )
 
-    if log.samples:
+    if log.samples and not workers_resolve:
         log.samples = [
-            _resolve_sample_for_read(sample, resolve_attachments)
+            resolve_sample_for_read(sample, resolve_attachments)
             for sample in log.samples
         ]
 
@@ -644,7 +657,7 @@ async def read_eval_log_sample_async(
         log_file, id, epoch, uuid, exclude_fields, reader
     )
 
-    return _resolve_sample_for_read(sample, resolve_attachments)
+    return resolve_sample_for_read(sample, resolve_attachments)
 
 
 def read_eval_log_samples_by_id(
@@ -1192,14 +1205,3 @@ def _normalize_excluded_fields(exclude_fields: set[str] | None) -> set[str] | No
             # no events means events_data is useless
             exclude_fields = exclude_fields | {"events_data"}
     return exclude_fields
-
-
-def _resolve_sample_for_read(
-    sample: "EvalSample",
-    resolve_attachments: bool | Literal["full", "core"],
-) -> "EvalSample":
-    """Apply read-time event resolution and bind timelines to final events."""
-    sample = resolve_sample_events_data(sample)
-    if resolve_attachments:
-        sample = resolve_sample_attachments(sample, resolve_attachments)
-    return rebind_sample_timelines(sample)
