@@ -328,7 +328,15 @@ class VLLMAPI(OpenAICompatibleAPI):
                     else:
                         info = ModelInfo(context_length=max_model_len)
                     set_model_info(name, info)
-                    if previous is not None and previous != max_model_len:
+                    if previous is None:
+                        # catalog miss: the model would otherwise run with the
+                        # 128k default, the scenario from #4215 — worth surfacing
+                        logger.info(
+                            f"vLLM server reports max_model_len={max_model_len} for "
+                            f"{name}; using it as the context window "
+                            f"(model not in catalog)."
+                        )
+                    elif previous != max_model_len:
                         logger.info(
                             f"vLLM server reports max_model_len={max_model_len} for "
                             f"{name}; using it as the context window "
