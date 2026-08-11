@@ -339,20 +339,17 @@ def _read_samples_df_serial(
             p.update()
             return samples
 
+        eval_ids = evals_table[EVAL_ID].to_list() if EVAL_ID in evals_table else []
         log_samples = run_coroutine(
             tg_collect(
                 [
                     partial(read_samples_async, eval_id, eval_log)
-                    for eval_id, eval_log in zip(
-                        evals_table[EVAL_ID].to_list(), eval_logs
-                    )
+                    for eval_id, eval_log in zip(eval_ids, eval_logs)
                 ]
             )
         )
 
-        for samples, eval_id, eval_log in zip(
-            log_samples, evals_table[EVAL_ID].to_list(), eval_logs
-        ):
+        for samples, eval_id, eval_log in zip(log_samples, eval_ids, eval_logs):
             for sample in samples:
                 if strict:
                     record = import_record(
