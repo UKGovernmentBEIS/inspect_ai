@@ -79,7 +79,7 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
         )
 
         if match:
-            groups = match.groups()
+            groups = match.groups() or (match.group(0),)
             if match_all:
                 found_match = match_all_groups(
                     matches=groups, target=target, ignore_case=ignore_case

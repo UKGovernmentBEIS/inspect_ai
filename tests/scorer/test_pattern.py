@@ -150,3 +150,15 @@ async def test_match_all_unmatched_optional_group_is_not_correct():
 
     assert result.text == INCORRECT
     assert result.answer is None
+
+
+@pytest.mark.anyio
+async def test_pattern_no_capture_groups():
+    # A regex without explicit capture groups (e.g. `\d+`) should fall back
+    # to the full match `match.group(0)`.
+    scorer = pattern(r"\d+")
+    state = simple_task_state(model_output="The answer is 42")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "42"
