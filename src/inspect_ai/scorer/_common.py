@@ -96,6 +96,13 @@ def match_str(
         return answer, t in v
 
 
+_NUMERIC_PUNCTUATION_TRIM = "!?:;()[]{}'\"`~<=>@#^&|"
+
+
+def _clean_numeric_word(s: str) -> str:
+    return s.strip(_NUMERIC_PUNCTUATION_TRIM)
+
+
 def _parse_number(s: str) -> float | None:
     """Parse `s` as a finite number, or None.
 
@@ -106,9 +113,10 @@ def _parse_number(s: str) -> float | None:
     content (so ``"5 some text"`` returns None) so that ``location="exact"``
     stays actually exact. ``nan`` and ``inf`` also return None.
     """
+    s_cleaned = _clean_numeric_word(s)
     for parse in (float, unicode_number_to_float):
         try:
-            num = parse(s)
+            num = parse(s_cleaned)
         except ValueError:
             continue
         if math.isfinite(num):
