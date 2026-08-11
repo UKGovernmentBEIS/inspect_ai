@@ -177,6 +177,69 @@ def test_model_role_precedence_for_model_graded_scorer(
     assert grading_event.role == expected_role
 
 
+@pytest.fixture
+def _warn_once_messages() -> Any:
+    # warn_once dedupes via a module-level list; clear it and yield it so the
+    # test can assert on what was emitted.
+    from inspect_ai._util import logger as _inspect_logger
+
+    _inspect_logger._warned.clear()
+    yield _inspect_logger._warned
+    _inspect_logger._warned.clear()
+
+
+def _run_single_score(model_graded_fact_kwargs: dict[str, Any]) -> None:
+    task = Task(
+        scorer=model_graded_fact(**model_graded_fact_kwargs),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+    eval(task, model="mockllm/model")[0]
+
+
+@pytest.mark.parametrize(
+    "model_graded_fact_kwargs",
+    [
+        pytest.param({}, id="no_model_no_role_binding"),
+        pytest.param({"model_role": None}, id="explicit_no_role"),
+        pytest.param(
+            {"model_role": "grader"}, id="role_requested_but_not_bound"
+        ),
+    ],
+)
+def test_model_graded_warns_when_no_grader_bound(
+    model_graded_fact_kwargs: dict[str, Any], _warn_once_messages: list[str]
+) -> None:
+    _run_single_score(model_graded_fact_kwargs)
+    assert any("will grade itself" in m for m in _warn_once_messages)
+
+
+@pytest.mark.parametrize(
+    "model_graded_fact_kwargs",
+    [
+        pytest.param({"model": "mockllm/model"}, id="explicit_model"),
+        pytest.param(
+            {"model_role": "grader"},
+            id="role_bound_uses_bound_grader",
+        ),
+    ],
+)
+def test_model_graded_no_warning_when_grader_bound(
+    model_graded_fact_kwargs: dict[str, Any], _warn_once_messages: list[str]
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=model_graded_fact(**model_graded_fact_kwargs),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+    eval(task, model="mockllm/model", model_roles={"grader": grader_model})[0]
+    assert not any("will grade itself" in m for m in _warn_once_messages)
+
+
 def test_model_graded_answer_set_on_grade_parse_failure():
     # #4025: parse failure is unscored, but answer must still carry the completion.
     subject_answer = "The capital of France is Paris."

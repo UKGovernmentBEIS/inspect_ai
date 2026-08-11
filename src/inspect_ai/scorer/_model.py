@@ -1,3 +1,4 @@
+import logging
 import re
 from functools import partial
 from typing import Any, Callable
@@ -6,6 +7,7 @@ from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.dict import omit
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.list import remove_last_match_and_after
+from inspect_ai._util.logger import warn_once
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -13,7 +15,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model import Model, get_model, model_roles
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
@@ -23,6 +25,8 @@ from ._metrics import accuracy, stderr
 from ._multi import multi_scorer
 from ._scorer import Scorer, scorer
 from ._target import Target
+
+logger = logging.getLogger(__name__)
 
 
 @scorer(metrics=[accuracy(), stderr()])
@@ -173,6 +177,18 @@ def _model_graded_qa_single(
     async def score(state: TaskState, target: Target) -> Score:
         # resolve model
         nonlocal model
+
+        # no grader model or role bound -- the scorer grades with the model
+        # being evaluated (silent self-grading)
+        if model is None and (model_role is None or model_role not in model_roles()):
+            warn_once(
+                logger,
+                "model-graded scorer invoked without a grader model or model_role "
+                "bound; the model being evaluated will grade itself. Pass "
+                "model=<model> or bind model_role=<role> to use an independent "
+                "grader.",
+            )
+
         # Order of precedence: `model` > `model_role` > default model
         if model is not None:
             model = model if isinstance(model, Model) else get_model(model)
