@@ -51,19 +51,28 @@ def verify_prerequisites() -> None:
 def resolve_logs(
     logs: LogPaths | EvalLog | Sequence[EvalLog] | None = None,
 ) -> list[str] | list[EvalLog]:
+    """Resolve log inputs into a list of log file paths or EvalLog objects.
+
+    Args:
+        logs: Log path(s), directory, EvalLog, or sequence of logs/paths.
+            If `None`, defaults to listing logs in the log directory via `list_eval_logs()`.
+            If an empty sequence (e.g. `[]`), returns an empty list `[]`.
+            If a string path (including `""`), resolves as a path rather than falling back to `list_eval_logs()`.
+
+    Returns:
+        List of log file paths or EvalLog objects.
+    """
     # Handle EvalLog inputs (pass through as list)
     if isinstance(logs, EvalLog):
         return [logs]
-    if (
-        isinstance(logs, Sequence)
-        and not isinstance(logs, str)
-        and len(logs) > 0
-        and isinstance(logs[0], EvalLog)
-    ):
-        return cast(list[EvalLog], list(logs))
+    if isinstance(logs, Sequence) and not isinstance(logs, str):
+        if len(logs) == 0:
+            return []
+        if isinstance(logs[0], EvalLog):
+            return cast(list[EvalLog], list(logs))
 
-    # Handle path-based inputs (including falsy for default)
-    path_logs: LogPaths = list_eval_logs() if not logs else cast(LogPaths, logs)
+    # Handle path-based inputs (default to list_eval_logs() when None)
+    path_logs: LogPaths = list_eval_logs() if logs is None else cast(LogPaths, logs)
 
     # normalize to list of str
     path_logs = (
