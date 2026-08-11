@@ -101,10 +101,18 @@ def test_krippendorff_interval_with_to_float_for_strings():
     assert alpha(_sample_scores([["C", "C"], ["I", "I"]])) == 1.0
 
 
-def test_krippendorff_interval_string_without_to_float_raises():
+def test_krippendorff_interval_non_numeric_raises_only_when_scored():
+    # A sub-2-rating sample is skipped before coercion, so its non-numeric value never raises.
     alpha = krippendorff_alpha(level="interval")
     with pytest.raises(ValueError, match="non-numeric rating"):
         alpha(_sample_scores([["low", "low"], ["high", "high"]]))
+
+    scores = [
+        SampleScore(score=Score(value=["n/a"])),
+        SampleScore(score=Score(value=[1.0, 2.0])),
+        SampleScore(score=Score(value=[3.0, 4.0])),
+    ]
+    assert math.isclose(alpha(scores), 0.7, rel_tol=0, abs_tol=1e-12)
 
 
 # ---------------------------------------------------------------------------

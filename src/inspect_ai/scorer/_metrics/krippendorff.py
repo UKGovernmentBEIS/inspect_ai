@@ -95,14 +95,14 @@ def _extract_units(
         if not isinstance(value, (list, tuple)):
             non_sequence += 1
             continue
+        if len(value) < 2:
+            too_few += 1
+            continue
         ratings: list[object] = (
             list(value)
             if level == "nominal"
             else [_coerce_numeric(v, to_float, level) for v in value]
         )
-        if len(ratings) < 2:
-            too_few += 1
-            continue
         units.append(ratings)
     if non_sequence:
         logger.warning(
