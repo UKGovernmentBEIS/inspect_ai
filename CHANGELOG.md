@@ -1,3 +1,7 @@
+## Unreleased
+
+- Scoring: New `aggregate(key, agg=...)` metric factory applying any standard metric (`mean`, `stderr`, `accuracy`, …) to a single key of a dict-valued `Score.value`.
+
 ## 0.3.257 (11 August 2026)
 
 - Extend model database to include Fireworks models.
