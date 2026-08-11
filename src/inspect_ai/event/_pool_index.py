@@ -393,8 +393,8 @@ class CallPoolIndex:
         retry skip an insert and emit dangling refs). The prefix-match
         state is accelerator-only, so it is dropped rather than rewound:
         the next event's prefix scan misses and falls through to hash
-        dedup, which is always safe. Rewinding it would require holding a
-        snapshot of ``_prev_msgs`` across the marked window, reintroducing
+        dedup, which is always safe. Rewinding it would require holding
+        snapshots of ``_prevs`` across the marked window, reintroducing
         aliasing to reason about for a path that only runs after a
         database transaction failure.
 
