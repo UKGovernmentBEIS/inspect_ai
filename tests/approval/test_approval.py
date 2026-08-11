@@ -3,19 +3,23 @@ from pathlib import Path
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
 from inspect_ai.approval import (
+    Approval,
     ApprovalDecision,
     ApprovalPolicy,
+    Approver,
     approval,
+    approver,
     auto_approver,
     read_approval_policies,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ModelOutput, get_model
+from inspect_ai.model import ChatMessage, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import tool
+from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 
 # define tool
@@ -387,6 +391,48 @@ async def test_execute_tools_tool_not_found_records_tool_event():
     assert tool_events[0].function == "nonexistent"
     assert tool_events[0].error is not None
     assert tool_events[0].error.type == "parsing"
+
+
+@approver
+def generating_approver() -> Approver:
+    """Approver which consults a model before approving."""
+
+    async def approve(
+        message: str,
+        call: ToolCall,
+        view: ToolCallView,
+        history: list[ChatMessage],
+    ) -> Approval:
+        await get_model("mockllm/model").generate("Should this call be approved?")
+        return Approval(decision="approve")
+
+    return approve
+
+
+async def test_approver_inference_exempt_from_limits():
+    """Model inference within an approver shouldn't consume the agent's budget."""
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.util._limit import token_limit, turn_limit
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(id="test", function="addition", arguments={"x": 1, "y": 1})
+
+    with token_limit(1_000_000) as tokens, turn_limit(10) as turns:
+        messages, _ = await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [tool_def],
+            approval=[ApprovalPolicy(approver=generating_approver(), tools="*")],
+        )
+
+    # the tool call was approved (i.e. the approver did generate)
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+
+    # ...but its generation was not metered
+    assert tokens.usage == 0
+    assert turns.usage == 0
 
 
 if __name__ == "__main__":

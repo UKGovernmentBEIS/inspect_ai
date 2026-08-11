@@ -75,3 +75,21 @@ def is_azure_path(path: str) -> bool:
     """Return True if the URI/path uses an Azure-backed scheme."""
     scheme = urlparse(path).scheme.lower()
     return scheme in AZURE_SCHEMES
+
+
+def should_suppress_azure_error(path: str, error: Exception) -> bool:
+    """Return True if an Azure auth issue should be downgraded to a warning."""
+    return is_azure_path(path) and (
+        is_azure_auth_error(error) or "authenticate" in str(error).lower()
+    )
+
+
+def azure_warning_hint(path: str, error: Exception) -> str:
+    """Diagnostic guidance for Azure listing/authentication issues."""
+    return (
+        "Azure storage authentication failed while probing "
+        f"'{path}'. Suppressed stack trace. Guidance: (a) run 'az login' or ensure role "
+        "assignment (Storage Blob Data Reader/Contributor); (b) if using SAS set "
+        "AZURE_STORAGE_SAS_TOKEN (and AZURE_STORAGE_ACCOUNT_NAME if needed); (c) if using account "
+        f"key, set AZURE_STORAGE_ACCOUNT_KEY. Original error: {error}"
+    )
