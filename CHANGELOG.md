@@ -1,7 +1,13 @@
 ## Unreleased
 
+- Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
+- Docker Sandbox: `read_file` now raises `FileNotFoundError` when the container reports "no such file or directory". (#4686)
 - Scorers: Model-graded scorers with a panel of graders (`model=[...]`) now combine grades with a new `majority` reducer rather than `mode`: a grade must be returned by more than half of the panel, and the sample is unscored otherwise. A grader that returns no parseable grade previously dropped out of the vote, which could leave an even panel whose tie was broken by the order of `model`; it now withholds a vote without lowering the threshold. The individual votes are recorded in the reduced score's metadata under `panel`. Scores may change on samples where no grade held a majority (these become unscored); pass `reducer="mode"` to `model_graded_qa()`/`model_graded_fact()` to restore the previous behavior. (#4721)
+
+## 0.3.256 (11 August 2026)
+
 - Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
+- Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
 
 ## 0.3.255 (09 August 2026)
 
