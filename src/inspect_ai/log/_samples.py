@@ -151,6 +151,14 @@ class ActiveSample:
         self.total_messages = 0
         self.total_tokens = 0
         self.total_turns = 0
+        # Counts of events reported from deep inside the model layer, where the
+        # only handle on "which sample is this?" is `sample_active()`. Both are
+        # also tallied in process-global counters that the TUI footer reads
+        # (`log._refusal`, `_util.retry`); these attribute them to a sample so
+        # the control channel can report them per eval, which a process-global
+        # cannot do — one process runs many evals concurrently.
+        self.refusals = 0
+        self.http_retries = 0
         # The sample's live `TaskState` — the handle observers read the
         # current conversation from (see the module docstring). Refreshed via
         # `set_sample_state` (sample start, `Chain`/`Plan` step boundaries,
@@ -432,6 +440,21 @@ async def active_sample(
                     )
         active.checkpointer.close()
         active.complete()
+        # Roll this attempt's refusal / HTTP-retry counts onto the eval as the
+        # sample leaves the live list, so the control channel's "so far" total
+        # survives it. Adjacent to the `remove` and with no await between them:
+        # the endpoint reports `eval total + sum(in-flight)`, so a suspension
+        # point here would let a poll see the sample in neither term (or, the
+        # other way round, in both). Local import because `_control.eval_state`
+        # is loaded during eval bootstrap, before this package finishes
+        # initializing.
+        from inspect_ai._control.eval_state import record_sample_event_counts
+
+        record_sample_event_counts(
+            active.eval_id,
+            refusals=active.refusals,
+            http_retries=active.http_retries,
+        )
         _active_samples.remove(active)
         _sample_active.set(None)
 
@@ -593,6 +616,25 @@ def report_active_sample_retry() -> None:
         if model_event.retries is None:
             model_event.retries = 0
         model_event.retries = model_event.retries + 1
+
+    # Also tally on the sample itself. The model event's count is per-generation
+    # and lands in the transcript; this one is what the control channel can read
+    # while the sample is still running, and what rolls up to the eval.
+    active = sample_active()
+    if active is not None:
+        active.http_retries += 1
+
+
+def report_active_sample_refusal() -> None:
+    """Count a model refusal against the active sample, if there is one.
+
+    Called alongside the process-global tally in :mod:`inspect_ai.log._refusal`.
+    A refusal reported outside a sample (nothing in ``sample_active()``) is
+    counted globally only — it belongs to no eval.
+    """
+    active = sample_active()
+    if active is not None:
+        active.refusals += 1
 
 
 # The retry-wait record stamped by *this* coroutine's model retry loop.

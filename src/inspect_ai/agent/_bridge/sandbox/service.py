@@ -65,8 +65,8 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
 
 async def run_model_service(
     sandbox: SandboxEnvironment,
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
     instance: str,
     started: anyio.Event,
@@ -109,8 +109,8 @@ def generate_completions(
 
 
 def generate_responses(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -123,8 +123,8 @@ def generate_responses(
 
 
 def generate_anthropic(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -137,8 +137,8 @@ def generate_anthropic(
 
 
 def generate_google(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:

@@ -471,7 +471,7 @@ def view_server_app(
         "/pending-samples", response_model=Samples, response_class=InspectJsonResponse
     )
     async def api_pending_samples(
-        request: Request, response: Response, log: str = Query(...)
+        request: Request, log: str = Query(...)
     ) -> Samples | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
@@ -488,8 +488,10 @@ def view_server_app(
         elif samples is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
-            response.headers["ETag"] = samples.etag
-            return samples
+            return InspectJsonResponse(
+                content=samples.model_dump(mode="json", by_alias=True),
+                headers={"ETag": samples.etag},
+            )
 
     @app.post("/log-message")
     async def api_log_message(
@@ -664,9 +666,31 @@ class OnlyDirAccessPolicy(AccessPolicy):
     def __init__(self, dir: str) -> None:
         super().__init__()
         self.dir = dir
+        self._dir_uri = self._canonical_uri(dir)
+
+    def _canonical_uri(self, path: str) -> str:
+        fs = filesystem(path)
+        stripped_path = fs.fs._strip_protocol(path)
+        if fs.is_local():
+            # Case-fold for case-insensitive local filesystems, but keep "/"
+            # separators: on Windows normcase also flips "/" to "\", which
+            # would defeat the "/" directory-boundary check below.
+            stripped_path = os.path.normcase(stripped_path).replace(os.sep, "/")
+        return fs.path_as_uri(stripped_path).rstrip("/")
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        # This guard is load-bearing: canonicalization below does not resolve
+        # ".." segments, so a traversal like `dir/../../etc` would otherwise
+        # pass the directory-boundary prefix check.
+        if ".." in file:
+            return False
+
+        try:
+            file_uri = self._canonical_uri(file)
+        except Exception:
+            # Access validation must fail closed for malformed filesystem URIs.
+            return False
+        return file_uri == self._dir_uri or file_uri.startswith(f"{self._dir_uri}/")
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)
