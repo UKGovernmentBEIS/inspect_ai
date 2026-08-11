@@ -75,6 +75,8 @@ class _FakeActiveSample:
         self.run_id = "r1"
         self.total_tokens = 0
         self.total_messages = 0
+        self.refusals = 0
+        self.http_retries = 0
 
 
 def _patch_active_samples(
