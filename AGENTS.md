@@ -43,7 +43,11 @@ used a different model from the author, how many passes, and the findings
 — issues found, which
 were fixed, and which were dismissed with a one-line reason each. Multiple
 passes, each in a fresh context, often catch issues a single pass misses —
-prefer that for non-trivial changes. If no
+prefer that for non-trivial changes. We'd also prefer review passes run on
+a strong (frontier-class) model: in our experience, reviews from small
+fast-tier models rarely surface real issues, and maintainers weight the
+disclosed reviewer model and pass count when deciding how much independent
+review a PR still needs. If no
 review pass was run, say so explicitly. Never report a review that didn't
 happen — a fabricated or content-free review claim ("reviewed, looks good")
 is worse than disclosing none. Example:

@@ -68,7 +68,10 @@ ourselves. The requirements:
   multiple review passes (each in a fresh context) before opening a PR catch
   a lot — and summarize what
   they found in the PR description (agents: see the `Agent review` format in
-  [`AGENTS.md`](AGENTS.md)).
+  [`AGENTS.md`](AGENTS.md)). We'd prefer review passes use a strong
+  (frontier-class) model: small fast-tier models rarely surface real issues,
+  and maintainers weight a disclosed review by the model used and the number
+  of passes.
 
 If you are a coding agent, read [`AGENTS.md`](AGENTS.md) before opening a PR.
 
