@@ -163,6 +163,14 @@ def test_read_sample_with_exclude_fields():
     assert not sample.events
 
 
+def test_read_samples_parallel():
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.eval")
+    serial = read_eval_log(log_file)
+    parallel = read_eval_log(log_file, sample_workers=2)
+    assert parallel.samples
+    assert parallel.model_dump() == serial.model_dump()
+
+
 def test_log_location():
     json_log_file = os.path.join("tests", "log", "test_eval_log", "log_formats.json")
     check_log_location(json_log_file)

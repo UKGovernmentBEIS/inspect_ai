@@ -1,12 +1,15 @@
+import asyncio
 import copy
 import json
 import logging
 import math
+import multiprocessing
 import os
 import shutil
 import tempfile
 import warnings
 from collections.abc import Generator, Iterable, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import contextmanager
 from functools import partial
 from io import BytesIO
@@ -308,6 +311,7 @@ class EvalRecorder(FileRecorder):
         location: str,
         header_only: bool = False,
         exclude_fields: set[str] | None = None,
+        sample_workers: int = 1,
     ) -> EvalLog:
         async with AsyncFilesystem() as async_fs:
             # if the log is not stored in the local filesystem then download it
@@ -331,10 +335,25 @@ class EvalRecorder(FileRecorder):
             # read log (use temp_log if we have it)
             try:
                 read_location = temp_log or location
+                # samples can be read by worker processes, which need a plain
+                # local path they can open themselves
+                local_zip = (
+                    temp_log
+                    if temp_log is not None
+                    else local_path(location)
+                    if fs.is_local()
+                    else None
+                )
                 reader = AsyncZipReader(async_fs, read_location)
                 cd = await reader.entries()
                 log = await _read_log(
-                    reader, cd.entries, location, header_only, exclude_fields
+                    reader,
+                    cd.entries,
+                    location,
+                    header_only,
+                    exclude_fields,
+                    sample_workers,
+                    local_zip,
                 )
 
                 if etag is not None:
@@ -1200,6 +1219,8 @@ async def _read_log(
     location: str,
     header_only: bool = False,
     exclude_fields: set[str] | None = None,
+    sample_workers: int = 1,
+    local_zip: str | None = None,
 ) -> EvalLog:
     entry_names = {e.filename for e in entries}
 
@@ -1217,16 +1238,29 @@ async def _read_log(
             eval_log.reductions = reductions
 
     if not header_only:
-        samples: list[EvalSample] = []
         # a re-logged sample (e.g. a requeued sample superseding its prior
         # terminal record) appends a second member under the same name;
         # name-based zip access resolves to the last entry, so match that
         # here rather than yielding duplicate samples
         unique_entries = {e.filename: e for e in entries}
-        for entry in unique_entries.values():
-            if entry.filename.startswith(f"{SAMPLES_DIR}/") and entry.filename.endswith(
-                ".json"
-            ):
+        sample_entries = [
+            entry
+            for entry in unique_entries.values()
+            if entry.filename.startswith(f"{SAMPLES_DIR}/")
+            and entry.filename.endswith(".json")
+        ]
+        if (
+            sample_workers > 1
+            and local_zip is not None
+            and not exclude_fields
+            and current_async_backend() == "asyncio"
+        ):
+            samples = await _read_samples_parallel(
+                local_zip, [e.filename for e in sample_entries], sample_workers
+            )
+        else:
+            samples = []
+            for entry in sample_entries:
                 if exclude_fields:
                     data = await _read_member_json_excluding(
                         reader, entry.filename, exclude_fields
@@ -1244,6 +1278,42 @@ async def _read_log(
         eval_log.samples = samples
 
     return eval_log
+
+
+async def _read_samples_parallel(
+    zip_path: str, member_names: list[str], sample_workers: int
+) -> list[EvalSample]:
+    # split into more chunks than workers so a chunk of unusually large
+    # samples doesn't leave the other workers idle at the end
+    chunk_size = max(1, math.ceil(len(member_names) / (sample_workers * 4)))
+    chunks = [
+        member_names[i : i + chunk_size]
+        for i in range(0, len(member_names), chunk_size)
+    ]
+    loop = asyncio.get_running_loop()
+    with ProcessPoolExecutor(
+        max_workers=sample_workers, mp_context=multiprocessing.get_context("spawn")
+    ) as pool:
+        results = await asyncio.gather(
+            *(
+                loop.run_in_executor(pool, _read_samples_chunk, zip_path, chunk)
+                for chunk in chunks
+            )
+        )
+    return [sample for chunk_samples in results for sample in chunk_samples]
+
+
+def _read_samples_chunk(zip_path: str, member_names: list[str]) -> list[EvalSample]:
+    samples: list[EvalSample] = []
+    with ZipFile(zip_path, mode="r") as zip:
+        for name in member_names:
+            with zip.open(name, "r") as f:
+                samples.append(
+                    EvalSample.model_validate(
+                        json.load(f), context=get_deserializing_context()
+                    )
+                )
+    return samples
 
 
 def _read_log_from_bytes(

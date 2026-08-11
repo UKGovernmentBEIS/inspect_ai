@@ -131,6 +131,7 @@ class Recorder(abc.ABC):
         location: str,
         header_only: bool = False,
         exclude_fields: set[str] | None = None,
+        sample_workers: int = 1,
     ) -> EvalLog: ...
 
     @classmethod

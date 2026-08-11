@@ -354,6 +354,7 @@ def read_eval_log(
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
     exclude_fields: set[str] | None = None,
+    sample_workers: int = 1,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -371,6 +372,10 @@ def read_eval_log(
           samples (e.g. {"messages", "events", "store", "attachments"}).
           Ignored for .json format logs (only applies to .eval logs). Has no
           effect when header_only is True or when log_file is an IO[bytes] stream.
+       sample_workers: Number of worker processes used to read and validate
+          samples (defaults to 1, reading in-process). Only applies to full
+          reads of .eval logs; ignored when header_only is True, when
+          exclude_fields is set, or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -385,7 +390,12 @@ def read_eval_log(
     # flow, so force the use of asyncio
     return run_coroutine(
         read_eval_log_async(
-            log_file, header_only, resolve_attachments, format, exclude_fields
+            log_file,
+            header_only,
+            resolve_attachments,
+            format,
+            exclude_fields,
+            sample_workers,
         )
     )
 
@@ -396,6 +406,7 @@ async def read_eval_log_async(
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
     exclude_fields: set[str] | None = None,
+    sample_workers: int = 1,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -413,6 +424,10 @@ async def read_eval_log_async(
           samples (e.g. {"messages", "events", "store", "attachments"}).
           Ignored for .json format logs (only applies to .eval logs). Has no
           effect when header_only is True or when log_file is an IO[bytes] stream.
+       sample_workers: Number of worker processes used to read and validate
+          samples (defaults to 1, reading in-process). Only applies to full
+          reads of .eval logs; ignored when header_only is True, when
+          exclude_fields is set, or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -446,7 +461,9 @@ async def read_eval_log_async(
 
         exclude_fields = _normalize_excluded_fields(exclude_fields)
 
-        log = await recorder_type.read_log(log_file, header_only, exclude_fields)
+        log = await recorder_type.read_log(
+            log_file, header_only, exclude_fields, sample_workers
+        )
 
     if log.samples:
         log.samples = [
