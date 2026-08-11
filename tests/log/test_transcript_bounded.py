@@ -11,6 +11,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.log._condense import WalkContext, events_attachment_fn, walk_model_call
 from inspect_ai.log._transcript import (
     Transcript,
     transcript,
@@ -998,3 +999,117 @@ def test_set_attachment_refs_does_not_model_dump(
         tr._event(_model_event_with_call_payload(f"event-{i}", f"payload {i}" * 100))
         tr._event_updated(tr._events[-1])
     assert calls["n"] == 0
+
+
+def test_condense_model_call_matches_fresh_walk() -> None:
+    payload = "long payload " * 20
+
+    def make_call(n: int, response: bool) -> ModelCall:
+        msgs = [{"role": "user", "content": f"{payload} {i}"} for i in range(n)]
+        return ModelCall.create(
+            {"model": "m", "messages": msgs},
+            {"id": "r", "content": payload} if response else None,
+        )
+
+    cached_tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    fresh_attachments: dict[str, str] = {}
+    for n, resp in [(1, False), (1, True), (2, False), (2, True), (3, True)]:
+        cached = cached_tr._condense_model_call(make_call(n, resp))
+        fresh = walk_model_call(
+            make_call(n, resp),
+            events_attachment_fn(fresh_attachments),
+            WalkContext(message_cache={}, only_core=False),
+        )
+        assert fresh is not None
+        assert cached.model_dump() == fresh.model_dump()
+    assert cached_tr.attachments == fresh_attachments
+
+
+def test_condense_model_call_reasserts_pruned_attachments() -> None:
+    tr = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    payload = "shared long prefix content " * 10
+    first = _model_event_with_call_payload("event-1", payload)
+    tr._event(first)
+    assert len(tr.attachments) == 1
+    ref = next(iter(tr.attachments))
+
+    # unrelated event evicts event-1 -> refcount hits zero -> content pruned
+    tr._event(InfoEvent(uuid="event-2", data="filler"))
+    assert tr.attachments == {}
+
+    # a later kept call re-sends the same request prefix: the cached walk
+    # must re-assert the pruned content, else the resident event references
+    # a missing attachment (silent content loss in the final log)
+    second = _model_event_with_call_payload("event-3", payload)
+    tr._event(second)
+    assert ref in tr.attachments
+    assert tr.attachments[ref].startswith("shared long prefix")
+
+
+def test_condense_model_call_interleaved_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two interleaved request lineages must both keep prefix-hitting.
+
+    Simulates a fork()/parallel-tools shape. Slot exhaustion beyond the
+    cap must degrade safely rather than corrupt results.
+    """
+    import inspect_ai.log._condense as condense
+
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "stream content " * 10
+
+    def make_call(stream: str, n: int) -> ModelCall:
+        msgs = [
+            {"role": "user", "content": f"{stream} {payload} {i}"} for i in range(n)
+        ]
+        return ModelCall.create({"model": "m", "messages": msgs}, None)
+
+    hashes = {"n": 0}
+    original_hash = condense.mm3_hash  # type: ignore[attr-defined]
+
+    def counting(text: str) -> str:
+        hashes["n"] += 1
+        return original_hash(text)
+
+    monkeypatch.setattr(condense, "mm3_hash", counting)
+    # interleave two growing streams; after warm-up each round should hash
+    # only the one new message per stream, not re-walk the shared prefix
+    for n in range(1, 11):
+        tr._condense_model_call(make_call("a", n))
+        tr._condense_model_call(make_call("b", n))
+    # linear: ~2 new messages hashed per round; a quadratic re-walk would be
+    # ~2 * (10*11/2) = 110
+    assert hashes["n"] <= 40, (
+        f"interleaved streams thrash the walk cache: {hashes['n']} hashes"
+    )
+
+
+def test_condense_model_call_snapshots_immune_to_mutation() -> None:
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "mutable content " * 10
+    call = ModelCall.create(
+        {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
+    )
+    walked = tr._condense_model_call(call)
+
+    # mutate BOTH the caller's request and the emitted walked structure
+    # (playback shaping mutates already-logged requests in place)
+    messages = call.request["messages"]
+    assert isinstance(messages, list) and isinstance(messages[0], dict)
+    messages[0]["content"] = "changed " * 30
+    walked_messages = walked.request["messages"]
+    assert isinstance(walked_messages, list) and isinstance(walked_messages[0], dict)
+    walked_messages[0]["content"] = "vandalized"
+
+    # a genuine re-send of the original content must still prefix-match and
+    # produce the original walked output
+    resend = ModelCall.create(
+        {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
+    )
+    walked2 = tr._condense_model_call(resend)
+    messages2 = walked2.request["messages"]
+    assert isinstance(messages2, list) and isinstance(messages2[0], dict)
+    content2 = messages2[0]["content"]
+    assert isinstance(content2, str) and content2.startswith("attachment://")
+    assert tr.attachments[content2.removeprefix("attachment://")] == payload
