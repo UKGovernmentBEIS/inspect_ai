@@ -142,7 +142,7 @@ def test_parsers_never_call_string_sympify(monkeypatch: pytest.MonkeyPatch) -> N
     # fine).
     import latex2sympy2_extended.logic as parser_logic  # type: ignore[import-untyped]
     import latex2sympy2_extended.sets as parser_sets  # type: ignore[import-untyped]
-    import sympy  # type: ignore[import-untyped]
+    import sympy
 
     def guard(original: Any) -> Any:
         def wrapped(value: Any, *args: Any, **kwargs: Any) -> Any:
