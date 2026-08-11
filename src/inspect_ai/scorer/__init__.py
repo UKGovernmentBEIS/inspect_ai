@@ -3,6 +3,7 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 from ._answer import AnswerPattern, answer
 from ._choice import choice
 from ._classification import exact, f1
+from ._cross_model import cross_model_verifier
 from ._match import includes, match
 from ._math import math
 from ._metric import (
@@ -72,6 +73,7 @@ __all__ = [
     "bootstrap_stderr",
     "categorical",
     "choice",
+    "cross_model_verifier",
     "exact",
     "f1",
     "frequency",
