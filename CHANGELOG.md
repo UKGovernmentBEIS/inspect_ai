@@ -1,3 +1,7 @@
+## Unreleased
+
+- Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
+
 ## 0.3.255 (09 August 2026)
 
 - Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
