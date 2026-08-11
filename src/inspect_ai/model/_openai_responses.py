@@ -259,6 +259,29 @@ def _extract_compaction_from_content_data(
     return None
 
 
+def _extract_agent_message_from_internal(
+    content: str | list[Content],
+) -> ResponseInputItemParam | None:
+    """Recover a verbatim Codex `agent_message` item stashed by the agent bridge.
+
+    The bridge renders agent_message items as author-attributed user text (which
+    non-OpenAI targets consume) and stashes the original item on
+    ContentText.internal; OpenAI Responses targets replay the item natively so
+    `encrypted_content` parts (decryptable only by OpenAI server-side) survive.
+    """
+    if not isinstance(content, list):
+        return None
+    for item in content:
+        if isinstance(item, ContentText) and isinstance(item.internal, dict):
+            agent_message = item.internal.get("agent_message")
+            if (
+                isinstance(agent_message, dict)
+                and agent_message.get("type") == "agent_message"
+            ):
+                return cast(ResponseInputItemParam, agent_message)
+    return None
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage],
     model_info: ResponsesModelInfo | None = None,
@@ -289,6 +312,11 @@ async def _openai_input_item_from_chat_message(
         if compaction_param:
             # This is a compaction marker - return compaction item
             return [compaction_param]
+
+        # Check for a verbatim Codex agent_message stashed by the agent bridge
+        agent_message_param = _extract_agent_message_from_internal(message.content)
+        if agent_message_param is not None:
+            return [agent_message_param]
 
         # Regular user message handling
         return [
@@ -2127,6 +2155,14 @@ def is_additional_tools(
     # tolerate items without a "type" key (e.g. simple user messages) since this
     # is scanned over raw input items, some of which omit "type"
     return param.get("type") == "additional_tools"
+
+
+def is_agent_message(param: ResponseInputItemParam) -> bool:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type". The OpenAI SDK
+    # has not yet added agent_message to ResponseInputItemParam, so the cast
+    # sidesteps a comparison-overlap error against the SDK's literal union.
+    return cast(dict[str, Any], param).get("type") == "agent_message"
 
 
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
