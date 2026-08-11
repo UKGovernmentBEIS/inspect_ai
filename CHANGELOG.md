@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
+- Docker Sandbox: `read_file` now raises `FileNotFoundError` when the container reports "no such file or directory". (#4686)
 
 ## 0.3.256 (11 August 2026)
 
