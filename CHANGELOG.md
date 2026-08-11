@@ -2,6 +2,7 @@
 
 - Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
 - Docker Sandbox: `read_file` now raises `FileNotFoundError` when the container reports "no such file or directory". (#4686)
+- Web Browser: headful macOS scale-factor detection falls back to 1 instead of crashing when `pyobjc-framework-AppKit` is missing or no display is attached.
 
 ## 0.3.256 (11 August 2026)
 
