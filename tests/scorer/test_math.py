@@ -23,13 +23,22 @@ from inspect_ai.scorer._math import (
     _MathLimitError,
     _MathParseError,
     _parse_candidate,
-    _score_answer_worker,
 )
 from inspect_ai.solver import generate
 
 CASES = json.loads(
     (Path(__file__).parent / "math_cases.json").read_text(encoding="utf-8")
 )
+
+
+def _score_answer(
+    completion: str, targets: tuple[str, ...]
+) -> "math_module._WorkerScore":
+    # Test convenience: parse the target strings, then score like production
+    # (which parses targets once in _parse_targets_worker and passes the
+    # values to _score_answer_worker).
+    parsed, _error = math_module._parse_targets_worker(targets)
+    return math_module._score_answer_worker(completion, parsed)
 
 
 @pytest.mark.parametrize(
@@ -73,7 +82,7 @@ async def test_final_boxed_answer_survives_a_flood_of_earlier_boxes() -> None:
 def test_assignment_target_matches_either_orientation(target: str) -> None:
     # Unwrapping an assignment-form target to its value side must work whether
     # the value is on the left or the right of the equality.
-    assert _score_answer_worker("2", (target,)).status == "correct"
+    assert _score_answer("2", (target,)).status == "correct"
 
 
 async def test_math_scorer_uses_valid_target_alternative() -> None:
@@ -208,9 +217,7 @@ def test_math_scorer_matches_real_answer_corpus() -> None:
     assert len(answers) >= 4900
 
     # Every gold answer self-matches (extraction + representation coverage).
-    self_fail = [
-        a for a in answers if _score_answer_worker(a, (a,)).status != "correct"
-    ]
+    self_fail = [a for a in answers if _score_answer(a, (a,)).status != "correct"]
     assert not self_fail, f"self-match failures: {self_fail[:10]}"
 
     integers = [a for a in answers if re.fullmatch(r"[+-]?\d+", a)]
@@ -219,20 +226,19 @@ def test_math_scorer_matches_real_answer_corpus() -> None:
         a
         for a in integers
         if abs(int(a)) >= 1000
-        and _score_answer_worker(f"{int(a):,}", (a,)).status != "correct"
+        and _score_answer(f"{int(a):,}", (a,)).status != "correct"
     ]
     assert not thousands_fail, f"thousands failures: {thousands_fail[:10]}"
     # A bare integer answer matches an assignment-form target ("x = N").
     assignment_fail = [
-        a for a in integers if _score_answer_worker(a, (f"x={a}",)).status != "correct"
+        a for a in integers if _score_answer(a, (f"x={a}",)).status != "correct"
     ]
     assert not assignment_fail, f"assignment failures: {assignment_fail[:10]}"
     # An integer answer on the final line of a reasoning trace is extracted.
     multiline_fail = [
         a
         for a in integers
-        if _score_answer_worker(f"First compute the answer.\n{a}", (a,)).status
-        != "correct"
+        if _score_answer(f"First compute the answer.\n{a}", (a,)).status != "correct"
     ]
     assert not multiline_fail, f"multiline-final failures: {multiline_fail[:10]}"
 
@@ -255,7 +261,7 @@ def test_reported_subclasses_escape_never_reaches_parse_expr(
     payload = "().__class__.__base__.__subclasses__()"
     with pytest.raises(_MathParseError):
         _parse_candidate(payload)
-    assert _score_answer_worker(payload, ("0",)).status == "answer_parse_error"
+    assert _score_answer(payload, ("0",)).status == "answer_parse_error"
 
 
 @pytest.mark.parametrize(
@@ -271,7 +277,7 @@ def test_reported_subclasses_escape_never_reaches_parse_expr(
     ],
 )
 def test_percentage_suffixes_are_normalized(answer: str, target: str) -> None:
-    result = _score_answer_worker(answer, (target,))
+    result = _score_answer(answer, (target,))
     assert result.status == "correct"
 
 
@@ -332,12 +338,12 @@ def test_eager_latex_constructors_remain_unevaluated(
     ["[]", "[0]", "(0,)", "(0, 1)"],
 )
 def test_constant_tuple_mismatch_is_incorrect(answer: str) -> None:
-    result = _score_answer_worker(answer, ("2",))
+    result = _score_answer(answer, ("2",))
     assert result.status == "incorrect"
 
 
 def test_constant_tuple_self_match_is_correct() -> None:
-    result = _score_answer_worker("(0, 1)", ("(0, 1)",))
+    result = _score_answer("(0, 1)", ("(0, 1)",))
     assert result.status == "correct"
 
 
@@ -352,7 +358,7 @@ def test_constant_tuple_self_match_is_correct() -> None:
     ],
 )
 def test_grouped_thousands_are_treated_as_numbers(answer: str, target: str) -> None:
-    result = _score_answer_worker(answer, (target,))
+    result = _score_answer(answer, (target,))
     assert result.status == "correct"
 
 
@@ -363,8 +369,8 @@ def test_grouped_thousands_are_treated_as_numbers(answer: str, target: str) -> N
 def test_grouped_thousands_normalization_leaves_structures_intact(answer: str) -> None:
     # The thousands rule must not collapse tuples/sets or ill-formed groupings
     # into a single number; each of these self-matches rather than becoming an int.
-    assert _score_answer_worker(answer, (answer,)).status == "correct"
-    assert _score_answer_worker(answer, ("12",)).status == "incorrect"
+    assert _score_answer(answer, (answer,)).status == "correct"
+    assert _score_answer(answer, ("12",)).status == "incorrect"
 
 
 @pytest.mark.parametrize(
@@ -372,7 +378,7 @@ def test_grouped_thousands_normalization_leaves_structures_intact(answer: str) -
     [(r"1\,234", "1234"), (r"12\,345\,678", "12345678"), (r"1\,234.5", "1234.5")],
 )
 def test_latex_thin_space_thousands_are_numbers(answer: str, target: str) -> None:
-    assert _score_answer_worker(answer, (target,)).status == "correct"
+    assert _score_answer(answer, (target,)).status == "correct"
 
 
 @pytest.mark.parametrize(
@@ -386,7 +392,7 @@ def test_latex_thin_space_thousands_are_numbers(answer: str, target: str) -> Non
 def test_exact_large_integers_are_not_approximated(answer: str, target: str) -> None:
     # Exact integers must compare exactly; float tolerance previously accepted
     # off-by-one values above ~1e11.
-    assert _score_answer_worker(answer, (target,)).status == "incorrect"
+    assert _score_answer(answer, (target,)).status == "incorrect"
 
 
 @pytest.mark.parametrize(
@@ -395,7 +401,7 @@ def test_exact_large_integers_are_not_approximated(answer: str, target: str) -> 
 )
 def test_approximate_values_still_match(answer: str, target: str) -> None:
     # The exact-comparison guard must not disturb genuinely approximate matches.
-    assert _score_answer_worker(answer, (target,)).status == "correct"
+    assert _score_answer(answer, (target,)).status == "correct"
 
 
 @pytest.mark.parametrize(
@@ -405,7 +411,7 @@ def test_approximate_values_still_match(answer: str, target: str) -> None:
 def test_assignment_targets_accept_their_value(answer: str, target: str) -> None:
     # An assignment-form value like "x = 2" matches the bare answer "2"
     # regardless of which side carries the equality.
-    assert _score_answer_worker(answer, (target,)).status == "correct"
+    assert _score_answer(answer, (target,)).status == "correct"
 
 
 @pytest.mark.parametrize(
@@ -418,19 +424,19 @@ def test_assignment_targets_accept_their_value(answer: str, target: str) -> None
     ],
 )
 def test_prose_wrapped_numeric_answers_are_extracted(answer: str, target: str) -> None:
-    assert _score_answer_worker(answer, (target,)).status == "correct"
+    assert _score_answer(answer, (target,)).status == "correct"
 
 
 def test_prose_fallback_does_not_manufacture_false_matches() -> None:
     # The fallback only fires for a target that genuinely equals an extracted
     # candidate; an incidental number in prose must not count as correct.
-    assert _score_answer_worker("The perimeter is 7", ("42",)).status == "incorrect"
+    assert _score_answer("The perimeter is 7", ("42",)).status == "incorrect"
 
 
 def test_text_answer_is_not_overridden_by_subexpression() -> None:
     # A legitimate text answer ("odd $n$") must self-match and not be replaced
     # by a stray sub-expression like "n".
-    assert _score_answer_worker(r"odd $n$", (r"odd $n$",)).status == "correct"
+    assert _score_answer(r"odd $n$", (r"odd $n$",)).status == "correct"
 
 
 @pytest.mark.parametrize(
@@ -473,7 +479,7 @@ def test_unsupported_antlr_version_has_clear_prerequisite_error(
     ],
 )
 def test_security_payload_is_rejected_without_fallback(payload: str) -> None:
-    result = _score_answer_worker(f"{payload} or 0", ("0",))
+    result = _score_answer(f"{payload} or 0", ("0",))
     assert result.status == "answer_parse_error"
 
 
@@ -549,11 +555,11 @@ async def test_target_timeout_is_unscored(monkeypatch: pytest.MonkeyPatch) -> No
 async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = 0
 
-    async def staged_run_sync(*_args: Any, **_kwargs: Any) -> None:
+    async def staged_run_sync(*_args: Any, **_kwargs: Any) -> Any:
         nonlocal calls
         calls += 1
         if calls == 1:
-            return None
+            return ([math_module._ParsedValue(None, "42", "42")], None)
         await anyio.sleep(1)
 
     monkeypatch.setattr(math_module, "run_sync", staged_run_sync)
@@ -609,7 +615,7 @@ async def test_worker_queue_time_is_not_expression_timeout(
     async def short_worker_call(function: Any, *_args: Any, **_kwargs: Any) -> Any:
         await anyio.sleep(0.02)
         if function is math_module._parse_targets_worker:
-            return None
+            return ([math_module._ParsedValue(None, "42", "42")], None)
         return math_module._WorkerScore("correct", "42")
 
     monkeypatch.setattr(math_module, "run_sync", short_worker_call)
@@ -641,7 +647,7 @@ def test_worker_context_resets_across_event_loops(
     async def cold_worker_call(function: Any, *_args: Any, **_kwargs: Any) -> Any:
         await anyio.sleep(0.02)
         if function is math_module._parse_targets_worker:
-            return None
+            return ([math_module._ParsedValue(None, "42", "42")], None)
         return math_module._WorkerScore("correct", "42")
 
     monkeypatch.setattr(math_module, "run_sync", cold_worker_call)

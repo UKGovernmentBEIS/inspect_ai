@@ -1070,25 +1070,35 @@ def _expression_equivalent(left: _ParsedValue, right: _ParsedValue, sympy: Any) 
     return _numeric_equivalent(left_expression, right_expression, sympy)
 
 
-def _parse_targets_worker(targets: tuple[str, ...]) -> str | None:
+def _parse_targets_worker(
+    targets: tuple[str, ...],
+) -> tuple[list[_ParsedValue], str | None]:
+    # Return the parsed target values so the answer worker doesn't re-parse them.
+    # SymPy expressions are immutable and safe to hand back to the calling
+    # thread; the clear_cache() below only drops memoized assumption lookups and
+    # does not invalidate the returned expression objects.
     from sympy.core.cache import clear_cache  # type: ignore[import-untyped]
 
     try:
         if not targets:
-            return "target is empty"
+            return [], "target is empty"
+        parsed: list[_ParsedValue] = []
         last_error: _MathParseError | None = None
         for target in targets:
             try:
-                _parse_first(_target_candidates(target))
-                return None
+                parsed.append(_parse_first(_target_candidates(target)))
             except _MathParseError as ex:
                 last_error = ex
-        return str(last_error or "could not parse mathematical target")
+        if parsed:
+            return parsed, None
+        return [], str(last_error or "could not parse mathematical target")
     finally:
         clear_cache()
 
 
-def _score_answer_worker(completion: str, targets: tuple[str, ...]) -> _WorkerScore:
+def _score_answer_worker(
+    completion: str, parsed_targets: list[_ParsedValue]
+) -> _WorkerScore:
     import sympy  # type: ignore[import-untyped]
     from sympy.core.cache import clear_cache  # type: ignore[import-untyped]
 
@@ -1100,14 +1110,6 @@ def _score_answer_worker(completion: str, targets: tuple[str, ...]) -> _WorkerSc
         except _MathParseError as ex:
             return _WorkerScore("answer_parse_error", None, str(ex))
 
-        parsed_targets: list[_ParsedValue] = []
-        for target_text in targets:
-            try:
-                parsed_targets.append(_parse_first(_target_candidates(target_text)))
-            except _MathParseError:
-                continue
-        if not parsed_targets:
-            raise RuntimeError("validated math target could not be reparsed")
         correct = any(
             _expression_equivalent(target_value, answer, sympy)
             for target_value in parsed_targets
@@ -1197,7 +1199,7 @@ def math() -> Scorer:
                     else _COLD_WORKER_TIMEOUT_SECONDS
                 )
                 with anyio.fail_after(target_timeout):
-                    target_error = await run_sync(
+                    parsed_targets, target_error = await run_sync(
                         _parse_targets_worker,
                         targets,
                         abandon_on_cancel=True,
@@ -1223,7 +1225,7 @@ def math() -> Scorer:
                     result = await run_sync(
                         _score_answer_worker,
                         state.output.completion,
-                        targets,
+                        parsed_targets,
                         abandon_on_cancel=True,
                         limiter=worker.thread_limiter,
                     )
