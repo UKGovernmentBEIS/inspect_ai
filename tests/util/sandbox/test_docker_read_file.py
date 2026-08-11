@@ -174,6 +174,30 @@ async def test_read_file_preserves_missing_file_error(
     copy_mock.assert_awaited_once()
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        # docker CLI daemon error (e.g. podman/docker variants)
+        "Error response from daemon: stat /sandbox/missing.txt: no such file or directory",
+        # docker compose v2 CLI error form, as wrapped by compose_cp
+        "Failed to copy file from 'default:/sandbox/missing.txt' to 'read-x': Error: no such file or directory",
+    ],
+)
+async def test_read_file_maps_no_such_file_or_directory_error(
+    message: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = _environment()
+    copy_mock = AsyncMock(side_effect=RuntimeError(message))
+    monkeypatch.setattr(docker_module, "compose_cp", copy_mock)
+
+    with pytest.raises(FileNotFoundError) as ex:
+        await environment.read_file("missing")
+
+    assert ex.value.errno == errno.ENOENT
+    assert ex.value.filename == "missing"
+    copy_mock.assert_awaited_once()
+
+
 async def test_read_file_rejects_non_regular_copy_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
