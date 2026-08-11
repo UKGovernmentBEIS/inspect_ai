@@ -148,3 +148,44 @@ def test_compute_model_cost_no_double_billing_cached_tokens() -> None:
     # total: 0.0036
     expected = (400 * 3.0 + 100 * 15.0 + 600 * 1.5) / 1_000_000
     assert math.isclose(cost, expected)
+
+
+def test_compute_model_cost_1h_cache_write_billed_above_5m_rate() -> None:
+    """1-hour cache writes bill at 2x base input, vs 1.25x for 5-minute writes."""
+    base_input = 3.0
+    cost_data = ModelCost(
+        input=base_input,
+        output=15.0,
+        input_cache_write=base_input * 1.25,  # the 5-minute rate
+        input_cache_read=0.3,
+    )
+    usage = ModelUsage(
+        input_tokens=0,
+        output_tokens=0,
+        total_tokens=1_000_000,
+        input_tokens_cache_write=1_000_000,
+    )
+
+    # exactly 1M cache-write tokens, so each cost is the effective $/M rate
+    assert math.isclose(compute_model_cost(cost_data, usage, "5m"), base_input * 1.25)
+    assert math.isclose(compute_model_cost(cost_data, usage, "1h"), base_input * 2.0)
+
+    # an unspecified TTL keeps the previous (5-minute) behaviour
+    assert math.isclose(compute_model_cost(cost_data, usage), base_input * 1.25)
+
+
+def test_compute_model_cost_cache_ttl_does_not_affect_other_tokens() -> None:
+    cost_data = ModelCost(
+        input=1000.0, output=2000.0, input_cache_write=0.0, input_cache_read=100.0
+    )
+    usage = ModelUsage(
+        input_tokens=10,
+        output_tokens=5,
+        total_tokens=45,
+        input_tokens_cache_read=30,
+    )
+
+    assert math.isclose(
+        compute_model_cost(cost_data, usage, "1h"),
+        compute_model_cost(cost_data, usage),
+    )
