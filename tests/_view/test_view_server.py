@@ -33,6 +33,7 @@ from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
     get_direct_url,
     get_log_bytes,
+    normalize_uri,
     read_eval_set_info_async,
     stream_log_bytes,
 )
@@ -1624,7 +1625,38 @@ def test_fastapi_only_dir_access_policy() -> None:
     policy = fastapi_server.OnlyDirAccessPolicy("/allowed/dir")
     assert asyncio.run(policy.can_read(None, "/allowed/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/other/dir/file.eval"))  # type: ignore[arg-type]
+    assert not asyncio.run(policy.can_read(None, "/allowed/directory/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/allowed/dir/../etc/passwd"))  # type: ignore[arg-type]
+    assert not asyncio.run(policy.can_read(None, "unsupported://dir/file.eval"))  # type: ignore[arg-type]
+
+
+def test_normalize_uri_preserves_windows_drive() -> None:
+    windows_uri = "file://C:/Users/example/logs/run.eval"
+    assert normalize_uri(windows_uri) == windows_uri
+    assert normalize_uri("file:///C:/Users/example/logs/run.eval") == windows_uri
+    assert normalize_uri(urllib.parse.quote(windows_uri, safe="")) == windows_uri
+    assert normalize_uri("file://c:/Users/example/logs/run.eval") == (
+        "file://c:/Users/example/logs/run.eval"
+    )
+
+
+def test_fastapi_only_dir_access_policy_accepts_listed_file_uri(
+    tmp_path: Path,
+) -> None:
+    log_file = write_eval_log(tmp_path, "run.eval")
+    fs = inspect_ai._util.file.filesystem(log_file)
+    listed_uri = fs.path_as_uri(fs.fs._strip_protocol(log_file))
+
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            default_dir=str(tmp_path),
+            access_policy=fastapi_server.OnlyDirAccessPolicy(str(tmp_path)),
+        )
+    ) as client:
+        encoded_uri = urllib.parse.quote(listed_uri, safe="")
+        response = client.get(f"/logs/{encoded_uri}")
+
+    assert response.status_code == 200
 
 
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
