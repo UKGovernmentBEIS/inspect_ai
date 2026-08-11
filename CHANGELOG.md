@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.257 (11 August 2026)
 
 - Extend model database to include Fireworks models.
 - Scorer: `stderr(cluster=...)` avoids quadratic time and memory in cluster size; results and warnings can differ for extreme scores.
