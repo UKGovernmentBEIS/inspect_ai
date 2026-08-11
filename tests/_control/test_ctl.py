@@ -126,6 +126,74 @@ def test_tasks_table_hides_solver_column_when_absent(
     assert "solver" not in header
 
 
+def test_tasks_table_shows_refusal_and_retry_columns_only_when_nonzero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Zero is the usual value for both, so a standing pair of 0 columns is clutter.
+
+    Same rule as `errors` / `attempts`: the column earns its width by having
+    something to report. The `--json` row always carries both keys.
+    """
+    _print_human_table([_task_row("aaa111", "t1", refusals=0, http_retries=0)])
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "refusals" not in header and "http_retries" not in header
+
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", refusals=2, http_retries=0),
+            _task_row("bbb222", "t2", refusals=0, http_retries=9),
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    assert "refusals" in lines[0] and "http_retries" in lines[0]
+    assert "2" in next(ln for ln in lines if ln.startswith("aaa111"))
+    assert "9" in next(ln for ln in lines if ln.startswith("bbb222"))
+
+
+def test_tasks_table_survives_a_server_that_omits_the_counters(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An older server reports neither key; that must read as "nothing to show"."""
+    _print_human_table([_task_row("aaa111", "t1", model="openai/gpt-5")])
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "refusals" not in header and "http_retries" not in header
+
+
+def test_tasks_table_leaves_an_unreported_count_blank_not_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """In a mixed-version fleet, `0` would assert "none happened" about an unknown.
+
+    Observed live: rows from an older server sat at `0` beside a task that had in
+    fact retried many times. Blank is the honest cell, matching how the samples
+    table renders an unknown turn count.
+    """
+    _print_human_table(
+        [
+            _task_row("aaa111", "t1", http_retries=7),  # this server reports
+            _task_row("bbb222", "t2"),  # this one does not
+            _task_row("ccc333", "t3", http_retries=0),  # reports, and it is zero
+        ]
+    )
+    lines = capsys.readouterr().out.splitlines()
+    header = lines[0]
+    assert "http_retries" in header
+    # Slice by the header's own column offset. Splitting on whitespace cannot work
+    # here: the cell under test is EMPTY on one row, so a split would silently
+    # return a neighbouring column's token and the assertion would pass for the
+    # wrong reason (the `samples` cell contains spaces too).
+    start = header.index("http_retries")
+    width = len("http_retries")
+
+    def cell(prefix: str) -> str:
+        row = next(ln for ln in lines if ln.startswith(prefix))
+        return row[start : start + width].strip()
+
+    assert cell("aaa111") == "7"
+    assert cell("bbb222") == "", "an unreported count must not read as zero"
+    assert cell("ccc333") == "0"
+
+
 def _sample(
     sample_id: int, status: str, scores: dict[str, object]
 ) -> dict[str, object]:

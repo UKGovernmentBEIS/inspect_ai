@@ -500,6 +500,61 @@ def test_clustered_stderr_single_cluster():
     assert se == 0.0
 
 
+def test_clustered_stderr_matches_pairwise_definition():
+    # The clustered variance is defined as sum_i sum_j (s_i - mean)(s_j - mean)
+    # within each cluster. Pin the value against that definition, evaluated
+    # directly, on a lopsided split so no cluster size is representative.
+    values = [float(i % 5) for i in range(200)]
+    cluster_of = ["big" if i < 180 else f"small{i}" for i in range(200)]
+    scores = [
+        SampleScore(
+            score=Score(value=v), sample_metadata={"my_cluster": c}, sample_id=str(i)
+        )
+        for i, (v, c) in enumerate(zip(values, cluster_of))
+    ]
+
+    mean_value = sum(values) / len(values)
+    clustered_variance = 0.0
+    for cluster_id in set(cluster_of):
+        deviations = [
+            v - mean_value for v, c in zip(values, cluster_of) if c == cluster_id
+        ]
+        clustered_variance += sum(a * b for a in deviations for b in deviations)
+    cluster_count = len(set(cluster_of))
+    expected = (clustered_variance * cluster_count / (cluster_count - 1)) ** 0.5 / len(
+        scores
+    )
+
+    se = stderr(cluster="my_cluster")(scores)
+    assert se == pytest.approx(expected, rel=1e-12)
+
+
+def test_clustered_stderr_preserves_nan_cluster_behavior():
+    scores = [
+        SampleScore(
+            score=Score(value=1.0), sample_metadata={"my_cluster": float("nan")}
+        )
+        for _ in range(50)
+    ] + [
+        SampleScore(score=Score(value=0.0), sample_metadata={"my_cluster": 0.0})
+        for _ in range(50)
+    ]
+
+    # NaN identifiers count as a cluster for the finite-cluster correction,
+    # but their samples did not match the old per-cluster mask and therefore
+    # did not contribute to the variance.
+    assert stderr(cluster="my_cluster")(scores) == pytest.approx((1250.0**0.5) / 100.0)
+
+
+def test_clustered_stderr_single_sample_missing_metadata_raises():
+    # A single sample without the cluster key is a misconfigured eval, and the
+    # ValueError is how that surfaces. Guarding a short score list before
+    # validating it would silently return 0.0 instead.
+    metric = stderr(cluster="my_cluster")
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        metric([SampleScore(score=Score(value=1.0), sample_metadata={})])
+
+
 def test_grouped_mean_single():
     metric = grouped(mean(), group_key="group")
     result = metric(

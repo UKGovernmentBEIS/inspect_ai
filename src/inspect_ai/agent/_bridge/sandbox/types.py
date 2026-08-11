@@ -36,6 +36,8 @@ class SandboxAgentBridge(AgentBridge):
         forward_generation_config: bool = False,
         approval: list["ApprovalPolicy"] | None = None,
         checkpointer: Checkpointer | None = None,
+        allow_remote_mcp: bool = False,
+        allow_remote_media: bool = False,
     ) -> None:
         super().__init__(
             state,
@@ -48,6 +50,8 @@ class SandboxAgentBridge(AgentBridge):
             forward_generation_config=forward_generation_config,
             approval=approval,
             checkpointer=checkpointer,
+            allow_remote_mcp=allow_remote_mcp,
+            allow_remote_media=allow_remote_media,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []
