@@ -195,6 +195,14 @@ def moonshot() -> type[ModelAPI]:
     return MoonshotAPI
 
 
+@modelapi(name="deepseek")
+def deepseek() -> type[ModelAPI]:
+    validate_openai_client("DeepSeek API")
+    from .deepseek import DeepSeekAPI
+
+    return DeepSeekAPI
+
+
 @modelapi(name="sambanova")
 def sambanova() -> type[ModelAPI]:
     validate_openai_client("SambaNova API")
