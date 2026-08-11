@@ -14,11 +14,11 @@ def is_data_uri(url: str) -> bool:
 
 
 def data_uri_mime_type(data_url: str) -> str | None:
-    pattern = r"^data:([^;]+);.*"
+    pattern = r"^data:([^;,]+)"
     match = re.match(pattern, data_url)
     if match:
-        mime_type = match.group(1)
-        return mime_type
+        mime_type = match.group(1).strip()
+        return mime_type if mime_type else None
     else:
         return None
 
