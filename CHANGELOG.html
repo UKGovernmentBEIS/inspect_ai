@@ -194,10 +194,11 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#august-2026" id="toc-august-2026" class="nav-link active" data-scroll-target="#august-2026">0.3.255 (09 August 2026)</a></li>
-  <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.254 (08 August 2026)</a></li>
-  <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.253 (08 August 2026)</a></li>
-  <li><a href="#august-2026-3" id="toc-august-2026-3" class="nav-link" data-scroll-target="#august-2026-3">0.3.252 (04 August 2026)</a></li>
+  <li><a href="#august-2026" id="toc-august-2026" class="nav-link active" data-scroll-target="#august-2026">0.3.256 (11 August 2026)</a></li>
+  <li><a href="#august-2026-1" id="toc-august-2026-1" class="nav-link" data-scroll-target="#august-2026-1">0.3.255 (09 August 2026)</a></li>
+  <li><a href="#august-2026-2" id="toc-august-2026-2" class="nav-link" data-scroll-target="#august-2026-2">0.3.254 (08 August 2026)</a></li>
+  <li><a href="#august-2026-3" id="toc-august-2026-3" class="nav-link" data-scroll-target="#august-2026-3">0.3.253 (08 August 2026)</a></li>
+  <li><a href="#august-2026-4" id="toc-august-2026-4" class="nav-link" data-scroll-target="#august-2026-4">0.3.252 (04 August 2026)</a></li>
   <li><a href="#july-2026" id="toc-july-2026" class="nav-link" data-scroll-target="#july-2026">0.3.251 (29 July 2026)</a></li>
   <li><a href="#july-2026-1" id="toc-july-2026-1" class="nav-link" data-scroll-target="#july-2026-1">0.3.250 (28 July 2026)</a></li>
   <li><a href="#july-2026-2" id="toc-july-2026-2" class="nav-link" data-scroll-target="#july-2026-2">0.3.249 (20 July 2026)</a></li>
@@ -456,22 +457,29 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="august-2026" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026">0.3.255 (09 August 2026)</h2>
+<h2 class="anchored" data-anchor-id="august-2026">0.3.256 (11 August 2026)</h2>
+<ul>
+<li>Security: Parse <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span> scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.</li>
+<li>Hooks: <code>on_task_start</code> now receives the resolved solver plan as <code>data.plan</code>, including any <code>Task.setup</code> solvers.</li>
+</ul>
+</section>
+<section id="august-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-1">0.3.255 (09 August 2026)</h2>
 <ul>
 <li>Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.</li>
 <li>Sandbox Agent Bridge: Agents can no longer make Inspect fetch a URL or read a host file by putting it in image or document content.</li>
 <li>Control Channel: <code>inspect ctl task list</code> now reports per-eval <code>refusals</code> and <code>http_retries</code>.</li>
 </ul>
 </section>
-<section id="august-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-1">0.3.254 (08 August 2026)</h2>
+<section id="august-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-2">0.3.254 (08 August 2026)</h2>
 <ul>
 <li>Approval policies now apply to tool calls made by bridged agents; a rejected call is never run and the model is told to try something else.</li>
 <li>Deepagent: Remove the <code>subagent_type</code> parameter from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">agent()</a></span> tool when there is only one subagent type.</li>
 </ul>
 </section>
-<section id="august-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-2">0.3.253 (08 August 2026)</h2>
+<section id="august-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-3">0.3.253 (08 August 2026)</h2>
 <ul>
 <li>Agent Bridge: Codex agents on Multi-Agent V2 models can now spawn subagents through the bridge instead of failing the sample. (#4762)</li>
 <li>Sandbox: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#composeservice">ComposeService</a></span> now accepts the standard compose keys <code>restart</code>, <code>stdin_open</code>, and <code>tty</code> (previously rejected as unknown fields).</li>
@@ -500,8 +508,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Accessibility improvements across viewer components (jsx-a11y recommended ruleset). (#484)</li>
 </ul>
 </section>
-<section id="august-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="august-2026-3">0.3.252 (04 August 2026)</h2>
+<section id="august-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="august-2026-4">0.3.252 (04 August 2026)</h2>
 <ul>
 <li>Grok: Unknown (predeployment) model names are now treated as the latest Grok model for context window (compaction) and capability detection.</li>
 <li>Analysis: string values for <code>bool</code>-typed columns now coerce via YAML, so <code>"false"</code>/<code>"0"</code>/<code>"no"</code>/<code>"off"</code> parse to <code>False</code> instead of every non-empty string becoming <code>True</code>.</li>

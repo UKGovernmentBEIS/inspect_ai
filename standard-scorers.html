@@ -801,7 +801,7 @@ Score multiple-choice questions produced by the <span class="element-type-name r
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span></dt>
 <dd>
-Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both <code>\boxed{}</code> LaTeX notation and plain text), normalizes expressions, and uses SymPy to check equivalence across LaTeX, fractions, roots, percentages, and algebra. Requires the optional <code>sympy</code> dependency (install with <code>pip install sympy</code>).
+Compare answers for mathematical equivalence rather than as text. Extracts answers (supporting both <code>\boxed{}</code> LaTeX notation and plain text), normalizes expressions, and uses a non-evaluating mathematical grammar with bounded SymPy comparison across LaTeX, fractions, roots, percentages, sets, matrices, and algebra. Mathematical answers are treated as data: parsing and comparison run in a time-bounded worker thread and never evaluate answer text as Python. Malformed or over-budget model answers are incorrect; an invalid or over-budget target is unscored rather than counted against the model. Requires the optional math dependencies (install with <code>pip install inspect-ai[math]</code>).
 </dd>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#perplexity">perplexity()</a></span></dt>
 <dd>

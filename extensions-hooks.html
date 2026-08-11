@@ -787,7 +787,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-hook-events" class="level2">
 <h2 class="anchored" data-anchor-id="sec-hook-events">Hook Events</h2>
-<p>Each event method is <code>async</code>, returns <code>None</code>, and receives a single immutable data object carrying the details of the event. Implement only the methods you need. The events below are grouped by lifecycle level, from the outermost scope (an entire <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>) down to individual model calls. All of the data types are importable from <code>inspect_ai.hooks</code>; see the <a href="./reference/inspect_ai.hooks.html"><code>inspect_ai.hooks</code></a> reference for their full field definitions.</p>
+<p>Each event method is <code>async</code>, returns <code>None</code>, and receives a single data object carrying the details of the event. Treat that data as read-only: the event class itself is frozen, but the models nested inside it are not, and some of them are the objects Inspect goes on to write to the log. Implement only the methods you need. The events below are grouped by lifecycle level, from the outermost scope (an entire <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>) down to individual model calls. All of the data types are importable from <code>inspect_ai.hooks</code>; see the <a href="./reference/inspect_ai.hooks.html"><code>inspect_ai.hooks</code></a> reference for their full field definitions.</p>
 <section id="run-and-task" class="level3">
 <h3 class="anchored" data-anchor-id="run-and-task">Run and Task</h3>
 <p>These events bracket the execution of evaluations. A single <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> (or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span>) is a <em>run</em>, which executes one or more <em>tasks</em>; an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> groups multiple runs against a shared log directory.</p>
@@ -823,7 +823,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>on_task_start</code></td>
 <td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.hooks.html#taskstart">TaskStart</a></span></td>
-<td>When a task begins executing (<code>data.spec</code> is the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalspec">EvalSpec</a></span>).</td>
+<td>When a task begins executing (<code>data.spec</code> is the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalspec">EvalSpec</a></span>; <code>data.plan</code> is the resolved <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalplan">EvalPlan</a></span>).</td>
 </tr>
 <tr class="even">
 <td><code>on_task_end</code></td>

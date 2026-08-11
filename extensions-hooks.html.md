@@ -46,7 +46,7 @@ def wandb_hooks():
 
 ## Hook Events
 
-Each event method is `async`, returns `None`, and receives a single immutable data object carrying the details of the event. Implement only the methods you need. The events below are grouped by lifecycle level, from the outermost scope (an entire [eval_set()](./reference/inspect_ai.html.md#eval_set)) down to individual model calls. All of the data types are importable from `inspect_ai.hooks`; see the [`inspect_ai.hooks`](./reference/inspect_ai.hooks.html.md) reference for their full field definitions.
+Each event method is `async`, returns `None`, and receives a single data object carrying the details of the event. Treat that data as read-only: the event class itself is frozen, but the models nested inside it are not, and some of them are the objects Inspect goes on to write to the log. Implement only the methods you need. The events below are grouped by lifecycle level, from the outermost scope (an entire [eval_set()](./reference/inspect_ai.html.md#eval_set)) down to individual model calls. All of the data types are importable from `inspect_ai.hooks`; see the [`inspect_ai.hooks`](./reference/inspect_ai.hooks.html.md) reference for their full field definitions.
 
 ### Run and Task
 
@@ -58,7 +58,7 @@ These events bracket the execution of evaluations. A single [eval()](./reference
 | `on_eval_set_end` | [EvalSetEnd](./reference/inspect_ai.hooks.html.md#evalsetend) | When an eval set finishes. |
 | `on_run_start` | [RunStart](./reference/inspect_ai.hooks.html.md#runstart) | At the start of a single [eval()](./reference/inspect_ai.html.md#eval) / [eval_retry()](./reference/inspect_ai.html.md#eval_retry) invocation (`data.task_names` lists the tasks to run). |
 | `on_run_end` | [RunEnd](./reference/inspect_ai.hooks.html.md#runend) | At the end of a run — `data.exception` and `data.logs` carry the outcome. |
-| `on_task_start` | [TaskStart](./reference/inspect_ai.hooks.html.md#taskstart) | When a task begins executing (`data.spec` is the [EvalSpec](./reference/inspect_ai.log.html.md#evalspec)). |
+| `on_task_start` | [TaskStart](./reference/inspect_ai.hooks.html.md#taskstart) | When a task begins executing (`data.spec` is the [EvalSpec](./reference/inspect_ai.log.html.md#evalspec); `data.plan` is the resolved [EvalPlan](./reference/inspect_ai.log.html.md#evalplan)). |
 | `on_task_end` | [TaskEnd](./reference/inspect_ai.hooks.html.md#taskend) | When a task completes (`data.log` is the [EvalLog](./reference/inspect_ai.log.html.md#evallog)). |
 
 ### Sample
