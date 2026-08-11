@@ -2,6 +2,7 @@
 
 - Scoring: New `aggregate(key, agg=...)` metric factory applying any standard metric (`mean`, `stderr`, `accuracy`, …) to a single key of a dict-valued `Score.value`.
 - Agent Bridge: The final agent state now surfaces the real conversation instead of a side call (e.g. opencode's session title) when the scaffold decorates the task prompt, such as opencode quote-wrapping it. (#4768)
+- Inspect View: Logs inside the configured directory now open on Windows when listings identify them with canonical file URIs. (#4765)
 
 ## 0.3.257 (11 August 2026)
 
