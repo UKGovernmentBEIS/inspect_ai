@@ -1,3 +1,7 @@
+## Unreleased
+
+- Dataset: `read_sandbox()` and sample initialization now accept dictionaries, JSON object strings, `SandboxEnvironmentSpec` instances, and tuple/list specifications. (#4810)
+
 ## 0.3.255 (09 August 2026)
 
 - Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.

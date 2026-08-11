@@ -341,3 +341,34 @@ def dataset_path(file: str) -> str:
 
 def example_path(*paths: str) -> str:
     return os.path.join("examples", "/".join(paths))
+
+
+def test_read_sandbox_formats() -> None:
+    from inspect_ai.dataset._util import read_sandbox
+    from inspect_ai.util import SandboxEnvironmentSpec, resolve_sandbox_environment
+
+    formats = [
+        "docker",
+        ("docker", "compose.yaml"),
+        ["docker", "compose.yaml"],
+        {"type": "docker", "config": "compose.yaml"},
+        '["docker", "compose.yaml"]',
+        '{"type": "docker", "config": "compose.yaml"}',
+        SandboxEnvironmentSpec("docker", "compose.yaml"),
+    ]
+
+    for fmt in formats:
+        resolved_read = read_sandbox(fmt)
+        assert resolved_read is not None
+        assert resolved_read.type == "docker"
+        if fmt != "docker":
+            assert resolved_read.config == "compose.yaml"
+
+        resolved_env = resolve_sandbox_environment(fmt)  # type: ignore[arg-type]
+        assert resolved_env is not None
+        assert resolved_env.type == "docker"
+        if fmt != "docker":
+            assert resolved_env.config == "compose.yaml"
+
+    assert read_sandbox(None) is None
+    assert resolve_sandbox_environment(None) is None

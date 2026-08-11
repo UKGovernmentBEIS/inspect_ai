@@ -11,7 +11,10 @@ from inspect_ai.model import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentSpec,
+    resolve_sandbox_environment,
+)
 
 from ._dataset import (
     Dataset,
@@ -201,25 +204,12 @@ def read_setup(setup: Any | None) -> str | None:
 
 
 def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
-    if sandbox is not None:
-        if isinstance(sandbox, str):
-            if sandbox.strip().startswith("["):
-                sandbox = json.loads(sandbox)
-            else:
-                return SandboxEnvironmentSpec(sandbox)
-
-        if isinstance(sandbox, list):
-            if len(sandbox) == 2:
-                return SandboxEnvironmentSpec(str(sandbox[0]), str(sandbox[1]))
-            else:
-                raise ValueError(
-                    f"Invalid 'sandbox' value: '{str(sandbox)}'. Sandbox must be string or 2-item list"
-                )
-
-        # didn't find the right type
-        raise ValueError(f"Unexpected type for 'sandbox' field: {type(sandbox)}")
-    else:
+    if sandbox is None:
         return None
+    resolved = resolve_sandbox_environment(sandbox)
+    if resolved is None:
+        raise ValueError(f"Unexpected type for 'sandbox' field: {type(sandbox)}")
+    return resolved
 
 
 def read_files(files: Any | None) -> dict[str, str] | None:

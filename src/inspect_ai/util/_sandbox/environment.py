@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import (
@@ -529,11 +530,14 @@ class SandboxEnvironmentSpec(BaseModel, frozen=True):
 
 SandboxEnvironmentConfigType = BaseModel | str
 
-SandboxEnvironmentType = str | tuple[str, str] | SandboxEnvironmentSpec
-"""SandboxEnvironmentSpec and str and tuple shorthands for it.
+SandboxEnvironmentType = (
+    str | tuple[str, str] | list[str] | dict[str, Any] | SandboxEnvironmentSpec
+)
+"""SandboxEnvironmentSpec and str, tuple, list, dict shorthands for it.
 
 A plain str, e.g. "docker", is equivalent to SandboxEnvironmentSpec("docker")
-A tuple, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpec("docker", "compose.yaml")
+A tuple or list, e.g. ("docker", "compose.yaml"), is equivalent to SandboxEnvironmentSpec("docker", "compose.yaml")
+A dict, e.g. {"type": "docker", "config": "compose.yaml"}, is validated into a SandboxEnvironmentSpec
 """
 
 
@@ -541,14 +545,36 @@ def resolve_sandbox_environment(
     sandbox: SandboxEnvironmentType | None,
 ) -> SandboxEnvironmentSpec | None:
     # do the resolution
-    if isinstance(sandbox, str):
-        return SandboxEnvironmentSpec(type=sandbox)
-    elif isinstance(sandbox, SandboxEnvironmentSpec):
-        return sandbox
-    elif isinstance(sandbox, tuple):
-        return SandboxEnvironmentSpec(sandbox[0], sandbox[1])
-    else:
+    if sandbox is None:
         return None
+    if isinstance(sandbox, SandboxEnvironmentSpec):
+        return sandbox
+    if isinstance(sandbox, str):
+        trimmed = sandbox.strip()
+        if trimmed.startswith("{") or trimmed.startswith("["):
+            try:
+                parsed = json.loads(trimmed)
+                return resolve_sandbox_environment(parsed)
+            except json.JSONDecodeError:
+                pass
+        return SandboxEnvironmentSpec(type=sandbox)
+    if isinstance(sandbox, dict):
+        if isinstance(sandbox.get("config"), dict) and len(sandbox["config"]) > 0:
+            return SandboxEnvironmentSpec.model_validate(sandbox)
+        return SandboxEnvironmentSpec(
+            type=str(sandbox.get("type", "")),
+            config=sandbox.get("config"),
+        )
+    if isinstance(sandbox, (list, tuple)):
+        if len(sandbox) == 1:
+            return SandboxEnvironmentSpec(type=str(sandbox[0]))
+        elif len(sandbox) == 2:
+            return SandboxEnvironmentSpec(type=str(sandbox[0]), config=sandbox[1])
+        else:
+            raise ValueError(
+                f"Invalid 'sandbox' value: '{str(sandbox)}'. Sandbox must be string, tuple, list, dict, or SandboxEnvironmentSpec"
+            )
+    return None
 
 
 def deserialize_sandbox_specific_config(
