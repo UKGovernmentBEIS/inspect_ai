@@ -201,9 +201,7 @@ def _run_single_score(model_graded_fact_kwargs: dict[str, Any]) -> None:
     [
         pytest.param({}, id="no_model_no_role_binding"),
         pytest.param({"model_role": None}, id="explicit_no_role"),
-        pytest.param(
-            {"model_role": "grader"}, id="role_requested_but_not_bound"
-        ),
+        pytest.param({"model_role": "grader"}, id="role_requested_but_not_bound"),
     ],
 )
 def test_model_graded_warns_when_no_grader_bound(
@@ -238,6 +236,48 @@ def test_model_graded_no_warning_when_grader_bound(
     )
     eval(task, model="mockllm/model", model_roles={"grader": grader_model})[0]
     assert not any("will grade itself" in m for m in _warn_once_messages)
+
+
+def test_model_graded_no_warning_for_multi_scorer_model_list(
+    _warn_once_messages: list[str],
+) -> None:
+    # model_graded_qa with a list of models wraps each sub-scorer in a
+    # multi_scorer; every sub-scorer has an explicit grader model bound, so
+    # the self-grading warning must not fire.
+    graders = [
+        get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content(
+                    "mockllm/model", [ContentText(text="GRADE: C")]
+                )
+            ],
+        )
+        for _ in range(2)
+    ]
+    task = Task(
+        scorer=model_graded_qa(model=graders),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.results and log.results.scores
+    assert not any("will grade itself" in m for m in _warn_once_messages)
+
+
+def test_model_graded_nested_scorers_warn_once(
+    _warn_once_messages: list[str],
+) -> None:
+    # Multiple unbound model-graded scorers in a single task all hit the
+    # same self-grading fallback; warn_once must dedupe them to exactly one
+    # warning rather than spamming one per scorer.
+    task = Task(
+        scorer=[model_graded_qa(), model_graded_fact()],
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.results and log.results.scores
+    assert len(log.results.scores) == 2
+    assert len([m for m in _warn_once_messages if "will grade itself" in m]) == 1
 
 
 def test_model_graded_answer_set_on_grade_parse_failure():
