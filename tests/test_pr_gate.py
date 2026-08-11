@@ -132,15 +132,82 @@ def test_linked_issue_without_accepted_fails():
     assert v.verdict == "close"
 
 
+# --- deferred veto: a deferred linked issue closes the PR for every
+# automatic pass; only the human-vouched qualified tier goes through ---
+
+
+def test_deferred_linked_issue_fails_established_author():
+    v = pr_gate.decide(
+        make_ctx(has_prior_nontrivial_merge=True, linked_issue_labels=["deferred"])
+    )
+    assert v.verdict == "close" and v.tier == "deferred"
+
+
+def test_deferred_overrides_accepted_on_same_issue():
+    v = pr_gate.decide(make_ctx(linked_issue_labels=["accepted", "deferred"]))
+    assert v.verdict == "close" and v.tier == "deferred"
+
+
+def test_deferred_overrides_trivial_carveout():
+    v = pr_gate.decide(
+        make_ctx(
+            files=[{"filename": "README.md", "additions": 2, "deletions": 0}],
+            linked_issue_labels=["deferred"],
+        )
+    )
+    assert v.verdict == "close" and v.tier == "deferred"
+
+
+def test_deferred_label_is_case_insensitive():
+    v = pr_gate.decide(make_ctx(linked_issue_labels=["Deferred"]))
+    assert v.verdict == "close" and v.tier == "deferred"
+
+
+def test_team_passes_despite_deferred():
+    v = pr_gate.decide(
+        make_ctx(author_association="MEMBER", linked_issue_labels=["deferred"])
+    )
+    assert v.verdict == "pass" and v.tier == "qualified"
+
+
+def test_listed_account_passes_despite_deferred():
+    v = pr_gate.decide(make_ctx(author_id=111222, linked_issue_labels=["deferred"]))
+    assert v.verdict == "pass" and v.tier == "qualified"
+
+
+def test_qualified_label_passes_despite_deferred():
+    v = pr_gate.decide(
+        make_ctx(pr_labels=["qualified"], linked_issue_labels=["deferred"])
+    )
+    assert v.verdict == "pass" and v.tier == "qualified"
+
+
 # --- close comment ---
 
 
 def test_close_comment_has_marker_and_both_doors():
-    body = pr_gate.close_comment(dry_run=False)
+    body = pr_gate.close_comment()
     assert pr_gate.COMMENT_MARKER in body
     assert "issue" in body and "extension" in body
 
 
-def test_dry_run_comment_says_would_close():
-    body = pr_gate.close_comment(dry_run=True)
-    assert "would have been closed" in body
+def test_deferred_close_comment_is_distinct_and_marked():
+    body = pr_gate.deferred_close_comment()
+    assert pr_gate.COMMENT_MARKER in body
+    assert "deferred" in body
+    assert body != pr_gate.close_comment()
+
+
+# --- grandfathering ---
+
+
+def test_pr_created_before_policy_is_grandfathered():
+    assert pr_gate.is_grandfathered("2026-07-28T06:43:25Z")
+
+
+def test_pr_created_after_policy_is_not_grandfathered():
+    assert not pr_gate.is_grandfathered("2026-07-30T00:00:00Z")
+
+
+def test_pr_created_at_policy_start_is_not_grandfathered():
+    assert not pr_gate.is_grandfathered(pr_gate.POLICY_START)

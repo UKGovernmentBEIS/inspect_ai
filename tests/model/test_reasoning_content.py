@@ -3,6 +3,7 @@ from typing import Any, Literal, cast
 import pytest
 from test_helpers.utils import (
     skip_if_no_cloudflare,
+    skip_if_no_deepseek,
     skip_if_no_groq,
     skip_if_no_moonshot,
     skip_if_no_openai,
@@ -105,6 +106,12 @@ def test_reasoning_content_cloudflare(model: str):
 @skip_if_no_moonshot
 def test_reasoning_content_moonshot():
     check_reasoning_round_trip("moonshot/kimi-k3")
+
+
+@pytest.mark.slow
+@skip_if_no_deepseek
+def test_reasoning_content_deepseek():
+    check_reasoning_round_trip("deepseek/deepseek-v4-flash")
 
 
 @pytest.mark.slow

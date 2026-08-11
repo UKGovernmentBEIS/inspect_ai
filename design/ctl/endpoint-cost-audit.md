@@ -102,7 +102,7 @@ the registry lock before the read, so concurrent first requests perform at
 most one read; a failed read leaves the provisional header-derived values
 permanently (no retry storm); only a cancellation restores the claim for a
 later retry. Bounded and confirmed. The per-row `paused`/`quiesced` fields
-added by #4531 keep the listing counter-shaped: `task_pause_scope` and
+added by #4531 keep the listing counter-shaped: `task_pause_sources` and
 `task_dispatched_count` are O(1) lookups against in-memory gate state and a
 dispatch counter maintained at the sample gate (write time), not derived per
 request.

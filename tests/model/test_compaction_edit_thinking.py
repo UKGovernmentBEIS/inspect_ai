@@ -207,8 +207,9 @@ async def test_thinking_compaction_google() -> None:
 @skip_if_no_mistral
 @pytest.mark.slow
 async def test_thinking_compaction_mistral() -> None:
+    # Mistral's effort scale is high/none, so "low" is submitted as "high"
     await check_thinking_compaction(
-        "mistral/magistral-medium-2509",
+        "mistral/mistral-medium-latest",
         GenerateConfig(reasoning_effort="low"),
         conversation_api=False,
     )

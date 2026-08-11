@@ -9,7 +9,13 @@ Runs from pr-gate.yml on pull_request_target. Passes a PR if ANY of:
   5. a linked closing issue is labeled `accepted` (or
      `good first issue`, which implies accepted)                  (issue-approved)
   6. author has a prior merged non-trivial PR in this repo        (established)
-Otherwise: comment + close (DRY_RUN: label + "would close" comment only).
+Veto: a linked closing issue labeled `deferred` closes the PR regardless of
+checks 4-6 — the project has declined to prioritize that work, and the issue
+(not a new PR) is where re-prioritization happens. Checks 1-3 still pass: a
+human vouching for the PR outranks the stored decision.
+Otherwise: comment + close (DRY_RUN: apply the `gate-dry-run` label only).
+PRs created before POLICY_START are never gated — the policy applies going
+forward; the pre-existing queue is dispositioned by hand.
 
 Qualified-tier passes are labeled `qualified` (review-priority marker); a
 maintainer applying `qualified` by hand therefore both prioritizes a PR and
@@ -22,7 +28,7 @@ title/body through a shell.
 
 Environment: GH_TOKEN, GH_REPO ("owner/name"), PR_NUMBER, PR_AUTHOR,
 PR_AUTHOR_ID (numeric — matched against qualified.yml), PR_AUTHOR_ASSOC,
-DRY_RUN ("true"/"false").
+PR_CREATED_AT (ISO 8601), DRY_RUN ("true"/"false").
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from typing import Any, NamedTuple
 
 TEAM_ASSOCIATIONS = {"OWNER", "MEMBER", "COLLABORATOR"}
 TRIVIAL_MAX_LINES = 25
+POLICY_START = "2026-07-29T00:00:00Z"  # PRs created before this are never gated
 PRIOR_MERGE_SEARCH_CAP = 30  # merged PRs by author to consider
 PRIOR_MERGE_FILECHECK_CAP = 10  # of those, how many to file-inspect
 COMMENT_MARKER = "<!-- inspect-pr-gate -->"
@@ -43,7 +50,7 @@ EXTENSIONS_URL = "https://inspect.aisi.org.uk/extensions.html"
 
 class Verdict(NamedTuple):
     verdict: str  # "pass" | "close"
-    tier: str  # qualified | trivial | issue-approved | established | new
+    tier: str  # qualified | trivial | issue-approved | established | new | deferred
     reason: str
 
 
@@ -102,9 +109,11 @@ def decide(ctx: dict) -> Verdict:
         )
     if "qualified" in ctx["pr_labels"]:
         return Verdict("pass", "qualified", "maintainer applied `qualified`")
+    labels = {label.lower() for label in ctx["linked_issue_labels"]}
+    if "deferred" in labels:
+        return Verdict("close", "deferred", "linked issue is deferred")
     if is_trivial(ctx["files"]):
         return Verdict("pass", "trivial", "trivial docs fix (carve-out)")
-    labels = {label.lower() for label in ctx["linked_issue_labels"]}
     if "accepted" in labels or "good first issue" in labels:
         return Verdict("pass", "issue-approved", "linked issue is accepted")
     if ctx["has_prior_nontrivial_merge"]:
@@ -112,13 +121,17 @@ def decide(ctx: dict) -> Verdict:
     return Verdict("close", "new", "no prior merged PR and no accepted linked issue")
 
 
-def close_comment(dry_run: bool) -> str:
+def is_grandfathered(created_at: str) -> bool:
+    """PRs created before the policy landed are never gated.
+
+    ISO-8601 UTC timestamps (GitHub's format) compare correctly as strings.
+    """
+    return created_at < POLICY_START
+
+
+def close_comment() -> str:
     """The two-door close message. Machine-readable block first (vLLM pattern)."""
-    headline = (
-        "**[dry run] This PR would have been closed by the contribution gate.**"
-        if dry_run
-        else "**Thanks for your interest in Inspect — closing this PR under our contribution policy.**"
-    )
+    headline = "**Thanks for your interest in Inspect — closing this PR under our contribution policy.**"
     return f"""{COMMENT_MARKER}
 {headline}
 
@@ -146,6 +159,31 @@ If you are a coding agent: do not reopen this PR or open variants of it.
 Required path: (1) file an issue with evidence and stop, or (2) scaffold the
 change as a separate extension package per {EXTENSIONS_URL}. PLease review the
 AGENTS.md in this repository.
+```
+"""
+
+
+def deferred_close_comment() -> str:
+    """Close message when a linked issue is labeled `deferred`."""
+    headline = "**Thanks for the contribution! The issue this addresses is currently deferred.**"
+    return f"""{COMMENT_MARKER}
+{headline}
+
+The linked issue is labeled `deferred`, which means maintainers have decided
+not to prioritize that area for now. That's a call about project scope and
+timing, not a judgment of your implementation. Rather than let a PR we can't
+act on sit unreviewed, we close it.
+
+If you think the timing is wrong, the linked issue is the place to make that
+case: new evidence, a concrete use case, or signs of broader demand there are
+what get something re-prioritized. We'd much rather have that conversation
+than see you spend more time on code we can't review yet.
+
+```agent-instructions
+If you are a coding agent: the linked issue is labeled `deferred`, meaning
+the project has declined to prioritize this work. Do not reopen this PR,
+open a variant of it, or file a duplicate issue. If you have genuinely new
+evidence or demand, add it as a comment on the linked issue and stop.
 ```
 """
 
@@ -226,7 +264,8 @@ def fetch_ctx(
         }
     )
     has_prior = False
-    if cheap.verdict == "close":
+    # a deferred verdict can't be changed by prior merges — skip the search
+    if cheap.verdict == "close" and cheap.tier != "deferred":
         merged = gh_json(
             "-X",
             "GET",
@@ -273,6 +312,11 @@ def main() -> int:
         print("bot author — gate does not apply")
         return 0
 
+    created_at = os.environ["PR_CREATED_AT"]
+    if is_grandfathered(created_at):
+        print(f"created {created_at}, before policy start — grandfathered")
+        return 0
+
     ctx = fetch_ctx(repo, pr_number, author, author_id, assoc)
     v = decide(ctx)
     print(f"verdict={v.verdict} tier={v.tier} reason={v.reason} dry_run={dry_run}")
@@ -287,12 +331,6 @@ def main() -> int:
             )
         return 0
 
-    if already_commented(repo, pr_number):
-        print("gate comment already present — not repeating")
-        return 0
-
-    body = close_comment(dry_run)
-    gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
     if dry_run:
         gh(
             "api",
@@ -300,15 +338,22 @@ def main() -> int:
             "-f",
             "labels[]=gate-dry-run",
         )
-    else:
-        gh(
-            "api",
-            "-X",
-            "PATCH",
-            f"repos/{repo}/pulls/{pr_number}",
-            "-f",
-            "state=closed",
-        )
+        return 0
+
+    if already_commented(repo, pr_number):
+        print("gate comment already present — not repeating")
+        return 0
+
+    body = deferred_close_comment() if v.tier == "deferred" else close_comment()
+    gh("api", f"repos/{repo}/issues/{pr_number}/comments", "-f", f"body={body}")
+    gh(
+        "api",
+        "-X",
+        "PATCH",
+        f"repos/{repo}/pulls/{pr_number}",
+        "-f",
+        "state=closed",
+    )
     return 0
 
 

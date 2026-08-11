@@ -33,12 +33,14 @@ from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
     get_direct_url,
     get_log_bytes,
-    list_eval_logs_async,
     read_eval_set_info_async,
     stream_log_bytes,
 )
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
+from inspect_ai.event import ScoreEvent
+from inspect_ai.log import list_eval_logs_async
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.scorer import Score
 
 FRONTEND_REQUEST_HEADERS = {
     fastapi_server.VIEW_REQUEST_HEADER: fastapi_server.VIEW_REQUEST_HEADER_VALUE,
@@ -958,6 +960,29 @@ def test_api_pending_samples_with_buffer(view_client: ViewTestClient) -> None:
     assert resp2.status_code == 304
 
 
+def test_api_pending_samples_preserves_non_finite_scores(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+    buffer = inspect_ai.log._recorders.buffer.filestore.SampleBufferFilestore(
+        full_path, create=False
+    )
+    manifest = buffer.read_manifest()
+    assert manifest is not None
+    manifest.samples[0].summary.scores = {"listy": Score(value=[float("nan"), 1.0])}
+    buffer.write_manifest(manifest)
+
+    response = view_client.request(
+        "GET", f"/pending-samples?log={urllib.parse.quote_plus(full_path)}"
+    )
+
+    response.raise_for_status()
+    value = response.json()["samples"][0]["scores"]["listy"]["value"]
+    assert math.isnan(value[0])
+
+
 def test_api_pending_sample_data_no_buffer(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
@@ -982,6 +1007,56 @@ def test_api_pending_sample_data_with_buffer(view_client: ViewTestClient) -> Non
     body = resp.json()
     assert len(body["events"]) == 1
     assert body["events"][0]["event"] == {"message": "hello"}
+
+
+def test_api_pending_sample_data_preserves_non_finite_scores(
+    view_client: ViewTestClient,
+) -> None:
+    from inspect_ai.log._recorders.buffer.filestore import (
+        SampleBufferFilestore,
+        SegmentFile,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+    buffer = SampleBufferFilestore(full_path, create=False)
+    score_event = ScoreEvent(
+        score=Score(value=[float("nan"), 1.0]),
+        scorer="listy",
+    )
+    buffer.write_segment(
+        0,
+        [
+            SegmentFile(
+                id="sample1",
+                epoch=0,
+                data=SampleData(
+                    events=[
+                        EventData(
+                            id=1,
+                            event_id="evt0",
+                            sample_id="sample1",
+                            epoch=0,
+                            event=score_event.model_dump(mode="json"),
+                        )
+                    ],
+                    attachments=[],
+                ),
+            )
+        ],
+    )
+
+    response = view_client.request(
+        "GET",
+        f"/pending-sample-data?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0",
+    )
+
+    response.raise_for_status()
+    value = response.json()["events"][0]["event"]["score"]["value"]
+    assert math.isnan(value[0])
 
 
 def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
@@ -1061,11 +1136,13 @@ async def test_read_eval_set_info_async_raises_non_auth_errors(
 async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from inspect_ai._util._async import current_async_backend
     from inspect_ai._util.file import FileInfo
-    from inspect_ai._view import common
+    from inspect_ai.log import _file as log_file
 
     filesystem_calls: list[tuple[str, dict[str, Any]]] = []
     async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    sync_ls_calls: list[tuple[str, bool]] = []
 
     class FakeFileSystem:
         def is_s3(self) -> bool:
@@ -1073,6 +1150,21 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
 
         def is_async(self) -> bool:
             return True
+
+        def exists(self, path: str) -> bool:
+            return True
+
+        def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
+            sync_ls_calls.append((path, recursive))
+            return [
+                FileInfo(
+                    name=f"{path}/2026-01-01T00-00-00_task_id.eval",
+                    type="file",
+                    size=123,
+                    mtime=1710000000.0,
+                    etag=None,
+                )
+            ]
 
         def _file_info(self, info: dict[str, Any]) -> FileInfo:
             return FileInfo(
@@ -1115,16 +1207,23 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise AssertionError("AsyncFilesystem fast path should not be used")
 
-    monkeypatch.setattr(common, "filesystem", fake_filesystem)
-    monkeypatch.setattr(common, "async_filesystem", fake_async_filesystem)
-    monkeypatch.setattr(common, "AsyncFilesystem", UnexpectedAsyncFilesystem)
+    monkeypatch.setattr(log_file, "filesystem", fake_filesystem)
+    monkeypatch.setattr(log_file, "async_filesystem", fake_async_filesystem)
+    monkeypatch.setattr(log_file, "AsyncFilesystem", UnexpectedAsyncFilesystem)
 
     logs = await list_eval_logs_async(
         "s3://bucket/logs", recursive=False, fs_options={"anon": True}
     )
 
     assert filesystem_calls == [("s3://bucket/logs", {"anon": True})]
-    assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    if current_async_backend() == "asyncio":
+        assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+        assert sync_ls_calls == []
+    else:
+        # under trio the fsspec asynchronous=True path is unavailable, so the
+        # listing falls back to fsspec's backend-agnostic sync API
+        assert async_filesystem_calls == []
+        assert sync_ls_calls == [("s3://bucket/logs", False)]
     assert len(logs) == 1
     assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
     assert logs[0].task == "task"

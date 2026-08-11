@@ -70,6 +70,62 @@ def _make_log_with_nan_score() -> EvalLog:
     )
 
 
+def _make_log_with_big_int() -> EvalLog:
+    """Build a minimal log whose sample JSON contains an integer > 2**63 - 1."""
+    # +1 so the value isn't float-representable: a lossy round-trip
+    # (which would round to exactly 2**64) fails the equality assert
+    big = 2**64 + 1
+    sample = EvalSample(
+        id="s1",
+        epoch=1,
+        input="hello",
+        target="world",
+        messages=[ChatMessageUser(content="hi")],
+        store={"parcelId": big},
+        scores={"match": Score(value=1, answer="Yes", metadata={"parcelId": big})},
+    )
+    return EvalLog(
+        version=LOG_SCHEMA_VERSION,
+        status="success",
+        eval=EvalSpec(
+            task="t",
+            task_id="i",
+            model="m",
+            dataset=EvalDataset(name="d", samples=1),
+            config=EvalConfig(),
+            created="2025-01-01T00:00:00Z",
+        ),
+        plan=EvalPlan(),
+        results=EvalResults(total_samples=1, completed_samples=1),
+        stats=EvalStats(
+            started_at="2025-01-01T00:00:00Z",
+            completed_at="2025-01-01T00:01:00Z",
+        ),
+        samples=[sample],
+    )
+
+
+def test_read_eval_log_exclude_fields_big_int_fallback():
+    """The ijson C backend overflows on integers > 2**63 - 1; we fall back to json.loads.
+
+    Make sure we still respect exclude_fields and the value round-trips exactly.
+    """
+    log = _make_log_with_big_int()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "big.eval")
+        write_eval_log(log, path)
+
+        read_log = read_eval_log(path, exclude_fields={"messages", "store"})
+
+    assert read_log.samples
+    sample = read_log.samples[0]
+    # excluded fields are still dropped on the json.loads fallback path
+    assert not sample.messages
+    assert not sample.store
+    # the big int in a kept field is preserved with no precision loss
+    assert sample.scores["match"].metadata["parcelId"] == 2**64 + 1
+
+
 def test_read_eval_log_exclude_fields_nan_inf_fallback():
     """When NaNs are present, ijson fails and we fall back to json.loads.
 
