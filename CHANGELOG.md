@@ -2,6 +2,11 @@
 
 - Bugfix: With the default grading instructions, model-graded scorers no longer score a `GRADE: P` response as partial credit when `partial_credit` is disabled; the sample is left unscored instead. Custom `instructions` are unaffected. Note that accuracy may shift on existing evals where graders returned "P" against a binary scorer. (#4696)
 
+## 0.3.256 (11 August 2026)
+
+- Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
+- Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
+
 ## 0.3.255 (09 August 2026)
 
 - Sandbox Agent Bridge: Agents can no longer reach the web via provider web search, code execution, or remote MCP unless the eval grants it.
