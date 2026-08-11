@@ -539,9 +539,9 @@ async def test_target_timeout_is_unscored(monkeypatch: pytest.MonkeyPatch) -> No
         await anyio.sleep(1)
 
     monkeypatch.setattr(math_module, "run_sync", slow_run_sync)
-    monkeypatch.setattr(math_module, "_COLD_WORKER_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(math_module, "_MIN_COLD_TIMEOUT_SECONDS", 0.01)
 
-    result = await math()(
+    result = await math(timeout=0.01)(
         simple_task_state(model_output="42"),
         Target(["42"]),
     )
@@ -563,9 +563,8 @@ async def test_answer_timeout_is_incorrect(monkeypatch: pytest.MonkeyPatch) -> N
         await anyio.sleep(1)
 
     monkeypatch.setattr(math_module, "run_sync", staged_run_sync)
-    monkeypatch.setattr(math_module, "_ANSWER_TIMEOUT_SECONDS", 0.01)
 
-    result = await math()(
+    result = await math(timeout=0.01)(
         simple_task_state(model_output="42"),
         Target(["42"]),
     )
@@ -619,12 +618,8 @@ async def test_worker_queue_time_is_not_expression_timeout(
         return math_module._WorkerScore("correct", "42")
 
     monkeypatch.setattr(math_module, "run_sync", short_worker_call)
-    monkeypatch.setattr(math_module, "_MATH_WORKERS", 1)
-    monkeypatch.setattr(math_module, "_COLD_WORKER_TIMEOUT_SECONDS", 0.05)
-    monkeypatch.setattr(math_module, "_TARGET_TIMEOUT_SECONDS", 0.05)
-    monkeypatch.setattr(math_module, "_ANSWER_TIMEOUT_SECONDS", 0.05)
 
-    scorer = math()
+    scorer = math(timeout=0.05)
     results = []
 
     async def run_score() -> None:
@@ -651,11 +646,7 @@ def test_worker_context_resets_across_event_loops(
         return math_module._WorkerScore("correct", "42")
 
     monkeypatch.setattr(math_module, "run_sync", cold_worker_call)
-    monkeypatch.setattr(math_module, "_MATH_WORKERS", 1)
-    monkeypatch.setattr(math_module, "_COLD_WORKER_TIMEOUT_SECONDS", 0.05)
-    monkeypatch.setattr(math_module, "_TARGET_TIMEOUT_SECONDS", 0.005)
-    monkeypatch.setattr(math_module, "_ANSWER_TIMEOUT_SECONDS", 0.05)
-    scorer = math()
+    scorer = math(timeout=0.05)
 
     async def run_once() -> None:
         result = await scorer(

@@ -44,10 +44,14 @@ _MAX_INTEGER_BITS = 4_096
 _SYMBOLIC_POWER_EXPONENT_LIMIT = 10_000
 _MAX_FACTORIAL_ARGUMENT = 10_000
 
-_TARGET_TIMEOUT_SECONDS = 2.0
-_ANSWER_TIMEOUT_SECONDS = 2.0
-_COLD_WORKER_TIMEOUT_SECONDS = 10.0
-_MATH_WORKERS = 4
+_DEFAULT_TIMEOUT_SECONDS = 2.0
+# The first call also pays one-time imports (sympy, latex2sympy2) in the worker
+# thread, so its budget is floored well above the steady-state timeout.
+_MIN_COLD_TIMEOUT_SECONDS = 10.0
+# SymPy parsing and `.equals()` are pure-Python CPU-bound work, so additional
+# worker threads only share the GIL: no throughput gain, just more wall-clock
+# per parse and more spurious timeouts against the per-item budget. Keep one.
+_MATH_WORKERS = 1
 
 _BOX_START = re.compile(
     r"(?:\\(?:beginboxed|boxed|fbox)|(?<![A-Za-z\\])(?:boxed|fbox|oxed))\s*\{"
@@ -158,20 +162,18 @@ class _WorkerScore:
 
 @dataclass
 class _MathWorkerContext:
-    # `queue` bounds the number of concurrent scorings; `thread_limiter` is
-    # passed to `to_thread.run_sync` to bound steady-state worker-thread
-    # concurrency.
+    # A single-slot limiter serializes scorings ahead of the per-item budget.
+    # The `async with queue` sits outside `fail_after`, so time spent waiting
+    # for the worker does not consume the budget. Parsing then runs in one
+    # worker thread: it keeps the event loop responsive and — crucially — gives
+    # `fail_after` an await to cancel, which is the only reason the budget is
+    # enforceable (a synchronous inline parse has no await point to interrupt).
     #
-    # Neither bounds threads abandoned on timeout: with `abandon_on_cancel=True`,
-    # anyio's asyncio backend releases the limiter token as soon as `fail_after`
-    # cancels the await, while the worker thread keeps running. An input that
-    # passes the static complexity limits but still makes SymPy `.equals()` spin
-    # therefore leaves one CPU-bound thread running past the deadline, with no
-    # cap on how many accumulate; the static limits reduce but do not eliminate
-    # this. A real bound would need in-worker synchronization or a killable
-    # subprocess pool.
+    # The budget does not bound the worker itself: with `abandon_on_cancel=True`
+    # a timed-out parse is abandoned, not killed, so it keeps running. The
+    # static complexity limits reduce but do not eliminate that; a real CPU
+    # bound would need a killable subprocess pool.
     queue: anyio.CapacityLimiter
-    thread_limiter: anyio.CapacityLimiter
     started: bool = False
 
 
@@ -182,10 +184,7 @@ def _math_worker_context() -> _MathWorkerContext:
     try:
         return _MATH_WORKER_CONTEXT.get()
     except LookupError:
-        context = _MathWorkerContext(
-            queue=anyio.CapacityLimiter(_MATH_WORKERS),
-            thread_limiter=anyio.CapacityLimiter(_MATH_WORKERS),
-        )
+        context = _MathWorkerContext(queue=anyio.CapacityLimiter(_MATH_WORKERS))
         _MATH_WORKER_CONTEXT.set(context)
         return context
 
@@ -1179,31 +1178,34 @@ def _status_metadata(status: str) -> dict[str, str]:
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def math() -> Scorer:
+def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
     """Create a mathematical expression scorer.
 
     Extracts a bounded final answer from model output, parses it without
     evaluating Python, and compares it to each target under bounded symbolic
     work.
+
+    Args:
+        timeout: Active-work budget in seconds for each parsing phase (target
+            and answer). This is wall-clock time in the host process and so is
+            sensitive to concurrent load; parsing that exceeds it is treated as
+            an incorrect answer (or an unscored target). The first call gets a
+            larger cold-start allowance to absorb one-time imports.
     """
     _check_dependency()
+    cold_timeout = max(_MIN_COLD_TIMEOUT_SECONDS, 5 * timeout)
 
     async def score(state: TaskState, target: Target) -> Score:
         worker = _math_worker_context()
         targets = tuple(target)
         try:
             async with worker.queue:
-                target_timeout = (
-                    _TARGET_TIMEOUT_SECONDS
-                    if worker.started
-                    else _COLD_WORKER_TIMEOUT_SECONDS
-                )
+                target_timeout = timeout if worker.started else cold_timeout
                 with anyio.fail_after(target_timeout):
                     parsed_targets, target_error = await run_sync(
                         _parse_targets_worker,
                         targets,
                         abandon_on_cancel=True,
-                        limiter=worker.thread_limiter,
                     )
             worker.started = True
         except TimeoutError:
@@ -1221,13 +1223,12 @@ def math() -> Scorer:
 
         try:
             async with worker.queue:
-                with anyio.fail_after(_ANSWER_TIMEOUT_SECONDS):
+                with anyio.fail_after(timeout):
                     result = await run_sync(
                         _score_answer_worker,
                         state.output.completion,
                         parsed_targets,
                         abandon_on_cancel=True,
-                        limiter=worker.thread_limiter,
                     )
         except TimeoutError:
             worker.started = False
