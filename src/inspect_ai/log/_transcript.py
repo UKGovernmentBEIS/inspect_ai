@@ -1,9 +1,10 @@
 import contextlib
+import copy
 import os
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
@@ -27,16 +28,21 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import _CALL_MESSAGE_KEYS, _strict_eq
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
+    ATTACHMENT_PROTOCOL,
     WalkContext,
     attachment_refs_from_object,
     events_attachment_fn,
+    walk_json_dict,
+    walk_json_value,
     walk_model_call,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 if TYPE_CHECKING:
@@ -80,6 +86,50 @@ recent slice of history (e.g. the ACP replay-on-attach in
 this value) can rely on that slice being served from resident,
 attachment-resolved memory rather than re-materialized from the buffer DB.
 """
+
+
+CALL_WALK_CACHE_SLOTS = 8
+"""Retained request lineages for the transcript call-condense cache.
+
+Each generate stream produces two lineages per turn (the raw request at
+call-registration/completion, and the transcript-condensed form the
+timestamp update re-notifies), so 8 slots cover ~4 interleaved streams
+(fork()/collect()/parallel tools funnel into one sample transcript).
+Exhaustion degrades to a full walk — today's behavior — never worse.
+"""
+
+
+@dataclass
+class _CallWalkSlot:
+    """One retained request lineage for `Transcript._condense_model_call`.
+
+    ``pre_walk`` and ``walked`` are cache-owned deep copies (strings shared —
+    deepcopy treats str as atomic): the copy-on-write walkers alias unchanged
+    subtrees of the caller's live request, and callers can mutate
+    ``call.request`` in place (same hazard `CallPoolIndex.set_prev`
+    documents). ``attachments`` holds the (hash, content) pairs walking each
+    message created, so prefix reuse can re-assert content that bounded-mode
+    refcounting has since pruned from ``Transcript._attachments``.
+    """
+
+    key: str
+    pre_walk: list[JsonValue] = field(default_factory=list)
+    walked: list[JsonValue] = field(default_factory=list)
+    attachments: list[list[tuple[str, str]]] = field(default_factory=list)
+
+
+def _recording_attachment_fn(
+    inner: Callable[[str], str], created: list[tuple[str, str]]
+) -> Callable[[str], str]:
+    """Wrap a content fn, recording (hash, content) for attachments it creates."""
+
+    def fn(text: str) -> str:
+        result = inner(text)
+        if result is not text and result.startswith(ATTACHMENT_PROTOCOL):
+            created.append((result[len(ATTACHMENT_PROTOCOL) :], text))
+        return result
+
+    return fn
 
 
 class TranscriptHistoryUnavailableError(RuntimeError):
@@ -430,6 +480,7 @@ class Transcript:
         self._next_event_logger_id = 0
         self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
+        self._call_walk_slots: list[_CallWalkSlot] = []
         self._events: list[Event] = self._normalize_seeded_events(events or [])
         self._history_provider = history_provider
         self._events_view = _TranscriptEventsView(self)
@@ -668,8 +719,93 @@ class Transcript:
             and retain_attachments
             and event.call is not None
         ):
-            event_fn = events_attachment_fn(self.attachments)
-            event.call = walk_model_call(event.call, event_fn, self._context)
+            event.call = self._condense_model_call(event.call)
+
+    def _condense_model_call(self, call: ModelCall) -> ModelCall:
+        """Condense a model call's payload into attachment references.
+
+        Prefix-cached equivalent of ``walk_model_call``: consecutive kept
+        calls share their conversation prefix, so only the divergent tail
+        (plus non-message request fields and the response, which change per
+        notification) is walked and hashed. Reused prefix messages have
+        their attachment content re-asserted — bounded-mode refcounting may
+        have pruned it while the prefix text lives on in the conversation.
+        """
+        msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
+        msgs = call.request.get(msg_key) if msg_key is not None else None
+        if msg_key is None or not isinstance(msgs, list):
+            walked_call = walk_model_call(
+                call, events_attachment_fn(self.attachments), self._context
+            )
+            assert walked_call is not None, (
+                "walk_model_call(call) is None for non-None call"
+            )
+            return walked_call
+
+        best_slot: _CallWalkSlot | None = None
+        best_len = 0
+        for slot in self._call_walk_slots:
+            if slot.key != msg_key:
+                continue
+            n = 0
+            for msg, prev in zip(msgs, slot.pre_walk):
+                if not _strict_eq(msg, prev):
+                    break
+                n += 1
+            if n > best_len:
+                best_len = n
+                best_slot = slot
+
+        walked_msgs: list[JsonValue] = []
+        slot_pre_walk: list[JsonValue] = []
+        slot_walked: list[JsonValue] = []
+        slot_attachments: list[list[tuple[str, str]]] = []
+        if best_slot is not None:
+            for index in range(best_len):
+                for attachment_hash, content in best_slot.attachments[index]:
+                    self.attachments[attachment_hash] = content
+                walked_msgs.append(copy.deepcopy(best_slot.walked[index]))
+            slot_pre_walk.extend(best_slot.pre_walk[:best_len])
+            slot_walked.extend(best_slot.walked[:best_len])
+            slot_attachments.extend(best_slot.attachments[:best_len])
+
+        event_fn = events_attachment_fn(self.attachments)
+        for msg in msgs[best_len:]:
+            created: list[tuple[str, str]] = []
+            walked = walk_json_value(
+                msg, _recording_attachment_fn(event_fn, created), self._context
+            )
+            walked_msgs.append(walked)
+            slot_pre_walk.append(copy.deepcopy(msg))
+            slot_walked.append(copy.deepcopy(walked))
+            slot_attachments.append(created)
+
+        rest = {k: v for k, v in call.request.items() if k != msg_key}
+        new_request: dict[str, JsonValue] = dict(
+            walk_json_dict(rest, event_fn, self._context)
+        )
+        new_request[msg_key] = walked_msgs
+
+        new_slot = _CallWalkSlot(
+            key=msg_key,
+            pre_walk=slot_pre_walk,
+            walked=slot_walked,
+            attachments=slot_attachments,
+        )
+        if best_slot is not None:
+            self._call_walk_slots.remove(best_slot)
+        self._call_walk_slots.append(new_slot)
+        if len(self._call_walk_slots) > CALL_WALK_CACHE_SLOTS:
+            self._call_walk_slots.pop(0)
+
+        return call.model_copy(
+            update={
+                "request": new_request,
+                "response": walk_json_dict(call.response, event_fn, self._context)
+                if call.response
+                else None,
+            }
+        )
 
     def _notify_subscribers(self, event: Event) -> None:
         for event_logger in list(self._event_loggers):

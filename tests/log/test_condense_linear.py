@@ -39,6 +39,7 @@ from inspect_ai.log._condense import condense_events, condense_sample, expand_ev
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.log._transcript import Transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
@@ -620,4 +621,48 @@ def test_batch_call_prefix_breaks_on_json_distinct_values() -> None:
     assert n_val == 0, f"expected n=0 but got {n_val!r}"
     assert isinstance(n_val, int) and not isinstance(n_val, bool), (
         f"expected int 0 but got {type(n_val).__name__} {n_val!r}"
+    )
+
+
+def test_transcript_call_condense_is_linear(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_process_event's call walk must hash only new content per turn.
+
+    Counts mm3_hash as bound by log/_condense (attachment_fn hashes every
+    >100-char string it attaches); a full re-walk per notification is
+    O(history) hashes per turn = quadratic.
+    """
+    import inspect_ai.log._condense as condense
+
+    hashes = {"n": 0}
+    original = condense.mm3_hash  # type: ignore[attr-defined]
+
+    def counting(text: str) -> str:
+        hashes["n"] += 1
+        return original(text)
+
+    monkeypatch.setattr(condense, "mm3_hash", counting)
+
+    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
+    payload = "x" * 200
+    wire: list[dict[str, JsonValue]] = []
+    for i in range(N_EVENTS):
+        wire.append({"role": "user", "content": f"{payload} {i}"})
+        event = _model_event(
+            [ChatMessageUser(content=f"msg {i}")], [dict(m) for m in wire]
+        )
+        event.uuid = f"event-{i}"
+        tr._event(event)
+        # completion: providers re-install the raw call with a response
+        event.call = ModelCall(
+            request={"model": "test", "messages": [dict(m) for m in wire]},
+            response={"id": f"r{i}", "content": payload},
+        )
+        tr._event_updated(event)
+        # timestamp stamping re-notifies with the (now condensed) call
+        tr._event_updated(event)
+
+    budget = 8 * N_EVENTS
+    assert hashes["n"] <= budget, (
+        f"transcript call condense is superlinear: {hashes['n']} hashes "
+        f"for {N_EVENTS} events"
     )
