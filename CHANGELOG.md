@@ -1,3 +1,7 @@
+## Unreleased
+
+- Refactor: Consolidated the per-sample lifecycle in the task runner (retry loop and completion side-effects); no behavior change intended.
+
 ## 0.3.258 (11 August 2026)
 
 - Control Channel: `inspect ctl sample` and other unscoped commands no longer appear to hang on eval sets with many running tasks. (#4789)

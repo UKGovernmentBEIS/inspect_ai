@@ -1086,7 +1086,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # the run's terminal bookkeeping, shared by the reuse
                     # short-circuit below and every terminal path inside
                     # task_run_sample
-                    terminal = SampleTerminalReporter(
+                    reporter = SampleTerminalReporter(
                         task_id=logger.eval.eval_id,
                         progress=progress,
                         sample_complete=sample_complete,
@@ -1153,7 +1153,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                     sample_id, epoch
                                 )
                                 if isinstance(previous_sample, EvalSample):
-                                    terminal.progress()
+                                    reporter.progress()
                                     if logger and log_samples:
                                         # write_through: the reused set is
                                         # re-logged in bulk before any flush
@@ -1208,7 +1208,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             eval_spec=logger.eval,
                         )
                         # reused sample: accumulate its own logged usage
-                        await terminal.completed(
+                        await reporter.completed(
                             previous_sample.id,
                             epoch,
                             sample_scores,
@@ -1289,7 +1289,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         log_images=log_images,
                         log_model_api=log_model_api,
                         sample_error=sample_error_handler,
-                        terminal=terminal,
+                        reporter=reporter,
                         early_stopping=options.task.early_stopping,
                         task_cancel=task_cancel,
                         task_source=options.task_source,
@@ -1858,7 +1858,7 @@ async def task_run_sample(
     log_images: bool,
     log_model_api: bool | None,
     sample_error: SampleErrorHandler,
-    terminal: SampleTerminalReporter,
+    reporter: SampleTerminalReporter,
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
     task_cancel: TaskCancel | None,
@@ -1909,7 +1909,7 @@ async def task_run_sample(
             log_images=log_images,
             log_model_api=log_model_api,
             sample_error=sample_error,
-            terminal=terminal,
+            reporter=reporter,
             fails_on_error=fails_on_error,
             early_stopping=early_stopping,
             task_cancel=task_cancel,
@@ -1955,7 +1955,7 @@ async def _task_run_sample_attempt(
     log_images: bool,
     log_model_api: bool | None,
     sample_error: SampleErrorHandler,
-    terminal: SampleTerminalReporter,
+    reporter: SampleTerminalReporter,
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
     task_cancel: TaskCancel | None,
@@ -1993,7 +1993,7 @@ async def _task_run_sample_attempt(
         # resolved — terminal 'cancelled' for the eval's counters, absent from
         # the log (matching an abort's treatment of still-queued samples)
         if task_cancel is not None and task_cancel.cancel_type in ("score", "error"):
-            terminal.cancelled()
+            reporter.cancelled()
             return None
 
         # materialize sample+state lazily (deferred until semaphore acquired)
@@ -2140,7 +2140,7 @@ async def _task_run_sample_attempt(
                 )
                 if early_stop is not None:
                     # the halt is terminal 'completed' (not an error)
-                    await terminal.completed(state.sample_id, state.epoch)
+                    await reporter.completed(state.sample_id, state.epoch)
                     return early_stop
 
             start_time: float | None = None
@@ -2614,7 +2614,7 @@ async def _task_run_sample_attempt(
                     or (attempt.retries_remaining == 0)
                     or (cancelled_error is not None)
                 ):
-                    terminal.progress()
+                    reporter.progress()
 
                     # if we are logging images then be sure to base64 images injected by solvers
                     if log_images:
@@ -2738,7 +2738,7 @@ async def _task_run_sample_attempt(
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
 
-        terminal.cancelled(started=_sample_started(), usage=_sample_usage(state))
+        reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
         return None
 
     # re-raise cancellation after logging to preserve structured concurrency
@@ -2746,7 +2746,7 @@ async def _task_run_sample_attempt(
         # a cancelled sample is terminal but not a genuine error — count it so
         # the eval can reach `total` and be marked finished (eg. a final-attempt
         # failure that cancels an in-flight sibling)
-        terminal.cancelled(started=_sample_started(), usage=_sample_usage(state))
+        reporter.cancelled(started=_sample_started(), usage=_sample_usage(state))
         # an operator 'cancel' interrupt is sample-scoped: the cancellation
         # came from this sample's own task group (already absorbed at its
         # exit), so there is nothing to re-raise — re-raising here would tear
@@ -2760,7 +2760,7 @@ async def _task_run_sample_attempt(
 
     # no error
     elif error is None:
-        await terminal.completed(
+        await reporter.completed(
             state.sample_id,
             state.epoch,
             results,
@@ -2776,7 +2776,7 @@ async def _task_run_sample_attempt(
         # never computed), so there is nothing for the scores to contribute
         # to — and notifying early stopping/progress for a dying task would
         # mislead. the scores are still in the sample log written above.
-        await terminal.errored(
+        await reporter.errored(
             state.sample_id,
             state.epoch,
             started=_sample_started(),
@@ -2792,7 +2792,7 @@ async def _task_run_sample_attempt(
         # raised. those scores are already in the sample log, so surface them
         # here too — the log and metrics should never diverge (mirrors the
         # `error is None` branch above and matches docs/handling-errors.qmd)
-        await terminal.errored(
+        await reporter.errored(
             state.sample_id,
             state.epoch,
             results or None,
