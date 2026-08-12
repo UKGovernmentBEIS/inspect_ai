@@ -4900,6 +4900,8 @@ def test_sample_requeue_bulk_reports_mixed_results(
     assert by_id["s1"]["applied"] is True
     assert by_id["s2"]["applied"] is False
     assert by_id["s2"]["error"]["status"] == 409
+    # the full error-object shape, matching the top-level error envelope
+    assert set(by_id["s2"]["error"]) == {"kind", "exception", "message", "status"}
     assert by_id["s3"]["applied"] is False
     assert by_id["s3"]["detail"]["reason"] == "a re-run is already pending"
 

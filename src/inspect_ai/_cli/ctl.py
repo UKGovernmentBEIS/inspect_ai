@@ -1009,7 +1009,10 @@ def sample_requeue_command(
     more than one epoch (a defaulted epoch would silently requeue a
     different attempt); with several samples every epoch must be explicit.
     A sweep reports each sample's result individually (requeued / no-op /
-    rejected) and exits zero once every sample was attempted.
+    rejected) and exits zero once every sample was attempted — branch on the
+    results, not the exit code. Note for scripted sweeps: a single sample
+    target keeps the single-sample `--json` envelope; `--errored` always
+    returns the bulk envelope (even for one sample).
 
     Example: inspect ctl sample requeue my-task --errored
     """
@@ -3412,9 +3415,18 @@ def _run_sample_requeue_errored(
         _echo_no_running_evals()
         return
     target = listing.targets[0]
-    pairs = [
-        (str(row["sample_id"]), int(row.get("epoch") or 1)) for row in listing.rows
-    ]
+    pairs: list[tuple[str, int]] = []
+    for row in listing.rows:
+        # a row without an epoch fails loudly rather than defaulting: the
+        # sweep's whole safety claim is that no epoch is ever a default
+        if row.get("epoch") is None:
+            _fail(
+                "invalid_response",
+                f"Sample listing row for '{row.get('sample_id')}' carries no "
+                "epoch — cannot requeue it fail-closed (requeue it "
+                "individually with an explicit EPOCH).",
+            )
+        pairs.append((str(row["sample_id"]), int(row["epoch"])))
     _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json, errored_sweep=True)
 
 
@@ -3469,8 +3481,11 @@ def _requeue_pairs(
                     "sample_id": sample_id,
                     "epoch": epoch,
                     "applied": False,
+                    # the full error-object shape (`{kind, exception, message,
+                    # status}`), matching the top-level error envelope
                     "error": {
                         "kind": exc.kind,
+                        "exception": exc.exception,
                         "message": exc.message,
                         "status": exc.status,
                     },
