@@ -62,7 +62,7 @@ across xdist workers.
 
 | Median | Test | Classification |
 |---|---|---|
-| 42.9s | `test_docker_read_file.py::test_docker_read_file_contains_untrusted_sources` | **The docker trap**: 40.1 s of it is fixture setup starting a real container; `@skip_if_no_docker` without `@pytest.mark.slow`, so it runs in the PR gate. → **fix prepared, proposal 1** |
+| 42.9s | `test_docker_read_file.py::test_docker_read_file_contains_untrusted_sources` | **The docker trap**: 40.1 s of it is fixture setup starting a real container; `@skip_if_no_docker` without `@pytest.mark.slow`, so it runs in the PR gate. → **fixed in #4848 (proposal 1)** |
 | 8.8s | `test_eval_set_scanner.py::test_scout_scan_resume_reruns_failed_scans` | genuinely heavy (multi-eval resume flow); grew 6.6→8.8s, see regressions |
 | 6.6s | `test_eval_set_scanner.py::test_scanner_resume_...[s3]` | moto S3 + full eval-set resume |
 | 6.5s | `test_launch_handoff.py::test_eval_detach_hands_off_and_leaves_eval_running` | real CLI subprocess + control-server handshake |
@@ -123,14 +123,14 @@ Predicted −60 s median on the PR gate; measured −68 s on `test` exec plus
    because `@skip_if_no_docker` doesn't skip in CI. Coverage moves to the
    2-hourly slow suite, which is where the policy puts docker tests.
    Impact: up to −43 s off the critical xdist worker (−15 to −40 s on
-   `test` exec, so on Build wall clock). Safe fix. Status: **prepared,
-   awaiting approval to push.**
+   `test` exec, so on Build wall clock). Safe fix. Status: **PR opened
+   #4848**.
 2. **`filter: blob:none` on the `check-schema-and-types` checkout** — the
    only `fetch-depth: 0` checkout still fetching the full ~400 MB pack; no
    step in that job reads historical blobs (the `git diff`/`git status`
    checks are working-tree only). Impact: −25 s median on the Viewer
    critical path (74 → ~50 s), and removes the 216 s tail. Safe fix.
-   Status: **prepared, awaiting approval to push.**
+   Status: **PR opened #4848**.
 3. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`** —
    release consumes no output from dev (it downloads the published
    artifact and re-runs the same suite), so the `needs` edge is pure
@@ -160,7 +160,7 @@ Predicted −60 s median on the PR gate; measured −68 s on `test` exec plus
    predated the flag). Fixed in
    `.claude/skills/ci-perf/scripts/collect_ci_data.py`: dedupe by run id,
    sort by start time, and warn when the window isn't contiguous. Status:
-   **done, in this run's working-tree changes.**
+   **PR opened #4848**.
 
 ## PRs opened by this skill
 
@@ -171,3 +171,5 @@ Predicted −60 s median on the PR gate; measured −68 s on `test` exec plus
 - #4748 — the ci-perf skill itself (2026-08-04, **merged**)
 - #4760 — two slow-test fixes + `blob:none` checkouts + slow-test policy
   docs (2026-08-05, **merged**, impact verified above)
+- #4848 — mark the 43 s docker test slow, `blob:none` on the Viewer
+  checkout, collector hardening + this report/snapshot (2026-08-12, open)
