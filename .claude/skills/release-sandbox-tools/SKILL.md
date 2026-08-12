@@ -6,8 +6,9 @@ description: Land a PR that requires new inspect-sandbox-tools injectable binari
 # Landing a PR that ships new sandbox tools injectables
 
 Unblocks landing a PR that changed code under `src/inspect_sandbox_tools/` and
-bumped the injectable version: builds the four artifacts (amd64/arm64 × glibc/musl) from
-the PR branch, validates them across Linux distros, and publishes them to S3.
+bumped the injectable version: builds the four artifacts (amd64/arm64 ×
+glibc/musl) from the PR branch, validates them across Linux distros, and
+publishes them to S3.
 Background: `src/inspect_sandbox_tools/design/RELEASING.md`.
 
 Typically run by a maintainer. The PR is often a contributor's — they can write
@@ -17,8 +18,8 @@ binaries to S3, so a maintainer performs this final step.
 **When to run:** once the PR is approved and the only failing CI check is
 `slow-tool-tests-release` — it fails at the "Fetch published non-dev
 sandbox-tools binaries (glibc + musl)" step with a message naming the missing
-S3 object,
-because the bumped version's artifacts aren't published yet. Running earlier
+S3 object, because the bumped version's artifacts aren't published yet.
+Running earlier
 wastes builds if review rounds change the injectable source.
 
 **Be on the right branch:** run every step below from a checkout of the PR's
@@ -33,8 +34,8 @@ do not use `uv run` or system python).
 
 - Docker must be running with multi-arch (buildx) support: `docker info` succeeds.
 - The version must be bumped. It's a plain integer in
-  `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` and must be
-  greater than main's:
+  `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` and must
+  be exactly one greater than main's (`check-version-bump` enforces this):
 
   ```sh
   git show origin/main:src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
@@ -95,9 +96,9 @@ conversation:
 The `!` prefix runs the command inside the session. It uploads all four
 artifacts to `s3://inspect-sandbox-tools/` (us-east-2) with `--acl public-read`.
 
-The script shells out to plain `aws` with no profile; users on AWS SSO may need
-to prefix the command with `AWS_PROFILE=<profile>` after running
-`aws sso login --profile <profile>`.
+The script shells out to plain `aws` with no profile; users on AWS SSO may
+need `--profile <profile>` on the login and an `AWS_PROFILE=<profile>` prefix
+on the upload command.
 
 ## 5. Verify the upload (no credentials needed)
 
