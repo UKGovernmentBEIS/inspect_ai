@@ -3014,6 +3014,50 @@ def test_knob_since_table_is_consistent() -> None:
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
 
 
+def test_mutation_envelope_help_sketches_actual_keys() -> None:
+    """The shared --help sketch names exactly `_mutation_envelope`'s keys.
+
+    Every mutation verb's --json help shows `_MUTATION_ENVELOPE_HELP` so a
+    scripted consumer can orient the first parse from --help alone; this
+    pins the sketch to the envelope builder so the two can't drift.
+    """
+    from inspect_ai._cli.ctl import _MUTATION_ENVELOPE_HELP, _mutation_envelope
+
+    envelope = _mutation_envelope(
+        {"task_id": "aaa111"}, {"ok": True, "changed": True}, dry_run=False
+    )
+    sketch = _MUTATION_ENVELOPE_HELP[
+        _MUTATION_ENVELOPE_HELP.index("{") + 1 : _MUTATION_ENVELOPE_HELP.index("}")
+    ]
+    assert [key.strip() for key in sketch.split(",")] == list(envelope.keys())
+
+
+def test_every_json_option_help_sketches_payload_keys() -> None:
+    """Every visible ctl command's --json help sketches the payload shape.
+
+    The agent output contract: a scripted consumer should learn each
+    command's --json top-level keys from --help, not by parsing a payload
+    and failing. A brace in the help is the sketch's marker.
+    """
+
+    def visible_commands(group: click.Group, prefix: str = "") -> Any:
+        for name, cmd in group.commands.items():
+            if cmd.hidden:
+                continue
+            if isinstance(cmd, click.Group):
+                yield from visible_commands(cmd, f"{prefix}{name} ")
+            else:
+                yield f"{prefix}{name}", cmd
+
+    assert isinstance(ctl_command, click.Group)
+    for path, cmd in visible_commands(ctl_command):
+        json_params = [p for p in cmd.params if p.name == "as_json"]
+        assert json_params, f"`{path}` has no --json option"
+        help_text = getattr(json_params[0], "help", None) or ""
+        assert help_text.startswith("Output as JSON ("), path
+        assert "{" in help_text, f"`{path}` --json help has no payload sketch"
+
+
 def test_config_provenance_sent_with_mutations_on_current_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
