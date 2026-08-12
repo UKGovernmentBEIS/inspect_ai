@@ -41,6 +41,7 @@ from inspect_ai.agent._acp.transport import (
     AcpUpdate,
     ApproverClient,
     ElicitationClient,
+    TurnStateUpdate,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
@@ -740,6 +741,7 @@ class LiveAcpTransport:
         subscriber cannot stall the agent loop.
         """
         self._turn_active = state == "started"
+        self.publish(TurnStateUpdate(state))
         for cb in list(self._turn_state_subscribers):
             try:
                 cb(state)

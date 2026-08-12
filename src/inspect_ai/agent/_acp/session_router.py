@@ -36,6 +36,7 @@ from inspect_ai.agent._acp.inspect_ext import (
     PlanPolicyTransformer,
     RawEventForwarder,
 )
+from inspect_ai.agent._acp.transport import TurnStateUpdate
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.connection import ConnectionState
@@ -179,8 +180,6 @@ class Forwarders:
         # Elicitation client unsubscribe callable (only set when the
         # peer advertised ``elicitation.form`` capability).
         self._elicitation_unsub: Callable[[], None] | None = None
-        # Turn-state subscriber unsubscribe callable.
-        self._turn_state_unsub: Callable[[], None] | None = None
         # Drain barrier — see :meth:`drain` and ``_run_semantic_forwarder``.
         # ``_notifications_sent`` counts items the forwarder has
         # fully processed (transform + send + finally tick). The
@@ -231,6 +230,7 @@ class Forwarders:
         # ATTACH live subscribers (also sync) — from here on new events
         # go into the live buffers, not the snapshot.
         self._semantic_stream = target.attach()
+        turn_state: TurnState = "started" if target.turn_active else "ended"
         subscription = self._state.raw_events_subscription
         if subscription is not None:
             self._raw_forwarder = RawEventForwarder(
@@ -269,12 +269,11 @@ class Forwarders:
             await self.stop()
             return
 
-        # Subscribe before reading the current snapshot. Both operations are
-        # synchronous on the agent event loop, so no transition can land in
-        # between; replay is already complete, so the snapshot cannot overtake
-        # historical notifications on the wire.
-        self._turn_state_unsub = target.subscribe_turn_state(self._on_turn_state)
-        await self._send_turn_state("started" if target.turn_active else "ended")
+        # The snapshot was captured at the same synchronous attachment point
+        # as the semantic stream. Any later transition is already queued, so
+        # sending the snapshot now (after replay) preserves live FIFO order.
+        with acp_send_guard("ACP turn_state snapshot: send failed"):
+            await self._send_turn_state(turn_state)
 
         # LIVE forwarders — drain the buffers that have been filling
         # since attach.
@@ -325,12 +324,6 @@ class Forwarders:
             except Exception:
                 logger.exception("Error detaching ACP elicitation client")
             self._elicitation_unsub = None
-        if self._turn_state_unsub is not None:
-            try:
-                self._turn_state_unsub()
-            except Exception:
-                logger.exception("Error detaching ACP turn_state subscriber")
-            self._turn_state_unsub = None
         if self._semantic_task is not None and not self._semantic_task.done():
             if graceful:
                 try:
@@ -423,6 +416,14 @@ class Forwarders:
                 # snapshotted is empty, not whether each item ended
                 # up on the wire vs. dropped.
                 try:
+                    if isinstance(notif, TurnStateUpdate):
+                        with acp_send_guard(
+                            "ACP turn_state forwarder: send failed"
+                        ) as send:
+                            await self._send_turn_state(notif.state)
+                        if send.should_exit:
+                            return
+                        continue
                     with acp_guard(
                         "ACP semantic forwarder: transform / rewrite failed "
                         "for one notification; skipping"
@@ -497,28 +498,11 @@ class Forwarders:
                 {"sessionId": self._wire_session_id},
             )
 
-    def _on_turn_state(self, state: TurnState) -> None:
-        """Sync callback from the agent's task; schedule the wire notification.
-
-        Fire-and-forget: the callback runs inside the agent's
-        :meth:`turn_scope` boundary on the same event loop as this
-        forwarder, so ``asyncio.create_task`` is safe. Any failure
-        (including a missing running loop in exotic test harnesses)
-        is swallowed under the same never-stall-the-agent contract
-        as the channel's own observer fan-out.
-        """
-        with acp_guard("ACP turn_state forwarder: scheduling failed"):
-            asyncio.create_task(
-                self._send_turn_state(state),
-                name=f"acp-fwd-turn-state-{self._target_session_id}",
-            )
-
     async def _send_turn_state(self, state: TurnState) -> None:
-        with acp_send_guard("ACP turn_state forwarder: send failed"):
-            await self._connection.send_notification(
-                INSPECT_TURN_STATE_METHOD,
-                {"sessionId": self._wire_session_id, "state": state},
-            )
+        await self._connection.send_notification(
+            INSPECT_TURN_STATE_METHOD,
+            {"sessionId": self._wire_session_id, "state": state},
+        )
 
     async def drain(self) -> None:
         """Block until the forwarder has processed all currently-buffered items.

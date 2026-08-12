@@ -83,6 +83,13 @@ class ElicitationRequest:
     tool_call_id: str | None = None
 
 
+@dataclass(frozen=True)
+class TurnStateUpdate:
+    """Turn-state transition carried on the ordered ACP update bus."""
+
+    state: "TurnState"
+
+
 # Loose heterogeneous payload — early tests publish dicts; the live
 # router publishes ``acp.SessionNotification`` Pydantic instances. The
 # bus does not narrow; subscribers narrow with ``isinstance`` as needed.

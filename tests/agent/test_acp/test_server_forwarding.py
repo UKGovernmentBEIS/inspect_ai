@@ -1580,6 +1580,67 @@ async def test_score_event_post_agent_reaches_subscribed_client(
 
 
 @skip_if_trio
+async def test_turn_state_is_ordered_after_buffered_session_updates() -> None:
+    """Turn closure cannot overtake transcript content already in the FIFO."""
+    from unittest.mock import AsyncMock
+
+    import anyio
+    from acp.helpers import session_notification, text_block, update_agent_message
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+    release = anyio.Event()
+    send_calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def _gated_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        if method == "session/update" and not release.is_set():
+            await release.wait()
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_send
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-ordered", target_session_id=session.session_id
+    )
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-ordered",
+    )
+    await forwarders.start(session)
+    try:
+        send_calls.clear()
+        for content in ("first", "second"):
+            session.publish(
+                session_notification(
+                    session.session_id,
+                    update_agent_message(text_block(content)),
+                )
+            )
+
+        while not send_calls:
+            await asyncio.sleep(0)
+
+        session._on_channel_turn_state("ended")
+        release.set()
+        await forwarders.drain()
+
+        assert [method for method, _ in send_calls] == [
+            "session/update",
+            "session/update",
+            "inspect/turn_state",
+        ]
+    finally:
+        release.set()
+        await forwarders.stop()
+
+
+@skip_if_trio
 async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> None:
     """``Forwarders.drain()`` doesn't return until the bus is empty.
 
