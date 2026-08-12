@@ -2,6 +2,7 @@
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
+- Control Channel: `inspect ctl config` no longer refuses knobs pre-flight against older eval processes; the server itself rejects unsupported knobs atomically before applying anything.
 
 ## 0.3.258 (11 August 2026)
 

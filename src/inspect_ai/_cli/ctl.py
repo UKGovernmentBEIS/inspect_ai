@@ -125,38 +125,15 @@ _KNOB_SCOPE: dict[str, str] = {
     "max_retries": "process",
 }
 
-# Minimum control-API version each knob requires of the *server* process (the
-# `CONTROL_API_VERSION` from `inspect_ai._control` that its inspect embedded
-# at launch). Parallel to `_KNOB_SCOPE`: every knob needs an entry (key-set
-# parity is asserted in `_exec_limits` and pinned by a test). Since-0 knobs
-# are never gated — and every *new* knob is since-0: strict servers
-# (version >= 3, the only ones left in the field) reject unknown mutation
-# params with a 400, so no pre-send gate is needed (see the skew-policy
-# comment in `inspect_ai._control`). The nonzero entries predate strict
-# mutations, when an older server's PATCH handler would silently ignore an
-# unknown knob while applying the rest; `_gate_knob_support` hard-errors
-# those against a pre-strict process before sending, and retires with
-# issue #67.
-_KNOB_SINCE: dict[str, int] = {
-    "max_samples": 0,
-    "max_sandboxes": 0,
-    "max_subprocesses": 1,
-    "max_connections": 0,
-    "key": 2,
-    "log_buffer": 0,
-    "log_shared": 0,
-    "timeout": 4,
-    "attempt_timeout": 4,
-    "max_retries": 4,
-}
-
 # Minimum control-API version for the config provenance params (`author` /
-# `reason`, recorded into `EvalLog.config_updates`). Not a knob — the params
-# change nothing — but the CLI sends a *defaulted* author the user never
-# typed, and a strict older server would 400 the whole mutation for it, so
-# the default is included only against servers advertising >= this version
-# (an explicit --author/--reason against an older server hard-errors before
-# sending, like the legacy knob gates). See `_gate_provenance_support`.
+# `reason`, recorded into `EvalLog.config_updates`). Knobs themselves need no
+# version gate — a strict server 400s a mutation carrying a knob it doesn't
+# know, atomically (see the skew-policy comment in `inspect_ai._control`) —
+# but the CLI sends a *defaulted* author the user never typed, and a strict
+# older server would 400 the whole mutation for it, so the default is
+# included only against servers advertising >= this version (an explicit
+# --author/--reason against an older server hard-errors before sending).
+# See `_gate_provenance_support`.
 _PROVENANCE_SINCE = 5
 
 
@@ -3558,8 +3535,8 @@ def _applied_knob_names(
     self-exclude: their adjustability check (no ``buffer`` view) is exactly
     the condition that put the caller on the error path. The retry overrides
     are always adjustable: the override layer exists regardless of any
-    task's launch config, and `_gate_knob_support` has already excluded
-    older servers.
+    task's launch config (a server too old to know them would have 400ed
+    the whole mutation, atomically, before this path is reached).
     """
     return [
         name
@@ -3670,11 +3647,10 @@ def _run_config(
         "attempt_timeout": attempt_timeout,
         "max_retries": max_retries,
     }
-    # a knob missing here would be silently exempt from the version gate —
-    # the exact silent-skew failure `_gate_knob_support` exists to close
+    # a knob missing here would make its set look like a pure read — the
+    # provenance below would be silently dropped from a recorded mutation
     assert knob_values.keys() == _KNOB_SCOPE.keys()
     requested_knobs = [knob for knob, value in knob_values.items() if value is not None]
-    _gate_knob_support(servers, scope.socket_path, requested_knobs)
 
     # provenance rides recorded mutations only — a read records nothing. The
     # author default is resolved client-side — the server has no view of who
@@ -5151,43 +5127,6 @@ def _post_flush(
     )
 
 
-def _gate_knob_support(
-    servers: list[DiscoveredControlServer],
-    socket_path: str,
-    requested_knobs: list[str],
-) -> None:
-    """Hard-error before a config mutation the server is too old to apply.
-
-    ``requested_knobs`` are the knob names set on this invocation. Any knob
-    whose :data:`_KNOB_SINCE` entry exceeds the target process's advertised
-    control-API version fails the command here, *before* the PATCH is sent:
-    an older server's handler silently ignores unknown query params while
-    applying the knobs it does recognize, so a post-hoc warning would arrive
-    after a partial apply. A process with no advertised version (a discovery
-    file that predates the field) is version 0. The version integer is
-    meaningless to users, so the error names the flags and the remedy, not
-    the number. Applies to dry runs too — a dry-run PATCH on an older server
-    would report a success-shaped view that omits the unknown knobs.
-    """
-    gated = [knob for knob in requested_knobs if _KNOB_SINCE[knob] > 0]
-    if not gated:
-        return
-    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
-    api_version = server.api_version if server is not None else 0
-    unsupported = [knob for knob in gated if _KNOB_SINCE[knob] > api_version]
-    if not unsupported:
-        return
-    flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
-    target = f"pid {server.pid}" if server is not None else "the target process"
-    click.echo(
-        f"{flags} not supported — {target} is running an older inspect; "
-        "restart the eval to pick up the current version. No changes were "
-        "applied.",
-        err=True,
-    )
-    raise click.exceptions.Exit(code=1)
-
-
 def _default_provenance_author() -> str:
     """Default provenance author: the git identity, else the OS username.
 
@@ -5239,7 +5178,7 @@ def _gate_provenance_support(
     strict server 400s the whole mutation on the unknown params, so there a
     *defaulted* author is silently dropped (a param the user never typed
     must not fail their retune) while an explicit ``--author`` / ``--reason``
-    hard-errors before sending, matching the legacy knob gates.
+    hard-errors before sending.
     """
     server = next((s for s in servers if str(s.socket_path) == socket_path), None)
     api_version = server.api_version if server is not None else 0
@@ -5314,10 +5253,9 @@ def _exec_limits(
         "attempt_timeout": attempt_timeout,
         "max_retries": max_retries,
     }
-    # the settable knobs are exactly the scope and since tables' — a knob
-    # added to one without the others fails loudly here rather than silently
-    # no-opping (or riding past the version gate ungated)
-    assert knob_values.keys() == _KNOB_SCOPE.keys() == _KNOB_SINCE.keys()
+    # the settable knobs are exactly the scope table's — a knob added to one
+    # without the other fails loudly here rather than silently no-opping
+    assert knob_values.keys() == _KNOB_SCOPE.keys()
     set_values = any(value is not None for value in knob_values.values())
     # the key knob rides the wire as two params (key=<name>, key_limit=<n>),
     # so it's excluded from the value passthrough and added explicitly

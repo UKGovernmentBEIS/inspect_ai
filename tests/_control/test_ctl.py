@@ -19,7 +19,6 @@ from test_helpers.trace import action_record, write_trace_log
 from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import (
     _KNOB_SCOPE,
-    _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
     _FetchedSummaries,
@@ -2879,41 +2878,11 @@ def test_config_set_buffer_error_does_not_claim_unapplied_knobs(
     assert "! log_buffer" not in result.stderr
 
 
-def test_config_gates_key_on_pre_version_server(
+def test_config_key_retune_sent_and_rendered(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`--key` gates on the shipped `_KNOB_SINCE` entry (since-2).
-
-    An older server's PATCH handler silently ignores the unknown key/key_limit
-    params (returning a success-shaped view with the retune unapplied), so the
-    gate must refuse the whole request pre-flight — a server that predates the
-    knob refuses it, and a current server (advertising `CONTROL_API_VERSION`)
-    accepts it.
-    """
+    """A `--key` retune is sent as the `(name, limit)` pair and rendered."""
     from inspect_ai._control import CONTROL_API_VERSION
-
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=1)],
-    )
-
-    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
-        raise AssertionError("the mutation must not be sent")
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
-    result = cli_runner().invoke(ctl_command, ["config", "--key", "my_api", "2"])
-    assert result.exit_code == 1
-    assert "--key not supported" in result.stderr
-    assert "pid 7 is running an older inspect" in result.stderr
-
-    # the gate covers dry runs too: a dry-run PATCH on an older server would
-    # report a success-shaped view that omits the key retune
-    dry = cli_runner().invoke(
-        ctl_command, ["config", "--key", "my_api", "2", "--dry-run"]
-    )
-    assert dry.exit_code == 1
-    assert "--key not supported" in dry.stderr
 
     _patch_surface(
         monkeypatch,
@@ -2992,24 +2961,15 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
         assert f"[{scope}]" in options[start : start + 120], knob
 
 
-def test_knob_since_table_is_consistent() -> None:
-    """Every knob has a min-version entry, and no entry outruns the constant.
+def test_provenance_since_does_not_outrun_version_constant() -> None:
+    """The provenance gate's min-version must not exceed the constant.
 
-    Key parity (also asserted at runtime in `_exec_limits`) forces a new knob
-    to declare its since-version explicitly rather than silently defaulting
-    to "understood by every server". The second assertion catches
-    forgot-to-bump variant A (a `_KNOB_SINCE` entry of N+1 while
-    `CONTROL_API_VERSION` is still N), which would make the CLI block its own
-    new knob against every server — including current ones. (Variant B —
-    reusing the current N without a bump — is convention only; see the
-    comment on `CONTROL_API_VERSION`.)
+    A `_PROVENANCE_SINCE` of N+1 while `CONTROL_API_VERSION` is still N would
+    make the CLI silently drop the defaulted author against every server —
+    including current ones.
     """
-    from inspect_ai._control import CONTROL_API_VERSION
-
-    assert _KNOB_SINCE.keys() == _KNOB_SCOPE.keys()
-    assert max(_KNOB_SINCE.values()) <= CONTROL_API_VERSION
-    # the provenance params' gate must not outrun the constant either
     from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+    from inspect_ai._control import CONTROL_API_VERSION
 
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
 
@@ -3225,84 +3185,18 @@ def test_config_provenance_rides_key_only_retune(
     assert isinstance(sent["author"], str) and sent["author"]
 
 
-def test_config_gates_newer_knob_on_older_server(
+def test_config_knobs_not_version_gated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A knob the target server predates hard-errors before the PATCH.
+    """Knob mutations are sent regardless of the server's advertised version.
 
-    An older server's PATCH handler silently ignores unknown query params
-    (applying whatever it does recognize), so the gate must fail the whole
-    request pre-flight — `_exec_limits` must never run.
+    The per-knob pre-flight version gate (`_KNOB_SINCE`) was retired with
+    issue #67: every server in the field is strict (`_control/strict.py`),
+    so an older process rejects a knob it doesn't know with a 400 —
+    atomically, before anything is applied — and the CLI surfaces that
+    error. Pins that even a version-0 process (one predating version
+    reporting entirely) gets the PATCH rather than a client-side refusal.
     """
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
-    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
-
-    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
-        raise AssertionError("the mutation must not be sent")
-
-    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
-
-    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
-    assert result.exit_code == 1
-    assert "--max-samples not supported" in result.stderr
-    assert "pid 7 is running an older inspect" in result.stderr
-    assert "restart the eval" in result.stderr
-
-    # the gate covers dry runs too: a dry-run PATCH on an older server would
-    # report a success-shaped view that omits the unknown knobs
-    dry = cli_runner().invoke(
-        ctl_command, ["config", "--max-samples", "3", "--dry-run"]
-    )
-    assert dry.exit_code == 1
-    assert "--max-samples not supported" in dry.stderr
-
-
-def test_config_gate_names_only_unsupported_flags(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The pre-flight error lists the offending flags, not every set knob."""
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
-    monkeypatch.setitem(_KNOB_SINCE, "log_buffer", 1)
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--log-buffer", "2", "--max-samples", "5"]
-    )
-    assert result.exit_code == 1
-    assert "--log-buffer not supported" in result.stderr
-    assert "--max-samples" not in result.stderr
-
-
-def test_config_gate_passes_on_current_server(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A server whose advertised version covers the knob is not gated."""
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=1)],
-    )
-    monkeypatch.setitem(_KNOB_SINCE, "max_samples", 1)
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--max-samples", "3", "--json"]
-    )
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["applied"] is True
-
-
-def test_config_gate_ignores_since_zero_knobs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Since-0 knobs pass against any server, version-reporting or not."""
     _patch_surface(
         monkeypatch,
         [_full_summary("aaa111", "t1")],
@@ -3314,76 +3208,6 @@ def test_config_gate_ignores_since_zero_knobs(
     result = cli_runner().invoke(
         ctl_command, ["config", "--max-samples", "3", "--json"]
     )
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["applied"] is True
-
-
-def test_config_gates_max_subprocesses_on_pre_version_server(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`--max-subprocesses` gates on the shipped `_KNOB_SINCE` entry (since-1).
-
-    The gate-mechanism tests above monkeypatch `_KNOB_SINCE`; this pins the
-    real table: a server that predates version reporting refuses the knob,
-    and a current server (advertising `CONTROL_API_VERSION`) accepts it.
-    """
-    from inspect_ai._control import CONTROL_API_VERSION
-
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
-    result = cli_runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
-    assert result.exit_code == 1
-    assert "--max-subprocesses not supported" in result.stderr
-
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
-    )
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--max-subprocesses", "2", "--json"]
-    )
-    assert result.exit_code == 0, result.output
-    assert json.loads(result.stdout)["applied"] is True
-
-
-def test_config_gates_retry_overrides_by_real_since_table(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The retry overrides gate on their real `_KNOB_SINCE` entries (since-2).
-
-    Unlike the gate tests above, no table entry is monkeypatched: a version-0
-    process rejects a retry-override set pre-flight, and a process at the
-    current version applies it.
-    """
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=0)],
-    )
-    result = cli_runner().invoke(
-        ctl_command, ["config", "--timeout", "300", "--attempt-timeout", "60"]
-    )
-    assert result.exit_code == 1
-    assert "--timeout, --attempt-timeout not supported" in result.stderr
-
-    from inspect_ai._control import CONTROL_API_VERSION
-
-    _patch_surface(
-        monkeypatch,
-        [_full_summary("aaa111", "t1")],
-        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
-    )
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(ctl_command, ["config", "--timeout", "300", "--json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 
