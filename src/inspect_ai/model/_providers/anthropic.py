@@ -4102,7 +4102,9 @@ async def _capture_compaction_from_stream(
         # deltas by kind, cumulative output tokens from message_delta usage,
         # and a bare heartbeat for everything else
         if event.type == "content_block_start":
-            if getattr(event.content_block, "type", None) == "tool_use":
+            # tool_use / server_tool_use / mcp_tool_use all carry id + name
+            # and stream their input as input_json_delta fragments
+            if str(getattr(event.content_block, "type", "")).endswith("tool_use"):
                 tool_blocks[event.index] = event.content_block
             report_model_stream_progress()
         elif event.type == "content_block_delta":
