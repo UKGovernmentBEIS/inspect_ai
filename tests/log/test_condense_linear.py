@@ -20,6 +20,13 @@ Dedup correctness across paths: pool rows are reused on store reopen and
 buffer-to-transcript-store export (hash parity, insertion-order storage
 round-trips), and prefix matching never merges python-equal but
 JSON-distinct wire values (0 vs 0.0, True vs 1).
+
+Transcript-level call walk-cache linearity: counts mm3_hash invocations (the
+attachment-walk path bound in log/_condense) while driving a single growing
+request lineage, several interleaved or forked lineages, and the realistic
+pending/registration/completion/stamping notification shape through
+Transcript and the buffer db. Also covers graceful degradation once
+concurrent lineages exceed CallWalkCache's slot cap.
 """
 
 import json
@@ -47,6 +54,7 @@ from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 
 N_EVENTS = 100
+ATTACHABLE = "x" * 150  # > events_attachment_fn's 100-char attachment threshold
 
 
 class HashCounter:
@@ -75,6 +83,28 @@ def hash_counter(monkeypatch: pytest.MonkeyPatch) -> Iterator[HashCounter]:
     monkeypatch.setattr(pool, "_call_hash", counting_call_hash)
     # all condense paths (buffer, transcript store, pool-index helper) access
     # these as _pool module attributes, so patching _pool intercepts them all
+    yield counter
+
+
+class AttachmentHashCounter:
+    hashes: int = 0
+
+
+@pytest.fixture
+def attachment_hash_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[AttachmentHashCounter]:
+    """Count content hashes in the attachment-walk path (log/_condense binding)."""
+    import inspect_ai.log._condense as condense
+    from inspect_ai._util.hash import mm3_hash
+
+    counter = AttachmentHashCounter()
+
+    def counting(text: str) -> str:
+        counter.hashes += 1
+        return mm3_hash(text)
+
+    monkeypatch.setattr(condense, "mm3_hash", counting)
     yield counter
 
 
@@ -624,26 +654,17 @@ def test_batch_call_prefix_breaks_on_json_distinct_values() -> None:
     )
 
 
-def test_transcript_call_condense_is_linear(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_transcript_call_condense_is_linear(
+    attachment_hash_counter: AttachmentHashCounter,
+) -> None:
     """_process_event's call walk must hash only new content per turn.
 
     Counts mm3_hash as bound by log/_condense (attachment_fn hashes every
     >100-char string it attaches); a full re-walk per notification is
     O(history) hashes per turn = quadratic.
     """
-    import inspect_ai.log._condense as condense
-
-    hashes = {"n": 0}
-    original = condense.mm3_hash  # type: ignore[attr-defined]
-
-    def counting(text: str) -> str:
-        hashes["n"] += 1
-        return original(text)
-
-    monkeypatch.setattr(condense, "mm3_hash", counting)
-
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    payload = "x" * 200
+    payload = ATTACHABLE
     wire: list[dict[str, JsonValue]] = []
     for i in range(N_EVENTS):
         wire.append({"role": "user", "content": f"{payload} {i}"})
@@ -662,9 +683,67 @@ def test_transcript_call_condense_is_linear(monkeypatch: pytest.MonkeyPatch) -> 
         tr._event_updated(event)
 
     budget = 8 * N_EVENTS
-    assert hashes["n"] <= budget, (
-        f"transcript call condense is superlinear: {hashes['n']} hashes "
-        f"for {N_EVENTS} events"
+    assert attachment_hash_counter.hashes <= budget, (
+        f"transcript call condense is superlinear: "
+        f"{attachment_hash_counter.hashes} hashes for {N_EVENTS} events"
+    )
+
+
+def test_condense_model_call_interleaved_streams(
+    attachment_hash_counter: AttachmentHashCounter,
+) -> None:
+    """Two interleaved request lineages must both keep prefix-hitting.
+
+    Simulates a fork()/parallel-tools shape. Slot-exhaustion degradation is
+    covered separately by test_buffer_condense_degrades_proportionally_beyond_slot_cap.
+    """
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "stream content " * 10
+
+    def make_call(stream: str, n: int) -> ModelCall:
+        msgs = [
+            {"role": "user", "content": f"{stream} {payload} {i}"} for i in range(n)
+        ]
+        return ModelCall.create({"model": "m", "messages": msgs}, None)
+
+    # interleave two growing streams; after warm-up each round should hash
+    # only the one new message per stream, not re-walk the shared prefix
+    n_rounds = 10
+    for n in range(1, n_rounds + 1):
+        tr._condense_model_call(make_call("a", n))
+        tr._condense_model_call(make_call("b", n))
+    # linear: ~2 new messages hashed per round; a quadratic re-walk would be
+    # ~2 * (n_rounds*(n_rounds+1)/2) = 110
+    assert attachment_hash_counter.hashes <= 4 * n_rounds, (
+        f"interleaved streams thrash the walk cache: "
+        f"{attachment_hash_counter.hashes} hashes"
+    )
+
+
+def test_condense_model_call_forked_streams_keep_separate_lineages(
+    attachment_hash_counter: AttachmentHashCounter,
+) -> None:
+    """Streams sharing a pre-fork prefix must keep separate walk-cache slots."""
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "fork content " * 10
+    shared = [{"role": "user", "content": f"shared {payload} {i}"} for i in range(3)]
+
+    def make_call(stream: str, n: int) -> ModelCall:
+        msgs = shared + [
+            {"role": "user", "content": f"{stream} {payload} {i}"} for i in range(n)
+        ]
+        return ModelCall.create({"model": "m", "messages": msgs}, None)
+
+    tr._condense_model_call(make_call("a", 1))  # warm the shared prefix
+
+    n_rounds = 8
+    for n in range(2, n_rounds + 2):
+        tr._condense_model_call(make_call("a", n))
+        tr._condense_model_call(make_call("b", n))
+    # separate lineages: ~1-2 new messages hashed per call. Merged lineages
+    # re-walk the divergent tail every call: ~2 * sum(2..n_rounds+1).
+    assert attachment_hash_counter.hashes <= 4 * n_rounds, (
+        f"forked streams thrash the walk cache: {attachment_hash_counter.hashes} hashes"
     )
 
 
@@ -676,7 +755,7 @@ def _drive_streams(tr: Transcript, n_streams: int, rounds: int) -> None:
     across streams -- the access pattern that thrashes an LRU call-pool
     cache under-capacity (each stream's slot is the next one evicted).
     """
-    payload = "y" * 150
+    payload = ATTACHABLE
     histories: list[list[ChatMessage]] = [[] for _ in range(n_streams)]
     wires: list[list[dict[str, JsonValue]]] = [[] for _ in range(n_streams)]
     for r in range(rounds):
@@ -710,15 +789,17 @@ def _drive_streams(tr: Transcript, n_streams: int, rounds: int) -> None:
 def test_buffer_condense_linear_with_three_interleaved_streams(
     db: SampleBufferDatabase, hash_counter: HashCounter
 ) -> None:
-    """3 streams x 2 lineages = 6 <= 8 slots: all streams stay prefix-cached.
+    """Streams x 2 lineages within _CALL_WALK_SLOTS: all streams stay prefix-cached.
 
     Fails on a 4-slot CallPoolIndex (2-stream capacity), where round-robin
     access thrashes every lineage back to full-history re-hashing.
     """
+    from inspect_ai.log._condense import _CALL_WALK_SLOTS
+
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
     tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
-    n_streams = 3
+    n_streams = _CALL_WALK_SLOTS // 2 - 1  # 2 lineages/stream, stays under cap
     rounds = 25
     _drive_streams(tr, n_streams, rounds)
 
@@ -737,16 +818,18 @@ def test_buffer_condense_linear_with_three_interleaved_streams(
 def test_buffer_condense_degrades_proportionally_beyond_slot_cap(
     db: SampleBufferDatabase, hash_counter: HashCounter
 ) -> None:
-    """5 streams x 2 lineages = 10 > 8 slots.
+    """Streams x 2 lineages exceeding _CALL_WALK_SLOTS.
 
     LRU thrashes 2 lineages' worth of full history re-hashing every turn;
     random eviction spreads the excess across lineages instead, so cost
     stays well below the thrash ceiling.
     """
+    from inspect_ai.log._condense import _CALL_WALK_SLOTS
+
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
     tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
-    n_streams = 5
+    n_streams = _CALL_WALK_SLOTS // 2 + 1  # 2 lineages/stream, exceeds cap
     rounds = 25
     _drive_streams(tr, n_streams, rounds)
 
@@ -780,7 +863,7 @@ def test_buffer_condense_linear_across_notification_shape(
 
     history: list[ChatMessage] = []
     wire: list[dict[str, JsonValue]] = []
-    payload = "y" * 150
+    payload = ATTACHABLE
     for i in range(N_EVENTS):
         history.append(ChatMessageUser(content=f"message {i}"))
         wire.append({"role": "user", "content": f"{payload} {i}"})

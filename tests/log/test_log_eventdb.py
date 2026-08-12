@@ -12,6 +12,7 @@ from typing import Any, Generator, Iterator, cast
 import pytest
 from test_helpers.transcript import make_model_event
 
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
@@ -873,7 +874,13 @@ def test_event_attachments_shipped_once(
     shipped: list[dict[str, str]] = []
     original = SampleBufferDatabase._insert_attachments
 
-    def recording(self, conn, id, epoch, attachments):
+    def recording(
+        self: SampleBufferDatabase,
+        conn: sqlite3.Connection,
+        id: int | str,
+        epoch: int,
+        attachments: dict[str, str],
+    ) -> None:
         shipped.append(dict(attachments))
         return original(self, conn, id, epoch, attachments)
 
@@ -923,3 +930,54 @@ def test_removed_sample_reinserts_attachments(
     assert any(a.content.startswith("w") for a in stored), (
         "retry's attachment content was skipped by a stale seen-mark"
     )
+
+
+def test_failed_batch_does_not_mark_attachments_seen(
+    db: SampleBufferDatabase,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rolled-back log_events batch must not leave attachment hashes marked seen.
+
+    Buffer-write errors are swallowed upstream, and the retried batch would
+    silently skip the content while events reference attachment://hash.
+    """
+    db.start_sample(sample)
+    event = make_model_event([ChatMessageUser(content="q")], uuid="e1", content="a")
+    event.call = ModelCall.create(
+        {"messages": [{"role": "user", "content": "v" * 150}]}, None
+    )
+
+    original = to_json_str_safe
+
+    def failing(value: Any) -> str:
+        assert db._pending_seen_hashes, (
+            "failure injected before attachments were staged - test is vacuous"
+        )
+        raise RuntimeError("injected serialization failure")
+
+    monkeypatch.setattr(database_module, "to_json_str_safe", failing)
+    with pytest.raises(RuntimeError):
+        db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    monkeypatch.setattr(database_module, "to_json_str_safe", original)
+
+    # retry the batch: content must be inserted (not filtered by a
+    # seen-mark from the rolled-back attempt)
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    with db._get_connection() as conn:
+        stored = list(db._get_attachments(conn, sample.id, 1))
+    assert any(a.content.startswith("v") for a in stored)
+
+
+def test_completed_samples_release_seen_hash_state(
+    db: SampleBufferDatabase, sample: EvalSampleSummary
+) -> None:
+    """Per-sample seen-hash state must not accumulate across completed samples."""
+    db.start_sample(sample)
+    event = make_model_event(
+        [ChatMessageUser(content="q")], uuid="e1", content="z" * 150
+    )
+    db.log_events([SampleEvent(id=sample.id, epoch=1, event=event)])
+    assert db._inserted_attachment_hashes
+    db.complete_sample(sample, sample_metadata=None)
+    assert (str(sample.id), 1) not in db._inserted_attachment_hashes
