@@ -82,9 +82,16 @@ def test_completed_and_running_unaffected() -> None:
 
 
 async def test_summaries_from_missing_log_degrade_to_empty(tmp_path) -> None:
+    from inspect_ai._control.eval_state import EvalState
     from inspect_ai._control.state import _sample_summaries_from_log
 
-    assert await _sample_summaries_from_log(str(tmp_path / "deleted.eval")) == []
+    state = EvalState(
+        eval_id="e1", total=1, log_location=str(tmp_path / "deleted.eval")
+    )
+    assert await _sample_summaries_from_log(state) == []
+    # the empty degradation is never memoized: a deleted log stays a
+    # per-request (cheap, failing) read rather than a pinned empty listing
+    assert state.log_sample_summaries is None
 
 
 async def test_full_sample_from_missing_log_degrades_to_none(tmp_path) -> None:
@@ -95,6 +102,74 @@ async def test_full_sample_from_missing_log_degrades_to_none(tmp_path) -> None:
         # provider-less state (detached / reused) pointing at a deleted log
         register_eval("e1", 1, log_location=str(tmp_path / "deleted.eval"))
         assert await _full_sample("e1", "1", 1) is None
+    finally:
+        clear_all_eval_states()
+
+
+# --- fallback summaries memo ---------------------------------------------
+#
+# Once the live recorder is gone the log is finalized and immutable, so the
+# fallback listing read happens once and is memoized on the EvalState — a
+# keep-alive-parked process polled every 30s must not re-read the log
+# (possibly from S3) per poll (finding 3 in design/ctl/endpoint-cost-audit.md).
+# The retry sweep clears the memo when it deletes a superseded attempt's log.
+
+
+async def test_fallback_summaries_read_once_and_memoized(monkeypatch) -> None:
+    import inspect_ai.log._file as log_file
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import current_sample_summaries
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    calls = {"n": 0}
+
+    async def fake_read(location: str) -> list[EvalSampleSummary]:
+        calls["n"] += 1
+        return [_summary(None, completed=True)]
+
+    monkeypatch.setattr(log_file, "read_eval_log_sample_summaries_async", fake_read)
+    try:
+        register_eval("e-memo", 1, log_location="logs/a.eval")
+
+        rows = await current_sample_summaries("e-memo")
+        assert [r["status"] for r in rows] == ["completed"]
+        assert rows == await current_sample_summaries("e-memo")
+        assert calls["n"] == 1
+    finally:
+        clear_all_eval_states()
+
+
+async def test_retry_sweep_invalidation_degrades_listing_to_empty(monkeypatch) -> None:
+    import inspect_ai.log._file as log_file
+    from inspect_ai._control.eval_state import (
+        clear_all_eval_states,
+        get_eval_state,
+        invalidate_log_sample_summaries,
+        register_eval,
+    )
+    from inspect_ai._control.state import current_sample_summaries
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    deleted = {"is": False}
+
+    async def fake_read(location: str) -> list[EvalSampleSummary]:
+        if deleted["is"]:
+            raise FileNotFoundError(location)
+        return [_summary(None, completed=True)]
+
+    monkeypatch.setattr(log_file, "read_eval_log_sample_summaries_async", fake_read)
+    try:
+        register_eval("e-swept", 1, log_location="logs/a.eval")
+        assert len(await current_sample_summaries("e-swept")) == 1
+
+        # the sweep deletes the log and clears the memo: the listing degrades
+        # to empty (the pre-memo behavior) instead of serving memoized rows
+        # for a log that no longer exists (whose samples 404 on detail reads)
+        deleted["is"] = True
+        invalidate_log_sample_summaries("e-swept")
+        assert await current_sample_summaries("e-swept") == []
+        state = get_eval_state("e-swept")
+        assert state is not None and state.log_sample_summaries is None
     finally:
         clear_all_eval_states()
 
