@@ -145,48 +145,50 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 
 
 
-#### Groq / Ollama / SageMaker / Together / SambaNova
+#### Groq / Ollama / SageMaker / SambaNova
 
-Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values:
+Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values. `none` is not a supported value, so it is omitted and the provider/model default applies — this does not disable reasoning (always-on models keep reasoning):
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal` / `low`        | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Together
+
+Together accepts `low` / `medium` / `high` for all reasoning models, and additionally `xhigh` / `max` on some (e.g. DeepSeek V4 Pro); only gpt-oss rejects the top-end values. `minimal` is never accepted. `none` is not a supported effort value, so it is omitted and the provider/model default applies — to turn reasoning off on hybrid models, pass `reasoning={"enabled": false}` rather than an effort value.
+
+| Inspect input             | API value (gpt-oss)              | API value (other models)         |
+|---------------------------|----------------------------------|----------------------------------|
+| `none`                    | omitted (provider/model default) | omitted (provider/model default) |
+| `minimal`                 | `low`                            | `low`                            |
+| `low` / `medium` / `high` | identical                        | identical                        |
+| `xhigh` / `max`           | `high`                           | identical                        |
 
 #### Perplexity
 
-Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values:
+Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values. `none` is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal`                | `minimal`         |
-| `low`                    | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal`                | `minimal`                        |
+| `low`                    | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
 
 #### Fireworks
 
-Effort validity is model-dependent: no Fireworks model accepts `minimal`, and the gpt-oss family additionally rejects `xhigh` / `max` (other reasoning models — DeepSeek, GLM, Kimi, MiniMax — accept them). Inspect maps `reasoning_effort` as follows:
+Effort validity is model-dependent. No Fireworks model accepts `minimal` (→ `low`). The gpt-oss and MiniMax families accept only `low` / `medium` / `high`: they reject `none` (omitted, so the provider/model default applies) and `xhigh` / `max` (→ `high`). Other reasoning models (DeepSeek, GLM, Kimi) accept `none` and `xhigh` / `max`, so those pass through:
 
-| Inspect input             | API value (gpt-oss) | API value (other models) |
-|---------------------------|---------------------|--------------------------|
-| `none`                    | `none`              | `none`                   |
-| `minimal`                 | `low`               | `low`                    |
-| `low` / `medium` / `high` | identical           | identical                |
-| `xhigh` / `max`           | `high`              | identical                |
-
-#### Moonshot
-
-Kimi-K3's API accepts only `max` effort, so Inspect coerces every `reasoning_effort` value to `max`. Unlike the other providers, `none` does **not** disable reasoning here — Kimi-K3 reasons at `max` and cannot be turned off:
-
-| Inspect input                                           | API value            |
-|---------------------------------------------------------|----------------------|
-| `none`                                                  | `max` (not disabled) |
-| `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | `max`                |
+| Inspect input             | API value (gpt-oss / MiniMax)    | API value (other models) |
+|---------------------------|----------------------------------|--------------------------|
+| `none`                    | omitted (provider/model default) | `none`                   |
+| `minimal`                 | `low`                            | `low`                    |
+| `low` / `medium` / `high` | identical                        | identical                |
+| `xhigh` / `max`           | `high`                           | identical                |
 
 #### Bedrock
 

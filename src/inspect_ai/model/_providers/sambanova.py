@@ -30,8 +30,10 @@ class SambaNovaAPI(OpenAICompatibleAPI):
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
 
-        # SambaNova's API accepts low/medium/high; clamp the extended effort
-        # values (minimal/xhigh/max) so requests aren't rejected.
+        # SambaNova's API accepts only `low`/`medium`/`high`; clamp the extended
+        # effort values (`minimal`/`xhigh`/`max`) so requests aren't rejected.
+        # `none` isn't supported and is omitted, so the provider/model default
+        # applies -- reasoning is not disabled (always-on models keep reasoning).
         if "reasoning_effort" in params:
             clamped = clamp_reasoning_effort_to_low_medium_high(
                 params["reasoning_effort"]

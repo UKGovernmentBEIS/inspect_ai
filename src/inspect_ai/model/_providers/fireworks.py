@@ -3,6 +3,7 @@ from typing import Any
 from typing_extensions import override
 
 from .._generate_config import GenerateConfig
+from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 from .openai_compatible import OpenAICompatibleAPI
 
 
@@ -63,18 +64,30 @@ class FireworksAIAPI(OpenAICompatibleAPI):
     def is_gpt_oss(self) -> bool:
         return "gpt-oss" in self.model_family().lower()
 
+    def is_minimax(self) -> bool:
+        return "minimax" in self.model_family().lower()
+
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
 
-        # Fireworks' effort schema is a superset and validity is model-dependent:
-        # `minimal` is invalid on every model (-> low); `xhigh`/`max` are rejected
-        # only by gpt-oss (-> high), and pass through for models that accept them.
-        effort = params.get("reasoning_effort")
-        if effort == "minimal":
-            params["reasoning_effort"] = "low"
-        elif effort in ("xhigh", "max") and self.is_gpt_oss():
-            params["reasoning_effort"] = "high"
+        # Fireworks' effort schema is a superset and validity is model-dependent.
+        # No model accepts `minimal` (-> `low`). gpt-oss and MiniMax accept only
+        # `low`/`medium`/`high` (same constraint as SambaNova): extended values clamp
+        # down and `none` is omitted (provider/model default applies -- reasoning is
+        # not disabled). Other families (DeepSeek, GLM, Kimi) accept `none` and
+        # `xhigh`/`max`, so those pass through unchanged.
+        if "reasoning_effort" in params:
+            if self.is_gpt_oss() or self.is_minimax():
+                clamped = clamp_reasoning_effort_to_low_medium_high(
+                    params["reasoning_effort"]
+                )
+                if clamped is not None:
+                    params["reasoning_effort"] = clamped
+                else:
+                    del params["reasoning_effort"]
+            elif params["reasoning_effort"] == "minimal":
+                params["reasoning_effort"] = "low"
 
         return params
 

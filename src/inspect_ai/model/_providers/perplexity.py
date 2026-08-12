@@ -46,8 +46,10 @@ class PerplexityAPI(OpenAICompatibleAPI):
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
 
-        # Perplexity's API accepts minimal/low/medium/high; clamp the extended
-        # top-end values (xhigh/max) to high while preserving minimal.
+        # Perplexity's API accepts `minimal`/`low`/`medium`/`high`; clamp the
+        # extended top-end values (`xhigh`/`max`) to `high` while preserving
+        # `minimal`. `none` isn't supported and is omitted, so the provider/model
+        # default applies -- reasoning is not disabled.
         if "reasoning_effort" in params:
             clamped = clamp_reasoning_effort_to_minimal_low_medium_high(
                 params["reasoning_effort"]

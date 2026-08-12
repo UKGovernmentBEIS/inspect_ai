@@ -325,9 +325,38 @@ def test_together_effort_none_omitted():
     assert "reasoning_effort" not in params
 
 
-# -- Fireworks clamping (model-conditional: only gpt-oss clamps xhigh/max) --
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "xhigh"),
+        ("max", "max"),
+    ],
+)
+def test_together_frontier_model_preserves_xhigh_max(effort, expected):
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    # Non-gpt-oss Together models (e.g. DeepSeek V4 Pro) accept xhigh/max, so only
+    # `minimal` is clamped and the top-end values pass through.
+    api = TogetherAIAPI(model_name="deepseek-ai/DeepSeek-V4-Pro", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
+    assert params.get("reasoning_effort") == expected
 
 
+# -- Fireworks clamping (model-conditional: gpt-oss and MiniMax accept only
+#    low/medium/high; other families accept none/xhigh/max) --
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "accounts/fireworks/models/gpt-oss-120b",
+        "accounts/fireworks/models/minimax-m2",
+    ],
+)
 @pytest.mark.parametrize(
     "effort,expected",
     [
@@ -337,17 +366,30 @@ def test_together_effort_none_omitted():
         ("high", "high"),
         ("xhigh", "high"),
         ("max", "high"),
-        ("none", "none"),
     ],
 )
-def test_fireworks_gpt_oss_clamps_extended_effort_values(effort, expected):
+def test_fireworks_low_medium_high_models_clamp_extended(model_name, effort, expected):
     from inspect_ai.model._providers.fireworks import FireworksAIAPI
 
-    api = FireworksAIAPI(
-        model_name="accounts/fireworks/models/gpt-oss-120b", api_key="test-key"
-    )
+    api = FireworksAIAPI(model_name=model_name, api_key="test-key")
     params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
     assert params.get("reasoning_effort") == expected
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "accounts/fireworks/models/gpt-oss-120b",
+        "accounts/fireworks/models/minimax-m2",
+    ],
+)
+def test_fireworks_low_medium_high_models_omit_none(model_name):
+    from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+    # gpt-oss and MiniMax reject `none`, so it is omitted (provider/model default).
+    api = FireworksAIAPI(model_name=model_name, api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
+    assert "reasoning_effort" not in params
 
 
 @pytest.mark.parametrize(
