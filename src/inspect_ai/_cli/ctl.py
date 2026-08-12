@@ -650,8 +650,8 @@ sample_group.hint = lambda token: (
     is_flag=True,
     default=False,
     help=(
-        "Include each errored row's error message (agent-influenced free "
-        "text — withheld by default)."
+        "Include each errored row's error message in the `--json` rows "
+        "(agent-influenced free text — withheld by default)."
     ),
 )
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
