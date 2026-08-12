@@ -3094,26 +3094,18 @@ def _run_task_pause_resume(
                     "attempts will start. Resume with `inspect ctl task resume`."
                 )
         elif terse_mode:
-            if dry_run:
-                click.echo(
-                    _terse_line(
-                        "resume",
-                        target_label,
-                        "dry-run — queued samples would dispatch again",
-                    )
+            # independent latches: a task resume does not clear a process
+            # or model pause, so say when the task is still held
+            held = [] if dry_run else _paused_sources(result.get("paused"))
+            click.echo(
+                _terse_line(
+                    "resume",
+                    target_label,
+                    f"{'dry-run' if dry_run else 'requested'} — queued samples "
+                    f"{'would' if dry_run else 'will'} dispatch again"
+                    f"{_terse_held_suffix(held)}",
                 )
-            else:
-                # independent latches: a task resume does not clear a process
-                # or model pause, so say when the task is still held
-                held = _paused_sources(result.get("paused"))
-                click.echo(
-                    _terse_line(
-                        "resume",
-                        target_label,
-                        "requested — queued samples will dispatch again"
-                        f"{_terse_held_suffix(held)}",
-                    )
-                )
+            )
         elif dry_run:
             click.echo("Would resume — queued samples would dispatch again.")
         else:
