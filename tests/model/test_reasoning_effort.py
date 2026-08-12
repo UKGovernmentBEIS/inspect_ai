@@ -347,6 +347,14 @@ def test_together_frontier_model_preserves_xhigh_max(effort, expected):
     assert params.get("reasoning_effort") == expected
 
 
+def test_together_frontier_model_effort_none_omitted():
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    api = TogetherAIAPI(model_name="deepseek-ai/DeepSeek-V4-Pro", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
+    assert "reasoning_effort" not in params
+
+
 # -- Fireworks clamping (model-conditional: gpt-oss and MiniMax M2 accept only
 #    low/medium/high; other models -- incl. MiniMax M3 -- accept none/xhigh/max) --
 

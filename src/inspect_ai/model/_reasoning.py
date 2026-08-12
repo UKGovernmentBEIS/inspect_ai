@@ -55,8 +55,7 @@ def clamp_reasoning_effort_to_low_medium_high(
     """Clamp a `reasoning_effort` value to the `low`/`medium`/`high` tier.
 
     Used by providers that pass effort through to upstream APIs which only
-    accept the three-level scale (Groq, Ollama, SageMaker). Returns None for
-    `None` and `"none"`.
+    accept the three-level scale. Returns None for `None` and `"none"`.
     """
     if effort is None or effort == "none":
         return None
