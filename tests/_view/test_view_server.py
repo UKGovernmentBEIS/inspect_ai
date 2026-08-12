@@ -33,12 +33,13 @@ from inspect_ai._view import fastapi_server
 from inspect_ai._view.common import (
     get_direct_url,
     get_log_bytes,
-    list_eval_logs_async,
+    normalize_uri,
     read_eval_set_info_async,
     stream_log_bytes,
 )
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.event import ScoreEvent
+from inspect_ai.log import list_eval_logs_async
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.scorer import Score
 
@@ -1136,11 +1137,13 @@ async def test_read_eval_set_info_async_raises_non_auth_errors(
 async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from inspect_ai._util._async import current_async_backend
     from inspect_ai._util.file import FileInfo
-    from inspect_ai._view import common
+    from inspect_ai.log import _file as log_file
 
     filesystem_calls: list[tuple[str, dict[str, Any]]] = []
     async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    sync_ls_calls: list[tuple[str, bool]] = []
 
     class FakeFileSystem:
         def is_s3(self) -> bool:
@@ -1148,6 +1151,21 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
 
         def is_async(self) -> bool:
             return True
+
+        def exists(self, path: str) -> bool:
+            return True
+
+        def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
+            sync_ls_calls.append((path, recursive))
+            return [
+                FileInfo(
+                    name=f"{path}/2026-01-01T00-00-00_task_id.eval",
+                    type="file",
+                    size=123,
+                    mtime=1710000000.0,
+                    etag=None,
+                )
+            ]
 
         def _file_info(self, info: dict[str, Any]) -> FileInfo:
             return FileInfo(
@@ -1190,16 +1208,23 @@ async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise AssertionError("AsyncFilesystem fast path should not be used")
 
-    monkeypatch.setattr(common, "filesystem", fake_filesystem)
-    monkeypatch.setattr(common, "async_filesystem", fake_async_filesystem)
-    monkeypatch.setattr(common, "AsyncFilesystem", UnexpectedAsyncFilesystem)
+    monkeypatch.setattr(log_file, "filesystem", fake_filesystem)
+    monkeypatch.setattr(log_file, "async_filesystem", fake_async_filesystem)
+    monkeypatch.setattr(log_file, "AsyncFilesystem", UnexpectedAsyncFilesystem)
 
     logs = await list_eval_logs_async(
         "s3://bucket/logs", recursive=False, fs_options={"anon": True}
     )
 
     assert filesystem_calls == [("s3://bucket/logs", {"anon": True})]
-    assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    if current_async_backend() == "asyncio":
+        assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+        assert sync_ls_calls == []
+    else:
+        # under trio the fsspec asynchronous=True path is unavailable, so the
+        # listing falls back to fsspec's backend-agnostic sync API
+        assert async_filesystem_calls == []
+        assert sync_ls_calls == [("s3://bucket/logs", False)]
     assert len(logs) == 1
     assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
     assert logs[0].task == "task"
@@ -1600,7 +1625,38 @@ def test_fastapi_only_dir_access_policy() -> None:
     policy = fastapi_server.OnlyDirAccessPolicy("/allowed/dir")
     assert asyncio.run(policy.can_read(None, "/allowed/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/other/dir/file.eval"))  # type: ignore[arg-type]
+    assert not asyncio.run(policy.can_read(None, "/allowed/directory/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/allowed/dir/../etc/passwd"))  # type: ignore[arg-type]
+    assert not asyncio.run(policy.can_read(None, "unsupported://dir/file.eval"))  # type: ignore[arg-type]
+
+
+def test_normalize_uri_preserves_windows_drive() -> None:
+    windows_uri = "file://C:/Users/example/logs/run.eval"
+    assert normalize_uri(windows_uri) == windows_uri
+    assert normalize_uri("file:///C:/Users/example/logs/run.eval") == windows_uri
+    assert normalize_uri(urllib.parse.quote(windows_uri, safe="")) == windows_uri
+    assert normalize_uri("file://c:/Users/example/logs/run.eval") == (
+        "file://c:/Users/example/logs/run.eval"
+    )
+
+
+def test_fastapi_only_dir_access_policy_accepts_listed_file_uri(
+    tmp_path: Path,
+) -> None:
+    log_file = write_eval_log(tmp_path, "run.eval")
+    fs = inspect_ai._util.file.filesystem(log_file)
+    listed_uri = fs.path_as_uri(fs.fs._strip_protocol(log_file))
+
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            default_dir=str(tmp_path),
+            access_policy=fastapi_server.OnlyDirAccessPolicy(str(tmp_path)),
+        )
+    ) as client:
+        encoded_uri = urllib.parse.quote(listed_uri, safe="")
+        response = client.get(f"/logs/{encoded_uri}")
+
+    assert response.status_code == 200
 
 
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:

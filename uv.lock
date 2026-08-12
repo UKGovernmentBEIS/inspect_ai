@@ -945,14 +945,14 @@ wheels = [
 
 [[package]]
 name = "click"
-version = "8.2.1"
+version = "8.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/60/6c/8ca2efa64cf75a977a0d7fac081354553ebe483345c734fb6b6515d96bbc/click-8.2.1.tar.gz", hash = "sha256:27c491cc05d968d271d5a1db13e3b5a184636d9d930f148c50b038f0d0646202", size = 286342, upload-time = "2025-05-20T23:19:49.832Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/d4/81420972a676e8ffea40450d8c8c92943e7218a78fe9b64359836cc9876b/click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6", size = 338000, upload-time = "2026-06-24T17:45:15.148Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/32/10bb5764d90a8eee674e9dc6f4db6a0ab47c8c4d0d83c27f7c39ac415a4d/click-8.2.1-py3-none-any.whl", hash = "sha256:61a3265b914e850b85317d0b3109c7f8cd35a670f963866005d6ef1d5175a12b", size = 102215, upload-time = "2025-05-20T23:19:47.796Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/e2/79c688af8b210d232694e31e59da9f6ec747bae31c3f5946e4e9b98860d5/click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76", size = 119243, upload-time = "2026-06-24T17:45:13.73Z" },
 ]
 
 [[package]]
@@ -2040,6 +2040,7 @@ dependencies = [
 dev = [
     { name = "adlfs" },
     { name = "anthropic" },
+    { name = "antlr4-python3-runtime" },
     { name = "apprise" },
     { name = "aws-bedrock-token-generator" },
     { name = "azure-ai-inference" },
@@ -2052,6 +2053,7 @@ dev = [
     { name = "ipython", version = "8.39.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "ipython", version = "9.14.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "jsonpath-ng" },
+    { name = "latex2sympy2-extended" },
     { name = "markdown" },
     { name = "mcp" },
     { name = "mistralai" },
@@ -2111,6 +2113,10 @@ doc = [
     { name = "quarto-cli" },
     { name = "types-pyyaml" },
 ]
+math = [
+    { name = "antlr4-python3-runtime" },
+    { name = "latex2sympy2-extended" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -2123,6 +2129,8 @@ requires-dist = [
     { name = "agent-client-protocol", specifier = ">=0.12.0" },
     { name = "aioboto3", specifier = ">=13.0.0" },
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.115.0" },
+    { name = "antlr4-python3-runtime", marker = "extra == 'dev'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
+    { name = "antlr4-python3-runtime", marker = "extra == 'math'", specifier = ">=4.9.3,!=4.10.*,!=4.12.*,!=4.13.0,!=4.13.1,<=4.13.2" },
     { name = "anyio", specifier = ">=4.14.0" },
     { name = "apprise", marker = "extra == 'dev'" },
     { name = "aws-bedrock-token-generator", marker = "extra == 'dev'" },
@@ -2154,6 +2162,8 @@ requires-dist = [
     { name = "jsonref", specifier = ">=1.1.0" },
     { name = "jsonschema", specifier = ">3.1.1" },
     { name = "jupyter", marker = "extra == 'doc'" },
+    { name = "latex2sympy2-extended", marker = "extra == 'dev'", specifier = "==1.11.0" },
+    { name = "latex2sympy2-extended", marker = "extra == 'math'", specifier = "==1.11.0" },
     { name = "markdown", marker = "extra == 'dev'" },
     { name = "markdown", marker = "extra == 'doc'" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.10.0" },
@@ -2225,14 +2235,14 @@ requires-dist = [
     { name = "zipp", specifier = ">=3.19.1" },
     { name = "zstandard", specifier = ">=0.20.0" },
 ]
-provides-extras = ["dev", "doc", "dist"]
+provides-extras = ["dev", "doc", "dist", "math"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "inspect-ai", extras = ["dev"] }]
 
 [[package]]
 name = "inspect-scout"
-version = "0.4.39"
+version = "0.4.46"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2268,9 +2278,9 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/31/73651382b9c436efe8bd8e4f200466f8a82207b0c3e87ba089efd21e86a2/inspect_scout-0.4.39.tar.gz", hash = "sha256:9b9aef307ab0ff4edd2f9cd947d6eb950f93aae68f3c13db3fa2193c2e9841bc", size = 2532922, upload-time = "2026-06-02T14:05:15.835Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/31/441f2451635387d3651122cd5826e7ea4b5d288f1691738f137cd26c86f1/inspect_scout-0.4.46.tar.gz", hash = "sha256:7b79c035573123b5499b204773b5132521d900c00c08900805a24199c48c2d97", size = 2667285, upload-time = "2026-08-05T12:45:45.031Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9c/eb/f156b6f23ccbb47dec0085582dbb1008689ea1968161d6e8e798be54766c/inspect_scout-0.4.39-py3-none-any.whl", hash = "sha256:ea8211af58c9faba10bcc3a8730dbe197e8b54a25df0cf1f069e3a9cb6edcbc0", size = 2643655, upload-time = "2026-06-02T14:05:14.059Z" },
+    { url = "https://files.pythonhosted.org/packages/16/54/d841bcd68b5d03b267307a8e6b07595538f9e2623ddb8ea3f83daa7bd0a6/inspect_scout-0.4.46-py3-none-any.whl", hash = "sha256:9ef4882dbc7b112b7434cdbdbdf3ef8a067139ddec9b1c9169e1e938b0239bdc", size = 2757084, upload-time = "2026-08-05T12:45:42.408Z" },
 ]
 
 [[package]]
@@ -2984,6 +2994,19 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/da/34/28fff3ab31ccff1fd4f6c7c7b0ceb2b6968d8ea4950663eadcb5720591a0/lark-1.3.1.tar.gz", hash = "sha256:b426a7a6d6d53189d318f2b6236ab5d6429eaf09259f1ca33eb716eed10d2905", size = 382732, upload-time = "2025-10-27T18:25:56.653Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/82/3d/14ce75ef66813643812f3093ab17e46d3a206942ce7376d31ec2d36229e7/lark-1.3.1-py3-none-any.whl", hash = "sha256:c629b661023a014c37da873b4ff58a817398d12635d3bbb2c5a03be7fe5d1e12", size = 113151, upload-time = "2025-10-27T18:25:54.882Z" },
+]
+
+[[package]]
+name = "latex2sympy2-extended"
+version = "1.11.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "antlr4-python3-runtime" },
+    { name = "sympy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/30/75/456da2da05f6380ea96e6ea804ab2c03e41fc3ed80052307fe8efe6ea20e/latex2sympy2_extended-1.11.0.tar.gz", hash = "sha256:9695657c81b50abba2636638638618db59f4663ed2a4a12d62cef74a40e28fec", size = 207023, upload-time = "2026-01-10T01:43:21.319Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e9/61/f75cd1fa54d8434276126034aed54dd120747de9a8fa013cdd79545ccbeb/latex2sympy2_extended-1.11.0-py3-none-any.whl", hash = "sha256:aebb77d52ce269e25028e4bea89ddb14d242ba36bcf7b636496fb5fd9728d234", size = 209050, upload-time = "2026-01-10T01:43:19.458Z" },
 ]
 
 [[package]]

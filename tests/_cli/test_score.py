@@ -284,7 +284,7 @@ async def test_score_from_scan_writes_separate_output_without_mutating_source(
     monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
     monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
     recorder_locations: list[str] = []
-    create_recorder = score_cli.create_recorder_for_location
+    create_recorder = create_recorder_for_location
 
     def tracked_create_recorder(location: str, log_dir: str):
         recorder_locations.append(location)

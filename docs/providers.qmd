@@ -810,7 +810,7 @@ To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` 
 ``` bash
 pip install openai
 export FIREWORKS_API_KEY=your-firewrks-api-key
-inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
+inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 ```
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
