@@ -4980,7 +4980,11 @@ def test_sample_requeue_bulk_aborts_on_missing_route(
 
     def respond(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
         calls.append((kwargs.get("params") or {})["sample_id"])
-        raise _CtlFailure("not_found", _REQUEUE_ROUTE_MISSING, status=404)
+        # the missing_route flag is what _request_json sets on a router 404
+        # (vs an entity 404) — the sweep aborts on the flag, not the message
+        raise _CtlFailure(
+            "not_found", _REQUEUE_ROUTE_MISSING, status=404, missing_route=True
+        )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", respond)
     result = cli_runner().invoke(

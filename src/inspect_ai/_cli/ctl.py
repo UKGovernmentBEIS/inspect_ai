@@ -959,7 +959,9 @@ def sample_cancel_command(
 
 @sample_group.command("requeue")
 @click.argument("task")
-@click.argument("targets", nargs=-1, metavar="[SAMPLE_ID [EPOCH]]...")
+@click.argument(
+    "targets", nargs=-1, metavar="[SAMPLE_ID [EPOCH] | SAMPLE_ID EPOCH ...]"
+)
 @click.option(
     "--errored",
     is_flag=True,
@@ -1717,12 +1719,18 @@ class _CtlFailure(click.exceptions.Exit):
         *,
         exception: str | None = None,
         status: int | None = None,
+        missing_route: bool = False,
     ) -> None:
         super().__init__(1)
         self.kind = kind
         self.message = message
         self.exception = exception
         self.status = status
+        # a router 404 (endpoint absent — older server) rather than an
+        # entity 404; classification for callers that must tell the two
+        # apart (e.g. the bulk-requeue sweep aborts on it), not an
+        # envelope field
+        self.missing_route = missing_route
         self._emitted = False
 
     @classmethod
@@ -1753,6 +1761,7 @@ def _fail(
     *,
     exception: str | None = None,
     status: int | None = None,
+    missing_route: bool = False,
 ) -> NoReturn:
     """Echo ``message`` to stderr and raise the matching :class:`_CtlFailure`.
 
@@ -1764,7 +1773,9 @@ def _fail(
     directly instead.
     """
     click.echo(message, err=True)
-    raise _CtlFailure(kind, message, exception=exception, status=status)
+    raise _CtlFailure(
+        kind, message, exception=exception, status=status, missing_route=missing_route
+    )
 
 
 class _FailureKind(NamedTuple):
@@ -3493,7 +3504,7 @@ def _requeue_pairs(
                 pid=target.get("pid"),
             )
         except _CtlFailure as exc:
-            if exc.message == _REQUEUE_ROUTE_MISSING or exc.kind not in (
+            if exc.missing_route or exc.kind not in (
                 "not_found",
                 "invalid_request",
                 "http_error",
@@ -5378,7 +5389,12 @@ def _request_json(
             )
         if response.status_code == 404:
             if not_found_missing_route is not None and not _handler_404(response):
-                _fail("not_found", not_found_missing_route, status=404)
+                _fail(
+                    "not_found",
+                    not_found_missing_route,
+                    status=404,
+                    missing_route=True,
+                )
             _fail("not_found", not_found, status=404)
         if response.status_code == 400:
             _fail(
