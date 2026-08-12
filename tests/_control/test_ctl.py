@@ -5645,3 +5645,93 @@ def test_sample_detail_score_cannot_swallow_following_scores(
     assert "\x1b" not in header
     assert "a=x" in header
     assert "b=C" in header
+
+
+def test_process_anomalies_rendering_sanitizes_agent_command_lines(
+    trace_dir: Path,
+) -> None:
+    """Escape bytes in a stalled subprocess's command line never reach the terminal.
+
+    `process anomalies` renders agent-controlled text — a sandboxed `bash`
+    call's shlex-joined command line lands verbatim in the trace record's
+    detail — through the rich table shared with `inspect trace anomalies`,
+    whose styled export preserves escape bytes.
+    """
+    write_trace_log(
+        trace_dir / "trace-123.log",
+        [
+            action_record(
+                "run1",
+                "Subprocess",
+                "enter",
+                detail="bash -c '\x1b]0;PWNED\x07\x1b[2K\nsleep 1000' \x1b]",
+                start_time=1000.0,
+            ),
+            # a row after the unterminated OSC — must not be swallowed
+            action_record(
+                "run2", "Model", "enter", detail="generate", start_time=1000.0
+            ),
+        ],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "\x1b" not in result.stdout and "\x07" not in result.stdout
+    assert "sleep 1000'" in result.stdout
+    assert "generate" in result.stdout  # sanitized per record, not post-export
+
+    # the JSON envelope keeps the raw bytes (machine path; consumers quote)
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    detail = json.loads(result.stdout)["processes"][0]["running"][0]["detail"]
+    assert "\x1b]0;PWNED" in detail
+
+
+def test_process_anomalies_rendering_escapes_rich_markup(trace_dir: Path) -> None:
+    """Rich markup in agent text renders literally, not as styling or links.
+
+    The rich table parses cell strings as console markup, so un-escaped
+    agent text like ``[link=...]`` would export an OSC 8 hyperlink (and
+    ``[conceal]`` an SGR 8 that hides the error joined after it).
+    """
+    write_trace_log(
+        trace_dir / "trace-123.log",
+        [
+            action_record(
+                "run1",
+                "Subprocess",
+                "enter",
+                detail="[link=http://evil]ok[/link] [conceal]hidden[/conceal]",
+                start_time=1000.0,
+            )
+        ],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "\x1b" not in result.stdout
+    assert "[link=http://evil]ok[/link]" in result.stdout
+    assert "[conceal]hidden[/conceal]" in result.stdout
+
+
+def test_sanitized_anomalies_neutralizes_rendered_fields() -> None:
+    """Field-level pin, unmasked by click's own CSI stripping on a non-tty."""
+    from inspect_ai._cli.ctl import _sanitized_anomalies
+    from inspect_ai._cli.trace import TraceAnomalies
+    from inspect_ai._util.trace import ActionTraceRecord
+
+    record = ActionTraceRecord(
+        timestamp="2024-01-01T00:00:00",
+        level="TRACE",
+        message="msg\x1b[31m",
+        action="Subprocess\x07",
+        event="error",
+        trace_id="t1",
+        detail="run\x1b[2K\nit [bold]now[/bold]",
+        error="fail\x1b]0;x\x07",
+    )
+    anomalies = TraceAnomalies(running=[], cancelled=[], errors=[record], timeouts=[])
+    (clean,) = _sanitized_anomalies(anomalies).errors
+    assert clean.action == "Subprocess"
+    assert clean.message == "msg"
+    assert clean.detail == r"run it \[bold]now\[/bold]"
+    assert clean.error == "fail"
+    # the source records are untouched (the JSON path renders them raw)
+    assert anomalies.errors[0].detail == "run\x1b[2K\nit [bold]now[/bold]"

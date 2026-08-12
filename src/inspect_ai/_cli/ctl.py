@@ -54,6 +54,7 @@ from typing import (
 import click
 import httpx
 from click.core import ParameterSource
+from rich.markup import escape as escape_markup
 
 from inspect_ai._cli.trace import (
     TraceAnomalies,
@@ -77,7 +78,11 @@ from inspect_ai._control.state import (
 )
 from inspect_ai._util.name_match import match_name_prefix
 from inspect_ai._util.process import pid_alive
-from inspect_ai._util.trace import inspect_trace_dir, read_trace_file
+from inspect_ai._util.trace import (
+    ActionTraceRecord,
+    inspect_trace_dir,
+    read_trace_file,
+)
 
 if TYPE_CHECKING:
     # TYPE_CHECKING to keep the CLI import-light: `inspect_ai.log._samples`
@@ -3322,6 +3327,42 @@ def _trace_file_for_pid(pid: int) -> Path | None:
     return None
 
 
+def _sanitized_anomalies(anomalies: TraceAnomalies) -> TraceAnomalies:
+    """A copy of ``anomalies`` with its rendered text fields neutralized.
+
+    The anomalies detail column embeds agent-controlled text verbatim — a
+    stalled sandboxed ``bash`` call's shlex-joined command line preserves the
+    agent's script bytes — and :func:`rendered_anomalies` (shared with
+    `inspect trace anomalies`) renders through rich, which keeps escape bytes
+    in ``export_text(styles=True)`` and parses cell strings as console markup
+    (so e.g. ``[link=...]`` in agent text would export an OSC 8 hyperlink).
+    Fields are therefore sanitized per record before they enter the table —
+    not post-export, where one row's unterminated OSC would swallow the rows
+    after it — with newlines flattened like the other table cells and markup
+    escaped to render literally. The ``--json`` envelope keeps the raw bytes.
+    """
+
+    def clean(text: str) -> str:
+        return escape_markup(_sanitize_control(text).replace("\n", " "))
+
+    def clean_record(record: ActionTraceRecord) -> ActionTraceRecord:
+        return record.model_copy(
+            update=dict(
+                action=clean(record.action),
+                message=clean(record.message),
+                detail=clean(record.detail),
+                error=None if record.error is None else clean(record.error),
+            )
+        )
+
+    return TraceAnomalies(
+        running=[clean_record(r) for r in anomalies.running],
+        cancelled=[clean_record(r) for r in anomalies.cancelled],
+        errors=[clean_record(r) for r in anomalies.errors],
+        timeouts=[clean_record(r) for r in anomalies.timeouts],
+    )
+
+
 @_envelope_failures
 def _run_process_anomalies(
     pid: int | None, *, filter: str | None, all: bool, as_json: bool
@@ -3459,14 +3500,19 @@ def _run_process_anomalies(
             )
         return
 
+    # _sanitize_keep_sgr as a backstop over the already-sanitized rendering:
+    # rich's own styling exports as SGR (kept), so anything else that ever
+    # leaks into the export is neutralized without trusting its internals.
     click.echo(
         "\n\n".join(
-            rendered_anomalies(
-                section.trace_file,
-                section.anomalies,
-                all,
-                pid=section.pid,
-                as_of=section.as_of,
+            _sanitize_keep_sgr(
+                rendered_anomalies(
+                    section.trace_file,
+                    _sanitized_anomalies(section.anomalies),
+                    all,
+                    pid=section.pid,
+                    as_of=section.as_of,
+                )
             )
             for section in sections
         )
