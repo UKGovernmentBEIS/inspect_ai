@@ -5801,7 +5801,9 @@ def _event_summary(e: dict[str, Any]) -> str:
     completion fields, whose placeholder values (zero tokens, a default stop
     reason) would read as "finished with nothing". Tolerates the
     metadata-only projection (no completion / arguments / result / error
-    text): a withheld error renders as a bare ``error`` marker.
+    text): a withheld model/tool error renders as a bare ``error`` marker,
+    while an ``error``-type event renders an empty summary (its type column
+    already reads ``error``, so a marker would only duplicate it).
     """
     t = e.get("event")
     if t == "model":
