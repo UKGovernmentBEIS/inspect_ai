@@ -97,7 +97,7 @@ To instead keep the process alive after the eval finishes — its state still qu
 
 `--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because a detached eval must be observable and cancellable while running, combining `--detach` with `--ctl-server=false` is an error.
 
-To make an agent (Claude Code or similar) use this workflow for long-running evals, paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
+To make an agent (Claude Code or similar) use this workflow for long-running evals, install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install), or paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
 
 ```markdown
 For evals that may run longer than a few minutes, do not run

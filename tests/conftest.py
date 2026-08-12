@@ -133,6 +133,45 @@ def fast_retry_waits(request):
         yield
 
 
+@pytest.fixture(autouse=True)
+def isolate_active_model():
+    """Keep the active-model contextvar from leaking across tests.
+
+    `eval` sets the process `active_model` contextvar. A test that runs `eval`
+    or `eval_set` *synchronously* in its own context (not a background thread)
+    keeps that value after the call, so it leaks into later tests. A later test
+    that resolves a bare model then gets the leaked model instead of
+    `INSPECT_EVAL_MODEL`. Restore the contextvar after each test.
+    """
+    from inspect_ai.model._model import active_model_context_var
+
+    token = active_model_context_var.set(active_model_context_var.get(None))
+    try:
+        yield
+    finally:
+        active_model_context_var.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def fresh_concurrency_registry():
+    """Reset the process-global concurrency registry before each test.
+
+    Registry entries wrap anyio primitives bound to the async backend they
+    were created under. `eval()` calls `init_concurrency()` at startup but
+    leaves its entries behind on exit, so a fixture that runs `eval()` (on
+    its own asyncio loop — e.g. building a log file for async tests) leaves
+    an asyncio-bound limiter registered under the model's connection key. A
+    later trio test in the same process that generates against the same model
+    then reuses that limiter and crashes with "no running event loop"
+    (asyncio-backend acquire under trio). Give every test the same clean
+    slate an eval run gets.
+    """
+    from inspect_ai.util._concurrency import init_concurrency
+
+    init_concurrency()
+    yield
+
+
 @pytest.fixture
 def no_model_copyreg_reducer():
     """Suspend any copyreg reducer registered for Model for the test's duration.
