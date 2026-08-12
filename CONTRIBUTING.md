@@ -21,7 +21,9 @@ Your path depends on your history with the project:
   welcome directly.
 
 Whatever your tier, a non-draft PR inactive for 60 days is closed with an
-invitation to reopen.
+invitation to reopen. And whatever your tier, check for an existing open PR
+addressing the same problem before opening yours: duplicates are closed in
+favor of the earlier PR unless a maintainer has asked for an alternative.
 
 Issues a maintainer has labeled `deferred` are decisions not to prioritize
 that work right now. PRs against a deferred issue are closed automatically,
@@ -36,7 +38,7 @@ can't merge.
 
 ## Proposing work (new contributors)
 
-1. **Search existing issues** to avoid duplicates.
+1. **Search existing issues and open PRs** to avoid duplicates.
 2. **Open an issue** describing the problem, the motivation, and (optionally)
    whether you'd like to implement it. Concrete evidence — a reproduction, a
    failing test — makes acceptance much more likely.
