@@ -122,14 +122,6 @@ def attachment_refs_from_object(
     the entire conversation on every call, which made per-update refcounting
     O(conversation) on the event loop.
 
-    Traversal mirrors what a python-mode dump exposes to the value scanner:
-    ``BaseModel`` fields (``__dict__`` plus ``__pydantic_extra__`` for
-    ``extra="allow"`` models such as ``CheckpointEvent``), dataclasses
-    (``ToolCall`` and friends genuinely carry refs), dict values (keys are
-    never scanned), and list/tuple/set items. Arbitrary non-model objects are
-    left opaque, exactly as the dump leaves them; ``__pydantic_private__`` is
-    excluded from dumps and is correctly never reached via ``__dict__``.
-
     Unlike the dump-based path, cyclic values (reachable via ``metadata`` or
     ``SubtaskEvent.result``) terminate cleanly instead of raising
     ``RecursionError``: container nodes are visited once by identity.
@@ -146,7 +138,7 @@ def attachment_refs_from_object(
     """
     refs: set[str] = set()
     prefix_len = len(ATTACHMENT_PROTOCOL)
-    seen: set[int] = set()
+    seen: set[int] = set()  # container nodes visited once, by identity
     stack: list[object] = [value]
     while stack:
         v = stack.pop()
@@ -163,15 +155,19 @@ def attachment_refs_from_object(
                 if cached is not None:
                     refs.update(cached)
                     continue
+            # __dict__ plus __pydantic_extra__ (extra="allow" models, e.g.
+            # CheckpointEvent); __pydantic_private__ is excluded from dumps
+            # too, so correctly never reached here
             stack.extend(v.__dict__.values())
             extra = v.__pydantic_extra__
             if extra:
                 stack.extend(extra.values())
         elif isinstance(v, dict):
-            stack.extend(v.values())
+            stack.extend(v.values())  # keys are never scanned, matching the dump path
         elif isinstance(v, (list, tuple, set)):
             stack.extend(v)
         elif dataclasses.is_dataclass(v) and not isinstance(v, type):
+            # e.g. ToolCall - a pydantic dataclass, not a BaseModel
             stack.extend(getattr(v, f.name) for f in dataclasses.fields(v))
     return refs
 
