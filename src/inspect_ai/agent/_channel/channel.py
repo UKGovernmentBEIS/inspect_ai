@@ -41,7 +41,7 @@ attached, ``drain`` returns ``[]`` and ``scope`` never cancels.
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Callable, Iterator, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, Sequence
 
 import anyio
 
@@ -58,6 +58,9 @@ from .items import Cancel, CancelReason, ChannelItem, UserMessage, coalesce
 
 if TYPE_CHECKING:
     from .ref import AgentRef
+
+
+TurnState = Literal["started", "ended", "cancelled"]
 
 
 _REPAIR_MESSAGE_FOR_REASON: dict[CancelReason, str] = {
@@ -134,7 +137,7 @@ class AgentChannel:
         # :meth:`subscribe_turn_state` to learn the agent's working /
         # idle boundary without inferring it from drains or scope
         # presence.
-        self._on_turn_state: list[Callable[[str], None]] = []
+        self._on_turn_state: list[Callable[[TurnState], None]] = []
         # External-reach marker count. Producers that represent a
         # reachable external surface (e.g. an ACP socket server actually
         # accepting client connections) call ``mark_live`` to flip
@@ -288,7 +291,7 @@ class AgentChannel:
         return _unsubscribe
 
     def subscribe_turn_state(
-        self, callback: Callable[[str], None]
+        self, callback: Callable[[TurnState], None]
     ) -> Callable[[], None]:
         """Register a callback fired on :meth:`turn_scope` transitions.
 
@@ -320,7 +323,7 @@ class AgentChannel:
 
         return _unsubscribe
 
-    def _fire_turn_state(self, state: str) -> None:
+    def _fire_turn_state(self, state: TurnState) -> None:
         # Snapshot to tolerate unsubscribes that fire during iteration.
         for cb in list(self._on_turn_state):
             try:

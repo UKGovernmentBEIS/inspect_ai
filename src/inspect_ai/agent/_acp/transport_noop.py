@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         ElicitationClient,
     )
     from inspect_ai.agent._channel import AgentChannel, AgentRef
+    from inspect_ai.agent._channel.channel import TurnState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -169,7 +170,7 @@ class NoOpAcpTransport:
         return _noop_unsubscribe
 
     def subscribe_turn_state(
-        self, callback: Callable[[str], None]
+        self, callback: Callable[[TurnState], None]
     ) -> Callable[[], None]:
         """No-op subscribe — no turn scope binds on the no-op session."""
 

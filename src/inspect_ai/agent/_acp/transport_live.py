@@ -51,6 +51,7 @@ from inspect_ai.tool._tool_call import ToolCallError
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
     from inspect_ai.agent._channel import AgentChannel, AgentRef
+    from inspect_ai.agent._channel.channel import TurnState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import Transcript
@@ -592,7 +593,7 @@ class LiveAcpTransport:
         # an ``inspect/turn_state`` notification. Kept inline (not
         # wrapped in a helper) — single list, same rationale as
         # ``_filter_subagent_events``.
-        self._turn_state_subscribers: list[Callable[[str], None]] = []
+        self._turn_state_subscribers: list[Callable[[TurnState], None]] = []
         # Clear handle for the channel's external-reach marker. Set in
         # :meth:`maybe_bind` iff :func:`acp_server_accepting_clients`
         # was True at bind time (i.e. an :class:`AcpServer` is up and
@@ -729,7 +730,7 @@ class LiveAcpTransport:
         if any(isinstance(it, _ChannelUserMessage) for it in items):
             self._interrupt.resolve_if_pending()
 
-    def _on_channel_turn_state(self, state: str) -> None:
+    def _on_channel_turn_state(self, state: TurnState) -> None:
         """Callback fired by the bound channel on :meth:`turn_scope` transitions.
 
         Fans out to per-connection subscribers (registered via
@@ -1151,7 +1152,7 @@ class LiveAcpTransport:
         return self._turn_active
 
     def subscribe_turn_state(
-        self, callback: Callable[[str], None]
+        self, callback: Callable[[TurnState], None]
     ) -> Callable[[], None]:
         """Register a callback fired on the bound channel's turn-scope transitions.
 

@@ -44,6 +44,7 @@ if TYPE_CHECKING:
         ApproverClient,
         ElicitationClient,
     )
+    from inspect_ai.agent._channel.channel import TurnState
 
 logger = getLogger(__name__)
 
@@ -496,7 +497,7 @@ class Forwarders:
                 {"sessionId": self._wire_session_id},
             )
 
-    def _on_turn_state(self, state: str) -> None:
+    def _on_turn_state(self, state: TurnState) -> None:
         """Sync callback from the agent's task; schedule the wire notification.
 
         Fire-and-forget: the callback runs inside the agent's
@@ -512,7 +513,7 @@ class Forwarders:
                 name=f"acp-fwd-turn-state-{self._target_session_id}",
             )
 
-    async def _send_turn_state(self, state: str) -> None:
+    async def _send_turn_state(self, state: TurnState) -> None:
         with acp_send_guard("ACP turn_state forwarder: send failed"):
             await self._connection.send_notification(
                 INSPECT_TURN_STATE_METHOD,

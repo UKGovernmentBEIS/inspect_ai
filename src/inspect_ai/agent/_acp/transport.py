@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     )
 
     from inspect_ai.agent._channel import AgentChannel, AgentRef
+    from inspect_ai.agent._channel.channel import TurnState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -419,7 +420,7 @@ class AcpTransport(Protocol):
         ...
 
     def subscribe_turn_state(
-        self, callback: Callable[[str], None]
+        self, callback: Callable[[TurnState], None]
     ) -> Callable[[], None]:
         """Register a callback fired on the bound channel's turn-scope transitions.
 
