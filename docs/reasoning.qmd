@@ -181,9 +181,9 @@ Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `mi
 
 #### Fireworks
 
-Effort validity is model-dependent. No Fireworks model accepts `minimal` (→ `low`). The gpt-oss and MiniMax families accept only `low` / `medium` / `high`: they reject `none` (omitted, so the provider/model default applies) and `xhigh` / `max` (→ `high`). Other reasoning models (DeepSeek, GLM, Kimi) accept `none` and `xhigh` / `max`, so those pass through:
+Effort validity is model-dependent. No Fireworks model accepts `minimal` (→ `low`). gpt-oss and MiniMax M2 accept only `low` / `medium` / `high`: they reject `none` (omitted, so the provider/model default applies) and `xhigh` / `max` (→ `high`). Other reasoning models — DeepSeek, GLM, Kimi, and MiniMax M3 — accept `none` and `xhigh` / `max`, so those pass through:
 
-| Inspect input             | API value (gpt-oss / MiniMax)    | API value (other models) |
+| Inspect input             | API value (gpt-oss / MiniMax M2) | API value (other models) |
 |---------------------------|----------------------------------|--------------------------|
 | `none`                    | omitted (provider/model default) | `none`                   |
 | `minimal`                 | `low`                            | `low`                    |

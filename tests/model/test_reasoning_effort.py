@@ -10,8 +10,9 @@ Covers:
   effort values (`minimal`/`xhigh`/`max`) down to the `low`/`medium`/`high` tier;
   Perplexity keeps `minimal` and clamps only `xhigh`/`max` down to `high`.
 - Fireworks is model-conditional (superset schema): `minimal`->`low` on all
-  models, but `xhigh`/`max` are clamped to `high` only for gpt-oss (which rejects
-  them) and preserved for other reasoning models (deepseek/glm/kimi/minimax).
+  models; `none` is dropped and `xhigh`/`max` clamped to `high` only for gpt-oss and
+  MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
+  M3) accept and pass through `none`/`xhigh`/`max`.
 - OpenRouter: `max` is remapped to `xhigh` (OpenRouter does not accept `max`).
 """
 
@@ -346,15 +347,15 @@ def test_together_frontier_model_preserves_xhigh_max(effort, expected):
     assert params.get("reasoning_effort") == expected
 
 
-# -- Fireworks clamping (model-conditional: gpt-oss and MiniMax accept only
-#    low/medium/high; other families accept none/xhigh/max) --
+# -- Fireworks clamping (model-conditional: gpt-oss and MiniMax M2 accept only
+#    low/medium/high; other models -- incl. MiniMax M3 -- accept none/xhigh/max) --
 
 
 @pytest.mark.parametrize(
     "model_name",
     [
         "accounts/fireworks/models/gpt-oss-120b",
-        "accounts/fireworks/models/minimax-m2",
+        "accounts/fireworks/models/minimax-m2p7",
     ],
 )
 @pytest.mark.parametrize(
@@ -380,18 +381,25 @@ def test_fireworks_low_medium_high_models_clamp_extended(model_name, effort, exp
     "model_name",
     [
         "accounts/fireworks/models/gpt-oss-120b",
-        "accounts/fireworks/models/minimax-m2",
+        "accounts/fireworks/models/minimax-m2p7",
     ],
 )
 def test_fireworks_low_medium_high_models_omit_none(model_name):
     from inspect_ai.model._providers.fireworks import FireworksAIAPI
 
-    # gpt-oss and MiniMax reject `none`, so it is omitted (provider/model default).
+    # gpt-oss and MiniMax M2 reject `none`, so it is omitted (provider/model default).
     api = FireworksAIAPI(model_name=model_name, api_key="test-key")
     params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
     assert "reasoning_effort" not in params
 
 
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/minimax-m3",
+    ],
+)
 @pytest.mark.parametrize(
     "effort,expected",
     [
@@ -404,12 +412,13 @@ def test_fireworks_low_medium_high_models_omit_none(model_name):
         ("none", "none"),
     ],
 )
-def test_fireworks_frontier_model_preserves_xhigh_max(effort, expected):
+def test_fireworks_non_restrictive_models_preserve_extended(
+    model_name, effort, expected
+):
     from inspect_ai.model._providers.fireworks import FireworksAIAPI
 
-    api = FireworksAIAPI(
-        model_name="accounts/fireworks/models/deepseek-v4-pro", api_key="test-key"
-    )
+    # DeepSeek and MiniMax M3 accept none/xhigh/max, so only `minimal` is clamped.
+    api = FireworksAIAPI(model_name=model_name, api_key="test-key")
     params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
     assert params.get("reasoning_effort") == expected
 
