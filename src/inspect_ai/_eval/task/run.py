@@ -322,7 +322,8 @@ class SampleTerminalReporter:
     A sample run — one (sample, epoch) slot in the task's fanout — ends in
     exactly one of completed / errored / cancelled (see
     ``design/sample-lifecycle.md``). Whichever path gets it there, the same
-    bookkeeping must fire exactly once:
+    bookkeeping must fire exactly once (a second terminal report on the same
+    reporter is asserted against):
 
     - the metrics callback (``sample_complete``: progress results, display
       metrics, the early-stopping hook), for outcomes that carry scores
@@ -359,6 +360,7 @@ class SampleTerminalReporter:
         self._progress = progress
         self._sample_complete = sample_complete
         self._sample_terminal = sample_terminal
+        self._reported = False
 
     def progress(self) -> None:
         """Tick this run's unit of display progress (result written/reused)."""
@@ -447,6 +449,8 @@ class SampleTerminalReporter:
         started: float | None,
         usage: _SampleUsage | None,
     ) -> None:
+        assert not self._reported, "sample run already reported a terminal outcome"
+        self._reported = True
         usage = usage or _SampleUsage(0, 0)
         record(
             self._task_id,
@@ -472,7 +476,7 @@ class SampleAttempt:
     retry_limit: int
     """The run's sample-level retry budget (``retry_on_error``)."""
 
-    errors: list[EvalRetryError] = field(default_factory=list)
+    errors: tuple[EvalRetryError, ...] = ()
     """Errors from this run's earlier attempts, oldest first."""
 
     sample_uuid: str | None = None
@@ -500,7 +504,7 @@ class SampleAttempt:
         """The next attempt's state after an error-retry."""
         return SampleAttempt(
             retry_limit=self.retry_limit,
-            errors=self.errors + [retry.error],
+            errors=self.errors + (retry.error,),
             sample_uuid=retry.sample_uuid,
         )
 
@@ -2124,7 +2128,7 @@ async def _task_run_sample_attempt(
             agent_name=agent_name,
             # prior failed attempts (task-level seed + sample-level retries),
             # surfaced as the running sample's error history by the control channel
-            error_retries=previous_attempt_errors + attempt.errors,
+            error_retries=previous_attempt_errors + list(attempt.errors),
             # the uuid the logged EvalSample will carry — lets the control
             # channel keep one event cursor valid across running→terminal
             sample_uuid=state.uuid,
@@ -2633,7 +2637,8 @@ async def _task_run_sample_attempt(
                             # the logged sample carries the full retry history:
                             # prior task attempts followed by this eval's
                             # sample-level retries
-                            error_retries=previous_attempt_errors + attempt.errors,
+                            error_retries=previous_attempt_errors
+                            + list(attempt.errors),
                             started_at=sample_start_datetime(),
                             include_events=include_events,
                         )

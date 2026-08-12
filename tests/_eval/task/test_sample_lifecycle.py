@@ -67,12 +67,17 @@ class ReporterHarness:
 
             monkeypatch.setattr(run_module, name, wrapper)
 
+        self.reporter = self.new_reporter(with_slot_release)
+
+    def new_reporter(self, with_slot_release: bool = True) -> SampleTerminalReporter:
+        """A fresh reporter (a new run) wired to the same recording stubs."""
+
         async def sample_complete(
             sample_id: int | str, epoch: int, scores: dict[str, SampleScore]
         ) -> None:
             self.calls.append(("metrics", (sample_id, epoch, scores)))
 
-        self.reporter = SampleTerminalReporter(
+        return SampleTerminalReporter(
             task_id=EVAL_ID,
             progress=lambda units: self.calls.append(("progress", units)),
             sample_complete=sample_complete,
@@ -205,10 +210,24 @@ async def test_no_slot_release_for_seed_samples(
     harness = ReporterHarness(monkeypatch, with_slot_release=False)
 
     await harness.reporter.completed("s1", 1)
-    harness.reporter.cancelled()
+    harness.new_reporter(with_slot_release=False).cancelled()
 
     assert harness.calls == [("counter", "completed"), ("counter", "cancelled")]
     assert harness.counters() == (1, 0, 1)
+
+
+async def test_double_terminal_report_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # a run goes terminal exactly once — a second report on the same
+    # reporter is the double-count dual of the missed-report bug class
+    harness = ReporterHarness(monkeypatch)
+
+    await harness.reporter.completed("s1", 1)
+    with pytest.raises(AssertionError):
+        harness.reporter.cancelled()
+
+    assert harness.counters() == (1, 0, 0)
 
 
 def test_progress_ticks_one_unit(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -247,6 +266,6 @@ def test_sample_attempt_budget_derives_from_errors() -> None:
 def test_sample_attempt_advance_does_not_mutate() -> None:
     first = SampleAttempt(retry_limit=1)
     second = first.advance(retry("boom"))
-    assert first.errors == []
+    assert first.errors == ()
     assert first.sample_uuid is None
     assert second is not first
