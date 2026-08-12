@@ -95,9 +95,12 @@ Each generate stream produces two lineages per turn (the raw request at
 call-registration/completion, and the transcript-condensed form the
 timestamp update re-notifies), so 8 slots cover ~4 interleaved streams
 with distinct request prefixes (fork()/collect()/parallel tools funnel
-into one sample transcript). Streams sharing a pre-fork history prefix may
-merge lineages, paying a full tail re-walk per stream. Exhaustion degrades
-to a full walk — today's behavior — never worse.
+into one sample transcript). Streams sharing a pre-fork history prefix
+fork into separate slots (a partial prefix match appends a sibling
+lineage rather than replacing the matched slot), so they keep prefix-
+hitting independently. The residual cost of fork fan-out is slot-count
+pressure: enough concurrent lineages evict each other via LRU, which
+degrades to a full walk — never worse.
 """
 
 
@@ -794,7 +797,12 @@ class Transcript:
             walked=slot_walked,
             attachments=slot_attachments,
         )
-        if best_slot is not None:
+        # Replace only on full consumption (the request extends that lineage).
+        # A partial match is a sibling lineage forked from a shared prefix
+        # (fork()/collect() streams share pre-fork history); replacing would
+        # merge the two lineages, and they would alternately destroy each
+        # other's cached tails, re-walking the divergent tail every call.
+        if best_slot is not None and best_len == len(best_slot.pre_walk):
             self._call_walk_slots.remove(best_slot)
         self._call_walk_slots.append(new_slot)
         if len(self._call_walk_slots) > CALL_WALK_CACHE_SLOTS:

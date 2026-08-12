@@ -351,10 +351,15 @@ class CallPoolIndex:
         is copied; the ``prefix_len`` leading snapshots are carried over from
         the slot the preceding ``match_prefix`` matched — carrying from any
         other slot would retain snapshots claiming pool indices for content
-        never pooled at those positions. The matched slot is replaced; with
-        no match the entry is appended, evicting the oldest lineage beyond
-        ``_CALL_PREV_SLOTS``. ``prefix_len=0`` (copy everything) is always
-        safe for callers that do not track the matched prefix.
+        never pooled at those positions. The matched slot is replaced only
+        when ``prefix_len`` fully consumes it (the request extends that
+        lineage); a partial match keeps the matched slot and appends the new
+        entry as a sibling lineage instead, since a partial match means the
+        two lineages diverged from a shared prefix and replacing would merge
+        them. With no match the entry is appended. Either way, an append
+        evicts the oldest lineage beyond ``_CALL_PREV_SLOTS``. ``prefix_len=0``
+        (copy everything) is always safe for callers that do not track the
+        matched prefix.
 
         Args:
             msgs: Pre-walk wire-format message list.
@@ -368,11 +373,17 @@ class CallPoolIndex:
         carried: list[JsonValue] = []
         if matched >= 0 and prefix_len > 0:
             carried = self._prevs[matched][0][:prefix_len]
+        # Full consumption means the request extends the matched lineage, so
+        # it is replaced. A partial match is a sibling lineage forked from
+        # shared history (e.g. parallel streams sharing a pre-fork prefix);
+        # replacing it would merge the two lineages, which then alternately
+        # destroy each other's cached tails on every call.
+        fully_consumed = matched >= 0 and prefix_len == len(self._prevs[matched][0])
         entry = (
             carried + [copy.deepcopy(m) for m in msgs[prefix_len:]],
             list(indices),
         )
-        if matched >= 0:
+        if fully_consumed:
             del self._prevs[matched]
         self._prevs.append(entry)
         if len(self._prevs) > _CALL_PREV_SLOTS:

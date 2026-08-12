@@ -1085,6 +1085,42 @@ def test_condense_model_call_interleaved_streams(
     )
 
 
+def test_condense_model_call_forked_streams_keep_separate_lineages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Streams sharing a pre-fork prefix must keep separate walk-cache slots."""
+    import inspect_ai.log._condense as condense
+
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "fork content " * 10
+    shared = [{"role": "user", "content": f"shared {payload} {i}"} for i in range(3)]
+
+    def make_call(stream: str, n: int) -> ModelCall:
+        msgs = shared + [
+            {"role": "user", "content": f"{stream} {payload} {i}"} for i in range(n)
+        ]
+        return ModelCall.create({"model": "m", "messages": msgs}, None)
+
+    tr._condense_model_call(make_call("a", 1))  # warm the shared prefix
+
+    hashes = {"n": 0}
+    original_hash = condense.mm3_hash  # type: ignore[attr-defined]
+
+    def counting(text: str) -> str:
+        hashes["n"] += 1
+        return original_hash(text)
+
+    monkeypatch.setattr(condense, "mm3_hash", counting)
+    for n in range(2, 10):
+        tr._condense_model_call(make_call("a", n))
+        tr._condense_model_call(make_call("b", n))
+    # separate lineages: ~1-2 new messages hashed per call. Merged lineages
+    # re-walk the divergent tail every call: ~2 * sum(2..9) ≈ 88.
+    assert hashes["n"] <= 40, (
+        f"forked streams thrash the walk cache: {hashes['n']} hashes"
+    )
+
+
 def test_condense_model_call_snapshots_immune_to_mutation() -> None:
     tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
     payload = "mutable content " * 10
