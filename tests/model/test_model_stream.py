@@ -9,6 +9,7 @@ event's progress record (design/ctl/generate-progress.md layer 2).
 
 from typing import Any, Callable, Coroutine
 
+import anyio
 import pytest
 import tenacity
 from tenacity.wait import WaitBaseT
@@ -300,9 +301,51 @@ async def test_partial_output_snapshot_on_pending_event(
     assert event.output.completion == "hello"
 
 
+async def test_partial_output_flushes_are_throttled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Within-interval deltas must not notify transcript subscribers.
+
+    Each notification is a realtime-buffer insert, so a defeated throttle
+    re-creates the per-delta write cost the design forbids
+    (design/ctl/generate-progress.md).
+    """
+    from inspect_ai.log._transcript import Transcript
+
+    monkeypatch.setattr(
+        "inspect_ai.model._stream.PARTIAL_OUTPUT_FLUSH_INTERVAL", 1000.0
+    )
+    calls = {"n": 0}
+    orig_event_updated = Transcript._event_updated
+
+    def counting_event_updated(self: Transcript, event: Any) -> None:
+        calls["n"] += 1
+        orig_event_updated(self, event)
+
+    monkeypatch.setattr(Transcript, "_event_updated", counting_event_updated)
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        before = calls["n"]
+        await report_model_stream_delta(StreamTextEvent(text="a"))
+        # the first delta flushes immediately
+        assert calls["n"] == before + 1
+        await report_model_stream_delta(StreamTextEvent(text="b"))
+        await report_model_stream_delta(StreamTextEvent(text="c"))
+        # subsequent within-interval deltas do not notify
+        assert calls["n"] == before + 1
+        return api._output("abc")
+
+    output = await _scripted_generate([attempt])
+    assert output.completion == "abc"
+
+
 async def test_partial_output_discarded_when_attempt_fails() -> None:
     async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
         await report_model_stream_delta(StreamTextEvent(text="doomed"))
+        # the partial snapshot was published before the failure
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        assert event.output.completion == "doomed"
         raise RuntimeError("boom")
 
     with pytest.raises(Exception):
@@ -387,6 +430,59 @@ async def test_stream_reports_are_noops_outside_generate() -> None:
     report_model_stream_start()
     report_model_stream_progress(output_tokens=5)
     await report_model_stream_delta(StreamTextEvent(text="nowhere"))
+
+
+class EchoStreamAPI(ScriptedStreamAPI):
+    """Streams each call's own input text, asserting per-call isolation."""
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        text = input[0].text
+        report_model_stream_start()
+        await report_model_stream_delta(StreamTextEvent(text=text))
+        # yield so the sibling generate interleaves mid-stream
+        await anyio.sleep(0.01)
+        report_model_stream_progress(output_tokens=len(text))
+        await report_model_stream_delta(StreamTextEvent(text=text))
+        # this call's pending event carries only this call's content/progress
+        progress = model_event_progress(event)
+        assert progress is not None and progress.output_tokens == len(text)
+        assert event.output.completion == text
+        return ModelOutput.from_content(model=self.model_name, content=text)
+
+
+async def test_concurrent_generates_do_not_cross_talk() -> None:
+    from inspect_ai._util._async import tg_collect
+
+    @modelapi(name="mockstreamecho")
+    def mockstreamecho() -> type[ModelAPI]:
+        return EchoStreamAPI
+
+    try:
+        model = get_model("mockstreamecho/test")
+        collector_a, collector_b = Collector(), Collector()
+        await tg_collect(
+            [
+                lambda: model.generate("aaa", on_stream=collector_a),
+                lambda: model.generate("bbb", on_stream=collector_b),
+            ]
+        )
+        assert [
+            e.text for e in collector_a.events if isinstance(e, StreamTextEvent)
+        ] == ["aaa", "aaa"]
+        assert [
+            e.text for e in collector_b.events if isinstance(e, StreamTextEvent)
+        ] == ["bbb", "bbb"]
+        assert len(collector_a.events) == 2 and len(collector_b.events) == 2
+    finally:
+        del _registry["modelapi:mockstreamecho"]
 
 
 async def test_stream_handler_exception_fails_the_generate() -> None:

@@ -1190,8 +1190,16 @@ class Model:
         # stream observer for this generate call: installed around each
         # provider attempt so provider streaming loops can report chunks; it
         # spans attempts so it can emit retry boundaries to `on_stream`
-        # (see ModelStreamObserver)
-        stream_observer = ModelStreamObserver(model=str(self), on_stream=on_stream)
+        # (see ModelStreamObserver). Partial-output snapshots are suppressed
+        # when a ModelEventSink is installed: the pending event is routed to
+        # the sink rather than emitted to the transcript, so notifying the
+        # transcript of updates would insert a phantom pending event into its
+        # sidecar and realtime buffer.
+        stream_observer = ModelStreamObserver(
+            model=str(self),
+            on_stream=on_stream,
+            publish_partial=_model_event_sink.get() is None,
+        )
 
         # track reported waiting time during this generate call
         reported_waiting_time = 0.0

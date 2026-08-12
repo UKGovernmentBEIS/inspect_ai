@@ -140,9 +140,19 @@ class ModelStreamObserver:
     logical output.
     """
 
-    def __init__(self, model: str, on_stream: StreamHandler | None) -> None:
+    def __init__(
+        self,
+        model: str,
+        on_stream: StreamHandler | None,
+        publish_partial: bool = True,
+    ) -> None:
         self._model = model
         self._on_stream = on_stream
+        # partial-output snapshots notify transcript subscribers; the wrapper
+        # passes False when a ModelEventSink is installed (the pending event
+        # was routed to the sink, not the transcript — notifying would insert
+        # a phantom pending event into the transcript's sidecar and buffer)
+        self._publish_partial = publish_partial
         self._attempt = 0
         # deltas delivered to on_stream during any attempt so far — gates the
         # retry boundary (a consumer that never received a delta has nothing
@@ -152,7 +162,11 @@ class ModelStreamObserver:
         self._event: "ModelEvent | None" = None
         self._tokens_base = 0
         self._tokens_current: int | None = None
-        self._content: list[Content] = []
+        # accumulated content deltas: (kind, fragments) runs, joined into
+        # Content items at flush time (appending fragments keeps per-chunk
+        # work O(1); string += on one growing block would be quadratic over
+        # a long generation)
+        self._fragments: list[tuple[str, list[str]]] = []
         self._partial_published = False
         self._last_flush = 0.0
 
@@ -196,7 +210,7 @@ class ModelStreamObserver:
     def _reset_output_state(self) -> None:
         self._tokens_base = 0
         self._tokens_current = None
-        self._content = []
+        self._fragments = []
         self._partial_published = False
         self._last_flush = 0.0
 
@@ -255,23 +269,28 @@ class ModelStreamObserver:
             progress.output_tokens = self._tokens_base + (self._tokens_current or 0)
 
     def _accumulate(self, delta: StreamContentEvent) -> None:
-        last = self._content[-1] if self._content else None
         if isinstance(delta, StreamTextEvent):
-            if isinstance(last, ContentText):
-                last.text += delta.text
-            else:
-                self._content.append(ContentText(text=delta.text))
+            kind, fragment = "text", delta.text
         elif isinstance(delta, StreamReasoningEvent):
-            if isinstance(last, ContentReasoning):
-                last.reasoning += delta.reasoning
-            else:
-                self._content.append(ContentReasoning(reasoning=delta.reasoning))
-        # tool-call fragments are partial JSON — not renderable as content,
-        # so they feed progress and on_stream but not the snapshot
+            kind, fragment = "reasoning", delta.reasoning
+        else:
+            # tool-call fragments are partial JSON — not renderable as
+            # content, so they feed progress and on_stream but not the
+            # snapshot
+            return
+        if self._fragments and self._fragments[-1][0] == kind:
+            self._fragments[-1][1].append(fragment)
+        else:
+            self._fragments.append((kind, [fragment]))
 
     def _maybe_flush_partial(self) -> None:
         event = self._event
-        if event is None or event.pending is not True or not self._content:
+        if (
+            not self._publish_partial
+            or event is None
+            or event.pending is not True
+            or not self._fragments
+        ):
             return
         now = time.monotonic()
         if (
@@ -281,12 +300,18 @@ class ModelStreamObserver:
             return
         self._last_flush = now
         self._partial_published = True
+        content: list[Content] = [
+            ContentText(text="".join(fragments))
+            if kind == "text"
+            else ContentReasoning(reasoning="".join(fragments))
+            for kind, fragments in self._fragments
+        ]
         event.output = ModelOutput(
             model=self._model,
             choices=[
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
-                        content=list(self._content),
+                        content=content,
                         model=self._model,
                         source="generate",
                     ),
