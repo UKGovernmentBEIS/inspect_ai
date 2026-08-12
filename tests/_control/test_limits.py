@@ -967,14 +967,17 @@ def test_sample_list_token_ceiling_reflects_override() -> None:
     assert _active_sample_summary(fake)["token_limit_total"] == 10_000
 
 
-def test_sample_limit_overrides_wired_into_sample_runner() -> None:
+@pytest.mark.parametrize("log_samples", [True, False])
+def test_sample_limit_overrides_wired_into_sample_runner(log_samples: bool) -> None:
     """The runner attaches the override sources to each sample's root limits.
 
     End-to-end through the real directive: a `task_limits` retune issued
     while a real sample runs (keyed by the *stable* task id, as an operator
     PATCH is — NOT the per-attempt eval id the sample runner sees) is
     visible through the sample's root limit nodes (`sample_limits()`), and
-    the time node's live cancel-scope deadline tracks it.
+    the time node's live cancel-scope deadline tracks it. Runs with and
+    without per-sample logging — under --no-log-samples the runner has no
+    per-sample logger, but the control channel is just as targetable.
     """
     from inspect_ai import Task
     from inspect_ai import eval as inspect_eval
@@ -1018,6 +1021,7 @@ def test_sample_limit_overrides_wired_into_sample_runner() -> None:
         Task(dataset=[Sample(input="hi")], solver=probe()),
         model="mockllm/model",
         display="none",
+        log_samples=log_samples,
     )[0]
     assert log.status == "success"
     assert observed == {

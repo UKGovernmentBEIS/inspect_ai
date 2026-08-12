@@ -15,6 +15,7 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     finalize_eval,
+    get_eval_state,
     record_sample_cancelled,
     record_sample_completed,
     record_sample_errored,
@@ -1909,8 +1910,15 @@ async def task_run_sample(
                         # (EvalSpec.task_id — the control channel's handle,
                         # shared across retry attempts); this function's
                         # `task_id` param carries the per-attempt eval id.
+                        # Resolved through the eval registry rather than
+                        # `logger` — the per-sample logger is None under
+                        # --no-log-samples while the control channel stays
+                        # fully targetable. An unregistered eval falls back
+                        # to the eval id, where no directive can write
+                        # anyway.
+                        eval_state = get_eval_state(task_id)
                         override_task_id = (
-                            logger.eval.task_id if logger is not None else ""
+                            eval_state.task_id if eval_state is not None else ""
                         ) or task_id
                         sample_time_limit = create_time_limit(time_limit)
                         with (
