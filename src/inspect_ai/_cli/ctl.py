@@ -1133,8 +1133,8 @@ def sample_requeue_command(
     help="Report what would change without applying it (with a set option).",
 )
 @_json_option(
-    "a `{target, knobs, warnings, notes, applied, dry_run, ...}` view, "
-    "every knob labeled with its scope"
+    "a `{target, knobs, warnings, notes, applied, dry_run, persisted, "
+    "requested}` view, every knob labeled with its scope"
 )
 def config_command(
     task: str | None,

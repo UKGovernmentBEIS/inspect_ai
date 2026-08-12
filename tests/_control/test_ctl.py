@@ -3030,6 +3030,22 @@ def test_mutation_envelope_help_sketches_actual_keys() -> None:
     assert "{" + ", ".join(envelope.keys()) + "}" in _MUTATION_ENVELOPE_HELP
 
 
+def test_config_help_sketches_compose_config_keys() -> None:
+    """`config --help`'s --json sketch names exactly `_compose_config`'s keys."""
+    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope, config_command
+
+    scope = _DirectiveScope(
+        socket_path="sock", pid=1, task_id=None, task=None, header="", siblings=0
+    )
+    view = _compose_config(scope, {}, dry_run=False, set_values=False, notes=[])
+    option = next(
+        p
+        for p in config_command.params
+        if isinstance(p, click.Option) and p.name == "as_json"
+    )
+    assert "{" + ", ".join(view.keys()) + "}" in (option.help or "")
+
+
 def test_every_json_option_help_sketches_payload_keys() -> None:
     """Every visible ctl command's --json help sketches the payload shape.
 
