@@ -1,5 +1,6 @@
 from .reducer import (
     at_least,
+    collect_score,
     max_score,
     mean_score,
     median_score,
@@ -23,6 +24,7 @@ __all__ = [
     "create_reducers",
     "reducer_log_name",
     "reducer_log_names",
+    "collect_score",
     "mean_score",
     "median_score",
     "mode_score",
