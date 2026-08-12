@@ -5823,8 +5823,11 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         )
     # sanitize each part separately so an unterminated string sequence in one
     # can't swallow the fields joined after it, and flatten newlines so one
-    # part can't forge a plausible header line of its own
-    _echo("  ·  ".join(_sanitize_control(p).replace("\n", " ") for p in parts if p))
+    # part can't forge a plausible header line of its own; filter on the
+    # sanitized value so a part that was all control bytes doesn't leave a
+    # dangling separator
+    sanitized_parts = (_sanitize_control(p).replace("\n", " ") for p in parts)
+    _echo("  ·  ".join(p for p in sanitized_parts if p))
 
     error = detail.get("error")
     retries = detail.get("error_retries") or []
@@ -6178,8 +6181,11 @@ def _task_header(target: dict[str, Any]) -> str:
     if attempts > 1:
         parts.append(f"{attempts} attempts")
     # sanitize each part before the join and flatten newlines so no field
-    # can swallow the parts after it or forge a plausible header line
-    return "  ·  ".join(_sanitize_control(p).replace("\n", " ") for p in parts)
+    # can swallow the parts after it or forge a plausible header line; filter
+    # on the sanitized value so a part that was all control bytes doesn't
+    # leave a dangling separator
+    sanitized_parts = (_sanitize_control(p).replace("\n", " ") for p in parts)
+    return "  ·  ".join(p for p in sanitized_parts if p)
 
 
 def _print_samples_table(

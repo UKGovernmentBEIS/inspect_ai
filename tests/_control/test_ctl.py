@@ -5839,6 +5839,18 @@ def test_sample_detail_header_flattens_newlines(
     assert "completed" in header  # spoof text survives, but on the same line
 
 
+def test_sample_detail_header_drops_separator_for_all_control_part(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A part that sanitizes to empty must not leave a dangling separator."""
+    _print_sample_detail(
+        {"sample_id": "1", "epoch": 1, "status": "\x1b[2K"},
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert header == "sample 1  ·  epoch 1"
+
+
 def test_events_rendering_sanitizes_tool_output(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -6090,6 +6102,17 @@ def test_task_header_sanitizes_and_flattens_all_parts() -> None:
     assert "fake line" in header
     assert "openai/gpt-5" in header
     assert "running" in header
+
+
+def test_task_header_drops_separator_for_all_control_part() -> None:
+    """A task name that sanitizes to empty must not leave a leading separator."""
+    from inspect_ai._cli.ctl import _task_header
+
+    header = _task_header(
+        {"task": "\x1b[2K", "task_id": "", "status": "running", "samples": {}}
+    )
+    assert not header.startswith("  ·  ")
+    assert header.split("  ·  ")[0] == "running"
 
 
 def test_events_footer_sanitizes_cursor_token(
