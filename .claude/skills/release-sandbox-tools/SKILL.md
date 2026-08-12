@@ -109,11 +109,12 @@ done
 To confirm the right bytes were published, the `content-length` from a HEAD
 request (`curl -sI`) can be compared against the local file sizes.
 
-## 6. Finish the PR
+## 6. Get CI green
 
 Re-run the failing `slow-tool-tests-release` job (from the PR's checks page,
-or `gh run rerun <run-id> --failed`) and confirm it passes.
+or `gh run rerun <run-id> --failed`) and confirm it passes. This skill ends
+here — do not merge the PR; that happens through the normal review process.
 
-PyPI bundling is not part of this process — the `inspect_ai` release script
-(`scripts/pypi-release.py`) pulls the glibc binaries from S3 automatically at
-release time. Merging the PR with the version bump completes the release.
+PyPI bundling is also not part of this process — the `inspect_ai` release
+script (`scripts/pypi-release.py`) pulls the glibc binaries from S3
+automatically at release time. Once the PR merges, nothing more is needed.
