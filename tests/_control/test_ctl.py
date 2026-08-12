@@ -3211,6 +3211,13 @@ def test_config_knobs_not_version_gated(
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 
+    # process-scoped knobs (no task selector) ride the same ungated path
+    result = cli_runner().invoke(
+        ctl_command, ["config", "--max-subprocesses", "2", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["applied"] is True
+
 
 def test_config_retry_overrides_accept_clear_keyword(
     monkeypatch: pytest.MonkeyPatch,
