@@ -112,7 +112,7 @@ async def file_as_data(file: str, mime_type: str | None = None) -> tuple[bytes, 
 
         # handle url or file
         if is_http_url(file):
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(follow_redirects=False) as client:
                 response = await client.get(file)
                 response.raise_for_status()
                 file_bytes = response.content

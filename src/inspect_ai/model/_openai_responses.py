@@ -146,6 +146,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
+from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -273,11 +274,10 @@ def _extract_agent_message_from_internal(
     for item in content:
         if isinstance(item, ContentText) and isinstance(item.internal, dict):
             agent_message = item.internal.get("agent_message")
-            if (
-                isinstance(agent_message, dict)
-                and agent_message.get("type") == "agent_message"
-            ):
-                return cast(ResponseInputItemParam, agent_message)
+            if agent_message is not None:
+                return cast(
+                    ResponseInputItemParam, validate_agent_message(agent_message)
+                )
     return None
 
 

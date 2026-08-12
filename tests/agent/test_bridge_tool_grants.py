@@ -26,6 +26,7 @@ from inspect_ai.agent._bridge.util import (
 )
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.tool import ToolFunction, ToolInfo, WebSearchProviders
+from inspect_ai.util import media_resolver
 
 WEB_SEARCH_PARAM = cast(Any, {"type": "web_search"})
 MCP_PARAM = cast(
@@ -251,15 +252,15 @@ def test_tool_choice_otherwise_passes_through(choice: Any) -> None:
         "file:///etc/hosts",
     ],
 )
-def test_sandbox_media_must_be_inline(uri: str) -> None:
+async def test_sandbox_media_must_be_inline(uri: str) -> None:
     bridge = sandbox_bridge()
     messages = [ChatMessageUser(content=[ContentImage(image=uri)])]
     with pytest.raises(BridgePolicyError) as info:
-        validate_bridge_media(bridge, messages)
+        await validate_bridge_media(bridge, messages)
     assert info.value.status_code == 400
 
 
-def test_sandbox_media_covers_non_uri_locators() -> None:
+async def test_sandbox_media_covers_non_uri_locators() -> None:
     """A bare document/audio value is a *locator*, not a payload.
 
     `ContentDocument.document` and `ContentAudio.audio` reach the provider through
@@ -273,31 +274,67 @@ def test_sandbox_media_covers_non_uri_locators() -> None:
         ContentAudio(audio="/etc/hosts", format="mp3"),
     ):
         with pytest.raises(BridgePolicyError):
-            validate_bridge_media(
+            await validate_bridge_media(
                 sandbox_bridge(), [ChatMessageUser(content=[content])]
             )
 
 
-def test_sandbox_media_allows_data_uri() -> None:
+async def test_sandbox_media_allows_data_uri() -> None:
     messages = [
         ChatMessageUser(content=[ContentImage(image="data:image/png;base64,AAAA")])
     ]
-    validate_bridge_media(sandbox_bridge(), messages)
+    await validate_bridge_media(sandbox_bridge(), messages)
 
 
-def test_sandbox_media_covers_documents() -> None:
+async def test_sandbox_media_covers_documents() -> None:
     messages = [
         ChatMessageUser(content=[ContentDocument(document="https://elsewhere/x.pdf")])
     ]
     with pytest.raises(BridgePolicyError):
-        validate_bridge_media(sandbox_bridge(), messages)
+        await validate_bridge_media(sandbox_bridge(), messages)
 
 
-def test_in_process_media_is_unrestricted() -> None:
-    messages = [ChatMessageUser(content=[ContentImage(image="http://elsewhere/x.png")])]
-    validate_bridge_media(AgentBridge(AgentState(messages=[])), messages)
+async def test_in_process_media_is_materialized() -> None:
+    async def resolver(uri: str) -> str:
+        assert uri == "test://bucket/x.png"
+        return "data:image/png;base64,AAAA"
+
+    messages = [ChatMessageUser(content=[ContentImage(image="test://bucket/x.png")])]
+    with media_resolver("test", resolver):
+        await validate_bridge_media(AgentBridge(AgentState(messages=[])), messages)
+
+    content = messages[0].content
+    assert isinstance(content, list)
+    image = content[0]
+    assert isinstance(image, ContentImage)
+    assert image.image == "data:image/png;base64,AAAA"
 
 
-def test_sandbox_media_can_be_re_enabled() -> None:
-    messages = [ChatMessageUser(content=[ContentImage(image="http://elsewhere/x.png")])]
-    validate_bridge_media(sandbox_bridge(allow_remote_media=True), messages)
+async def test_sandbox_media_can_be_re_enabled() -> None:
+    async def resolver(uri: str) -> str:
+        assert uri == "test://bucket/x.png"
+        return "data:image/png;base64,AAAA"
+
+    messages = [ChatMessageUser(content=[ContentImage(image="test://bucket/x.png")])]
+    with media_resolver("test", resolver):
+        await validate_bridge_media(sandbox_bridge(allow_remote_media=True), messages)
+
+    content = messages[0].content
+    assert isinstance(content, list)
+    image = content[0]
+    assert isinstance(image, ContentImage)
+    assert image.image == "data:image/png;base64,AAAA"
+
+
+async def test_bridge_materialization_updates_document_mime_type() -> None:
+    async def resolver(uri: str) -> str:
+        assert uri == "test://bucket/document"
+        return "data:application/pdf;base64,AAAA"
+
+    document = ContentDocument(document="test://bucket/document")
+    messages = [ChatMessageUser(content=[document])]
+    with media_resolver("test", resolver):
+        await validate_bridge_media(AgentBridge(AgentState(messages=[])), messages)
+
+    assert document.document == "data:application/pdf;base64,AAAA"
+    assert document.mime_type == "application/pdf"

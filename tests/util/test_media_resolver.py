@@ -314,7 +314,35 @@ class TestFileAsDataHttp:
 
         assert mime_type == "audio/mpeg"
 
-    @pytest.mark.parametrize("status_code", [302, 404, 500])
+    async def test_redirect_is_not_followed(self) -> None:
+        requests: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(str(request.url))
+            if request.url.path == "/media":
+                return httpx.Response(302, headers={"location": "/secret"})
+            return httpx.Response(200, content=b"secret")
+
+        client_type = httpx.AsyncClient
+
+        def client_factory(*, follow_redirects: bool) -> httpx.AsyncClient:
+            return client_type(
+                transport=httpx.MockTransport(handler),
+                follow_redirects=follow_redirects,
+            )
+
+        with (
+            patch(
+                "inspect_ai._util.images.httpx.AsyncClient",
+                side_effect=client_factory,
+            ),
+            pytest.raises(httpx.HTTPStatusError),
+        ):
+            await file_as_data("https://example.com/media")
+
+        assert requests == ["https://example.com/media"]
+
+    @pytest.mark.parametrize("status_code", [404, 500])
     async def test_non_success_status_rejected(self, status_code: int) -> None:
         request = httpx.Request("GET", "https://example.com/media")
         response = httpx.Response(status_code, request=request)

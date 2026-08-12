@@ -10,7 +10,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.images import MediaKind, materialize_media
-from inspect_ai._util.url import is_data_uri
+from inspect_ai._util.url import data_uri_mime_type, is_data_uri
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage
 from inspect_ai.solver import TaskState
@@ -145,7 +145,12 @@ def _content_with_reference(content: Content, reference: str) -> Content:
     elif isinstance(content, ContentVideo):
         return content.model_copy(update={"video": reference})
     elif isinstance(content, ContentDocument):
-        return content.model_copy(update={"document": reference})
+        return content.model_copy(
+            update={
+                "document": reference,
+                "mime_type": data_uri_mime_type(reference) or content.mime_type,
+            }
+        )
     else:
         return content
 

@@ -1,9 +1,16 @@
 import base64
 from pathlib import Path
 
-from inspect_ai import Task, TaskSource, eval
+import pytest
+
+from inspect_ai import SampleSource, Task, TaskSource, enqueue_sample, eval
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
-from inspect_ai._util.content import ContentAudio, ContentImage, ContentVideo
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentVideo,
+)
 from inspect_ai.dataset import Sample
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalLog, EvalSample
@@ -42,6 +49,15 @@ def audio_reference(state: TaskState) -> str:
     audio = content[0]
     assert isinstance(audio, ContentAudio)
     return audio.audio
+
+
+def document_content(state: TaskState) -> ContentDocument:
+    assert not isinstance(state.input, str)
+    content = state.input[0].content
+    assert isinstance(content, list)
+    document = content[0]
+    assert isinstance(document, ContentDocument)
+    return document
 
 
 def logged_image_reference(sample: EvalSample) -> str:
@@ -122,6 +138,132 @@ def test_fixed_input_uses_configured_media_resolver() -> None:
         )
 
     assert seen == ["data:image/png;base64,dHJ1c3RlZA=="]
+
+
+def test_sample_source_seed_uses_fixed_input_authority() -> None:
+    seen: list[str] = []
+
+    async def resolver(uri: str) -> str:
+        assert uri == "test://bucket/seed.png"
+        return "data:image/png;base64,dHJ1c3RlZA=="
+
+    @solver
+    def record_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen.append(image_reference(state))
+            return state
+
+        return solve
+
+    source = SampleSource.from_samples(
+        [Sample(id="seed", input=image_input("test://bucket/seed.png"))]
+    )
+    with media_resolver("test", resolver):
+        eval(
+            Task(dataset=source, solver=record_input()),
+            model="mockllm/model",
+            display="none",
+        )
+
+    assert seen == ["data:image/png;base64,dHJ1c3RlZA=="]
+
+
+def test_fixed_document_uses_resolved_mime_type() -> None:
+    seen: list[ContentDocument] = []
+
+    async def resolver(uri: str) -> str:
+        assert uri == "test://bucket/document"
+        return "data:application/pdf;base64,dHJ1c3RlZA=="
+
+    @solver
+    def record_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen.append(document_content(state))
+            return state
+
+        return solve
+
+    with media_resolver("test", resolver):
+        eval(
+            Task(
+                dataset=[
+                    Sample(
+                        id="sample",
+                        input=[
+                            ChatMessageUser(
+                                content=[
+                                    ContentDocument(document="test://bucket/document")
+                                ]
+                            )
+                        ],
+                    )
+                ],
+                solver=record_input(),
+            ),
+            model="mockllm/model",
+            display="none",
+        )
+
+    assert seen[0].document == "data:application/pdf;base64,dHJ1c3RlZA=="
+    assert seen[0].mime_type == "application/pdf"
+
+
+@pytest.mark.parametrize("producer", ["next_samples", "sample_complete", "enqueue"])
+def test_sample_source_added_media_is_inline_only(producer: str) -> None:
+    resolver_calls: list[str] = []
+    added = [False]
+
+    async def resolver(uri: str) -> str:
+        resolver_calls.append(uri)
+        return "data:image/png;base64,dW5leHBlY3RlZA=="
+
+    def runtime_sample() -> Sample:
+        return Sample(
+            id="runtime",
+            input=image_input("test://runtime/image.png"),
+        )
+
+    class Source(SampleSource):
+        def initial_samples(self) -> list[Sample]:
+            if producer == "next_samples":
+                return []
+            return [Sample(id="seed", input="seed")]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if producer == "next_samples" and not added[0]:
+                added[0] = True
+                return [runtime_sample()]
+            return None
+
+        async def sample_complete(self, sample: EvalSample) -> list[Sample] | None:
+            if producer == "sample_complete" and sample.id == "seed":
+                return [runtime_sample()]
+            return None
+
+    @solver
+    def generate_dynamic_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if producer == "enqueue" and state.sample_id == "seed":
+                enqueue_sample(runtime_sample())
+                return state
+            return await generate(state)
+
+        return solve
+
+    with media_resolver("test", resolver):
+        logs = eval(
+            Task(dataset=Source(), solver=generate_dynamic_input()),
+            model="mockllm/model",
+            display="none",
+            fail_on_error=False,
+            max_samples=1,
+        )
+
+    assert resolver_calls == []
+    assert logs[0].samples is not None
+    runtime = next(sample for sample in logs[0].samples if sample.id == "runtime")
+    assert runtime.error is not None
+    assert "must be materialized before model submission" in runtime.error.message
 
 
 def test_fixed_image_without_extension_uses_sniffed_format(tmp_path: Path) -> None:
@@ -414,6 +556,17 @@ def test_realtime_retry_preserves_changed_media_attachment(tmp_path: Path) -> No
     assert isinstance(retry_image, ContentImage)
     assert ATTACHMENT_PROTOCOL not in retry_image.image
     assert base64.b64decode(retry_image.image.split("base64,", 1)[1]) == first_bytes
+
+    assert sample.events is not None
+    final_event = next(
+        event for event in sample.events if isinstance(event, ModelEvent)
+    )
+    final_content = final_event.input[0].content
+    assert isinstance(final_content, list)
+    final_image = final_content[0]
+    assert isinstance(final_image, ContentImage)
+    assert ATTACHMENT_PROTOCOL not in final_image.image
+    assert base64.b64decode(final_image.image.split("base64,", 1)[1]) == second_bytes
 
 
 def test_pending_sample_replacement_does_not_inherit_authority(

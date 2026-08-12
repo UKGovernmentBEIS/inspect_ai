@@ -109,7 +109,7 @@ async def inspect_google_api_request_impl(
 
     # translate messages
     messages = messages_from_google_contents(contents, system_instruction)
-    validate_bridge_media(bridge, messages)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config

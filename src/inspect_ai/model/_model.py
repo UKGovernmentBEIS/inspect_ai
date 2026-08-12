@@ -56,6 +56,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.http import status_code_of
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -88,6 +89,7 @@ from inspect_ai.util._limit import (
     turn_count,
 )
 
+from ._agent_message import validate_agent_message
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     copy_tools_info,
@@ -119,6 +121,28 @@ from ._model_output import ModelFallback, ModelOutput, ModelUsage
 from ._tokens import count_media_tokens, count_text_tokens, count_tokens
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_model_input_media(messages: Sequence[ChatMessage]) -> None:
+    """Require all media to be inline at the model API boundary."""
+    for message in messages:
+        if isinstance(message.content, str):
+            continue
+        for content in message.content:
+            if isinstance(content, ContentText):
+                if (
+                    isinstance(content.internal, dict)
+                    and "agent_message" in content.internal
+                ):
+                    validate_agent_message(content.internal["agent_message"])
+            elif isinstance(content, ContentImage):
+                inline_media_data_uri(content.image, "image")
+            elif isinstance(content, ContentAudio):
+                inline_media_data_uri(content.audio, "audio")
+            elif isinstance(content, ContentVideo):
+                inline_media_data_uri(content.video, "video")
+            elif isinstance(content, ContentDocument):
+                inline_media_data_uri(content.document, "document")
 
 
 class GenerateInput(NamedTuple):
@@ -1165,6 +1189,7 @@ class Model:
             input = tool_result_media_as_user_message(input, tuple(extract_types))
 
         input = collapse_consecutive_messages_for_api(input, self.api)
+        _validate_model_input_media(input)
 
         # resolve cache policy
         if isinstance(cache, NotGiven):

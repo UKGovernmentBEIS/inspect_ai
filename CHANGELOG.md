@@ -2,6 +2,7 @@
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
+- Media: Materialize trusted fixed-task input independently of `log_images`; require runtime, bridged, and dynamically-enqueued media to be inline before provider serialization.
 
 ## 0.3.258 (11 August 2026)
 
@@ -309,9 +310,6 @@
 
 ## 0.3.242 (29 June 2026)
 
-- Media: Materialize trusted fixed-task input independently of `log_images`;
-  require runtime, bridged, and dynamically-enqueued media to be inline before
-  provider serialization.
 - Log: Shared sample buffer files synced to S3 (via `--log-shared`) are now tagged `inspect-ephemeral=true` so they can be targeted by an S3 lifecycle rule.
 - Log: Reading sample summaries from an in-progress `.eval` on a remote filesystem (e.g. S3) now fetches the per-sample journal summary files concurrently, reducing load time for logs with many samples.
 - Log: Sample event condensing is now linear, not quadratic, in conversation length.
