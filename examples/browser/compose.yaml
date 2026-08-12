@@ -2,3 +2,4 @@ services:
   default:
     image: aisiuk/inspect-tool-support
     init: true
+    # This example browses an external website and requires Internet access.

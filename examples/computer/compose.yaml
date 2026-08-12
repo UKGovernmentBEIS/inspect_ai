@@ -3,6 +3,9 @@ services:
     image: aisiuk/inspect-computer-tool
     init: true
 
+    # Container networking is required for the VNC port mappings below. The
+    # default network also permits Internet access, although the tasks do not
+    # require it.
     # You can vnc into each container by using the following port mapping which will 
     # dynamically bind to host ports. The specific bindings can be found by using 
     # `docker inspect <container_id_or_name>`. This info is included in Running Samples

@@ -211,7 +211,9 @@ Here is how Docker sandbox environments are created based on the presence of `Do
 | `Dockerfile` | Creates a sandbox environment by building the image. |
 | `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
 
-Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you'll need to provide your own `compose.yaml` file.
+Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. The generated Compose configuration sets `network_mode: none`, which prevents network access at container runtime.
+
+Supplying your own Compose file replaces the generated configuration rather than extending it. Docker Compose normally connects services to a default network that permits outbound network and Internet access, so include `network_mode: none` unless the evaluation requires networking. When services must communicate, configure only the network they need; for example, an [internal network](https://docs.docker.com/reference/compose-file/networks/#internal) allows service-to-service traffic without external connectivity. These runtime settings do not prevent Docker from using the host network to build or pull the image before the container starts.
 
 Here's an example of a `compose.yaml` file that sets container resource limits and isolates it from all network interactions including internet access:
 
@@ -228,7 +230,7 @@ services:
 
 The `init: true` entry enables the container to respond to shutdown requests. The `command` is provided to prevent the container from exiting after it starts.
 
-Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource and network limits excluded for brevity):
+Here is what a simple `compose.yaml` would look like for a local pre-built image named `ctf-agent-environment` (resource limits excluded for brevity):
 
 ``` {.yaml filename="compose.yaml"}
 services:
@@ -237,6 +239,7 @@ services:
     x-local: true
     init: true
     command: tail -f /dev/null
+    network_mode: none
 ```
 
 The `ctf-agent-environment` is not an image that exists on a remote registry, so we add the `x-local: true` to indicate that it should not be pulled. If local images are tagged, they also will not be pulled by default (so `x-local: true` is not required). For example:
@@ -247,6 +250,7 @@ services:
     image: ctf-agent-environment:1.0.0
     init: true
     command: tail -f /dev/null
+    network_mode: none
 ```
 
 If we are using an image from a remote registry we similarly don't need to include `x-local`:
@@ -257,7 +261,10 @@ services:
     image: python:3.12-bookworm
     init: true
     command: tail -f /dev/null
+    network_mode: none
 ```
+
+Docker pulls the image before starting the container, so `network_mode: none` does not prevent the pull.
 
 See the [Docker Compose](https://docs.docker.com/compose/compose-file/) documentation for information on all available container options.
 
@@ -273,12 +280,14 @@ services:
     init: true
     cpus: 1.0
     mem_limit: 0.5gb
+    network_mode: none
   victim:
     image: ctf-victim-environment
     x-local: true
     init: true
     cpus: 1.0
     mem_limit: 1gb
+    network_mode: none
 ```
 
 The first environment listed is the “default” environment, and can be accessed from within a tool with a normal call to `sandbox()`. Other environments would be accessed by name, for example:
@@ -311,6 +320,7 @@ services:
     image: ctf-agent-environment
     x-local: true
     init: true
+    network_mode: none
     volumes:
       - ctf-challenge-volume:/shared-data
     
@@ -318,6 +328,7 @@ services:
     image: ctf-challenge-writer
     x-local: true
     init: true
+    network_mode: none
     volumes:
       - ctf-challenge-volume:/shared-data
 volumes:
@@ -338,6 +349,7 @@ services:
     init: true
     cpus: 1.0
     mem_limit: ${SAMPLE_METADATA_MEMORY_LIMIT-0.5gb}
+    network_mode: none
 ```
 
 Note that `-` suffix that provides the default value of 0.5gb. This is important to include so that when the compose file is read *without* the context of a Sample (for example, when pulling/building images at startup) that a default value is available.
@@ -396,6 +408,7 @@ services:
     command: tail -f /dev/null
     cpus: 1.0
     mem_limit: 0.5gb
+    network_mode: none
 ```
 
 ## Troubleshooting
