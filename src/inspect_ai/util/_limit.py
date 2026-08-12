@@ -1435,6 +1435,13 @@ class _TimeLimit(Limit, _Node):
         """
         if self._start_time is None or self._end_time is not None:
             return
+        # a fired deadline is never rescinded (anyio ignores deadline changes
+        # once the scope has cancelled) — leave _active_limit at the value
+        # that actually governed the cancel, so __exit__ reports it honestly
+        # instead of a later override (or, on a clear back to an unlimited
+        # launch config, swallowing the delivered cancellation entirely)
+        if self._cancel_scope.cancel_called:
+            return
         self._active_limit = self.limit
         self._cancel_scope.deadline = (
             self._start_time + self._active_limit

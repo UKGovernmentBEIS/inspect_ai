@@ -1904,11 +1904,18 @@ async def task_run_sample(
                         start_time = time.monotonic()
                         init_sample_working_time(start_time)
 
-                        # run sample w/ optional limits
+                        # run sample w/ optional limits. The limit-override
+                        # store is keyed by the *stable* task id
+                        # (EvalSpec.task_id — the control channel's handle,
+                        # shared across retry attempts); this function's
+                        # `task_id` param carries the per-attempt eval id.
+                        override_task_id = (
+                            logger.eval.task_id if logger is not None else ""
+                        ) or task_id
                         sample_time_limit = create_time_limit(time_limit)
                         with (
                             sample_limit_override_scope(
-                                task_id,
+                                override_task_id,
                                 time=sample_time_limit,
                                 token=state._token_limit,
                                 message=state._message_limit,

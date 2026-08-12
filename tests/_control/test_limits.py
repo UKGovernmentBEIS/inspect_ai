@@ -869,6 +869,37 @@ async def test_sample_limit_override_cancels_sample_past_new_deadline() -> None:
     assert exc_info.value.limit == 0
 
 
+async def test_sample_limit_override_after_deadline_fired_keeps_honest_limit() -> None:
+    """A retune landing after the deadline fired must not falsify the outcome.
+
+    A fired cancellation is never rescinded, so the exceeded error must
+    report the limit that actually governed it — and a clear back to an
+    unlimited launch config must not swallow the delivered cancellation
+    (which would let a raw CancelledError escape the limit scope).
+    """
+    from inspect_ai.util._limit import LimitExceededError
+    from inspect_ai.util._limit_overrides import (
+        sample_limit_override_scope,
+        set_sample_limit_override,
+    )
+
+    time_node, token_node, message_node = _sample_root_limits()
+    with pytest.raises(LimitExceededError) as exc_info:
+        with sample_limit_override_scope(
+            "t1", time=time_node, token=token_node, message=message_node
+        ):
+            with time_node:
+                set_sample_limit_override("t1", "time_limit", 0)
+                try:
+                    await anyio.sleep(60)
+                finally:
+                    # the cancellation is unwinding; the operator clears the
+                    # override before __exit__ observes it
+                    set_sample_limit_override("t1", "time_limit", None)
+    assert exc_info.value.type == "time"
+    assert exc_info.value.limit == 0
+
+
 async def test_sample_limit_override_applies_to_new_time_scope() -> None:
     """A sample started after the retune opens its scope with the override."""
     from inspect_ai.util._limit_overrides import (
@@ -888,7 +919,12 @@ async def test_sample_limit_override_applies_to_new_time_scope() -> None:
 
 
 def test_sample_list_token_ceiling_reflects_override() -> None:
-    """`sample list` resolves a retuned token ceiling at read time."""
+    """`sample list` resolves a retuned token ceiling at read time.
+
+    The override store is keyed by the stable task id while a live sample
+    row carries the per-attempt eval id — the view translates through the
+    eval registry.
+    """
     from inspect_ai._control.state import _active_sample_summary
     from inspect_ai.util._limit_overrides import set_sample_limit_override
 
@@ -903,7 +939,7 @@ def test_sample_list_token_ceiling_reflects_override() -> None:
         id = "s1"
 
     class _FakeActive:
-        eval_id = "t1"
+        eval_id = "e1"
         sample = _FakeSample()
         epoch = 1
         started = 1.0
@@ -918,21 +954,27 @@ def test_sample_list_token_ceiling_reflects_override() -> None:
         retries = None
         transcript = _FakeTranscript()
 
+    register_eval("e1", 5, task_id="t1")
     fake = cast(Any, _FakeActive())
     assert _active_sample_summary(fake)["token_limit_total"] == 10_000
+    # keyed by the stable task id (as the directive writes it), read off a
+    # row that carries only the per-attempt eval id
     set_sample_limit_override("t1", "token_limit", 5000)
     assert _active_sample_summary(fake)["token_limit_total"] == 5000
     # a different task's samples are untouched
-    fake.eval_id = "t2"
+    register_eval("e2", 5, task_id="t2")
+    fake.eval_id = "e2"
     assert _active_sample_summary(fake)["token_limit_total"] == 10_000
 
 
 def test_sample_limit_overrides_wired_into_sample_runner() -> None:
     """The runner attaches the override sources to each sample's root limits.
 
-    End-to-end: an override set while a real sample runs is visible through
-    its root limit nodes (`sample_limits()`), and the time node's live
-    cancel-scope deadline tracks it.
+    End-to-end through the real directive: a `task_limits` retune issued
+    while a real sample runs (keyed by the *stable* task id, as an operator
+    PATCH is — NOT the per-attempt eval id the sample runner sees) is
+    visible through the sample's root limit nodes (`sample_limits()`), and
+    the time node's live cancel-scope deadline tracks it.
     """
     from inspect_ai import Task
     from inspect_ai import eval as inspect_eval
@@ -944,14 +986,23 @@ def test_sample_limit_overrides_wired_into_sample_runner() -> None:
     @solver
     def probe() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
+            from inspect_ai._control.eval_state import get_eval_state
             from inspect_ai.log._samples import sample_active
             from inspect_ai.util._limit import sample_limits
-            from inspect_ai.util._limit_overrides import set_sample_limit_override
 
             active = sample_active()
             assert active is not None
-            set_sample_limit_override(active.eval_id, "token_limit", 1234)
-            set_sample_limit_override(active.eval_id, "time_limit", 600)
+            eval_state = get_eval_state(active.eval_id)
+            assert eval_state is not None
+            # the stable task id differs from the per-attempt eval id — the
+            # regression this test pins is the runner keying its override
+            # scope by the wrong one
+            observed["distinct_ids"] = eval_state.task_id != active.eval_id
+            result = await task_limits(
+                eval_state.task_id, token_limit=1234, time_limit=600
+            )
+            assert result is not None
+            observed["view"] = result["limits"]
             limits = sample_limits()
             observed["token"] = limits.token.limit
             observed["time"] = limits.time.limit
@@ -969,7 +1020,13 @@ def test_sample_limit_overrides_wired_into_sample_runner() -> None:
         display="none",
     )[0]
     assert log.status == "success"
-    assert observed == {"token": 1234, "time": 600, "deadline_tracks_override": True}
+    assert observed == {
+        "distinct_ids": True,
+        "view": {"time_limit": 600, "token_limit": 1234, "message_limit": None},
+        "token": 1234,
+        "time": 600,
+        "deadline_tracks_override": True,
+    }
 
 
 # ---------------------------------------------------------------------------
