@@ -20,8 +20,10 @@ from _control.conftest import cli_runner
 from inspect_ai._cli.ctl import (
     _KNOB_SCOPE,
     _KNOB_SINCE,
+    _REQUEUE_ROUTE_MISSING,
     _SHORT_ID_LEN,
     _ConfigResult,
+    _CtlFailure,
     _FetchedSummaries,
     _print_errored_samples_footer,
     _print_human_table,
@@ -4722,6 +4724,215 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
     assert result.exit_code == 0, result.output
     assert "Nothing to do" in result.stdout
     assert "a re-run is already pending" in result.stdout
+
+
+def test_sample_requeue_multiple_pairs_bulk_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Several SID EPOCH pairs post one requeue each and report per-sample results."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3  # explicit epochs: the multi-epoch gate never fires
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "2", "s2", "3", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == ["/evals/eval_aaa111/sample/requeue"] * 2
+    assert spy.params == [
+        {"sample_id": "s1", "epoch": 2},
+        {"sample_id": "s2", "epoch": 3},
+    ]
+    payload = json.loads(result.stdout)
+    assert payload["target"]["task_id"] == "aaa111"
+    assert payload["requested"] == 2 and payload["applied"] == 2
+    assert [r["sample_id"] for r in payload["results"]] == ["s1", "s2"]
+    assert all(r["applied"] for r in payload["results"])
+
+
+def test_sample_requeue_pairs_require_integer_epoch() -> None:
+    """A bare id list is ambiguous under the fail-closed epoch rule."""
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "s2"]
+    )
+    assert result.exit_code == 2
+    assert "EPOCH" in result.stderr
+
+
+def test_sample_requeue_odd_pair_tokens_rejected() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "2", "s2"]
+    )
+    assert result.exit_code == 2
+    assert "pairs" in result.stderr
+
+
+def test_sample_requeue_errored_excludes_explicit_targets() -> None:
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--errored"]
+    )
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.stderr
+
+
+def test_sample_requeue_requires_targets_or_errored() -> None:
+    result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111"])
+    assert result.exit_code == 2
+    assert "--errored" in result.stderr
+
+
+def test_sample_requeue_errored_sweeps_currently_errored_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--errored requeues each error-status sample with the listing's epoch."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom", epoch=2),
+                # retried-and-now-running: listed by `sample errors`, not swept
+                _sample_row("s3", status="running", retries=1),
+                _sample_row("s4", status="completed"),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.params == [
+        {"sample_id": "s1", "epoch": 1},
+        {"sample_id": "s2", "epoch": 2},
+    ]
+    payload = json.loads(result.stdout)
+    assert payload["requested"] == 2 and payload["applied"] == 2
+
+
+def test_sample_requeue_errored_dry_run_human_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom"),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--dry-run"]
+    )
+    assert result.exit_code == 0, result.output
+    assert all(params.get("dry_run") is True for params in spy.params)
+    assert result.stdout.count("Would requeue sample") == 2
+    assert "Would requeue 2 of 2 samples." in result.stdout
+
+
+def test_sample_requeue_errored_sweep_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = _full_summary("aaa111", "t1")
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={"eval_aaa111": [_sample_row("s1", status="completed")]},
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored"]
+    )
+    assert result.exit_code == 0, result.output
+    assert spy.paths == []  # nothing was sent
+    assert "(no errored samples to requeue)" in result.stdout
+
+    as_json = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--json"]
+    )
+    assert as_json.exit_code == 0, as_json.output
+    payload = json.loads(as_json.stdout)
+    assert payload["requested"] == 0 and payload["results"] == []
+
+
+def test_sample_requeue_bulk_reports_mixed_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A per-sample rejection or no-op is reported and the sweep continues."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        sample_id = (kwargs.get("params") or {})["sample_id"]
+        if sample_id == "s2":
+            raise _CtlFailure("http_error", "sample completed", status=409)
+        if sample_id == "s3":
+            return {
+                "ok": True,
+                "changed": False,
+                "reason": "a re-run is already pending",
+            }
+        return {"ok": True, "sample_id": sample_id, "epoch": 1, "changed": True}
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", respond)
+    result = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "1", "s2", "1", "s3", "1", "--json"],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["requested"] == 3 and payload["applied"] == 1
+    by_id = {r["sample_id"]: r for r in payload["results"]}
+    assert by_id["s1"]["applied"] is True
+    assert by_id["s2"]["applied"] is False
+    assert by_id["s2"]["error"]["status"] == 409
+    assert by_id["s3"]["applied"] is False
+    assert by_id["s3"]["detail"]["reason"] == "a re-run is already pending"
+
+    human = cli_runner().invoke(
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "1", "s2", "1", "s3", "1"],
+    )
+    assert human.exit_code == 0, human.output
+    assert "Requeue accepted for sample s1 (epoch 1)" in human.stdout
+    assert "Rejected sample s2 (epoch 1) — sample completed" in human.stdout
+    assert "Nothing to do for sample s3 (epoch 1)" in human.stdout
+    assert "Requeued 1 of 3 samples (1 no-op, 1 rejected)." in human.stdout
+
+
+def test_sample_requeue_bulk_aborts_on_missing_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An older server without the endpoint fails the sweep once, not per sample."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    calls: list[str] = []
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
+        calls.append((kwargs.get("params") or {})["sample_id"])
+        raise _CtlFailure("not_found", _REQUEUE_ROUTE_MISSING, status=404)
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", respond)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "1"]
+    )
+    assert result.exit_code == 1
+    assert calls == ["s1"]
 
 
 def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
