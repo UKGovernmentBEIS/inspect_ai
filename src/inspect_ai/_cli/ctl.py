@@ -5487,8 +5487,16 @@ _ANSI_ESCAPE_RE = re.compile(
 )
 
 # Remaining C0 controls (newline and tab excepted — handled by callers and
-# `_sanitize_control` respectively), DEL, and raw 8-bit C1 controls.
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+# `_sanitize_control` respectively), DEL, raw 8-bit C1 controls, and Unicode
+# bidi controls (ALM, LRM/RLM, embeddings/overrides, isolates): on
+# BiDi-aware terminals (VTE, mintty) an RLO in one table cell visually
+# reorders the rest of the physical line, trusted columns included (cf.
+# Trojan Source, CVE-2021-42574). Costs explicit direction marks in
+# legitimate RTL output — the right trade for a triage CLI.
+_CONTROL_CHARS_RE = re.compile(
+    r"[\x00-\x08\x0b-\x1f\x7f-\x9f"
+    r"\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]"
+)
 
 
 def _sanitize_control(text: str) -> str:
@@ -5500,8 +5508,9 @@ def _sanitize_control(text: str) -> str:
     backspaces that rewrite what the operator's terminal shows (spoofed
     results, title/clipboard writes). Well-formed escape sequences are
     removed whole (payload included), tabs become single spaces (they'd
-    break the tables' width math), and any remaining C0/C1 control byte is
-    dropped — newline excepted, which each caller already handles. The
+    break the tables' width math), and any remaining C0/C1 control byte or
+    Unicode bidi control is dropped — newline excepted, which each caller
+    already handles. The
     ``--json`` / ``--full`` machine paths and Inspect's own
     ``traceback_ansi`` rendering are deliberately not routed through here.
     """

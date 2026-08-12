@@ -5364,6 +5364,20 @@ def test_sanitize_drops_c0_del_and_c1_bytes() -> None:
     assert _sanitize_control("abc\x1b") == "abc"
 
 
+def test_sanitize_drops_bidi_controls() -> None:
+    # RLO in a cell would visually reverse the rest of the physical line on
+    # BiDi terminals (Trojan Source, CVE-2021-42574) — same cross-field
+    # spoof class as an escape sequence
+    assert _sanitize_control("fail\u202edessap") == "faildessap"
+    # embeddings, isolates, marks, and ALM all dropped; RTL text itself kept
+    assert (
+        _sanitize_control("\u202aa\u202db\u202cc\u2066d\u2067e\u2068f\u2069")
+        == "abcdef"
+    )
+    assert _sanitize_control("\u200ex\u200fy\u061cz") == "xyz"
+    assert _sanitize_control("\u05e9\u05dc\u05d5\u05dd") == "\u05e9\u05dc\u05d5\u05dd"
+
+
 def test_sanitize_keeps_newline_replaces_tab() -> None:
     assert _sanitize_control("line1\nline2") == "line1\nline2"
     assert _sanitize_control("a\tb") == "a b"
