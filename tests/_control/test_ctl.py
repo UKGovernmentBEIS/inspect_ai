@@ -4879,7 +4879,7 @@ def test_log_flush_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     result = cli_runner().invoke(ctl_command, ["task", "log-flush"])
     assert result.exit_code == 0, result.output
-    assert result.stdout == "log-flush t1: flushed 2 samples\n"
+    assert result.stdout == "log-flush t1: applied — flushed 2 samples\n"
 
     monkeypatch.setattr(
         "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 0}

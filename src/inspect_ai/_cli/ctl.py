@@ -342,8 +342,8 @@ def _terse_option(
         default=None,
         help=(
             "Report the outcome as one `verb target: outcome` line, without "
-            "the task header — the default when stdout is not a TTY (loops, "
-            "pipes), so N repeated mutations read as N outcome lines. "
+            "the task header — the default when stdout is not a TTY (pipes, "
+            "captured output), so N repeated mutations read as N outcome lines. "
             "--no-terse forces the full rendering; --json takes precedence "
             "over both." + (f" {note}" if note else "")
         ),
@@ -2812,7 +2812,7 @@ def _run_log_flush(task: str | None, as_json: bool, terse: bool | None = None) -
     flushed = int(result.get("flushed", 0) or 0)
     if _use_terse(terse):
         outcome = (
-            f"flushed {flushed} sample{'' if flushed == 1 else 's'}"
+            f"applied — flushed {flushed} sample{'' if flushed == 1 else 's'}"
             if flushed
             else "no-op — no buffered samples"
         )
