@@ -953,7 +953,7 @@ def test_bounded_transcript_prunes_message_refs_cache_on_eviction() -> None:
     tr._event(second)  # resident_tail=1 evicts event-1
 
     assert shared.id not in tr._message_refs_cache
-    assert shared.id not in tr._message_id_refcount
+    assert shared.id not in tr._message_refs_counter.counts
 
 
 def test_message_refs_cache_distinguishes_same_id_variants() -> None:
@@ -978,7 +978,7 @@ def test_message_refs_cache_distinguishes_same_id_variants() -> None:
     assert frozenset() in refsets
     assert frozenset({"abc123"}) in refsets
     # and the condensed variant's ref was refcounted
-    assert tr._attachment_refcount.get("abc123", 0) >= 1
+    assert tr._attachment_refs_counter.counts.get("abc123", 0) >= 1
 
 
 def test_message_refs_cache_does_not_grow_for_equal_clones() -> None:
@@ -1029,7 +1029,9 @@ def test_message_refs_cache_staleness_on_in_place_mutation_is_accepted() -> None
     tr._event(event)
     msg.content = "attachment://ghost"  # in-place, id unchanged
     tr._event_updated(event)
-    assert "ghost" not in tr._attachment_refcount  # stale memo: ref not counted
+    assert (
+        "ghost" not in tr._attachment_refs_counter.counts
+    )  # stale memo: ref not counted
 
 
 def test_set_attachment_refs_does_not_model_dump(
@@ -1060,11 +1062,11 @@ def test_condense_model_call_empty_messages_does_not_poison_cache() -> None:
             {"model": "m", "messages": [{"role": "user", "content": payload}]}, None
         )
     )
-    assert len(tr._call_walk_slots) == 1
+    assert len(tr._call_walk_cache._slots) == 1
     for _ in range(10):
         tr._condense_model_call(ModelCall.create({"model": "m", "messages": []}, None))
     # empty requests must not occupy (or evict) lineage slots
-    assert len(tr._call_walk_slots) == 1
+    assert len(tr._call_walk_cache._slots) == 1
 
 
 def test_condense_model_call_matches_fresh_walk() -> None:
@@ -1086,7 +1088,6 @@ def test_condense_model_call_matches_fresh_walk() -> None:
             events_attachment_fn(fresh_attachments),
             WalkContext(message_cache={}, only_core=False),
         )
-        assert fresh is not None
         assert cached.model_dump() == fresh.model_dump()
     assert cached_tr.attachments == fresh_attachments
 

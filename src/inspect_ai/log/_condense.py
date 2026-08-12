@@ -1,11 +1,17 @@
+import copy
 import dataclasses
 import json
+import random
 from collections.abc import Mapping, MutableMapping
+from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Callable,
+    Final,
     Literal,
+    NamedTuple,
     Sequence,
+    overload,
 )
 
 from pydantic import BaseModel, JsonValue
@@ -28,8 +34,11 @@ from inspect_ai._util.json import JsonChange
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.event._pool import (
+    _CALL_MESSAGE_KEYS,
+    CallMessageKey,
     _build_call_index,
     _build_msg_index,
+    _strict_eq_prefix_len,
     condense_model_event_calls,
     condense_model_event_inputs,
     resolve_model_event_calls,
@@ -82,9 +91,11 @@ class WalkContext(TypedDict):
     only_core: bool
 
 
-def attachment_refs_from_value(value: object) -> set[str]:
+def attachment_refs_from_value(value: JsonValue) -> set[str]:
     refs: set[str] = set()
 
+    # ``object``, not ``JsonValue``: tuple/set are defensive (the test helper
+    # feeds ``model_dump(mode="python")`` output, which is not strictly JSON)
     def collect(value: object) -> None:
         if isinstance(value, str):
             if value.startswith(ATTACHMENT_PROTOCOL):
@@ -421,6 +432,181 @@ def attachment_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]
     return create_attachment
 
 
+class _CreatedAttachment(NamedTuple):
+    """An attachment produced while walking one message."""
+
+    hash: str
+    content: str
+
+
+def _recording_attachment_fn(
+    inner: Callable[[str], str], created: list[_CreatedAttachment]
+) -> Callable[[str], str]:
+    """Wrap a content fn, recording (hash, content) for attachments it creates."""
+
+    def fn(text: str) -> str:
+        result = inner(text)
+        if result is not text and result.startswith(ATTACHMENT_PROTOCOL):
+            created.append(_CreatedAttachment(result[len(ATTACHMENT_PROTOCOL) :], text))
+        return result
+
+    return fn
+
+
+_CALL_WALK_SLOTS: Final = 8
+"""Retained request lineages per `CallWalkCache`.
+
+Each generate stream produces two lineages per turn (the raw request at
+call-registration/completion, and the transcript-condensed form the
+timestamp update re-notifies), so 8 slots cover ~4 interleaved streams with
+distinct request prefixes (fork()/collect()/parallel tools funnel into one
+sample transcript). Streams sharing a pre-fork history prefix occupy
+separate slots, so they keep prefix-hitting independently. The residual cost
+of fork fan-out is slot-count pressure: beyond capacity, eviction is random
+rather than LRU (LRU under round-robin access evicts exactly the
+next-needed lineage, collapsing every stream's hit rate at once), so
+degradation stays proportional to the excess and is bounded above by the
+full-walk cost — never worse.
+"""
+
+
+class _WalkedCallMessage(NamedTuple):
+    """One cached wire message: cache-owned snapshots plus what walking created.
+
+    ``pre_walk`` and ``walked`` are cache-owned deep copies (strings shared —
+    deepcopy treats str as atomic): the copy-on-write walkers alias unchanged
+    subtrees of the caller's live request, and callers can mutate
+    ``call.request`` in place (the same hazard ``CallPoolIndex.set_prev``
+    documents). ``attachments`` records what walking this message created, so
+    prefix reuse can re-assert content that bounded-mode refcounting has
+    since pruned from the caller's attachment map.
+    """
+
+    pre_walk: JsonValue
+    walked: JsonValue
+    attachments: list[_CreatedAttachment]
+
+
+@dataclass
+class _CallWalkSlot:
+    """One retained request lineage (see :class:`CallWalkCache`)."""
+
+    key: CallMessageKey
+    messages: list[_WalkedCallMessage] = field(default_factory=list)
+
+
+class CallWalkCache:
+    """Prefix cache for condensing model-call payloads into attachment refs.
+
+    Prefix-cached equivalent of :func:`walk_model_call`: consecutive calls
+    from one generate stream share their conversation prefix, so only the
+    divergent tail (plus non-message request fields and the response, which
+    change per notification) is walked and hashed.
+
+    Up to ``_CALL_WALK_SLOTS`` request lineages are retained. A request
+    replaces the lineage it matched only when it consumes that lineage fully
+    — it extends it. A partial match is a sibling lineage forked from a
+    shared prefix (fork()/collect() streams share pre-fork history);
+    replacing would merge the two, and they would then alternately destroy
+    each other's cached tails, re-walking the divergent tail on every call.
+    An unmatched request is appended, evicting a random lineage at capacity.
+    """
+
+    def __init__(self) -> None:
+        self._slots: list[_CallWalkSlot] = []
+        # Seeded for reproducibility; eviction choice affects performance
+        # only, never output content.
+        self._evict_rng = random.Random(0)
+
+    def condense(
+        self,
+        call: ModelCall,
+        attachments: MutableMapping[str, str],
+        context: WalkContext,
+    ) -> ModelCall:
+        """Condense a model call's payload into attachment references.
+
+        Prefix messages reused from a cached lineage have their attachment
+        content re-asserted into ``attachments`` — bounded-mode refcounting
+        may have pruned it while the prefix text lives on in the
+        conversation.
+
+        Args:
+            call: Model call to condense.
+            attachments: Attachment map extracted content is written to.
+            context: Walk context (shared message cache); ``only_core``
+                leaves the call untouched, as in :func:`walk_model_call`.
+
+        Returns:
+            The condensed call.
+        """
+        if context.get("only_core") is True:
+            return call
+
+        msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
+        msgs = call.request.get(msg_key) if msg_key is not None else None
+        if msg_key is None or not isinstance(msgs, list) or not msgs:
+            return walk_model_call(call, events_attachment_fn(attachments), context)
+
+        best_slot: _CallWalkSlot | None = None
+        best_len = 0
+        for slot in self._slots:
+            if slot.key != msg_key:
+                continue
+            n = _strict_eq_prefix_len(msgs, (m.pre_walk for m in slot.messages))
+            if n > best_len:
+                best_len = n
+                best_slot = slot
+
+        walked_msgs: list[JsonValue] = []
+        slot_messages: list[_WalkedCallMessage] = []
+        if best_slot is not None:
+            for entry in best_slot.messages[:best_len]:
+                for created in entry.attachments:
+                    attachments[created.hash] = created.content
+                walked_msgs.append(copy.deepcopy(entry.walked))
+            slot_messages.extend(best_slot.messages[:best_len])
+
+        event_fn = events_attachment_fn(attachments)
+        for msg in msgs[best_len:]:
+            created_attachments: list[_CreatedAttachment] = []
+            walked = walk_json_value(
+                msg, _recording_attachment_fn(event_fn, created_attachments), context
+            )
+            walked_msgs.append(walked)
+            slot_messages.append(
+                _WalkedCallMessage(
+                    pre_walk=copy.deepcopy(msg),
+                    walked=copy.deepcopy(walked),
+                    attachments=created_attachments,
+                )
+            )
+
+        rest = {k: v for k, v in call.request.items() if k != msg_key}
+        new_request: dict[str, JsonValue] = dict(
+            walk_json_dict(rest, event_fn, context)
+        )
+        new_request[msg_key] = walked_msgs
+
+        # see class docstring: replace only on full consumption, else append
+        # as a sibling lineage
+        if best_slot is not None and best_len == len(best_slot.messages):
+            self._slots.remove(best_slot)
+        elif len(self._slots) >= _CALL_WALK_SLOTS:
+            # random, not LRU (see _CALL_WALK_SLOTS)
+            del self._slots[self._evict_rng.randrange(len(self._slots))]
+        self._slots.append(_CallWalkSlot(key=msg_key, messages=slot_messages))
+
+        return call.model_copy(
+            update={
+                "request": new_request,
+                "response": walk_json_dict(call.response, event_fn, context)
+                if call.response
+                else None,
+            }
+        )
+
+
 def resolve_sample_attachments(
     sample: EvalSample,
     resolve_attachments: bool | Literal["full", "core"] = "core",
@@ -703,6 +889,24 @@ def walk_model_output(
             ]
         )
     )
+
+
+@overload
+def walk_model_call(
+    call: ModelCall, content_fn: Callable[[str], str], context: WalkContext
+) -> ModelCall: ...
+
+
+@overload
+def walk_model_call(
+    call: None, content_fn: Callable[[str], str], context: WalkContext
+) -> None: ...
+
+
+@overload
+def walk_model_call(
+    call: ModelCall | None, content_fn: Callable[[str], str], context: WalkContext
+) -> ModelCall | None: ...
 
 
 def walk_model_call(

@@ -1,14 +1,13 @@
 import contextlib
-import copy
 import os
-import random
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
+    Final,
     Literal,
     NamedTuple,
     Protocol,
@@ -29,18 +28,13 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._pool import _CALL_MESSAGE_KEYS, _strict_eq
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
-    ATTACHMENT_PROTOCOL,
+    CallWalkCache,
     WalkContext,
     attachment_refs_from_object,
-    events_attachment_fn,
-    walk_json_dict,
-    walk_json_value,
-    walk_model_call,
 )
 from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model_call import ModelCall
@@ -78,7 +72,7 @@ def transcript_bounded_enabled() -> bool:
     return value.strip().lower() not in ("0", "false", "no", "off")
 
 
-DEFAULT_RESIDENT_TAIL = 100
+DEFAULT_RESIDENT_TAIL: Final = 100
 """Default number of most-recent events a bounded transcript keeps in memory.
 
 Shared source of truth for the resident window. Consumers that read a
@@ -89,25 +83,7 @@ attachment-resolved memory rather than re-materialized from the buffer DB.
 """
 
 
-CALL_WALK_CACHE_SLOTS = 8
-"""Retained request lineages for the transcript call-condense cache.
-
-Each generate stream produces two lineages per turn (the raw request at
-call-registration/completion, and the transcript-condensed form the
-timestamp update re-notifies), so 8 slots cover ~4 interleaved streams
-with distinct request prefixes (fork()/collect()/parallel tools funnel
-into one sample transcript). Streams sharing a pre-fork history prefix
-fork into separate slots (a partial prefix match appends a sibling
-lineage rather than replacing the matched slot), so they keep prefix-
-hitting independently. The residual cost of fork fan-out is slot-count
-pressure: beyond capacity, eviction is random rather than LRU (LRU under
-round-robin access evicts exactly the next-needed lineage, collapsing
-every stream's hit rate at once), so degradation stays proportional to
-the excess and is bounded above by the full-walk cost — never worse.
-"""
-
-
-_MESSAGE_REFS_BUCKET_LIMIT = 4
+_MESSAGE_REFS_BUCKET_LIMIT: Final = 4
 """Max cached content variants per message id.
 
 Buckets exist for same-id variants (raw agent-state vs condensed
@@ -119,37 +95,46 @@ re-scans on next sight).
 """
 
 
-@dataclass
-class _CallWalkSlot:
-    """One retained request lineage for `Transcript._condense_model_call`.
+class _EventKeyedRefCounts:
+    """Refcounts values referenced by resident events; releases on last drop.
 
-    ``pre_walk`` and ``walked`` are cache-owned deep copies (strings shared —
-    deepcopy treats str as atomic): the copy-on-write walkers alias unchanged
-    subtrees of the caller's live request, and callers can mutate
-    ``call.request`` in place (same hazard `CallPoolIndex.set_prev`
-    documents). ``attachments`` holds the (hash, content) pairs walking each
-    message created, so prefix reuse can re-assert content that bounded-mode
-    refcounting has since pruned from ``Transcript._attachments``.
+    No lock: mutated only from the single event-loop thread, the same
+    invariant the rest of ``Transcript`` relies on.
     """
 
-    key: str
-    pre_walk: list[JsonValue] = field(default_factory=list)
-    walked: list[JsonValue] = field(default_factory=list)
-    attachments: list[list[tuple[str, str]]] = field(default_factory=list)
+    def __init__(self, on_release: Callable[[str], None]) -> None:
+        self.counts: dict[str, int] = {}
+        self._by_event: dict[str, set[str]] = {}
+        self._on_release = on_release
 
+    def update_event(self, event_key: str, current: set[str]) -> None:
+        """Re-point one event's references at ``current``, diffing the change."""
+        previous = self._by_event.get(event_key, set())
+        for value in previous - current:
+            self.release(value)
+        for value in current - previous:
+            self.counts[value] = self.counts.get(value, 0) + 1
+        if current:
+            self._by_event[event_key] = current
+        else:
+            self._by_event.pop(event_key, None)
 
-def _recording_attachment_fn(
-    inner: Callable[[str], str], created: list[tuple[str, str]]
-) -> Callable[[str], str]:
-    """Wrap a content fn, recording (hash, content) for attachments it creates."""
+    def release(self, value: str) -> None:
+        """Drop one reference, invoking ``on_release`` when the last one goes."""
+        count = self.counts.get(value, 0) - 1
+        if count > 0:
+            self.counts[value] = count
+        else:
+            self.counts.pop(value, None)
+            self._on_release(value)
 
-    def fn(text: str) -> str:
-        result = inner(text)
-        if result is not text and result.startswith(ATTACHMENT_PROTOCOL):
-            created.append((result[len(ATTACHMENT_PROTOCOL) :], text))
-        return result
-
-    return fn
+    def drop_events_except(self, keep: set[str]) -> None:
+        """Release everything referenced only by events outside ``keep``."""
+        for event_key in list(self._by_event):
+            if event_key in keep:
+                continue
+            for value in self._by_event.pop(event_key):
+                self.release(value)
 
 
 class TranscriptHistoryUnavailableError(RuntimeError):
@@ -500,28 +485,27 @@ class Transcript:
         self._next_event_logger_id = 0
         self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
-        self._call_walk_slots: list[_CallWalkSlot] = []
-        # Seeded for reproducibility; eviction choice affects performance
-        # only, never output content.
-        self._call_walk_rng = random.Random(0)
+        self._call_walk_cache = CallWalkCache()
         self._events: list[Event] = self._normalize_seeded_events(events or [])
         self._history_provider = history_provider
         self._events_view = _TranscriptEventsView(self)
         self._history = TranscriptHistory(self)
         self._attachments: dict[str, str] = {}
-        self._attachment_refcount: dict[str, int] = {}
-        self._event_attachment_refs: dict[str, set[str]] = {}
+        self._attachment_refs_counter = _EventKeyedRefCounts(
+            on_release=self._release_attachment
+        )
         # Per-message attachment-ref memo (bounded mode). Buckets are lists
         # because one msg.id can hold content variants (raw agent-state vs
-        # condensed restored-event message after a resume). Lifetime rides the
-        # same event-diff/eviction machinery as _event_attachment_refs via
-        # _event_message_ids/_message_id_refcount, so departed messages age
-        # out with their referencing events instead of pinning evicted memory.
+        # condensed restored-event message after a resume). Its lifetime rides
+        # the same _EventKeyedRefCounts machinery as attachment refs, so
+        # departed messages age out with their referencing events instead of
+        # pinning evicted memory.
         self._message_refs_cache: dict[
             str, list[tuple[ChatMessageBase, frozenset[str]]]
         ] = {}
-        self._event_message_ids: dict[str, set[str]] = {}
-        self._message_id_refcount: dict[str, int] = {}
+        self._message_refs_counter = _EventKeyedRefCounts(
+            on_release=self._release_message_refs
+        )
         self._timelines: list[Timeline] = []
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[str] = set()
@@ -745,102 +729,7 @@ class Transcript:
             event.call = self._condense_model_call(event.call)
 
     def _condense_model_call(self, call: ModelCall) -> ModelCall:
-        """Condense a model call's payload into attachment references.
-
-        Prefix-cached equivalent of ``walk_model_call``: consecutive kept
-        calls share their conversation prefix, so only the divergent tail
-        (plus non-message request fields and the response, which change per
-        notification) is walked and hashed. Reused prefix messages have
-        their attachment content re-asserted — bounded-mode refcounting may
-        have pruned it while the prefix text lives on in the conversation.
-        """
-        msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
-        msgs = call.request.get(msg_key) if msg_key is not None else None
-        if msg_key is None or not isinstance(msgs, list) or not msgs:
-            walked_call = walk_model_call(
-                call, events_attachment_fn(self.attachments), self._context
-            )
-            assert walked_call is not None, (
-                "walk_model_call(call) is None for non-None call"
-            )
-            return walked_call
-
-        best_slot: _CallWalkSlot | None = None
-        best_len = 0
-        for slot in self._call_walk_slots:
-            if slot.key != msg_key:
-                continue
-            n = 0
-            for msg, prev in zip(msgs, slot.pre_walk):
-                if not _strict_eq(msg, prev):
-                    break
-                n += 1
-            if n > best_len:
-                best_len = n
-                best_slot = slot
-
-        walked_msgs: list[JsonValue] = []
-        slot_pre_walk: list[JsonValue] = []
-        slot_walked: list[JsonValue] = []
-        slot_attachments: list[list[tuple[str, str]]] = []
-        if best_slot is not None:
-            for index in range(best_len):
-                for attachment_hash, content in best_slot.attachments[index]:
-                    self.attachments[attachment_hash] = content
-                walked_msgs.append(copy.deepcopy(best_slot.walked[index]))
-            slot_pre_walk.extend(best_slot.pre_walk[:best_len])
-            slot_walked.extend(best_slot.walked[:best_len])
-            slot_attachments.extend(best_slot.attachments[:best_len])
-
-        event_fn = events_attachment_fn(self.attachments)
-        for msg in msgs[best_len:]:
-            created: list[tuple[str, str]] = []
-            walked = walk_json_value(
-                msg, _recording_attachment_fn(event_fn, created), self._context
-            )
-            walked_msgs.append(walked)
-            slot_pre_walk.append(copy.deepcopy(msg))
-            slot_walked.append(copy.deepcopy(walked))
-            slot_attachments.append(created)
-
-        rest = {k: v for k, v in call.request.items() if k != msg_key}
-        new_request: dict[str, JsonValue] = dict(
-            walk_json_dict(rest, event_fn, self._context)
-        )
-        new_request[msg_key] = walked_msgs
-
-        new_slot = _CallWalkSlot(
-            key=msg_key,
-            pre_walk=slot_pre_walk,
-            walked=slot_walked,
-            attachments=slot_attachments,
-        )
-        # Replace only on full consumption (the request extends that lineage).
-        # A partial match is a sibling lineage forked from a shared prefix
-        # (fork()/collect() streams share pre-fork history); replacing would
-        # merge the two lineages, and they would alternately destroy each
-        # other's cached tails, re-walking the divergent tail every call.
-        if best_slot is not None and best_len == len(best_slot.pre_walk):
-            self._call_walk_slots.remove(best_slot)
-        else:
-            if len(self._call_walk_slots) >= CALL_WALK_CACHE_SLOTS:
-                # LRU is pathological here: N-stream round-robin access
-                # evicts exactly the next-needed lineage, collapsing every
-                # stream's hit rate at cap+1 lineages; random eviction keeps
-                # the degradation proportional to the excess.
-                del self._call_walk_slots[
-                    self._call_walk_rng.randrange(len(self._call_walk_slots))
-                ]
-        self._call_walk_slots.append(new_slot)
-
-        return call.model_copy(
-            update={
-                "request": new_request,
-                "response": walk_json_dict(call.response, event_fn, self._context)
-                if call.response
-                else None,
-            }
-        )
+        return self._call_walk_cache.condense(call, self.attachments, self._context)
 
     def _notify_subscribers(self, event: Event) -> None:
         for event_logger in list(self._event_loggers):
@@ -868,30 +757,9 @@ class Transcript:
             return
 
         event_key = self._event_key(event)
-        previous_refs = self._event_attachment_refs.get(event_key, set())
         event_refs = self._attachment_refs(event)
-        current_refs = event_refs.refs
-        for ref in previous_refs - current_refs:
-            self._decrement_attachment_ref(ref)
-        for ref in current_refs - previous_refs:
-            self._attachment_refcount[ref] = self._attachment_refcount.get(ref, 0) + 1
-        if current_refs:
-            self._event_attachment_refs[event_key] = current_refs
-        else:
-            self._event_attachment_refs.pop(event_key, None)
-
-        previous_ids = self._event_message_ids.get(event_key, set())
-        current_ids = event_refs.message_ids
-        for msg_id in previous_ids - current_ids:
-            self._decrement_message_id_ref(msg_id)
-        for msg_id in current_ids - previous_ids:
-            self._message_id_refcount[msg_id] = (
-                self._message_id_refcount.get(msg_id, 0) + 1
-            )
-        if current_ids:
-            self._event_message_ids[event_key] = current_ids
-        else:
-            self._event_message_ids.pop(event_key, None)
+        self._attachment_refs_counter.update_event(event_key, event_refs.refs)
+        self._message_refs_counter.update_event(event_key, event_refs.message_ids)
 
     def _attachment_refs(self, event: Event) -> _EventRefs:
         message_ids: set[str] = set()
@@ -929,28 +797,19 @@ class Transcript:
         refs = attachment_refs_from_object(event, message_refs=message_refs)
         return _EventRefs(refs=refs, message_ids=message_ids)
 
-    def _decrement_attachment_ref(self, ref: str) -> None:
-        count = self._attachment_refcount.get(ref, 0) - 1
-        if count > 0:
-            self._attachment_refcount[ref] = count
-        else:
-            self._attachment_refcount.pop(ref, None)
-            self._attachments.pop(ref, None)
+    def _release_attachment(self, ref: str) -> None:
+        self._attachments.pop(ref, None)
 
-    def _decrement_message_id_ref(self, msg_id: str) -> None:
-        count = self._message_id_refcount.get(msg_id, 0) - 1
-        if count > 0:
-            self._message_id_refcount[msg_id] = count
-        else:
-            self._message_id_refcount.pop(msg_id, None)
-            self._message_refs_cache.pop(msg_id, None)
+    def _release_message_refs(self, msg_id: str) -> None:
+        self._message_refs_cache.pop(msg_id, None)
 
     def _prune_unreferenced_attachments(self) -> None:
         if not self._bounded:
             return
 
+        counts = self._attachment_refs_counter.counts
         for ref in list(self._attachments):
-            if ref not in self._attachment_refcount:
+            if ref not in counts:
                 self._attachments.pop(ref, None)
 
     def _trailing_window(self, n: int, limit: int | None = None) -> list[Event] | None:
@@ -1024,16 +883,8 @@ class Transcript:
             )
 
     def _prune_attachment_refs(self, resident_event_keys: set[str]) -> None:
-        for event_key in list(self._event_attachment_refs):
-            if event_key in resident_event_keys:
-                continue
-            for ref in self._event_attachment_refs.pop(event_key):
-                self._decrement_attachment_ref(ref)
-        for event_key in list(self._event_message_ids):
-            if event_key in resident_event_keys:
-                continue
-            for msg_id in self._event_message_ids.pop(event_key):
-                self._decrement_message_id_ref(msg_id)
+        self._attachment_refs_counter.drop_events_except(resident_event_keys)
+        self._message_refs_counter.drop_events_except(resident_event_keys)
 
     def _is_resident(self, event: Event) -> bool:
         return event.uuid is not None and event.uuid in self._resident_event_ids
