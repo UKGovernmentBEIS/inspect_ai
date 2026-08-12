@@ -3068,9 +3068,9 @@ def test_every_json_option_help_sketches_payload_keys() -> None:
         json_options = [
             p for p in cmd.params if isinstance(p, click.Option) and p.name == "as_json"
         ]
-        if isinstance(cmd, click.Group) and not json_options:
+        if isinstance(cmd, click.Group) and "list" not in cmd.commands:
             # a group without a bare-noun list default (e.g. `model`) carries
-            # no mirrored --json of its own
+            # no mirrored --json of its own; groups with one must mirror it
             continue
         assert json_options, f"`{path}` has no --json option"
         help_text = json_options[0].help or ""
