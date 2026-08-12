@@ -2799,21 +2799,37 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
         click.echo("\nNo buffered samples to flush.")
 
 
-def _mutation_envelope(
-    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
-) -> dict[str, Any]:
-    """The uniform ``--json`` mutation result envelope for the cancel verbs.
+class _MutationOutcome(NamedTuple):
+    applied: bool
+    detail: dict[str, Any]
+
+
+def _mutation_outcome(result: dict[str, Any], *, dry_run: bool) -> _MutationOutcome:
+    """The ``applied``/``detail`` semantics every mutation result shape shares.
 
     ``applied`` reports whether the mutation actually landed — false on a
     dry run and on the idempotent already-in-that-state no-op (the server's
     ``changed: false``) — so an agent branches on one field. The server's
     response rides along as ``detail`` (minus the transport-level ``ok``).
+    Both the single-sample envelope and the bulk-requeue per-sample results
+    derive these fields here so the rule cannot drift between them.
     """
+    return _MutationOutcome(
+        applied=bool(result.get("changed")) and not dry_run,
+        detail={k: v for k, v in result.items() if k != "ok"},
+    )
+
+
+def _mutation_envelope(
+    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
+) -> dict[str, Any]:
+    """The uniform ``--json`` mutation result envelope for the cancel verbs."""
+    outcome = _mutation_outcome(result, dry_run=dry_run)
     return {
         "target": target,
-        "applied": bool(result.get("changed")) and not dry_run,
+        "applied": outcome.applied,
         "dry_run": dry_run,
-        "detail": {k: v for k, v in result.items() if k != "ok"},
+        "detail": outcome.detail,
     }
 
 
@@ -3448,6 +3464,10 @@ def _requeue_pairs(
     endpoint is idempotent. The command exits zero once every sample was
     attempted; per-sample outcomes live in the results.
     """
+
+    def what(sample_id: str) -> str:
+        return f"requeue of sample {sample_id}"
+
     results: list[dict[str, Any]] = []
     for sample_id, epoch in pairs:
         params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch}
@@ -3458,7 +3478,7 @@ def _requeue_pairs(
                 str(target["socket_path"]),
                 f"/evals/{target['eval_id']}/sample/requeue",
                 params=params,
-                what=f"requeue of sample {sample_id}",
+                what=what(sample_id),
                 not_found=(
                     f"Sample '{sample_id}' (epoch {epoch}) not found in task "
                     f"'{target.get('task') or '?'}'."
@@ -3491,12 +3511,13 @@ def _requeue_pairs(
                 }
             )
             continue
+        outcome = _mutation_outcome(result, dry_run=dry_run)
         results.append(
             {
                 "sample_id": result.get("sample_id", sample_id),
                 "epoch": result.get("epoch", epoch),
-                "applied": bool(result.get("changed")) and not dry_run,
-                "detail": {k: v for k, v in result.items() if k != "ok"},
+                "applied": outcome.applied,
+                "detail": outcome.detail,
             }
         )
 
@@ -3531,8 +3552,9 @@ def _requeue_pairs(
             # the recorded message stays self-contained, but the transport
             # prefix restates the label — render just the server detail
             message = str(entry["error"]["message"])
-            prefix = f"Failed to update requeue of sample {entry['sample_id']}: "
-            message = message.removeprefix(prefix)
+            message = message.removeprefix(
+                _failure_prefix("update", what(entry["sample_id"]))
+            )
             click.echo(f"Rejected {label} — {message}")
         elif (entry.get("detail") or {}).get("changed"):
             click.echo(
@@ -5363,14 +5385,24 @@ def _request_json(
         response.raise_for_status()
         result = response.json()
     except _ServerUnreachable as exc:
-        message = f"Failed to {verb} {what}: {_unreachable_detail(exc)}"
+        message = f"{_failure_prefix(verb, what)}{_unreachable_detail(exc)}"
         click.echo(message, err=True)
         raise _unreachable_failure(message, exc) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
-        message = f"Failed to {verb} {what}: {_error_detail(exc)}"
+        message = f"{_failure_prefix(verb, what)}{_error_detail(exc)}"
         click.echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
+
+
+def _failure_prefix(verb: str, what: str) -> str:
+    """The context prefix :func:`_request_json` puts on failure messages.
+
+    The bulk-requeue human rendering strips this prefix from recorded
+    per-sample errors (the label it restates is already on the line), so the
+    format lives here rather than inline to keep the two sides in lockstep.
+    """
+    return f"Failed to {verb} {what}: "
 
 
 def _handler_404(response: httpx.Response) -> bool:

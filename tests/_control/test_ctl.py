@@ -24,6 +24,7 @@ from inspect_ai._cli.ctl import (
     _SHORT_ID_LEN,
     _ConfigResult,
     _CtlFailure,
+    _failure_prefix,
     _FetchedSummaries,
     _print_errored_samples_footer,
     _print_human_table,
@@ -4879,10 +4880,12 @@ def test_sample_requeue_bulk_reports_mixed_results(
     def respond(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
         sample_id = (kwargs.get("params") or {})["sample_id"]
         if sample_id == "s2":
-            # the real transport message carries the self-contained prefix
+            # build the message from the real prefix helper and the caller's
+            # actual ``what`` so a format drift breaks the literal
+            # assertions below instead of hiding
             raise _CtlFailure(
                 "http_error",
-                "Failed to update requeue of sample s2: sample completed",
+                _failure_prefix("update", kwargs["what"]) + "sample completed",
                 status=409,
             )
         if sample_id == "s3":
