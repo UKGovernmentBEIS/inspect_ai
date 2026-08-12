@@ -2236,7 +2236,10 @@ def _run_sample_listing(
     ``--status`` member set (``None`` = no filter). ``content`` asks the
     server to include each row's error message (withheld by default —
     agent-influenced free text); ``content_footer`` is a human-rendering
-    footer noting the withholding (echoed after a non-empty table).
+    footer noting the withholding (echoed after a non-empty table, and
+    suppressed when a row carries an error message anyway — a pre-v6 server
+    ignores the ``content`` param, and the footer must not caption text
+    printed right above it as withheld).
     ``idle_pointer`` opts the human rendering into the long-idle escalation
     footer (`sample list` — the listing whose idle column shows a stall; see
     :func:`_echo_idle_pointer`).
@@ -2290,7 +2293,9 @@ def _run_sample_listing(
             click.echo(empty)
             return
         printer(rows, show_task=True)
-    if content_footer is not None:
+    if content_footer is not None and not any(
+        row.get("error") is not None for row in rows
+    ):
         click.echo()
         click.echo(content_footer)
     if listing.truncated:
@@ -5701,8 +5706,28 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         click.echo(f"  note: {note}")
 
 
+def _events_carry_content(events: list[dict[str, Any]]) -> bool:
+    """True when a compact events page came back with free-text fields.
+
+    The withheld-content footers key on the response, not the request: a
+    pre-v6 server ignores the unknown ``content`` query param and returns
+    the old content-bearing projection, and a "metadata only" footer must
+    not contradict text printed right above it. The listed keys are emitted
+    by ``events._project`` only under ``content`` (v6+) and unconditionally
+    on the typed branches before v6, so their presence means content came
+    back; a page of header-only events has no signal, but then the footer
+    claims nothing false either.
+    """
+    fields = ("completion", "arguments", "result", "error", "data")
+    return any(field in event for event in events for field in fields)
+
+
 def _print_events(page: dict[str, Any], *, content: bool, full: bool) -> None:
-    """Render a page of transcript events (table) plus a cursor footer."""
+    """Render a page of transcript events (table) plus a cursor footer.
+
+    The metadata-only footer is response-keyed (see
+    :func:`_events_carry_content`).
+    """
     events = page.get("events") or []
     if full:
         # Raw mode is for machine consumption; the human rendering is the
@@ -5726,7 +5751,7 @@ def _print_events(page: dict[str, Any], *, content: bool, full: bool) -> None:
 
     parts = [f"{len(events)} event" + ("" if len(events) == 1 else "s")]
     parts.append("done" if page.get("done") else "more")
-    if not full and not content:
+    if not full and not content and not _events_carry_content(events):
         parts.append("metadata only (pass --content for text)")
     click.echo()
     click.echo("  ·  ".join(parts))
@@ -5736,7 +5761,13 @@ def _print_events(page: dict[str, Any], *, content: bool, full: bool) -> None:
 
 
 def _print_messages(page: dict[str, Any], *, content: bool, full: bool) -> None:
-    """Render a conversation snapshot (per-message rows) plus a count footer."""
+    """Render a conversation snapshot (per-message rows) plus a count footer.
+
+    The metadata-only footer is response-keyed, like the events one (see
+    :func:`_events_carry_content`): a ``content`` key on any message means a
+    pre-v6 server returned the old always-content projection, so the footer
+    would contradict the table above it.
+    """
     messages = page.get("messages") or []
     count = int(page.get("count") or 0)
     status = page.get("status")
@@ -5765,7 +5796,7 @@ def _print_messages(page: dict[str, Any], *, content: bool, full: bool) -> None:
         footer += " (use --all for the whole conversation)"
     if status:
         footer += f"  ·  {status}"
-    if not full and not content:
+    if not full and not content and not any("content" in m for m in messages):
         footer += "  ·  metadata only (pass --content for text)"
     click.echo()
     click.echo(footer)

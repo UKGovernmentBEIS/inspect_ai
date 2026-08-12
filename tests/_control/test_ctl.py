@@ -769,6 +769,38 @@ def test_print_events_metadata_rows_and_footer_hint(
     assert "metadata only (pass --content for text)" in out
 
 
+def test_print_events_footer_response_keyed_on_old_server(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No "metadata only" hint under content a pre-v6 server returned anyway.
+
+    A pre-v6 server ignores the unknown ``content`` query param and returns
+    the old content-bearing projection; the footer keys on the response, so
+    it must not caption the text printed right above it as withheld.
+    """
+    from inspect_ai._cli.ctl import _print_events
+
+    page = {
+        "events": [
+            {
+                "event": "model",
+                "timestamp": 1000.0,
+                "model": "openai/gpt",
+                "tokens": 42,
+                "stop_reason": "stop",
+                "completion": "hello",
+                "error": None,
+            }
+        ],
+        "next": None,
+        "done": True,
+    }
+    _print_events(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "hello" in out
+    assert "metadata only" not in out
+
+
 def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None:
     from inspect_ai._cli.ctl import _print_events
 
@@ -2584,6 +2616,44 @@ def test_sample_errors_human_skipped_target_says_unavailable(
     assert "Skipping eval eval_aaa111" in result.stderr
 
 
+def test_sample_errors_footer_points_at_content_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The human errors view notes withheld messages (rows with `error: None`)."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("bad", status="error", retries=1, error=None)]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "errors"])
+    assert result.exit_code == 0, result.output
+    assert "error messages withheld — pass --content to include them" in result.output
+
+
+def test_sample_errors_footer_response_keyed_on_old_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No "withheld" footer under error text a pre-v6 server returned anyway.
+
+    The stubbed read ignores ``content`` and returns the row's error message
+    — exactly what a pre-v6 server does with the unknown query param — so
+    the footer must not caption the message printed right above it.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("bad", status="error", error="boom")]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "errors"])
+    assert result.exit_code == 0, result.output
+    assert "boom" in result.output
+    assert "withheld" not in result.output
+
+
 def test_sample_list_scoped_unreachable_exits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3914,6 +3984,27 @@ def test_print_messages_metadata_rows_and_footer_hint(
     out = capsys.readouterr().out
     assert "search" in out and "error" in out
     assert "metadata only (pass --content for text)" in out
+
+
+def test_print_messages_footer_response_keyed_on_old_server(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No "metadata only" hint under content a pre-v6 server returned anyway.
+
+    Pre-v6 message projections carry ``content`` on every message; its
+    presence means the server ignored the metadata-only request.
+    """
+    from inspect_ai._cli.ctl import _print_messages
+
+    page = {
+        "status": "running",
+        "count": 1,
+        "messages": [{"index": 0, "role": "user", "content": "hi there"}],
+    }
+    _print_messages(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "hi there" in out
+    assert "metadata only" not in out
 
 
 def test_print_messages_empty(capsys: pytest.CaptureFixture[str]) -> None:

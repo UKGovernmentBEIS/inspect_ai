@@ -57,8 +57,10 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       events / messages / error-detail endpoints (and the samples
 #       listing's error message) withhold agent-controlled free text unless
 #       `content=true` (or `full=true`). No CLI gate — GETs are tolerant, so
-#       an older server simply keeps returning content — but the version
-#       lets a monitor provisioner verify the server enforces the
+#       an older server simply keeps returning content (the CLI's
+#       withheld-content footers key on the returned fields rather than the
+#       request, so that content is not captioned as withheld) — but the
+#       version lets a monitor provisioner verify the server enforces the
 #       metadata-only default before trusting it as an injection boundary.
 #       The reverse skew (pre-6 CLI, v6 server) renders imperfectly: the old
 #       `sample show` truthiness-checked the error dict, so a withheld error
