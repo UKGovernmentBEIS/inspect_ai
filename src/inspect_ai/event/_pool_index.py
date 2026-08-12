@@ -266,9 +266,9 @@ class CallPoolIndex:
     """Prefix-diff lookup index for provider wire-request message lists.
 
     Wire-format call messages have no stable ids and no object reuse, so
-    instead this index exploits the append-only growth pattern: the
-    previous event's message list is retained and compared element-by-element
-    against new requests; the matching prefix is reused directly.
+    instead this index exploits the append-only growth pattern: retained
+    lineages (see ``_CALL_PREV_SLOTS``) are compared element-by-element
+    against new requests; the best-matching prefix is reused directly.
 
     A hash index covers the non-prefix tail so individual messages can still
     be deduplicated across events.

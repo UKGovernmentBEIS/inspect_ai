@@ -1,6 +1,8 @@
 import dataclasses
 import os
+from collections.abc import Callable
 
+import pytest
 from pydantic import BaseModel, ConfigDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
@@ -72,39 +74,7 @@ def _model_event_with_refs_everywhere() -> ModelEvent:
     )
 
 
-def test_attachment_refs_from_object_model_event_parity() -> None:
-    event = _model_event_with_refs_everywhere()
-    refs = attachment_refs_from_object(event)
-    assert refs == _refs_via_dump(event)
-    assert refs == {
-        "in-msg",
-        "tool-arg",
-        "tool-desc",
-        "out-msg",
-        "call-req",
-        "call-resp",
-    }
-
-
-def test_attachment_refs_from_object_other_event_types_parity() -> None:
-    events: list[Event] = [
-        InfoEvent(data={"k": "attachment://info-ref"}),
-        StoreEvent(
-            changes=[
-                JsonChange(op="replace", path="/k", value="attachment://store-ref")
-            ]
-        ),
-        SampleInitEvent(
-            sample=Sample(input=[ChatMessageUser(content="attachment://sample-msg")]),
-            state={"s": "attachment://state-ref"},
-        ),
-    ]
-    for event in events:
-        assert attachment_refs_from_object(event) == _refs_via_dump(event)
-        assert attachment_refs_from_object(event)  # non-empty: refs were found
-
-
-def test_attachment_refs_from_object_extras_parity() -> None:
+def _extras_model_event() -> Event:
     # extra="allow" models store extras in __pydantic_extra__, outside
     # __dict__, and dumps include them (e.g. CheckpointEvent round-trips
     # checkpoint-file extras)
@@ -119,19 +89,17 @@ def test_attachment_refs_from_object_extras_parity() -> None:
             {"name": "n", "x_extra": "attachment://extra-ref"}
         )
     }
-    assert attachment_refs_from_object(event) == {"extra-ref"}
-    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+    return event
 
 
-def test_attachment_refs_from_object_any_slot_live_message() -> None:
+def _any_slot_live_message_event() -> Event:
     # SubtaskEvent.result is Any and receives raw (un-jsonable-ized) values
     event = SubtaskEvent(name="sub", input={})
     event.result = {"m": ChatMessageUser(content="attachment://sub-msg")}
-    assert attachment_refs_from_object(event) == {"sub-msg"}
-    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+    return event
 
 
-def test_attachment_refs_from_object_slots_dataclass() -> None:
+def _slots_dataclass_event() -> Event:
     # @dataclass(slots=True) has no __dict__; vars() would raise TypeError.
     # Reachable via SubtaskEvent.result (raw return values) and metadata.
     @dataclasses.dataclass(slots=True)
@@ -140,8 +108,65 @@ def test_attachment_refs_from_object_slots_dataclass() -> None:
 
     event = SubtaskEvent(name="sub", input={})
     event.result = SlottedResult(note="attachment://slot-ref")
-    assert attachment_refs_from_object(event) == {"slot-ref"}
-    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+    return event
+
+
+@pytest.mark.parametrize(
+    ("event_factory", "expected_refs"),
+    [
+        (
+            _model_event_with_refs_everywhere,
+            {
+                "in-msg",
+                "tool-arg",
+                "tool-desc",
+                "out-msg",
+                "call-req",
+                "call-resp",
+            },
+        ),
+        (
+            lambda: InfoEvent(data={"k": "attachment://info-ref"}),
+            {"info-ref"},
+        ),
+        (
+            lambda: StoreEvent(
+                changes=[
+                    JsonChange(op="replace", path="/k", value="attachment://store-ref")
+                ]
+            ),
+            {"store-ref"},
+        ),
+        (
+            lambda: SampleInitEvent(
+                sample=Sample(
+                    input=[ChatMessageUser(content="attachment://sample-msg")]
+                ),
+                state={"s": "attachment://state-ref"},
+            ),
+            {"sample-msg", "state-ref"},
+        ),
+        (_extras_model_event, {"extra-ref"}),
+        (_any_slot_live_message_event, {"sub-msg"}),
+        (_slots_dataclass_event, {"slot-ref"}),
+    ],
+    ids=[
+        "model-event-refs-everywhere",
+        "info-event",
+        "store-event",
+        "sample-init-event",
+        "extras-model",
+        "any-slot-live-message",
+        "slots-dataclass",
+    ],
+)
+def test_attachment_refs_from_object_parity(
+    event_factory: Callable[[], Event], expected_refs: set[str]
+) -> None:
+    event = event_factory()
+    refs = attachment_refs_from_object(event)
+    assert refs == expected_refs
+    assert refs == _refs_via_dump(event)
 
 
 def test_attachment_refs_from_object_terminates_on_cycle() -> None:
@@ -165,8 +190,29 @@ def test_attachment_refs_from_object_terminates_on_list_cycle() -> None:
     assert attachment_refs_from_object(event) == {"list-cyc"}
 
 
-def test_attachment_refs_from_object_shared_subtree() -> None:
-    shared = {"ref": "attachment://shared-ref"}
+@dataclasses.dataclass
+class _RefDataclass:
+    ref: str
+
+
+class _RefModel(BaseModel):
+    ref: str
+
+
+@pytest.mark.parametrize(
+    "make_container",
+    [
+        lambda ref: {"ref": ref},
+        lambda ref: [ref],
+        lambda ref: _RefModel(ref=ref),
+        lambda ref: _RefDataclass(ref=ref),
+    ],
+    ids=["dict", "list", "basemodel", "dataclass"],
+)
+def test_attachment_refs_from_object_shared_subtree(
+    make_container: Callable[[str], object],
+) -> None:
+    shared = make_container("attachment://shared-ref")
     event = InfoEvent(data="ok")
     event.metadata = {"a": shared, "b": shared}
     assert attachment_refs_from_object(event) == {"shared-ref"}
@@ -176,6 +222,19 @@ def test_attachment_refs_from_object_dict_keys_not_scanned() -> None:
     # parity: attachment_refs_from_value scans dict values only
     event = InfoEvent(data="ok")
     event.metadata = {"attachment://key-ref": "plain"}
+    assert attachment_refs_from_object(event) == set()
+    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+
+
+def test_attachment_refs_from_object_plain_object_stays_opaque() -> None:
+    """Arbitrary non-model objects are left opaque, exactly as the dump leaves them."""
+
+    class PlainObject:
+        def __init__(self) -> None:
+            self.ref = "attachment://opaque-ref"
+
+    event = InfoEvent(data="ok")
+    event.metadata = {"o": PlainObject()}
     assert attachment_refs_from_object(event) == set()
     assert attachment_refs_from_object(event) == _refs_via_dump(event)
 

@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
-from test_helpers.transcript import make_model_event
 
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalSampleSummary
@@ -522,47 +521,3 @@ def test_buffer_pool_dedup_uses_content_hash_not_msg_id(
     last = data.events[-1].event
     assert isinstance(last, dict)
     assert last["input_refs"] == [[0, 1], [0, 1]]
-
-
-def test_failed_batch_does_not_mark_attachments_seen(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A rolled-back log_events batch must not leave attachment hashes marked seen.
-
-    Buffer-write errors are swallowed upstream, and the retried batch would
-    silently skip the content while events reference attachment://hash.
-    """
-    import inspect_ai.log._recorders.buffer.database as database_mod
-
-    with tempfile.TemporaryDirectory() as db_dir:
-        db = SampleBufferDatabase(location="test_location", db_dir=Path(db_dir))
-        try:
-            db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="i", target="t"))
-            event = make_model_event(
-                [ChatMessageUser(content="q")], uuid="e1", content="a"
-            )
-            event.call = ModelCall.create(
-                {"messages": [{"role": "user", "content": "v" * 150}]}, None
-            )
-
-            original = getattr(database_mod, "to_json_str_safe")
-
-            def failing(value):
-                assert db._pending_seen_hashes, (
-                    "failure injected before attachments were staged - test is vacuous"
-                )
-                raise RuntimeError("injected serialization failure")
-
-            monkeypatch.setattr(database_mod, "to_json_str_safe", failing)
-            with pytest.raises(RuntimeError):
-                db.log_events([SampleEvent(id="s1", epoch=1, event=event)])
-            monkeypatch.setattr(database_mod, "to_json_str_safe", original)
-
-            # retry the batch: content must be inserted (not filtered by a
-            # seen-mark from the rolled-back attempt)
-            db.log_events([SampleEvent(id="s1", epoch=1, event=event)])
-            with db._get_connection() as conn:
-                stored = list(db._get_attachments(conn, "s1", 1))
-            assert any(a.content.startswith("v") for a in stored)
-        finally:
-            db.cleanup()

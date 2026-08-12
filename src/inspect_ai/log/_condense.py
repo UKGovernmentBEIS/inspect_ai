@@ -3,7 +3,7 @@ import dataclasses
 import json
 import random
 from collections.abc import Mapping, MutableMapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from logging import getLogger
 from typing import (
     Callable,
@@ -487,12 +487,13 @@ class _WalkedCallMessage(NamedTuple):
     attachments: list[_CreatedAttachment]
 
 
-@dataclass
+# identity removal: slots are unique objects, never compared by value
+@dataclass(eq=False)
 class _CallWalkSlot:
     """One retained request lineage (see :class:`CallWalkCache`)."""
 
     key: CallMessageKey
-    messages: list[_WalkedCallMessage] = field(default_factory=list)
+    messages: list[_WalkedCallMessage]
 
 
 class CallWalkCache:
