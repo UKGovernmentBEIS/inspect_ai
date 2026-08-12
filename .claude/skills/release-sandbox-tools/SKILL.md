@@ -5,8 +5,8 @@ description: Land a PR that requires new inspect-sandbox-tools injectable binari
 
 # Landing a PR that ships new sandbox tools injectables
 
-Lands a PR that changed code under `src/inspect_sandbox_tools/` and bumped the
-injectable version: builds the four artifacts (amd64/arm64 × glibc/musl) from
+Unblocks landing a PR that changed code under `src/inspect_sandbox_tools/` and
+bumped the injectable version: builds the four artifacts (amd64/arm64 × glibc/musl) from
 the PR branch, validates them across Linux distros, and publishes them to S3.
 Background: `src/inspect_sandbox_tools/design/RELEASING.md`.
 
@@ -16,7 +16,8 @@ binaries to S3, so a maintainer performs this final step.
 
 **When to run:** once the PR is approved and the only failing CI check is
 `slow-tool-tests-release` — it fails at the "Fetch published non-dev
-sandbox-tools binaries" step with a message naming the missing S3 object,
+sandbox-tools binaries (glibc + musl)" step with a message naming the missing
+S3 object,
 because the bumped version's artifacts aren't published yet. Running earlier
 wastes builds if review rounds change the injectable source.
 
@@ -39,8 +40,10 @@ do not use `uv run` or system python).
   git show origin/main:src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
   ```
 
-  If not yet bumped, increment it by 1 (this is a committed source change — it
-  rides in the same PR as the sandbox tools code change).
+  In the trigger scenario above the bump already exists —
+  `slow-tool-tests-release` only runs once `check-version-bump` passes. If the
+  bump is missing, the failing check is `check-version-bump`, not this one;
+  the bump is a committed source change that rides in the PR.
 
 Call the bumped value `{V}` below.
 
@@ -64,7 +67,8 @@ background and monitor. On success, verify all four artifacts exist in
 Be aware that other checkouts may hold stale binaries with the same version
 name from earlier review rounds. The upload script doesn't glob across
 checkouts — it takes whatever file matches in the binaries dir of the checkout
-it runs from — so build fresh and run the upload from this same checkout.
+whose script you invoke — so build fresh and run the upload from this same
+checkout.
 
 ## 3. Validate across distros
 
@@ -106,8 +110,8 @@ for f in amd64 arm64 amd64-musl arm64-musl; do
 done
 ```
 
-To confirm the right bytes were published, the `content-length` from a HEAD
-request (`curl -sI`) can be compared against the local file sizes.
+As a sanity check that the right bytes were published, the `content-length`
+from a HEAD request (`curl -sI`) can be compared against the local file sizes.
 
 ## 6. Get CI green
 
