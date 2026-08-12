@@ -125,6 +125,7 @@ from inspect_ai.model._stream import (
     StreamToolCallEvent,
     report_model_stream_delta,
     report_model_stream_progress,
+    report_model_stream_restart,
     report_model_stream_start,
 )
 from inspect_ai.tool import (
@@ -528,6 +529,10 @@ class GoogleGenAIAPI(ModelAPI):
                     ):
                         # tick retries
                         tool_calling_attempts += 1
+
+                        # the retried request regenerates the response, so any
+                        # output already streamed to observers is stale
+                        await report_model_stream_restart()
 
                         # apply retry context
                         retry_contents, retry_tool_config = _malformed_function_retry(

@@ -1261,6 +1261,12 @@ class Model:
                         output=existing,
                         call=None,
                     )
+                    # announce the attempt even though no provider call runs:
+                    # a cache hit on a *retry* attempt (a concurrent identical
+                    # call cached between attempts) must still deliver the
+                    # boundary that invalidates the failed attempt's deltas
+                    assert isinstance(event, ModelEvent)
+                    await stream_observer.begin_attempt(event)
                     # mark this request as a cache hit so the post-call
                     # adaptive-controller success notification is suppressed —
                     # cache hits don't exercise the rate limit
@@ -1347,6 +1353,13 @@ class Model:
                     # belongs to the failed attempt)
                     stream_observer.discard_partial_output()
                     complete(ex, None)
+                    raise
+                except BaseException:
+                    # cancellation (sample limits, operator cancel, shutdown):
+                    # the event's finalization stays with the interrupt
+                    # machinery, but a published partial snapshot must not
+                    # survive into the log as if it were a response
+                    stream_observer.discard_partial_output()
                     raise
                 finally:
                     time_elapsed = time.monotonic() - time_start

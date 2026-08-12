@@ -81,7 +81,10 @@ class StreamRetryEvent(BaseModel):
     """Event type."""
 
     attempt: int
-    """The attempt about to run (1-based; the first retry is attempt 2)."""
+    """The attempt about to run (1-based; the first retry is attempt 2).
+    A provider-internal retry that regenerates output within one attempt
+    (e.g. a malformed-function-call retry) re-announces the current attempt
+    number, so consecutive boundaries may carry the same value."""
 
 
 StreamEvent = Union[
@@ -164,13 +167,38 @@ class ModelStreamObserver:
         """
         self._attempt += 1
         self._event = event
+        self._reset_output_state()
+        if self._attempt > 1 and self._on_stream is not None and self._delivered:
+            await self._on_stream(StreamRetryEvent(attempt=self._attempt))
+
+    async def output_restarted(self) -> None:
+        """A provider-internal retry is regenerating the current attempt's output.
+
+        Unlike wrapper-level retries (fresh pending event, `begin_attempt`)
+        or continuations that extend the same output (`stream_started`), a
+        provider-internal retry (e.g. Google's malformed-function-call
+        retry) replaces what has streamed so far while reusing the attempt's
+        pending event. Reset the published partial snapshot (with
+        notification, so live viewers drop it), the accumulation and token
+        state, and re-announce the current attempt to `on_stream` so
+        accumulating consumers discard the replaced prefix.
+        """
+        event = self._event
+        if event is not None and self._partial_published and event.pending is True:
+            event.output = ModelOutput.from_content(event.model, "")
+            from inspect_ai.log._transcript import transcript
+
+            transcript()._event_updated(event)
+        self._reset_output_state()
+        if self._on_stream is not None and self._delivered:
+            await self._on_stream(StreamRetryEvent(attempt=max(self._attempt, 1)))
+
+    def _reset_output_state(self) -> None:
         self._tokens_base = 0
         self._tokens_current = None
         self._content = []
         self._partial_published = False
         self._last_flush = 0.0
-        if self._attempt > 1 and self._on_stream is not None and self._delivered:
-            await self._on_stream(StreamRetryEvent(attempt=self._attempt))
 
     def stream_started(self) -> None:
         """A provider response stream opened (or re-opened) for this attempt.
@@ -299,6 +327,22 @@ def report_model_stream_start() -> None:
     observer = _model_stream_observer.get()
     if observer is not None:
         observer.stream_started()
+
+
+async def report_model_stream_restart() -> None:
+    """Report a provider-internal retry that regenerates streamed output.
+
+    For retries below the wrapper's retry loop (e.g. Google's
+    malformed-function-call retry) where the response is re-generated
+    within the same attempt: discards accumulated partial output and
+    delivers a retry boundary to `on_stream` (re-announcing the current
+    attempt number). For a re-opened stream that *extends* the same output
+    (provider continuations), use `report_model_stream_start()` instead.
+    No-op when no observer is installed.
+    """
+    observer = _model_stream_observer.get()
+    if observer is not None:
+        await observer.output_restarted()
 
 
 def report_model_stream_progress(output_tokens: int | None = None) -> None:

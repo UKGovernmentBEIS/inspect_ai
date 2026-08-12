@@ -33,6 +33,7 @@ from inspect_ai.model._registry import modelapi
 from inspect_ai.model._stream import (
     report_model_stream_delta,
     report_model_stream_progress,
+    report_model_stream_restart,
     report_model_stream_start,
 )
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -204,6 +205,49 @@ async def test_retry_boundary_delivered_with_current_attempt_number() -> None:
         2,
         3,
     ]
+
+
+async def test_provider_internal_restart_resets_output_and_reannounces() -> None:
+    """A provider-internal retry replaces streamed output.
+
+    report_model_stream_restart discards accumulated output — partial
+    snapshot, token counters — and re-announces the current attempt to
+    on_stream so consumers drop the replaced prefix.
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        report_model_stream_start()
+        report_model_stream_progress(output_tokens=10)
+        await report_model_stream_delta(StreamTextEvent(text="malformed"))
+        assert event.output.completion == "malformed"
+
+        await report_model_stream_restart()
+        # partial snapshot discarded (with notification) and tokens reset
+        assert event.output.completion == ""
+        progress = model_event_progress(event)
+        assert progress is not None and progress.output_tokens == 10
+
+        report_model_stream_start()
+        report_model_stream_progress(output_tokens=3)
+        assert progress.output_tokens == 3
+        await report_model_stream_delta(StreamTextEvent(text="good"))
+        assert event.output.completion == "good"
+        return api._output("good")
+
+    collector = Collector()
+    output = await _scripted_generate([attempt], on_stream=collector)
+    assert output.completion == "good"
+    assert [type(e) for e in collector.events] == [
+        StreamTextEvent,
+        StreamRetryEvent,
+        StreamTextEvent,
+    ]
+    # a provider-internal retry re-announces the *current* attempt
+    retry_event = collector.events[1]
+    assert isinstance(retry_event, StreamRetryEvent)
+    assert retry_event.attempt == 1
 
 
 async def test_no_retry_boundary_without_prior_deltas() -> None:
