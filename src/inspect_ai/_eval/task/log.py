@@ -936,15 +936,6 @@ def plan_to_eval_plan(plan: Plan, config: GenerateConfig) -> EvalPlan:
     return eval_plan
 
 
-async def log_start(
-    logger: TaskLogger,
-    plan: Plan,
-    config: GenerateConfig,
-) -> None:
-    eval_plan = plan_to_eval_plan(plan, config)
-    await logger.log_start(eval_plan)
-
-
 def collect_eval_data(stats: EvalStats) -> None:
     from inspect_ai.log._log import ConnectionLimitChange
     from inspect_ai.util._concurrency import adaptive_controllers

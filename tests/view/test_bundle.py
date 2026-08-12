@@ -161,3 +161,24 @@ def test_bundle_output_dir_cannot_be_subdir_of_log_dir(tmp_path) -> None:
 
     with pytest.raises(PrerequisiteError, match="cannot be a subdirectory"):
         bundle_log_dir(str(log_dir), str(output_dir))
+
+
+def test_bundle_hf_output_dir_allowed(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "inspect_ai.log._bundle._check_hf_space_exists", lambda repo_id: False
+    )
+    monkeypatch.setattr(
+        "inspect_ai.log._bundle._prepare_viewer", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "inspect_ai.log._bundle.copy_log_files", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "inspect_ai.log._bundle.write_log_listing", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr(
+        "inspect_ai.log._bundle._push_bundle_to_hf", lambda *args, **kwargs: None
+    )
+
+    # Should not raise PrerequisiteError about subdirectory
+    bundle_log_dir(log_dir=".", output_dir="hf/username/myspace")

@@ -83,6 +83,15 @@ SERVICE_PREFIXES = {"azure", "bedrock", "vertex"}
 # For these providers, we need to detect the organization from the model name.
 HOSTING_PROVIDERS = {"azureai", "bedrock", "vertex"}
 
+# Organizations whose database keys name a hosting deployment rather than a
+# model creator. Such an entry is authoritative for its own exact key
+# ("fireworks/deepseek-r1-0528" is what Fireworks actually serves) but must
+# never be a fuzzy candidate for another provider's bare model name: match
+# scores fall off with the length of the org prefix, so "fireworks" would
+# outscore "moonshotai" for a bare `kimi-k3` query and shadow the curated
+# entry. Exact and case-insensitive lookup still reach these keys.
+PROVIDER_SCOPED_ORGS = {"fireworks"}
+
 
 def _detect_org_from_model_name(model_name: str) -> str | None:
     """Detect the organization from a model name pattern.
@@ -220,6 +229,9 @@ def _fuzzy_match(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
     best_match: tuple[int, str, ModelInfo] | None = None  # (score, key, info)
 
     for key, info in db.items():
+        if key.split("/", 1)[0].lower() in PROVIDER_SCOPED_ORGS:
+            continue
+
         key_model = _extract_model_name(key)
         key_normalized = _normalize_for_fuzzy(key_model)
 
