@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
+- Docker Sandbox: Prerequisite checks now validate the daemon version rather than the CLI version and explain when daemon metadata is unavailable.
 
 ## 0.3.258 (11 August 2026)
 
