@@ -5329,14 +5329,20 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
 
 
 def _message_summary(m: dict[str, Any]) -> str:
-    """One-line summary for a message row (best-effort over compact fields)."""
-    parts = [str(m.get("content") or "")]
+    """One-line summary for a message row (best-effort over compact fields).
+
+    Agent-influenced fields are sanitized before joining so an unterminated
+    string sequence in one (e.g. the message content) can't swallow the
+    parts appended after it — the tool-call list or the ``error:`` tag.
+    """
+    parts = [_sanitize_control(str(m.get("content") or ""))]
     for call in m.get("tool_calls") or []:
         parts.append(
-            f"→ {call.get('function') or '?'}({_truncate(str(call.get('arguments') or ''), 30)})"
+            f"→ {_sanitize_control(str(call.get('function') or '?'))}"
+            f"({_truncate(str(call.get('arguments') or ''), 30)})"
         )
     if m.get("error"):
-        parts.append(f"error: {m['error']}")
+        parts.append(f"error: {_sanitize_control(str(m['error']))}")
     return _truncate("  ".join(p for p in parts if p), 100)
 
 
@@ -5347,6 +5353,10 @@ def _event_summary(e: dict[str, Any]) -> str:
     for a model call, ``running M:SS`` for a tool call — instead of the
     completion fields, whose placeholder values (zero tokens, a default stop
     reason) would read as "finished with nothing".
+
+    Agent-influenced fields (completion, tool error, info data, …) are
+    sanitized before joining so an unterminated string sequence in one
+    can't swallow the fields appended after it within the summary.
     """
     t = e.get("event")
     if t == "model":
@@ -5359,23 +5369,29 @@ def _event_summary(e: dict[str, Any]) -> str:
         if e.get("stop_reason"):
             bits.append(str(e["stop_reason"]))
         if e.get("completion"):
-            bits.append(str(e["completion"]))
+            bits.append(_sanitize_control(str(e["completion"])))
         if e.get("error"):
-            bits.append(f"error: {e['error']}")
+            bits.append(f"error: {_sanitize_control(str(e['error']))}")
         return _truncate(" · ".join(b for b in bits if b), 80)
     if t == "tool":
-        s = f"{e.get('function') or '?'}({_truncate(str(e.get('arguments') or ''), 30)})"
+        s = (
+            f"{_sanitize_control(str(e.get('function') or '?'))}"
+            f"({_truncate(str(e.get('arguments') or ''), 30)})"
+        )
         if e.get("pending"):
             s += f" · {_format_pending('running', e.get('timestamp'))}"
         elif e.get("error"):
-            s += f" → error: {e['error']}"
+            s += f" → error: {_sanitize_control(str(e['error']))}"
         elif e.get("result"):
             s += f" → {_truncate(str(e['result']), 40)}"
         return _truncate(s, 80)
     if t == "error":
         return _truncate(str(e.get("error") or ""), 80)
     if t == "info":
-        bits = [str(e.get("source") or ""), str(e.get("data") or "")]
+        bits = [
+            _sanitize_control(str(e.get("source") or "")),
+            _sanitize_control(str(e.get("data") or "")),
+        ]
         return _truncate(" · ".join(b for b in bits if b), 80)
     return ""
 
@@ -5426,8 +5442,13 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         parts.append(f"{detail['retries']} retries")
     scores = detail.get("scores") or {}
     if scores:
+        # sanitize each k=v pair before joining so an unterminated string
+        # sequence in one score value can't swallow the scores after it
         parts.append(
-            "score " + ", ".join(f"{k}={_format_score(v)}" for k, v in scores.items())
+            "score "
+            + ", ".join(
+                _sanitize_control(f"{k}={_format_score(v)}") for k, v in scores.items()
+            )
         )
     # sample ids and score values are agent/dataset-influenced; sanitize each
     # part separately so an unterminated string sequence in one can't swallow

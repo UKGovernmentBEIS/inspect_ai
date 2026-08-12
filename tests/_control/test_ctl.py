@@ -5570,3 +5570,78 @@ def test_messages_rendering_sanitizes_completion(
     out = capsys.readouterr().out
     assert "\x1b" not in out and "\x07" not in out and "\r" not in out
     assert "all done" in out
+
+
+def test_event_summary_unterminated_osc_cannot_swallow_error_tag() -> None:
+    """An unterminated string sequence in a completion can't hide the error.
+
+    Fields are sanitized before joining, so the swallow-to-terminator
+    behavior stops at the field boundary instead of consuming the error
+    tag appended after the completion within the same summary cell.
+    """
+    from inspect_ai._cli.ctl import _event_summary
+
+    summary = _event_summary(
+        {
+            "event": "model",
+            "model": "gpt-4",
+            "tokens": 512,
+            "stop_reason": "stop",
+            "completion": "all done\x1b]",
+            "error": "rate limit exceeded",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "error: rate limit exceeded" in summary
+
+    summary = _event_summary(
+        {
+            "event": "tool",
+            "function": "bash\x1b]",
+            "arguments": "ls",
+            "error": "exit status 1\x1b]",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "error: exit status 1" in summary
+
+    summary = _event_summary(
+        {"event": "info", "source": "scorer\x1b]", "data": "graded"}
+    )
+    assert "\x1b" not in summary
+    assert "graded" in summary
+
+
+def test_message_summary_unterminated_osc_cannot_swallow_tool_calls() -> None:
+    """A swallow in message content can't hide the tool calls/error after it."""
+    from inspect_ai._cli.ctl import _message_summary
+
+    summary = _message_summary(
+        {
+            "content": "I ran the tests\x1b]",
+            "tool_calls": [{"function": "bash", "arguments": "pytest"}],
+            "error": "tool failed",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "bash(pytest)" in summary
+    assert "error: tool failed" in summary
+
+
+def test_sample_detail_score_cannot_swallow_following_scores(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A swallow in one score value can't hide the scores joined after it."""
+    _print_sample_detail(
+        {
+            "sample_id": "1",
+            "epoch": 1,
+            "status": "completed",
+            "scores": {"a": "x\x1b]", "b": "C"},
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "\x1b" not in header
+    assert "a=x" in header
+    assert "b=C" in header
