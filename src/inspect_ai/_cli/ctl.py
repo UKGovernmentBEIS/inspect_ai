@@ -353,13 +353,30 @@ def _terse_option(
 def _use_terse(terse: bool | None) -> bool:
     """Resolve the tri-state ``--terse/--no-terse`` flag (``None`` = by TTY).
 
-    Piped or captured stdout — a shell loop, a script, an agent's Bash tool —
-    gets the terse per-mutation line; an interactive terminal keeps the full
+    Piped or captured stdout — a script, an agent's Bash tool — gets the
+    terse per-mutation line; an interactive terminal keeps the full
     task-header rendering, where the surrounding context earns its space.
     """
     if terse is not None:
         return terse
-    return not sys.stdout.isatty()
+    # a detached/closed stdout (pythonw, a daemonized launcher) must not
+    # crash the rendering path — it is certainly not an interactive terminal
+    try:
+        return not sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return True
+
+
+def _terse_line(verb: str, target: str | None, outcome: str) -> str:
+    """The one-line terse mutation grammar: ``verb target: outcome``.
+
+    One composition site so the separator and shape can't drift per verb —
+    scripts scan these lines (see the `--terse` help and the "Repeated
+    Mutations" section of docs/control-channel.qmd). ``outcome`` starts with
+    a status token (``requested`` / ``accepted`` / ``applied`` / ``dry-run``
+    / ``no-op``), usually followed by `` — detail``.
+    """
+    return f"{verb} {target or '?'}: {outcome}"
 
 
 @click.group("ctl")
@@ -1593,10 +1610,11 @@ def release_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
 @ctl_command.command("flush", hidden=True)
 @click.argument("task", required=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def flush_alias(task: str | None, as_json: bool) -> None:
+@click.option("--terse/--no-terse", "terse", default=None)
+def flush_alias(task: str | None, as_json: bool, terse: bool | None) -> None:
     """Deprecated alias for `inspect ctl task log-flush`."""
     _deprecation_note("flush", "task log-flush")
-    _run_log_flush(task, as_json)
+    _run_log_flush(task, as_json, terse=terse)
 
 
 @ctl_command.command("buffer", hidden=True)
@@ -1604,11 +1622,13 @@ def flush_alias(task: str | None, as_json: bool) -> None:
 @click.option("--samples", "log_buffer", type=int, default=None)
 @click.option("--shared", "log_shared", type=int, default=None)
 @click.option("--json", "as_json", is_flag=True, default=False)
+@click.option("--terse/--no-terse", "terse", default=None)
 def buffer_alias(
     task: str | None,
     log_buffer: int | None,
     log_shared: int | None,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Deprecated alias for `inspect ctl config --log-buffer / --log-shared`."""
     _deprecation_note("buffer", "config --log-buffer/--log-shared")
@@ -1624,6 +1644,7 @@ def buffer_alias(
         log_shared=log_shared,
         dry_run=False,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1636,6 +1657,7 @@ def buffer_alias(
 @click.option("--key", "key", type=(str, click.IntRange(min=1)), default=None)
 @click.option("--dry-run", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
+@click.option("--terse/--no-terse", "terse", default=None)
 def limits_alias(
     task: str | None,
     max_samples: int | None,
@@ -1645,6 +1667,7 @@ def limits_alias(
     key: tuple[str, int] | None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Deprecated alias for `inspect ctl config`."""
     _deprecation_note("limits", "config")
@@ -1660,6 +1683,7 @@ def limits_alias(
         log_shared=None,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -2790,9 +2814,9 @@ def _run_log_flush(task: str | None, as_json: bool, terse: bool | None = None) -
         outcome = (
             f"flushed {flushed} sample{'' if flushed == 1 else 's'}"
             if flushed
-            else "no buffered samples to flush"
+            else "no-op — no buffered samples"
         )
-        click.echo(f"log-flush {scope.task or scope.task_id}: {outcome}")
+        click.echo(_terse_line("log-flush", scope.task or scope.task_id, outcome))
         return
     click.echo(scope.header)
     if flushed:
@@ -2883,6 +2907,7 @@ def _run_task_cancel(
         return
 
     terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id
     if not terse_mode:
         click.echo(scope.header)
         click.echo()
@@ -2909,8 +2934,9 @@ def _run_task_cancel(
         if terse_mode:
             status = "dry-run" if dry_run else "requested"
             click.echo(
-                f"cancel {scope.task or scope.task_id}: {status} — "
-                f"{interrupted}; {suffix}"
+                _terse_line(
+                    "cancel", target_label, f"{status} — {interrupted}; {suffix}"
+                )
             )
         elif dry_run:
             click.echo(f"Would cancel — {interrupted}; {suffix}.")
@@ -2919,7 +2945,7 @@ def _run_task_cancel(
     else:
         reason = str(result.get("reason") or "already in that state")
         if terse_mode:
-            click.echo(f"cancel {scope.task or scope.task_id}: no-op — {reason}")
+            click.echo(_terse_line("cancel", target_label, f"no-op — {reason}"))
         else:
             click.echo(f"Nothing to do: {reason}.")
 
@@ -2964,11 +2990,17 @@ def _terse_held_suffix(held: list[str]) -> str:
     """The still-held latches folded into a terse `task resume` line.
 
     The terse mode's one-line budget can't carry :func:`_still_held_note`'s
-    teaching prose, but silently dropping the fact would misreport a resume
-    that leaves the task held — so the latch names ride as a parenthetical.
+    full prose, but silently dropping the fact would misreport a resume that
+    leaves the task held — so the latch names ride as a parenthetical, with
+    the clearing command kept: the terse default's non-TTY audience (an
+    agent) is exactly who needs the next command spelled out.
     """
-    latches = [f"{latch} pause" for latch in ("process", "model") if latch in held]
-    return f" (still held by {' and '.join(latches)})" if latches else ""
+    latches = [latch for latch in ("process", "model") if latch in held]
+    if not latches:
+        return ""
+    names = " and ".join(f"{latch} pause" for latch in latches)
+    commands = " / ".join(f"`inspect ctl {latch} resume`" for latch in latches)
+    return f" (still held by {names} — {commands})"
 
 
 @_envelope_failures
@@ -3043,9 +3075,13 @@ def _run_task_pause_resume(
             )
             if terse_mode:
                 click.echo(
-                    f"pause {target_label}: {'dry-run' if dry_run else 'requested'} "
-                    f"— {finishing}; no new samples or retry attempts "
-                    f"{'would' if dry_run else 'will'} start"
+                    _terse_line(
+                        "pause",
+                        target_label,
+                        f"{'dry-run' if dry_run else 'requested'} — {finishing}; "
+                        f"no new samples or retry attempts "
+                        f"{'would' if dry_run else 'will'} start",
+                    )
                 )
             elif dry_run:
                 click.echo(
@@ -3058,18 +3094,25 @@ def _run_task_pause_resume(
                     "attempts will start. Resume with `inspect ctl task resume`."
                 )
         elif terse_mode:
-            # independent latches: a task resume does not clear a process or
-            # model pause, so say when the task is still held
-            held = _paused_sources(result.get("paused"))
             if dry_run:
                 click.echo(
-                    f"resume {target_label}: dry-run — queued samples would "
-                    "dispatch again"
+                    _terse_line(
+                        "resume",
+                        target_label,
+                        "dry-run — queued samples would dispatch again",
+                    )
                 )
             else:
+                # independent latches: a task resume does not clear a process
+                # or model pause, so say when the task is still held
+                held = _paused_sources(result.get("paused"))
                 click.echo(
-                    f"resume {target_label}: requested — queued samples will "
-                    f"dispatch again{_terse_held_suffix(held)}"
+                    _terse_line(
+                        "resume",
+                        target_label,
+                        "requested — queued samples will dispatch again"
+                        f"{_terse_held_suffix(held)}",
+                    )
                 )
         elif dry_run:
             click.echo("Would resume — queued samples would dispatch again.")
@@ -3089,7 +3132,7 @@ def _run_task_pause_resume(
         note_held = verb == "resume" and ("process" in held or "model" in held)
         if terse_mode:
             suffix = _terse_held_suffix(held) if note_held else ""
-            click.echo(f"{verb} {target_label}: no-op — {reason}{suffix}")
+            click.echo(_terse_line(verb, target_label, f"no-op — {reason}{suffix}"))
         else:
             click.echo(f"Nothing to do: {reason}.")
             if note_held:
@@ -3332,18 +3375,21 @@ def _run_sample_mutation(
         )
         return
 
+    # the server echoes the resolved identifiers; fall back to what was sent
+    resolved_id = result.get("sample_id", sample_id)
+    resolved_epoch = result.get("epoch", epoch)
+
     if _use_terse(terse):
         target_label = (
-            f"{target.get('task') or '?'}/{result.get('sample_id', sample_id)} "
-            f"(epoch {result.get('epoch', epoch)})"
+            f"{target.get('task') or '?'}/{resolved_id} (epoch {resolved_epoch})"
         )
         outcome = terse_changed(result) if result.get("changed") else terse_noop(result)
-        click.echo(f"{verb} {target_label}: {outcome}")
+        click.echo(_terse_line(verb, target_label, outcome))
         return
 
     click.echo(_task_header(target))
     click.echo()
-    label = f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
+    label = f"sample {resolved_id} (epoch {resolved_epoch})"
     if result.get("changed"):
         click.echo(changed_message(label, result))
     else:
@@ -3962,23 +4008,36 @@ def _run_config(
     # terse covers only a set — a pure view's requested output *is* the full
     # config block, so there is no header noise to shed
     if mutated and _use_terse(terse):
-        target_label = scope.task or (
-            f"pid {scope.pid}" if scope.pid is not None else "process"
+        target_label = (
+            scope.task
+            or scope.task_id
+            or (f"pid {scope.pid}" if scope.pid is not None else "process")
         )
-        setting = ", ".join(
-            f"concurrency:{key[0]}={value}"
-            if knob == "key" and key is not None
-            else f"{knob}={value}"
-            for knob, value in knob_values.items()
-            if value is not None
-        )
+        settings = []
+        for knob, value in knob_values.items():
+            if value is None or knob == "key":
+                continue
+            rendered = f"{knob}={value}"
+            # --model narrows the connections retune to matching controllers —
+            # dropped from the line, a scripted log misrecords the blast radius
+            if knob == "max_connections" and model is not None:
+                rendered += f" (models matching '{model}')"
+            settings.append(rendered)
+        if key is not None:
+            settings.append(f"concurrency:{key[0]}={key[1]}")
         click.echo(
-            f"config {target_label}: {'dry-run' if dry_run else 'applied'} — {setting}"
+            _terse_line(
+                "config",
+                target_label,
+                f"{'dry-run' if dry_run else 'applied'} — {', '.join(settings)}",
+            )
         )
-        # warnings must survive terseness — "applied" above may be qualified
-        # by a knob the server reported as not adjustable
+        # warnings and notes must survive terseness — "applied" above may be
+        # qualified by a not-adjustable knob or a process-wide blast radius
         for warning in config.get("warnings") or []:
             click.echo(f"! {warning}")
+        for note in config.get("notes") or []:
+            click.echo(f"note: {note}")
         return
 
     click.echo(scope.header)

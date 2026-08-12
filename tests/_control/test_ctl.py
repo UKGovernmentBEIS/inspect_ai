@@ -4343,7 +4343,7 @@ def test_task_resume_terse_line_notes_still_held(
     assert result.exit_code == 0, result.output
     assert result.stdout == (
         "resume t1: requested — queued samples will dispatch again "
-        "(still held by process pause)\n"
+        "(still held by process pause — `inspect ctl process resume`)\n"
     )
 
 
@@ -4376,7 +4376,8 @@ def test_task_resume_noop_notes_process_latch(
     terse = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
     assert terse.exit_code == 0, terse.output
     assert terse.stdout == (
-        "resume t1: no-op — task is not paused (still held by process pause)\n"
+        "resume t1: no-op — task is not paused (still held by process pause "
+        "— `inspect ctl process resume`)\n"
     )
 
 
@@ -4880,6 +4881,13 @@ def test_log_flush_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
     assert result.exit_code == 0, result.output
     assert result.stdout == "log-flush t1: flushed 2 samples\n"
 
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 0}
+    )
+    noop = cli_runner().invoke(ctl_command, ["task", "log-flush"])
+    assert noop.exit_code == 0, noop.output
+    assert noop.stdout == "log-flush t1: no-op — no buffered samples\n"
+
 
 def test_config_set_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
     """A terse config set reports the requested knobs, not the whole view."""
@@ -4896,6 +4904,35 @@ def test_config_set_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     assert dry.exit_code == 0, dry.output
     assert dry.stdout == "config t1: dry-run — max_samples=3\n"
+
+    # --model narrows a connections retune — the line must say so
+    modeled = cli_runner().invoke(
+        ctl_command, ["config", "--max-connections", "9", "--model", "gpt-4"]
+    )
+    assert modeled.exit_code == 0, modeled.output
+    assert modeled.stdout == (
+        "config t1: applied — max_connections=9 (models matching 'gpt-4')\n"
+    )
+
+
+def test_config_set_terse_keeps_warnings_and_notes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The terse `applied` claim stays honest.
+
+    Warnings and the process-scope blast-radius note survive as extra lines.
+    """
+    _patch_surface(
+        monkeypatch, [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")]
+    )
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(ctl_command, ["config", "--max-sandboxes", "4"])
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    assert lines[0] == "config pid 7: applied — max_sandboxes=4"
+    assert any(
+        line.startswith("note: ") and "--max-sandboxes" in line for line in lines[1:]
+    )
 
 
 def test_config_view_ignores_terse(monkeypatch: pytest.MonkeyPatch) -> None:
