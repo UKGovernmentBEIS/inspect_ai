@@ -695,7 +695,7 @@ def test_condense_model_call_interleaved_streams(
     """Two interleaved request lineages must both keep prefix-hitting.
 
     Simulates a fork()/parallel-tools shape. Slot-exhaustion degradation is
-    covered separately by test_buffer_condense_degrades_proportionally_beyond_slot_cap.
+    covered separately by test_buffer_condense_linear_across_slot_cap.
     """
     tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
     payload = "stream content " * 10
@@ -786,25 +786,43 @@ def _drive_streams(tr: Transcript, n_streams: int, rounds: int) -> None:
             tr._event_updated(event)  # 4: timestamp stamping (condensed form)
 
 
-def test_buffer_condense_linear_with_three_interleaved_streams(
-    db: SampleBufferDatabase, hash_counter: HashCounter
+@pytest.mark.parametrize(
+    ("cap_offset", "budget_per_turn"),
+    [
+        pytest.param(-1, 12, id="within_cap"),
+        pytest.param(1, 18, id="beyond_cap"),
+    ],
+)
+def test_buffer_condense_linear_across_slot_cap(
+    cap_offset: int,
+    budget_per_turn: int,
+    db: SampleBufferDatabase,
+    hash_counter: HashCounter,
 ) -> None:
-    """Streams x 2 lineages within _CALL_WALK_SLOTS: all streams stay prefix-cached.
+    """Streams x 2 lineages, within and beyond _CALL_WALK_SLOTS.
 
-    Fails on a 4-slot CallPoolIndex (2-stream capacity), where round-robin
-    access thrashes every lineage back to full-history re-hashing.
+    Within cap: round-robin access must keep every stream's lineages
+    prefix-cached. Fails on a 4-slot CallPoolIndex (2-stream capacity),
+    where round-robin access thrashes every lineage back to full-history
+    re-hashing.
+
+    Beyond cap: LRU thrashes 2 lineages' worth of full history re-hashing
+    every turn; random eviction spreads the excess across lineages instead.
+    LRU thrash measures ~26 call-hashes/turn at this shape; random eviction
+    measured ~11. The beyond-cap budget (18/turn) rejects the cliff while
+    tolerating eviction-order variance.
     """
     from inspect_ai.log._condense import _CALL_WALK_SLOTS
 
     db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
     tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
     tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
-    n_streams = _CALL_WALK_SLOTS // 2 - 1  # 2 lineages/stream, stays under cap
+    n_streams = _CALL_WALK_SLOTS // 2 + cap_offset  # 2 lineages/stream
     rounds = 25
     _drive_streams(tr, n_streams, rounds)
 
     turns = rounds * n_streams
-    budget = 12 * turns
+    budget = budget_per_turn * turns
     assert hash_counter.msg_hashes <= budget, (
         f"message hashing superlinear across {n_streams} interleaved streams: "
         f"{hash_counter.msg_hashes} for {turns} turns"
@@ -812,38 +830,6 @@ def test_buffer_condense_linear_with_three_interleaved_streams(
     assert hash_counter.call_hashes <= budget, (
         f"call hashing superlinear across {n_streams} interleaved streams: "
         f"{hash_counter.call_hashes} for {turns} turns"
-    )
-
-
-def test_buffer_condense_degrades_proportionally_beyond_slot_cap(
-    db: SampleBufferDatabase, hash_counter: HashCounter
-) -> None:
-    """Streams x 2 lineages exceeding _CALL_WALK_SLOTS.
-
-    LRU thrashes 2 lineages' worth of full history re-hashing every turn;
-    random eviction spreads the excess across lineages instead, so cost
-    stays well below the thrash ceiling.
-    """
-    from inspect_ai.log._condense import _CALL_WALK_SLOTS
-
-    db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
-    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
-    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
-    n_streams = _CALL_WALK_SLOTS // 2 + 1  # 2 lineages/stream, exceeds cap
-    rounds = 25
-    _drive_streams(tr, n_streams, rounds)
-
-    turns = rounds * n_streams
-    # LRU thrash measures ~26 call-hashes/turn at this shape; random
-    # eviction measured ~11. Budget at 18/turn rejects the cliff while
-    # tolerating eviction-order variance.
-    assert hash_counter.call_hashes <= 18 * turns, (
-        f"call hashing collapsed to LRU-thrash levels across {n_streams} "
-        f"interleaved streams: {hash_counter.call_hashes} for {turns} turns"
-    )
-    assert hash_counter.msg_hashes <= 18 * turns, (
-        f"message hashing collapsed to LRU-thrash levels across {n_streams} "
-        f"interleaved streams: {hash_counter.msg_hashes} for {turns} turns"
     )
 
 
