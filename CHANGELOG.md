@@ -2,6 +2,7 @@
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
+- Control Channel: `inspect ctl` mutations run in a loop or pipe now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
 
 ## 0.3.258 (11 August 2026)
 
