@@ -468,6 +468,34 @@ def test_score_append_with_unavailable_metrics():
     assert "f1" in scores
 
 
+def test_score_append_preserves_existing_reductions():
+    """score(action="append") must keep pre-existing scorers' reductions.
+
+    Regression test for https://github.com/UKGovernmentBEIS/inspect_ai/issues/4764.
+    The reductions computed during an append pass only cover the scorers run in
+    that pass, so they must be appended to log.reductions rather than replacing
+    it -- otherwise every pre-existing scorer's reductions are silently dropped
+    even though results.scores still retains their entries.
+    """
+    log = read_eval_log(LOG_SCORED)
+
+    # The fixture already carries a reduction for its original "match" scorer.
+    original_reducers = [r.scorer for r in (log.reductions or [])]
+    assert "match" in original_reducers
+
+    f1_scorers = resolve_scorers(log, "f1", {})
+    # f1 never calls a model, so name mockllm to keep this running without an
+    # API key (score() otherwise resolves the header model and would raise).
+    scored_log = score(
+        log=log, scorers=f1_scorers, action="append", model="mockllm/model"
+    )
+
+    reducers = [r.scorer for r in (scored_log.reductions or [])]
+    # Original reduction preserved and the new scorer's reduction appended.
+    assert "match" in reducers
+    assert "f1" in reducers
+
+
 @pytest.mark.anyio
 async def test_score_preserves_model_usage_in_score_event():
     """Test that model_usage from sample is correctly captured in ScoreEvent when re-scoring."""
