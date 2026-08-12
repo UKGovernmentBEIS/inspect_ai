@@ -945,17 +945,12 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     listing (:func:`_sample_summaries_from_active`) and the per-sample detail
     (:func:`_running_sample_error_detail`) so the two views can't drift.
     """
-    from inspect_ai._control.eval_state import get_eval_state
+    from inspect_ai._control.eval_state import stable_task_id_for_eval
     from inspect_ai.util._limit_overrides import sample_limit_override
 
-    # the limit-override store is keyed by the *stable* task id, while
-    # ActiveSample.eval_id is the per-attempt eval id — translate through the
-    # eval registry (an unregistered eval falls back to the id itself, where
-    # no override can exist anyway)
-    eval_state = get_eval_state(s.eval_id)
-    override_task_id = (
-        eval_state.task_id if eval_state is not None else ""
-    ) or s.eval_id
+    # the override store wants the stable task id, while
+    # ActiveSample.eval_id is the per-attempt eval id
+    override_task_id = stable_task_id_for_eval(s.eval_id)
 
     if s.completed is not None:
         status = "completed"

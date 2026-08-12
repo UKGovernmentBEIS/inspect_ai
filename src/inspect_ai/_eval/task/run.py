@@ -15,13 +15,13 @@ from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
     finalize_eval,
-    get_eval_state,
     record_sample_cancelled,
     record_sample_completed,
     record_sample_errored,
     record_samples_added,
     register_eval,
     set_sample_requeue,
+    stable_task_id_for_eval,
 )
 from inspect_ai._control.pause import PauseGatedSemaphore, dispatch_model_name
 from inspect_ai._display import (
@@ -1905,21 +1905,14 @@ async def task_run_sample(
                         start_time = time.monotonic()
                         init_sample_working_time(start_time)
 
-                        # run sample w/ optional limits. The limit-override
-                        # store is keyed by the *stable* task id
-                        # (EvalSpec.task_id — the control channel's handle,
-                        # shared across retry attempts); this function's
-                        # `task_id` param carries the per-attempt eval id.
+                        # run sample w/ optional limits. This function's
+                        # `task_id` param carries the per-attempt eval id;
+                        # the override store wants the stable task id.
                         # Resolved through the eval registry rather than
                         # `logger` — the per-sample logger is None under
                         # --no-log-samples while the control channel stays
-                        # fully targetable. An unregistered eval falls back
-                        # to the eval id, where no directive can write
-                        # anyway.
-                        eval_state = get_eval_state(task_id)
-                        override_task_id = (
-                            eval_state.task_id if eval_state is not None else ""
-                        ) or task_id
+                        # fully targetable.
+                        override_task_id = stable_task_id_for_eval(task_id)
                         sample_time_limit = create_time_limit(time_limit)
                         with (
                             sample_limit_override_scope(
