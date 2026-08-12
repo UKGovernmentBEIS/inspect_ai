@@ -770,6 +770,12 @@ async def test_zip_log_write_buffered_samples_yields_between_samples() -> None:
                 await zip_log.write_buffered_samples()
             flush_done.set()
 
+        # release the temp-file handle; flush first because close() on a
+        # zip with unflushed writes closes the temp file out from under the
+        # ZipFile's end-of-archive write
+        await zip_log.flush()
+        await zip_log.close(header_only=True)
+
         # num_samples sample members plus the summaries journal
         assert len(observed) == num_samples + 1
         # the sibling advanced while the flush iterated over the batch: with
