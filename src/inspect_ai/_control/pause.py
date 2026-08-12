@@ -701,7 +701,7 @@ async def flush_quiesced_tasks() -> None:
 class PauseGatedSemaphore(AbstractAsyncContextManager[None]):
     """The task's sample semaphore behind the pause gate.
 
-    The queue-exit boundary of ``task_run_sample``: entering waits for every
+    The queue-exit boundary of ``task_run_sample``'s attempts: entering waits for every
     pause latch (task, model, process) *before* acquiring a sample-semaphore
     slot (a held sample
     pins no limiter slot, has no sandbox, and — because materialization and

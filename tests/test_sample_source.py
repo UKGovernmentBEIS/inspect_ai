@@ -835,8 +835,8 @@ def test_sample_source_task_retry_regenerates_followups() -> None:
 def test_sample_source_task_retry_reuses_completed_followup() -> None:
     # on a task retry, an injected follow-up that *completed* in the prior
     # attempt is reused via the prior-attempt lookup (never re-run) — the
-    # early-return that also releases the follow-up's in-memory slot, which
-    # otherwise happens in task_run_sample's sample_terminal callback. The
+    # early-return that also releases the follow-up's in-memory slot through
+    # the run's SampleTerminalReporter, like every other terminal path. The
     # flaky sample errors only after the follow-up completes (synchronized
     # via the source's sample_complete), so the first attempt's log carries
     # a completed follow-up for the retry to reuse.
