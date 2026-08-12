@@ -157,7 +157,16 @@ _KNOB_SINCE: dict[str, int] = {
 _PROVENANCE_SINCE = 5
 
 
-class _IntOrClearType(click.ParamType):
+if TYPE_CHECKING:
+    # click 8.4 made ParamType generic in its stubs, but subscripting it at
+    # runtime raises on the older click versions the package still supports
+    # (>=8.1.3), so the parametrized base is typing-only.
+    _IntOrClearBase = click.ParamType[int | Literal["clear"]]
+else:
+    _IntOrClearBase = click.ParamType
+
+
+class _IntOrClearType(_IntOrClearBase):
     """Non-negative integer, or the keyword ``clear`` (restore launch config).
 
     The retry-override knobs' value domain: every integer >= 0 (up to the
