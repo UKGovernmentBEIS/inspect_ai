@@ -370,15 +370,17 @@ class CallPoolIndex:
         """
         matched = self._matched_slot
         self._matched_slot = -1
-        carried: list[JsonValue] = []
-        if matched >= 0 and prefix_len > 0:
-            carried = self._prevs[matched][0][:prefix_len]
+        prev_msgs = self._prevs[matched][0] if matched >= 0 else []
+        if prefix_len > len(prev_msgs):
+            # mis-paired with match_prefix: nothing valid to carry
+            prefix_len, matched = 0, -1
+        carried = prev_msgs[:prefix_len]
         # Full consumption means the request extends the matched lineage, so
         # it is replaced. A partial match is a sibling lineage forked from
         # shared history (e.g. parallel streams sharing a pre-fork prefix);
         # replacing it would merge the two lineages, which then alternately
         # destroy each other's cached tails on every call.
-        fully_consumed = matched >= 0 and prefix_len == len(self._prevs[matched][0])
+        fully_consumed = matched >= 0 and prefix_len == len(prev_msgs)
         entry = (
             carried + [copy.deepcopy(m) for m in msgs[prefix_len:]],
             list(indices),

@@ -142,10 +142,11 @@ def attachment_refs_from_object(
         if isinstance(v, str):
             if v.startswith(ATTACHMENT_PROTOCOL):
                 refs.add(v[prefix_len:])
-        elif isinstance(v, BaseModel):
-            if id(v) in seen:
-                continue
-            seen.add(id(v))
+            continue
+        if id(v) in seen:
+            continue
+        seen.add(id(v))
+        if isinstance(v, BaseModel):
             if message_refs is not None and isinstance(v, ChatMessageBase):
                 cached = message_refs(v)
                 if cached is not None:
@@ -156,20 +157,11 @@ def attachment_refs_from_object(
             if extra:
                 stack.extend(extra.values())
         elif isinstance(v, dict):
-            if id(v) in seen:
-                continue
-            seen.add(id(v))
             stack.extend(v.values())
         elif isinstance(v, (list, tuple, set)):
-            if id(v) in seen:
-                continue
-            seen.add(id(v))
             stack.extend(v)
         elif dataclasses.is_dataclass(v) and not isinstance(v, type):
-            if id(v) in seen:
-                continue
-            seen.add(id(v))
-            stack.extend(vars(v).values())
+            stack.extend(getattr(v, f.name) for f in dataclasses.fields(v))
     return refs
 
 

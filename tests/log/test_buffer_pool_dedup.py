@@ -546,13 +546,12 @@ def test_failed_batch_does_not_mark_attachments_seen(
             )
 
             original = getattr(database_mod, "to_json_str_safe")
-            calls = {"n": 0}
 
             def failing(value):
-                calls["n"] += 1
-                if calls["n"] == 1:
-                    raise RuntimeError("injected serialization failure")
-                return original(value)
+                assert db._pending_seen_hashes, (
+                    "failure injected before attachments were staged - test is vacuous"
+                )
+                raise RuntimeError("injected serialization failure")
 
             monkeypatch.setattr(database_mod, "to_json_str_safe", failing)
             with pytest.raises(RuntimeError):
