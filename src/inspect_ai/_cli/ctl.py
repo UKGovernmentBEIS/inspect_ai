@@ -359,7 +359,7 @@ def _echo_no_running_evals() -> None:
     when a user is confused that a just-finished eval isn't listed — its
     process has already exited unless it was launched to park.
     """
-    click.echo(
+    _echo(
         f"No running evals found in {discovery_dir()}.\n"
         "Start an eval with `inspect eval <task>` — add `--ctl-server=keep` "
         "to keep the process inspectable after the eval finishes."
@@ -415,7 +415,7 @@ def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
 
 def _deprecation_note(old: str, new: str) -> None:
     """Print (to stderr, keeping ``--json`` stdout parseable) an alias note."""
-    click.echo(
+    _echo(
         f"note: `inspect ctl {old}` is now `inspect ctl {new}` — this hidden "
         "alias will be removed in a future release.",
         err=True,
@@ -1684,7 +1684,7 @@ class _CtlFailure(click.exceptions.Exit):
                 "status": self.status,
             }
         }
-        click.echo(json_lib.dumps(envelope, indent=2))
+        _echo_raw(json_lib.dumps(envelope, indent=2))
 
 
 def _fail(
@@ -1703,7 +1703,7 @@ def _fail(
     an exception (``raise ... from exc``) construct :class:`_CtlFailure`
     directly instead.
     """
-    click.echo(message, err=True)
+    _echo(message, err=True)
     raise _CtlFailure(kind, message, exception=exception, status=status)
 
 
@@ -1775,7 +1775,7 @@ def _structured_failures(as_json: bool) -> Iterator[None]:
     except (click.exceptions.Exit, click.ClickException, click.exceptions.Abort):
         raise
     except Exception as exc:
-        click.echo(traceback.format_exc(), err=True, nl=False)
+        _echo(traceback.format_exc(), err=True, nl=False)
         _CtlFailure(
             "internal",
             str(exc) or _exception_name(exc),
@@ -1847,7 +1847,7 @@ def _run_task_list(as_json: bool) -> None:
     summaries = _fetch_summaries(list_discovered_servers()).summaries
 
     if as_json:
-        click.echo(json_lib.dumps({"as_of": as_of, "tasks": summaries}, indent=2))
+        _echo_raw(json_lib.dumps({"as_of": as_of, "tasks": summaries}, indent=2))
         return
 
     if not summaries:
@@ -1956,7 +1956,7 @@ def _list_sample_rows(
                 if isinstance(page, _ServerBusy)
                 else "it may have just exited"
             )
-            click.echo(
+            _echo(
                 f"Skipping eval {target['eval_id']}: its samples could not be "
                 f"read ({_unreachable_detail(page)}) — {hint}.",
                 err=True,
@@ -2165,7 +2165,7 @@ def _run_sample_listing(
     rows = listing.rows
 
     if as_json:
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 {
                     "as_of": listing.as_of,
@@ -2191,15 +2191,15 @@ def _run_sample_listing(
     else:
         empty = empty_read
     if len(listing.targets) == 1:
-        click.echo(_task_header(listing.targets[0]))
+        _echo(_task_header(listing.targets[0]))
         if not rows:
-            click.echo(empty)
+            _echo(empty)
             return
-        click.echo()
+        _echo()
         printer(rows)
     else:
         if not rows:
-            click.echo(empty)
+            _echo(empty)
             return
         printer(rows, show_task=True)
     if listing.truncated:
@@ -2251,8 +2251,8 @@ def _echo_idle_pointer(rows: list[dict[str, Any]], read: list[dict[str, Any]]) -
         return
     only = next(iter(pids)) if len(pids) == 1 else None
     pid = int(only) if only is not None else None
-    click.echo()
-    click.echo(f"idle {_format_duration(max(idles))} — {_anomalies_pointer(pid)}")
+    _echo()
+    _echo(f"idle {_format_duration(max(idles))} — {_anomalies_pointer(pid)}")
 
 
 def _echo_truncation_footer(
@@ -2290,8 +2290,8 @@ def _echo_truncation_footer(
     hint = "pass --all (or --limit N) for more"
     if statuses is None:
         hint += ", --status to filter"
-    click.echo()
-    click.echo(f"listing capped: {showing} — {hint}")
+    _echo()
+    _echo(f"listing capped: {showing} — {hint}")
 
 
 @_envelope_failures
@@ -2302,7 +2302,7 @@ def _run_sample_show(
     summaries = fetched.summaries
     if not summaries:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2331,7 +2331,7 @@ def _run_sample_show(
     }
 
     if as_json:
-        click.echo(json_lib.dumps(merged, indent=2))
+        _echo_raw(json_lib.dumps(merged, indent=2))
         return
 
     _print_sample_detail(merged, show_traceback)
@@ -2368,7 +2368,7 @@ def _fetch_sample_row_from_listing(
             if isinstance(exc, _ServerBusy)
             else ""
         )
-        click.echo(
+        _echo(
             f"Could not read the samples listing for eval {target['eval_id']} "
             f"({_unreachable_detail(exc)}); showing the sample without its "
             f"summary fields (timing / tokens / messages){hint}.",
@@ -2438,7 +2438,7 @@ def _run_sample_events(
                 "next": None,
                 "done": True,
             }
-            click.echo(json_lib.dumps(empty_page, indent=2))
+            _echo_raw(json_lib.dumps(empty_page, indent=2))
             return
         _echo_no_running_evals()
         return
@@ -2468,7 +2468,7 @@ def _run_sample_events(
     }
 
     if as_json:
-        click.echo(json_lib.dumps(page, indent=2))
+        _echo_raw(json_lib.dumps(page, indent=2))
         return
 
     _print_events(page, full=full)
@@ -2515,7 +2515,7 @@ def _run_sample_messages(
                 "count": 0,
                 "messages": [],
             }
-            click.echo(json_lib.dumps(empty_page, indent=2))
+            _echo_raw(json_lib.dumps(empty_page, indent=2))
             return
         _echo_no_running_evals()
         return
@@ -2540,11 +2540,11 @@ def _run_sample_messages(
     }
 
     if as_json:
-        click.echo(json_lib.dumps(page, indent=2))
+        _echo_raw(json_lib.dumps(page, indent=2))
         return
 
-    click.echo(_task_header(target))
-    click.echo()
+    _echo(_task_header(target))
+    _echo()
     _print_messages(page, full=full)
 
 
@@ -2682,18 +2682,18 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
             "dry_run": False,
             "detail": detail,
         }
-        click.echo(json_lib.dumps(result, indent=2))
+        _echo_raw(json_lib.dumps(result, indent=2))
         return
 
     already = detail.get("changed") is False
     if keep:
-        click.echo(
+        _echo(
             f"Keep-alive already on for pid {target.pid}."
             if already
             else f"Keep-alive requested for pid {target.pid}."
         )
     else:
-        click.echo(
+        _echo(
             f"Keep-alive already off for pid {target.pid}."
             if already
             else f"Release requested for pid {target.pid}."
@@ -2707,7 +2707,7 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
     scope = _resolve_scope(servers, summaries, task, per_task_option="task log-flush")
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2726,17 +2726,15 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
             "dry_run": False,
             "detail": result,
         }
-        click.echo(json_lib.dumps(envelope, indent=2))
+        _echo_raw(json_lib.dumps(envelope, indent=2))
         return
 
     flushed = int(result.get("flushed", 0) or 0)
-    click.echo(scope.header)
+    _echo(scope.header)
     if flushed:
-        click.echo(
-            f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log."
-        )
+        _echo(f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log.")
     else:
-        click.echo("\nNo buffered samples to flush.")
+        _echo("\nNo buffered samples to flush.")
 
 
 def _mutation_envelope(
@@ -2776,7 +2774,7 @@ def _run_task_cancel(
     scope = _resolve_scope(servers, summaries, task, per_task_option="task cancel")
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2810,15 +2808,15 @@ def _run_task_cancel(
 
     if as_json:
         target = {"task_id": scope.task_id, "task": scope.task}
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(target, result, dry_run=dry_run), indent=2
             )
         )
         return
 
-    click.echo(scope.header)
-    click.echo()
+    _echo(scope.header)
+    _echo()
     if result.get("changed"):
         in_flight = int(result.get("in_flight", 0) or 0)
         outcome = {
@@ -2840,12 +2838,12 @@ def _run_task_cancel(
             )
         )
         if dry_run:
-            click.echo(f"Would cancel — {interrupted}; {suffix}.")
+            _echo(f"Would cancel — {interrupted}; {suffix}.")
         else:
-            click.echo(f"Cancel requested — {interrupted}; {suffix}.")
+            _echo(f"Cancel requested — {interrupted}; {suffix}.")
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason}.")
+        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        _echo(f"Nothing to do: {reason}.")
 
 
 _PAUSE_ROUTE_MISSING = (
@@ -2905,7 +2903,7 @@ def _run_task_pause_resume(
     scope = _resolve_scope(servers, summaries, task, per_task_option=f"task {verb}")
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2932,15 +2930,15 @@ def _run_task_pause_resume(
 
     if as_json:
         target = {"task_id": scope.task_id, "task": scope.task}
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(target, result, dry_run=dry_run), indent=2
             )
         )
         return
 
-    click.echo(scope.header)
-    click.echo()
+    _echo(scope.header)
+    _echo()
     if result.get("changed"):
         if verb == "pause":
             # `dispatched` counts samples past the gate, including ones still
@@ -2951,33 +2949,33 @@ def _run_task_pause_resume(
                 f"{'would' if dry_run else 'will'} finish naturally"
             )
             if dry_run:
-                click.echo(
+                _echo(
                     f"Would pause — {finishing}; no new samples or retry "
                     "attempts would start."
                 )
             else:
-                click.echo(
+                _echo(
                     f"Pause requested — {finishing}; no new samples or retry "
                     "attempts will start. Resume with `inspect ctl task resume`."
                 )
         elif dry_run:
-            click.echo("Would resume — queued samples would dispatch again.")
+            _echo("Would resume — queued samples would dispatch again.")
         else:
-            click.echo("Resume requested — queued samples will dispatch again.")
+            _echo("Resume requested — queued samples will dispatch again.")
             # independent latches: a task resume does not clear a process or
             # model pause, so say when the task is still held
             held = _paused_sources(result.get("paused"))
             if "process" in held or "model" in held:
-                click.echo(_still_held_note(held))
+                _echo(_still_held_note(held))
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason}.")
+        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        _echo(f"Nothing to do: {reason}.")
         # "task is not paused" is technically right for a task held only by
         # the process or model latch, but the operator wants it moving —
         # point at the latch that actually holds it
         held = _paused_sources(result.get("paused"))
         if verb == "resume" and ("process" in held or "model" in held):
-            click.echo(_still_held_note(held))
+            _echo(_still_held_note(held))
 
 
 @_envelope_failures
@@ -3005,7 +3003,7 @@ def _run_process_pause_resume(
     )
 
     if as_json:
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope({"pid": target.pid}, result, dry_run=dry_run),
                 indent=2,
@@ -3016,28 +3014,28 @@ def _run_process_pause_resume(
     if result.get("changed"):
         if verb == "pause":
             if dry_run:
-                click.echo(
+                _echo(
                     f"Would pause pid {target.pid} — in-flight samples would "
                     "finish; no new samples, task retries, or eval-set tasks "
                     "would start."
                 )
             else:
-                click.echo(
+                _echo(
                     f"Pause requested for pid {target.pid} — in-flight samples "
                     "will finish; no new samples, task retries, or eval-set "
                     "tasks will start. Watch `inspect ctl task list` for "
                     "quiesced; resume with `inspect ctl process resume`."
                 )
         elif dry_run:
-            click.echo(f"Would resume pid {target.pid}.")
+            _echo(f"Would resume pid {target.pid}.")
         else:
-            click.echo(
+            _echo(
                 f"Resume requested for pid {target.pid} — dispatch picks up "
                 "where it left off (task-level pauses, if any, stay in place)."
             )
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason} (pid {target.pid}).")
+        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        _echo(f"Nothing to do: {reason} (pid {target.pid}).")
 
 
 @_envelope_failures
@@ -3077,7 +3075,7 @@ def _run_model_pause_resume(
     )
 
     if as_json:
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(
                     {"model": model, "pid": target.pid}, result, dry_run=dry_run
@@ -3100,27 +3098,27 @@ def _run_model_pause_resume(
                 f"{'would' if dry_run else 'will'} finish naturally"
             )
             if dry_run:
-                click.echo(
+                _echo(
                     f"Would pause {model} — {held}; no new samples, retry "
                     "attempts, or eval-set tasks of this model would start."
                 )
             else:
-                click.echo(
+                _echo(
                     f"Pause requested for {model} — {held}; no new samples, "
                     "retry attempts, or eval-set tasks of this model will "
                     "start (other models keep running). Resume with "
                     "`inspect ctl model resume`."
                 )
         elif dry_run:
-            click.echo(f"Would resume {model} — its held work would dispatch again.")
+            _echo(f"Would resume {model} — its held work would dispatch again.")
         else:
-            click.echo(
+            _echo(
                 f"Resume requested for {model} — its held work dispatches "
                 "again (task- and process-level pauses, if any, stay in place)."
             )
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason} ({model}).")
+        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        _echo(f"Nothing to do: {reason} ({model}).")
 
 
 def _run_sample_mutation(
@@ -3150,7 +3148,7 @@ def _run_sample_mutation(
     summaries = fetched.summaries
     if not summaries:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -3203,20 +3201,25 @@ def _run_sample_mutation(
             "sample_id": result.get("sample_id", sample_id),
             "epoch": result.get("epoch", epoch),
         }
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(envelope_target, result, dry_run=dry_run), indent=2
             )
         )
         return
 
-    click.echo(_task_header(target))
-    click.echo()
-    label = f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
+    _echo(_task_header(target))
+    _echo()
+    # the label is sanitized before the callbacks interpolate it (with other
+    # wire fields — status, reason) so a swallow can't eat the message tail;
+    # `_echo` sanitizes whatever the composed line still carries
+    label = _sanitize_control(
+        f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
+    )
     if result.get("changed"):
-        click.echo(changed_message(label, result))
+        _echo(changed_message(label, result))
     else:
-        click.echo(noop_message(label, result))
+        _echo(noop_message(label, result))
 
 
 @_envelope_failures
@@ -3284,7 +3287,7 @@ def _run_sample_requeue(
         return f"Requeue accepted for {label} — it will {resume}."
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
-        reason = str(result.get("reason") or "already in that state")
+        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
         return f"Nothing to do — {reason}."
 
     _run_sample_mutation(
@@ -3339,11 +3342,11 @@ def _run_process_list(as_json: bool) -> None:
         )
 
     if as_json:
-        click.echo(json_lib.dumps({"as_of": as_of, "processes": rows}, indent=2))
+        _echo_raw(json_lib.dumps({"as_of": as_of, "processes": rows}, indent=2))
         return
 
     if not rows:
-        click.echo("No running inspect processes found.")
+        _echo("No running inspect processes found.")
         return
 
     table_rows: list[tuple[str, ...]] = []
@@ -3472,7 +3475,7 @@ def _run_process_anomalies(
             # since (an overnight death would otherwise show it "running"
             # for hours).
             post_mortem_as_of = trace_file.stat().st_mtime
-            click.echo(
+            _echo(
                 f"note: pid {pid} is not running — durations are as of the "
                 "trace file's last write.",
                 err=True,
@@ -3486,7 +3489,7 @@ def _run_process_anomalies(
             if server_trace is None:
                 # same warn-and-skip as the unscoped fan-out reads: this
                 # pid's section can't be read, the others' still can
-                click.echo(
+                _echo(
                     f"note: no trace file found for pid {server.pid} — skipped.",
                     err=True,
                 )
@@ -3510,13 +3513,13 @@ def _run_process_anomalies(
                     f"Could not read trace file {target_file} for pid "
                     f"{target_pid}: {ex}"
                 )
-                click.echo(message, err=True)
+                _echo(message, err=True)
                 raise _CtlFailure(
                     "internal", message, exception=_exception_name(ex)
                 ) from ex
             # the widened fan-out warns-and-skips like the missing-trace-file
             # case, keeping the other sections readable
-            click.echo(
+            _echo(
                 f"note: could not read {target_file} for pid {target_pid} "
                 f"({ex}) — skipped.",
                 err=True,
@@ -3549,17 +3552,17 @@ def _run_process_anomalies(
                 for section in sections
             ],
         }
-        click.echo(json_lib.dumps(envelope, indent=2))
+        _echo_raw(json_lib.dumps(envelope, indent=2))
         return
 
     if not sections:
         if servers:
-            click.echo(
+            _echo(
                 "No readable trace files found for the running processes "
                 "(see notes above)."
             )
         else:
-            click.echo(
+            _echo(
                 "No running inspect processes found. Pass a PID to read an "
                 "exited process's trace file post-mortem (`inspect trace "
                 "list` shows the trace files still on disk)."
@@ -3569,7 +3572,7 @@ def _run_process_anomalies(
     # _sanitize_keep_sgr as a backstop over the already-sanitized rendering:
     # rich's own styling exports as SGR (kept), so anything else that ever
     # leaks into the export is neutralized without trusting its internals.
-    click.echo(
+    _echo_raw(
         "\n\n".join(
             _sanitize_keep_sgr(
                 rendered_anomalies(
@@ -3700,7 +3703,7 @@ def _run_config(
     )
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -3801,11 +3804,11 @@ def _run_config(
                     else ""
                 )
             )
-            click.echo(message, err=True)
+            _echo(message, err=True)
             for warning in limits_view.get("warnings") or []:
                 # the buffer warning restates the headline error; skip it
                 if not warning.startswith("log_buffer"):
-                    click.echo(f"! {warning}", err=True)
+                    _echo(f"! {warning}", err=True)
             raise _CtlFailure("invalid_request", message)
         buffer_warnings.append(
             "log_buffer/log_shared are not adjustable for this task "
@@ -3836,11 +3839,11 @@ def _run_config(
     )
 
     if as_json:
-        click.echo(json_lib.dumps(config, indent=2))
+        _echo_raw(json_lib.dumps(config, indent=2))
         return
 
-    click.echo(scope.header)
-    click.echo()
+    _echo(scope.header)
+    _echo()
     _print_config(config, changed=mutated)
 
 
@@ -4276,7 +4279,7 @@ class _BusyNarrator:
 def _echo_busy_attempt(what: str, attempt: int, attempts: int) -> None:
     """Report one timed-out attempt (stderr, so ``--json`` stdout stays clean)."""
     retrying = "; retrying…" if attempt < attempts else "."
-    click.echo(
+    _echo(
         f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
         f"(attempt {attempt}/{attempts}) — the eval may be busy{retrying}",
         err=True,
@@ -4382,8 +4385,8 @@ def _exit_busy(
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
         "try again shortly."
     )
-    click.echo(message, err=True)
-    click.echo(f"{_anomalies_pointer(pid)}.", err=True)
+    _echo(message, err=True)
+    _echo(f"{_anomalies_pointer(pid)}.", err=True)
     raise _CtlFailure(
         "busy",
         message,
@@ -4577,7 +4580,7 @@ def _fetch_summaries(
                 hint = "it may be running a different inspect version than this CLI"
             else:
                 hint = "it may have just exited"
-            click.echo(
+            _echo(
                 f"Skipping pid {server.pid}: its control endpoint could not be "
                 f"read ({_unreachable_detail(rows)}) — {hint}.",
                 err=True,
@@ -4729,7 +4732,7 @@ def _resolve_target_eval(
         _fail("not_found", f"No running task matching '{query}'{busy}.")
     if len(matches) > 1:
         if busy_pids:
-            click.echo(
+            _echo(
                 f"note: {_busy_pids_label(busy_pids)} busy-skipped — candidates "
                 "drawn from responsive processes only.",
                 err=True,
@@ -4740,7 +4743,7 @@ def _resolve_target_eval(
     # task-list paste (see the docstring for the caveat rationale)
     provably_unique = bool(exact) or (bool(id_matches) and len(query) >= _SHORT_ID_LEN)
     if busy_pids and not provably_unique:
-        click.echo(
+        _echo(
             f"note: {_busy_pids_label(busy_pids)} busy-skipped — matched "
             f"'{query}' among responsive processes only.",
             err=True,
@@ -4773,7 +4776,7 @@ def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
     one process (the common case is one). The envelope failure folds the
     candidate ids into its message instead — the table is stderr-only.
     """
-    click.echo(f"{prefix} — pass a task id to choose one:\n", err=True)
+    _echo(f"{prefix} — pass a task id to choose one:\n", err=True)
     multi_process = len({s.get("pid") for s in matches}) > 1
     any_solver = any(s.get("solver") for s in matches)
     headers = (
@@ -4822,9 +4825,9 @@ def _exit_samples_unreachable(
     message = (
         f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}{hint}"
     )
-    click.echo(message, err=True)
+    _echo(message, err=True)
     if isinstance(exc, _ServerBusy):
-        click.echo(f"{_anomalies_pointer(pid)}.", err=True)
+        _echo(f"{_anomalies_pointer(pid)}.", err=True)
     raise _unreachable_failure(message, exc) from exc
 
 
@@ -5150,11 +5153,11 @@ def _request_json(
         result = response.json()
     except _ServerUnreachable as exc:
         message = f"Failed to {verb} {what}: {_unreachable_detail(exc)}"
-        click.echo(message, err=True)
+        _echo(message, err=True)
         raise _unreachable_failure(message, exc) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
         message = f"Failed to {verb} {what}: {_error_detail(exc)}"
-        click.echo(message, err=True)
+        _echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
 
@@ -5226,7 +5229,7 @@ def _gate_knob_support(
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
     target = f"pid {server.pid}" if server is not None else "the target process"
-    click.echo(
+    _echo(
         f"{flags} not supported — {target} is running an older inspect; "
         "restart the eval to pick up the current version. No changes were "
         "applied.",
@@ -5299,7 +5302,7 @@ def _gate_provenance_support(
             if value is not None
         )
         target = f"pid {server.pid}" if server is not None else "the target process"
-        click.echo(
+        _echo(
             f"{flags} not supported — {target} is running an older inspect; "
             "restart the eval to pick up the current version. No changes "
             "were applied.",
@@ -5458,9 +5461,9 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     """
     dry_run = bool(config.get("dry_run"))
     if changed:
-        click.echo("would-be config (dry run):" if dry_run else "updated config:")
+        _echo("would-be config (dry run):" if dry_run else "updated config:")
     else:
-        click.echo("config:")
+        _echo("config:")
 
     knobs = config.get("knobs") or {}
 
@@ -5479,25 +5482,25 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # show it as per-task rather than claiming a value. Distinguish that from
     # a task view that carries an explicit `{"adjustable": false}`.
     if "max_samples" not in knobs:
-        click.echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
+        _echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
     else:
         max_samples = knobs.get("max_samples") or {}
         if max_samples.get("adjustable"):
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
             label = _knob_label("max samples", "max_samples")
-            click.echo(f"{label}{limit} ({in_use} in use)")
+            _echo(f"{label}{limit} ({in_use} in use)")
         elif max_samples.get("tracks_adaptive"):
             # sample concurrency tracks this task's adaptive controller, so
             # there's no user setpoint to show — point at where the numbers are
-            click.echo(
+            _echo(
                 _knob_label("max samples", "max_samples")
                 + "tracks adaptive connections (see below)"
             )
         else:
             # no live sample limiter for this task (e.g. a reused log) — the
             # adaptive block below, if any, belongs to other tasks' models
-            click.echo(
+            _echo(
                 _knob_label("max samples", "max_samples")
                 + "not adjustable (no live sample limiter)"
             )
@@ -5508,31 +5511,34 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             f"{s.get('type')} {_target(s.get('limit'), 'max_sandboxes')} ({s.get('in_use')} in use)"
             for s in sandboxes
         )
-        click.echo(f"{_knob_label('max sandboxes', 'max_sandboxes')}{rendered}")
+        _echo(f"{_knob_label('max sandboxes', 'max_sandboxes')}{rendered}")
     else:
-        click.echo(_knob_label("max sandboxes", "max_sandboxes") + "none in effect")
+        _echo(_knob_label("max sandboxes", "max_sandboxes") + "none in effect")
 
     subprocesses = knobs.get("max_subprocesses") or {}
     if subprocesses.get("limit") is not None:
         limit = _target(subprocesses.get("limit"), "max_subprocesses")
-        click.echo(
+        _echo(
             f"{_knob_label('max subprocesses', 'max_subprocesses')}{limit} "
             f"({subprocesses.get('in_use')} in use)"
         )
     else:
-        click.echo(
+        _echo(
             _knob_label("max subprocesses", "max_subprocesses")
             + "inactive (no adjustable subprocess limiter yet)"
         )
 
     adaptive = (knobs.get("max_connections") or {}).get("adaptive") or []
     if adaptive:
-        click.echo(f"  adaptive connections [{_KNOB_SCOPE['max_connections']}]:")
+        _echo(f"  adaptive connections [{_KNOB_SCOPE['max_connections']}]:")
         for a in adaptive:
             # on a dry-run set, `_target` renders the ceiling as `max → requested`
             ceiling = _target(a.get("max"), "max_connections")
+            # sanitize the name before composing so a swallow in it can't
+            # eat the line's data fields (`_echo` handles the rest)
+            name = _sanitize_control(str(a.get("name") or ""))
             line = (
-                f"    {a.get('name')}: {a.get('limit')} ({a.get('in_use')} in use), "
+                f"    {name}: {a.get('limit')} ({a.get('in_use')} in use), "
                 f"range {a.get('min')}–{ceiling}"
             )
             changes = a.get("recent_changes") or []
@@ -5541,7 +5547,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                 line += (
                     f", last: {last.get('from')}→{last.get('to')} {last.get('reason')}"
                 )
-            click.echo(line)
+            _echo(line)
 
     # The retry-override knobs. Absent entirely from an older server's view
     # (which has no override layer) — skipped then rather than shown as a
@@ -5562,7 +5568,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         proposed = requested.get(knob)
         if proposed is not None and fmt(proposed) != fmt(current):
             rendered += f" → {fmt(proposed)}"
-        click.echo(_knob_label(display, knob) + rendered)
+        _echo(_knob_label(display, knob) + rendered)
 
     _render_retry_knob("timeout", "timeout", "s")
     _render_retry_knob("attempt_timeout", "attempt timeout", "s")
@@ -5575,22 +5581,25 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # omits the section (`keys` is None).
     keys = (knobs.get("concurrency") or {}).get("keys")
     if keys:
-        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]:")
+        _echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]:")
         for row in keys:
             # on a dry-run set, `_target` renders the requested key's limit as
             # `current → requested` (the request rides `concurrency:<name>`)
             limit = _target(row.get("limit"), f"concurrency:{row.get('name')}")
-            line = f"    {row.get('name')}: {limit} ({row.get('in_use')} in use)"
+            # concurrency() names are arbitrary registry strings; sanitize
+            # before composing so a swallow can't eat the line's data fields
+            name = _sanitize_control(str(row.get("name") or ""))
+            line = f"    {name}: {limit} ({row.get('in_use')} in use)"
             if not row.get("adjustable"):
                 line += " — not adjustable"
-            click.echo(line)
+            _echo(line)
     else:
         empty = (
             "none registered yet (named limits appear on first use)"
             if keys is not None
             else "not reported (older server)"
         )
-        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]: {empty}")
+        _echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]: {empty}")
 
     # The process-level view carries no buffer knobs (they're per-task, read
     # off one task's live logger): mirror the max_samples placeholder so the
@@ -5600,26 +5609,26 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     if "log_buffer" in knobs:
         log_buffer = knobs.get("log_buffer") or {}
         value = _target(log_buffer.get("value"), "log_buffer")
-        click.echo(
+        _echo(
             f"{_knob_label('log buffer', 'log_buffer')}{value} samples "
             f"({log_buffer.get('pending')} pending)"
         )
     elif process_scope:
-        click.echo(_knob_label("log buffer", "log_buffer") + _PER_TASK_PLACEHOLDER)
+        _echo(_knob_label("log buffer", "log_buffer") + _PER_TASK_PLACEHOLDER)
     if "log_shared" in knobs:
         shared = (knobs.get("log_shared") or {}).get("value")
         rendered_shared = _target(shared, "log_shared") if shared is not None else None
-        click.echo(
+        _echo(
             _knob_label("shared sync", "log_shared")
             + f"{f'{rendered_shared}s' if rendered_shared is not None else 'off'}"
         )
     elif process_scope:
-        click.echo(_knob_label("shared sync", "log_shared") + _PER_TASK_PLACEHOLDER)
+        _echo(_knob_label("shared sync", "log_shared") + _PER_TASK_PLACEHOLDER)
 
     for warning in config.get("warnings") or []:
-        click.echo(f"  ! {warning}")
+        _echo(f"  ! {warning}")
     for note in config.get("notes") or []:
-        click.echo(f"  note: {note}")
+        _echo(f"  note: {note}")
 
 
 def _print_events(page: dict[str, Any], *, full: bool) -> None:
@@ -5629,9 +5638,9 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
         # Raw mode is for machine consumption; the human rendering is the
         # compact projection (whose flattened fields the table expects), so
         # just pretty-print the raw events.
-        click.echo(json_lib.dumps(events, indent=2))
+        _echo_raw(json_lib.dumps(events, indent=2))
     elif not events:
-        click.echo("(no events)")
+        _echo("(no events)")
     else:
         rows: list[tuple[str, ...]] = []
         for e in events:
@@ -5647,11 +5656,11 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
 
     parts = [f"{len(events)} event" + ("" if len(events) == 1 else "s")]
     parts.append("done" if page.get("done") else "more")
-    click.echo()
-    click.echo("  ·  ".join(parts))
+    _echo()
+    _echo("  ·  ".join(parts))
     nxt = page.get("next")
     if nxt and not page.get("done"):
-        click.echo(f"next: {nxt}  (resume with --cursor)")
+        _echo(f"next: {_sanitize_control(str(nxt))}  (resume with --cursor)")
 
 
 def _print_messages(page: dict[str, Any], *, full: bool) -> None:
@@ -5663,9 +5672,9 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
     if full:
         # Raw mode is for machine consumption; the human rendering is the
         # compact projection, so just pretty-print the raw messages.
-        click.echo(json_lib.dumps(messages, indent=2))
+        _echo_raw(json_lib.dumps(messages, indent=2))
     elif not messages:
-        click.echo("(no messages)")
+        _echo("(no messages)")
     else:
         rows: list[tuple[str, ...]] = []
         for m in messages:
@@ -5683,17 +5692,18 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
     if shown < count:
         footer += " (use --all for the whole conversation)"
     if status:
-        footer += f"  ·  {status}"
-    click.echo()
-    click.echo(footer)
+        footer += f"  ·  {_sanitize_control(str(status))}"
+    _echo()
+    _echo(footer)
 
 
 def _message_summary(m: dict[str, Any]) -> str:
     """One-line summary for a message row (best-effort over compact fields).
 
-    Agent-influenced fields are sanitized before joining so an unterminated
-    string sequence in one (e.g. the message content) can't swallow the
-    parts appended after it — the tool-call list or the ``error:`` tag.
+    Every wire field is sanitized at its interpolation site (provenance is
+    irrelevant — see ``_sanitize_control``) so an unterminated string
+    sequence in one (e.g. the message content) can't swallow the parts
+    appended after it — the tool-call list or the ``error:`` tag.
     """
     parts = [_sanitize_control(str(m.get("content") or ""))]
     for call in m.get("tool_calls") or []:
@@ -5714,20 +5724,21 @@ def _event_summary(e: dict[str, Any]) -> str:
     completion fields, whose placeholder values (zero tokens, a default stop
     reason) would read as "finished with nothing".
 
-    Agent-influenced fields (completion, tool error, info data, …) are
-    sanitized before joining so an unterminated string sequence in one
-    can't swallow the fields appended after it within the summary.
+    Every wire field is sanitized at its interpolation site (provenance is
+    irrelevant — see ``_sanitize_control``) so an unterminated string
+    sequence in one can't swallow the fields appended after it within the
+    summary.
     """
     t = e.get("event")
     if t == "model":
-        bits = [str(e.get("model") or "")]
+        bits = [_sanitize_control(str(e.get("model") or ""))]
         if e.get("pending"):
             bits.append(_format_pending("generating", e.get("timestamp")))
             return _truncate(" · ".join(b for b in bits if b), 80)
         if e.get("tokens") is not None:
             bits.append(f"{e['tokens']} tok")
         if e.get("stop_reason"):
-            bits.append(str(e["stop_reason"]))
+            bits.append(_sanitize_control(str(e["stop_reason"])))
         if e.get("completion"):
             bits.append(_sanitize_control(str(e["completion"])))
         if e.get("error"):
@@ -5810,26 +5821,23 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
                 _sanitize_control(f"{k}={_format_score(v)}") for k, v in scores.items()
             )
         )
-    # sample ids and score values are agent/dataset-influenced; sanitize each
-    # part separately so an unterminated string sequence in one can't swallow
-    # the trusted fields (status, score) joined after it, and flatten newlines
-    # so one part can't forge a plausible header line of its own
-    click.echo(
-        "  ·  ".join(_sanitize_control(p).replace("\n", " ") for p in parts if p)
-    )
+    # sanitize each part separately so an unterminated string sequence in one
+    # can't swallow the fields joined after it, and flatten newlines so one
+    # part can't forge a plausible header line of its own
+    _echo("  ·  ".join(_sanitize_control(p).replace("\n", " ") for p in parts if p))
 
     error = detail.get("error")
     retries = detail.get("error_retries") or []
     if not error and not retries:
-        click.echo("\n(no errors)")
+        _echo("\n(no errors)")
         return
 
     if retries:
-        click.echo("\nprior attempts:")
+        _echo("\nprior attempts:")
         for i, retry_error in enumerate(retries, start=1):
             _echo_error(f"attempt {i}:", retry_error, show_traceback)
     if error:
-        click.echo("\nfinal error:")
+        _echo("\nfinal error:")
         _echo_error("", error, show_traceback)
 
 
@@ -5838,7 +5846,7 @@ def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None
     # flatten newlines so a crafted message can't print continuation lines at
     # column 0 that mimic surrounding output (full text remains via --json)
     message = _sanitize_control(error.get("message") or "").replace("\n", " ")
-    click.echo(f"  {label} {message}".rstrip() if label else f"  {message}")
+    _echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
         traceback_ansi = error.get("traceback_ansi")
         if traceback_ansi:
@@ -5846,7 +5854,8 @@ def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None
         else:
             tb = _sanitize_control(error.get("traceback") or "")
         for line in tb.rstrip("\n").splitlines():
-            click.echo(f"    {line}")
+            # raw: `_echo` would strip the SGR styling `_sanitize_keep_sgr` kept
+            _echo_raw(f"    {line}")
 
 
 def _format_pending(verb: str, timestamp: Any) -> str:
@@ -5886,20 +5895,30 @@ _CONTROL_CHARS_RE = re.compile(
 
 
 def _sanitize_control(text: str) -> str:
-    """Neutralize terminal control bytes in agent-controlled display text.
+    """Neutralize terminal control bytes in display text.
 
     Tool results and model completions land verbatim in the transcript and
     flow out through the read commands' human renderings, so a sample under
     evaluation can emit ESC/CSI/OSC sequences, carriage returns, or
     backspaces that rewrite what the operator's terminal shows (spoofed
-    results, title/clipboard writes). Well-formed escape sequences are
-    removed whole (payload included), tabs become single spaces (they'd
-    break the tables' width math), and any remaining C0/C1 control byte or
-    Unicode bidi control is dropped — newline excepted, which each caller
-    already handles. The ``--json`` / ``--full`` machine paths are
-    deliberately not routed through here (``json.dumps`` escapes control
-    bytes); ``traceback_ansi`` goes through ``_sanitize_keep_sgr``, which
-    preserves SGR styling and routes everything else through this function.
+    results, title/clipboard writes). Rather than classify which fields an
+    agent can influence — a provenance analysis that silently rots as
+    fields are added — the human rendering paths sanitize *every* dynamic
+    string at its formatting boundary (table cells, summary/label
+    interpolations, joined header parts, echoed status lines). The function
+    is a no-op on clean text and idempotent, so blanket application costs
+    nothing; where several fields join into one line, each is sanitized
+    before the join so an unterminated string sequence in one can't swallow
+    the fields after it.
+
+    Well-formed escape sequences are removed whole (payload included), tabs
+    become single spaces (they'd break the tables' width math), and any
+    remaining C0/C1 control byte or Unicode bidi control is dropped —
+    newline excepted, which each caller already handles. The ``--json`` /
+    ``--full`` machine paths are deliberately not routed through here
+    (``json.dumps`` escapes control bytes); ``traceback_ansi`` goes through
+    ``_sanitize_keep_sgr``, which preserves SGR styling and routes
+    everything else through this function.
     """
     text = _ANSI_ESCAPE_RE.sub("", text)
     return _CONTROL_CHARS_RE.sub("", text.replace("\t", " "))
@@ -5935,6 +5954,29 @@ def _sanitize_keep_sgr(text: str) -> str:
         if not stripped.endswith("\x1b[0m"):
             result = stripped + "\x1b[0m" + result[len(stripped) :]
     return result
+
+
+def _echo(message: str = "", *, err: bool = False, nl: bool = True) -> None:
+    """``click.echo`` with ``_sanitize_control`` applied — the module default.
+
+    Every echoed line leaves through here so rendering code is sanitized by
+    construction (see ``_sanitize_control`` for the policy) even when a
+    call site misses a per-field wrap; ``_echo_raw`` is the explicit
+    opt-out. A test walks this module's AST to keep direct ``click.echo``
+    calls out of everything but these two wrappers.
+    """
+    click.echo(_sanitize_control(message), err=err, nl=nl)
+
+
+def _echo_raw(message: str = "", *, err: bool = False, nl: bool = True) -> None:
+    """``click.echo`` without sanitization.
+
+    For machine output — the ``--json`` paths, which are bytes-faithful by
+    contract (``json.dumps`` escapes control bytes itself) — and for the
+    keep-SGR renderings (``traceback_ansi``, the anomalies export), whose
+    deliberately kept styling ``_echo`` would strip.
+    """
+    click.echo(message, err=err, nl=nl)
 
 
 def _truncate(text: str, width: int) -> str:
@@ -6051,14 +6093,14 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     ``inspect ctl process keep``, which turns it on for a running process.
     """
     flags = [bool(s.get("keep_alive")) for s in summaries]
-    click.echo()
+    _echo()
     if all(flags):
-        click.echo("keep-alive: on")
+        _echo("keep-alive: on")
     elif not any(flags):
-        click.echo("keep-alive: off  ·  set with `inspect ctl process keep`")
+        _echo("keep-alive: off  ·  set with `inspect ctl process keep`")
     else:
         on = sum(flags)
-        click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
+        _echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
 
     # flag paused work below the table (the per-row cell can scroll away and
     # a paused run must not read as stalled). A paused run never finishes —
@@ -6078,13 +6120,13 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
             for latch in ("task", "model", "process")
             if latch in held
         ]
-        click.echo(
+        _echo(
             f"paused: {len(paused)}/{len(summaries)} task"
             f"{'' if len(summaries) == 1 else 's'}{detail}  ·  resume with "
             f"{' / '.join(resumes)}"
         )
         if any(not s.get("keep_alive") for s in paused):
-            click.echo(
+            _echo(
                 "note: a paused run never finishes — it will not exit until "
                 "resumed (or cancelled), despite keep-alive being off."
             )
@@ -6095,7 +6137,7 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
         {m for s in summaries for m in (s.get("paused_models") or [])}
     )
     if paused_models:
-        click.echo(
+        _echo(
             f"paused models: {', '.join(paused_models)}  ·  resume with "
             "`inspect ctl model resume`"
         )
@@ -6115,7 +6157,7 @@ def _print_errored_samples_footer(summaries: list[dict[str, Any]]) -> None:
     errored = sum((s.get("samples") or {}).get("errored", 0) for s in summaries)
     if errored > 0:
         noun = "sample" if errored == 1 else "samples"
-        click.echo(f"{errored} {noun} errored — see `inspect ctl sample errors`")
+        _echo(f"{errored} {noun} errored — see `inspect ctl sample errors`")
 
 
 def _task_header(target: dict[str, Any]) -> str:
@@ -6135,7 +6177,9 @@ def _task_header(target: dict[str, Any]) -> str:
     attempts = int(target.get("attempts", 1) or 1)
     if attempts > 1:
         parts.append(f"{attempts} attempts")
-    return "  ·  ".join(parts)
+    # sanitize each part before the join and flatten newlines so no field
+    # can swallow the parts after it or forge a plausible header line
+    return "  ·  ".join(_sanitize_control(p).replace("\n", " ") for p in parts)
 
 
 def _print_samples_table(
@@ -6260,10 +6304,10 @@ def _render_table(
     def _fmt_row(row: tuple[str, ...]) -> str:
         return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row))
 
-    click.echo(_fmt_row(headers), err=err)
-    click.echo(_fmt_row(tuple("-" * w for w in widths)), err=err)
+    _echo(_fmt_row(headers), err=err)
+    _echo(_fmt_row(tuple("-" * w for w in widths)), err=err)
     for row in rows:
-        click.echo(_fmt_row(row), err=err)
+        _echo(_fmt_row(row), err=err)
 
 
 def _format_samples(samples: dict[str, Any]) -> str:

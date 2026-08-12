@@ -6046,3 +6046,154 @@ def test_sanitized_anomalies_neutralizes_rendered_fields() -> None:
     assert clean.error == "fail"
     # the source records are untouched (the JSON path renders them raw)
     assert anomalies.errors[0].detail == "run\x1b[2K\nit [bold]now[/bold]"
+
+
+def test_event_summary_sanitizes_every_wire_field() -> None:
+    """Server-shaped fields (model, stop_reason) sanitize like agent ones.
+
+    Sanitization is provenance-blind — every wire field is covered.
+    """
+    from inspect_ai._cli.ctl import _event_summary
+
+    summary = _event_summary(
+        {
+            "event": "model",
+            "model": "gpt-4\x1b]0;evil\x07",
+            "tokens": 512,
+            "stop_reason": "stop\x1b[2K\r",
+            "completion": "done",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "\r" not in summary
+    assert "gpt-4" in summary
+    assert "stop" in summary
+
+
+def test_task_header_sanitizes_and_flattens_all_parts() -> None:
+    from inspect_ai._cli.ctl import _task_header
+
+    header = _task_header(
+        {
+            "task": "my_task\x1b]0;evil\x07\nfake line",
+            "task_id": "abc123",
+            "model": "openai/gpt-5\x1b[31m",
+            "status": "running\r",
+            "samples": {},
+        }
+    )
+    assert "\x1b" not in header
+    assert "\r" not in header
+    assert "\n" not in header
+    # the newline is flattened onto the same line, not left to forge one
+    assert "my_task" in header
+    assert "fake line" in header
+    assert "openai/gpt-5" in header
+    assert "running" in header
+
+
+def test_events_footer_sanitizes_cursor_token(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_events(
+        {"events": [], "done": False, "next": "tok\x1b]52;c;steal\x07en"},
+        full=False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "next: token" in out
+
+
+def test_messages_footer_sanitizes_status(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_messages(
+        {"messages": [], "count": 0, "status": "running\x1b]0;evil\x07"},
+        full=False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    assert "running" in out
+
+
+def test_sample_mutation_messages_sanitize_wire_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The human mutation message sanitizes its label and wire fields.
+
+    Covers sample_id (in the label), status, and reason — applied and
+    no-op paths alike.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "sample_id": "s1\x1b]0;evil\x07",
+            "epoch": 1,
+            "status": "completed\x1b[2K",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output
+    assert "s1" in result.output
+    assert "completed" in result.output
+
+    spy = _RequestSpy(
+        {"ok": True, "changed": False, "reason": "held\x1b]0;evil\x07 elsewhere"}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output
+    assert "held elsewhere" in result.output
+
+
+def test_no_direct_click_echo_outside_the_wrappers() -> None:
+    """Every echo in ctl.py routes through `_echo` / `_echo_raw`.
+
+    The sanitizing default is a structural guarantee only while direct
+    `click.echo` calls stay out of rendering code — a bare call would
+    silently bypass `_sanitize_control`.
+    """
+    import ast
+    import inspect as inspect_module
+
+    import inspect_ai._cli.ctl as ctl_module
+
+    source = inspect_module.getsource(ctl_module)
+    tree = ast.parse(source)
+    offenders: list[str] = []
+
+    class Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.stack: list[str] = []
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.stack.append(node.name)
+            self.generic_visit(node)
+            self.stack.pop()
+
+        visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
+
+        def visit_Call(self, node: ast.Call) -> None:
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr == "echo"
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "click"
+                and self.stack[-1:] != ["_echo"]
+                and self.stack[-1:] != ["_echo_raw"]
+            ):
+                offenders.append(
+                    f"line {node.lineno} in {'.'.join(self.stack) or '<module>'}"
+                )
+            self.generic_visit(node)
+
+    Visitor().visit(tree)
+    assert not offenders, f"direct click.echo outside _echo/_echo_raw: {offenders}"
