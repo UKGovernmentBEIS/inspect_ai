@@ -496,3 +496,67 @@ async def test_stream_handler_exception_fails_the_generate() -> None:
     with pytest.raises(Exception) as excinfo:
         await _scripted_generate([attempt], on_stream=broken_handler)
     assert "handler bug" in str(excinfo.value)
+
+
+class FakeCancellation(BaseException):
+    """Non-Exception BaseException, exercising the wrapper's cancellation path."""
+
+
+async def test_partial_output_discard_on_cancellation_notifies_transcript(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cancellation mid-stream must push the snapshot reset to live views.
+
+    Unlike the error paths (where `complete()` notifies right after the
+    discard), a cancelled event stays pending — without a notification from
+    the discard itself, the realtime buffer's last-written row would keep
+    the failed attempt's partial output until the sample finalizes.
+    """
+    from inspect_ai.log._transcript import Transcript
+
+    snapshots: list[str] = []
+    orig_event_updated = Transcript._event_updated
+
+    def recording_event_updated(self: Transcript, event: Any) -> None:
+        if isinstance(event, ModelEvent):
+            snapshots.append(event.output.completion)
+        orig_event_updated(self, event)
+
+    monkeypatch.setattr(Transcript, "_event_updated", recording_event_updated)
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="doomed"))
+        raise FakeCancellation()
+
+    with pytest.raises(FakeCancellation):
+        await _scripted_generate([attempt])
+    event = ScriptedStreamAPI.events[0]
+    # finalization stays with the interrupt machinery — still pending
+    assert event.pending is True
+    assert event.output.completion == ""
+    # the partial snapshot notified, then the discard notified its reset
+    assert snapshots[-2:] == ["doomed", ""]
+
+
+async def test_generate_loop_forwards_on_stream() -> None:
+    @modelapi(name="mockstream")
+    def mockstream() -> type[ModelAPI]:
+        return ScriptedStreamAPI
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="streamed"))
+        return api._output("no tools")
+
+    ScriptedStreamAPI.script = [attempt]
+    ScriptedStreamAPI.attempts = 0
+    ScriptedStreamAPI.events = []
+    collector = Collector()
+    try:
+        model = get_model("mockstream/test")
+        messages, output = await model.generate_loop("hello", on_stream=collector)
+    finally:
+        del _registry["modelapi:mockstream"]
+    assert output.completion == "no tools"
+    assert [e.text for e in collector.events if isinstance(e, StreamTextEvent)] == [
+        "streamed"
+    ]

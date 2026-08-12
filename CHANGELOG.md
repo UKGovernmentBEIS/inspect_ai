@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Models: `Model.generate()` accepts an optional `on_stream` callback receiving incremental streaming events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
+- Models: `Model.generate()` and `Model.generate_loop()` accept an optional `on_stream` callback receiving incremental streaming events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
 
 ## 0.3.258 (11 August 2026)
 

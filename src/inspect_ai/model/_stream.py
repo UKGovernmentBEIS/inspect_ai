@@ -249,10 +249,24 @@ class ModelStreamObserver:
         `complete()` doesn't touch `event.output` on the error path, so
         without this an errored event would carry the failed attempt's
         partial output as if it were a real (empty-stop-reason) response.
+
+        Notifies the transcript so live views (realtime buffer) drop the
+        snapshot too. On the error paths this is redundant (`complete()`
+        notifies right after), but on cancellation nothing else notifies —
+        the event stays pending, so the buffer's last-written row would
+        otherwise keep the failed attempt's partial output until the sample
+        finalizes. Safe under cancellation: `_event_updated` is sync.
+        `_partial_published` implies no ModelEventSink is installed, so the
+        notification cannot leak a sink-withheld event into the transcript.
         """
-        if self._event is not None and self._partial_published:
-            self._event.output = ModelOutput.from_content(self._event.model, "")
+        event = self._event
+        if event is not None and self._partial_published:
+            event.output = ModelOutput.from_content(event.model, "")
             self._partial_published = False
+            if event.pending is True:
+                from inspect_ai.log._transcript import transcript
+
+                transcript()._event_updated(event)
 
     def _touch_progress(self) -> None:
         from inspect_ai.event._model import ModelEventProgress

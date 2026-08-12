@@ -883,6 +883,7 @@ class Model:
         tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy | NotGiven = NOT_GIVEN,
+        on_stream: StreamHandler | None = None,
     ) -> tuple[list[ChatMessage], ModelOutput]:
         """Generate output from the model, looping as long as the model calls tools.
 
@@ -896,6 +897,10 @@ class Model:
           tools: Tools available for the model to call.
           config: Model configuration.
           cache: Caching behavior for generate responses (defaults to no caching).
+          on_stream: Optional async callback receiving incremental
+            `StreamEvent`s (see `generate()`). Invoked for each generate
+            call in the loop; attempt numbers in `StreamRetryEvent`s are
+            per-call, not cumulative across the loop.
 
         Returns:
            Tuple of list[ChatMessage], ModelOutput
@@ -910,6 +915,7 @@ class Model:
                 tools=tools,  # type:ignore[arg-type]
                 config=config,
                 cache=cache,
+                on_stream=on_stream,
             )
 
             # append to new messages
