@@ -373,9 +373,61 @@ def test_activity_pending_model() -> None:
     assert activity["started_at"] == event.timestamp.timestamp()
     assert activity["detail"] == "openai/gpt-5-nano"
     assert activity["retries"] is None
-    # layer-2 fields are present (stable shape) but null until it ships
+    # layer-2 fields are present (stable shape) but null until the provider
+    # stream reports progress
     assert activity["tokens"] is None
     assert activity["last_progress_at"] is None
+
+
+def test_activity_pending_model_carries_stream_progress() -> None:
+    from inspect_ai._control.state import _sample_activity
+    from inspect_ai.event._model import ModelEventProgress
+
+    event = _pending_model_event()
+    event._progress = ModelEventProgress(last_progress_at=123.0, output_tokens=456)
+    activity = _sample_activity(_active_with([event]))
+    assert activity is not None
+    assert activity["tokens"] == 456
+    assert activity["last_progress_at"] == 123.0
+
+
+def test_last_activity_upgraded_by_stream_progress(monkeypatch) -> None:
+    """Idle means "time since last observed progress".
+
+    Streamed progress on a pending model call advances `last_activity_at`
+    past the last transcript event (which for a long call is the pending
+    event's own append).
+    """
+    from unittest.mock import MagicMock
+
+    from inspect_ai._control.state import _sample_summaries_from_active
+    from inspect_ai.event._model import ModelEventProgress
+
+    event = _pending_model_event()
+    event._progress = ModelEventProgress(
+        last_progress_at=event.timestamp.timestamp() + 60.0
+    )
+
+    s = MagicMock()
+    s.eval_id = "e1"
+    s.completed = None
+    s.started = 100.0
+    s.sample.id = "s1"
+    s.epoch = 1
+    s.retries = 0
+    s.retry_wait = None
+    s.transcript.history.last_event = event
+    s.transcript.history.event_count = 1
+    s.transcript.pending_events = [event]
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [s])
+    row = _sample_summaries_from_active("e1")[0]
+    assert row["last_activity_at"] == event.timestamp.timestamp() + 60.0
+    # a stale progress stamp never moves last_activity_at backwards
+    assert event._progress is not None
+    event._progress.last_progress_at = event.timestamp.timestamp() - 60.0
+    row = _sample_summaries_from_active("e1")[0]
+    assert row["last_activity_at"] == event.timestamp.timestamp()
 
 
 def test_activity_pending_model_carries_in_call_retries() -> None:

@@ -1,0 +1,358 @@
+"""Tests for `Model.generate()` streaming callbacks (`on_stream`).
+
+Providers report stream chunks into a shared observer installed by the model
+wrapper (`inspect_ai.model._stream`); these tests drive that contract with a
+scripted stub provider: delta delivery to `on_stream`, wrapper-owned retry
+boundaries, partial-output snapshots on the pending event, and the pending
+event's progress record (design/ctl/generate-progress.md layer 2).
+"""
+
+from typing import Any, Callable, Coroutine
+
+import pytest
+import tenacity
+from tenacity.wait import WaitBaseT
+
+from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.registry import _registry
+from inspect_ai.event._model import ModelEvent, model_event_progress
+from inspect_ai.log._samples import _active_model_event
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    ModelAPI,
+    ModelOutput,
+    StreamEvent,
+    StreamReasoningEvent,
+    StreamRetryEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    get_model,
+)
+from inspect_ai.model._registry import modelapi
+from inspect_ai.model._stream import (
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
+from inspect_ai.tool import ToolChoice, ToolInfo
+
+
+class TransientError(Exception):
+    pass
+
+
+class ScriptedStreamAPI(ModelAPI):
+    """Stub provider that runs one scripted coroutine per generate attempt."""
+
+    # one entry per attempt; the last entry repeats
+    script: list[Callable[["ScriptedStreamAPI"], Coroutine[Any, Any, ModelOutput]]] = []
+    attempts: int = 0
+    # pending events captured at the start of each attempt
+    events: list[ModelEvent] = []
+
+    def __init__(
+        self,
+        model_name: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        config: GenerateConfig = GenerateConfig(),
+        **model_args: object,
+    ):
+        super().__init__(
+            model_name=model_name,
+            base_url=base_url,
+            api_key="scripted-api-key",
+            api_key_vars=[],
+            config=config,
+        )
+
+    def should_retry(self, ex: Exception) -> bool:
+        return isinstance(ex, TransientError)
+
+    def retry_wait(self) -> WaitBaseT:
+        return tenacity.wait_fixed(0)
+
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        cls = type(self)
+        attempt = cls.script[min(cls.attempts, len(cls.script) - 1)]
+        cls.attempts += 1
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        cls.events.append(event)
+        return await attempt(self)
+
+    def _output(self, content: str = "final") -> ModelOutput:
+        return ModelOutput.from_content(model=self.model_name, content=content)
+
+
+async def _scripted_generate(
+    script: list[Callable[[ScriptedStreamAPI], Coroutine[Any, Any, ModelOutput]]],
+    on_stream: Any = None,
+    config: GenerateConfig = GenerateConfig(),
+) -> ModelOutput:
+    """Run one generate against ScriptedStreamAPI with `script` installed."""
+
+    @modelapi(name="mockstream")
+    def mockstream() -> type[ModelAPI]:
+        return ScriptedStreamAPI
+
+    ScriptedStreamAPI.script = script
+    ScriptedStreamAPI.attempts = 0
+    ScriptedStreamAPI.events = []
+    try:
+        model = get_model("mockstream/test")
+        return await model.generate("hello", config=config, on_stream=on_stream)
+    finally:
+        del _registry["modelapi:mockstream"]
+
+
+class Collector:
+    def __init__(self) -> None:
+        self.events: list[StreamEvent] = []
+
+    async def __call__(self, event: StreamEvent) -> None:
+        self.events.append(event)
+
+
+async def test_on_stream_receives_deltas_and_final_output() -> None:
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await report_model_stream_delta(StreamReasoningEvent(reasoning="hmm"))
+        await report_model_stream_delta(StreamTextEvent(text="hel"))
+        await report_model_stream_delta(StreamTextEvent(text="lo"))
+        await report_model_stream_delta(
+            StreamToolCallEvent(id="c1", function="bash", arguments='{"cmd"')
+        )
+        return api._output("hello")
+
+    collector = Collector()
+    output = await _scripted_generate([attempt], on_stream=collector)
+    assert output.completion == "hello"
+    assert [type(e) for e in collector.events] == [
+        StreamReasoningEvent,
+        StreamTextEvent,
+        StreamTextEvent,
+        StreamToolCallEvent,
+    ]
+    tool_event = collector.events[-1]
+    assert isinstance(tool_event, StreamToolCallEvent)
+    assert tool_event.id == "c1"
+    assert tool_event.function == "bash"
+    assert tool_event.arguments == '{"cmd"'
+
+
+async def test_streaming_provider_works_without_on_stream() -> None:
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        await report_model_stream_delta(StreamTextEvent(text="hi"))
+        return api._output("hi")
+
+    output = await _scripted_generate([attempt])
+    assert output.completion == "hi"
+
+
+async def test_uninstrumented_provider_never_invokes_callback() -> None:
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        return api._output("quiet")
+
+    collector = Collector()
+    output = await _scripted_generate([attempt], on_stream=collector)
+    assert output.completion == "quiet"
+    assert collector.events == []
+
+
+async def test_retry_boundary_delivered_with_current_attempt_number() -> None:
+    """Each retry after delivered deltas gets a boundary.
+
+    Boundaries are emitted eagerly, so each carries the current attempt
+    number even when the retried attempt itself streams no deltas before
+    failing.
+    """
+
+    async def attempt_1(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="partial"))
+        raise TransientError()
+
+    async def attempt_2(api: ScriptedStreamAPI) -> ModelOutput:
+        raise TransientError()  # fails before streaming anything
+
+    async def attempt_3(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="done"))
+        return api._output("done")
+
+    collector = Collector()
+    output = await _scripted_generate(
+        [attempt_1, attempt_2, attempt_3],
+        on_stream=collector,
+        config=GenerateConfig(max_retries=3),
+    )
+    assert output.completion == "done"
+    assert [type(e) for e in collector.events] == [
+        StreamTextEvent,
+        StreamRetryEvent,
+        StreamRetryEvent,
+        StreamTextEvent,
+    ]
+    assert [e.attempt for e in collector.events if isinstance(e, StreamRetryEvent)] == [
+        2,
+        3,
+    ]
+
+
+async def test_no_retry_boundary_without_prior_deltas() -> None:
+    async def attempt_1(api: ScriptedStreamAPI) -> ModelOutput:
+        raise TransientError()
+
+    async def attempt_2(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="ok"))
+        return api._output("ok")
+
+    collector = Collector()
+    output = await _scripted_generate(
+        [attempt_1, attempt_2],
+        on_stream=collector,
+        config=GenerateConfig(max_retries=2),
+    )
+    assert output.completion == "ok"
+    assert [type(e) for e in collector.events] == [StreamTextEvent]
+
+
+async def test_partial_output_snapshot_on_pending_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("inspect_ai.model._stream.PARTIAL_OUTPUT_FLUSH_INTERVAL", 0.0)
+    snapshots: list[tuple[bool | None, list[Any]]] = []
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        await report_model_stream_delta(StreamReasoningEvent(reasoning="think"))
+        await report_model_stream_delta(StreamTextEvent(text="hel"))
+        await report_model_stream_delta(StreamTextEvent(text="lo"))
+        content = event.output.message.content
+        assert isinstance(content, list)
+        snapshots.append((event.pending, list(content)))
+        return api._output("hello")
+
+    output = await _scripted_generate([attempt])
+    assert output.completion == "hello"
+    (pending, content) = snapshots[0]
+    assert pending is True
+    assert isinstance(content[0], ContentReasoning)
+    assert content[0].reasoning == "think"
+    # consecutive text deltas merge into a single content item
+    assert isinstance(content[1], ContentText)
+    assert content[1].text == "hello"
+    # final output replaced the partial snapshot
+    event = ScriptedStreamAPI.events[0]
+    assert event.pending is None
+    assert event.output.completion == "hello"
+
+
+async def test_partial_output_discarded_when_attempt_fails() -> None:
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="doomed"))
+        raise RuntimeError("boom")
+
+    with pytest.raises(Exception):
+        await _scripted_generate([attempt])
+    event = ScriptedStreamAPI.events[0]
+    assert event.pending is None
+    assert event.error is not None
+    # the failed attempt's partial content must not survive on the event
+    assert event.output.completion == ""
+
+
+async def test_progress_record_heartbeat_and_tokens() -> None:
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        assert model_event_progress(event) is None
+        report_model_stream_start()
+        report_model_stream_progress()
+        progress = model_event_progress(event)
+        assert progress is not None
+        assert progress.last_progress_at is not None
+        # bare heartbeats never fabricate a token count
+        assert progress.output_tokens is None
+        report_model_stream_progress(output_tokens=7)
+        assert progress.output_tokens == 7
+        return api._output()
+
+    await _scripted_generate([attempt])
+    # progress record is not readable once the event completes
+    assert model_event_progress(ScriptedStreamAPI.events[0]) is None
+
+
+async def test_progress_tokens_accumulate_across_streams() -> None:
+    """Re-opened streams add to prior streams' token totals.
+
+    Cumulative counts from a re-opened stream (provider continuations, SDK
+    stream restarts) add to prior streams' totals rather than overwriting.
+    """
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        report_model_stream_start()
+        report_model_stream_progress(output_tokens=5)
+        report_model_stream_start()
+        report_model_stream_progress(output_tokens=3)
+        progress = model_event_progress(event)
+        assert progress is not None
+        assert progress.output_tokens == 8
+        return api._output()
+
+    await _scripted_generate([attempt])
+
+
+async def test_progress_record_resets_per_attempt() -> None:
+    async def attempt_1(api: ScriptedStreamAPI) -> ModelOutput:
+        report_model_stream_start()
+        report_model_stream_progress(output_tokens=100)
+        raise TransientError()
+
+    async def attempt_2(api: ScriptedStreamAPI) -> ModelOutput:
+        event = _active_model_event.get()
+        assert isinstance(event, ModelEvent)
+        report_model_stream_start()
+        report_model_stream_progress(output_tokens=5)
+        progress = model_event_progress(event)
+        assert progress is not None
+        # attempt 1's count died with its event; no carry-over
+        assert progress.output_tokens == 5
+        return api._output()
+
+    await _scripted_generate(
+        [attempt_1, attempt_2], config=GenerateConfig(max_retries=1)
+    )
+    # each attempt got its own pending event
+    assert len(ScriptedStreamAPI.events) == 2
+    assert ScriptedStreamAPI.events[0] is not ScriptedStreamAPI.events[1]
+
+
+async def test_stream_reports_are_noops_outside_generate() -> None:
+    # no observer installed: nothing raises, nothing recorded
+    report_model_stream_start()
+    report_model_stream_progress(output_tokens=5)
+    await report_model_stream_delta(StreamTextEvent(text="nowhere"))
+
+
+async def test_stream_handler_exception_fails_the_generate() -> None:
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        await report_model_stream_delta(StreamTextEvent(text="x"))
+        return api._output()
+
+    async def broken_handler(event: StreamEvent) -> None:
+        raise ValueError("handler bug")
+
+    with pytest.raises(Exception) as excinfo:
+        await _scripted_generate([attempt], on_stream=broken_handler)
+    assert "handler bug" in str(excinfo.value)

@@ -195,6 +195,25 @@ with get_model("hf/Qwen/Qwen2.5-72B") as model:
 
 Note though that this *won't work* with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).
 
+### Streaming Events
+
+`generate()` accepts an optional `on_stream` async callback which receives incremental `StreamEvent`s while the response streams. This is a side-channel for UI display — the final result is still the returned `ModelOutput`:
+
+``` python
+from inspect_ai.model import StreamEvent, get_model
+
+async def show(event: StreamEvent) -> None:
+    if event.type == "text":
+        print(event.text, end="", flush=True)
+
+model = get_model()
+response = await model.generate("Say hello", on_stream=show)
+```
+
+Events include text deltas (`type="text"`), reasoning deltas (`type="reasoning"`), tool-call argument deltas (`type="tool_call"`), and retry boundaries (`type="retry"`). A retry boundary signals that the call is being retried after a failed attempt: deltas received so far belong to that failed attempt and should be discarded, since the final `ModelOutput` comes entirely from the attempt that succeeds.
+
+Streaming is best-effort by design: providers or calls that don't stream never invoke the callback (whether a given call streams remains each provider's transport decision — for example, Anthropic streams automatically for reasoning or large `max_tokens`, and the Google provider streams when created with the `streaming` model arg), and a cached response returns without producing any events. Callers therefore must not depend on stream events for correctness — consume them for display and read the returned `ModelOutput` for results.
+
 ## Model Roles
 
 Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. For example, you might have a "critic" or "monitor" role, or perhaps "red_team" and "blue_team" roles. Roles are included in the log and displayed in model events within the transcript.

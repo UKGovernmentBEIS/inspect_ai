@@ -119,6 +119,14 @@ from inspect_ai.model._reasoning import (
     reasoning_to_think_tag,
 )
 from inspect_ai.model._retry import batch_admin_retry_config
+from inspect_ai.model._stream import (
+    StreamReasoningEvent,
+    StreamTextEvent,
+    StreamToolCallEvent,
+    report_model_stream_delta,
+    report_model_stream_progress,
+    report_model_stream_start,
+)
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -583,8 +591,21 @@ class GoogleGenAIAPI(ModelAPI):
             config=config,
         )
 
+        report_model_stream_start()
+
         async for chunk in stream:
             last_chunk = chunk
+
+            # report cumulative output tokens when the chunk carries usage
+            # (candidates + thoughts, matching usage_metadata_to_model_usage's
+            # output_tokens convention), else a bare heartbeat
+            output_tokens: int | None = None
+            if chunk.usage_metadata is not None:
+                output_tokens = (chunk.usage_metadata.candidates_token_count or 0) + (
+                    chunk.usage_metadata.thoughts_token_count or 0
+                ) or None
+            report_model_stream_progress(output_tokens)
+
             if chunk.candidates:
                 for candidate in chunk.candidates:
                     if candidate.index is None:
@@ -596,6 +617,13 @@ class GoogleGenAIAPI(ModelAPI):
 
                     if candidate.content and candidate.content.parts:
                         candidates_parts[idx].extend(candidate.content.parts)
+                        # report content deltas for the first candidate only —
+                        # interleaving multiple candidates' fragments into the
+                        # single delta stream would corrupt accumulating
+                        # consumers
+                        if idx == 0:
+                            for part in candidate.content.parts:
+                                await _report_stream_part_delta(part)
 
         if last_chunk is None:
             raise RuntimeError(
@@ -2092,6 +2120,32 @@ def prompt_feedback_to_content(
             [rating.model_dump_json(indent=2) for rating in feedback.safety_ratings]
         )
     return "\n".join(content)
+
+
+async def _report_stream_part_delta(part: Part) -> None:
+    """Report one streamed content part to the model layer's stream observer.
+
+    Text and thought parts stream as fragments; a function call arrives whole
+    in a single part, so it is reported as one tool-call delta with complete
+    arguments. Parts carrying neither (executable code, inline data, ...)
+    already produced a heartbeat via the per-chunk progress report.
+    """
+    if part.thought is True and part.text:
+        await report_model_stream_delta(StreamReasoningEvent(reasoning=part.text))
+    elif part.text:
+        await report_model_stream_delta(StreamTextEvent(text=part.text))
+    elif part.function_call is not None:
+        await report_model_stream_delta(
+            StreamToolCallEvent(
+                id=part.function_call.id,
+                function=part.function_call.name,
+                arguments=(
+                    json.dumps(part.function_call.args)
+                    if part.function_call.args is not None
+                    else ""
+                ),
+            )
+        )
 
 
 def usage_metadata_to_model_usage(

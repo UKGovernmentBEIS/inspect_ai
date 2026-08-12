@@ -1,3 +1,7 @@
+## Unreleased
+
+- Models: `Model.generate()` accepts an optional `on_stream` callback receiving incremental streaming events (text/reasoning/tool-call deltas and retry boundaries), with streamed progress now also visible on `inspect ctl sample list`.
+
 ## 0.3.258 (11 August 2026)
 
 - Control Channel: `inspect ctl sample` and other unscoped commands no longer appear to hang on eval sets with many running tasks. (#4789)

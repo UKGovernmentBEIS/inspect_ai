@@ -1,0 +1,328 @@
+"""Streaming events for `Model.generate()`.
+
+Public surface: the `StreamEvent` union and `StreamHandler` callback type
+accepted by the `on_stream` parameter of `Model.generate()`.
+
+Internal surface: a per-generate `ModelStreamObserver` that the model wrapper
+installs via ContextVar around each provider attempt (the established
+`_active_model_event` pattern). Provider streaming loops report each chunk
+once through the module-level `report_model_stream_*` functions; the observer
+fans out to its consumers (see the class docstring). Providers that don't
+stream never call in, and callers that don't pass `on_stream` still feed the
+monitoring consumers — both degrade gracefully (see
+design/ctl/generate-progress.md).
+"""
+
+import contextlib
+import time
+from contextvars import ContextVar
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Awaitable, Callable, Iterator, Literal, Union
+
+from pydantic import BaseModel, Field
+from typing_extensions import TypeAlias
+
+from inspect_ai._util.content import Content, ContentReasoning, ContentText
+
+from ._chat_message import ChatMessageAssistant
+from ._model_output import ChatCompletionChoice, ModelOutput
+
+if TYPE_CHECKING:
+    from inspect_ai.event._model import ModelEvent
+
+
+class StreamTextEvent(BaseModel):
+    """Incremental text delta from a streaming model response."""
+
+    type: Literal["text"] = Field(default="text")
+    """Event type."""
+
+    text: str
+    """Text fragment (append to previously received text)."""
+
+
+class StreamReasoningEvent(BaseModel):
+    """Incremental reasoning delta from a streaming model response."""
+
+    type: Literal["reasoning"] = Field(default="reasoning")
+    """Event type."""
+
+    reasoning: str
+    """Reasoning fragment (append to previously received reasoning)."""
+
+
+class StreamToolCallEvent(BaseModel):
+    """Incremental tool call delta from a streaming model response."""
+
+    type: Literal["tool_call"] = Field(default="tool_call")
+    """Event type."""
+
+    id: str | None = Field(default=None)
+    """Identifier of the tool call the fragment belongs to (when reported)."""
+
+    function: str | None = Field(default=None)
+    """Name of the function being called (when reported)."""
+
+    arguments: str = Field(default="")
+    """Argument fragment (partial JSON — append to previously received
+    fragments for the same call; complete JSON only once the call finishes)."""
+
+
+class StreamRetryEvent(BaseModel):
+    """The model call is being retried after a failed attempt.
+
+    Emitted before any deltas from the new attempt when a prior attempt
+    already delivered deltas: content received so far belongs to the failed
+    attempt and should be discarded — the final `ModelOutput` is produced
+    entirely by the attempt that succeeds.
+    """
+
+    type: Literal["retry"] = Field(default="retry")
+    """Event type."""
+
+    attempt: int
+    """The attempt about to run (1-based; the first retry is attempt 2)."""
+
+
+StreamEvent = Union[
+    StreamTextEvent, StreamReasoningEvent, StreamToolCallEvent, StreamRetryEvent
+]
+"""Incremental event delivered to `on_stream` during `Model.generate()`."""
+
+StreamHandler: TypeAlias = Callable[[StreamEvent], Awaitable[None]]
+"""Async callback receiving `StreamEvent`s during `Model.generate()`."""
+
+
+StreamContentEvent: TypeAlias = Union[
+    StreamTextEvent, StreamReasoningEvent, StreamToolCallEvent
+]
+"""Content delta reported by a provider streaming loop (internal)."""
+
+
+PARTIAL_OUTPUT_FLUSH_INTERVAL = 1.0
+"""Minimum seconds between partial-output snapshot notifications.
+
+Each flush re-serializes the pending event for transcript subscribers (the
+realtime sample buffer persists a row per update), so per-chunk notification
+is off the table (see the endpoint-cost-audit note in
+design/ctl/generate-progress.md); one flush per second keeps inspect view's
+live rendering fresh while bounding that cost for long generations.
+"""
+
+
+class ModelStreamObserver:
+    """Fan-out hub for provider stream chunks during one `Model.generate()`.
+
+    Created once per generate call (spanning retry attempts) and installed
+    around each provider attempt via `model_stream_observer()`. Providers
+    report each chunk once (the `report_model_stream_*` functions) and the
+    observer projects it onto each consumer:
+
+    - the pending `ModelEvent`'s progress record (cumulative output tokens +
+      last-progress heartbeat), read by the control channel and TUI
+      (design/ctl/generate-progress.md layer 2);
+    - throttled partial `ModelOutput` snapshots on the pending event, so
+      transcript subscribers (inspect view's realtime buffer) render output
+      growing while the call is in flight;
+    - the caller's `on_stream` callback.
+
+    The wrapper (not providers) owns retry semantics: `begin_attempt` resets
+    per-attempt state and emits a `StreamRetryEvent` boundary to `on_stream`
+    when an earlier attempt already delivered deltas, so accumulating
+    consumers know to discard the failed attempt's prefix. Providers stay
+    retry-oblivious; provider-internal continuations that reuse one attempt's
+    stream position (e.g. Anthropic `pause_turn`) call
+    `report_model_stream_start()` instead, which only rolls the token counter
+    base — no boundary is emitted because the continuation extends the same
+    logical output.
+    """
+
+    def __init__(self, model: str, on_stream: StreamHandler | None) -> None:
+        self._model = model
+        self._on_stream = on_stream
+        self._attempt = 0
+        # deltas delivered to on_stream during any attempt so far — gates the
+        # retry boundary (a consumer that never received a delta has nothing
+        # to discard)
+        self._delivered = False
+        # per-attempt state (reset by begin_attempt)
+        self._event: "ModelEvent | None" = None
+        self._tokens_base = 0
+        self._tokens_current: int | None = None
+        self._content: list[Content] = []
+        self._partial_published = False
+        self._last_flush = 0.0
+
+    async def begin_attempt(self, event: "ModelEvent") -> None:
+        """Bind the observer to a new attempt's pending event.
+
+        Called by the wrapper before each provider attempt. Emits the
+        `StreamRetryEvent` boundary eagerly — before the attempt runs rather
+        than on its first delta — so it carries the current attempt number
+        and is delivered even when the retried attempt streams no deltas
+        (the consumer must still learn that the accumulated prefix is stale).
+        """
+        self._attempt += 1
+        self._event = event
+        self._tokens_base = 0
+        self._tokens_current = None
+        self._content = []
+        self._partial_published = False
+        self._last_flush = 0.0
+        if self._attempt > 1 and self._on_stream is not None and self._delivered:
+            await self._on_stream(StreamRetryEvent(attempt=self._attempt))
+
+    def stream_started(self) -> None:
+        """A provider response stream opened (or re-opened) for this attempt.
+
+        Rolls the current stream's cumulative token count into the base so
+        counts reported by the next stream add rather than overwrite —
+        keeping the progress record monotonic across provider continuations
+        and SDK-internal stream restarts within one attempt.
+        """
+        if self._tokens_current is not None:
+            self._tokens_base += self._tokens_current
+            self._tokens_current = None
+        self._touch_progress()
+
+    def report_progress(self, output_tokens: int | None = None) -> None:
+        if output_tokens is not None:
+            self._tokens_current = output_tokens
+        self._touch_progress()
+
+    async def report_delta(self, delta: StreamContentEvent) -> None:
+        self._accumulate(delta)
+        self._touch_progress()
+        self._maybe_flush_partial()
+        if self._on_stream is not None:
+            # mark delivered before awaiting: a callback that raises mid-call
+            # may already have consumed the delta
+            self._delivered = True
+            await self._on_stream(delta)
+
+    def discard_partial_output(self) -> None:
+        """Reset a published partial snapshot when the attempt fails.
+
+        Called by the wrapper before completing the event with an error —
+        `complete()` doesn't touch `event.output` on the error path, so
+        without this an errored event would carry the failed attempt's
+        partial output as if it were a real (empty-stop-reason) response.
+        """
+        if self._event is not None and self._partial_published:
+            self._event.output = ModelOutput.from_content(self._event.model, "")
+            self._partial_published = False
+
+    def _touch_progress(self) -> None:
+        from inspect_ai.event._model import ModelEventProgress
+
+        event = self._event
+        if event is None or event.pending is not True:
+            return
+        progress = event._progress
+        if progress is None:
+            progress = ModelEventProgress()
+            event._progress = progress
+        progress.last_progress_at = datetime.now(timezone.utc).timestamp()
+        if self._tokens_current is not None or self._tokens_base > 0:
+            progress.output_tokens = self._tokens_base + (self._tokens_current or 0)
+
+    def _accumulate(self, delta: StreamContentEvent) -> None:
+        last = self._content[-1] if self._content else None
+        if isinstance(delta, StreamTextEvent):
+            if isinstance(last, ContentText):
+                last.text += delta.text
+            else:
+                self._content.append(ContentText(text=delta.text))
+        elif isinstance(delta, StreamReasoningEvent):
+            if isinstance(last, ContentReasoning):
+                last.reasoning += delta.reasoning
+            else:
+                self._content.append(ContentReasoning(reasoning=delta.reasoning))
+        # tool-call fragments are partial JSON — not renderable as content,
+        # so they feed progress and on_stream but not the snapshot
+
+    def _maybe_flush_partial(self) -> None:
+        event = self._event
+        if event is None or event.pending is not True or not self._content:
+            return
+        now = time.monotonic()
+        if (
+            self._partial_published
+            and now - self._last_flush < PARTIAL_OUTPUT_FLUSH_INTERVAL
+        ):
+            return
+        self._last_flush = now
+        self._partial_published = True
+        event.output = ModelOutput(
+            model=self._model,
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        content=list(self._content),
+                        model=self._model,
+                        source="generate",
+                    ),
+                    stop_reason="unknown",
+                )
+            ],
+        )
+        from inspect_ai.log._transcript import transcript
+
+        transcript()._event_updated(event)
+
+
+_model_stream_observer: ContextVar[ModelStreamObserver | None] = ContextVar(
+    "_model_stream_observer", default=None
+)
+
+
+@contextlib.contextmanager
+def model_stream_observer(observer: ModelStreamObserver) -> Iterator[None]:
+    """Install *observer* as the stream target for the enclosed provider call."""
+    token = _model_stream_observer.set(observer)
+    try:
+        yield
+    finally:
+        _model_stream_observer.reset(token)
+
+
+def report_model_stream_start() -> None:
+    """Report that a provider response stream opened (from a provider loop).
+
+    Call at the top of each streaming loop — including re-opened streams
+    within one generate attempt (provider continuations, SDK-internal stream
+    restarts). Cumulative token counts reported after this call add to totals
+    from earlier streams in the same attempt rather than overwriting them.
+    No-op when no observer is installed (e.g. provider-internal generates
+    that don't run under the model wrapper).
+    """
+    observer = _model_stream_observer.get()
+    if observer is not None:
+        observer.stream_started()
+
+
+def report_model_stream_progress(output_tokens: int | None = None) -> None:
+    """Report progress on the in-flight model call (from a provider loop).
+
+    Call per stream chunk. `output_tokens` is the cumulative output token
+    count reported by the provider for the current stream when available,
+    else `None` (a bare heartbeat — never fabricate an estimate; see
+    design/ctl/generate-progress.md). Cheap attribute writes, so no
+    throttling is needed at call sites. No-op when no observer is installed.
+    """
+    observer = _model_stream_observer.get()
+    if observer is not None:
+        observer.report_progress(output_tokens)
+
+
+async def report_model_stream_delta(delta: StreamContentEvent) -> None:
+    """Report a content delta (from a provider streaming loop).
+
+    Feeds every consumer at once: progress heartbeat, the partial-output
+    snapshot, and the caller's `on_stream` callback (awaited here, so a slow
+    consumer applies natural backpressure to the stream read; an exception
+    it raises fails the attempt). No-op when no observer is installed.
+    """
+    observer = _model_stream_observer.get()
+    if observer is not None:
+        await observer.report_delta(delta)
