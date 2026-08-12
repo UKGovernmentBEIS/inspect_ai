@@ -12,13 +12,26 @@ Devin, and similar) preparing contributions. Human contributors: see
    merged non-trivial PR in this repository (trivial documentation fixes do
    not count)? If not, a PR requires a linked issue labeled `accepted`.
    Without one, your PR will be closed automatically. Do not open it.
-2. **Deferred check.** Is the issue you are addressing labeled `deferred`?
+2. **Self-filed issues need acceptance.** An issue filed by the same account
+   the PR comes from does not by itself establish demand. Unless the account
+   is a qualified contributor (recorded in `.github/qualified.yml`), a
+   non-trivial PR addressing a self-filed issue requires that issue to be
+   labeled `accepted` by a maintainer first — whatever the account's tier.
+   If it isn't labeled yet: file your evidence on the issue and stop; open
+   the PR only after a maintainer accepts it.
+3. **Deferred check.** Is the issue you are addressing labeled `deferred`?
    The project has decided not to prioritize it. Do not open a PR against it
    (it will be closed automatically, whatever your account's tier). If you
    have new evidence or demand, comment on the issue and stop.
-3. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
+4. **Duplicate check.** Search open PRs (and the linked issue's existing
+   PRs) for work addressing the same problem. If a PR already exists, do not
+   open a competing one — review it or comment there instead. If you believe
+   your approach is materially better, make that case in a comment on the
+   existing PR and wait for a maintainer's direction; if invited to proceed,
+   link the two PRs in your description.
+5. **Trivial-fix exception.** Documentation-only fixes (typo, broken link;
    docs files only, under 25 changed lines) may be opened directly by anyone.
-4. **New functionality defaults to an extension, not core.** Do not open
+6. **New functionality defaults to an extension, not core.** Do not open
    unrequested PRs adding functionality — providers, tools, scorers, metrics,
    solvers, storage backends, example evals. Some of these do belong in core,
    but that is a maintainer decision made in an issue: if an accepted issue
@@ -26,7 +39,7 @@ Devin, and similar) preparing contributions. Human contributors: see
    extension package (see https://inspect.aisi.org.uk/extensions.html),
    optionally with a one-line PR adding it to the extensions listing.
    Unrequested additions to core are closed without detailed review.
-5. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
+7. **Value re-evaluation.** Before opening any PR, objectively re-assess it:
    does it fix a demonstrated problem, with evidence (a reproduction or a
    failing test)? If the need is speculative or the fix unverified, do not
    proceed. File an issue with your evidence instead.
@@ -43,7 +56,11 @@ used a different model from the author, how many passes, and the findings
 — issues found, which
 were fixed, and which were dismissed with a one-line reason each. Multiple
 passes, each in a fresh context, often catch issues a single pass misses —
-prefer that for non-trivial changes. If no
+prefer that for non-trivial changes. We'd also prefer review passes run on
+a strong (frontier-class) model: in our experience, reviews from small
+fast-tier models rarely surface real issues, and maintainers weight the
+disclosed reviewer model and pass count when deciding how much independent
+review a PR still needs. If no
 review pass was run, say so explicitly. Never report a review that didn't
 happen — a fabricated or content-free review claim ("reviewed, looks good")
 is worse than disclosing none. Example:

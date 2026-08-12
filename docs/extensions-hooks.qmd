@@ -94,6 +94,12 @@ Hooks run within the evaluation, so keep them fast and resilient. Events from di
 
 In addition to these lifecycle events, two non-event methods let you control hook behaviour: [`enabled()`](#disabling-hooks) gates whether a hook is active, and [`override_api_key()`](#api-key-override) can rewrite model API keys. Both are covered below.
 
+## Hook Object Lifecycle
+
+The `@hooks` decorator instantiates your class **once**, and that single instance is reused for the lifetime of the process. There is no teardown event, so do per-run cleanup in `on_run_end` or `on_eval_set_end`, as the Weights & Biases example above does with `wandb.finish()`.
+
+Consequently `self` is shared by every eval set, run, task, sample, and epoch, and calls for concurrent samples interleave at `await` points. Key per-sample state by `data.sample_id` and remove it in `on_sample_end`, and don't create event-loop-bound resources (async clients, `anyio` primitives) in `__init__` --- create them in `on_run_start`. See the [`Hooks`](reference/inspect_ai.hooks.qmd) reference for the full details.
+
 ## Registration
 
 Packages that provide hooks should register an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This will ensure that inspect loads the extension at startup.
