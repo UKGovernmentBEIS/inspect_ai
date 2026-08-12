@@ -379,8 +379,8 @@ You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the contain
 services:
   default:
     image: aisiuk/inspect-computer-tool
-    # Container networking is required for these published ports.
-    # The default network also permits outbound Internet access.
+    # network_mode is omitted because container networking is required for
+    # these ports. This also permits outbound Internet access.
     ports:
       - "127.0.0.1::5900"
       - "127.0.0.1::6080"
@@ -542,7 +542,7 @@ services:
   default:
     image: aisiuk/inspect-tool-support
     init: true
-    # Internet access is required to browse external sites.
+    # network_mode is omitted because the browser visits external sites.
 ```
 :::
 

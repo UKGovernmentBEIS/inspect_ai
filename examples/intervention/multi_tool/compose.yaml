@@ -2,4 +2,4 @@ services:
   default:
     image: aisiuk/inspect-tool-support
     init: true
-    # Internet access is intentional because this agent uses web browser tools.
+    # network_mode is omitted because this agent uses web browser tools.
