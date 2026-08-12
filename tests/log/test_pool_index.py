@@ -326,6 +326,32 @@ def test_call_pool_index_restore_drops_all_slots() -> None:
     assert index.match_prefix([{"content": "b"}]) == []
 
 
+def test_call_pool_index_forked_streams_keep_separate_lineages() -> None:
+    """A partial prefix match is a sibling lineage forked from shared history.
+
+    Replacing the matched slot would merge lineages and thrash their tails.
+    """
+    index = CallPoolIndex()
+    shared: list[JsonValue] = [{"content": "shared-0"}, {"content": "shared-1"}]
+    index.set_prev(shared, [0, 1])
+
+    a1: list[JsonValue] = shared + [{"content": "a-0"}]
+    prefix = index.match_prefix(a1)
+    assert prefix == [0, 1]
+    index.set_prev(a1, [0, 1, 2], prefix_len=len(prefix))  # full consumption: replaces
+
+    b1: list[JsonValue] = shared + [{"content": "b-0"}]
+    prefix = index.match_prefix(b1)  # partial match against A's slot
+    assert prefix == [0, 1]
+    index.set_prev(b1, [0, 1, 3], prefix_len=len(prefix))  # partial: appends sibling
+
+    a2: list[JsonValue] = a1 + [{"content": "a-1"}]
+    assert index.match_prefix(a2) == [0, 1, 2]  # [0, 1] if lineages had merged
+    index.set_prev(a2, [0, 1, 2, 4], prefix_len=3)
+    b2: list[JsonValue] = b1 + [{"content": "b-1"}]
+    assert index.match_prefix(b2) == [0, 1, 3]
+
+
 # ---------------------------------------------------------------------------
 # condense_model_event_with_indices tests
 # ---------------------------------------------------------------------------
