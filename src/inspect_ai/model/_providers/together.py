@@ -144,6 +144,9 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         else:
             return ex
 
+    def is_gpt_oss(self) -> bool:
+        return "gpt-oss" in self.model_family().lower()
+
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
@@ -151,6 +154,21 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             params["logprobs"] = 1
         if "top_logprobs" in params:
             del params["top_logprobs"]
+
+        # Together accepts `low`/`medium`/`high` for all reasoning models, plus
+        # `xhigh`/`max` on some (e.g. DeepSeek V4 Pro). `minimal` is never accepted
+        # (-> `low`). `none` isn't a supported effort value, so it's omitted and the
+        # provider/model default applies -- reasoning is not disabled (hybrid models
+        # are disabled via reasoning={"enabled": false}, not an effort value). Only
+        # gpt-oss rejects `xhigh`/`max` (-> `high`); other models pass them through.
+        if "reasoning_effort" in params:
+            effort = params["reasoning_effort"]
+            if effort == "minimal":
+                params["reasoning_effort"] = "low"
+            elif effort == "none":
+                del params["reasoning_effort"]
+            elif effort in ("xhigh", "max") and self.is_gpt_oss():
+                params["reasoning_effort"] = "high"
 
         # together requires temperature with num_choices
         if config.num_choices is not None and config.temperature is None:
