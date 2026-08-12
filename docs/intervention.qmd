@@ -311,7 +311,7 @@ Inspect-aware clients can opt into richer behavior by declaring capabilities at 
 | `inspect/cancel_tool_call` | Cancel one in-flight tool call without unwinding the turn. |
 | `inspect/event` | Raw transcript event stream (opt-in via `clientCapabilities._meta["inspect.raw_events"]`). |
 | `inspect/session_ended` | Notification when a sample has completed, so the client can flip its UI to a terminal state without waiting for socket EOF. |
-| `inspect/turn_state` | Notification when the agent enters or leaves a turn (`state` of `started`, `ended`, or `cancelled`) — an exact "agent is working" signal, since `session/prompt` returns immediately. |
+| `inspect/turn_state` | Current turn state on bind, then each transition (`started`, `ended`, or `cancelled`). The initial `ended` means idle and does not imply a turn previously started. This is an exact "agent is working" signal, since `session/prompt` returns immediately. |
 : {tbl-colwidths=[35,65]}
 
 Samples enumerated by `inspect/list_samples` carry an `inspect.interactive` flag. When it is `false` the sample is *observe-only* — its agent hasn't bound a turn loop (no `agent_channel()`), so the client can attach to stream the transcript and call `inspect/cancel_sample` / `inspect/cancel_tool_call`, but `session/prompt` is rejected with `invalid_request` and `session/cancel` is ignored. Custom clients should disable their message composer for these sessions. The bind confirmation echoes the same flag in its `_meta` under `inspect.interactive`. (The standard `session/new` picker lists only interactive sessions; observe-only ones are reachable solely via `inspect/list_samples`.)
@@ -332,6 +332,5 @@ Clients with a dedicated plan UI indicate this at `initialize` by setting `inspe
 Inspect then translates `update_plan` and `todo_write` tool calls into `AgentPlanUpdate` notifications, which the client renders in its plan widget. With `elicitation.form` advertised, the agent's `ask_user` tool dispatches `elicitation/create` to the attached client and renders the operator's response back to the model as a structured tool result. Without it, the `ask_user` prompt parks the sample until a client that declares `elicitation.form` attaches — under `--acp-server`, ACP is the exclusive human channel, with no silent fallback to the in-proc panel or console.
 
 The full set of extensions and metadata keys is defined in [inspect_ext.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/agent/_acp/inspect_ext.py).
-
 
 
