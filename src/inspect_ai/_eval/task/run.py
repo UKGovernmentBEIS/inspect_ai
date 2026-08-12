@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Any, Awaitable, Callable, Literal, NamedTuple, TypeAlias
+from typing import Any, Awaitable, Callable, Literal, NamedTuple, Protocol, TypeAlias
 
 import anyio
 from anyio.abc import TaskGroup
@@ -303,6 +303,19 @@ class _SampleUsage(NamedTuple):
     messages: int
 
 
+class _RecordSampleTerminal(Protocol):
+    """Signature shared by the ``record_sample_*`` eval-state counters."""
+
+    def __call__(
+        self,
+        eval_id: str,
+        *,
+        tokens: int = 0,
+        messages: int = 0,
+        started: float | None = None,
+    ) -> None: ...
+
+
 class SampleTerminalReporter:
     """Side-effects of one sample run reaching a terminal outcome.
 
@@ -361,16 +374,15 @@ class SampleTerminalReporter:
         usage: _SampleUsage | None = None,
     ) -> None:
         """The run completed (scored, reused, or halted by early stopping)."""
-        if scores is not None:
-            await self._sample_complete(sample_id, epoch, scores)
-        usage = usage or _SampleUsage(0, 0)
-        record_sample_completed(
-            self._task_id,
+        await self._report(
+            record_sample_completed,
+            "completed",
+            sample_id,
+            epoch,
+            scores,
             started=started,
-            tokens=usage.tokens,
-            messages=usage.messages,
+            usage=usage,
         )
-        self._release_slot("completed")
 
     async def errored(
         self,
@@ -390,16 +402,15 @@ class SampleTerminalReporter:
         nothing to contribute to and notifying metrics/early-stopping for a
         dying task would mislead; they remain in the sample log).
         """
-        if scores is not None:
-            await self._sample_complete(sample_id, epoch, scores)
-        usage = usage or _SampleUsage(0, 0)
-        record_sample_errored(
-            self._task_id,
+        await self._report(
+            record_sample_errored,
+            "errored",
+            sample_id,
+            epoch,
+            scores,
             started=started,
-            tokens=usage.tokens,
-            messages=usage.messages,
+            usage=usage,
         )
-        self._release_slot("errored")
 
     def cancelled(
         self,
@@ -408,16 +419,41 @@ class SampleTerminalReporter:
         usage: _SampleUsage | None = None,
     ) -> None:
         """The run was cancelled or abandoned (terminal, never a metric)."""
+        self._record_and_release(
+            record_sample_cancelled, "cancelled", started=started, usage=usage
+        )
+
+    async def _report(
+        self,
+        record: _RecordSampleTerminal,
+        outcome: SampleTerminalOutcome,
+        sample_id: int | str,
+        epoch: int,
+        scores: ScoresByScorer | None,
+        *,
+        started: float | None,
+        usage: _SampleUsage | None,
+    ) -> None:
+        """Metrics (when scored), then counter, then slot release."""
+        if scores is not None:
+            await self._sample_complete(sample_id, epoch, scores)
+        self._record_and_release(record, outcome, started=started, usage=usage)
+
+    def _record_and_release(
+        self,
+        record: _RecordSampleTerminal,
+        outcome: SampleTerminalOutcome,
+        *,
+        started: float | None,
+        usage: _SampleUsage | None,
+    ) -> None:
         usage = usage or _SampleUsage(0, 0)
-        record_sample_cancelled(
+        record(
             self._task_id,
             started=started,
             tokens=usage.tokens,
             messages=usage.messages,
         )
-        self._release_slot("cancelled")
-
-    def _release_slot(self, outcome: SampleTerminalOutcome) -> None:
         if self._sample_terminal is not None:
             self._sample_terminal(outcome)
 
