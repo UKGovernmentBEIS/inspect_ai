@@ -348,9 +348,10 @@ def ctl_command() -> None:
     `{"error": {kind, exception, message, status}}` envelope on stdout
     (exit code stays non-zero; click usage errors — unknown option,
     missing argument — still exit 2 without one). With no running evals,
-    task- and sample-targeted commands (and `config`) print `null`,
-    except the paged reads (`sample events` / `sample messages`), which
-    print an empty page (identifier echo with `task_id` null).
+    commands that resolve a single task or sample target (and `config`)
+    print `null`, except the paged reads (`sample events` / `sample
+    messages`), which print an empty page (identifier echo with `task_id`
+    null); list verbs print their usual envelope with empty rows.
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
@@ -718,7 +719,7 @@ def sample_errors_command(task: str | None, as_json: bool) -> None:
 )
 @_json_option(
     "the sample's summary + error detail — a flat `{task_id, task, sample_id, "
-    "epoch, status, ..., error, error_retries}` object"
+    "epoch, status, ..., error, error_retries, scores}` object"
 )
 def sample_show_command(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
