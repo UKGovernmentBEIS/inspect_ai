@@ -318,15 +318,14 @@ Requeuing a sample that completed *successfully* is rejected — re-running or r
 Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent's shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `task cancel`, `task pause`/`resume`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
 
 ```bash
-$ for s in $(inspect ctl sample errors gpqa --json | jq -r '.samples[].sample_id'); do
-    inspect ctl sample requeue gpqa "$s"
-  done | tee requeue.log
+$ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |
+    while read -r s e; do inspect ctl sample requeue gpqa "$s" "$e"; done | tee requeue.log
 requeue gpqa/11 (epoch 1): accepted — will re-run from the back of the sample queue
 requeue gpqa/17 (epoch 1): accepted — will resume from its checkpoint
 requeue gpqa/23 (epoch 1): no-op — a re-run is already pending
 ```
 
-(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally, and takes precedence over both terse flags.
+(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: it takes precedence over both terse flags, and the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (`task log-flush` reports `applied: true` even when nothing was buffered — its `detail` carries the flushed count).
 
 ## Pause and Resume
 
