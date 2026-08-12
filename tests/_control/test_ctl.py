@@ -8,6 +8,7 @@ cursor validation), and rendering helpers.
 
 import json
 import os
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -3026,10 +3027,7 @@ def test_mutation_envelope_help_sketches_actual_keys() -> None:
     envelope = _mutation_envelope(
         {"task_id": "aaa111"}, {"ok": True, "changed": True}, dry_run=False
     )
-    sketch = _MUTATION_ENVELOPE_HELP[
-        _MUTATION_ENVELOPE_HELP.index("{") + 1 : _MUTATION_ENVELOPE_HELP.index("}")
-    ]
-    assert [key.strip() for key in sketch.split(",")] == list(envelope.keys())
+    assert "{" + ", ".join(envelope.keys()) + "}" in _MUTATION_ENVELOPE_HELP
 
 
 def test_every_json_option_help_sketches_payload_keys() -> None:
@@ -3040,20 +3038,26 @@ def test_every_json_option_help_sketches_payload_keys() -> None:
     and failing. A brace in the help is the sketch's marker.
     """
 
-    def visible_commands(group: click.Group, prefix: str = "") -> Any:
+    def visible_commands(
+        group: click.Group, prefix: str = ""
+    ) -> Iterator[tuple[str, click.Command]]:
         for name, cmd in group.commands.items():
             if cmd.hidden:
                 continue
+            yield f"{prefix}{name}", cmd
             if isinstance(cmd, click.Group):
                 yield from visible_commands(cmd, f"{prefix}{name} ")
-            else:
-                yield f"{prefix}{name}", cmd
 
-    assert isinstance(ctl_command, click.Group)
     for path, cmd in visible_commands(ctl_command):
-        json_params = [p for p in cmd.params if p.name == "as_json"]
-        assert json_params, f"`{path}` has no --json option"
-        help_text = getattr(json_params[0], "help", None) or ""
+        json_options = [
+            p for p in cmd.params if isinstance(p, click.Option) and p.name == "as_json"
+        ]
+        if isinstance(cmd, click.Group) and not json_options:
+            # a group without a bare-noun list default (e.g. `model`) carries
+            # no mirrored --json of its own
+            continue
+        assert json_options, f"`{path}` has no --json option"
+        help_text = json_options[0].help or ""
         assert help_text.startswith("Output as JSON ("), path
         assert "{" in help_text, f"`{path}` --json help has no payload sketch"
 

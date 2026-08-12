@@ -309,7 +309,11 @@ def _mirror_list_options(group: click.Group, list_command: click.Command) -> Non
     for param in list_command.params:
         if isinstance(param, click.Option):
             mirrored = copy.copy(param)
-            mirrored.help = "Mirrored from `list` for the bare-noun default."
+            # keep the verb's own help (the payload sketch especially — the
+            # bare noun is the spelling scripted consumers reach for first)
+            mirrored.help = (
+                f"{param.help or ''} Mirrored from `list` for the bare-noun default."
+            ).strip()
             group.params.append(mirrored)
 
 
@@ -329,11 +333,9 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
     )
 
 
-# The payload sketch every mutation verb's `--json` help shows — one constant
-# so the sketch can't drift from `_mutation_envelope` site by site.
-_MUTATION_ENVELOPE_HELP = (
-    "a `{target, applied, dry_run, detail}` mutation envelope — branch on `applied`"
-)
+# The payload sketch every mutation verb's `--json` help shows (pinned to
+# `_mutation_envelope`'s keys by a test).
+_MUTATION_ENVELOPE_HELP = "a `{target, applied, dry_run, detail}` mutation envelope"
 
 
 @click.group("ctl")
@@ -345,7 +347,8 @@ def ctl_command() -> None:
     All commands accept `--json`; a failed `--json` invocation emits an
     `{"error": {kind, exception, message, status}}` envelope on stdout
     (exit code stays non-zero; click usage errors — unknown option,
-    missing argument — still exit 2 without one).
+    missing argument — still exit 2 without one). With no running evals,
+    task- and sample-targeted commands (and `config`) print `null`.
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
@@ -2734,8 +2737,6 @@ def _mutation_envelope(
 ) -> dict[str, Any]:
     """The uniform ``--json`` mutation result envelope for the cancel verbs.
 
-    Its top-level keys are sketched in every mutation verb's ``--help`` via
-    ``_MUTATION_ENVELOPE_HELP`` — keep the two in sync.
     ``applied`` reports whether the mutation actually landed — false on a
     dry run and on the idempotent already-in-that-state no-op (the server's
     ``changed: false``) — so an agent branches on one field. The server's
