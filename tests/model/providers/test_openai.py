@@ -1,6 +1,7 @@
 import base64
 import json
 
+import openai
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
@@ -13,7 +14,11 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
-from inspect_ai.model._openai import openai_completion_params
+from inspect_ai.model._openai import (
+    DEFAULT_CONNECTION_LIMITS,
+    DEFAULT_TIMEOUT,
+    openai_completion_params,
+)
 
 
 @pytest.mark.anyio
@@ -60,6 +65,34 @@ def test_openai_completion_params_extra_body_not_mutated() -> None:
             "metadata": {"source": "test"},
             "reasoning": {"effort": "low"},
         }
+
+
+@pytest.mark.parametrize("field", ["connect", "read", "write", "pool"])
+def test_openai_default_timeout_matches_sdk(field: str) -> None:
+    """Detect drift between our local DEFAULT_TIMEOUT and openai's.
+
+    `inspect_ai.model._openai` defines an httpx-native copy of openai's
+    DEFAULT_TIMEOUT rather than importing it (on openai >= 3.0 the SDK's
+    constant is httpx2-typed and would silently corrupt the config of our
+    legacy `httpx.AsyncClient`). Compare scalar fields — not objects — since
+    the SDK constant's type varies by openai version while the field names
+    are stable across httpx generations.
+    """
+    assert getattr(DEFAULT_TIMEOUT, field) == getattr(openai.DEFAULT_TIMEOUT, field)
+
+
+@pytest.mark.parametrize(
+    "field", ["max_connections", "max_keepalive_connections", "keepalive_expiry"]
+)
+def test_openai_default_connection_limits_match_sdk(field: str) -> None:
+    """Detect drift between our local DEFAULT_CONNECTION_LIMITS and openai's.
+
+    See test_openai_default_timeout_matches_sdk for why the constant is
+    duplicated and why comparison is per scalar field.
+    """
+    assert getattr(DEFAULT_CONNECTION_LIMITS, field) == getattr(
+        openai.DEFAULT_CONNECTION_LIMITS, field
+    )
 
 
 @skip_if_no_openai
