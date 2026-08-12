@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.258 (11 August 2026)
 
 - Control Channel: `inspect ctl sample` and other unscoped commands no longer appear to hang on eval sets with many running tasks. (#4789)
 - Inspect View: `bundle_log_dir()` allows `output_dir` starting with `hf/` when `log_dir` is current directory or parent directory.
