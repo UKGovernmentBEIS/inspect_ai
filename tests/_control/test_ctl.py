@@ -35,6 +35,7 @@ from inspect_ai._cli.ctl import (
     _resolve_target_server,
     _SamplesPage,
     _sanitize_control,
+    _sanitize_keep_sgr,
     _truncate,
     ctl_command,
 )
@@ -5381,6 +5382,15 @@ def test_sanitize_drops_bidi_controls() -> None:
 def test_sanitize_keeps_newline_replaces_tab() -> None:
     assert _sanitize_control("line1\nline2") == "line1\nline2"
     assert _sanitize_control("a\tb") == "a b"
+
+
+def test_sanitize_keep_sgr_trailing_reset_preserves_trailing_newlines() -> None:
+    """The appended reset closes styling without eating trailing newlines."""
+    assert _sanitize_keep_sgr("\x1b[31mred\n\n") == "\x1b[31mred\x1b[0m\n\n"
+    # already-reset text is untouched, newlines included
+    assert _sanitize_keep_sgr("\x1b[31mred\x1b[0m\n") == "\x1b[31mred\x1b[0m\n"
+    # no SGR kept -> no reset appended
+    assert _sanitize_keep_sgr("plain\n") == "plain\n"
 
 
 def test_truncate_sanitizes_before_width_math() -> None:

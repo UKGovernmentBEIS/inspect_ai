@@ -5616,8 +5616,10 @@ def _sanitize_keep_sgr(text: str) -> str:
         last = m.end()
     out.append(_sanitize_control(text[last:]))
     result = "".join(out)
-    if last and not result.rstrip("\n").endswith("\x1b[0m"):
-        result = result.rstrip("\n") + "\x1b[0m"
+    if last:
+        stripped = result.rstrip("\n")
+        if not stripped.endswith("\x1b[0m"):
+            result = stripped + "\x1b[0m" + result[len(stripped) :]
     return result
 
 
