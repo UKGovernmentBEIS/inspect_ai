@@ -1,4 +1,4 @@
-from inspect_ai._util.url import is_data_uri
+from inspect_ai._util.url import data_uri_to_base64, is_data_uri
 
 
 def test_is_data_uri_simple_base64() -> None:
@@ -21,3 +21,12 @@ def test_is_data_uri_rejects_non_base64_and_urls() -> None:
     assert not is_data_uri("data:text/plain,hello")
     assert not is_data_uri("data:text/plain;charset=utf-8,hello")
     assert not is_data_uri("https://example.com/x.png")
+
+
+def test_data_uri_to_base64() -> None:
+    assert data_uri_to_base64("data:image/png;base64,iVBORw0KAAAA") == "iVBORw0KAAAA"
+    assert (
+        data_uri_to_base64("data:text/html;charset=utf-8;base64,PGh0bWw+") == "PGh0bWw+"
+    )
+    assert data_uri_to_base64("data:;base64,SGVsbG8=") == "SGVsbG8="
+    assert data_uri_to_base64("data:,SGVsbG8=") == "SGVsbG8="
