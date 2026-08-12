@@ -48,14 +48,19 @@ jobs:
       # reviewer is read-only, so this only ever starts a review — never a write.
       allowed_bots: "claude[bot]"
       # Fork-specific reviewer guidance. On this fork only top-level PR comments
-      # reach the dev agent, so point authors there for follow-ups. And the
-      # reviewer must never emit the literal @review token, or its own comment
-      # would retrigger this workflow (which now accepts bot comments).
+      # reach the dev agent, so point authors there for follow-ups. The reviewer
+      # must never emit ANY literal trigger token — @review would retrigger this
+      # workflow (which accepts bot comments), and @claude/@i-am-marvin spawn
+      # dev-agent runs that waste a checkout + provision before being rejected
+      # (observed on PR 211; backticks do NOT protect — matching is substring).
       append_system_prompt: >-
         Repo context: on the meridianlabs-ai/inspect_ai fork, only top-level PR
         comments trigger the agents — inline review-comment replies do NOT reach
         the dev agent. When a finding needs action, tell the author to reply with
-        a top-level `@claude <instruction>` comment on the PR, not an inline
-        reply. Never write the literal token @review anywhere in your output (it
-        would retrigger this review workflow); refer to it as "a review request"
-        instead.
+        a top-level at-claude comment on the PR (written out like that — the
+        author types the @ themselves), not an inline reply. NEVER write a
+        literal @-prefixed trigger token in your output — not for claude, not
+        for i-am-marvin, not for the review trigger, not even inside backticks:
+        your comments are matched by substring, so a quoted token still fires
+        the workflow (a review re-trigger, or a wasted dev-agent run). Refer to
+        them as "an at-claude comment" and "a review request".

@@ -29,7 +29,18 @@ runs:
       # exercised by `uv run pytest`.
       run: |
         set -euo pipefail
-        curl -LsSf https://astral.sh/uv/0.9.4/install.sh | sh
+        # Retry the installer: the uv tarball download flaked repeatedly on
+        # 2026-08-12 ("curl: (56) Connection died"), killing agent runs at
+        # provisioning. uv's own HTTP (venv/pip below) retries internally;
+        # the bootstrap curl does not.
+        for attempt in 1 2 3; do
+          curl -LsSf https://astral.sh/uv/0.9.4/install.sh | sh && break
+          if [ "$attempt" = 3 ]; then
+            echo "uv install failed after 3 attempts" >&2; exit 1
+          fi
+          echo "uv install attempt $attempt failed; retrying..." >&2
+          sleep $((attempt * 10))
+        done
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"
         export PATH="$HOME/.local/bin:$PATH"
         uv venv --python 3.11
