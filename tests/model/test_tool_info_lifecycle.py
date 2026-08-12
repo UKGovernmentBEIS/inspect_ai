@@ -6,6 +6,7 @@ import pytest
 from tenacity.wait import wait_none
 from test_helpers.tools import addition
 
+from inspect_ai._util.entrypoints import ensure_entry_points
 from inspect_ai._util.registry import _registry, registry_lookup
 from inspect_ai.event import InfoEvent
 from inspect_ai.event._model import ModelEvent
@@ -45,15 +46,22 @@ def _model_events(current: Transcript) -> list[ModelEvent]:
 
 @contextmanager
 def _without_registered_hooks() -> Generator[None, None, None]:
+    # Force the entry-point scan *before* snapshotting. With the registry
+    # emptied below, the first `get_all_hooks()` inside the block would hit
+    # `registry_find`'s empty-result fallback, which re-scans entry points and
+    # registers every extension package's hooks mid-block — both defeating
+    # this fixture and (via the cleanup) deleting them permanently, since
+    # `ensure_entry_points()` only re-imports and the `@hooks` decorators do
+    # not re-run once the module is in `sys.modules`.
+    ensure_entry_points()
     hooks = {key: value for key, value in _registry.items() if key.startswith("hooks:")}
     for key in hooks:
         del _registry[key]
     try:
         yield
     finally:
-        for key in list(_registry.keys()):
-            if key.startswith("hooks:"):
-                del _registry[key]
+        # Restore what we removed and leave anything registered inside the
+        # block in place — a hook deleted here can never be re-registered.
         _registry.update(hooks)
 
 
