@@ -1598,8 +1598,8 @@ def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
     """Wrap a command runner in :func:`_structured_failures`.
 
     Reads the runner's ``as_json`` argument off the bound call, so the
-    wrapper needs no per-runner plumbing and the aliases are covered through
-    their delegation. Every runner must take an ``as_json`` parameter —
+    wrapper needs no per-runner plumbing. Every runner must take an
+    ``as_json`` parameter —
     enforced at decoration time so a missing/renamed parameter fails at
     import rather than silently reverting that command to unstructured
     failures.
@@ -1641,7 +1641,7 @@ def _unreachable_failure(message: str, exc: "_ServerUnreachable") -> _CtlFailure
 
 
 # ---------------------------------------------------------------------------
-# command runners (shared by the canonical commands and the aliases)
+# command runners
 # ---------------------------------------------------------------------------
 
 
