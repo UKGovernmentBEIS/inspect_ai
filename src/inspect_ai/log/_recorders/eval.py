@@ -321,7 +321,7 @@ class EvalRecorder(FileRecorder):
         location: str,
         header_only: bool = False,
         exclude_fields: set[str] | None = None,
-        sample_workers: int = 1,
+        sample_workers: int | None = None,
         resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> EvalLog:
         async with AsyncFilesystem() as async_fs:
@@ -1231,7 +1231,7 @@ async def _read_log(
     location: str,
     header_only: bool = False,
     exclude_fields: set[str] | None = None,
-    sample_workers: int = 1,
+    sample_workers: int | None = None,
     local_zip: str | None = None,
     resolve_attachments: bool | Literal["full", "core"] = False,
 ) -> EvalLog:
@@ -1263,7 +1263,7 @@ async def _read_log(
             and entry.filename.endswith(".json")
         ]
         if (
-            sample_workers > 1
+            sample_workers is not None
             and local_zip is not None
             and not exclude_fields
             and current_async_backend() == "asyncio"

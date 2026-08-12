@@ -215,7 +215,7 @@ class JSONRecorder(FileRecorder):
         location: str,
         header_only: bool = False,
         exclude_fields: set[str] | None = None,
-        sample_workers: int = 1,
+        sample_workers: int | None = None,
         resolve_attachments: bool | Literal["full", "core"] = False,
     ) -> EvalLog:
         fs = filesystem(location)

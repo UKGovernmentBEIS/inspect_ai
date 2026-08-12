@@ -353,7 +353,7 @@ def read_eval_log(
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
     exclude_fields: set[str] | None = None,
-    sample_workers: int = 1,
+    sample_workers: int | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -372,7 +372,7 @@ def read_eval_log(
           Ignored for .json format logs (only applies to .eval logs). Has no
           effect when header_only is True or when log_file is an IO[bytes] stream.
        sample_workers: Number of worker processes used to read, validate,
-          and resolve samples (defaults to 1, reading in-process). Only applies
+          and resolve samples (defaults to None, reading in-process). Only applies
           to full reads of .eval logs; ignored when header_only is True, when
           exclude_fields is set, or when log_file is an IO[bytes] stream.
 
@@ -405,7 +405,7 @@ async def read_eval_log_async(
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
     exclude_fields: set[str] | None = None,
-    sample_workers: int = 1,
+    sample_workers: int | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -424,7 +424,7 @@ async def read_eval_log_async(
           Ignored for .json format logs (only applies to .eval logs). Has no
           effect when header_only is True or when log_file is an IO[bytes] stream.
        sample_workers: Number of worker processes used to read, validate,
-          and resolve samples (defaults to 1, reading in-process). Only applies
+          and resolve samples (defaults to None, reading in-process). Only applies
           to full reads of .eval logs; ignored when header_only is True, when
           exclude_fields is set, or when log_file is an IO[bytes] stream.
 
@@ -464,7 +464,7 @@ async def read_eval_log_async(
         # when the recorder reads samples in worker processes it also applies
         # read-time resolution there, so the pass below must not run again
         workers_resolve = (
-            sample_workers > 1
+            sample_workers is not None
             and not header_only
             and exclude_fields is None
             and current_async_backend() == "asyncio"
@@ -474,7 +474,7 @@ async def read_eval_log_async(
             log_file,
             header_only,
             exclude_fields,
-            sample_workers=sample_workers if workers_resolve else 1,
+            sample_workers=sample_workers if workers_resolve else None,
             resolve_attachments=resolve_attachments if workers_resolve else False,
         )
 
