@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import os
+import random
 from collections import deque
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextvars import ContextVar
@@ -99,8 +100,10 @@ into one sample transcript). Streams sharing a pre-fork history prefix
 fork into separate slots (a partial prefix match appends a sibling
 lineage rather than replacing the matched slot), so they keep prefix-
 hitting independently. The residual cost of fork fan-out is slot-count
-pressure: enough concurrent lineages evict each other via LRU, which
-degrades to a full walk — never worse.
+pressure: beyond capacity, eviction is random rather than LRU (LRU under
+round-robin access evicts exactly the next-needed lineage, collapsing
+every stream's hit rate at once), so degradation stays proportional to
+the excess and is bounded above by the full-walk cost — never worse.
 """
 
 
@@ -498,6 +501,9 @@ class Transcript:
         self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
         self._call_walk_slots: list[_CallWalkSlot] = []
+        # Seeded for reproducibility; eviction choice affects performance
+        # only, never output content.
+        self._call_walk_rng = random.Random(0)
         self._events: list[Event] = self._normalize_seeded_events(events or [])
         self._history_provider = history_provider
         self._events_view = _TranscriptEventsView(self)
@@ -816,9 +822,16 @@ class Transcript:
         # other's cached tails, re-walking the divergent tail every call.
         if best_slot is not None and best_len == len(best_slot.pre_walk):
             self._call_walk_slots.remove(best_slot)
+        else:
+            if len(self._call_walk_slots) >= CALL_WALK_CACHE_SLOTS:
+                # LRU is pathological here: N-stream round-robin access
+                # evicts exactly the next-needed lineage, collapsing every
+                # stream's hit rate at cap+1 lineages; random eviction keeps
+                # the degradation proportional to the excess.
+                del self._call_walk_slots[
+                    self._call_walk_rng.randrange(len(self._call_walk_slots))
+                ]
         self._call_walk_slots.append(new_slot)
-        if len(self._call_walk_slots) > CALL_WALK_CACHE_SLOTS:
-            self._call_walk_slots.pop(0)
 
         return call.model_copy(
             update={
