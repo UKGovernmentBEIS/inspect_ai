@@ -16,6 +16,7 @@ from typing import (
     Iterable,
     Iterator,
     Literal,
+    TypeAlias,
     TypeVar,
 )
 
@@ -87,6 +88,9 @@ from .types import (
 
 logger = getLogger(__name__)
 SYNC_CLEANUP_TIMEOUT = 30
+
+SampleKey: TypeAlias = tuple[str, int]
+"""In-memory key for one sample: ``(str(sample_id), epoch)``."""
 
 if TYPE_CHECKING:
     from .types import TranscriptEventSink
@@ -253,16 +257,13 @@ class SampleBufferDatabase(SampleBuffer):
         # Prevent late ModelEvents from restarting indices at 0 after completion.
         self._completed_samples: set[tuple[str, int]] = set()
 
-        # Attachment hashes already inserted per (str(id), epoch) — an
-        # optimization over INSERT OR IGNORE so duplicate content isn't
-        # re-shipped into SQLite on every event update. str(id): SQLite TEXT
-        # affinity collides 5/'5' in the UNIQUE constraint, so the in-memory
-        # key must too. No lock: all writers run on the event-loop thread
-        # (see the _get_connection invariants above); marks are applied only
-        # after the batch's transaction commits (_pending_seen_hashes), so a
-        # rollback cannot leave stale marks.
-        self._inserted_attachment_hashes: dict[tuple[str, int], set[str]] = {}
-        self._pending_seen_hashes: list[tuple[tuple[str, int], str]] | None = None
+        # Attachment content already shipped per sample (see
+        # _insert_unseen_attachments and _staged_attachment_marks). str(id):
+        # SQLite TEXT affinity collides 5/'5' in the UNIQUE constraint, so the
+        # in-memory key must too. No lock: all writers run on the event-loop
+        # thread (see the _get_connection invariants above).
+        self._inserted_attachment_hashes: dict[SampleKey, set[str]] = {}
+        self._pending_seen_hashes: list[tuple[SampleKey, str]] | None = None
 
         self._sample_read_leases: dict[tuple[str, int], int] = {}
         self._pending_sample_removals: set[tuple[str, int]] = set()
@@ -314,9 +315,7 @@ class SampleBufferDatabase(SampleBuffer):
                     if call_index is not None:
                         call_index.restore(call_mark)
 
-        pending_seen: list[tuple[tuple[str, int], str]] = []
-        self._pending_seen_hashes = pending_seen
-        try:
+        with self._staged_attachment_marks():
             with self._get_connection(
                 write=True, on_rollback=restore_index_snapshots
             ) as conn:
@@ -352,11 +351,24 @@ class SampleBufferDatabase(SampleBuffer):
 
                 # Insert all rows
                 conn.execute(sql, values)
+
+    @contextmanager
+    def _staged_attachment_marks(self) -> Iterator[None]:
+        """Stage attachment seen-marks, applying them only on a clean exit.
+
+        ``_insert_unseen_attachments`` records what it shipped here rather
+        than marking it seen directly. The marks are applied only if the block
+        completes — i.e. the enclosing transaction committed. A rolled-back
+        batch must leave no marks: buffer-write errors are swallowed upstream,
+        and a stale mark would make the retry silently skip real content.
+        """
+        staged: list[tuple[SampleKey, str]] = []
+        self._pending_seen_hashes = staged
+        try:
+            yield
         finally:
             self._pending_seen_hashes = None
-        # seen-marks apply only after the transaction committed: a rolled-back
-        # batch must not leave hashes marked (the retry would skip real content)
-        for key, attachment_hash in pending_seen:
+        for key, attachment_hash in staged:
             self._inserted_attachment_hashes.setdefault(key, set()).add(attachment_hash)
 
     def complete_sample(
@@ -1591,7 +1603,7 @@ class SampleBufferDatabase(SampleBuffer):
         )[0]
 
         # insert attachments
-        self._insert_event_attachments(conn, event.id, event.epoch, attachments)
+        self._insert_unseen_attachments(conn, event.id, event.epoch, attachments)
         return event
 
     def _condense_model_event(
@@ -1646,7 +1658,7 @@ class SampleBufferDatabase(SampleBuffer):
 
         # walk the remainder (input now [], call request without messages)
         condensed_event = walk_events([condensed], content_fn, context)[0]
-        self._insert_event_attachments(conn, event.id, event.epoch, attachments)
+        self._insert_unseen_attachments(conn, event.id, event.epoch, attachments)
         return SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
 
     def _resolve_event_attachments(
@@ -1696,18 +1708,21 @@ class SampleBufferDatabase(SampleBuffer):
             parameters,
         )
 
-    def _insert_event_attachments(
+    def _insert_unseen_attachments(
         self, conn: Connection, id: int | str, epoch: int, attachments: dict[str, str]
     ) -> None:
-        """Insert a logged event's attachments, skipping already-inserted content.
+        """Insert attachments whose content this sample hasn't shipped yet.
 
         Purely an optimization over ``INSERT OR IGNORE`` (which already
         collapses duplicates — but only after the full duplicate content has
         crossed into SQLite, which event updates re-trigger every turn). Only
-        the ``log_events`` path uses this: its seen-marks are staged and
-        applied post-commit. The ``start_sample``/``complete_sample`` sample
-        condense path keeps plain ``_insert_attachments`` (no rollback hook
-        there, and it runs once per sample).
+        the ``log_events`` path uses this, because the filtering is only sound
+        when the seen-marks it produces are staged until commit (see
+        :meth:`_staged_attachment_marks`) — a caller that filtered without
+        staging would let a rolled-back batch's marks make the retry skip real
+        content. The ``start_sample``/``complete_sample`` sample condense path
+        keeps plain ``_insert_attachments`` (no rollback hook there, and it
+        runs once per sample).
         """
         key = (str(id), epoch)
         seen = self._inserted_attachment_hashes.get(key)
