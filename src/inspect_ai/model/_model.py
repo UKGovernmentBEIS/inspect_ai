@@ -785,10 +785,11 @@ class Model:
             boundaries) while the response streams — a side-channel for UI
             display; the final result is still the returned `ModelOutput`.
             Providers or calls that don't stream never invoke it (a cache
-            hit, for example, produces no events), and the callback is
-            best treated as display-only: on retry a `StreamRetryEvent`
-            signals that deltas received so far belong to a failed attempt
-            and should be discarded.
+            hit, for example, produces no content deltas — though a cache
+            hit on a retry attempt still delivers the retry boundary), and
+            the callback is best treated as display-only: on retry a
+            `StreamRetryEvent` signals that deltas received so far belong
+            to a failed attempt and should be discarded.
 
         Returns:
            ModelOutput

@@ -174,6 +174,11 @@ _NON_GENERATIVE_TOKENS = (
 SAFETY_SETTINGS = "safety_settings"
 DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 
+# Total request budget (initial attempt + retries) for the internal
+# MALFORMED_FUNCTION_CALL retry loop. The stream-restart boundary inside the
+# loop must use the same bound: it only fires when another request will run.
+MAX_TOOL_CALLING_ATTEMPTS = 3
+
 # Key under ContentReasoning.internal that links a redacted reasoning block
 # to the function_call whose thought_signature it carries. Used to preserve
 # part ordering on replay when a function_call appears at a specific position
@@ -502,7 +507,7 @@ class GoogleGenAIAPI(ModelAPI):
                 # google sometimes requires retries for malformed function calls
                 # (see https://github.com/googleapis/python-genai/issues/430#issuecomment-3592369131)
                 tool_calling_attempts = 0
-                while tool_calling_attempts < 3:
+                while tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
                     if self._batcher:
                         response = await self._batcher.generate_for_request(
                             batch_request_dict(parameters, gemini_contents)
@@ -535,7 +540,7 @@ class GoogleGenAIAPI(ModelAPI):
                         # only announce a restart when a retry will actually
                         # run; on exhaustion the malformed response *is* the
                         # returned output, so its deltas must not be discarded
-                        if tool_calling_attempts < 3:
+                        if tool_calling_attempts < MAX_TOOL_CALLING_ATTEMPTS:
                             await report_model_stream_restart()
 
                         # apply retry context
