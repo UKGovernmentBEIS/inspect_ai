@@ -21,14 +21,21 @@ from inspect_ai._cli.ctl import (
     _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
+    _echo_error,
     _FetchedSummaries,
     _print_errored_samples_footer,
+    _print_events,
     _print_human_table,
     _print_keep_alive_footer,
+    _print_messages,
+    _print_sample_detail,
     _print_samples_table,
+    _render_table,
     _resolve_target_eval,
     _resolve_target_server,
     _SamplesPage,
+    _sanitize_control,
+    _truncate,
     ctl_command,
 )
 from inspect_ai._control.discovery import DiscoveredControlServer
@@ -5313,3 +5320,213 @@ def test_process_anomalies_accepts_group_level_json(trace_dir: Path) -> None:
     result = cli_runner().invoke(ctl_command, ["process", "--json", "anomalies", "123"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)["processes"][0]["pid"] == 123
+
+
+# ---------------------------------------------------------------------------
+# control-character sanitization (operator-terminal spoofing, issue #195)
+# ---------------------------------------------------------------------------
+#
+# Agent-controlled text (tool stdout, model completions, error messages)
+# flows out through the human renderings; these pin that escape sequences
+# and control bytes are neutralized before they reach the terminal.
+
+
+def test_sanitize_removes_csi_sequences_whole() -> None:
+    assert _sanitize_control("\x1b[2K\rALL SAMPLES PASSED") == "ALL SAMPLES PASSED"
+    assert _sanitize_control("a\x1b[31;1mred\x1b[0mb") == "aredb"
+
+
+def test_sanitize_removes_osc_payload() -> None:
+    # BEL-terminated title write: the payload must not survive as text
+    assert _sanitize_control("\x1b]0;compromised\x07ok") == "ok"
+    # ST-terminated OSC 8 hyperlink
+    assert _sanitize_control("\x1b]8;;http://evil\x1b\\link") == "link"
+    # unterminated OSC at end of string
+    assert _sanitize_control("before\x1b]52;c;payload") == "before"
+    # raw C1 ST terminates too — text after it must survive
+    assert _sanitize_control("\x1b]0;x\x9cafter") == "after"
+
+
+def test_sanitize_removes_string_sequences_and_charset_payload() -> None:
+    # DCS / APC strings drop their payload, not just the introducer
+    assert _sanitize_control("\x1bPq#payload\x1b\\ok") == "ok"
+    assert _sanitize_control("\x1b_hidden\x07ok") == "ok"
+    # charset designation: 3 bytes, no stray final byte left behind
+    assert _sanitize_control("\x1b(Bok") == "ok"
+    assert _sanitize_control("\x1b(0ok") == "ok"
+
+
+def test_sanitize_drops_c0_del_and_c1_bytes() -> None:
+    assert _sanitize_control("pass\x08\x08fail\x07\x7f") == "passfail"
+    assert _sanitize_control("a\rb") == "ab"
+    assert _sanitize_control("a\x9bb\x85c") == "abc"
+    # lone trailing ESC
+    assert _sanitize_control("abc\x1b") == "abc"
+
+
+def test_sanitize_keeps_newline_replaces_tab() -> None:
+    assert _sanitize_control("line1\nline2") == "line1\nline2"
+    assert _sanitize_control("a\tb") == "a b"
+
+
+def test_truncate_sanitizes_before_width_math() -> None:
+    # printable content fits the width once the escape bytes are stripped —
+    # width must be computed on what the operator sees, not raw bytes
+    assert _truncate("\x1b[31m" + "x" * 10 + "\x1b[0m", 10) == "x" * 10
+    assert _truncate("evil\rgood", 80) == "evilgood"
+
+
+def test_render_table_sanitizes_cells_and_widths(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _render_table(
+        ("col_a", "col_b"),
+        [("\x1b]0;t\x07x\ny", "ok"), ("zz", "w")],
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out
+    lines = out.splitlines()
+    # embedded newline becomes a space (no forged row) and widths align
+    assert lines[2].startswith("x y")
+    assert lines[1] == "-----  -----"
+
+
+def test_echo_error_sanitizes_message_and_plain_traceback(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _echo_error(
+        "attempt 1:",
+        {"message": "boom\x1b[2K\rspoof", "traceback": "Trace\x1b[31mback"},
+        True,
+    )
+    out = capsys.readouterr().out
+    assert "boomspoof" in out
+    assert "Traceback" in out
+    assert "\x1b" not in out and "\r" not in out
+
+
+def test_echo_error_keeps_traceback_ansi_sgr_styling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # capture pre-echo text: click.echo itself strips ANSI on a non-tty
+    # stream, which would mask whether _echo_error sanitized the traceback
+    lines: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.click.echo",
+        lambda message=None, **kwargs: lines.append(str(message)),
+    )
+    _echo_error(
+        "", {"message": "boom", "traceback_ansi": "\x1b[31mTraceback\x1b[0m"}, True
+    )
+    assert any("\x1b[31mTraceback\x1b[0m" in line for line in lines)
+
+
+def test_echo_error_neutralizes_raw_traceback_ansi(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raw traceback_ansi keeps SGR styling but no other control bytes.
+
+    The oversized-traceback / recovered-log fallback sets traceback_ansi to
+    raw un-rendered text, which must not smuggle OSC/CSI/CR/BS through —
+    and any kept styling is closed with a reset so a trailing conceal
+    can't hide the output that follows.
+    """
+    lines: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.click.echo",
+        lambda message=None, **kwargs: lines.append(str(message)),
+    )
+    _echo_error(
+        "",
+        {
+            "message": "boom",
+            "traceback_ansi": (
+                "\x1b[31mTrace\x1b[0m\x1b]0;pwned\x07\x1b[2K\rback\x08\x1b[8m"
+            ),
+        },
+        True,
+    )
+    tb_lines = [line for line in lines if "Trace" in line]
+    assert tb_lines == ["    \x1b[31mTrace\x1b[0mback\x1b[8m\x1b[0m"]
+
+
+def test_sample_detail_header_sanitized(capsys: pytest.CaptureFixture[str]) -> None:
+    _print_sample_detail(
+        {
+            "sample_id": "s\x1b[2K1",
+            "epoch": 1,
+            "status": "completed",
+            "scores": {"grader": "C\x07"},
+        },
+        False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out
+    assert "sample s1" in out
+
+
+def test_sample_detail_unterminated_osc_cannot_swallow_trusted_fields(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unterminated OSC in the sample id must not hide the real status.
+
+    Parts are sanitized individually, so the swallow-to-terminator behavior
+    stops at the part boundary instead of consuming the trusted fields
+    (status, score) joined after it.
+    """
+    _print_sample_detail(
+        {
+            "sample_id": "1 completed score grader=C\x1b]",
+            "epoch": 1,
+            "status": "errored",
+            "scores": {"grader": "I"},
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "errored" in header
+    assert "grader=I" in header
+
+
+def test_events_rendering_sanitizes_tool_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An escape-laden bash result never reaches the events table raw."""
+    page = {
+        "events": [
+            {
+                "event": "tool",
+                "timestamp": 1700000000.0,
+                "function": "bash",
+                "arguments": "{}",
+                "result": "\x1b]0;compromised\x07\x1b[2K\rALL SAMPLES PASSED",
+            }
+        ],
+        "next": None,
+        "done": True,
+    }
+    _print_events(page, full=False)
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out and "\r" not in out
+    assert "ALL SAMPLES PASSED" in out
+
+
+def test_messages_rendering_sanitizes_completion(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An escape-laden assistant completion never reaches the table raw."""
+    page = {
+        "messages": [
+            {
+                "index": 0,
+                "role": "assistant",
+                "content": "\x1b[2K\rall done\x1b]52;c;ZXZpbA==\x07",
+            }
+        ],
+        "count": 1,
+        "status": "running",
+    }
+    _print_messages(page, full=False)
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out and "\r" not in out
+    assert "all done" in out

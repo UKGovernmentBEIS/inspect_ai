@@ -10,6 +10,7 @@
 - Inspect View: Logs inside the configured directory now open on Windows when listings identify them with canonical file URIs. (#4765)
 - Bugfix: Dataset fields holding float `NaN` (as produced by Pandas, Hugging Face, CSV, and PyArrow sources for missing values) are now treated as missing for `input`, `choices`, `setup`, `sandbox`, `files`, and `metadata`, matching the existing `target` behavior. (#4626)
 - Reasoning: Unsupported extended `reasoning_effort` values are now mapped to valid provider/model tiers for Together, SambaNova, Perplexity, and Fireworks.
+- Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
 
 ## 0.3.257 (11 August 2026)
 

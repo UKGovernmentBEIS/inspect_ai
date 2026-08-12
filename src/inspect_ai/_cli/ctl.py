@@ -33,6 +33,7 @@ import copy
 import functools
 import inspect
 import json as json_lib
+import re
 import time
 import traceback
 from collections.abc import Callable, Iterator, Sequence
@@ -5428,7 +5429,10 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         parts.append(
             "score " + ", ".join(f"{k}={_format_score(v)}" for k, v in scores.items())
         )
-    click.echo("  ·  ".join(p for p in parts if p))
+    # sample ids and score values are agent/dataset-influenced; sanitize each
+    # part separately so an unterminated string sequence in one can't swallow
+    # the trusted fields (status, score) joined after it
+    click.echo("  ·  ".join(_sanitize_control(p) for p in parts if p))
 
     error = detail.get("error")
     retries = detail.get("error_retries") or []
@@ -5447,10 +5451,14 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
 
 def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None:
     """Echo one error: ``label  message`` plus an indented traceback if asked."""
-    message = error.get("message") or ""
+    message = _sanitize_control(error.get("message") or "")
     click.echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
-        tb = error.get("traceback_ansi") or error.get("traceback") or ""
+        traceback_ansi = error.get("traceback_ansi")
+        if traceback_ansi:
+            tb = _sanitize_keep_sgr(traceback_ansi)
+        else:
+            tb = _sanitize_control(error.get("traceback") or "")
         for line in tb.rstrip("\n").splitlines():
             click.echo(f"    {line}")
 
@@ -5465,8 +5473,74 @@ def _format_pending(verb: str, timestamp: Any) -> str:
     return f"{verb} {elapsed}".rstrip()
 
 
+# Well-formed ANSI escape sequences, removed whole so their printable payload
+# (e.g. the `0;title` of an OSC title write) doesn't survive as stray text:
+# CSI (params + intermediates + final byte), the string sequences (OSC and
+# DCS/SOS/PM/APC — BEL-, ST-, or raw-C1-ST-terminated, tolerating an
+# unterminated tail), charset designations, then any other two-byte ESC
+# sequence.
+_ANSI_ESCAPE_RE = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI
+    r"|\x1b[\]PX^_][^\x07\x1b\x9c]*(?:\x07|\x1b\\|\x9c)?"  # OSC/DCS/SOS/PM/APC
+    r"|\x1b[()*+./-][0-~]"  # charset designations
+    r"|\x1b."  # C1 aliases, keypad modes, etc.
+)
+
+# Remaining C0 controls (newline and tab excepted — handled by callers and
+# `_sanitize_control` respectively), DEL, and raw 8-bit C1 controls.
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+
+
+def _sanitize_control(text: str) -> str:
+    """Neutralize terminal control bytes in agent-controlled display text.
+
+    Tool results and model completions land verbatim in the transcript and
+    flow out through the read commands' human renderings, so a sample under
+    evaluation can emit ESC/CSI/OSC sequences, carriage returns, or
+    backspaces that rewrite what the operator's terminal shows (spoofed
+    results, title/clipboard writes). Well-formed escape sequences are
+    removed whole (payload included), tabs become single spaces (they'd
+    break the tables' width math), and any remaining C0/C1 control byte is
+    dropped — newline excepted, which each caller already handles. The
+    ``--json`` / ``--full`` machine paths and Inspect's own
+    ``traceback_ansi`` rendering are deliberately not routed through here.
+    """
+    text = _ANSI_ESCAPE_RE.sub("", text)
+    return _CONTROL_CHARS_RE.sub("", text.replace("\t", " "))
+
+
+# SGR (color/style) sequences — the one escape class rich's own tracebacks
+# legitimately contain, and inert on their own (they can restyle, never
+# rewrite or exfiltrate).
+_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _sanitize_keep_sgr(text: str) -> str:
+    """`_sanitize_control`, but preserving SGR color/style sequences.
+
+    For ``traceback_ansi``: usually Inspect's own rich rendering (SGR-only
+    styling worth keeping), but it falls back to raw, un-rendered text for
+    oversized tracebacks and in recovered logs — and a traceback embeds
+    agent-influenced exception text — so everything except SGR is
+    neutralized rather than trusted wholesale. Kept styling is closed with
+    a trailing reset: a raw fallback can end mid-style (even an SGR 8
+    conceal), which would otherwise bleed into subsequent trusted output.
+    """
+    out: list[str] = []
+    last = 0
+    for m in _SGR_RE.finditer(text):
+        out.append(_sanitize_control(text[last : m.start()]))
+        out.append(m.group())
+        last = m.end()
+    out.append(_sanitize_control(text[last:]))
+    result = "".join(out)
+    if last and not result.rstrip("\n").endswith("\x1b[0m"):
+        result = result.rstrip("\n") + "\x1b[0m"
+    return result
+
+
 def _truncate(text: str, width: int) -> str:
-    text = text.replace("\n", " ")
+    text = _sanitize_control(text).replace("\n", " ")
     return text if len(text) <= width else text[: width - 1] + "…"
 
 
@@ -5769,7 +5843,17 @@ def _render_table(
     *,
     err: bool = False,
 ) -> None:
-    """Print an aligned, dashed-underline table (to stderr when ``err``)."""
+    """Print an aligned, dashed-underline table (to stderr when ``err``).
+
+    Every cell is sanitized here (not only via `_truncate`) so no
+    agent-controlled string reaches the terminal raw, the width math counts
+    printable characters only, and an embedded newline can't forge rows.
+    """
+    headers = tuple(_sanitize_control(h) for h in headers)
+    rows = [
+        tuple(_sanitize_control(cell).replace("\n", " ") for cell in row)
+        for row in rows
+    ]
     widths = [
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
