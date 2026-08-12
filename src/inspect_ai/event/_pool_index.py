@@ -53,6 +53,7 @@ value that was never pooled at that position.
 
 import copy
 import dataclasses
+import random
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -230,16 +231,18 @@ class MessagePoolIndex:
                 del self._hash_index[hash_added]
 
 
-_CALL_PREV_SLOTS = 4
+_CALL_PREV_SLOTS = 8
 """Retained previous-request slots per CallPoolIndex.
 
-Two slots cover the serial raw/condensed notification alternation (each
-form is one lineage that prefix-extends turn over turn); the extra slots
-absorb a small number of interleaved parallel-agent lineages. Exhaustion
-degrades to hash-dedup — safe, just slower. Each slot pins one deep-copied
-request snapshot; for a raw lineage that can be the sole owner of the full
-raw content across turns (strings shared with live objects where they
-exist) — a deliberate memory tradeoff, bounded per lineage.
+Two slots per concurrent generate stream (one for the raw request lineage,
+one for the transcript-condensed lineage the same stream also notifies), so
+8 slots cover ~4 interleaved streams. Beyond capacity, degradation is
+proportional under random eviction (see ``CallPoolIndex._evict_rng``) rather
+than a cliff to zero, and is bounded above by the pre-cache full-walk cost.
+Each slot pins one deep-copied request snapshot; for a raw lineage that can
+be the sole owner of the full raw content across turns (strings shared with
+live objects where they exist) — a deliberate memory tradeoff, bounded per
+lineage.
 """
 
 
@@ -262,6 +265,12 @@ class CallPoolIndex:
     re-serialize the prefix every event, reintroducing the O(N^2) hashing
     this index removed.
 
+    Eviction beyond ``_CALL_PREV_SLOTS`` is random, not LRU: N interleaved
+    streams accessed round-robin make LRU evict exactly the lineage each
+    stream needs next, collapsing every stream's prefix-hit rate at cap+1
+    lineages (measured 2 -> 51 pool-hashes/turn at 5 streams). Random
+    eviction keeps the degradation proportional to the excess instead.
+
     Supports ``mark()``/``restore()`` to unwind state when a surrounding
     database transaction rolls back.
     """
@@ -279,6 +288,9 @@ class CallPoolIndex:
         self._matched_slot: int = -1
         # undo log of hashes added (for mark/restore)
         self._added_hashes: list[str] = []
+        # Seeded for reproducibility; eviction choice affects performance
+        # only, never output content.
+        self._evict_rng = random.Random(0)
 
     @property
     def size(self) -> int:
@@ -356,10 +368,10 @@ class CallPoolIndex:
         lineage); a partial match keeps the matched slot and appends the new
         entry as a sibling lineage instead, since a partial match means the
         two lineages diverged from a shared prefix and replacing would merge
-        them. With no match the entry is appended. Either way, an append
-        evicts the oldest lineage beyond ``_CALL_PREV_SLOTS``. ``prefix_len=0``
-        (copy everything) is always safe for callers that do not track the
-        matched prefix.
+        them. With no match the entry is appended. An append at cap first
+        evicts a random existing lineage (see class docstring: LRU is
+        pathological here). ``prefix_len=0`` (copy everything) is always
+        safe for callers that do not track the matched prefix.
 
         Args:
             msgs: Pre-walk wire-format message list.
@@ -387,9 +399,13 @@ class CallPoolIndex:
         )
         if fully_consumed:
             del self._prevs[matched]
+        elif len(self._prevs) >= _CALL_PREV_SLOTS:
+            # LRU is pathological here: N-stream round-robin access evicts
+            # exactly the next-needed lineage, collapsing every stream's hit
+            # rate at cap+1 lineages; random eviction keeps the degradation
+            # proportional to the excess.
+            del self._prevs[self._evict_rng.randrange(len(self._prevs))]
         self._prevs.append(entry)
-        if len(self._prevs) > _CALL_PREV_SLOTS:
-            del self._prevs[0]
 
     def mark(self) -> int:
         """Return a mark for later ``restore()``.

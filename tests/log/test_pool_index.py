@@ -315,13 +315,24 @@ def test_call_pool_index_carry_forward_uses_matched_slot() -> None:
     assert index.match_prefix(grown_a) == [0, 1]
 
 
-def test_call_pool_index_evicts_oldest_slot_beyond_cap() -> None:
+def test_call_pool_index_caps_slots_and_keeps_matching_beyond_cap() -> None:
+    """Slot count never exceeds the cap; exactly cap-many lineages stay matchable.
+
+    Eviction policy is random (not LRU), so this pins the cap invariant and
+    the number of surviving matches without pinning which lineages survive.
+    """
+    from inspect_ai.event._pool_index import _CALL_PREV_SLOTS
+
     index = CallPoolIndex()
-    for i in range(5):  # slot cap is 4
+    n = _CALL_PREV_SLOTS + 3
+    for i in range(n):
         index.set_prev([{"content": f"lineage-{i}"}], [i])
-    assert index.match_prefix([{"content": "lineage-0"}]) == []
-    for i in range(1, 5):
-        assert index.match_prefix([{"content": f"lineage-{i}"}]) == [i]
+    assert len(index._prevs) == _CALL_PREV_SLOTS
+    # exactly _CALL_PREV_SLOTS lineages remain matchable; the rest miss (safe)
+    hits = sum(
+        1 for i in range(n) if index.match_prefix([{"content": f"lineage-{i}"}]) == [i]
+    )
+    assert hits == _CALL_PREV_SLOTS
 
 
 def test_call_pool_index_restore_drops_all_slots() -> None:

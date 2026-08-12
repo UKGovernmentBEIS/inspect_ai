@@ -668,6 +668,102 @@ def test_transcript_call_condense_is_linear(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
 
+def _drive_streams(tr: Transcript, n_streams: int, rounds: int) -> None:
+    """Drive `n_streams` interleaved generate streams through `tr`.
+
+    Each round advances every stream by one turn through the realistic
+    pending/registration/completion/stamping notification shape, round-robin
+    across streams -- the access pattern that thrashes an LRU call-pool
+    cache under-capacity (each stream's slot is the next one evicted).
+    """
+    payload = "y" * 150
+    histories: list[list[ChatMessage]] = [[] for _ in range(n_streams)]
+    wires: list[list[dict[str, JsonValue]]] = [[] for _ in range(n_streams)]
+    for r in range(rounds):
+        for s in range(n_streams):
+            histories[s].append(ChatMessageUser(content=f"s{s} message {r}"))
+            wires[s].append({"role": "user", "content": f"s{s} {payload} {r}"})
+            event = ModelEvent(
+                model="test",
+                input=list(histories[s]),
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(),
+                pending=True,
+            )
+            tr._event(event)  # 1: pending
+            event.call = ModelCall(
+                request={"model": "test", "messages": [dict(m) for m in wires[s]]}
+            )
+            tr._event_updated(event)  # 2: call registration (raw)
+            event.output = ModelOutput.from_content("test", "response")
+            event.call = ModelCall(
+                request={"model": "test", "messages": [dict(m) for m in wires[s]]},
+                response={"id": f"r{s}-{r}"},
+            )
+            event.pending = None
+            tr._event_updated(event)  # 3: completion (raw + response)
+            tr._event_updated(event)  # 4: timestamp stamping (condensed form)
+
+
+def test_buffer_condense_linear_with_three_interleaved_streams(
+    db: SampleBufferDatabase, hash_counter: HashCounter
+) -> None:
+    """3 streams x 2 lineages = 6 <= 8 slots: all streams stay prefix-cached.
+
+    Fails on a 4-slot CallPoolIndex (2-stream capacity), where round-robin
+    access thrashes every lineage back to full-history re-hashing.
+    """
+    db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
+    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    n_streams = 3
+    rounds = 25
+    _drive_streams(tr, n_streams, rounds)
+
+    turns = rounds * n_streams
+    budget = 12 * turns
+    assert hash_counter.msg_hashes <= budget, (
+        f"message hashing superlinear across {n_streams} interleaved streams: "
+        f"{hash_counter.msg_hashes} for {turns} turns"
+    )
+    assert hash_counter.call_hashes <= budget, (
+        f"call hashing superlinear across {n_streams} interleaved streams: "
+        f"{hash_counter.call_hashes} for {turns} turns"
+    )
+
+
+def test_buffer_condense_degrades_proportionally_beyond_slot_cap(
+    db: SampleBufferDatabase, hash_counter: HashCounter
+) -> None:
+    """5 streams x 2 lineages = 10 > 8 slots.
+
+    LRU thrashes 2 lineages' worth of full history re-hashing every turn;
+    random eviction spreads the excess across lineages instead, so cost
+    stays well below the thrash ceiling.
+    """
+    db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
+    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    n_streams = 5
+    rounds = 25
+    _drive_streams(tr, n_streams, rounds)
+
+    turns = rounds * n_streams
+    # LRU thrash measures ~26 call-hashes/turn at this shape; random
+    # eviction measured ~11. Budget at 18/turn rejects the cliff while
+    # tolerating eviction-order variance.
+    assert hash_counter.call_hashes <= 18 * turns, (
+        f"call hashing collapsed to LRU-thrash levels across {n_streams} "
+        f"interleaved streams: {hash_counter.call_hashes} for {turns} turns"
+    )
+    assert hash_counter.msg_hashes <= 18 * turns, (
+        f"message hashing collapsed to LRU-thrash levels across {n_streams} "
+        f"interleaved streams: {hash_counter.msg_hashes} for {turns} turns"
+    )
+
+
 def test_buffer_condense_linear_across_notification_shape(
     db: SampleBufferDatabase, hash_counter: HashCounter
 ) -> None:
