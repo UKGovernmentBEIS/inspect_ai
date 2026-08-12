@@ -3462,7 +3462,11 @@ def _requeue_pairs(
     fail every remaining post identically (unreachable/busy process, missing
     route on an older server) aborts the whole command — safe to re-run, the
     endpoint is idempotent. The command exits zero once every sample was
-    attempted; per-sample outcomes live in the results.
+    attempted; per-sample outcomes live in the results. A recorded rejection
+    has already been echoed to stderr by :func:`_request_json` before it is
+    caught here — deliberate: stderr stays narration in both output modes
+    (and doubles as live progress on a long sweep); the stdout report is the
+    authoritative outcome.
     """
 
     def what(sample_id: str) -> str:
