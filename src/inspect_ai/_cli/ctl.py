@@ -348,7 +348,9 @@ def ctl_command() -> None:
     `{"error": {kind, exception, message, status}}` envelope on stdout
     (exit code stays non-zero; click usage errors — unknown option,
     missing argument — still exit 2 without one). With no running evals,
-    task- and sample-targeted commands (and `config`) print `null`.
+    task- and sample-targeted commands (and `config`) print `null`,
+    except the paged reads (`sample events` / `sample messages`), which
+    print an empty page (identifier echo with `task_id` null).
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
