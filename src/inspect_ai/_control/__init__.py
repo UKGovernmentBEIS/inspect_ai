@@ -60,4 +60,8 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       an older server simply keeps returning content — but the version
 #       lets a monitor provisioner verify the server enforces the
 #       metadata-only default before trusting it as an injection boundary.
+#       The reverse skew (pre-6 CLI, v6 server) renders imperfectly: the old
+#       `sample show` truthiness-checked the error dict, so a withheld error
+#       (`{}`) on a zero-retries sample prints "(no errors)" under an `error`
+#       status line. Cosmetic only, and unfixable for already-shipped CLIs.
 CONTROL_API_VERSION: int = 6
