@@ -3244,7 +3244,7 @@ def _run_sample_cancel(
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         status = result.get("status")
-        suffix = f" (status: {status})" if status else ""
+        suffix = f" (status: {_sanitize_control(str(status))})" if status else ""
         return f"Nothing to do — {label} has already finished{suffix}."
 
     _run_sample_mutation(

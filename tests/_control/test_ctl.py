@@ -6133,7 +6133,9 @@ def test_sample_mutation_messages_sanitize_wire_fields(
             "changed": False,
             "sample_id": "s1\x1b]0;evil\x07",
             "epoch": 1,
-            "status": "completed\x1b[2K",
+            # unterminated OSC: per-field sanitization must bound it to the
+            # status field rather than let it swallow the trailing ").".
+            "status": "completed\x1b]0;evil",
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
@@ -6141,7 +6143,7 @@ def test_sample_mutation_messages_sanitize_wire_fields(
     assert result.exit_code == 0, result.output
     assert "\x1b" not in result.output
     assert "s1" in result.output
-    assert "completed" in result.output
+    assert "(status: completed)." in result.output
 
     spy = _RequestSpy(
         {"ok": True, "changed": False, "reason": "held\x1b]0;evil\x07 elsewhere"}
@@ -6157,8 +6159,9 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
     """Every echo in ctl.py routes through `_echo` / `_echo_raw`.
 
     The sanitizing default is a structural guarantee only while direct
-    `click.echo` calls stay out of rendering code — a bare call would
-    silently bypass `_sanitize_control`.
+    output calls stay out of rendering code — a bare `click.echo`,
+    `click.secho`, `click.echo_via_pager`, or `print` would silently
+    bypass `_sanitize_control`.
     """
     import ast
     import inspect as inspect_module
@@ -6182,18 +6185,18 @@ def test_no_direct_click_echo_outside_the_wrappers() -> None:
 
         def visit_Call(self, node: ast.Call) -> None:
             func = node.func
-            if (
+            in_wrapper = self.stack[-1:] in (["_echo"], ["_echo_raw"])
+            direct_output = (
                 isinstance(func, ast.Attribute)
-                and func.attr == "echo"
+                and func.attr in ("echo", "secho", "echo_via_pager")
                 and isinstance(func.value, ast.Name)
                 and func.value.id == "click"
-                and self.stack[-1:] != ["_echo"]
-                and self.stack[-1:] != ["_echo_raw"]
-            ):
+            ) or (isinstance(func, ast.Name) and func.id == "print")
+            if direct_output and not in_wrapper:
                 offenders.append(
                     f"line {node.lineno} in {'.'.join(self.stack) or '<module>'}"
                 )
             self.generic_visit(node)
 
     Visitor().visit(tree)
-    assert not offenders, f"direct click.echo outside _echo/_echo_raw: {offenders}"
+    assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
