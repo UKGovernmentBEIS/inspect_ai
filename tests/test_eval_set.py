@@ -1,4 +1,5 @@
 import json
+import math
 import shutil
 import tempfile
 import threading
@@ -6,7 +7,7 @@ import time
 import zipfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 from unittest.mock import patch
 
 import pytest
@@ -54,7 +55,17 @@ from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.model import CachePolicy, Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.scorer import exact
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    exact,
+    mean,
+    metric,
+    scorer,
+)
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util._limit import TokenLimit
@@ -540,6 +551,160 @@ def test_eval_set_preserves_token_usage():
         retried_tokens = retried_log.stats.model_usage[model_name].total_tokens
 
     assert retried_tokens > baseline_tokens
+
+
+def test_eval_set_retry_nan_dict_score_leaves() -> None:
+    """eval_set retry of a task whose dict scores contain NaN leaves.
+
+    NaN dict-score leaves must be serialized to the eval log as JSON NaN
+    constants so that a retry reloading completed samples from the failed
+    log sees NaN (excluded from metrics, counted as unscored). Serialized
+    as null they reload as None, which slips past NaN filtering: metrics
+    silently count the leaf as 0.0 via value_to_float() and custom scalar
+    metrics crash in Score.as_float().
+    """
+
+    @metric
+    def solved_rate() -> Metric:
+        # mirrors user metrics that read each leaf as a scalar
+        def compute(scores: list[SampleScore]) -> float:
+            if len(scores) == 0:
+                return 0.0
+            return sum(s.score.as_float() >= 1.0 for s in scores) / len(scores)
+
+        return compute
+
+    @scorer(metrics={"a": [mean(), solved_rate()], "b": [mean()]})
+    def nan_leaf_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value={"a": float("nan"), "b": 1.0})
+            return Score(value={"a": 0.5, "b": 0.0})
+
+        return score
+
+    # fail sample 2 on the first attempt only, so the first eval fails after
+    # sample 1 (the NaN-leaf sample) has completed and been written to the
+    # log, and the retry reloads sample 1 from disk
+    attempts = {"value": 0}
+
+    @solver
+    def fail_second_sample_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                attempts["value"] += 1
+                if attempts["value"] == 1:
+                    raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(id=1, input="one"), Sample(id=2, input="two")],
+                solver=fail_second_sample_first_attempt(),
+                scorer=nan_leaf_scorer(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            max_samples=1,
+            model="mockllm/model",
+        )
+        assert success
+
+        log = read_eval_log(logs[0].location)
+        assert log.results is not None
+        scores_by_key = {score.name: score for score in log.results.scores}
+
+        # sample 1's NaN leaf for "a" is unscored: excluded from mean (not
+        # counted as 0.0) and never passed to solved_rate as a scalar
+        assert scores_by_key["a"].scored_samples == 1
+        assert scores_by_key["a"].unscored_samples == 1
+        assert scores_by_key["a"].metrics["mean"].value == 0.5
+        assert scores_by_key["a"].metrics["solved_rate"].value == 0.0
+
+        # both samples scored for "b"
+        assert scores_by_key["b"].scored_samples == 2
+        assert scores_by_key["b"].unscored_samples == 0
+        assert scores_by_key["b"].metrics["mean"].value == 0.5
+
+
+def test_eval_set_retry_nan_scalar_and_list_scores() -> None:
+    """eval_set retry of a task with scalar-NaN and list-NaN scores.
+
+    Companion to test_eval_set_retry_nan_dict_score_leaves for the other two
+    Value shapes. A scalar NaN marks the whole sample unscored; a NaN list
+    element must survive the reload (serialized as null it fails Value
+    validation, since the list variant rejects None, and the retry cannot
+    read the completed sample at all).
+    """
+
+    @scorer(metrics=[mean()])
+    def scalar_nan_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value=float("nan"))
+            return Score(value=0.5)
+
+        return score
+
+    @scorer(metrics=[mean()])
+    def list_nan_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value=[float("nan"), 1.0])
+            return Score(value=[0.5, 0.0])
+
+        return score
+
+    attempts = {"value": 0}
+
+    @solver
+    def fail_second_sample_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                attempts["value"] += 1
+                if attempts["value"] == 1:
+                    raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(id=1, input="one"), Sample(id=2, input="two")],
+                solver=fail_second_sample_first_attempt(),
+                scorer=[scalar_nan_scorer(), list_nan_scorer()],
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            max_samples=1,
+            model="mockllm/model",
+        )
+        assert success
+
+        log = read_eval_log(logs[0].location)
+        assert log.samples is not None
+        sample_1 = next(s for s in log.samples if s.id == 1)
+        assert sample_1.scores is not None
+
+        # sample 1's NaN survived the retry reload in both shapes
+        scalar_value = sample_1.scores["scalar_nan_scorer"].value
+        assert isinstance(scalar_value, float) and math.isnan(scalar_value)
+        list_value = sample_1.scores["list_nan_scorer"].value
+        assert isinstance(list_value, list)
+        assert math.isnan(cast(float, list_value[0]))
+
+        # scalar NaN counts as unscored, not as 0.0 (mean over sample 2 only)
+        assert log.results is not None
+        scores_by_key = {score.name: score for score in log.results.scores}
+        assert scores_by_key["scalar_nan_scorer"].scored_samples == 1
+        assert scores_by_key["scalar_nan_scorer"].unscored_samples == 1
+        assert scores_by_key["scalar_nan_scorer"].metrics["mean"].value == 0.5
 
 
 def test_eval_set_header_only() -> None:
@@ -1520,6 +1685,41 @@ def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
             output_dir=bundle_dir,
             overwrite=True,
         )
+
+
+def test_eval_set_bundle_after_retries_once(tmp_path: Path) -> None:
+    @solver
+    def fail_first_attempt() -> Solver:
+        attempts = {"count": 0}
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    bundle_dir = tmp_path / "bundle"
+    success, logs = eval_set(
+        tasks=Task(
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[generate(), fail_first_attempt()],
+            scorer=exact(),
+        ),
+        log_dir=str(tmp_path / "logs"),
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=False,
+        model="mockllm/model",
+        bundle_dir=str(bundle_dir),
+    )
+
+    assert success
+    assert logs[0].status == "success"
+    assert (bundle_dir / "index.html").exists()
+    assert (bundle_dir / "logs" / "listing.json").exists()
+    assert len(list((bundle_dir / "logs").glob("*.eval"))) == 1
 
 
 def test_invalidation(tmp_path: Path):

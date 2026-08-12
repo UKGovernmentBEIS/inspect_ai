@@ -14,7 +14,7 @@ from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
 
 import anyio
 import pytest
-from _pytest.outcomes import OutcomeException
+from _pytest.outcomes import OutcomeException, Skipped, XFailed
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
@@ -73,6 +73,9 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
     """
     Decorator to retry flaky tests up to max_retries times.
 
+    Deliberate test outcomes -- ``pytest.skip()`` and ``pytest.xfail()`` --
+    are re-raised immediately rather than retried.
+
     **Use with discretion and as a last resort.** This decorator should only be used
     for tests that require specific model behavior to trigger the code under test,
     where the flakiness is due to inherent non-determinism in model responses
@@ -99,6 +102,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                 for attempt in range(max_retries + 1):
                     try:
                         return await func(*args, **kwargs)
+                    except (Skipped, XFailed):
+                        # pytest.skip()/xfail() are deliberate outcomes, not
+                        # flakiness -- honor them without retrying
+                        raise
                     except (Exception, OutcomeException) as e:
                         last_exception = e
                         if attempt < max_retries:
@@ -115,6 +122,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
+                except (Skipped, XFailed):
+                    # pytest.skip()/xfail() are deliberate outcomes, not
+                    # flakiness -- honor them without retrying
+                    raise
                 except (Exception, OutcomeException) as e:
                     last_exception = e
                     if attempt < max_retries:
@@ -270,8 +281,12 @@ def skip_if_no_google(func):
 
 
 def skip_if_no_mistral(func):
+    # the mistralai SDK uses asyncio.to_thread internally, so always skip
+    # live Mistral tests under trio
     func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        skip_if_env_var("MISTRAL_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_mistral_package(func):
@@ -314,6 +329,11 @@ def skip_if_no_fireworks(func):
 def skip_if_no_moonshot(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
+def skip_if_no_deepseek(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
 
 
 def skip_if_no_sambanova(func):
@@ -540,23 +560,33 @@ def ensure_test_package_installed():
             fcntl.flock(lock_file, fcntl.LOCK_EX)
         try:
             clear_entry_points_state()
-            if importlib.util.find_spec("inspect_package") is None:
-                raise ImportError
-        except ImportError:
-            subprocess.check_call(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--no-deps",
-                    "tests/test_package",
-                ]
-            )
+            # a worker that started before another worker installed the package
+            # can hold a stale negative finder cache, making find_spec() return
+            # None for an already-installed package; that triggers a redundant
+            # reinstall whose uninstall step briefly removes the dist-info out
+            # from under concurrent workers enumerating entry points
+            importlib.invalidate_caches()
+            try:
+                if importlib.util.find_spec("inspect_package") is None:
+                    raise ImportError
+            except ImportError:
+                subprocess.check_call(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "install",
+                        "--no-deps",
+                        "tests/test_package",
+                    ]
+                )
+                importlib.invalidate_caches()
+            # register entry points while still holding the lock so no other
+            # worker's pip install can be mid-flight while we enumerate them
+            ensure_entry_points("inspect_package")
         finally:
             if os.name == "posix":
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
-    ensure_entry_points("inspect_package")
 
 
 @contextlib.contextmanager

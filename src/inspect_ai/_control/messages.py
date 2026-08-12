@@ -27,6 +27,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 # The compact message projection shares its truncation helpers with the events
 # projection so the two renderings of the same underlying objects can't drift.
 from inspect_ai._control.events import _to_text, _truncate
+from inspect_ai._control.terminal_cache import (
+    TerminalSourceCache,
+    invalidate_terminal_sources,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.model._chat_message import ChatMessage
@@ -45,6 +49,14 @@ class MessagesSource(NamedTuple):
 
     status: str
     """``running`` / ``completed`` / ``error``."""
+
+
+# Short-TTL cache of resolved terminal sources. A terminal sample's
+# conversation is immutable, but `tail` bounds only the *response* — the
+# whole-conversation parse and attachment resolution run per request (see
+# _resolve_logged_source), re-paid per poll against a source that can never
+# change. See terminal_cache for the staleness bounds.
+_terminal_sources: TerminalSourceCache[MessagesSource] = TerminalSourceCache()
 
 
 async def sample_messages(
@@ -75,7 +87,13 @@ async def sample_messages(
     as_of = time.time()
 
     source = _running_source(eval_id, sample_id, epoch)
-    if source is None:
+    if source is not None:
+        # a running attempt (a retry) supersedes any cached terminal source
+        # for this sample — drop it (from every projection's cache, not just
+        # this endpoint's) so the attempt's own terminal source is resolved
+        # fresh once it finishes (see terminal_cache)
+        invalidate_terminal_sources((eval_id, sample_id, epoch))
+    else:
         source = await _logged_source(eval_id, sample_id, epoch)
     if source is None:
         return None
@@ -125,6 +143,22 @@ def _running_source(eval_id: str, sample_id: str, epoch: int) -> MessagesSource 
 
 
 async def _logged_source(
+    eval_id: str, sample_id: str, epoch: int
+) -> MessagesSource | None:
+    """The terminal source for a sample, resolved through the short-TTL cache.
+
+    A terminal attempt's conversation is immutable, so the resolved source is
+    reused across polls instead of re-paying the whole-conversation parse and
+    attachment resolution per request (see ``_terminal_sources`` and
+    ``TerminalSourceCache.get_or_resolve``).
+    """
+    return await _terminal_sources.get_or_resolve(
+        (eval_id, sample_id, epoch),
+        lambda: _resolve_logged_source(eval_id, sample_id, epoch),
+    )
+
+
+async def _resolve_logged_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> MessagesSource | None:
     """The terminal source for a sample (recorder buffer, then on-disk log).

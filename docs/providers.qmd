@@ -506,14 +506,22 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek {#deepseek}
 
-[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
+To use the [DeepSeek](https://www.deepseek.com/) provider, install the `openai` package (which the DeepSeek service provides a compatible backend for), set your credentials, and specify a model using the `--model` option:
 
 ``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
-export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model deepseek/deepseek-v4-pro
 ```
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default. Use `--reasoning-effort` to control thinking (`none` disables it entirely) — see [Reasoning Effort](reasoning.qmd#reasoning-effort) for details. While thinking is enabled the API rejects forced tool choice, so the `deepseek` provider submits forced tool choices as `"auto"` (disable thinking to force tool use). Note that the legacy `deepseek-chat` and `deepseek-reasoner` model names were retired from the DeepSeek API on July 24th, 2026.
+
+The following environment variables are supported by the DeepSeek provider
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `DEEPSEEK_API_KEY` | API key credentials (required). |
+| `DEEPSEEK_BASE_URL` | Base URL for requests (optional, defaults to `https://api.deepseek.com`). |
 
 ## Moonshot AI {#moonshot-ai}
 
@@ -802,7 +810,7 @@ To use the [Fireworks AI](https://fireworks.ai/) provider, install the `openai` 
 ``` bash
 pip install openai
 export FIREWORKS_API_KEY=your-firewrks-api-key
-inspect eval arc.py --model fireworks/accounts/fireworks/models/deepseek-r1-0528
+inspect eval arc.py --model fireworks/accounts/fireworks/models/kimi-k3
 ```
 
 For the `fireworks` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -1450,7 +1458,7 @@ Here is how you would access DeepSeek using the `openai-api` provider:
 ``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
-inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner
+inspect eval arc.py --model openai-api/deepseek/deepseek-v4-flash
 ```
 
 ### Responses API

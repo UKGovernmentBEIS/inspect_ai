@@ -44,7 +44,24 @@ class Recorder(abc.ABC):
     async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None: ...
 
     @abc.abstractmethod
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        """Record a completed sample.
+
+        Args:
+            eval: Spec of the eval the sample belongs to.
+            sample: The completed sample.
+            write_through: Persist the sample to the recorder's cheap local
+                buffer tier immediately (retaining at most a condensed,
+                event-less copy in memory) rather than holding the full
+                sample resident until the next flush. A memory hint for
+                bulk re-logging (retry-reused samples): destination
+                durability still requires a later ``flush``. Recorders
+                without a distinct local tier (e.g. the in-memory ``.json``
+                format) may ignore it.
+        """
+        ...
 
     async def log_sample_streaming(
         self, eval: EvalSpec, sample: EvalSample, history: "SampleHistory"

@@ -118,6 +118,23 @@ def my_agent() -> Agent:
 
 The [Claude Code](https://meridianlabs-ai.github.io/inspect_swe/claude_code.html) and [Codex CLI](https://meridianlabs-ai.github.io/inspect_swe/codex_cli.html) agents in the Inspect SWE package provide more in-depth demonstrations of running custom agents in sandboxes.
 
+### Granted Capabilities
+
+Some tools a bridged agent can request are executed *outside* the sandbox — `web_search`, `web_fetch`, `code_execution`, and remote MCP servers all run at the model provider. An agent that names one of these in a request therefore reaches the network regardless of the sandbox's own egress policy, so `sandbox_agent_bridge()` withholds them unless the evaluation grants them:
+
+``` python
+async with sandbox_agent_bridge(state, web_search=True) as bridge:
+    ...
+```
+
+Pass `True` to use the target model's internal provider, a `WebSearchProviders` configuration to select providers explicitly, or leave the default to withhold. `code_execution` works the same way, and `client_mcp_servers=True` honors MCP servers named by the agent (prefer [Bridged Tools](#bridged-tools) for servers you choose yourself). Whenever a declared tool is withheld a warning is logged, since an absent tool is otherwise indistinguishable from the model declining to call it.
+
+Ordinary function tools are never withheld — those are executed by the bridged agent inside the sandbox and grant it nothing it does not already have.
+
+For the same reason, image and document content in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
+
+None of this applies to the in-process `agent_bridge()`, where the scaffold already runs with the host's network and filesystem and there is no boundary to defend.
+
 ## Bridged Tools
 
 Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.
@@ -194,6 +211,27 @@ async with agent_bridge(state, forward_generation_config=True) as bridge:
 ```
 
 This option is available on both `agent_bridge()` and `sandbox_agent_bridge()`.
+
+## Tool Approval
+
+Tool calls made by a bridged agent can be governed by [approval policies](approval.qmd), even though the agent executes its own tools. Approval is applied to the tool calls in each model response before that response reaches the agent, so a rejected call is never run.
+
+Eval-level and task-level policies apply automatically; both `agent_bridge()` and `sandbox_agent_bridge()` also accept an `approval` parameter:
+
+``` python
+from inspect_ai.approval import ApprovalPolicy, auto_approver, human_approver
+
+async with sandbox_agent_bridge(
+    state,
+    approval=[
+        ApprovalPolicy(human_approver(), "bash"),
+        ApprovalPolicy(auto_approver(), "*"),
+    ],
+) as bridge:
+    ...
+```
+
+Rejection works by telling the model rather than by editing the response: the rejected call and an explanation are replayed to the model, which then generates again. The agent sees only the replacement, so its loop continues normally. See [Bridged Agents](approval.qmd#bridged-agents) for the full semantics.
 
 ## Transcript
 

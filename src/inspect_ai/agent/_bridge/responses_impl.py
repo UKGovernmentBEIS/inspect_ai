@@ -103,6 +103,7 @@ from inspect_ai.model._openai_responses import (
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
     is_additional_tools,
+    is_agent_message,
     is_assistant_message_param,
     is_code_interpreter_tool_param,
     is_computer_call_output,
@@ -175,8 +176,11 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
+    withheld_bridge_tool,
 )
 
 logger = getLogger(__name__)
@@ -202,8 +206,8 @@ def _is_openai_responses_provider(model: Model) -> bool:
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     headers: dict[str, str] | None,
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
 ) -> Response:
     # resolve model
@@ -258,12 +262,18 @@ async def inspect_responses_api_request_impl(
             continue
         if is_namespace_tool_param(tool):
             _harvest_tool_namespaces(tool, tool_namespaces)
-        tools.extend(tools_from_responses_tool(tool, web_search, code_execution))
+        tools.extend(
+            tools_from_responses_tool(
+                tool, web_search, code_execution, bridge.allow_remote_mcp
+            )
+        )
     tools = [tool for tool in tools if tool]
     responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
         "tool_choice", None
     )
-    tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
+    tool_choice = relax_tool_choice_for_withheld(
+        tool_choice_from_responses_tool_choice(responses_tool_choice), tools
+    )
 
     # convert inspect messages (input was read above, before tool merging)
 
@@ -281,6 +291,7 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD INPUT", input)
 
     messages = messages_from_responses_input(input, tools, model_name)
+    validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -444,8 +455,9 @@ def responses_tool_choice_param_to_tool_choice(
 
 def tool_from_responses_tool(
     tool_param: ToolParam,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
 ) -> ToolInfo | Tool | None:
     if is_function_tool_param(tool_param):
         # stash the original param so the OpenAI Responses provider can re-emit
@@ -472,10 +484,16 @@ def tool_from_responses_tool(
             },
         )
     elif is_web_search_tool_param(tool_param):
+        if web_search_providers is None:
+            withheld_bridge_tool("web_search")
+            return None
         return web_search(
             resolve_web_search_providers(tool_param, web_search_providers)
         )
     elif is_code_interpreter_tool_param(tool_param):
+        if code_execution_providers is None:
+            withheld_bridge_tool("code_interpreter")
+            return None
         return code_execution(
             providers=resolve_code_interpreter_providers(
                 tool_param, code_execution_providers
@@ -484,6 +502,9 @@ def tool_from_responses_tool(
     elif is_computer_tool_param(tool_param):
         return computer()
     elif is_mcp_tool_param(tool_param):
+        if not allow_remote_mcp:
+            withheld_bridge_tool("mcp")
+            return None
         allowed_tools = tool_param["allowed_tools"]
         if isinstance(allowed_tools, dict):
             raise RuntimeError(
@@ -528,8 +549,9 @@ def tool_from_responses_tool(
 
 def tools_from_responses_tool(
     tool_param: ToolParam,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
 ) -> list[ToolInfo | Tool]:
     """Convert a responses ToolParam into zero or more inspect tools.
 
@@ -547,7 +569,10 @@ def tools_from_responses_tool(
         for inner in tool_param.get("tools", []):
             inner_param = cast(ToolParam, inner)
             inner_tool = tool_from_responses_tool(
-                inner_param, web_search_providers, code_execution_providers
+                inner_param,
+                web_search_providers,
+                code_execution_providers,
+                allow_remote_mcp,
             )
             if inner_tool is not None:
                 # Stash the namespace so openai_responses_tools can re-group
@@ -563,7 +588,7 @@ def tools_from_responses_tool(
                 flattened.append(inner_tool)
         return flattened
     tool = tool_from_responses_tool(
-        tool_param, web_search_providers, code_execution_providers
+        tool_param, web_search_providers, code_execution_providers, allow_remote_mcp
     )
     return [tool] if tool is not None else []
 
@@ -923,7 +948,58 @@ def messages_from_responses_input(
         # see if we need to collect a pending assistant message
         collect_pending_assistant_message()
 
-        if is_response_input_message(item):
+        if is_agent_message(item):
+            # Codex Multi-Agent V2 delivers inter-agent messages as input items.
+            # Render an author-attributed user message (Codex's own downgrade
+            # convention, so the recipient never mistakes another agent's words
+            # for the user's) and stash the original item on ContentText.internal
+            # so the OpenAI Responses provider can replay it natively --
+            # encrypted_content parts are undecryptable here but decryptable
+            # by OpenAI server-side. Checked before is_response_input_message
+            # (an exact type match vs. a loose keys-based one) so a future
+            # Codex adding a "role" key to agent_message items can't silently
+            # reroute them into the plain-message branch.
+            agent_message = cast(dict[str, Any], item)
+            author = str(agent_message.get("author") or "agent")
+            agent_message_parts = agent_message.get("content", []) or []
+            text_parts = [
+                part["text"]
+                for part in agent_message_parts
+                if isinstance(part, dict)
+                and part.get("type") == "input_text"
+                and isinstance(part.get("text"), str)
+            ]
+            if not text_parts:
+                if any(
+                    isinstance(part, dict) and part.get("type") == "encrypted_content"
+                    for part in agent_message_parts
+                ):
+                    warn_once(
+                        logger,
+                        "agent_message item carries only encrypted content: it "
+                        "replays natively to OpenAI Responses targets, but other "
+                        "targets see only a placeholder.",
+                    )
+                    text_parts = ["[encrypted content: readable only by OpenAI]"]
+                else:
+                    warn_once(
+                        logger,
+                        "agent_message item carries no readable content: "
+                        "rendering a placeholder.",
+                    )
+                    text_parts = ["[no readable content]"]
+            messages.append(
+                ChatMessageUser(
+                    content=[
+                        ContentText(
+                            text=f"Agent message from {author}:\n"
+                            + "\n".join(text_parts),
+                            internal={"agent_message": agent_message},
+                        )
+                    ]
+                )
+            )
+        elif is_response_input_message(item):
             # normalize item content
             item_content: list[ResponseInputContentParam] = (
                 [ResponseInputTextParam(type="input_text", text=item["content"])]

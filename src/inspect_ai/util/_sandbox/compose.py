@@ -94,6 +94,11 @@ def _coerce_cpus(v: Any) -> str | None:
     return str(v) if v is not None else None
 
 
+def _coerce_restart(v: Any) -> Any:
+    """YAML 1.1 resolves bare ``no`` to False; Compose means the string "no"."""
+    return "no" if v is False else v
+
+
 class ComposeModel(BaseModel):
     """Base model that allows x- extensions while rejecting other unknown fields."""
 
@@ -300,6 +305,17 @@ class ComposeService(ComposeModel):
 
     tmpfs: str | list[str] | None = Field(default=None)
     """Paths mounted as a tmpfs. Single path or list of paths."""
+
+    restart: Annotated[str | None, BeforeValidator(_coerce_restart)] = Field(
+        default=None
+    )
+    """Restart policy (e.g. ``no``, ``always``, ``on-failure``, ``unless-stopped``)."""
+
+    stdin_open: bool | None = Field(default=None)
+    """Keep stdin open (``docker run -i``)."""
+
+    tty: bool | None = Field(default=None)
+    """Allocate a pseudo-TTY (``docker run -t``)."""
 
     deploy: ComposeDeploy | None = Field(default=None)
     """Deployment configuration including resources."""

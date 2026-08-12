@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import io
 import tempfile
 import time
@@ -889,14 +890,23 @@ def test_iter_files_s3_missing_prefix(mock_s3: None) -> None:
     asyncio.run(run())
 
 
+@pytest.mark.slow
 def test_iter_files_s3_pagination(mock_s3: None) -> None:
-    """Pagination: >1000 keys must all be returned."""
+    """Pagination: >1000 keys must all be returned.
+
+    Marked slow: creating 1001+ keys (the S3 default page size) means ~1050
+    real HTTP PUTs against the moto server, several seconds even in-process.
+    """
     base = f"{S3_BUCKET}/iter_test_files_page"
 
     async def run() -> None:
         async with AsyncFilesystem() as fs:
-            for i in range(1050):
-                await fs.write_file(f"{base}/k{i:04d}.txt", b"x")
+            await tg_collect(
+                [
+                    functools.partial(fs.write_file, f"{base}/k{i:04d}.txt", b"x")
+                    for i in range(1050)
+                ]
+            )
             paths = await _collect(fs.iter_files(base, recursive=True))
             assert len(paths) == 1050
 

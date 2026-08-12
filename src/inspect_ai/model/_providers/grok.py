@@ -78,6 +78,16 @@ XAI_BASE_URL = "XAI_BASE_URL"
 GROK_API_KEY = "GROK_API_KEY"
 GROK_BASE_URL = "GROK_BASE_URL"
 
+# xAI model-name tokens for non-generative models (image/video generation,
+# embeddings) that must never be treated as a "latest" frontier chat model
+# by is_latest().
+_NON_GENERATIVE_TOKENS = (
+    "image",
+    "imagine",
+    "embedding",
+    "tts",
+)
+
 
 class GrokAPI(ModelAPI):
     def __init__(
@@ -172,7 +182,24 @@ class GrokAPI(ModelAPI):
         )
 
     def is_at_least_grok_4(self) -> bool:
+        """Grok 4 or greater, including future versions and codename models."""
         return not self.is_grok_2() and not self.is_grok_3()
+
+    def is_latest(self) -> bool:
+        """Detect an xAI predeployment/codename model as the current frontier.
+
+        xAI sometimes exposes pre-release models under internal code names
+        (e.g. `sherlock-think`) that match none of the known naming
+        conventions. Treat any such unrecognized name as the latest model so it
+        gets frontier behavior. Mirrors OpenAI's `is_latest_model()` and
+        Anthropic's `is_claude_latest()`.
+        """
+        name = self.model_family().lower()
+        if any(token in name for token in _NON_GENERATIVE_TOKENS):
+            return False
+        # known family naming — future grok versions are already covered by
+        # is_at_least_grok_4() and the DB-miss branch of input_tokens_name()
+        return "grok" not in name
 
     def model_client(self) -> AsyncClient:
         return AsyncClient(
@@ -351,6 +378,23 @@ class GrokAPI(ModelAPI):
         """Canonical model name for model info database lookup."""
         return f"grok/{self.service_model_name()}"
 
+    @override
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens (context window)."""
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        # Codename/predeployment models (is_latest() folds into
+        # is_at_least_grok_4()) and grok-named models not yet in the model-info
+        # database (future versions, unknown snapshots) alias to the current
+        # frontier so the context window / compaction match. Bump when a newer
+        # frontier ships. Mirrors the other providers' input_tokens_name().
+        if (
+            self.is_at_least_grok_4()
+            and _get_model_info_direct(self.canonical_name()) is None
+        ):
+            return "grok/grok-4.5"
+        return super().input_tokens_name()
+
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""
         if "prompt length" in details:
@@ -443,12 +487,13 @@ class GrokAPI(ModelAPI):
             # we'll call chat.parse() above w/ the schema
             gconfig["response_format"] = "json_object"
 
-        # grok-3-mini and grok-4 variants (4-fast, 4.1, 4.20, 4.3) accept
-        # reasoning_effort. The *original* grok-4 reasons but rejects the
-        # parameter and must be excluded.
+        # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
+        # 4.5, plus future/codename models) accept reasoning_effort. The
+        # *original* grok-4 reasons but rejects the parameter and must be
+        # excluded.
         if config.reasoning_effort is not None and (
             self.is_grok_3_mini()
-            or (self.is_grok_4() and not self.is_grok_4_original())
+            or (self.is_at_least_grok_4() and not self.is_grok_4_original())
         ):
             match config.reasoning_effort:
                 case "minimal" | "low":

@@ -1272,3 +1272,113 @@ async def test_no_trailing_assistant_after_compaction(
     assert compacted[-1].role != "assistant", (
         "Compacted messages must not end with an assistant message"
     )
+
+
+# Tests for server-side tool clearing when client-side clearing removes messages
+async def test_server_tool_clearing_after_client_message_removal(
+    tool_call_1: ToolCall,
+) -> None:
+    """Test server-side clearing with keep_tool_inputs=False, which deletes messages.
+
+    The tool use indices are captured in a single enumeration. With
+    keep_tool_inputs=False the client-side pass deletes the tool message, so any
+    server-side index after it must still resolve to the message it was captured
+    from rather than to whatever shifted into its place.
+    """
+    web_search = ContentToolUse(
+        tool_type="web_search",
+        id="ws1",
+        name="web_search",
+        arguments='{"query": "hello"}',
+        result='[{"title": "Result"}]',
+    )
+
+    strategy = CompactionEdit(
+        keep_thinking_turns="all", keep_tool_uses=0, keep_tool_inputs=False
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Start"),
+        ChatMessageAssistant(content="Using tool", tool_calls=[tool_call_1]),
+        # Removed by the client-side pass, shifting every later message down one
+        ChatMessageTool(
+            content="Weather: Sunny", tool_call_id="tool1", function="get_weather"
+        ),
+        ChatMessageAssistant(content=[ContentText(text="Searching"), web_search]),
+        ChatMessageUser(content="Follow up"),
+    ]
+
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+
+    # The server-side tool use is cleared, in the message that actually carried it
+    assistant = next(
+        m
+        for m in compacted
+        if isinstance(m, ChatMessageAssistant)
+        and isinstance(m.content, list)
+        and any(isinstance(c, ContentToolUse) for c in m.content)
+    )
+    assert isinstance(assistant.content, list)
+    tool_use = next(c for c in assistant.content if isinstance(c, ContentToolUse))
+    assert tool_use.id == "ws1"
+    assert tool_use.result == TOOL_RESULT_REMOVED
+
+
+async def test_server_tool_clearing_does_not_write_into_other_messages(
+    tool_call_1: ToolCall,
+    tool_call_2: ToolCall,
+) -> None:
+    """Test that server-side clearing never writes a tool use into another message.
+
+    Two client-side removals shift the server-side message down by two, which lands
+    the captured index on a later assistant message that has list content. That
+    message must keep its own content, and must not gain a tool use it never made.
+    """
+    web_search = ContentToolUse(
+        tool_type="web_search",
+        id="ws1",
+        name="web_search",
+        arguments='{"query": "hello"}',
+        result='[{"title": "Result"}]',
+    )
+
+    strategy = CompactionEdit(
+        keep_thinking_turns="all", keep_tool_uses=0, keep_tool_inputs=False
+    )
+
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="Start"),
+        ChatMessageAssistant(content="First tool", tool_calls=[tool_call_1]),
+        ChatMessageTool(
+            content="Weather: Sunny", tool_call_id="tool1", function="get_weather"
+        ),
+        ChatMessageAssistant(content="Second tool", tool_calls=[tool_call_2]),
+        ChatMessageTool(
+            content="Time: 12:00", tool_call_id="tool2", function="get_time"
+        ),
+        ChatMessageAssistant(content=[ContentText(text="Searching"), web_search]),
+        ChatMessageUser(content="More"),
+        ChatMessageAssistant(content=[ContentText(text="A"), ContentText(text="B")]),
+        ChatMessageUser(content="Follow up"),
+    ]
+
+    compacted, _ = await strategy.compact(get_model("mockllm/model"), messages, [])
+
+    # The later assistant message keeps its own content and gains no tool use
+    other = compacted[-2]
+    assert isinstance(other, ChatMessageAssistant)
+    assert isinstance(other.content, list)
+    assert [c.text for c in other.content if isinstance(c, ContentText)] == ["A", "B"]
+    assert not any(isinstance(c, ContentToolUse) for c in other.content)
+
+    # Exactly one tool use survives anywhere, and it is the cleared original
+    tool_uses = [
+        c
+        for m in compacted
+        if isinstance(m.content, list)
+        for c in m.content
+        if isinstance(c, ContentToolUse)
+    ]
+    assert len(tool_uses) == 1
+    assert tool_uses[0].id == "ws1"
+    assert tool_uses[0].result == TOOL_RESULT_REMOVED

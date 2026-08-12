@@ -50,8 +50,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._samples import active_samples
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
-# `_isolate_active_model` (autouse) and `short_data_dir` come from
-# tests/_control/conftest.py.
+# `isolate_active_model` (autouse) comes from tests/conftest.py, and
+# `short_data_dir` from tests/_control/conftest.py.
 
 # --- ls / GET /evals: per-eval listing -------------------------------------
 
@@ -1812,6 +1812,171 @@ def test_ctl_eval_usage_persists_after_samples_complete(short_data_dir: Path) ->
     assert entry["samples"]["in_flight"] == 0
     assert entry["total_messages"] > 0, entry
     assert entry["total_tokens"] > 0, entry
+
+
+def test_ctl_eval_reports_refusals_after_samples_complete(
+    short_data_dir: Path,
+) -> None:
+    """A refusal is attributed to its eval and survives the sample finishing.
+
+    The end-to-end proof of the whole chain, because every link is invisible from
+    the outside: the model layer reports a `content_filter` stop to a
+    process-global counter, `sample_active()` attributes it, and the count rolls
+    onto the eval as the sample leaves ``active_samples``. Observed at run end,
+    when no sample is left in flight — so a summary that only summed live samples
+    would read 0 here.
+    """
+    from inspect_ai.model import ModelOutput, get_model
+
+    @task
+    def refuses() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="hi", target="ok") for i in (1, 2)],
+            solver=[generate()],
+            name="refuses",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[refuses()],
+            log_dir=log_dir,
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    ModelOutput.from_content(
+                        model="mockllm/model",
+                        content="I cannot help with that.",
+                        stop_reason="content_filter",
+                    )
+                    for _ in range(2)
+                ],
+            ),
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    entry = cap.eval("refuses")
+    assert entry is not None
+    assert entry["samples"]["in_flight"] == 0, entry
+    assert entry["refusals"] == 2, entry
+    # nothing produced an HTTP retry, so the other counter stays honest at 0
+    assert entry["http_retries"] == 0, entry
+
+
+def test_ctl_eval_reports_http_retries_per_eval(short_data_dir: Path) -> None:
+    """HTTP retries are attributed to the eval that incurred them, not the process.
+
+    Reported directly rather than by provoking a provider failure: the providers'
+    21 call sites all funnel through ``report_http_retry``, and what needs covering
+    is the attribution below it. TWO tasks in one ``eval_set`` — that is the whole
+    point of the change, since the process-global counter the TUI footer reads
+    cannot tell these two rows apart.
+    """
+    from inspect_ai._util.retry import http_retries_count, report_http_retry
+
+    def _retrying(n: int) -> Solver:
+        @solver
+        def s() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                for _ in range(n):
+                    report_http_retry()
+                return await generate(state)
+
+            return solve
+
+        return s()
+
+    @task
+    def noisy() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hi", target="ok")],
+            solver=[_retrying(3)],
+            name="noisy",
+        )
+
+    @task
+    def quiet() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hi", target="ok")],
+            solver=[_retrying(0)],
+            name="quiet",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    before = http_retries_count()
+    with capturing() as cap:
+        eval_set(
+            tasks=[noisy(), quiet()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    noisy_entry = cap.eval("noisy")
+    quiet_entry = cap.eval("quiet")
+    assert noisy_entry is not None and quiet_entry is not None
+    assert noisy_entry["http_retries"] == 3, noisy_entry
+    # the discrimination the process-global counter cannot make
+    assert quiet_entry["http_retries"] == 0, quiet_entry
+    # and the global still counts every one, so the footer is unchanged
+    assert http_retries_count() - before == 3
+
+
+def test_ctl_eval_event_counts_survive_a_task_retry(short_data_dir: Path) -> None:
+    """The folded row keeps both attempts' event counts, not just the retry's.
+
+    Retries fold onto one row reporting the LATEST attempt's state counters; event
+    counts must not follow that rule, or the attempt whose failure caused the retry
+    contributes nothing. Emits on both sides of a real task-level retry: attempt 1
+    reports 4 then fails, attempt 2 reports 3 and succeeds, so the row must read 7.
+    """
+    from inspect_ai._util.retry import report_http_retry
+
+    calls = {"n": 0}
+
+    @solver
+    def report_then_maybe_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["n"] += 1
+            first = calls["n"] == 1
+            for _ in range(4 if first else 3):
+                report_http_retry()
+            if first:
+                raise RuntimeError("synthetic first-attempt failure")
+            return state
+
+        return solve
+
+    @task
+    def flaky() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=[report_then_maybe_fail()],
+            name="flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[flaky()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_immediate=True,
+        )
+
+    entry = cap.eval("flaky")
+    assert entry is not None
+    assert entry["attempts"] == 2, entry
+    assert entry["http_retries"] == 7, entry
 
 
 def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(

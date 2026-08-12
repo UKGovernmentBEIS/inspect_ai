@@ -1,7 +1,8 @@
 # Contribution-policy gate — see CONTRIBUTING.md and .github/scripts/pr_gate.py.
-# DRY RUN: while DRY_RUN is "true" the gate only labels (`gate-dry-run`) and
-# comments "would have been closed"; it never closes. Flip to "false" after the
-# two-week observation window (single-line follow-up PR).
+# DRY RUN: while DRY_RUN is "true" the gate only applies the `gate-dry-run`
+# label; it never comments or closes. Flip to "false" after the two-week
+# observation window (single-line follow-up PR). PRs created before the
+# policy landed are never gated (POLICY_START in pr_gate.py).
 #
 # SECURITY: pull_request_target grants a write token, so this workflow checks
 # out the BASE branch only (the default for actions/checkout on this event —
@@ -36,5 +37,6 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_AUTHOR_ASSOC: ${{ github.event.pull_request.author_association }}
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
           DRY_RUN: "true"
         run: python3 .github/scripts/pr_gate.py

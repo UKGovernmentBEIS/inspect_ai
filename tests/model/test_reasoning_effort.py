@@ -1,12 +1,18 @@
 """Tests for shared reasoning_effort utilities and per-provider mapping/clamping.
 
 Covers:
-- Unit tests for `effort_to_reasoning_tokens` and
-  `clamp_reasoning_effort_to_low_medium_high` in `_reasoning.py`.
+- Unit tests for `effort_to_reasoning_tokens`,
+  `clamp_reasoning_effort_to_low_medium_high`, and
+  `clamp_reasoning_effort_to_minimal_low_medium_high` in `_reasoning.py`.
 - Bridge tests: passing `reasoning_effort` to pre-4.6 Claude / Gemini 2.5 should
   produce a `budget_tokens` / `thinking_budget` via the fixed-table translation.
-- Clamp tests: Groq/Ollama/SageMaker should map extended effort values
-  (`minimal`/`xhigh`/`max`) down to the `low`/`medium`/`high` tier.
+- Clamp tests: Groq/Ollama/SageMaker/SambaNova/Together should map extended
+  effort values (`minimal`/`xhigh`/`max`) down to the `low`/`medium`/`high` tier;
+  Perplexity keeps `minimal` and clamps only `xhigh`/`max` down to `high`.
+- Fireworks is model-conditional (superset schema): `minimal`->`low` on all
+  models; `none` is dropped and `xhigh`/`max` clamped to `high` only for gpt-oss and
+  MiniMax M2 (which reject them), while other models (deepseek/glm/kimi and MiniMax
+  M3) accept and pass through `none`/`xhigh`/`max`.
 - OpenRouter: `max` is remapped to `xhigh` (OpenRouter does not accept `max`).
 """
 
@@ -19,6 +25,7 @@ from inspect_ai.model._providers.google import GoogleGenAIAPI
 from inspect_ai.model._providers.openrouter import OpenRouterAPI
 from inspect_ai.model._reasoning import (
     clamp_reasoning_effort_to_low_medium_high,
+    clamp_reasoning_effort_to_minimal_low_medium_high,
     effort_to_reasoning_tokens,
 )
 
@@ -57,6 +64,23 @@ def test_effort_to_reasoning_tokens(effort, expected):
 )
 def test_clamp_reasoning_effort_to_low_medium_high(effort, expected):
     assert clamp_reasoning_effort_to_low_medium_high(effort) == expected
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        (None, None),
+        ("none", None),
+        ("minimal", "minimal"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_clamp_reasoning_effort_to_minimal_low_medium_high(effort, expected):
+    assert clamp_reasoning_effort_to_minimal_low_medium_high(effort) == expected
 
 
 # -- Anthropic bridge: pre-4.6 Claude with reasoning_effort only --
@@ -191,7 +215,7 @@ def test_google_gemini_3_uses_thinking_level_not_bridge():
     assert thinking_config.thinking_budget is None
 
 
-# -- Groq / Ollama / SageMaker clamping --
+# -- Groq / Ollama / SageMaker / SambaNova / Together clamping --
 
 
 @pytest.mark.parametrize(
@@ -246,6 +270,195 @@ def test_ollama_effort_none_omitted():
     api = OllamaAPI(model_name="qwen3:8b")
     params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
     assert "extra_body" not in params or "reasoning" not in params.get("extra_body", {})
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_sambanova_clamps_extended_effort_values(effort, expected):
+    from inspect_ai.model._providers.sambanova import SambaNovaAPI
+
+    api = SambaNovaAPI(model_name="gpt-oss-120b", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
+    assert params.get("reasoning_effort") == expected
+
+
+def test_sambanova_effort_none_omitted():
+    from inspect_ai.model._providers.sambanova import SambaNovaAPI
+
+    api = SambaNovaAPI(model_name="gpt-oss-120b", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
+    assert "reasoning_effort" not in params
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_together_clamps_extended_effort_values(effort, expected):
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    api = TogetherAIAPI(model_name="openai/gpt-oss-120b", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
+    assert params.get("reasoning_effort") == expected
+
+
+def test_together_effort_none_omitted():
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    api = TogetherAIAPI(model_name="openai/gpt-oss-120b", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
+    assert "reasoning_effort" not in params
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "xhigh"),
+        ("max", "max"),
+    ],
+)
+def test_together_frontier_model_preserves_xhigh_max(effort, expected):
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    # Non-gpt-oss Together models (e.g. DeepSeek V4 Pro) accept xhigh/max, so only
+    # `minimal` is clamped and the top-end values pass through.
+    api = TogetherAIAPI(model_name="deepseek-ai/DeepSeek-V4-Pro", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
+    assert params.get("reasoning_effort") == expected
+
+
+def test_together_frontier_model_effort_none_omitted():
+    from inspect_ai.model._providers.together import TogetherAIAPI
+
+    api = TogetherAIAPI(model_name="deepseek-ai/DeepSeek-V4-Pro", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
+    assert "reasoning_effort" not in params
+
+
+# -- Fireworks clamping (model-conditional: gpt-oss and MiniMax M2 accept only
+#    low/medium/high; other models -- incl. MiniMax M3 -- accept none/xhigh/max) --
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "accounts/fireworks/models/gpt-oss-120b",
+        "accounts/fireworks/models/minimax-m2p7",
+    ],
+)
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_fireworks_low_medium_high_models_clamp_extended(model_name, effort, expected):
+    from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+    api = FireworksAIAPI(model_name=model_name, api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
+    assert params.get("reasoning_effort") == expected
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "accounts/fireworks/models/gpt-oss-120b",
+        "accounts/fireworks/models/minimax-m2p7",
+    ],
+)
+def test_fireworks_low_medium_high_models_omit_none(model_name):
+    from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+    # gpt-oss and MiniMax M2 reject `none`, so it is omitted (provider/model default).
+    api = FireworksAIAPI(model_name=model_name, api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
+    assert "reasoning_effort" not in params
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "accounts/fireworks/models/deepseek-v4-pro",
+        "accounts/fireworks/models/minimax-m3",
+    ],
+)
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "low"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "xhigh"),
+        ("max", "max"),
+        ("none", "none"),
+    ],
+)
+def test_fireworks_non_restrictive_models_preserve_extended(
+    model_name, effort, expected
+):
+    from inspect_ai.model._providers.fireworks import FireworksAIAPI
+
+    # DeepSeek and MiniMax M3 accept none/xhigh/max, so only `minimal` is clamped.
+    api = FireworksAIAPI(model_name=model_name, api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
+    assert params.get("reasoning_effort") == expected
+
+
+# -- Perplexity clamping (keeps minimal, clamps only xhigh/max) --
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "minimal"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_perplexity_clamps_only_extended_top_end(effort, expected):
+    from inspect_ai.model._providers.perplexity import PerplexityAPI
+
+    api = PerplexityAPI(model_name="sonar-reasoning-pro", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort=effort), tools=False)
+    assert params.get("reasoning_effort") == expected
+
+
+def test_perplexity_effort_none_omitted():
+    from inspect_ai.model._providers.perplexity import PerplexityAPI
+
+    api = PerplexityAPI(model_name="sonar-reasoning-pro", api_key="test-key")
+    params = api.completion_params(GenerateConfig(reasoning_effort="none"), tools=False)
+    assert "reasoning_effort" not in params
 
 
 # -- OpenAI Responses path max -> xhigh clamp --

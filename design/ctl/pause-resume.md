@@ -1,6 +1,6 @@
 # Pause / Resume for Running Evals and Eval-Sets
 
-> **Status: implemented** (v1 quiesce semantics — the gate module lives in `src/inspect_ai/_control/pause.py`; Future work below remains open). Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture this surface rides on; this doc owns the pause/resume semantics and implementation plan. Originating issue: meridianlabs-ai/inspect_ai#90.
+> **Status: implemented** (v1 quiesce semantics — the gate module lives in `src/inspect_ai/_control/pause.py`; Future work below remains open). Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture this surface rides on; this doc owns the pause/resume semantics and implementation plan. Originating issue: meridianlabs-ai/inspect_ai#90. The model-scoped latch (below) followed from review discussion on the upstream PR: meridianlabs-ai/inspect_ai#130.
 
 `inspect ctl` can today observe a running eval, retune its config, and cancel it — but there is nothing between "running" and "cancelled". An operator (or watchdog agent) facing a provider incident, a cost overrun, or a suspicious-looking transcript has exactly two levers: throttle (`ctl config`) or kill (`ctl task cancel`). Killing forfeits the run's place in line — resuming means a fresh `eval-set` invocation, a new process, and re-running every sample that wasn't durably complete.
 
@@ -32,21 +32,43 @@ So **paused = the run stops consuming from its queues** — the sample queue (sa
 
 ## CLI surface
 
-Two scopes, following the noun groups and selector conventions of `control-channel.md`:
+Three scopes, following the noun groups and selector conventions of `control-channel.md`:
 
 ```
-inspect ctl task pause TASK [--dry-run]      # pause one task (sample dispatch + its retries)
-inspect ctl task resume TASK [--dry-run]     # resume it
-inspect ctl process pause [PID] [--dry-run]  # pause the whole run: every task + the eval-set task/retry scheduler
-inspect ctl process resume [PID] [--dry-run] # resume the whole run
+inspect ctl task pause TASK [--dry-run]        # pause one task (sample dispatch + its retries)
+inspect ctl task resume TASK [--dry-run]       # resume it
+inspect ctl model pause MODEL [PID] [--dry-run]  # pause one model's dispatch (see "Model-scoped latch")
+inspect ctl model resume MODEL [PID] [--dry-run] # resume it
+inspect ctl process pause [PID] [--dry-run]    # pause the whole run: every task + the eval-set task/retry scheduler
+inspect ctl process resume [PID] [--dry-run]   # resume the whole run
 ```
 
 - **`task pause` / `task resume`** take the standard task selector (task-id prefix or name). `TASK` follows the mutation selector rule — sole running task is the default; several running tasks require an explicit selector. Pause is non-destructive and trivially reversible, so it does *not* join `task cancel` in the selector-always-required class (the same reasoning that gives `process keep` / `release` the sole-target default: the worst case of a wrongly targeted pause is a resume).
 - **`process pause` / `process resume`** answer the eval-set question. An eval-set is one process (single `eval()` call under the default `retry_immediate=True`), so "pause the eval-set" is a process-scoped intent: no new tasks start, no task retries start, and no samples dispatch in any task. This is not a fan-out over task pauses (which the CLI conventions reject) — it is one process-scoped latch, like keep-alive, that all dispatch points check. When the `ctl eval-set` noun group eventually lands, an `eval-set pause` spelling can alias to this; the semantics are already right.
-- Task-level and process-level pause are **independent latches**: a sample dispatches only when both its task's gate and the process latch are open. `process resume` does not clear task-level pauses (and vice versa) — resuming the run after an incident should not silently un-pause a task an operator paused for its own reasons. The task-list output labels which latch holds a paused task.
-- Both verbs are idempotent (pausing a paused or finished task reports `changed: false`), last-write-wins (pause → resume → pause holds), and `--dry-run`-able, per the phase-3 directive conventions. All carry `--json` with the uniform mutation envelope (`{target, applied, dry_run, detail}`).
+- **`model pause` / `model resume`** hold one model's dispatch while the rest of the run continues — see "Model-scoped latch" below. `MODEL` is an exact model name (validated server-side); the process selector matches `keep` / `release` (sole-process default, `PID` to disambiguate).
+- Task-, model-, and process-level pause are **independent latches**: a sample dispatches only when its task's gate, its model's gate, and the process latch are all open. Resuming one scope does not clear another — resuming the run after an incident should not silently un-pause a task (or model) an operator paused for its own reasons. The task-list output labels which latches hold a paused task.
+- All verbs are idempotent (pausing a paused or finished task reports `changed: false`), last-write-wins (pause → resume → pause holds), and `--dry-run`-able, per the phase-3 directive conventions. All carry `--json` with the uniform mutation envelope (`{target, applied, dry_run, detail}`).
 
-Naming: `pause` / `resume` over `suspend` / `stop` / `hold`. `resume` is the natural inverse and reads correctly in both scopes; `stop` collides with cancel semantics; `suspend` implies the in-flight freezing this design rejects. One caution documented in help text: `process resume` resumes a *paused* run; `process release` releases a *keep-alive park* — different states, and a paused run is not parked (its eval body hasn't returned).
+Naming: `pause` / `resume` over `suspend` / `stop` / `hold`. `resume` is the natural inverse and reads correctly in every scope; `stop` collides with cancel semantics; `suspend` implies the in-flight freezing this design rejects. One caution documented in help text: `process resume` resumes a *paused* run; `process release` releases a *keep-alive park* — different states, and a paused run is not parked (its eval body hasn't returned).
+
+## Model-scoped latch
+
+When one provider degrades (or one model's spend needs to stop) in a multi-model eval-set, the operator wants to pause just that model's work while the rest of the run continues (meridianlabs-ai/inspect_ai#130). Before this latch there was no complete spelling: `task pause` follows the one-target selector rule (no fan-out), so a model used by several tasks meant matching tasks to models by hand — and a not-yet-started eval-set task of that model wasn't addressable at all (it has no `EvalState`; it would dispatch, un-paused, as soon as capacity freed). `ctl config --max-connections` throttles per model but its floor is 1, not 0, and a throttle is a setpoint, not a reportable state.
+
+The model latch is a third gate registry alongside the task gates and the process latch — one latch that the same dispatch points check, not a fan-out over task pauses (the same construction as the process latch):
+
+- A sample dispatches only if (in addition to the task gate and the process latch) its task's model gate is open (`PauseGatedSemaphore` carries the model name).
+- The eval-set scheduler does not dequeue a pending task whose model is latched (`pick_balanced` in `_eval/run.py` passes each pending task's model name alongside its task id — a pending task has no `EvalState` for the gate to resolve against, which is exactly why the name rides along). This covers task retries too (a queued retry attempt is a pending task).
+- Everything else is inherited from the shared gate machinery: quiesce semantics, the auto-flush at quiesce, cancel escalating over pause, dry-run, idempotence, and the waker path on resume.
+
+Decisions (the issue's open questions):
+
+- **Latch keying: the task's *primary* model only** (the `dispatch_model_name` snapshot — the name `register_eval` stores and `GET /tasks` reports). Role/grader models deliberately don't match: a task whose grader is latched couldn't finish its samples' scoring, which would hold work mid-flight — the opposite of quiesce semantics. A generate-call gate (holding mid-sample calls to the latched model, covering roles/graders) is deliberately out of scope for the same reasons this design rejected mid-flight suspension. The name is *snapshotted* at first sight per `Model` object rather than read live via `str(model)`: a provider may rewrite its model name on first use (vLLM resolves a `base:adapter` LoRA spec to `base` — the same hazard that makes the run dispatcher key its balancing counts by `Model` identity), and the latch's name is consulted at several different times (dispatcher enqueue, task start, live at every scheduler pick), so a mid-run rename would otherwise fragment the latch — neither name would hold every dispatch point.
+- **Selector: exact model name**, validated server-side against the models the process could dispatch — the union of the run dispatcher's task models (seeded from the resolved tasks at `eval()` start, so it covers pending tasks even on the `parallel == 1` path where the dispatcher itself sees one sequence group at a time) and the registered evals' models. An unknown name 404s: for an incident lever, a typo silently latching nothing is worse than an error. Provider-prefix matching (`openai/` to latch a whole provider) was considered and deferred — it can layer on the same latch later without changing the wire.
+- **Registry reset: with the task gates** (per `eval()` boundary), not the process latch — the keys are run-scoped model names, exactly like the task ids. Same legacy batch-mode caveat as task pause.
+- **CLI spelling: a new `ctl model` noun group** — one latch, one scope, matching the existing noun-group pattern.
+
+One reporting consequence: with three latches the `paused` field's `"both"` encoding stopped scaling, so it became a source *list* (see Read-surface additions above).
 
 ## HTTP endpoints
 
@@ -55,12 +77,13 @@ Per the "three scopes, three roots" URL rule:
 | Operation | Endpoint |
 |---|---|
 | Pause / resume a task | `POST /tasks/<task-id>/pause`, `POST /tasks/<task-id>/resume` |
+| Pause / resume a model | `POST /models/pause?model=<name>`, `POST /models/resume?model=<name>` |
 | Pause / resume the process (run) | `POST /pause`, `POST /resume` |
 
 - All accept `?dry_run=true` and return `changed` for the idempotent no-op, matching the cancel directives.
-- Task-keyed (not attempt-keyed), like `config` / `log-flush` / `cancel`: a pause handle must not dangle across a retry.
+- Task-keyed (not attempt-keyed), like `config` / `log-flush` / `cancel`: a pause handle must not dangle across a retry. The model routes take `model` as a *query param* rather than a path segment — model names contain `/` (the same reason `sample_id` is a query param on the per-sample routes).
 - **No `CONTROL_API_VERSION` bump.** New *routes* fail loudly against an older server (stock `{"detail": "Not Found"}` 404), so the CLI passes `not_found_missing_route` and reports "older inspect — restart the eval", exactly the cancel-verbs precedent.
-- **Read-surface additions.** `GET /tasks` rows gain `paused` (`null` | `"task"` | `"process"` | `"both"` — which latch holds) and `quiesced` (paused **and** zero dispatched samples — the "safe to kill" signal for the durable-pause scenario; dispatch is counted at the gate itself, from the instant a sample passes it through materialization and sandbox creation to completion, so the signal can't flip back to false while one materializes). Purely additive response fields the CLI null-guards: no version bump, per conventions. `ctl task list` renders a paused marker in the human table so a paused run doesn't read as stalled; `ctl process list` reports the process latch.
+- **Read-surface additions.** `GET /tasks` rows gain `paused` (`null` when dispatchable, else the non-empty list of holding latches — any combination of `"task"` / `"process"` / `"model"`; before the model latch this was a single string with `"both"` for task+process, a legacy shape the CLI still normalizes when talking to a `<= 0.3.250` server) and `quiesced` (paused **and** zero dispatched samples — the "safe to kill" signal for the durable-pause scenario; dispatch is counted at the gate itself, from the instant a sample passes it through materialization and sandbox creation to completion, so the signal can't flip back to false while one materializes). Rows are also stamped with the process-level `paused_models` list, so a latched model whose tasks are all still queued (no rows of its own) stays visible. `ctl task list` renders a paused marker in the human table so a paused run doesn't read as stalled (with a paused-models footer line); `ctl process list` reports the process latch.
 
 ## Semantics in detail
 

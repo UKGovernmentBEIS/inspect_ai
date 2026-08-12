@@ -1,6 +1,5 @@
 import json
 import re
-import traceback
 from logging import getLogger
 from pathlib import PurePosixPath
 from textwrap import dedent
@@ -482,12 +481,25 @@ class SandboxService:
                         f"Limit exceeded calling method {method_name}: {ex.message}",
                     )
             except Exception as err:
-                err_traceback = traceback.format_exc()
+                # Log the host-side traceback, but do NOT put it in the response.
+                # This text is delivered into the sandbox and, for bridged MCP
+                # tools, surfaces verbatim as tool output the model reads. The
+                # traceback carries host filesystem paths (the eval venv, the
+                # inspect_ai module tree), which tells the agent it is running
+                # under an eval harness -- a sandbox-awareness leak that was
+                # observed in 43% of scored samples in one cohort. The traceback
+                # stays available host-side for debugging.
+                logger.warning(
+                    "Error calling sandbox service method %s: %s",
+                    method_name,
+                    err,
+                    exc_info=True,
+                )
                 await self._write_response(
                     request_file,
                     request_id,
                     None,
-                    f"Error calling method {method_name}: {err}: {err_traceback}",
+                    f"Error calling method {method_name}: {err}",
                 )
 
     async def _write_response(
