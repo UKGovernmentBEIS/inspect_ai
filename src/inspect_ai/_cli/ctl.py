@@ -1522,11 +1522,12 @@ def samples_alias(task: str | None, active_since: float | None, as_json: bool) -
 
 @ctl_command.command("errors", hidden=True)
 @click.argument("task", required=False)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def errors_alias(task: str | None, as_json: bool) -> None:
+def errors_alias(task: str | None, content: bool, as_json: bool) -> None:
     """Deprecated alias for `inspect ctl sample errors`."""
     _deprecation_note("errors", "sample errors")
-    _run_sample_errors(task, as_json)
+    _run_sample_errors(task, as_json, content=content)
 
 
 @ctl_command.command("events", hidden=True)
@@ -1536,6 +1537,7 @@ def errors_alias(task: str | None, as_json: bool) -> None:
 @click.option("--since", "cursor", default=None)
 @click.option("--tail", type=int, default=None)
 @click.option("--type", "types", default=None)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--full", is_flag=True, default=False)
 @click.option("--since-time", type=float, default=None)
 @click.option("--until", type=float, default=None)
@@ -1547,6 +1549,7 @@ def events_alias(
     cursor: str | None,
     tail: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -1563,7 +1566,7 @@ def events_alias(
         from_start=False,
         limit=None,
         types=types,
-        content=False,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,

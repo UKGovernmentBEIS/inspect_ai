@@ -2824,6 +2824,47 @@ def test_tasks_alias_delegates_with_deprecation_note(
     assert "is now `inspect ctl task list`" in result.stderr
 
 
+def test_errors_alias_accepts_content_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The alias honors the `--content` opt-in its withheld footer advertises."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    seen: dict[str, Any] = {}
+
+    async def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        seen.update(kwargs)
+        return _SamplesPage(as_of=123.0, samples=[_sample_row("bad", error="boom")])
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    result = cli_runner().invoke(ctl_command, ["errors", "--content", "--json"])
+    assert result.exit_code == 0, result.output
+    assert seen["content"] is True
+    assert "is now `inspect ctl sample errors`" in result.stderr
+
+
+def test_events_alias_accepts_content_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The alias honors the `--content` opt-in its metadata footer advertises."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    seen: dict[str, Any] = {}
+
+    def fake_events(
+        socket_path: Any, eval_id: str, sample_id: str, epoch: int, **kwargs: Any
+    ) -> dict[str, Any]:
+        seen.update(kwargs)
+        return {"events": [], "next": None, "done": True}
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_sample_events", fake_events)
+    result = cli_runner().invoke(
+        ctl_command, ["events", "aaa111", "s1", "--content", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    assert seen["content"] is True
+    assert "is now `inspect ctl sample events`" in result.stderr
+
+
 def _stub_limits(
     monkeypatch: pytest.MonkeyPatch,
     buffer: dict[str, Any] | None = None,
