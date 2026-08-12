@@ -1170,11 +1170,11 @@ def _build_summary(
         else None
     )
     quiesced = paused is not None and task_dispatched_count(latest.task_id) == 0
-    # the hard (`pause --now`) subset of the paused sources, plus how many
-    # in-flight samples are held at their next model call. For a hard pause
-    # `quiesced` is NOT the safe-to-kill signal — a held sample is mid-flight
-    # and a kill forfeits its in-sample progress — so `held` doubles as the
-    # don't-kill-yet warning.
+    # the hard (`pause --now`) subset of the paused sources, and the samples
+    # held at their next model call. `held` is reported even on rows with no
+    # latch sources of their own: the hard model gate keys on the model
+    # actually being called, so another task's hard pause can hold this
+    # task's grader/role calls (see task_held_count).
     paused_now = (
         (task_pause_now_sources(latest.task_id, latest.model or None) or None)
         if paused is not None

@@ -1198,10 +1198,8 @@ class Model:
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
-            # hard-pause gate (`pause --now`), awaited at attempt start so
-            # first and retry attempts gate uniformly; held time is credited
-            # through report_waiting_time so working_limit enforcement and
-            # the post-call waiting reconciliation below both stay honest
+            # report_waiting_time (not report_sample_waiting_time): held time
+            # must also accumulate into this call's reconciliation below
             await wait_generate_dispatch(self, report_waiting_time)
 
             # type-checker can't see that we made sure tool_choice is not none in the outer frame

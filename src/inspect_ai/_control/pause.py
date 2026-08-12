@@ -123,12 +123,10 @@ class PauseGate:
         whether the state changed.
         """
         changed = not self._paused or self._hard != now
-        self._paused = True
         if self._hard and not now:
-            self._hard = False
             self.wake()
-        else:
-            self._hard = now
+        self._paused = True
+        self._hard = now
         return changed
 
     def resume(self) -> bool:
@@ -271,6 +269,29 @@ def _resolve_task_model(task_id: str, model: str | None) -> str | None:
     return state.model or None if state is not None else None
 
 
+def _task_pause_sources(
+    task_id: str, model: str | None, closed: Callable[[PauseGate], bool]
+) -> list[PauseSource]:
+    """The latches for which ``closed`` holds, in the fixed task/process/model order.
+
+    Note the hard variant leans on hard implying paused:
+    :func:`_resolve_task_model`'s fast path only resolves when some model
+    gate is *paused*.
+    """
+    sources: list[PauseSource] = []
+    gate = _task_gates.get(task_id)
+    if gate is not None and closed(gate):
+        sources.append("task")
+    if closed(_process_gate):
+        sources.append("process")
+    model_name = _resolve_task_model(task_id, model)
+    if model_name is not None:
+        model_gate = _model_gates.get(model_name)
+        if model_gate is not None and closed(model_gate):
+            sources.append("model")
+    return sources
+
+
 def task_pause_sources(task_id: str, model: str | None = None) -> list[PauseSource]:
     """The latches holding the task — empty when it is dispatchable.
 
@@ -278,18 +299,7 @@ def task_pause_sources(task_id: str, model: str | None = None) -> list[PauseSour
     (see :func:`_resolve_task_model`). Sources come back in the fixed
     task / process / model order :data:`PauseSource` documents.
     """
-    sources: list[PauseSource] = []
-    gate = _task_gates.get(task_id)
-    if gate is not None and gate.paused:
-        sources.append("task")
-    if _process_gate.paused:
-        sources.append("process")
-    model_name = _resolve_task_model(task_id, model)
-    if model_name is not None:
-        model_gate = _model_gates.get(model_name)
-        if model_gate is not None and model_gate.paused:
-            sources.append("model")
-    return sources
+    return _task_pause_sources(task_id, model, lambda gate: gate.paused)
 
 
 def task_pause_now_sources(task_id: str, model: str | None = None) -> list[PauseSource]:
@@ -300,18 +310,7 @@ def task_pause_now_sources(task_id: str, model: str | None = None) -> list[Pause
     can tell the hard variant apart: a hard-paused task additionally holds
     its in-flight samples at their next model call (see the ``held`` count).
     """
-    sources: list[PauseSource] = []
-    gate = _task_gates.get(task_id)
-    if gate is not None and gate.hard:
-        sources.append("task")
-    if _process_gate.hard:
-        sources.append("process")
-    model_name = _resolve_task_model(task_id, model)
-    if model_name is not None:
-        model_gate = _model_gates.get(model_name)
-        if model_gate is not None and model_gate.hard:
-            sources.append("model")
-    return sources
+    return _task_pause_sources(task_id, model, lambda gate: gate.hard)
 
 
 def task_dispatch_paused(task_id: str, model: str | None = None) -> bool:
@@ -487,25 +486,26 @@ def _generate_hold_gate(task_id: str | None, model: str) -> PauseGate | None:
 
 class _HoldKey(NamedTuple):
     task_id: str | None
-    sample_id: str | None
+    sample: Any  # ActiveSample | None (imported lazily; avoid a log import cycle)
 
 
 def _active_sample_hold_key() -> _HoldKey:
-    """The active sample's task id and identity.
+    """The active sample's task id and the sample itself.
 
-    The task id feeds the task-gate check, the sample id the held-samples
-    count; both are ``None`` outside a sample context.
+    The task id feeds the task-gate check, the sample the held-samples count
+    (keyed by ``sample.id``) and the interrupt-escape check; both are
+    ``None`` outside a sample context.
     """
     from inspect_ai.log._samples import sample_active
 
     sample = sample_active()
     if sample is None:
-        return _HoldKey(task_id=None, sample_id=None)
+        return _HoldKey(task_id=None, sample=None)
     from inspect_ai._control.eval_state import get_eval_state
 
     state = get_eval_state(sample.eval_id)
     task_id = (state.task_id or None) if state is not None else None
-    return _HoldKey(task_id=task_id, sample_id=sample.id)
+    return _HoldKey(task_id=task_id, sample=sample)
 
 
 async def wait_generate_dispatch(
@@ -531,19 +531,33 @@ async def wait_generate_dispatch(
     re-report the held span as provider-internal waiting. ``time_limit``
     deadlines deliberately keep running while held — explicitly the
     operator's risk with ``pause --now``.
+
+    Cancel escalates over pause: a stamped sample interrupt (graceful
+    cancel) passes the gate rather than parking — the sample-scope
+    cancellation that usually reaps a parked wait can't reach a generate
+    issued *after* the sample's task group exited (a model-graded scorer
+    running under a ``score`` resolution), so the escape is checked at
+    entry and re-checked on every wake/tick.
     """
     if not _any_hard_gate():
         return
     model_name = dispatch_model_name(model)
-    task_id, sample_id = _active_sample_hold_key()
+    task_id, sample = _active_sample_hold_key()
+
+    def escaped() -> bool:
+        return sample is not None and sample.interrupt_action is not None
+
     gate = _generate_hold_gate(task_id, model_name)
-    if gate is None:
+    if gate is None or escaped():
         return
-    if task_id is not None and sample_id is not None:
-        _held_entered(task_id, sample_id)
+    if task_id is not None and sample is not None:
+        _held_entered(task_id, sample.id)
     last = time.monotonic()
     try:
-        while gate is not None:
+        while gate is not None and not escaped():
+            # the tick both keeps working-limit crediting incremental and
+            # bounds the latency of an escape stamped while parked (a
+            # per-sample interrupt has no waker into this gate)
             with anyio.move_on_after(_HELD_CREDIT_INTERVAL):
                 await gate.wait_hard_open()
             now = time.monotonic()
@@ -556,8 +570,8 @@ async def wait_generate_dispatch(
         tail = time.monotonic() - last
         if tail > 0:
             report_waiting_time(tail)
-        if task_id is not None and sample_id is not None:
-            _held_exited(task_id, sample_id)
+        if task_id is not None and sample is not None:
+            _held_exited(task_id, sample.id)
 
 
 def dispatch_model_name(model: "Model") -> str:

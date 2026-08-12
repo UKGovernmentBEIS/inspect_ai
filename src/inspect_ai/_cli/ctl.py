@@ -324,6 +324,25 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
     )
 
 
+def _now_option(
+    holds: str = "in-flight samples at their next model call",
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--now`` (hard pause) flag the pause verbs carry.
+
+    ``holds`` names what the scope's hard gate parks (the model scope holds
+    calls *to* the model, role/grader calls included, rather than samples).
+    """
+    return click.option(
+        "--now",
+        is_flag=True,
+        default=False,
+        help=(
+            f"Hard pause: additionally hold {holds} (outstanding calls "
+            "finish; wall-clock time limits keep running while held)."
+        ),
+    )
+
+
 @click.group("ctl")
 def ctl_command() -> None:
     """Read and direct running evals and manage kept-alive processes.
@@ -530,16 +549,7 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
 
 @task_group.command("pause")
 @click.argument("task", required=False)
-@click.option(
-    "--now",
-    is_flag=True,
-    default=False,
-    help=(
-        "Hard pause: additionally hold in-flight samples at their next "
-        "model call (outstanding calls finish; wall-clock time limits keep "
-        "running while held)."
-    ),
-)
+@_now_option()
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1296,16 +1306,7 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
 
 @process_group.command("pause")
 @click.argument("pid", required=False, type=int)
-@click.option(
-    "--now",
-    is_flag=True,
-    default=False,
-    help=(
-        "Hard pause: additionally hold in-flight samples at their next "
-        "model call (outstanding calls finish; wall-clock time limits keep "
-        "running while held)."
-    ),
-)
+@_now_option()
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1416,16 +1417,11 @@ model_group.hint = lambda token: (
 @model_group.command("pause")
 @click.argument("model")
 @click.argument("pid", required=False, type=int)
-@click.option(
-    "--now",
-    is_flag=True,
-    default=False,
-    help=(
-        "Hard pause: additionally hold generate calls to MODEL at their "
-        "next attempt — including other tasks' role/grader calls to it "
-        "(outstanding calls finish; wall-clock time limits keep running "
-        "while held)."
-    ),
+@_now_option(
+    holds=(
+        "generate calls to MODEL at their next attempt — including other "
+        "tasks' role/grader calls to it —"
+    )
 )
 @click.option(
     "--dry-run",
@@ -2897,6 +2893,18 @@ def _run_task_cancel(
         click.echo(f"Nothing to do: {reason}.")
 
 
+# the hard-pause caveat, shared by the three pause scopes' messages
+_HELD_CAVEAT = "outstanding calls finish; time limits keep running while held"
+
+
+def _pause_prefix(*, now: bool, dry_run: bool, target: str = "") -> str:
+    """The leading clause of a pause confirmation, across scope/strength/dry-run."""
+    if dry_run:
+        return f"Would {'hard-pause' if now else 'pause'} {target}".rstrip()
+    requested = "Hard pause requested" if now else "Pause requested"
+    return f"{requested} for {target}" if target else requested
+
+
 _PAUSE_ROUTE_MISSING = (
     "This process is running an older inspect without the pause/resume "
     "endpoints; restart the eval to pick up the current version."
@@ -3001,42 +3009,28 @@ def _run_task_pause_resume(
             # `dispatched` counts samples past the gate, including ones still
             # initializing their sandbox (which the listing shows as queued)
             dispatched = int(result.get("dispatched", 0) or 0)
+            will = "would" if dry_run else "will"
+            noun = f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
             if now:
-                holding = (
-                    f"{dispatched} dispatched sample"
-                    f"{'' if dispatched == 1 else 's'} "
-                    f"{'would' if dry_run else 'will'} hold at "
+                body = (
+                    f"{noun} {will} hold at "
                     f"{'its' if dispatched == 1 else 'their'} next model call "
-                    "(outstanding calls finish; time limits keep running "
-                    "while held)"
+                    f"({_HELD_CAVEAT})"
                 )
-                if dry_run:
-                    click.echo(
-                        f"Would hard-pause — {holding}; no new samples or "
-                        "retry attempts would start."
-                    )
-                else:
-                    click.echo(
-                        f"Hard pause requested — {holding}; no new samples or "
-                        "retry attempts will start. Watch `inspect ctl task "
-                        "list` for the held count; resume with `inspect ctl "
-                        "task resume`."
-                    )
             else:
-                finishing = (
-                    f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
-                    f"{'would' if dry_run else 'will'} finish naturally"
+                body = f"{noun} {will} finish naturally"
+            message = (
+                f"{_pause_prefix(now=now, dry_run=dry_run)} — {body}; "
+                f"no new samples or retry attempts {will} start."
+            )
+            if not dry_run:
+                message += (
+                    " Watch `inspect ctl task list` for the held count;"
+                    " resume with `inspect ctl task resume`."
+                    if now
+                    else " Resume with `inspect ctl task resume`."
                 )
-                if dry_run:
-                    click.echo(
-                        f"Would pause — {finishing}; no new samples or retry "
-                        "attempts would start."
-                    )
-                else:
-                    click.echo(
-                        f"Pause requested — {finishing}; no new samples or retry "
-                        "attempts will start. Resume with `inspect ctl task resume`."
-                    )
+            click.echo(message)
         elif dry_run:
             click.echo("Would resume — queued samples would dispatch again.")
         else:
@@ -3100,38 +3094,25 @@ def _run_process_pause_resume(
 
     if result.get("changed"):
         if verb == "pause":
-            if now:
-                if dry_run:
-                    click.echo(
-                        f"Would hard-pause pid {target.pid} — in-flight "
-                        "samples would hold at their next model call "
-                        "(outstanding calls finish; time limits keep running "
-                        "while held); no new samples, task retries, or "
-                        "eval-set tasks would start."
-                    )
-                else:
-                    click.echo(
-                        f"Hard pause requested for pid {target.pid} — "
-                        "in-flight samples will hold at their next model call "
-                        "(outstanding calls finish; time limits keep running "
-                        "while held); no new samples, task retries, or "
-                        "eval-set tasks will start. Watch `inspect ctl task "
-                        "list` for the held count; resume with `inspect ctl "
-                        "process resume`."
-                    )
-            elif dry_run:
-                click.echo(
-                    f"Would pause pid {target.pid} — in-flight samples would "
-                    "finish; no new samples, task retries, or eval-set tasks "
-                    "would start."
+            will = "would" if dry_run else "will"
+            body = (
+                f"in-flight samples {will} hold at their next model call "
+                f"({_HELD_CAVEAT})"
+                if now
+                else f"in-flight samples {will} finish"
+            )
+            message = (
+                f"{_pause_prefix(now=now, dry_run=dry_run, target=f'pid {target.pid}')}"
+                f" — {body}; no new samples, task retries, or eval-set tasks "
+                f"{will} start."
+            )
+            if not dry_run:
+                message += (
+                    " Watch `inspect ctl task list` for "
+                    f"{'the held count' if now else 'quiesced'}; "
+                    "resume with `inspect ctl process resume`."
                 )
-            else:
-                click.echo(
-                    f"Pause requested for pid {target.pid} — in-flight samples "
-                    "will finish; no new samples, task retries, or eval-set "
-                    "tasks will start. Watch `inspect ctl task list` for "
-                    "quiesced; resume with `inspect ctl process resume`."
-                )
+            click.echo(message)
         elif dry_run:
             click.echo(f"Would resume pid {target.pid}.")
         else:
@@ -3204,46 +3185,35 @@ def _run_model_pause_resume(
             # tasks, which have no row to count
             tasks = int(result.get("tasks", 0) or 0)
             dispatched = int(result.get("dispatched", 0) or 0)
-            finishing = (
+            will = "would" if dry_run else "will"
+            counts = (
                 f"{tasks} running task{'' if tasks == 1 else 's'}, "
-                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
-                f"{'would' if dry_run else 'will'} finish naturally"
+                f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
             )
             if now:
-                holding = (
-                    f"{tasks} running task{'' if tasks == 1 else 's'}, "
-                    f"{dispatched} dispatched sample"
-                    f"{'' if dispatched == 1 else 's'}; generate calls to it "
-                    f"(role/grader calls included) "
-                    f"{'would' if dry_run else 'will'} hold at their next "
-                    "attempt (outstanding calls finish; time limits keep "
-                    "running while held)"
-                )
-                if dry_run:
-                    click.echo(
-                        f"Would hard-pause {model} — {holding}; no new "
-                        "samples, retry attempts, or eval-set tasks of this "
-                        "model would start."
-                    )
-                else:
-                    click.echo(
-                        f"Hard pause requested for {model} — {holding}; no "
-                        "new samples, retry attempts, or eval-set tasks of "
-                        "this model will start (other models keep running). "
-                        "Resume with `inspect ctl model resume`."
-                    )
-            elif dry_run:
-                click.echo(
-                    f"Would pause {model} — {finishing}; no new samples, retry "
-                    "attempts, or eval-set tasks of this model would start."
+                body = (
+                    f"{counts}; generate calls to it (role/grader calls "
+                    f"included) {will} hold at their next attempt "
+                    f"({_HELD_CAVEAT})"
                 )
             else:
-                click.echo(
-                    f"Pause requested for {model} — {finishing}; no new samples, "
-                    "retry attempts, or eval-set tasks of this model will "
-                    "start (other models keep running). Resume with "
-                    "`inspect ctl model resume`."
+                body = f"{counts} {will} finish naturally"
+            message = (
+                f"{_pause_prefix(now=now, dry_run=dry_run, target=model)} — "
+                f"{body}; no new samples, retry attempts, or eval-set tasks "
+                f"of this model {will} start"
+            )
+            if dry_run:
+                message += "."
+            else:
+                message += " (other models keep running)."
+                message += (
+                    " Watch `inspect ctl task list` for held counts;"
+                    " resume with `inspect ctl model resume`."
+                    if now
+                    else " Resume with `inspect ctl model resume`."
                 )
+            click.echo(message)
         elif dry_run:
             click.echo(f"Would resume {model} — its held work would dispatch again.")
         else:
@@ -5963,10 +5933,12 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     # `or 0` also covers an older server, which reports neither key.
     any_refusals = any((s.get("refusals") or 0) > 0 for s in summaries)
     any_http_retries = any((s.get("http_retries") or 0) > 0 for s in summaries)
-    # shown only when some task is paused, so a paused run doesn't read as
-    # stalled (the cell names the holding latch; `quiesced` = nothing left
-    # in flight — the safe-to-kill signal)
-    any_paused = any(s.get("paused") for s in summaries)
+    # shown only when some task is paused (or holding samples — a hard model
+    # pause can hold another task's grader calls without any latch source on
+    # that row), so a paused run doesn't read as stalled (the cell names the
+    # holding latch; `quiesced` = nothing left in flight — the safe-to-kill
+    # signal)
+    any_paused = any(s.get("paused") or s.get("held") for s in summaries)
 
     rows = []
     for s in summaries:
@@ -6037,16 +6009,19 @@ def _format_paused(summary: dict[str, Any]) -> str:
     the quiesced marker — the two can't co-occur (a held sample is still
     dispatched), and under a hard pause held, not quiesced, is the signal
     the operator acts on (a kill while ``held > 0`` forfeits in-sample
-    progress).
+    progress). A row can be held with *no* latch sources of its own: the
+    hard model gate keys on the model actually being called, so another
+    task's ``model pause --now`` holds this task's grader/role calls to
+    that model — render the held count alone rather than suppressing it.
     """
+    held = int(summary.get("held") or 0)
     now = set(_paused_sources(summary.get("paused_now")))
     paused = "+".join(
         f"{source}(now)" if source in now else source
         for source in _paused_sources(summary.get("paused"))
     )
     if not paused:
-        return ""
-    held = int(summary.get("held") or 0)
+        return f"({held} held)" if held else ""
     if held:
         return f"{paused} ({held} held)"
     return f"{paused} (quiesced)" if summary.get("quiesced") else paused
@@ -6075,12 +6050,12 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     # either latch holds work the run awaits — so also surface the
     # exit-when-done contradiction when keep-alive is off for a paused row.
     paused = [s for s in summaries if s.get("paused")]
+    # held (`--now`) samples counted across ALL rows, not just paused ones:
+    # a hard model pause holds other tasks' grader calls to that model
+    # without stamping a latch source on their rows
+    held_samples = sum(int(s.get("held") or 0) for s in summaries)
     if paused:
         quiesced = sum(1 for s in paused if s.get("quiesced"))
-        # samples held at their next model call by a hard pause (`--now`):
-        # the don't-kill-yet warning — a held sample is mid-flight, so a
-        # kill forfeits its in-sample progress even though dispatch is idle
-        held_samples = sum(int(s.get("held") or 0) for s in paused)
         details = [
             part
             for part in (
@@ -6110,6 +6085,15 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
                 "note: a paused run never finishes — it will not exit until "
                 "resumed (or cancelled), despite keep-alive being off."
             )
+    elif held_samples:
+        # no paused rows, yet samples are parked at the generate gate (a
+        # hard model pause whose primary tasks have no rows yet) — the
+        # don't-kill-yet warning must still print
+        click.echo(
+            f"held: {held_samples} sample{'' if held_samples == 1 else 's'} "
+            "held at the next model call (`pause --now`) — killing now "
+            "forfeits in-sample progress"
+        )
     # latched models whose tasks are all still queued have no paused row
     # above (an unstarted task has no summary) — surface them from the
     # process-level stamp so the latch can't hold work invisibly

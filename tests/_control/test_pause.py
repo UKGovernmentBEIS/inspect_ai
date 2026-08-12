@@ -722,6 +722,7 @@ async def test_generate_gate_task_scope_counts_held_samples(
     class _FakeSample:
         eval_id = "e1"
         id = "as1"
+        interrupt_action: Any = None
 
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
     model = get_model("mockllm/model", memoize=False)
@@ -758,6 +759,7 @@ async def test_generate_gate_model_scope_keys_on_called_model(
     class _FakeSample:
         eval_id = "e1"
         id = "as1"
+        interrupt_action: Any = None
 
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
     model = get_model("mockllm/model", memoize=False)
@@ -794,6 +796,7 @@ async def test_generate_gate_credits_incrementally(
     report progress at the credit interval.
     """
     import inspect_ai._control.pause as pause_module
+    from inspect_ai.util._limit import working_limit
 
     monkeypatch.setattr(pause_module, "_HELD_CREDIT_INTERVAL", 0.02)
     await pause_process(now=True)
@@ -802,7 +805,8 @@ async def test_generate_gate_credits_incrementally(
     passed = anyio.Event()
 
     async def attempt() -> None:
-        await wait_generate_dispatch(model, credits.append)
+        with working_limit(60):
+            await wait_generate_dispatch(model, credits.append)
         passed.set()
 
     async with anyio.create_task_group() as tg:
@@ -815,6 +819,57 @@ async def test_generate_gate_credits_incrementally(
         await resume_process()
         with anyio.fail_after(5):
             await passed.wait()
+
+
+async def test_generate_gate_stamped_interrupt_escapes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stamped graceful cancel passes (and releases) the generate gate.
+
+    Cancel escalates over pause: a generate issued after the sample's task
+    group exited (a model-graded scorer under a `score` resolution) can't be
+    reaped by scope cancellation, so the gate must honor the stamped
+    interrupt itself — at entry, and within a tick for an already-parked
+    attempt.
+    """
+    register_eval("e1", 5, task_id="t1", model="mockllm/model")
+    await pause_task("t1", now=True)
+
+    class _FakeSample:
+        eval_id = "e1"
+        id = "as1"
+        interrupt_action: Any = None
+
+    sample = _FakeSample()
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+    import inspect_ai._control.pause as pause_module
+
+    monkeypatch.setattr(pause_module, "_HELD_CREDIT_INTERVAL", 0.02)
+    model = get_model("mockllm/model", memoize=False)
+
+    # already stamped: passes at entry without ever counting as held
+    sample.interrupt_action = "score"
+    with anyio.fail_after(5):
+        await wait_generate_dispatch(model, lambda _: None)
+    assert task_held_count("t1") == 0
+
+    # stamped while parked: the tick re-checks the escape and releases
+    sample.interrupt_action = None
+    passed = anyio.Event()
+
+    async def attempt() -> None:
+        await wait_generate_dispatch(model, lambda _: None)
+        passed.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.05)
+        assert not passed.is_set()
+        sample.interrupt_action = "score"
+        with anyio.fail_after(5):
+            await passed.wait()
+    assert task_held_count("t1") == 0
+    assert task_dispatch_paused("t1")  # the gate itself stays closed
 
 
 async def test_generate_gate_cancellation_credits_tail(
@@ -830,6 +885,7 @@ async def test_generate_gate_cancellation_credits_tail(
     class _FakeSample:
         eval_id = "e1"
         id = "as1"
+        interrupt_action: Any = None
 
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
     model = get_model("mockllm/model", memoize=False)
