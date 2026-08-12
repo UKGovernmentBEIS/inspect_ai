@@ -58,8 +58,14 @@ jobs:
     # as a NON-triggering substring (in backticks, or a token like foo@claude)
     # blocks the edit path. Acceptable for a cheap gate (no regex in workflow
     # expressions); the action remains the authoritative check on what fires.
+    # Bot guard: bot actors are never accepted by this workflow's agent (the
+    # reusable workflow's allowed_bots is empty), but a bot comment QUOTING a
+    # trigger phrase — e.g. the reviewer's summary advising an at-claude reply
+    # — passed this gate and burned a checkout + provision before rejection
+    # (and surfaced a ⚠️ when provisioning flaked). Skip bot actors outright;
+    # marvin is a real user and is guarded separately.
     if: |
-      github.actor != 'i-am-marvin' && (
+      github.actor != 'i-am-marvin' && !endsWith(github.actor, '[bot]') && (
         ( github.event.action == 'edited'
           && ( contains(github.event.comment.body, '@claude')
             || contains(github.event.comment.body, '@i-am-marvin') )
@@ -181,8 +187,14 @@ jobs:
     # otherwise open a duplicate PR). Same machine-account guard too: @auto is
     # the loop-prone trigger, so keep the machine account from kicking it off
     # (nothing in the designed loop relies on marvin posting @auto).
+    # Bot guard: bot actors are never accepted by this workflow's agent (the
+    # reusable workflow's allowed_bots is empty), but a bot comment QUOTING a
+    # trigger phrase — e.g. the reviewer's summary advising an at-claude reply
+    # — passed this gate and burned a checkout + provision before rejection
+    # (and surfaced a ⚠️ when provisioning flaked). Skip bot actors outright;
+    # marvin is a real user and is guarded separately.
     if: |
-      github.actor != 'i-am-marvin' && (
+      github.actor != 'i-am-marvin' && !endsWith(github.actor, '[bot]') && (
         ( github.event.action == 'edited'
           && contains(github.event.comment.body, '@auto')
           && !contains(github.event.changes.body.from, '@auto') ) ||
