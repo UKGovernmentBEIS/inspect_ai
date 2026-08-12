@@ -385,7 +385,9 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
 
     received: list[tuple[str, str, int]] = []
 
-    async def _echo(eval_id: str, sample_id: str, epoch: int) -> dict[str, object]:
+    async def _echo(
+        eval_id: str, sample_id: str, epoch: int, content: bool = False
+    ) -> dict[str, object]:
         received.append((eval_id, sample_id, epoch))
         return {"sample_id": sample_id, "epoch": epoch, "status": "completed"}
 
@@ -496,6 +498,7 @@ async def test_sample_events_endpoint_parses_type_and_404(
         since: object,
         tail: object,
         types: object,
+        content: object,
         full: object,
         since_time: object,
         until: object,
@@ -503,6 +506,7 @@ async def test_sample_events_endpoint_parses_type_and_404(
     ) -> dict[str, object] | None:
         seen["sample_id"] = sample_id
         seen["types"] = types
+        seen["content"] = content
         seen["full"] = full
         seen["limit"] = limit
         if sample_id == "missing":
@@ -524,6 +528,15 @@ async def test_sample_events_endpoint_parses_type_and_404(
         assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
         assert seen["types"] == frozenset({"model", "tool"})  # comma-split
         assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get(
+            "/evals/e1/sample/events",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         # whitespace around members is stripped — `--type "model, tool"`
         # must not silently filter everything out
@@ -578,10 +591,12 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         epoch: int,
         *,
         tail: object,
+        content: object,
         full: object,
     ) -> dict[str, object] | None:
         seen["sample_id"] = sample_id
         seen["tail"] = tail
+        seen["content"] = content
         seen["full"] = full
         if sample_id == "missing":
             return None
@@ -602,6 +617,15 @@ async def test_sample_messages_endpoint_round_trips_and_404(
         assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
         assert seen["tail"] == 5
         assert seen["full"] is True
+        assert seen["content"] is False  # metadata-only default
+
+        # `content=true` (the free-text opt-in) rides down
+        with_content = await client.get(
+            "/evals/e1/sample/messages",
+            params={"sample_id": "case/001", "content": "true"},
+        )
+        assert with_content.status_code == 200, with_content.text
+        assert seen["content"] is True
 
         missing = await client.get(
             "/evals/e1/sample/messages", params={"sample_id": "missing"}
@@ -631,6 +655,7 @@ async def test_samples_endpoint_parses_filter(
         statuses: frozenset[str] | None = None,
         limit: int | None = None,
         sample_filter: str | None = None,
+        content: bool = False,
     ) -> SampleListing:
         seen["eval_id"] = eval_id
         seen["sample_filter"] = sample_filter

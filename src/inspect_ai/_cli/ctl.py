@@ -645,6 +645,15 @@ sample_group.hint = lambda token: (
         f"{', '.join(SAMPLE_STATUSES)})."
     ),
 )
+@click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include each errored row's error message (agent-influenced free "
+        "text — withheld by default)."
+    ),
+)
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
 def sample_list_command(
     task: str | None,
@@ -652,6 +661,7 @@ def sample_list_command(
     limit: int | None,
     all_samples: bool,
     status: str | None,
+    content: bool,
     as_json: bool,
 ) -> None:
     """List the samples (running and completed) of running evals.
@@ -675,6 +685,7 @@ def sample_list_command(
         status=status,
         limit=limit,
         all_samples=all_samples,
+        content=content,
     )
 
 
@@ -683,14 +694,24 @@ _mirror_list_options(sample_group, sample_list_command)
 
 @sample_group.command("errors")
 @click.argument("task", required=False)
+@click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include each row's error message (agent-influenced free text — "
+        "withheld by default)."
+    ),
+)
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
-def sample_errors_command(task: str | None, as_json: bool) -> None:
+def sample_errors_command(task: str | None, content: bool, as_json: bool) -> None:
     """List the samples of running evals that errored or were retried.
 
-    One row per sample with the latest error message; an omitted TASK spans
-    all running tasks. Drill into one sample with `inspect ctl sample show`.
+    One row per sample; pass `--content` for the latest error message. An
+    omitted TASK spans all running tasks. Drill into one sample with
+    `inspect ctl sample show`.
     """
-    _run_sample_errors(task, as_json)
+    _run_sample_errors(task, as_json, content=content)
 
 
 @sample_group.command("show")
@@ -698,25 +719,42 @@ def sample_errors_command(task: str | None, as_json: bool) -> None:
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include the error messages (agent-influenced free text — withheld "
+        "by default; implied by --traceback)."
+    ),
+)
+@click.option(
     "--traceback",
     "-t",
     "show_traceback",
     is_flag=True,
     default=False,
-    help="Show the full traceback for each error (default: message only).",
+    help="Show the full traceback for each error (implies --content).",
 )
 @_json_option("the sample's summary + error detail")
 def sample_show_command(
-    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+    task: str,
+    sample_id: str,
+    epoch: int,
+    content: bool,
+    show_traceback: bool,
+    as_json: bool,
 ) -> None:
     """Show one sample's summary and error history.
 
-    Reports status / timing / token usage / score and the error from the
-    current and each prior attempt; use `inspect ctl sample events` for the
-    transcript. EPOCH defaults to 1 (the response echoes the resolved
-    epoch).
+    Reports status / timing / token usage / score and the error presence
+    from the current and each prior attempt; pass `--content` for the error
+    messages (and `--traceback` for tracebacks). Use `inspect ctl sample
+    events` for the transcript. EPOCH defaults to 1 (the response echoes
+    the resolved epoch).
     """
-    _run_sample_show(task, sample_id, epoch, show_traceback, as_json)
+    _run_sample_show(
+        task, sample_id, epoch, content or show_traceback, show_traceback, as_json
+    )
 
 
 @sample_group.command("events")
@@ -779,6 +817,16 @@ def sample_show_command(
     ),
 )
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include truncated free-text content (completions, tool arguments/"
+        "results, error messages — agent-controlled text, withheld by "
+        "default) in the compact summary."
+    ),
+)
+@click.option(
     "--full",
     is_flag=True,
     default=False,
@@ -807,6 +855,7 @@ def sample_events_command(
     from_start: bool,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -817,7 +866,9 @@ def sample_events_command(
     The first call returns a recent tail (or the beginning, with
     `--from-start`); each page ends with a `next` cursor — pass it back via
     `--cursor` to read only what's new. `done: true` means the sample has
-    terminated and no more events will come.
+    terminated and no more events will come. The default is metadata only
+    (event types, timing, token counts, tool function names); pass
+    `--content` for truncated free-text content or `--full` for raw events.
 
     Example: inspect ctl sample events my-task sample-1 --tail 20
     """
@@ -833,6 +884,7 @@ def sample_events_command(
         from_start=from_start,
         limit=limit,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -861,6 +913,16 @@ def sample_events_command(
     help="Show the whole conversation instead of a recent tail.",
 )
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include truncated message text (and tool-call arguments / tool "
+        "errors — agent-controlled text, withheld by default) in the "
+        "compact summary."
+    ),
+)
+@click.option(
     "--full",
     is_flag=True,
     default=False,
@@ -879,6 +941,7 @@ def sample_messages_command(
     epoch: int,
     tail: int | None,
     show_all: bool,
+    content: bool,
     full: bool,
     as_json: bool,
 ) -> None:
@@ -886,11 +949,13 @@ def sample_messages_command(
 
     Returns the sample's `TaskState.messages` as they look right now — a
     snapshot, not a stream: the message list is rewritable (compaction,
-    solver edits), so there is no resume cursor. The default is a recent tail;
-    pass `--all` for the whole conversation or `--tail N` for a specific
-    window, and `--full` for raw `ChatMessage` JSON. For incremental,
-    event-grain watching use `inspect ctl sample events`. EPOCH defaults to 1
-    (the response echoes the resolved epoch).
+    solver edits), so there is no resume cursor. The default is a recent tail
+    of metadata-only rows (index / role / tool-call function names); pass
+    `--all` for the whole conversation or `--tail N` for a specific window,
+    `--content` for truncated message text, and `--full` for raw
+    `ChatMessage` JSON. For incremental, event-grain watching use `inspect
+    ctl sample events`. EPOCH defaults to 1 (the response echoes the
+    resolved epoch).
     """
     _run_sample_messages(
         task,
@@ -898,6 +963,7 @@ def sample_messages_command(
         epoch,
         tail=tail,
         show_all=show_all,
+        content=content,
         full=full,
         as_json=as_json,
     )
@@ -1497,6 +1563,7 @@ def events_alias(
         from_start=False,
         limit=None,
         types=types,
+        content=False,
         full=full,
         since_time=since_time,
         until=until,
@@ -1886,6 +1953,7 @@ def _list_sample_rows(
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
 ) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks.
 
@@ -1926,6 +1994,7 @@ def _list_sample_rows(
             status=status_param,
             limit=limit,
             all_samples=all_samples,
+            content=content,
             # a scoped read fails the command on busy, so it keeps the
             # full budget; the unscoped fan-out skips on the default
             attempts=_REQUEST_ATTEMPTS if task is not None else None,
@@ -2020,6 +2089,7 @@ async def _read_all_eval_samples(
     status: str | None,
     limit: int | None,
     all_samples: bool,
+    content: bool,
     attempts: int | None,
 ) -> list[_EvalSamplesRead]:
     """Read each target eval's samples concurrently, in target order.
@@ -2049,6 +2119,7 @@ async def _read_all_eval_samples(
                 status=status,
                 limit=limit,
                 all_samples=all_samples,
+                content=content,
                 attempts=attempts,
                 narrator=narrator,
             )
@@ -2075,6 +2146,7 @@ def _run_sample_list(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
 ) -> None:
     if all_samples and limit is not None:
         raise click.UsageError("--all and --limit are mutually exclusive.")
@@ -2087,6 +2159,7 @@ def _run_sample_list(
         statuses=_parse_statuses(status),
         limit=limit,
         all_samples=all_samples,
+        content=content,
         idle_pointer=True,
     )
 
@@ -2104,7 +2177,9 @@ def _parse_statuses(status: str | None) -> frozenset[str] | None:
     return statuses
 
 
-def _run_sample_errors(task: str | None, as_json: bool) -> None:
+def _run_sample_errors(
+    task: str | None, as_json: bool, *, content: bool = False
+) -> None:
     _run_sample_listing(
         task,
         None,
@@ -2116,6 +2191,12 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
         # cap would silently hide errors beyond it (the server's errors
         # filter narrows the rows, but capped-filtered is still capped).
         all_samples=True,
+        content=content,
+        # this is the error-focused view, so an empty error column needs
+        # the pointer to the opt-in
+        content_footer=None
+        if content
+        else "error messages withheld — pass --content to include them",
     )
 
 
@@ -2131,6 +2212,8 @@ def _run_sample_listing(
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
+    content_footer: str | None = None,
     idle_pointer: bool = False,
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
@@ -2144,9 +2227,13 @@ def _run_sample_listing(
     unavailable)" instead, and an empty ``--status``-filtered or
     ``--active-since`` delta listing gets a filter-scoped message (samples
     may exist that simply didn't match). ``statuses`` is the already-parsed
-    ``--status`` member set (``None`` = no filter). ``idle_pointer`` opts the
-    human rendering into the long-idle escalation footer (`sample list` — the
-    listing whose idle column shows a stall; see :func:`_echo_idle_pointer`).
+    ``--status`` member set (``None`` = no filter). ``content`` asks the
+    server to include each row's error message (withheld by default —
+    agent-influenced free text); ``content_footer`` is a human-rendering
+    footer noting the withholding (echoed after a non-empty table).
+    ``idle_pointer`` opts the human rendering into the long-idle escalation
+    footer (`sample list` — the listing whose idle column shows a stall; see
+    :func:`_echo_idle_pointer`).
     """
     listing = _list_sample_rows(
         task,
@@ -2155,6 +2242,7 @@ def _run_sample_listing(
         statuses=statuses,
         limit=limit,
         all_samples=all_samples,
+        content=content,
     )
     rows = listing.rows
 
@@ -2196,6 +2284,9 @@ def _run_sample_listing(
             click.echo(empty)
             return
         printer(rows, show_task=True)
+    if content_footer is not None:
+        click.echo()
+        click.echo(content_footer)
     if listing.truncated:
         _echo_truncation_footer(
             len(rows),
@@ -2290,7 +2381,12 @@ def _echo_truncation_footer(
 
 @_envelope_failures
 def _run_sample_show(
-    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+    task: str,
+    sample_id: str,
+    epoch: int,
+    content: bool,
+    show_traceback: bool,
+    as_json: bool,
 ) -> None:
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
@@ -2310,6 +2406,7 @@ def _run_sample_show(
         target["eval_id"],
         sample_id,
         epoch,
+        content=content,
         pid=target.get("pid"),
     )
     row = (
@@ -2391,6 +2488,7 @@ def _run_sample_events(
     from_start: bool,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -2447,6 +2545,7 @@ def _run_sample_events(
         tail=tail,
         limit=limit,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -2465,7 +2564,7 @@ def _run_sample_events(
         click.echo(json_lib.dumps(page, indent=2))
         return
 
-    _print_events(page, full=full)
+    _print_events(page, content=content, full=full)
 
 
 @_envelope_failures
@@ -2476,6 +2575,7 @@ def _run_sample_messages(
     *,
     tail: int | None,
     show_all: bool,
+    content: bool,
     full: bool,
     as_json: bool,
 ) -> None:
@@ -2521,6 +2621,7 @@ def _run_sample_messages(
         sample_id,
         epoch,
         tail=tail,
+        content=content,
         full=full,
         pid=target.get("pid"),
     )
@@ -2539,7 +2640,7 @@ def _run_sample_messages(
 
     click.echo(_task_header(target))
     click.echo()
-    _print_messages(page, full=full)
+    _print_messages(page, content=content, full=full)
 
 
 def _looks_like_timestamp(value: str) -> bool:
@@ -4805,6 +4906,7 @@ async def _fetch_samples_async(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
     attempts: int | None = None,
     narrator: _BusyNarrator | None = None,
 ) -> _SamplesPage:
@@ -4851,6 +4953,8 @@ async def _fetch_samples_async(
         params["all"] = True
     elif limit is not None:
         params["limit"] = limit
+    if content:
+        params["content"] = True
     page = await _get_with_retry_async(
         socket_path,
         f"/evals/{eval_id}/samples",
@@ -4884,6 +4988,7 @@ def _fetch_samples(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
     attempts: int | None = None,
 ) -> _SamplesPage:
     """Sync facade over :func:`_fetch_samples_async` — see it for policy."""
@@ -4897,6 +5002,7 @@ def _fetch_samples(
             status=status,
             limit=limit,
             all_samples=all_samples,
+            content=content,
             attempts=attempts,
         )
     )
@@ -4908,13 +5014,15 @@ def _fetch_sample_detail(
     sample_id: str,
     epoch: int,
     *,
+    content: bool = False,
     pid: int | None = None,
 ) -> dict[str, Any]:
     """Query one control server for a single sample's summary + error detail.
 
     The one read behind ``sample show`` — the response carries the summary
     fields (timing / tokens / messages) alongside the error history, so no
-    supplemental listing fetch is needed. It rides the full narrated
+    supplemental listing fetch is needed. ``content`` opts into the error
+    free text (withheld by default). It rides the full narrated
     busy-retry policy rather than failing on a momentary event-loop stall;
     ``pid`` scopes that policy's exhaustion pointer to the hosting process.
     """
@@ -4924,7 +5032,7 @@ def _fetch_sample_detail(
     return _request_json(
         socket_path,
         f"/evals/{eval_id}/sample",
-        params={"sample_id": sample_id, "epoch": epoch},
+        params={"sample_id": sample_id, "epoch": epoch, "content": content},
         what=f"sample {sample_id}",
         not_found=(
             f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
@@ -4944,6 +5052,7 @@ def _fetch_sample_events(
     tail: int | None,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -4959,7 +5068,12 @@ def _fetch_sample_events(
     # sample_id (and all params) go in the query string so reserved-char ids
     # address correctly; drop unset options so server defaults apply. The
     # wire parameter for the cursor is `since` (the CLI flag is --cursor).
-    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "content": content,
+        "full": full,
+    }
     if cursor is not None:
         params["since"] = cursor
     if tail is not None:
@@ -4998,6 +5112,7 @@ def _fetch_sample_messages(
     epoch: int,
     *,
     tail: int | None,
+    content: bool,
     full: bool,
     pid: int | None = None,
 ) -> dict[str, Any]:
@@ -5010,7 +5125,12 @@ def _fetch_sample_messages(
     """
     # sample_id (and all params) go in the query string so reserved-char ids
     # address correctly; drop unset options so server defaults apply.
-    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "content": content,
+        "full": full,
+    }
     if tail is not None:
         params["tail"] = tail
     return _request_json(
@@ -5575,7 +5695,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         click.echo(f"  note: {note}")
 
 
-def _print_events(page: dict[str, Any], *, full: bool) -> None:
+def _print_events(page: dict[str, Any], *, content: bool, full: bool) -> None:
     """Render a page of transcript events (table) plus a cursor footer."""
     events = page.get("events") or []
     if full:
@@ -5600,6 +5720,8 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
 
     parts = [f"{len(events)} event" + ("" if len(events) == 1 else "s")]
     parts.append("done" if page.get("done") else "more")
+    if not full and not content:
+        parts.append("metadata only (pass --content for text)")
     click.echo()
     click.echo("  ·  ".join(parts))
     nxt = page.get("next")
@@ -5607,7 +5729,7 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
         click.echo(f"next: {nxt}  (resume with --cursor)")
 
 
-def _print_messages(page: dict[str, Any], *, full: bool) -> None:
+def _print_messages(page: dict[str, Any], *, content: bool, full: bool) -> None:
     """Render a conversation snapshot (per-message rows) plus a count footer."""
     messages = page.get("messages") or []
     count = int(page.get("count") or 0)
@@ -5637,19 +5759,31 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
         footer += " (use --all for the whole conversation)"
     if status:
         footer += f"  ·  {status}"
+    if not full and not content:
+        footer += "  ·  metadata only (pass --content for text)"
     click.echo()
     click.echo(footer)
 
 
 def _message_summary(m: dict[str, Any]) -> str:
-    """One-line summary for a message row (best-effort over compact fields)."""
+    """One-line summary for a message row (best-effort over compact fields).
+
+    Tolerates the metadata-only projection (no content / arguments / error
+    text): tool calls render as bare function names, a tool message as its
+    function, and a withheld error as a bare ``error`` marker.
+    """
     parts = [str(m.get("content") or "")]
+    if m.get("role") == "tool" and "content" not in m and m.get("function"):
+        parts.append(f"[{m['function']} output]")
     for call in m.get("tool_calls") or []:
-        parts.append(
-            f"→ {call.get('function') or '?'}({_truncate(str(call.get('arguments') or ''), 30)})"
+        arguments = (
+            _truncate(str(call["arguments"]), 30) if call.get("arguments") else ""
         )
+        parts.append(f"→ {call.get('function') or '?'}({arguments})")
     if m.get("error"):
         parts.append(f"error: {m['error']}")
+    elif m.get("has_error"):
+        parts.append("error")
     return _truncate("  ".join(p for p in parts if p), 100)
 
 
@@ -5659,7 +5793,9 @@ def _event_summary(e: dict[str, Any]) -> str:
     A pending (in-flight) event renders its live state — ``generating M:SS``
     for a model call, ``running M:SS`` for a tool call — instead of the
     completion fields, whose placeholder values (zero tokens, a default stop
-    reason) would read as "finished with nothing".
+    reason) would read as "finished with nothing". Tolerates the
+    metadata-only projection (no completion / arguments / result / error
+    text): a withheld error renders as a bare ``error`` marker.
     """
     t = e.get("event")
     if t == "model":
@@ -5675,13 +5811,18 @@ def _event_summary(e: dict[str, Any]) -> str:
             bits.append(str(e["completion"]))
         if e.get("error"):
             bits.append(f"error: {e['error']}")
+        elif e.get("has_error"):
+            bits.append("error")
         return _truncate(" · ".join(b for b in bits if b), 80)
     if t == "tool":
-        s = f"{e.get('function') or '?'}({_truncate(str(e.get('arguments') or ''), 30)})"
+        arguments = _truncate(str(e["arguments"]), 30) if e.get("arguments") else ""
+        s = f"{e.get('function') or '?'}({arguments})"
         if e.get("pending"):
             s += f" · {_format_pending('running', e.get('timestamp'))}"
         elif e.get("error"):
             s += f" → error: {e['error']}"
+        elif e.get("has_error"):
+            s += " → error"
         elif e.get("result"):
             s += f" → {_truncate(str(e['result']), 40)}"
         return _truncate(s, 80)
@@ -5744,9 +5885,11 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         )
     click.echo("  ·  ".join(p for p in parts if p))
 
+    # `is not None`, not truthiness: a metadata-only read (no --content)
+    # carries a present-but-withheld error as an *empty* dict
     error = detail.get("error")
     retries = detail.get("error_retries") or []
-    if not error and not retries:
+    if error is None and not retries:
         click.echo("\n(no errors)")
         return
 
@@ -5754,14 +5897,23 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         click.echo("\nprior attempts:")
         for i, retry_error in enumerate(retries, start=1):
             _echo_error(f"attempt {i}:", retry_error, show_traceback)
-    if error:
+    if error is not None:
         click.echo("\nfinal error:")
         _echo_error("", error, show_traceback)
 
 
 def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None:
-    """Echo one error: ``label  message`` plus an indented traceback if asked."""
-    message = error.get("message") or ""
+    """Echo one error: ``label  message`` plus an indented traceback if asked.
+
+    A metadata-only detail (no ``--content``) carries each error as an empty
+    dict — no ``message`` key at all — rendered as an explicit withheld
+    marker rather than a blank line a reader would take for an empty message.
+    """
+    message = (
+        (error.get("message") or "")
+        if "message" in error
+        else "(message withheld — pass --content to include it)"
+    )
     click.echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
         tb = error.get("traceback_ansi") or error.get("traceback") or ""

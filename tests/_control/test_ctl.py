@@ -634,6 +634,30 @@ def test_sample_detail_no_errors(capsys: pytest.CaptureFixture[str]) -> None:
     assert "(no errors)" in capsys.readouterr().out
 
 
+def test_sample_detail_withheld_error_renders_marker(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A withheld error renders as an explicit marker, not a blank line.
+
+    A metadata-only detail (no --content) carries each error as an empty dict.
+    """
+    from inspect_ai._cli.ctl import _print_sample_detail
+
+    detail = {
+        "sample_id": 1,
+        "epoch": 1,
+        "status": "error",
+        "retries": 1,
+        "error": {},
+        "error_retries": [{}],
+        "scores": {},
+    }
+    _print_sample_detail(detail, show_traceback=False)
+    out = capsys.readouterr().out
+    assert "final error" in out and "prior attempts" in out
+    assert out.count("withheld — pass --content") == 2
+
+
 def test_errors_table_lists_retried_and_errored(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -695,7 +719,7 @@ def test_print_events_table_and_footer(
         "next": "CURSORX",
         "done": False,
     }
-    _print_events(page, full=False)
+    _print_events(page, content=True, full=False)
     out = capsys.readouterr().out
     assert "event" in out.splitlines()[0]  # table header
     # per-type summaries
@@ -705,12 +729,50 @@ def test_print_events_table_and_footer(
     assert "4 events" in out
     assert "more" in out
     assert "next: CURSORX" in out
+    # a content read carries no metadata-only pointer
+    assert "metadata only" not in out
+
+
+def test_print_events_metadata_rows_and_footer_hint(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Metadata-only rows render structural fields and error presence.
+
+    The footer points at the --content opt-in.
+    """
+    from inspect_ai._cli.ctl import _print_events
+
+    page = {
+        "events": [
+            {
+                "event": "model",
+                "timestamp": 1000.0,
+                "model": "openai/gpt",
+                "tokens": 42,
+                "stop_reason": "stop",
+                "has_error": False,
+            },
+            {
+                "event": "tool",
+                "timestamp": 1001.0,
+                "function": "bash",
+                "has_error": True,
+            },
+        ],
+        "next": "CURSORX",
+        "done": False,
+    }
+    _print_events(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "openai/gpt" in out and "42 tok" in out
+    assert "bash() → error" in out
+    assert "metadata only (pass --content for text)" in out
 
 
 def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None:
     from inspect_ai._cli.ctl import _print_events
 
-    _print_events({"events": [], "next": "X", "done": True}, full=False)
+    _print_events({"events": [], "next": "X", "done": True}, content=True, full=False)
     out = capsys.readouterr().out
     assert "(no events)" in out
     assert "done" in out
@@ -736,7 +798,7 @@ def test_print_events_full_pretty_prints_raw(
         "next": "CURSORX",
         "done": False,
     }
-    _print_events(page, full=True)
+    _print_events(page, content=False, full=True)
     out = capsys.readouterr().out
     # nested raw fields survive (the compact table would have dropped them)
     assert '"total_tokens": 42' in out
@@ -1451,6 +1513,7 @@ def test_sample_events_read_retries_busy_timeout(
         tail=5,
         limit=None,
         types=None,
+        content=False,
         full=False,
         since_time=None,
         until=None,
@@ -3751,7 +3814,7 @@ def test_print_messages_table_and_footer(
             },
         ],
     }
-    _print_messages(page, full=False)
+    _print_messages(page, content=True, full=False)
     out = capsys.readouterr().out
     assert "role" in out.splitlines()[0]  # table header
     assert "what is the weather?" in out and "search" in out
@@ -3759,12 +3822,44 @@ def test_print_messages_table_and_footer(
     assert "2 of 5 messages" in out
     assert "--all" in out
     assert "running" in out
+    # a content read carries no metadata-only pointer
+    assert "metadata only" not in out
+
+
+def test_print_messages_metadata_rows_and_footer_hint(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Metadata-only rows render roles / function names / error presence.
+
+    The footer points at the --content opt-in.
+    """
+    from inspect_ai._cli.ctl import _print_messages
+
+    page = {
+        "status": "running",
+        "count": 3,
+        "messages": [
+            {"index": 0, "role": "user"},
+            {
+                "index": 1,
+                "role": "assistant",
+                "tool_calls": [{"id": "c1", "function": "search"}],
+            },
+            {"index": 2, "role": "tool", "function": "search", "has_error": True},
+        ],
+    }
+    _print_messages(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "search" in out and "error" in out
+    assert "metadata only (pass --content for text)" in out
 
 
 def test_print_messages_empty(capsys: pytest.CaptureFixture[str]) -> None:
     from inspect_ai._cli.ctl import _print_messages
 
-    _print_messages({"status": "completed", "count": 0, "messages": []}, full=False)
+    _print_messages(
+        {"status": "completed", "count": 0, "messages": []}, content=True, full=False
+    )
     out = capsys.readouterr().out
     assert "(no messages)" in out
     # nothing withheld, so no --all hint

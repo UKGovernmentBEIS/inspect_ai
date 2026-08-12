@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
+- Security: Control channel sample reads (`inspect ctl sample events` / `messages` / `show` / `errors`) now return metadata only by default, so monitors that never pass `--content` cannot be prompt-injected by the evaluated agent's output.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
 
 ## 0.3.258 (11 August 2026)
