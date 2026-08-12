@@ -1,13 +1,29 @@
 ---
 name: release-sandbox-tools
-description: Build, validate, and publish a new version of the inspect-sandbox-tools injectable executables. Use when code under src/inspect_sandbox_tools/ changed and a new injectable version must ship, or when asked to build/validate/upload sandbox tools binaries.
+description: Land a PR that requires new inspect-sandbox-tools injectable binaries to be built and published. Use when asked to land/merge a PR that changed code under src/inspect_sandbox_tools/ (typically its slow-tool-tests-release check fails on missing published binaries), or when asked to build/validate/upload sandbox tools binaries.
 ---
 
-# Releasing sandbox tools injectables
+# Landing a PR that ships new sandbox tools injectables
 
-Builds the four injectable artifacts (amd64/arm64 × glibc/musl), validates them
-across Linux distros, and publishes them to S3. Background:
-`src/inspect_sandbox_tools/design/RELEASING.md`.
+Lands a PR that changed code under `src/inspect_sandbox_tools/` and bumped the
+injectable version: builds the four artifacts (amd64/arm64 × glibc/musl) from
+the PR branch, validates them across Linux distros, and publishes them to S3.
+Background: `src/inspect_sandbox_tools/design/RELEASING.md`.
+
+Typically run by a maintainer. The PR is often a contributor's — they can write
+the code and bump the version, but they don't have credentials to upload the
+binaries to S3, so a maintainer performs this final step.
+
+**When to run:** once the PR is approved and the only failing CI check is
+`slow-tool-tests-release` — it fails at the "Fetch published non-dev
+sandbox-tools binaries" step with a message naming the missing S3 object,
+because the bumped version's artifacts aren't published yet. Running earlier
+wastes builds if review rounds change the injectable source.
+
+**Be on the right branch:** run every step below from a checkout of the PR's
+head branch (a git worktree of it is ideal) — the binaries must be built from
+the exact code being merged. Building from main or a stale checkout silently
+publishes wrong binaries under the new version number.
 
 All commands run from the repo root using the repo venv (`.venv/bin/python` —
 do not use `uv run` or system python).
@@ -45,6 +61,11 @@ background and monitor. On success, verify all four artifacts exist in
 
 (These are gitignored — never commit them.)
 
+Be aware that other checkouts may hold stale binaries with the same version
+name from earlier review rounds. The upload script doesn't glob across
+checkouts — it takes whatever file matches in the binaries dir of the checkout
+it runs from — so build fresh and run the upload from this same checkout.
+
 ## 3. Validate across distros
 
 ```sh
@@ -70,6 +91,10 @@ conversation:
 The `!` prefix runs the command inside the session. It uploads all four
 artifacts to `s3://inspect-sandbox-tools/` (us-east-2) with `--acl public-read`.
 
+The script shells out to plain `aws` with no profile; users on AWS SSO may need
+to prefix the command with `AWS_PROFILE=<profile>` after running
+`aws sso login --profile <profile>`.
+
 ## 5. Verify the upload (no credentials needed)
 
 Objects are public-read, so confirm each returns HTTP 200:
@@ -81,7 +106,13 @@ for f in amd64 arm64 amd64-musl arm64-musl; do
 done
 ```
 
-## 6. Nothing else to do here
+To confirm the right bytes were published, the `content-length` from a HEAD
+request (`curl -sI`) can be compared against the local file sizes.
+
+## 6. Finish the PR
+
+Re-run the failing `slow-tool-tests-release` job (from the PR's checks page,
+or `gh run rerun <run-id> --failed`) and confirm it passes.
 
 PyPI bundling is not part of this process — the `inspect_ai` release script
 (`scripts/pypi-release.py`) pulls the glibc binaries from S3 automatically at
