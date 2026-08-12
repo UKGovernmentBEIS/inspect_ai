@@ -3,6 +3,9 @@ import os
 import re
 from asyncio.subprocess import Process as AsyncIOProcess
 
+import psutil
+
+from ..._util.process_tree import process_group_members, terminate_process_tree
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
 from ..._util.timeout_event import TimeoutEvent
 from ..._util.user_switch import get_home_dir, make_preexec
@@ -45,6 +48,8 @@ class Process:
         self._read_task = asyncio.create_task(self._read_loop())
         self._send_data_event = TimeoutEvent()
         self._idle_timeout = 0.0
+        self._known_descendants: list[psutil.Process] = []
+        self._retired = False
 
     async def interact(
         self,
@@ -80,6 +85,7 @@ class Process:
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
         self._terminated = True
+        self._remember_descendants()
         self._pty.writer.write(b"exit\n")
         try:
             await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
@@ -102,7 +108,6 @@ class Process:
         # Clean up the timeout handler
         self._send_data_event.cancel()
 
-        # Ensure the process is terminated
         try:
             self._process.terminate()
             await asyncio.wait_for(self._process.wait(), timeout=timeout)
@@ -110,10 +115,57 @@ class Process:
             self._process.kill()
             await self._process.wait()
         except ProcessLookupError:
-            # the process has already ended
             pass
 
+        self._retired = True
         self._pty.cleanup()
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned shell during server shutdown."""
+        if not self._retired:
+            self._remember_descendants()
+        if not self._terminated:
+            self._terminated = True
+            self._pty.writer.write(b"exit\n")
+            try:
+                await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
+            except (
+                BrokenPipeError,
+                ConnectionResetError,
+                TimeoutError,
+                asyncio.TimeoutError,
+            ):
+                pass
+
+            if self._read_task:
+                self._read_task.cancel()
+                try:
+                    await self._read_task
+                except asyncio.CancelledError:
+                    pass
+
+            self._send_data_event.cancel()
+        known_descendants = [*self._known_descendants]
+        try:
+            await terminate_process_tree(
+                self._process,
+                timeout=timeout,
+                process_group=not self._retired,
+                known_descendants=known_descendants,
+            )
+        finally:
+            self._known_descendants.clear()
+            self._pty.cleanup()
+
+    def _remember_descendants(self) -> None:
+        pid = self._process.pid
+        if pid is None:
+            return
+        try:
+            self._known_descendants.extend(psutil.Process(pid).children(recursive=True))
+        except psutil.NoSuchProcess:
+            pass
+        self._known_descendants.extend(process_group_members(pid, exclude_pid=pid))
 
     async def _read_loop(self) -> None:
         """Read decoded data from the PTY and process it."""

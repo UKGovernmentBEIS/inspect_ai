@@ -36,6 +36,7 @@ class PseudoTerminalIO:
         self._subprocess_fd = subprocess_fd
         self._writer = writer
         self._fd_reader = fd_reader
+        self._cleaned = False
 
     @property
     def coordinator_fd(self) -> int:
@@ -58,6 +59,9 @@ class PseudoTerminalIO:
 
     def cleanup(self) -> None:
         """Release all resources."""
+        if self._cleaned:
+            return
+        self._cleaned = True
         self._writer.transport.close()
         # Close the read stack
         self._fd_reader.close()

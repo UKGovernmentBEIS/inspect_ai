@@ -1,3 +1,4 @@
+import asyncio
 from itertools import count
 
 from mcp import JSONRPCError, JSONRPCResponse
@@ -12,6 +13,7 @@ from .tool_types import (
 )
 
 sessions = dict[int, MCPServerSession]()
+retired_sessions: list[MCPServerSession] = []
 id_generator = count()
 
 
@@ -25,7 +27,25 @@ async def mcp_launch_server(params: LaunchServerParams) -> int:
 @validated_json_rpc_method(KillServerParams)
 async def mcp_kill_server(params: KillServerParams) -> None:
     # TODO: A later PR will audit/fix sandbox timeouts wholesale
-    await sessions.pop(params.session_id).terminate(timeout=30)
+    session = sessions.pop(params.session_id)
+    try:
+        await session.terminate(timeout=30)
+    finally:
+        retired_sessions.append(session)
+
+
+async def shutdown() -> None:
+    """Terminate every MCP session owned by this server."""
+    active_sessions = [*sessions.values(), *retired_sessions]
+    sessions.clear()
+    retired_sessions.clear()
+    results = await asyncio.gather(
+        *(session.shutdown(timeout=30) for session in active_sessions),
+        return_exceptions=True,
+    )
+    errors = [result for result in results if isinstance(result, Exception)]
+    if errors:
+        raise RuntimeError("; ".join(str(error) for error in errors))
 
 
 @validated_json_rpc_method(SendRequestParams)

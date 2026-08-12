@@ -11,8 +11,6 @@ if TYPE_CHECKING:
 
 import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
@@ -1222,6 +1220,16 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
+
+
+# httpx-native equivalents of openai's DEFAULT_TIMEOUT / DEFAULT_CONNECTION_LIMITS
+# (same values). Do NOT import those from `openai`: openai >= 3.0 is built on
+# httpx2, and its httpx2-typed constants silently corrupt the timeout config of
+# our legacy `httpx.AsyncClient`, failing every request with APIConnectionError.
+DEFAULT_TIMEOUT = httpx.Timeout(timeout=600, connect=5.0)
+DEFAULT_CONNECTION_LIMITS = httpx.Limits(
+    max_connections=1000, max_keepalive_connections=100
+)
 
 
 class OpenAIAsyncHttpxClient(httpx.AsyncClient):

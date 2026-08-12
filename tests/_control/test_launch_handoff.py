@@ -55,8 +55,8 @@ from inspect_ai._util.error import PrerequisiteError, SilentException
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import generate
 
-# `_isolate_active_model` (autouse) and `short_data_dir` come from
-# tests/_control/conftest.py.
+# `isolate_active_model` (autouse) comes from tests/conftest.py, and
+# `short_data_dir` from tests/_control/conftest.py.
 
 
 @pytest.fixture

@@ -4,7 +4,13 @@ import signal
 from asyncio.subprocess import Process as AsyncIOProcess
 from typing import Literal, NamedTuple
 
+import psutil
+
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.process_tree import (
+    process_group_members,
+    terminate_process_tree,
+)
 from inspect_sandbox_tools._util.user_switch import (
     get_home_dir,
     is_current_user,
@@ -117,6 +123,8 @@ class Job:
         self._state: Literal["running", "completed", "killed"] = "running"
         self._exit_code: int | None = None
         self._acked_buffer: AckedChunkBuffer[tuple[str, str]] = AckedChunkBuffer()
+        self._known_descendants: list[psutil.Process] = []
+        self._retired = False
 
         # Start background read tasks
         self._stdout_task = asyncio.create_task(
@@ -190,16 +198,13 @@ class Job:
         pgid = self._process.pid
         assert pgid is not None, "Process was created without a pid"
 
-        # Try graceful termination first (SIGTERM to process group)
         try:
             os.killpg(pgid, signal.SIGTERM)
             await asyncio.wait_for(self._process.wait(), timeout=timeout)
         except asyncio.TimeoutError:
-            # Force kill if graceful termination times out (SIGKILL to process group)
             os.killpg(pgid, signal.SIGKILL)
             await self._process.wait()
         except ProcessLookupError:
-            # Process already exited
             pass
 
         await self._wait_for_readers()
@@ -208,6 +213,33 @@ class Job:
         self._acked_buffer.push((stdout, stderr))
         seq, chunks = self._acked_buffer.collect(ack_seq)
         return OutputChunk(seq, *self._combine_chunks(chunks))
+
+    async def shutdown(self, timeout: int = 30) -> None:
+        """Forcefully terminate this server-owned job during server shutdown."""
+        self._state = "killed"
+        known_descendants = [*self._known_descendants]
+        try:
+            await terminate_process_tree(
+                self._process,
+                timeout=timeout,
+                process_group=not self._retired,
+                known_descendants=known_descendants,
+            )
+        finally:
+            self._known_descendants.clear()
+            await self._wait_for_readers()
+
+    def retire(self) -> None:
+        """Snapshot remaining group members before retaining a completed job."""
+        if self._retired:
+            return
+        self._retired = True
+        self._remember_descendants()
+
+    def _remember_descendants(self) -> None:
+        pid = self._process.pid
+        if pid is not None:
+            self._known_descendants.extend(process_group_members(pid, exclude_pid=pid))
 
     def _drain_buffers(
         self, final: bool = False, max_bytes: int | None = None
