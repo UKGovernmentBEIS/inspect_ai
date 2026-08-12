@@ -4,7 +4,7 @@ services:
     init: true
     # Internet access is intentional for this general-purpose agent, and
     # container networking is also required for the VNC port mappings.
-    # Dynamically assign ports for vnc and novnc
+    # Dynamically assign loopback host ports for vnc and novnc
     ports:
-      - "5900"
-      - "6080"
+      - "127.0.0.1::5900"
+      - "127.0.0.1::6080"
