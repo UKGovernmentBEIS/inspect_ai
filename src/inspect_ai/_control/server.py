@@ -99,8 +99,8 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-class _ParsedRetryKnobs(NamedTuple):
-    """Parsed retry-override knob values, or the 400 that rejects them."""
+class _ParsedOverrideKnobs(NamedTuple):
+    """Parsed override knob values, or the 400 that rejects them."""
 
     values: dict[str, "int | Literal['clear'] | None"]
     error: "JSONResponse | None"
@@ -411,22 +411,22 @@ class ControlServer:
                     )
             return None
 
-        def _parse_retry_knobs(*knobs: tuple[str, str | None]) -> _ParsedRetryKnobs:
-            """Parse the retry-override knobs' raw query values.
+        def _parse_override_knobs(
+            maximum: int, *knobs: tuple[str, str | None]
+        ) -> _ParsedOverrideKnobs:
+            """Parse override knobs' raw query values (retry + sample limits).
 
             Unlike the limits knobs these are declared ``str`` on the route:
             every integer >= 0 is a real value (0 = fail after the first
             attempt / a zero budget), so clearing an override is spelled with
             the keyword ``clear`` rather than a sentinel integer. Values above
-            :data:`MAX_GENERATE_CONFIG_OVERRIDE` are rejected here too — the
+            ``maximum`` (the store's own bound —
+            :data:`MAX_GENERATE_CONFIG_OVERRIDE` /
+            :data:`MAX_SAMPLE_LIMIT_OVERRIDE`) are rejected here too: the
             store enforces the same bound, but a 400 at the wire beats a 500.
             Returns the parsed values plus a 400 for the first invalid one
             (a ``None`` passes through as "not requested").
             """
-            from inspect_ai.model._generate_overrides import (
-                MAX_GENERATE_CONFIG_OVERRIDE,
-            )
-
             parsed: dict[str, int | Literal["clear"] | None] = {}
             for label, raw in knobs:
                 if raw is None:
@@ -438,21 +438,21 @@ class ControlServer:
                         value = int(raw)
                     except ValueError:
                         value = -1
-                    if value < 0 or value > MAX_GENERATE_CONFIG_OVERRIDE:
-                        return _ParsedRetryKnobs(
+                    if value < 0 or value > maximum:
+                        return _ParsedOverrideKnobs(
                             values=parsed,
                             error=JSONResponse(
                                 status_code=400,
                                 content={
                                     "error": f"{label} must be an integer "
                                     f"between 0 and "
-                                    f"{MAX_GENERATE_CONFIG_OVERRIDE} or "
+                                    f"{maximum} or "
                                     f"'clear' (got {raw!r})"
                                 },
                             ),
                         )
                     parsed[label] = value
-            return _ParsedRetryKnobs(values=parsed, error=None)
+            return _ParsedOverrideKnobs(values=parsed, error=None)
 
         def _key_pair_error(
             key: str | None, key_limit: int | None
@@ -871,7 +871,12 @@ class ControlServer:
                 return error
             if error := _key_pair_error(key, key_limit):
                 return error
-            retry_knobs, retry_error = _parse_retry_knobs(
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+
+            retry_knobs, retry_error = _parse_override_knobs(
+                MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
                 ("max_retries", max_retries),
@@ -898,9 +903,11 @@ class ControlServer:
 
         # Read the task's retunable config (max_samples / max_sandboxes /
         # max_subprocesses / max_connections plus the log_buffer / log_shared
-        # buffer params).
+        # buffer params and the time_limit / token_limit / message_limit
+        # per-sample limit overrides).
         # Keyed by task_id — stable across retry attempts, matching the knobs'
-        # own scope (max_samples and the buffer params are task-scoped; the
+        # own scope (max_samples, the buffer params and the per-sample limits
+        # are task-scoped; the
         # other knobs process-wide) — where a per-attempt eval id would go
         # stale on every retry. A pure read — the companion PATCH applies
         # changes. `model` filters the adaptive controllers shown.
@@ -939,6 +946,9 @@ class ControlServer:
             timeout: str | None = None,
             attempt_timeout: str | None = None,
             max_retries: str | None = None,
+            time_limit: str | None = None,
+            token_limit: str | None = None,
+            message_limit: str | None = None,
             author: str | None = None,
             reason: str | None = None,
             dry_run: bool = False,
@@ -955,13 +965,27 @@ class ControlServer:
                 return error
             if error := _key_pair_error(key, key_limit):
                 return error
-            retry_knobs, retry_error = _parse_retry_knobs(
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+            from inspect_ai.util._limit_overrides import MAX_SAMPLE_LIMIT_OVERRIDE
+
+            retry_knobs, retry_error = _parse_override_knobs(
+                MAX_GENERATE_CONFIG_OVERRIDE,
                 ("timeout", timeout),
                 ("attempt_timeout", attempt_timeout),
                 ("max_retries", max_retries),
             )
             if retry_error is not None:
                 return retry_error
+            limit_knobs, limit_error = _parse_override_knobs(
+                MAX_SAMPLE_LIMIT_OVERRIDE,
+                ("time_limit", time_limit),
+                ("token_limit", token_limit),
+                ("message_limit", message_limit),
+            )
+            if limit_error is not None:
+                return limit_error
             try:
                 result = await task_limits(
                     task_id,
@@ -977,6 +1001,9 @@ class ControlServer:
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
                     max_retries=retry_knobs["max_retries"],
+                    time_limit=limit_knobs["time_limit"],
+                    token_limit=limit_knobs["token_limit"],
+                    message_limit=limit_knobs["message_limit"],
                     author=author,
                     reason=reason,
                     dry_run=dry_run,

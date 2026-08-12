@@ -167,6 +167,7 @@ from inspect_ai.util._limit import (
 from inspect_ai.util._limit import time_limit as create_time_limit
 from inspect_ai.util._limit import turn_limit as create_turn_limit
 from inspect_ai.util._limit import working_limit as create_working_limit
+from inspect_ai.util._limit_overrides import sample_limit_override_scope
 from inspect_ai.util._sandbox import SandboxTimeoutError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
@@ -1904,12 +1905,19 @@ async def task_run_sample(
                         init_sample_working_time(start_time)
 
                         # run sample w/ optional limits
+                        sample_time_limit = create_time_limit(time_limit)
                         with (
+                            sample_limit_override_scope(
+                                task_id,
+                                time=sample_time_limit,
+                                token=state._token_limit,
+                                message=state._message_limit,
+                            ),
                             state._token_limit,
                             state._cost_limit,
                             state._message_limit,
                             create_turn_limit(turn_limit),
-                            create_time_limit(time_limit),
+                            sample_time_limit,
                             create_working_limit(working_limit),
                         ):
 

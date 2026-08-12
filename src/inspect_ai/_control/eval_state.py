@@ -902,9 +902,11 @@ def reset_run_registries() -> None:
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
+    from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_sample_limit_overrides()
     reset_process_config_updates()
     reset_task_pause_gates()
     reset_process_pause()
