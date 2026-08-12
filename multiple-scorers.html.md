@@ -205,6 +205,8 @@ multi_scorer(
 
 Use of [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) requires both a list of scorers as well as a *reducer* which determines how a list of scores will be turned into a single score. In this case we use the “mode” reducer which returns the score that appeared most frequently in the answers (i.e. a majority vote). See [Reducing Epochs](./metrics.html.md#reducing-epochs) for the full set of built-in reducers.
 
+To keep every scorer’s value rather than collapsing to one, use the `"collect"` reducer, which preserves the individual values as a list — for example to feed an inter-rater agreement metric like [krippendorff_alpha()](./reference/inspect_ai.scorer.html.md#krippendorff_alpha) (see [Multi-Judge Reliability](./metrics.html.md#multi-judge-reliability)).
+
 ## Sandbox Access
 
 If your Solver is an [Agent](./agents.html.md) with tool use, you might want to inspect the contents of the tool sandbox to score the task.

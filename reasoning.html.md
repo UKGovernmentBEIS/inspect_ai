@@ -137,16 +137,50 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 | `high`          | `high`            | 0.8   |
 | `max` / `xhigh` | `xhigh`           | 0.95  |
 
-#### Groq / Ollama / SageMaker
+#### Groq / Ollama / SageMaker / SambaNova
 
-Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values:
+Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values. `none` is not a supported value, so it is omitted and the provider/model default applies — this does not disable reasoning (always-on models keep reasoning):
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal` / `low`        | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Together
+
+Together accepts `low` / `medium` / `high` for all reasoning models, and additionally `xhigh` / `max` on some (e.g. DeepSeek V4 Pro); only gpt-oss rejects the top-end values. `minimal` is never accepted. `none` is not a supported effort value, so it is omitted and the provider/model default applies — to turn reasoning off on hybrid models, pass `reasoning={"enabled": false}` rather than an effort value.
+
+| Inspect input | API value (gpt-oss) | API value (other models) |
+|----|----|----|
+| `none` | omitted (provider/model default) | omitted (provider/model default) |
+| `minimal` | `low` | `low` |
+| `low` / `medium` / `high` | identical | identical |
+| `xhigh` / `max` | `high` | identical |
+
+#### Perplexity
+
+Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values. `none` is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):
+
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal`                | `minimal`                        |
+| `low`                    | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Fireworks
+
+Effort validity is model-dependent. No Fireworks model accepts `minimal` (→ `low`). gpt-oss and MiniMax M2 accept only `low` / `medium` / `high`: they reject `none` (omitted, so the provider/model default applies) and `xhigh` / `max` (→ `high`). Other reasoning models — DeepSeek, GLM, Kimi, and MiniMax M3 — accept `none` and `xhigh` / `max`, so those pass through:
+
+| Inspect input | API value (gpt-oss / MiniMax M2) | API value (other models) |
+|----|----|----|
+| `none` | omitted (provider/model default) | `none` |
+| `minimal` | `low` | `low` |
+| `low` / `medium` / `high` | identical | identical |
+| `xhigh` / `max` | `high` | identical |
 
 #### Bedrock
 

@@ -875,6 +875,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Model specific arguments (<code>key=value</code>).</td>
 </tr>
 <tr class="odd">
+<td><code>--model-spec</code></td>
+<td>Model with its own generation config, model args, and base url (inline JSON or YAML, same fields as <code>--model-role</code>). Repeat for several models. Cannot be combined with the four options above, nor with the <code>model</code> field of <code>--run-config</code>. See <a href="./models.html#multiple-models">Multiple Models</a>.</td>
+</tr>
+<tr class="even">
 <td><code>--model-role</code></td>
 <td>Named model role with model name or config (e.g.&nbsp;<code>grader=openai/gpt-4o</code>). See <a href="./models.html#model-roles">Model Roles</a>.</td>
 </tr>

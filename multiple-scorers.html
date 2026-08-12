@@ -944,6 +944,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    reducer <span class="op">=</span> <span class="st">"mode"</span></span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Use of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#multi_scorer">multi_scorer()</a></span> requires both a list of scorers as well as a <em>reducer</em> which determines how a list of scores will be turned into a single score. In this case we use the “mode” reducer which returns the score that appeared most frequently in the answers (i.e.&nbsp;a majority vote). See <a href="./metrics.html#reducing-epochs">Reducing Epochs</a> for the full set of built-in reducers.</p>
+<p>To keep every scorer’s value rather than collapsing to one, use the <code>"collect"</code> reducer, which preserves the individual values as a list — for example to feed an inter-rater agreement metric like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#krippendorff_alpha">krippendorff_alpha()</a></span> (see <a href="./metrics.html#multi-judge-reliability">Multi-Judge Reliability</a>).</p>
 </section>
 <section id="sandbox-access" class="level2">
 <h2 class="anchored" data-anchor-id="sandbox-access">Sandbox Access</h2>

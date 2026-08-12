@@ -720,6 +720,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#sample" id="toc-sample" class="nav-link" data-scroll-target="#sample">Sample</a></li>
   <li><a href="#model" id="toc-model" class="nav-link" data-scroll-target="#model">Model</a></li>
   </ul></li>
+  <li><a href="#hook-object-lifecycle" id="toc-hook-object-lifecycle" class="nav-link" data-scroll-target="#hook-object-lifecycle">Hook Object Lifecycle</a></li>
   <li><a href="#registration" id="toc-registration" class="nav-link" data-scroll-target="#registration">Registration</a></li>
   <li><a href="#disabling-hooks" id="toc-disabling-hooks" class="nav-link" data-scroll-target="#disabling-hooks">Disabling Hooks</a></li>
   <li><a href="#requiring-hooks" id="toc-requiring-hooks" class="nav-link" data-scroll-target="#requiring-hooks">Requiring Hooks</a></li>
@@ -925,6 +926,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span>, which is allowed to propagate so that hooks can enforce limits.</p>
 <p>In addition to these lifecycle events, two non-event methods let you control hook behaviour: <a href="#disabling-hooks"><code>enabled()</code></a> gates whether a hook is active, and <a href="#api-key-override"><code>override_api_key()</code></a> can rewrite model API keys. Both are covered below.</p>
 </section>
+</section>
+<section id="hook-object-lifecycle" class="level2">
+<h2 class="anchored" data-anchor-id="hook-object-lifecycle">Hook Object Lifecycle</h2>
+<p>The <code>@hooks</code> decorator instantiates your class <strong>once</strong>, and that single instance is reused for the lifetime of the process. There is no teardown event, so do per-run cleanup in <code>on_run_end</code> or <code>on_eval_set_end</code>, as the Weights &amp; Biases example above does with <code>wandb.finish()</code>.</p>
+<p>Consequently <code>self</code> is shared by every eval set, run, task, sample, and epoch, and calls for concurrent samples interleave at <code>await</code> points. Key per-sample state by <code>data.sample_id</code> and remove it in <code>on_sample_end</code>, and don’t create event-loop-bound resources (async clients, <code>anyio</code> primitives) in <code>__init__</code> — create them in <code>on_run_start</code>. See the <a href="./reference/inspect_ai.hooks.html"><span class="element-type-name ref-interlink"><span>Hooks</span></span></a> reference for the full details.</p>
 </section>
 <section id="registration" class="level2">
 <h2 class="anchored" data-anchor-id="registration">Registration</h2>

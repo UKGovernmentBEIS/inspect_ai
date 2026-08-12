@@ -60,6 +60,16 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
   Convenience helper for categorical scorers. Returns [frequency()](./reference/inspect_ai.scorer.html.md#frequency) with optional declared categories, typically from a [StrEnum](./reference/inspect_ai.util.html.md#strenum), so zero-count categories are included and metrics can be recomputed from logs.
 
+- [krippendorff_alpha()](./reference/inspect_ai.scorer.html.md#krippendorff_alpha)
+
+  Krippendorff’s α coefficient of inter-rater agreement across multiple judges or scorers. Each sample’s `Score.value` must be a sequence of per-judge ratings (one element per judge) — produce these by pairing [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) with the `collect` reducer (see [Multi-Judge Reliability](#multi-judge-reliability)); the metric computes α across all samples. Pick the measurement scale that matches your ratings:
+
+  - `level="nominal"` (default) — unordered categories (e.g. correct/incorrect labels or category IDs). Any difference counts as a full disagreement.
+  - `level="ordinal"` — ordered categories with unequal gaps (e.g. 1–5 Likert ratings). Distance is weighted by the marginal frequency of intermediate ranks (Krippendorff 2007).
+  - `level="interval"` — numbers on an equal-interval scale. Distance is the squared numeric difference.
+
+  For ordinal or interval levels, non-numeric ratings require a `to_float` mapping; pass `to_float=value_to_float()` to map `CORRECT`/`INCORRECT`/`PARTIAL`/`NOANSWER` strings to 1/0/0.5/0, or supply your own ordering for text categories. With two judges, nominal α coincides with Scott’s π (its many-judge analogue is Fleiss’ κ), exactly so only in the large-sample limit owing to α’s small-sample correction.
+
 ## Metric Grouping
 
 The [grouped()](./reference/inspect_ai.scorer.html.md#grouped) function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.
@@ -96,6 +106,32 @@ grouped(accuracy(), "category", name_template="category_{group_name}")
 
 This would produce metrics named `category_physics`, `category_chemistry`, etc. instead of just `physics`, `chemistry`. It does not affect the “all” metric, so that can be named separately.
 
+## Per-Key Aggregation
+
+Some scorers emit a dict-valued `Score.value` with several numeric fields per sample. The [aggregate()](./reference/inspect_ai.scorer.html.md#aggregate) function applies a given metric to a single field selected by key, so any standard metric can be computed per key:
+
+``` python
+from inspect_ai.scorer import aggregate, mean, stderr
+
+@metric
+def element_accuracy() -> Metric:
+    return aggregate("element_acc", mean())
+
+@metric
+def element_accuracy_stderr() -> Metric:
+    return aggregate("element_acc", stderr())
+```
+
+By default the extracted value is passed straight through to the inner metric, so the inner metric’s own conversion applies. Pass `to_float=` only when the inner metric can’t convert the value itself (for example to feed string grades like `"C"`/`"I"` into [mean()](./reference/inspect_ai.scorer.html.md#mean), which expects numerics):
+
+``` python
+from inspect_ai.scorer import value_to_float
+
+aggregate("verdict", mean(), to_float=value_to_float())
+```
+
+Samples where the key is missing (or present but `None`) are routed through `on_missing`: `"error"` (the default) raises, `"skip"` excludes the sample, and `"zero"` counts it as `0.0`. A per-key `NaN` is always treated as unscored and skipped, matching how the framework handles NaN scores elsewhere. If every sample is filtered out, [aggregate()](./reference/inspect_ai.scorer.html.md#aggregate) returns `NaN`.
+
 ## Clustered Stderr
 
 The [stderr()](./reference/inspect_ai.scorer.html.md#stderr) metric supports computing [clustered standard errors](https://en.wikipedia.org/wiki/Clustered_standard_errors) via the `cluster` parameter. Most scorers already include [stderr()](./reference/inspect_ai.scorer.html.md#stderr) as a built-in metric, so to compute clustered standard errors you’ll want to specify custom `metrics` for your task (which will override the scorer’s built in metrics).
@@ -117,6 +153,27 @@ def gpqa():
 ```
 
 The `metrics` passed to the [Task](./reference/inspect_ai.html.md#task) override the default metrics of the [choice()](./reference/inspect_ai.scorer.html.md#choice) scorer.
+
+## Multi-Judge Reliability
+
+[krippendorff_alpha()](./reference/inspect_ai.scorer.html.md#krippendorff_alpha) measures agreement *across* the judges who scored each sample, so it needs `Score.value` to be a list of per-judge ratings rather than a single aggregated value. Most [multi_scorer()](./reference/inspect_ai.scorer.html.md#multi_scorer) reducers (`"mean"`, `"mode"`, etc.) collapse multiple judges to a single value, which discards the per-judge information α needs. Use the `"collect"` reducer instead, which keeps every judge’s rating as a list:
+
+``` python
+from inspect_ai.scorer import krippendorff_alpha, multi_scorer
+
+@task
+def judge_reliability():
+    return Task(
+        ...,
+        scorer=multi_scorer(
+            scorers=[judge1, judge2, judge3],
+            reducer="collect",
+        ),
+        metrics=[krippendorff_alpha(level="ordinal")],
+    )
+```
+
+Each sample’s `Score.value` is now `[judge1_rating, judge2_rating, judge3_rating]`, which [krippendorff_alpha()](./reference/inspect_ai.scorer.html.md#krippendorff_alpha) aggregates across samples to compute α. Pick `level="nominal"` for unordered category labels, `level="ordinal"` for Likert-style ratings, or `level="interval"` for continuous scores; see the metric’s docstring for details.
 
 ## Custom Metrics
 
@@ -254,6 +311,7 @@ Inspect includes several built in reducers which are summarised below.
 | pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
 | pass_k\_{k} | Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>) |
 | at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
+| collect | Collect all scores into a list, preserving each value instead of aggregating. |
 
 > **NOTE: Note**
 >

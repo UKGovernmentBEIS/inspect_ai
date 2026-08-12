@@ -11,7 +11,7 @@ Inspect has support for a wide variety of language model APIs and can be extende
 | Open (Hosted) | [Groq](./providers.html.md#groq), [Together AI](./providers.html.md#together-ai), [Fireworks AI](./providers.html.md#fireworks-ai), [Cloudflare](./providers.html.md#cloudflare), [HF Inference Providers](./providers.html.md#hf-inference-providers), [SambaNova](./providers.html.md#sambanova) |
 | Open (Local) | [Hugging Face](./providers.html.md#hugging-face), [vLLM](./providers.html.md#vllm), [Ollama](./providers.html.md#ollama), [Lllama-cpp-python](./providers.html.md#llama-cpp-python), [SGLang](./providers.html.md#sglang), [TransformerLens](./providers.html.md#transformer-lens), [nnterp](./providers.html.md#nnterp) |
 
-  
+\
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
@@ -60,6 +60,56 @@ Or from Python:
 ``` python
 eval("arc.py", model=None)
 ```
+
+#### Multiple Models
+
+To evaluate several models with the same options, pass a comma-separated list:
+
+``` bash
+inspect eval arc.py --model openai/gpt-4o,anthropic/claude-sonnet-4-0
+```
+
+To give each model its own options, use `--model-spec`. Each option holds one inline YAML or JSON mapping. A mapping takes the same fields as a [model role](#model-roles) — a required `model`, any generation config field, and `model_args` — plus a `base_url`:
+
+``` bash
+inspect eval arc.py \
+    --model-spec '{model: openai/gpt-4o, temperature: 0}' \
+    --model-spec '{model: openai/gpt-4o, temperature: 1}'
+```
+
+This runs the same model twice, once at each temperature. `--model` cannot do that, because it applies one shared parameter set to every model it names.
+
+Or:
+
+``` python
+eval("arc.py", model=[
+    get_model("openai/gpt-4o", config=GenerateConfig(temperature=0)),
+    get_model("openai/gpt-4o", config=GenerateConfig(temperature=1)),
+])
+```
+
+A spec supplies the whole model, so you cannot combine `--model-spec` with `--model`, `--model-base-url`, `--model-config`, `-M`, or the `model` field of a `--run-config` file. Put those values in each spec instead.
+
+An option you type beats an ambient environment value, so `--model-spec` and `INSPECT_EVAL_MODEL` never fail together. A spec you type replaces an `INSPECT_EVAL_MODEL`, and an `INSPECT_EVAL_MODEL_SPEC` yields to a `--model` you type.
+
+A generation config option on the command line still applies to every model, and it overrides the same field in every spec. For example, `--temperature 0.9` added to the command above runs both models at 0.9. Set the temperature only in the specs to keep the two values apart.
+
+`INSPECT_EVAL_MODEL_SPEC` holds one spec per model, separated by a space, in the same way as `INSPECT_EVAL_MODEL_ARGS`. A comma cannot separate the specs, because a spec uses commas between its own fields. Write each spec as JSON without spaces:
+
+``` bash
+export INSPECT_EVAL_MODEL_SPEC='{"model":"openai/gpt-4o","temperature":0} {"model":"openai/gpt-4o","temperature":1}'
+```
+
+`--model-spec` combines with `--model-role`, because a spec fills the main model and a role fills a named one. A role applies to every spec, and it does not override a spec. A role you leave unset inherits the spec that is running, so each model grades its own samples:
+
+``` bash
+inspect eval arc.py \
+    --model-spec '{model: openai/gpt-4o, temperature: 0}' \
+    --model-spec '{model: openai/gpt-4o, temperature: 1}' \
+    --model-role grader=anthropic/claude-sonnet-4-0
+```
+
+`inspect eval-set` accepts `--model-spec` as well. Task identity includes the model’s generation config, so two specs for one model stay two units of work. Task identity does not include `base_url` or credential model args such as `api_key`, so an eval set rejects two specs that differ only in those as not distinct; give each spec a distinct generation config, or run them with `inspect eval` instead. See [Eval Sets](./eval-sets.html.md).
 
 ## Generation Config
 

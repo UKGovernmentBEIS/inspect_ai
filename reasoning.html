@@ -1074,9 +1074,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 </section>
-<section id="groq-ollama-sagemaker" class="level4">
-<h4 class="anchored" data-anchor-id="groq-ollama-sagemaker">Groq / Ollama / SageMaker</h4>
-<p>Upstream APIs accept only <code>low</code> / <code>medium</code> / <code>high</code>. Inspect clamps the extended values:</p>
+<section id="groq-ollama-sagemaker-sambanova" class="level4">
+<h4 class="anchored" data-anchor-id="groq-ollama-sagemaker-sambanova">Groq / Ollama / SageMaker / SambaNova</h4>
+<p>Upstream APIs accept only <code>low</code> / <code>medium</code> / <code>high</code>. Inspect clamps the extended values. <code>none</code> is not a supported value, so it is omitted and the provider/model default applies — this does not disable reasoning (always-on models keep reasoning):</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -1087,7 +1087,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>none</code></td>
-<td>reasoning omitted</td>
+<td>omitted (provider/model default)</td>
 </tr>
 <tr class="even">
 <td><code>minimal</code> / <code>low</code></td>
@@ -1100,6 +1100,120 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="even">
 <td><code>high</code> / <code>xhigh</code> / <code>max</code></td>
 <td><code>high</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="together" class="level4">
+<h4 class="anchored" data-anchor-id="together">Together</h4>
+<p>Together accepts <code>low</code> / <code>medium</code> / <code>high</code> for all reasoning models, and additionally <code>xhigh</code> / <code>max</code> on some (e.g.&nbsp;DeepSeek V4 Pro); only gpt-oss rejects the top-end values. <code>minimal</code> is never accepted. <code>none</code> is not a supported effort value, so it is omitted and the provider/model default applies — to turn reasoning off on hybrid models, pass <code>reasoning={"enabled": false}</code> rather than an effort value.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 28%">
+<col style="width: 35%">
+<col style="width: 35%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Inspect input</th>
+<th>API value (gpt-oss)</th>
+<th>API value (other models)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>none</code></td>
+<td>omitted (provider/model default)</td>
+<td>omitted (provider/model default)</td>
+</tr>
+<tr class="even">
+<td><code>minimal</code></td>
+<td><code>low</code></td>
+<td><code>low</code></td>
+</tr>
+<tr class="odd">
+<td><code>low</code> / <code>medium</code> / <code>high</code></td>
+<td>identical</td>
+<td>identical</td>
+</tr>
+<tr class="even">
+<td><code>xhigh</code> / <code>max</code></td>
+<td><code>high</code></td>
+<td>identical</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="perplexity" class="level4">
+<h4 class="anchored" data-anchor-id="perplexity">Perplexity</h4>
+<p>Accepts <code>minimal</code> in addition to <code>low</code> / <code>medium</code> / <code>high</code>, so Inspect keeps <code>minimal</code> and clamps only the top-end values. <code>none</code> is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Inspect input</th>
+<th>API value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>none</code></td>
+<td>omitted (provider/model default)</td>
+</tr>
+<tr class="even">
+<td><code>minimal</code></td>
+<td><code>minimal</code></td>
+</tr>
+<tr class="odd">
+<td><code>low</code></td>
+<td><code>low</code></td>
+</tr>
+<tr class="even">
+<td><code>medium</code></td>
+<td><code>medium</code></td>
+</tr>
+<tr class="odd">
+<td><code>high</code> / <code>xhigh</code> / <code>max</code></td>
+<td><code>high</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="fireworks" class="level4">
+<h4 class="anchored" data-anchor-id="fireworks">Fireworks</h4>
+<p>Effort validity is model-dependent. No Fireworks model accepts <code>minimal</code> (→ <code>low</code>). gpt-oss and MiniMax M2 accept only <code>low</code> / <code>medium</code> / <code>high</code>: they reject <code>none</code> (omitted, so the provider/model default applies) and <code>xhigh</code> / <code>max</code> (→ <code>high</code>). Other reasoning models — DeepSeek, GLM, Kimi, and MiniMax M3 — accept <code>none</code> and <code>xhigh</code> / <code>max</code>, so those pass through:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 31%">
+<col style="width: 39%">
+<col style="width: 29%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Inspect input</th>
+<th>API value (gpt-oss / MiniMax M2)</th>
+<th>API value (other models)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>none</code></td>
+<td>omitted (provider/model default)</td>
+<td><code>none</code></td>
+</tr>
+<tr class="even">
+<td><code>minimal</code></td>
+<td><code>low</code></td>
+<td><code>low</code></td>
+</tr>
+<tr class="odd">
+<td><code>low</code> / <code>medium</code> / <code>high</code></td>
+<td>identical</td>
+<td>identical</td>
+</tr>
+<tr class="even">
+<td><code>xhigh</code> / <code>max</code></td>
+<td><code>high</code></td>
+<td>identical</td>
 </tr>
 </tbody>
 </table>
