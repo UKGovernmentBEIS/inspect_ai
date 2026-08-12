@@ -180,6 +180,7 @@ The listing is capped at 100 rows per task by default, keeping the head of the r
 | `--limit N` | Cap the listing at N rows per task instead of 100. |
 | `--all` | List every sample row (no cap). |
 | `--status running,error` | Only samples with these statuses (`running`, `completed`, `error`, `cancelled`, `pending`, `queued`). Filters rows only — `counts` stays whole-task. |
+| `--content` | Include each errored row's error message in the `--json` rows (agent-influenced free text — withheld by default; see [Agent-controlled content](#agent-controlled-content) below). |
 
 : {tbl-colwidths=[35,65]}
 

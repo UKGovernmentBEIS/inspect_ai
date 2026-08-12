@@ -1513,11 +1513,14 @@ def tasks_alias(as_json: bool) -> None:
 @ctl_command.command("samples", hidden=True)
 @click.argument("task", required=False)
 @click.option("--active-since", type=float, default=None)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def samples_alias(task: str | None, active_since: float | None, as_json: bool) -> None:
+def samples_alias(
+    task: str | None, active_since: float | None, content: bool, as_json: bool
+) -> None:
     """Deprecated alias for `inspect ctl sample list`."""
     _deprecation_note("samples", "sample list")
-    _run_sample_list(task, active_since, as_json)
+    _run_sample_list(task, active_since, as_json, content=content)
 
 
 @ctl_command.command("errors", hidden=True)
