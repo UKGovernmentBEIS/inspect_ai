@@ -1,10 +1,14 @@
 import base64
+import ipaddress
 import mimetypes
+import socket
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import Awaitable, Callable, Iterator, Literal
+from typing import Awaitable, Callable, Iterable, Iterator, Literal
 from urllib.parse import urlparse
 
+import anyio
+import httpcore
 import httpx
 
 from .file import file as open_file
@@ -26,6 +30,11 @@ MediaKind = Literal["image", "audio", "video", "document"]
 """Media type expected by an inline media consumer."""
 
 _GENERIC_MIME_TYPES = {"application/octet-stream", "binary/octet-stream"}
+_PROVIDER_IMAGE_MAX_BYTES = 20 * 1024 * 1024
+_PROVIDER_IMAGE_MAX_REDIRECTS = 5
+_PROVIDER_IMAGE_REQUEST_TIMEOUT = 10.0
+_PROVIDER_IMAGE_TOTAL_TIMEOUT = 30.0
+_PROVIDER_IMAGE_REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 
 
 class UnresolvedMediaError(ValueError):
@@ -161,6 +170,224 @@ async def materialize_media(file: str, mime_type: str | None = None) -> str:
         A data URI containing the materialized media bytes.
     """
     return await file_as_data_uri(file, mime_type)
+
+
+async def provider_image_data_uri(image: str) -> str:
+    """Safely materialize an image URL returned by a model provider.
+
+    Provider output is untrusted. Remote images are therefore restricted to
+    HTTPS on the default port, public IP addresses, bounded responses, and
+    recognized raster image formats. DNS is resolved and pinned by the network
+    backend so a hostname cannot be rebound to a private address between
+    validation and connection.
+
+    Args:
+        image: Data URI or remote image URL returned by a model provider.
+
+    Returns:
+        A validated inline image data URI.
+    """
+    if is_data_uri(image):
+        return inline_media_data_uri(image, "image")
+
+    url = _validated_provider_image_url(httpx.URL(image))
+    try:
+        with anyio.fail_after(_PROVIDER_IMAGE_TOTAL_TIMEOUT):
+            async with httpcore.AsyncConnectionPool(
+                network_backend=_PublicNetworkBackend(),
+                max_connections=1,
+                max_keepalive_connections=1,
+            ) as pool:
+                return await _download_provider_image(url, pool)
+    except (httpcore.NetworkError, httpcore.ProtocolError, TimeoutError, OSError) as ex:
+        raise ValueError(
+            f"Provider image could not be downloaded from {_url_origin(url)}."
+        ) from ex
+
+
+class _PublicNetworkBackend(httpcore.AsyncNetworkBackend):
+    """Network backend that connects only to DNS-pinned public IP addresses."""
+
+    def __init__(self, backend: httpcore.AsyncNetworkBackend | None = None) -> None:
+        self._backend = backend or httpcore.AnyIOBackend()
+
+    async def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options: Iterable[httpcore.SOCKET_OPTION] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        addresses = await _public_ip_addresses(host, port)
+        last_error: httpcore.ConnectError | httpcore.ConnectTimeout | None = None
+        for address in addresses:
+            try:
+                return await self._backend.connect_tcp(
+                    host=str(address),
+                    port=port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except (httpcore.ConnectError, httpcore.ConnectTimeout) as ex:
+                last_error = ex
+
+        if last_error is not None:
+            raise last_error
+        raise ValueError("Provider image hostname did not resolve to a public address.")
+
+    async def connect_unix_socket(
+        self,
+        path: str,
+        timeout: float | None = None,
+        socket_options: Iterable[httpcore.SOCKET_OPTION] | None = None,
+    ) -> httpcore.AsyncNetworkStream:
+        raise httpcore.UnsupportedProtocol(
+            "Unix sockets are not supported for provider images."
+        )
+
+    async def sleep(self, seconds: float) -> None:
+        await self._backend.sleep(seconds)
+
+
+async def _public_ip_addresses(
+    host: str, port: int
+) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+    try:
+        addresses = [ipaddress.ip_address(host)]
+    except ValueError:
+        address_info = await anyio.getaddrinfo(
+            host,
+            port,
+            type=socket.SOCK_STREAM,
+        )
+        addresses = [ipaddress.ip_address(info[4][0]) for info in address_info]
+
+    public_addresses = list(
+        dict.fromkeys(a for a in addresses if _is_public_ip_address(a))
+    )
+    if not public_addresses:
+        raise ValueError("Provider image hostname did not resolve to a public address.")
+    return public_addresses
+
+
+def _is_public_ip_address(
+    address: ipaddress.IPv4Address | ipaddress.IPv6Address,
+) -> bool:
+    if not address.is_global:
+        return False
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped is not None:
+            return address.ipv4_mapped.is_global
+        if address.sixtofour is not None:
+            return address.sixtofour.is_global
+        if address.teredo is not None:
+            server, client = address.teredo
+            return server.is_global and client.is_global
+    return True
+
+
+def _validated_provider_image_url(url: httpx.URL) -> httpx.URL:
+    if url.scheme != "https":
+        raise ValueError("Provider image URLs must use HTTPS.")
+    if not url.host:
+        raise ValueError("Provider image URL must include a hostname.")
+    if url.userinfo:
+        raise ValueError("Provider image URLs must not include credentials.")
+    if url.port is not None and url.port != 443:
+        raise ValueError("Provider image URLs must use the default HTTPS port.")
+    return url.copy_with(fragment=None)
+
+
+async def _download_provider_image(
+    url: httpx.URL, pool: httpcore.AsyncConnectionPool
+) -> str:
+    current_url = url
+    for redirect_count in range(_PROVIDER_IMAGE_MAX_REDIRECTS + 1):
+        async with pool.stream(
+            "GET",
+            str(current_url),
+            headers={
+                "Accept": "image/*",
+                "Accept-Encoding": "identity",
+                "User-Agent": "inspect-ai",
+            },
+            extensions={
+                "timeout": {
+                    "connect": _PROVIDER_IMAGE_REQUEST_TIMEOUT,
+                    "pool": _PROVIDER_IMAGE_REQUEST_TIMEOUT,
+                    "read": _PROVIDER_IMAGE_REQUEST_TIMEOUT,
+                    "write": _PROVIDER_IMAGE_REQUEST_TIMEOUT,
+                }
+            },
+        ) as response:
+            if response.status in _PROVIDER_IMAGE_REDIRECT_STATUSES:
+                location = _response_header(response, b"location")
+                if location is None:
+                    raise ValueError("Provider image redirect omitted its location.")
+                if redirect_count == _PROVIDER_IMAGE_MAX_REDIRECTS:
+                    raise ValueError("Provider image URL redirected too many times.")
+                current_url = _validated_provider_image_url(current_url.join(location))
+                continue
+
+            if not 200 <= response.status < 300:
+                raise ValueError(
+                    f"Provider image request to {_url_origin(current_url)} returned "
+                    f"HTTP {response.status}."
+                )
+
+            content_encoding = _response_header(response, b"content-encoding")
+            if content_encoding is not None and content_encoding.lower() != "identity":
+                raise ValueError("Provider image response must not be encoded.")
+
+            content_length = _response_header(response, b"content-length")
+            if content_length is not None:
+                try:
+                    declared_size = int(content_length)
+                except ValueError as ex:
+                    raise ValueError(
+                        "Provider image response has an invalid content length."
+                    ) from ex
+                if declared_size < 0 or declared_size > _PROVIDER_IMAGE_MAX_BYTES:
+                    raise ValueError("Provider image exceeds the 20 MiB size limit.")
+
+            image_bytes = bytearray()
+            async for chunk in response.aiter_stream():
+                image_bytes.extend(chunk)
+                if len(image_bytes) > _PROVIDER_IMAGE_MAX_BYTES:
+                    raise ValueError("Provider image exceeds the 20 MiB size limit.")
+
+            mime_type = _sniff_image_mime_type(bytes(image_bytes))
+            if mime_type is None:
+                raise ValueError(
+                    "Provider image response is not a recognized raster image."
+                )
+            return as_data_uri(
+                mime_type,
+                base64.b64encode(image_bytes).decode("ascii"),
+            )
+
+    raise AssertionError("Provider image redirect loop terminated unexpectedly.")
+
+
+def _response_header(response: httpcore.Response, name: bytes) -> str | None:
+    values = [value for key, value in response.headers if key.lower() == name]
+    if not values:
+        return None
+    if len(values) != 1:
+        raise ValueError(
+            f"Provider image response has multiple {name.decode('ascii')} headers."
+        )
+    try:
+        return values[0].decode("ascii")
+    except UnicodeDecodeError as ex:
+        raise ValueError("Provider image response contains an invalid header.") from ex
+
+
+def _url_origin(url: httpx.URL) -> str:
+    port = f":{url.port}" if url.port is not None else ""
+    return f"{url.scheme}://{url.host}{port}"
 
 
 def inline_media_data(
