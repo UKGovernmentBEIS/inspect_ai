@@ -3427,7 +3427,7 @@ def _run_sample_requeue_errored(
                 "individually with an explicit EPOCH).",
             )
         pairs.append((str(row["sample_id"]), int(row["epoch"])))
-    _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json, errored_sweep=True)
+    _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json)
 
 
 def _requeue_pairs(
@@ -3436,7 +3436,6 @@ def _requeue_pairs(
     *,
     dry_run: bool,
     as_json: bool,
-    errored_sweep: bool = False,
 ) -> None:
     """Post one requeue per pair and report each sample's result individually.
 
@@ -3522,16 +3521,19 @@ def _requeue_pairs(
     click.echo(_task_header(target))
     click.echo()
     if not pairs:
-        click.echo(
-            "(no errored samples to requeue)"
-            if errored_sweep
-            else "(no samples to requeue)"
-        )
+        # only the errored sweep can arrive with no pairs — the explicit-pairs
+        # caller always passes two or more
+        click.echo("(no errored samples to requeue)")
         return
     for entry in results:
         label = f"sample {entry['sample_id']} (epoch {entry['epoch']})"
         if "error" in entry:
-            click.echo(f"Rejected {label} — {entry['error']['message']}")
+            # the recorded message stays self-contained, but the transport
+            # prefix restates the label — render just the server detail
+            message = str(entry["error"]["message"])
+            prefix = f"Failed to update requeue of sample {entry['sample_id']}: "
+            message = message.removeprefix(prefix)
+            click.echo(f"Rejected {label} — {message}")
         elif (entry.get("detail") or {}).get("changed"):
             click.echo(
                 _requeue_changed_message(label, entry["detail"], dry_run=dry_run)

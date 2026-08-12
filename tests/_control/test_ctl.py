@@ -4879,7 +4879,12 @@ def test_sample_requeue_bulk_reports_mixed_results(
     def respond(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
         sample_id = (kwargs.get("params") or {})["sample_id"]
         if sample_id == "s2":
-            raise _CtlFailure("http_error", "sample completed", status=409)
+            # the real transport message carries the self-contained prefix
+            raise _CtlFailure(
+                "http_error",
+                "Failed to update requeue of sample s2: sample completed",
+                status=409,
+            )
         if sample_id == "s3":
             return {
                 "ok": True,
@@ -4900,8 +4905,13 @@ def test_sample_requeue_bulk_reports_mixed_results(
     assert by_id["s1"]["applied"] is True
     assert by_id["s2"]["applied"] is False
     assert by_id["s2"]["error"]["status"] == 409
-    # the full error-object shape, matching the top-level error envelope
+    # the full error-object shape, matching the top-level error envelope,
+    # with the message kept self-contained (prefix and all)
     assert set(by_id["s2"]["error"]) == {"kind", "exception", "message", "status"}
+    assert (
+        by_id["s2"]["error"]["message"]
+        == "Failed to update requeue of sample s2: sample completed"
+    )
     assert by_id["s3"]["applied"] is False
     assert by_id["s3"]["detail"]["reason"] == "a re-run is already pending"
 
@@ -4911,7 +4921,9 @@ def test_sample_requeue_bulk_reports_mixed_results(
     )
     assert human.exit_code == 0, human.output
     assert "Requeue accepted for sample s1 (epoch 1)" in human.stdout
+    # the human line drops the transport prefix that restates the label
     assert "Rejected sample s2 (epoch 1) — sample completed" in human.stdout
+    assert "Failed to update requeue" not in human.stdout
     assert "Nothing to do for sample s3 (epoch 1)" in human.stdout
     assert "Requeued 1 of 3 samples (1 no-op, 1 rejected)." in human.stdout
 
