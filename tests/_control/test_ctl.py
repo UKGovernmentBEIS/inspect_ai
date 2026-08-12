@@ -37,6 +37,7 @@ from inspect_ai._cli.ctl import (
     _SamplesPage,
     _sanitize_control,
     _sanitize_keep_sgr,
+    _sanitize_line,
     _truncate,
     ctl_command,
 )
@@ -5685,6 +5686,11 @@ def test_sanitize_keeps_newline_replaces_tab() -> None:
     assert _sanitize_control("a\tb") == "a b"
 
 
+def test_sanitize_line_flattens_newlines() -> None:
+    assert _sanitize_line("line1\nline2") == "line1 line2"
+    assert _sanitize_line("a\x1b[2K\nb") == "a b"
+
+
 def test_sanitize_keep_sgr_trailing_reset_preserves_trailing_newlines() -> None:
     """The appended reset closes styling without eating trailing newlines."""
     assert _sanitize_keep_sgr("\x1b[31mred\n\n") == "\x1b[31mred\x1b[0m\n\n"
@@ -6119,24 +6125,26 @@ def test_events_footer_sanitizes_cursor_token(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _print_events(
-        {"events": [], "done": False, "next": "tok\x1b]52;c;steal\x07en"},
+        {"events": [], "done": False, "next": "tok\x1b]52;c;steal\x07\nen"},
         full=False,
     )
     out = capsys.readouterr().out
     assert "\x1b" not in out
-    assert "next: token" in out
+    # escape removed whole, embedded newline flattened to a space
+    assert "next: tok en" in out
 
 
 def test_messages_footer_sanitizes_status(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _print_messages(
-        {"messages": [], "count": 0, "status": "running\x1b]0;evil\x07"},
+        {"messages": [], "count": 0, "status": "run\nning\x1b]0;evil\x07"},
         full=False,
     )
     out = capsys.readouterr().out
     assert "\x1b" not in out
-    assert "running" in out
+    # embedded newline flattened so the status can't forge a footer line
+    assert "run ning" in out
 
 
 def test_sample_mutation_messages_sanitize_wire_fields(
@@ -6157,8 +6165,9 @@ def test_sample_mutation_messages_sanitize_wire_fields(
             "sample_id": "s1\x1b]0;evil\x07",
             "epoch": 1,
             # unterminated OSC: per-field sanitization must bound it to the
-            # status field rather than let it swallow the trailing ").".
-            "status": "completed\x1b]0;evil",
+            # status field rather than let it swallow the trailing ").";
+            # the newline must flatten so status can't forge a line of its own
+            "status": "comp\nleted\x1b]0;evil",
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
@@ -6166,10 +6175,10 @@ def test_sample_mutation_messages_sanitize_wire_fields(
     assert result.exit_code == 0, result.output
     assert "\x1b" not in result.output
     assert "s1" in result.output
-    assert "(status: completed)." in result.output
+    assert "(status: comp leted)." in result.output
 
     spy = _RequestSpy(
-        {"ok": True, "changed": False, "reason": "held\x1b]0;evil\x07 elsewhere"}
+        {"ok": True, "changed": False, "reason": "held\x1b]0;evil\x07\nelsewhere"}
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])

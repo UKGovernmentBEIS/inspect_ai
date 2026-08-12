@@ -2842,7 +2842,7 @@ def _run_task_cancel(
         else:
             _echo(f"Cancel requested — {interrupted}; {suffix}.")
     else:
-        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         _echo(f"Nothing to do: {reason}.")
 
 
@@ -2968,7 +2968,7 @@ def _run_task_pause_resume(
             if "process" in held or "model" in held:
                 _echo(_still_held_note(held))
     else:
-        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         _echo(f"Nothing to do: {reason}.")
         # "task is not paused" is technically right for a task held only by
         # the process or model latch, but the operator wants it moving —
@@ -3034,7 +3034,7 @@ def _run_process_pause_resume(
                 "where it left off (task-level pauses, if any, stay in place)."
             )
     else:
-        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         _echo(f"Nothing to do: {reason} (pid {target.pid}).")
 
 
@@ -3117,7 +3117,7 @@ def _run_model_pause_resume(
                 "again (task- and process-level pauses, if any, stay in place)."
             )
     else:
-        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         _echo(f"Nothing to do: {reason} ({model}).")
 
 
@@ -3213,7 +3213,7 @@ def _run_sample_mutation(
     # the label is sanitized before the callbacks interpolate it (with other
     # wire fields — status, reason) so a swallow can't eat the message tail;
     # `_echo` sanitizes whatever the composed line still carries
-    label = _sanitize_control(
+    label = _sanitize_line(
         f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
     )
     if result.get("changed"):
@@ -3244,7 +3244,7 @@ def _run_sample_cancel(
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         status = result.get("status")
-        suffix = f" (status: {_sanitize_control(str(status))})" if status else ""
+        suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
         return f"Nothing to do — {label} has already finished{suffix}."
 
     _run_sample_mutation(
@@ -3287,7 +3287,7 @@ def _run_sample_requeue(
         return f"Requeue accepted for {label} — it will {resume}."
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
-        reason = _sanitize_control(str(result.get("reason") or "already in that state"))
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         return f"Nothing to do — {reason}."
 
     _run_sample_mutation(
@@ -3412,7 +3412,7 @@ def _sanitized_anomalies(anomalies: TraceAnomalies) -> TraceAnomalies:
     """
 
     def clean(text: str) -> str:
-        return escape_markup(_sanitize_control(text).replace("\n", " "))
+        return escape_markup(_sanitize_line(text))
 
     def clean_record(record: ActionTraceRecord) -> ActionTraceRecord:
         return record.model_copy(
@@ -5536,7 +5536,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             ceiling = _target(a.get("max"), "max_connections")
             # sanitize the name before composing so a swallow in it can't
             # eat the line's data fields (`_echo` handles the rest)
-            name = _sanitize_control(str(a.get("name") or ""))
+            name = _sanitize_line(str(a.get("name") or ""))
             line = (
                 f"    {name}: {a.get('limit')} ({a.get('in_use')} in use), "
                 f"range {a.get('min')}–{ceiling}"
@@ -5588,7 +5588,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             limit = _target(row.get("limit"), f"concurrency:{row.get('name')}")
             # concurrency() names are arbitrary registry strings; sanitize
             # before composing so a swallow can't eat the line's data fields
-            name = _sanitize_control(str(row.get("name") or ""))
+            name = _sanitize_line(str(row.get("name") or ""))
             line = f"    {name}: {limit} ({row.get('in_use')} in use)"
             if not row.get("adjustable"):
                 line += " — not adjustable"
@@ -5660,7 +5660,7 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
     _echo("  ·  ".join(parts))
     nxt = page.get("next")
     if nxt and not page.get("done"):
-        _echo(f"next: {_sanitize_control(str(nxt))}  (resume with --cursor)")
+        _echo(f"next: {_sanitize_line(str(nxt))}  (resume with --cursor)")
 
 
 def _print_messages(page: dict[str, Any], *, full: bool) -> None:
@@ -5692,7 +5692,7 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
     if shown < count:
         footer += " (use --all for the whole conversation)"
     if status:
-        footer += f"  ·  {_sanitize_control(str(status))}"
+        footer += f"  ·  {_sanitize_line(str(status))}"
     _echo()
     _echo(footer)
 
@@ -5826,7 +5826,7 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
     # part can't forge a plausible header line of its own; filter on the
     # sanitized value so a part that was all control bytes doesn't leave a
     # dangling separator
-    sanitized_parts = (_sanitize_control(p).replace("\n", " ") for p in parts)
+    sanitized_parts = (_sanitize_line(p) for p in parts)
     _echo("  ·  ".join(p for p in sanitized_parts if p))
 
     error = detail.get("error")
@@ -5848,7 +5848,7 @@ def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None
     """Echo one error: ``label  message`` plus an indented traceback if asked."""
     # flatten newlines so a crafted message can't print continuation lines at
     # column 0 that mimic surrounding output (full text remains via --json)
-    message = _sanitize_control(error.get("message") or "").replace("\n", " ")
+    message = _sanitize_line(error.get("message") or "")
     _echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
         traceback_ansi = error.get("traceback_ansi")
@@ -5917,14 +5917,27 @@ def _sanitize_control(text: str) -> str:
     Well-formed escape sequences are removed whole (payload included), tabs
     become single spaces (they'd break the tables' width math), and any
     remaining C0/C1 control byte or Unicode bidi control is dropped —
-    newline excepted, which each caller already handles. The ``--json`` /
-    ``--full`` machine paths are deliberately not routed through here
-    (``json.dumps`` escapes control bytes); ``traceback_ansi`` goes through
-    ``_sanitize_keep_sgr``, which preserves SGR styling and routes
-    everything else through this function.
+    newline excepted: single-line renderings flatten it via
+    ``_sanitize_line``, multi-line ones (tracebacks) keep it. The
+    ``--json`` / ``--full`` machine paths are deliberately not routed
+    through here (``json.dumps`` escapes control bytes);
+    ``traceback_ansi`` goes through ``_sanitize_keep_sgr``, which
+    preserves SGR styling and routes everything else through this
+    function.
     """
     text = _ANSI_ESCAPE_RE.sub("", text)
     return _CONTROL_CHARS_RE.sub("", text.replace("\t", " "))
+
+
+def _sanitize_line(text: str) -> str:
+    """``_sanitize_control`` plus newline flattening, for one-line renderings.
+
+    Any field interpolated into a single-line rendering — a table cell, a
+    joined header part, a status/reason echo — flattens embedded newlines to
+    spaces so the field can't print a forged line of its own at column 0.
+    Multi-line renderings (tracebacks) use ``_sanitize_control`` directly.
+    """
+    return _sanitize_control(text).replace("\n", " ")
 
 
 # SGR (color/style) sequences — the one escape class rich's own tracebacks
@@ -5983,7 +5996,7 @@ def _echo_raw(message: str = "", *, err: bool = False, nl: bool = True) -> None:
 
 
 def _truncate(text: str, width: int) -> str:
-    text = _sanitize_control(text).replace("\n", " ")
+    text = _sanitize_line(text)
     return text if len(text) <= width else text[: width - 1] + "…"
 
 
@@ -6184,7 +6197,7 @@ def _task_header(target: dict[str, Any]) -> str:
     # can swallow the parts after it or forge a plausible header line; filter
     # on the sanitized value so a part that was all control bytes doesn't
     # leave a dangling separator
-    sanitized_parts = (_sanitize_control(p).replace("\n", " ") for p in parts)
+    sanitized_parts = (_sanitize_line(p) for p in parts)
     return "  ·  ".join(p for p in sanitized_parts if p)
 
 
@@ -6298,10 +6311,7 @@ def _render_table(
     printable characters only, and an embedded newline can't forge rows.
     """
     headers = tuple(_sanitize_control(h) for h in headers)
-    rows = [
-        tuple(_sanitize_control(cell).replace("\n", " ") for cell in row)
-        for row in rows
-    ]
+    rows = [tuple(_sanitize_line(cell) for cell in row) for row in rows]
     widths = [
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
