@@ -5419,6 +5419,15 @@ def test_echo_error_sanitizes_message_and_plain_traceback(
     assert "\x1b" not in out and "\r" not in out
 
 
+def test_echo_error_flattens_newlines_in_message(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Newlines in an error message can't print forged lines at column 0."""
+    _echo_error("", {"message": "boom\n(no errors)\nsample 2  ·  completed"}, False)
+    out = capsys.readouterr().out
+    assert out == "  boom (no errors) sample 2  ·  completed\n"
+
+
 def test_echo_error_keeps_traceback_ansi_sgr_styling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -5500,6 +5509,23 @@ def test_sample_detail_unterminated_osc_cannot_swallow_trusted_fields(
     header = capsys.readouterr().out.splitlines()[0]
     assert "errored" in header
     assert "grader=I" in header
+
+
+def test_sample_detail_header_flattens_newlines(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A newline in the sample id can't forge a complete plausible header line."""
+    _print_sample_detail(
+        {
+            "sample_id": "9\nsample 1  ·  epoch 1  ·  completed  ·  score grader=C",
+            "epoch": 1,
+            "status": "errored",
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "errored" in header
+    assert "completed" in header  # spoof text survives, but on the same line
 
 
 def test_events_rendering_sanitizes_tool_output(

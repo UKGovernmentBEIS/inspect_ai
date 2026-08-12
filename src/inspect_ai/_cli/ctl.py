@@ -5431,8 +5431,11 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         )
     # sample ids and score values are agent/dataset-influenced; sanitize each
     # part separately so an unterminated string sequence in one can't swallow
-    # the trusted fields (status, score) joined after it
-    click.echo("  ·  ".join(_sanitize_control(p) for p in parts if p))
+    # the trusted fields (status, score) joined after it, and flatten newlines
+    # so one part can't forge a plausible header line of its own
+    click.echo(
+        "  ·  ".join(_sanitize_control(p).replace("\n", " ") for p in parts if p)
+    )
 
     error = detail.get("error")
     retries = detail.get("error_retries") or []
@@ -5451,7 +5454,9 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
 
 def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None:
     """Echo one error: ``label  message`` plus an indented traceback if asked."""
-    message = _sanitize_control(error.get("message") or "")
+    # flatten newlines so a crafted message can't print continuation lines at
+    # column 0 that mimic surrounding output (full text remains via --json)
+    message = _sanitize_control(error.get("message") or "").replace("\n", " ")
     click.echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
         traceback_ansi = error.get("traceback_ansi")
@@ -5510,9 +5515,10 @@ def _sanitize_control(text: str) -> str:
     removed whole (payload included), tabs become single spaces (they'd
     break the tables' width math), and any remaining C0/C1 control byte or
     Unicode bidi control is dropped — newline excepted, which each caller
-    already handles. The
-    ``--json`` / ``--full`` machine paths and Inspect's own
-    ``traceback_ansi`` rendering are deliberately not routed through here.
+    already handles. The ``--json`` / ``--full`` machine paths are
+    deliberately not routed through here (``json.dumps`` escapes control
+    bytes); ``traceback_ansi`` goes through ``_sanitize_keep_sgr``, which
+    preserves SGR styling and routes everything else through this function.
     """
     text = _ANSI_ESCAPE_RE.sub("", text)
     return _CONTROL_CHARS_RE.sub("", text.replace("\t", " "))
