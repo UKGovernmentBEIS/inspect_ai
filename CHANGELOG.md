@@ -1,3 +1,7 @@
+## Unreleased
+
+- Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
+
 ## 0.3.258 (11 August 2026)
 
 - Control Channel: `inspect ctl sample` and other unscoped commands no longer appear to hang on eval sets with many running tasks. (#4789)
