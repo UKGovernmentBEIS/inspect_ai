@@ -4869,6 +4869,44 @@ def test_sample_requeue_errored_sweep_empty(
     assert payload["requested"] == 0 and payload["results"] == []
 
 
+def test_sample_requeue_errored_aborts_on_row_without_epoch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A listing row missing its epoch aborts the sweep before any post.
+
+    Pins the fail-closed invariant: no epoch is ever defaulted, and the
+    abort happens while building the pairs — even rows with valid epochs
+    ahead of the bad one are never posted.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 3
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom", epoch=None),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored"]
+    )
+    assert result.exit_code != 0
+    assert spy.paths == []  # nothing was posted, including the valid s1 row
+    assert "'s2'" in result.stderr and "no epoch" in result.stderr
+
+    as_json = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--json"]
+    )
+    assert as_json.exit_code != 0
+    assert spy.paths == []
+    assert json.loads(as_json.stdout)["error"]["kind"] == "invalid_response"
+
+
 def test_sample_requeue_bulk_reports_mixed_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
