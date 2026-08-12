@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+import pytest
 from pydantic import JsonValue
 
 from inspect_ai import eval
@@ -22,6 +23,7 @@ from inspect_ai.analysis import (
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.extract import score_details
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
+from inspect_ai.analysis._dataframe.util import resolve_logs
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -495,3 +497,23 @@ def test_score_details_includes_reason() -> None:
     assert details["match_answer"] == "foo"
     # None-safety: absent reason produces no column entry
     assert "other_reason" not in details
+
+
+def test_dataframe_functions_empty_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    log_dir = str(tmp_path)
+    eval(
+        Task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+    )
+    monkeypatch.setenv("INSPECT_LOG_DIR", log_dir)
+    assert len(list_eval_logs()) > 0
+
+    assert resolve_logs([]) == []
+    assert resolve_logs(()) == []
+    assert len(evals_df([])) == 0
+    assert len(samples_df([])) == 0
+    assert len(messages_df([])) == 0
+    assert len(events_df([])) == 0

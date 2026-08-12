@@ -560,23 +560,33 @@ def ensure_test_package_installed():
             fcntl.flock(lock_file, fcntl.LOCK_EX)
         try:
             clear_entry_points_state()
-            if importlib.util.find_spec("inspect_package") is None:
-                raise ImportError
-        except ImportError:
-            subprocess.check_call(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--no-deps",
-                    "tests/test_package",
-                ]
-            )
+            # a worker that started before another worker installed the package
+            # can hold a stale negative finder cache, making find_spec() return
+            # None for an already-installed package; that triggers a redundant
+            # reinstall whose uninstall step briefly removes the dist-info out
+            # from under concurrent workers enumerating entry points
+            importlib.invalidate_caches()
+            try:
+                if importlib.util.find_spec("inspect_package") is None:
+                    raise ImportError
+            except ImportError:
+                subprocess.check_call(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "install",
+                        "--no-deps",
+                        "tests/test_package",
+                    ]
+                )
+                importlib.invalidate_caches()
+            # register entry points while still holding the lock so no other
+            # worker's pip install can be mid-flight while we enumerate them
+            ensure_entry_points("inspect_package")
         finally:
             if os.name == "posix":
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
-    ensure_entry_points("inspect_package")
 
 
 @contextlib.contextmanager

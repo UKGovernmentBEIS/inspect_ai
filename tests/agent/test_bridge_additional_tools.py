@@ -136,7 +136,10 @@ def _emit(tool_info: ToolInfo) -> dict[str, Any]:
 def test_function_tool_round_trips_verbatim() -> None:
     original = _reserved_function_tool()
     tool_info = tool_from_responses_tool(
-        cast(Any, original), WEB_SEARCH_PROVIDERS, CODE_EXECUTION_PROVIDERS
+        cast(Any, original),
+        WEB_SEARCH_PROVIDERS,
+        CODE_EXECUTION_PROVIDERS,
+        allow_remote_mcp=True,
     )
     assert isinstance(tool_info, ToolInfo)
     assert RESPONSES_VERBATIM in (tool_info.options or {})
@@ -148,7 +151,10 @@ def test_function_tool_round_trips_verbatim() -> None:
 def test_custom_tool_round_trips_verbatim() -> None:
     original = _custom_tool()
     tool_info = tool_from_responses_tool(
-        cast(Any, original), WEB_SEARCH_PROVIDERS, CODE_EXECUTION_PROVIDERS
+        cast(Any, original),
+        WEB_SEARCH_PROVIDERS,
+        CODE_EXECUTION_PROVIDERS,
+        allow_remote_mcp=True,
     )
     assert isinstance(tool_info, ToolInfo)
     assert RESPONSES_VERBATIM in (tool_info.options or {})
@@ -162,7 +168,10 @@ def test_reconstruction_without_verbatim_drifts() -> None:
     # normalizes fields -> drift that reserved-schema models reject (HTTP 400).
     original = _reserved_function_tool()
     tool_info = tool_from_responses_tool(
-        cast(Any, original), WEB_SEARCH_PROVIDERS, CODE_EXECUTION_PROVIDERS
+        cast(Any, original),
+        WEB_SEARCH_PROVIDERS,
+        CODE_EXECUTION_PROVIDERS,
+        allow_remote_mcp=True,
     )
     assert isinstance(tool_info, ToolInfo)
 

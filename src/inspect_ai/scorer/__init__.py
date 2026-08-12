@@ -23,6 +23,7 @@ from ._metric import (
     value_to_float,
 )
 from ._metrics.accuracy import accuracy
+from ._metrics.aggregate import aggregate
 from ._metrics.categorical import categorical, frequency
 from ._metrics.grouped import grouped
 from ._metrics.mean import mean
@@ -69,6 +70,7 @@ __all__ = [
     "Value",
     "ValueToFloat",
     "accuracy",
+    "aggregate",
     "answer",
     "at_least",
     "bootstrap_stderr",
