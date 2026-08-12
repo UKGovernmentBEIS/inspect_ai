@@ -180,6 +180,21 @@ def test_recondense_preserves_attachment_shared_by_messages_and_events() -> None
     assert resolved_event.input[0].content == long_text
 
 
+def test_recondense_preserves_unreferenced_existing_attachment() -> None:
+    orphan_hash = mm3_hash("legacy attachment")
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        attachments={orphan_hash: "legacy attachment"},
+    )
+
+    condensed = condense_sample(sample)
+
+    assert condensed.attachments == {orphan_hash: "legacy attachment"}
+
+
 # def test_transcript_incremental_condense():
 #     """Test that Transcript condenses ModelEvents immediately when added."""
 #     transcript = Transcript()

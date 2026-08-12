@@ -165,12 +165,15 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     """
     existing_attachments = dict(sample.attachments)
     attachments = dict(existing_attachments)
+    rewritten_attachments: set[str] = set()
     events_fn = _existing_attachments_content_fn(
         existing_attachments,
+        rewritten_attachments,
         events_attachment_fn(attachments, log_images),
     )
     messages_fn = _existing_attachments_content_fn(
         existing_attachments,
+        rewritten_attachments,
         messages_attachment_fn(attachments, log_images),
     )
     # The events and messages walks rewrite content differently (events_fn
@@ -260,7 +263,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
             "attachments": {
                 hash: value
                 for hash, value in attachments.items()
-                if hash in referenced_attachments
+                if hash not in rewritten_attachments or hash in referenced_attachments
             }
         }
     )
@@ -317,6 +320,7 @@ def messages_attachment_fn(
 
 def _existing_attachments_content_fn(
     existing: Mapping[str, str],
+    rewritten_attachments: set[str],
     content_fn: Callable[[str], str],
 ) -> Callable[[str], str]:
     """Apply a content policy to values referenced by existing attachments."""
@@ -326,7 +330,10 @@ def _existing_attachments_content_fn(
             hash = text.removeprefix(ATTACHMENT_PROTOCOL)
             value = existing.get(hash)
             if value is not None:
-                return content_fn(value)
+                rewritten = content_fn(value)
+                if rewritten != text:
+                    rewritten_attachments.add(hash)
+                return rewritten
         return content_fn(text)
 
     return fn
