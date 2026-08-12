@@ -1,3 +1,4 @@
+import dataclasses
 import os
 
 from pydantic import BaseModel, ConfigDict
@@ -130,6 +131,19 @@ def test_attachment_refs_from_object_any_slot_live_message() -> None:
     assert attachment_refs_from_object(event) == _refs_via_dump(event)
 
 
+def test_attachment_refs_from_object_slots_dataclass() -> None:
+    # @dataclass(slots=True) has no __dict__; vars() would raise TypeError.
+    # Reachable via SubtaskEvent.result (raw return values) and metadata.
+    @dataclasses.dataclass(slots=True)
+    class SlottedResult:
+        note: str
+
+    event = SubtaskEvent(name="sub", input={})
+    event.result = SlottedResult(note="attachment://slot-ref")
+    assert attachment_refs_from_object(event) == {"slot-ref"}
+    assert attachment_refs_from_object(event) == _refs_via_dump(event)
+
+
 def test_attachment_refs_from_object_terminates_on_cycle() -> None:
     # today attachment_refs_from_value(model_dump(...)) raises RecursionError
     # on a cyclic metadata value (pydantic embeds the original cyclic object
@@ -139,6 +153,16 @@ def test_attachment_refs_from_object_terminates_on_cycle() -> None:
     event = InfoEvent(data="ok")
     event.metadata = {"cyc": cyc}
     assert attachment_refs_from_object(event) == {"cyc-ref"}
+
+
+def test_attachment_refs_from_object_terminates_on_list_cycle() -> None:
+    # a self-referencing list would loop forever (not RecursionError) if the
+    # list branch lost its visited-set guard
+    cyc: list[object] = ["attachment://list-cyc"]
+    cyc.append(cyc)
+    event = InfoEvent(data="ok")
+    event.metadata = {"cyc": cyc}
+    assert attachment_refs_from_object(event) == {"list-cyc"}
 
 
 def test_attachment_refs_from_object_shared_subtree() -> None:

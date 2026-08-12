@@ -104,6 +104,18 @@ degrades to a full walk — never worse.
 """
 
 
+_MESSAGE_REFS_BUCKET_LIMIT = 4
+"""Max cached content variants per message id.
+
+Buckets exist for same-id variants (raw agent-state vs condensed
+restored-event messages after a resume) — legitimately 2. Third-party
+code that rewrites content via model_copy while keeping the id would
+otherwise grow a bucket without bound, pinning every old payload. The
+memo is an accelerator: dropping the oldest variant is always safe (it
+re-scans on next sight).
+"""
+
+
 @dataclass
 class _CallWalkSlot:
     """One retained request lineage for `Transcript._condense_model_call`.
@@ -738,7 +750,7 @@ class Transcript:
         """
         msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in call.request), None)
         msgs = call.request.get(msg_key) if msg_key is not None else None
-        if msg_key is None or not isinstance(msgs, list):
+        if msg_key is None or not isinstance(msgs, list) or not msgs:
             walked_call = walk_model_call(
                 call, events_attachment_fn(self.attachments), self._context
             )
@@ -872,6 +884,10 @@ class Transcript:
         message_ids: set[str] = set()
 
         def message_refs(msg: ChatMessageBase) -> frozenset[str] | None:
+            # In-place mutation of a message's content without an id refresh
+            # returns stale refs (identity/equality hit on the pre-mutation
+            # entry) — the same accepted convention as WalkContext.message_cache
+            # and MessagePoolIndex; first-party mutators mint new ids.
             msg_id = msg.id
             if msg_id is None:
                 return None
@@ -890,6 +906,8 @@ class Transcript:
                         return cached_refs
             refs = frozenset(attachment_refs_from_object(msg))
             if bucket is not None:
+                if len(bucket) >= _MESSAGE_REFS_BUCKET_LIMIT:
+                    del bucket[0]
                 bucket.append((msg, refs))
             else:
                 self._message_refs_cache[msg_id] = [(msg, refs)]

@@ -126,6 +126,15 @@ def test_call_pool_index_prefix_breaks_on_mismatch() -> None:
     assert index.match_prefix(short) == [0]
 
 
+def test_call_pool_index_set_prev_clamps_mispaired_prefix() -> None:
+    """prefix_len without a paired match_prefix must not build misaligned state."""
+    index = CallPoolIndex()
+    index.set_prev([{"content": "a"}], [0])
+    # no match_prefix call in between: contract violation, must clamp
+    index.set_prev([{"content": "b"}, {"content": "c"}], [1, 2], prefix_len=1)
+    assert index.match_prefix([{"content": "b"}, {"content": "c"}]) == [1, 2]
+
+
 def test_call_pool_index_mark_restore() -> None:
     index = CallPoolIndex()
     index.add_hash("h-a", 0)
