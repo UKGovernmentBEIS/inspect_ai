@@ -194,15 +194,16 @@ class ModelStreamObserver:
         retry) replaces what has streamed so far while reusing the attempt's
         pending event. Reset the published partial snapshot (with
         notification, so live viewers drop it), the accumulation and token
-        state, and re-announce the current attempt to `on_stream` so
-        accumulating consumers discard the replaced prefix.
+        state — including the progress record's token count, which described
+        the discarded stream (counts are never estimated, so `None` until the
+        replacement stream reports usage) — and re-announce the current
+        attempt to `on_stream` so accumulating consumers discard the
+        replaced prefix.
         """
+        self.discard_partial_output()
         event = self._event
-        if event is not None and self._partial_published and event.pending is True:
-            event.output = ModelOutput.from_content(event.model, "")
-            from inspect_ai.log._transcript import transcript
-
-            transcript()._event_updated(event)
+        if event is not None and event._progress is not None:
+            event._progress.output_tokens = None
         self._reset_output_state()
         if self._on_stream is not None and self._delivered:
             await self._on_stream(StreamRetryEvent(attempt=max(self._attempt, 1)))
@@ -243,9 +244,11 @@ class ModelStreamObserver:
             await self._on_stream(delta)
 
     def discard_partial_output(self) -> None:
-        """Reset a published partial snapshot when the attempt fails.
+        """Reset a published partial snapshot the attempt no longer stands by.
 
-        Called by the wrapper before completing the event with an error —
+        Called by the wrapper before completing the event with an error
+        (and by `output_restarted` when a provider-internal retry replaces
+        the streamed output) —
         `complete()` doesn't touch `event.output` on the error path, so
         without this an errored event would carry the failed attempt's
         partial output as if it were a real (empty-stop-reason) response.

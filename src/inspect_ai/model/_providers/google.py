@@ -531,8 +531,12 @@ class GoogleGenAIAPI(ModelAPI):
                         tool_calling_attempts += 1
 
                         # the retried request regenerates the response, so any
-                        # output already streamed to observers is stale
-                        await report_model_stream_restart()
+                        # output already streamed to observers is stale — but
+                        # only announce a restart when a retry will actually
+                        # run; on exhaustion the malformed response *is* the
+                        # returned output, so its deltas must not be discarded
+                        if tool_calling_attempts < 3:
+                            await report_model_stream_restart()
 
                         # apply retry context
                         retry_contents, retry_tool_config = _malformed_function_retry(

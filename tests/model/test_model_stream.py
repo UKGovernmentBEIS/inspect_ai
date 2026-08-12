@@ -225,10 +225,12 @@ async def test_provider_internal_restart_resets_output_and_reannounces() -> None
         assert event.output.completion == "malformed"
 
         await report_model_stream_restart()
-        # partial snapshot discarded (with notification) and tokens reset
+        # partial snapshot discarded (with notification); the discarded
+        # stream's token count is cleared rather than left to mislabel the
+        # replacement response
         assert event.output.completion == ""
         progress = model_event_progress(event)
-        assert progress is not None and progress.output_tokens == 10
+        assert progress is not None and progress.output_tokens is None
 
         report_model_stream_start()
         report_model_stream_progress(output_tokens=3)
