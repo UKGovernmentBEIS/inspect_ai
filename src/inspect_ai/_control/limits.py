@@ -73,7 +73,7 @@ process-global, so the key knob rides both endpoints.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, NamedTuple, TypeVar
 
 from inspect_ai._util.name_match import match_name_prefix
 
@@ -441,35 +441,17 @@ async def task_limits(
     # a field added to the override Literal but missing here would be
     # settable in the store yet silently not applied by this directive
     assert set(limit_values) == set(SAMPLE_LIMIT_OVERRIDE_FIELDS)
-    for field, value in limit_values.items():
-        if value is not None:
-            sample_requested[field] = value
-            if not dry_run:
-                previous_override = sample_limit_override(task_id, field)
-                set_sample_limit_override(
-                    task_id, field, None if value == "clear" else value
-                )
-                # a `previous` of None means "no prior override" — the
-                # recording layer fills it from the log's launch config
-                if value == "clear":
-                    if previous_override is not None:
-                        task_applied.append(
-                            ConfigValueChange(
-                                config="eval",
-                                name=field,
-                                cleared=True,
-                                previous=previous_override,
-                            )
-                        )
-                elif previous_override != value:
-                    task_applied.append(
-                        ConfigValueChange(
-                            config="eval",
-                            name=field,
-                            value=value,
-                            previous=previous_override,
-                        )
-                    )
+    _apply_override_knobs(
+        limit_values,
+        get_override=lambda field: sample_limit_override(task_id, field),
+        set_override=lambda field, value: set_sample_limit_override(
+            task_id, field, value
+        ),
+        config="eval",
+        dry_run=dry_run,
+        requested=sample_requested,
+        applied=task_applied,
+    )
 
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
@@ -594,6 +576,60 @@ def _record_retune(
     )
 
 
+_OverrideField = TypeVar("_OverrideField", bound=str)
+
+
+def _apply_override_knobs(
+    values: Mapping[_OverrideField, int | Literal["clear"] | None],
+    *,
+    get_override: Callable[[_OverrideField], int | None],
+    set_override: Callable[[_OverrideField, int | None], None],
+    config: Literal["eval", "generate"],
+    dry_run: bool,
+    requested: dict[str, int | str],
+    applied: list[ConfigValueChange],
+) -> None:
+    """Apply one family of live override knobs and record what changed.
+
+    The apply/record semantics shared by the override-layer knob families
+    (the retry-loop overrides and the per-sample limit overrides) live here
+    so they cannot drift apart: a value sets the field's override, the
+    keyword ``clear`` removes it, and only a change that actually landed is
+    recorded — a set matching the active override and a clear with no
+    override active both record nothing. A record's ``previous`` of ``None``
+    means "no prior override" (the recording layer fills it from the log's
+    launch config). ``None`` values in ``values`` (knob not requested) are
+    skipped; ``requested`` and ``applied`` are updated in place.
+    """
+    from inspect_ai.log._config_update import ConfigValueChange
+
+    for field, value in values.items():
+        if value is not None:
+            requested[field] = value
+            if not dry_run:
+                previous_override = get_override(field)
+                set_override(field, None if value == "clear" else value)
+                if value == "clear":
+                    if previous_override is not None:
+                        applied.append(
+                            ConfigValueChange(
+                                config=config,
+                                name=field,
+                                cleared=True,
+                                previous=previous_override,
+                            )
+                        )
+                elif previous_override != value:
+                    applied.append(
+                        ConfigValueChange(
+                            config=config,
+                            name=field,
+                            value=value,
+                            previous=previous_override,
+                        )
+                    )
+
+
 def _static_semaphores() -> "list[ConcurrencySemaphore]":
     """The non-adaptive concurrency-registry entries (the key knob's targets).
 
@@ -643,7 +679,6 @@ def _apply_process_knobs(
     active overrides (``None`` = no override; each generate call's own
     config applies).
     """
-    from inspect_ai.log._config_update import ConfigValueChange
     from inspect_ai.util._concurrency import (
         ResizableSemaphore,
         adaptive_controllers,
@@ -759,33 +794,15 @@ def _apply_process_knobs(
     # a field added to the override Literal but missing here would be
     # settable in the store yet silently not applied by this directive
     assert set(retry_values) == set(GENERATE_CONFIG_OVERRIDE_FIELDS)
-    for field, value in retry_values.items():
-        if value is not None:
-            requested[field] = value
-            if not dry_run:
-                previous_override = generate_config_override(field)
-                set_generate_config_override(field, None if value == "clear" else value)
-                # a `previous` of None means "no prior override" — the
-                # recording layer fills it from each log's launch config
-                if value == "clear":
-                    if previous_override is not None:
-                        applied.append(
-                            ConfigValueChange(
-                                config="generate",
-                                name=field,
-                                cleared=True,
-                                previous=previous_override,
-                            )
-                        )
-                elif previous_override != value:
-                    applied.append(
-                        ConfigValueChange(
-                            config="generate",
-                            name=field,
-                            value=value,
-                            previous=previous_override,
-                        )
-                    )
+    _apply_override_knobs(
+        retry_values,
+        get_override=generate_config_override,
+        set_override=set_generate_config_override,
+        config="generate",
+        dry_run=dry_run,
+        requested=requested,
+        applied=applied,
+    )
 
     # key — a named concurrency() registry entry, matched by exact name (a
     # name can back several entries — e.g. one model on two accounts — and the
