@@ -11,8 +11,6 @@ if TYPE_CHECKING:
 
 import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
@@ -1222,6 +1220,21 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
+
+
+# httpx-typed equivalents of openai's DEFAULT_TIMEOUT / DEFAULT_CONNECTION_LIMITS
+# (same values). Do NOT import those from `openai`: as of openai 3.0 the SDK is
+# built on httpx2, so they are `httpx2.Timeout` / `httpx2.Limits` instances.
+# `httpx.AsyncClient` doesn't recognise the foreign types — `httpx.Timeout(
+# <httpx2.Timeout>)` falls through to its scalar branch and stores the object
+# itself as connect/read/write/pool, so httpcore ends up calling
+# `anyio.fail_after(<Timeout object>)` and every request dies with
+# "TypeError: unsupported operand type(s) for +: 'float' and 'Timeout'", which
+# the OpenAI SDK re-raises as `APIConnectionError: Connection error.`
+DEFAULT_TIMEOUT = httpx.Timeout(timeout=600, connect=5.0)
+DEFAULT_CONNECTION_LIMITS = httpx.Limits(
+    max_connections=1000, max_keepalive_connections=100
+)
 
 
 class OpenAIAsyncHttpxClient(httpx.AsyncClient):
