@@ -188,7 +188,7 @@ async def provider_image_data_uri(image: str) -> str:
         A validated inline image data URI.
     """
     if is_data_uri(image):
-        return inline_media_data_uri(image, "image")
+        return _validated_provider_inline_image(image)
 
     url = _validated_provider_image_url(httpx.URL(image))
     try:
@@ -341,34 +341,52 @@ async def _download_provider_image(
             if content_encoding is not None and content_encoding.lower() != "identity":
                 raise ValueError("Provider image response must not be encoded.")
 
-            content_length = _response_header(response, b"content-length")
-            if content_length is not None:
-                try:
-                    declared_size = int(content_length)
-                except ValueError as ex:
-                    raise ValueError(
-                        "Provider image response has an invalid content length."
-                    ) from ex
-                if declared_size < 0 or declared_size > _PROVIDER_IMAGE_MAX_BYTES:
-                    raise ValueError("Provider image exceeds the 20 MiB size limit.")
-
-            image_bytes = bytearray()
-            async for chunk in response.aiter_stream():
-                image_bytes.extend(chunk)
-                if len(image_bytes) > _PROVIDER_IMAGE_MAX_BYTES:
-                    raise ValueError("Provider image exceeds the 20 MiB size limit.")
-
-            mime_type = _sniff_image_mime_type(bytes(image_bytes))
-            if mime_type is None:
-                raise ValueError(
-                    "Provider image response is not a recognized raster image."
-                )
-            return as_data_uri(
-                mime_type,
-                base64.b64encode(image_bytes).decode("ascii"),
-            )
+            return await _provider_image_response_data_uri(response)
 
     raise AssertionError("Provider image redirect loop terminated unexpectedly.")
+
+
+def _validated_provider_inline_image(image: str) -> str:
+    payload_length = len(image) - image.index(",") - 1
+    max_payload_length = 4 * ((_PROVIDER_IMAGE_MAX_BYTES + 2) // 3)
+    if payload_length > max_payload_length:
+        raise ValueError("Provider image exceeds the 20 MiB size limit.")
+
+    image_bytes, _ = inline_media_data(image, "image")
+    if len(image_bytes) > _PROVIDER_IMAGE_MAX_BYTES:
+        raise ValueError("Provider image exceeds the 20 MiB size limit.")
+    return _provider_image_bytes_data_uri(image_bytes)
+
+
+async def _provider_image_response_data_uri(response: httpcore.Response) -> str:
+    content_length = _response_header(response, b"content-length")
+    if content_length is not None:
+        try:
+            declared_size = int(content_length)
+        except ValueError as ex:
+            raise ValueError(
+                "Provider image response has an invalid content length."
+            ) from ex
+        if declared_size < 0 or declared_size > _PROVIDER_IMAGE_MAX_BYTES:
+            raise ValueError("Provider image exceeds the 20 MiB size limit.")
+
+    image_bytes = bytearray()
+    async for chunk in response.aiter_stream():
+        image_bytes.extend(chunk)
+        if len(image_bytes) > _PROVIDER_IMAGE_MAX_BYTES:
+            raise ValueError("Provider image exceeds the 20 MiB size limit.")
+
+    return _provider_image_bytes_data_uri(bytes(image_bytes))
+
+
+def _provider_image_bytes_data_uri(image_bytes: bytes) -> str:
+    mime_type = _sniff_image_mime_type(image_bytes)
+    if mime_type is None:
+        raise ValueError("Provider image is not a recognized raster image.")
+    return as_data_uri(
+        mime_type,
+        base64.b64encode(image_bytes).decode("ascii"),
+    )
 
 
 def _response_header(response: httpcore.Response, name: bytes) -> str | None:

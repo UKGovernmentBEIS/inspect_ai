@@ -2,6 +2,7 @@ import base64
 import os
 import socket
 import tempfile
+from collections.abc import AsyncIterator
 from contextvars import Token
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -16,6 +17,7 @@ from inspect_ai._util.images import (
     UnresolvedMediaError,
     _get_resolver,
     _media_resolvers,
+    _provider_image_response_data_uri,
     _PublicNetworkBackend,
     file_as_data,
     file_as_data_uri,
@@ -402,6 +404,34 @@ class TestProviderImageDataUri:
             assert await provider_image_data_uri(image) == image
         pool.assert_not_called()
 
+    async def test_mime_less_inline_image_is_sniffed(self) -> None:
+        image = "data:;base64,iVBORw0KGgo="
+
+        assert await provider_image_data_uri(image) == (
+            "data:image/png;base64,iVBORw0KGgo="
+        )
+
+    @pytest.mark.parametrize(
+        ("image", "message"),
+        [
+            ("data:image/png;base64,not-valid!", "invalid base64"),
+            ("data:image/png;base64,bm90cG5n", "recognized raster image"),
+        ],
+    )
+    async def test_invalid_inline_image_is_rejected(
+        self, image: str, message: str
+    ) -> None:
+        with pytest.raises(ValueError, match=message):
+            await provider_image_data_uri(image)
+
+    async def test_oversized_inline_image_is_rejected(self) -> None:
+        image = "data:image/png;base64,iVBORw0KGgpY"
+        with (
+            patch("inspect_ai._util.images._PROVIDER_IMAGE_MAX_BYTES", 8),
+            pytest.raises(ValueError, match="20 MiB"),
+        ):
+            await provider_image_data_uri(image)
+
     @pytest.mark.parametrize(
         ("url", "message"),
         [
@@ -549,21 +579,16 @@ class TestProviderImageDataUri:
                 await provider_image_data_uri("https://example.com/image.png")
 
     async def test_streamed_oversized_response_is_rejected(self) -> None:
-        response = b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n\x89PNG\r\n\x1a\nX"
-        backend = httpcore.AsyncMockBackend([response])
+        async def content() -> AsyncIterator[bytes]:
+            yield b"\x89PNG\r\n\x1a\n"
+            yield b"X"
 
+        response = httpcore.Response(status=200, content=content())
         with (
-            patch(
-                "inspect_ai._util.images._PROVIDER_IMAGE_MAX_BYTES",
-                8,
-            ),
-            patch(
-                "inspect_ai._util.images._PublicNetworkBackend",
-                return_value=backend,
-            ),
+            patch("inspect_ai._util.images._PROVIDER_IMAGE_MAX_BYTES", 8),
             pytest.raises(ValueError, match="20 MiB"),
         ):
-            await provider_image_data_uri("https://example.com/image.png")
+            await _provider_image_response_data_uri(response)
 
     async def test_non_image_response_is_rejected(self) -> None:
         response = b"HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nnotpng"
