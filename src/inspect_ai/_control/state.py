@@ -161,7 +161,7 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         get_eval_states,
         resolve_deferred_sample_stats,
     )
-    from inspect_ai._control.pause import process_paused
+    from inspect_ai._control.pause import process_paused, process_paused_now
     from inspect_ai.log._samples import active_samples
 
     states = get_eval_states()
@@ -263,9 +263,12 @@ async def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 # a pre-registration attempt has no task_id, so only the
                 # process latch can hold it (its model latch already gated
                 # dispatch upstream); mid-startup is never "safe to kill",
-                # hence quiesced stays False
+                # hence quiesced stays False. Held samples are keyed by
+                # task_id, so a pre-registration row can't count them.
                 "paused": ["process"] if process_paused() else None,
+                "paused_now": ["process"] if process_paused_now() else None,
                 "quiesced": False,
+                "held": 0,
                 "attempts": 1,
                 "samples": {
                     "total": 0,
@@ -1129,7 +1132,12 @@ def _build_summary(
         latest.started_at if latest.started_at is not None else started_at_fallback
     )
 
-    from inspect_ai._control.pause import task_dispatched_count, task_pause_sources
+    from inspect_ai._control.pause import (
+        task_dispatched_count,
+        task_held_count,
+        task_pause_now_sources,
+        task_pause_sources,
+    )
 
     in_flight_samples = [
         s for s in samples if s.started is not None and s.completed is None
@@ -1162,6 +1170,17 @@ def _build_summary(
         else None
     )
     quiesced = paused is not None and task_dispatched_count(latest.task_id) == 0
+    # the hard (`pause --now`) subset of the paused sources, plus how many
+    # in-flight samples are held at their next model call. For a hard pause
+    # `quiesced` is NOT the safe-to-kill signal — a held sample is mid-flight
+    # and a kill forfeits its in-sample progress — so `held` doubles as the
+    # don't-kill-yet warning.
+    paused_now = (
+        (task_pause_now_sources(latest.task_id, latest.model or None) or None)
+        if paused is not None
+        else None
+    )
+    held = task_held_count(latest.task_id)
 
     # Usage = the accumulated total for terminal samples (survives them
     # leaving active_samples — "usage so far") plus the live usage of the
@@ -1200,7 +1219,9 @@ def _build_summary(
         "started_at": eval_started_at,
         "completed_at": completed_at,
         "paused": paused,
+        "paused_now": paused_now,
         "quiesced": quiesced,
+        "held": held,
         "attempts": attempts,
         # Planned epoch count. `ctl sample cancel` uses it to require an
         # explicit EPOCH when the task runs more than one (a defaulted epoch

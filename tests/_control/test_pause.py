@@ -22,15 +22,18 @@ from inspect_ai._control.eval_state import (
     register_eval,
 )
 from inspect_ai._control.pause import (
+    PauseGate,
     PauseGatedSemaphore,
     dispatch_model_name,
     model_paused,
+    model_paused_now,
     note_dispatch_models,
     pause_model,
     pause_process,
     pause_task,
     paused_models,
     process_paused,
+    process_paused_now,
     reset_process_pause,
     reset_task_pause_gates,
     resume_model,
@@ -38,7 +41,10 @@ from inspect_ai._control.pause import (
     resume_task,
     task_dispatch_paused,
     task_dispatched_count,
+    task_held_count,
+    task_pause_now_sources,
     task_pause_sources,
+    wait_generate_dispatch,
     wake_pause_waiters,
 )
 from inspect_ai.hooks import Hooks, TaskEnd, hooks
@@ -563,6 +569,285 @@ async def test_gated_semaphore_stamped_cancel_escapes() -> None:
 
 
 # ---------------------------------------------------------------------------
+# hard pause (`pause --now`): gate strengths and the generate gate
+# ---------------------------------------------------------------------------
+
+
+def test_pause_gate_strength_transitions() -> None:
+    """Strength is last-write-wins: --now escalates, plain pause downgrades."""
+    gate = PauseGate()
+    assert gate.pause() is True
+    assert gate.paused and not gate.hard
+    assert gate.pause(now=True) is True  # escalate
+    assert gate.paused and gate.hard
+    assert gate.pause(now=True) is False  # idempotent at strength
+    assert gate.pause() is True  # downgrade to soft
+    assert gate.paused and not gate.hard
+    assert gate.resume() is True
+    assert not gate.paused and not gate.hard
+
+    # resume clears both strengths at once
+    gate.pause(now=True)
+    assert gate.resume() is True
+    assert not gate.paused and not gate.hard
+
+
+async def test_pause_task_now_strength_transitions() -> None:
+    register_eval("e1", 5, task_id="t1")
+
+    result = await pause_task("t1", now=True)
+    assert result is not None and result["changed"] is True
+    assert result["paused"] == ["task"] and result["paused_now"] == ["task"]
+    assert task_pause_now_sources("t1") == ["task"]
+
+    repeat = await pause_task("t1", now=True)
+    assert repeat is not None
+    assert repeat["changed"] is False and "--now" in repeat["reason"]
+
+    downgrade = await pause_task("t1")
+    assert downgrade is not None and downgrade["changed"] is True
+    assert downgrade["paused"] == ["task"] and downgrade["paused_now"] is None
+    assert task_dispatch_paused("t1")
+
+    escalate = await pause_task("t1", now=True)
+    assert escalate is not None and escalate["changed"] is True
+    assert task_pause_now_sources("t1") == ["task"]
+
+    resumed = await resume_task("t1")
+    assert resumed is not None and resumed["changed"] is True
+    assert not task_dispatch_paused("t1")
+    assert task_pause_now_sources("t1") == []
+
+
+async def test_pause_process_now_strength_transitions() -> None:
+    result = await pause_process(now=True)
+    assert result["changed"] is True and result["now"] is True
+    assert process_paused() and process_paused_now()
+
+    repeat = await pause_process(now=True)
+    assert repeat["changed"] is False and "--now" in repeat["reason"]
+
+    downgrade = await pause_process()
+    assert downgrade["changed"] is True and downgrade["now"] is False
+    assert process_paused() and not process_paused_now()
+
+    resumed = await resume_process()
+    assert resumed["changed"] is True
+    assert not process_paused() and not process_paused_now()
+
+
+async def test_pause_model_now_strength_transitions() -> None:
+    register_eval("e1", 5, task_id="t1", model="mockllm/model")
+
+    result = await pause_model("mockllm/model", now=True)
+    assert result is not None and result["changed"] is True and result["now"] is True
+    assert model_paused_now("mockllm/model")
+
+    repeat = await pause_model("mockllm/model", now=True)
+    assert repeat is not None
+    assert repeat["changed"] is False and "--now" in repeat["reason"]
+
+    downgrade = await pause_model("mockllm/model")
+    assert downgrade is not None and downgrade["changed"] is True
+    assert downgrade["now"] is False
+    assert model_paused("mockllm/model") and not model_paused_now("mockllm/model")
+
+    resumed = await resume_model("mockllm/model")
+    assert resumed is not None and resumed["changed"] is True
+    assert not model_paused_now("mockllm/model")
+
+
+async def test_generate_gate_open_under_soft_pause() -> None:
+    """A soft pause never holds generate calls — quiesce semantics only."""
+    register_eval("e1", 5, task_id="t1", model="mockllm/model")
+    await pause_task("t1")
+    await pause_process()
+    await pause_model("mockllm/model")
+    model = get_model("mockllm/model", memoize=False)
+    credits: list[float] = []
+    with anyio.fail_after(5):
+        await wait_generate_dispatch(model, credits.append)
+    assert credits == []
+
+
+async def test_generate_gate_holds_under_process_hard_pause() -> None:
+    """Process `pause --now` parks generate attempts until resume, crediting the hold."""
+    await pause_process(now=True)
+    model = get_model("mockllm/model", memoize=False)
+    credits: list[float] = []
+    passed = anyio.Event()
+
+    async def attempt() -> None:
+        await wait_generate_dispatch(model, credits.append)
+        passed.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.1)
+        assert not passed.is_set()
+        await resume_process()
+        with anyio.fail_after(5):
+            await passed.wait()
+    # the whole hold is credited as waiting time (tail credited on release)
+    assert sum(credits) >= 0.05
+
+
+async def test_generate_gate_downgrade_to_soft_releases() -> None:
+    """A plain pause after `pause --now` releases parked generate attempts."""
+    await pause_process(now=True)
+    model = get_model("mockllm/model", memoize=False)
+    passed = anyio.Event()
+
+    async def attempt() -> None:
+        await wait_generate_dispatch(model, lambda _: None)
+        passed.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.05)
+        assert not passed.is_set()
+        await pause_process()  # downgrade: still paused, no longer hard
+        with anyio.fail_after(5):
+            await passed.wait()
+    assert process_paused()
+
+
+async def test_generate_gate_task_scope_counts_held_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A task `pause --now` holds the active sample's generates and counts it held."""
+    register_eval("e1", 5, task_id="t1", model="mockllm/model")
+    await pause_task("t1", now=True)
+
+    class _FakeSample:
+        eval_id = "e1"
+        id = "as1"
+
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
+    model = get_model("mockllm/model", memoize=False)
+    passed = anyio.Event()
+
+    async def attempt() -> None:
+        await wait_generate_dispatch(model, lambda _: None)
+        passed.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.05)
+        assert not passed.is_set()
+        assert task_held_count("t1") == 1
+        await resume_task("t1")
+        with anyio.fail_after(5):
+            await passed.wait()
+    assert task_held_count("t1") == 0
+
+
+async def test_generate_gate_model_scope_keys_on_called_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hard model pause holds calls *to that model* — the grader/role case.
+
+    The active sample's task has a different primary model (its task gate is
+    open), but its generate call to the hard-paused model parks — deliberately
+    unlike the soft model latch's primary-model-only keying.
+    """
+    register_eval("e1", 5, task_id="t1", model="mockllm/other")
+    note_dispatch_models(["mockllm/model"])
+    await pause_model("mockllm/model", now=True)
+
+    class _FakeSample:
+        eval_id = "e1"
+        id = "as1"
+
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
+    model = get_model("mockllm/model", memoize=False)
+    other = get_model("mockllm/other", memoize=False)
+    passed = anyio.Event()
+
+    # calls to an un-latched model pass straight through
+    with anyio.fail_after(5):
+        await wait_generate_dispatch(other, lambda _: None)
+
+    async def attempt() -> None:
+        await wait_generate_dispatch(model, lambda _: None)
+        passed.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.05)
+        assert not passed.is_set()
+        # held against the *sample's* task even though the latch is model-keyed
+        assert task_held_count("t1") == 1
+        await resume_model("mockllm/model")
+        with anyio.fail_after(5):
+            await passed.wait()
+    assert task_held_count("t1") == 0
+
+
+async def test_generate_gate_credits_incrementally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Held time is credited while parked, not only at hold end.
+
+    monitor_working_limit polls every second, so a hold credited only at its
+    end would let a working_limit expire mid-hold — the credit loop must
+    report progress at the credit interval.
+    """
+    import inspect_ai._control.pause as pause_module
+
+    monkeypatch.setattr(pause_module, "_HELD_CREDIT_INTERVAL", 0.02)
+    await pause_process(now=True)
+    model = get_model("mockllm/model", memoize=False)
+    credits: list[float] = []
+    passed = anyio.Event()
+
+    async def attempt() -> None:
+        await wait_generate_dispatch(model, credits.append)
+        passed.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.2)
+        # several interval credits landed while still parked
+        assert not passed.is_set()
+        assert len(credits) >= 2
+        assert sum(credits) >= 0.05
+        await resume_process()
+        with anyio.fail_after(5):
+            await passed.wait()
+
+
+async def test_generate_gate_cancellation_credits_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cancel escalating over a hard pause exits the gate cleanly.
+
+    The partial hold is credited and the held count released on the way out.
+    """
+    register_eval("e1", 5, task_id="t1", model="mockllm/model")
+    await pause_task("t1", now=True)
+
+    class _FakeSample:
+        eval_id = "e1"
+        id = "as1"
+
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
+    model = get_model("mockllm/model", memoize=False)
+    credits: list[float] = []
+
+    async def attempt() -> None:
+        await wait_generate_dispatch(model, credits.append)
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.1)
+        assert task_held_count("t1") == 1
+        tg.cancel_scope.cancel()
+    assert task_held_count("t1") == 0
+    assert sum(credits) >= 0.05
+
+
+# ---------------------------------------------------------------------------
 # quiesce auto-flush
 # ---------------------------------------------------------------------------
 
@@ -680,6 +965,63 @@ async def test_route_task_pause_unknown_task_404s_with_error_body() -> None:
         response = await client.post("/tasks/nope/resume")
         assert response.status_code == 404
         assert "error" in response.json()
+
+
+async def test_route_task_pause_now() -> None:
+    register_eval("e1", 3, task_id="t1", task="my_task")
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/tasks/t1/pause", params={"now": "true"})
+        body = response.json()
+        assert body["changed"] is True
+        assert body["paused"] == ["task"] and body["paused_now"] == ["task"]
+        assert body["held"] == 0
+
+        repeat = await client.post("/tasks/t1/pause", params={"now": "true"})
+        assert repeat.json()["changed"] is False
+
+        # a plain pause downgrades the hard pause to soft (last-write-wins)
+        downgraded = await client.post("/tasks/t1/pause")
+        body = downgraded.json()
+        assert body["changed"] is True
+        assert body["paused"] == ["task"] and body["paused_now"] is None
+        assert task_dispatch_paused("t1")
+
+        resumed = await client.post("/tasks/t1/resume")
+        assert resumed.json()["changed"] is True
+        assert not task_dispatch_paused("t1")
+
+
+async def test_route_process_pause_now() -> None:
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/pause", params={"now": "true"})
+        body = response.json()
+        assert body["changed"] is True and body["paused"] is True
+        assert body["now"] is True
+        assert process_paused_now()
+
+        resumed = await client.post("/resume")
+        body = resumed.json()
+        assert body["changed"] is True and body["now"] is False
+        assert not process_paused_now()
+
+
+async def test_route_model_pause_now() -> None:
+    register_eval("e1", 3, task_id="t1", model="mockllm/model")
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/models/pause", params={"model": "mockllm/model", "now": "true"}
+        )
+        body = response.json()
+        assert body["changed"] is True and body["paused"] is True
+        assert body["now"] is True
+        assert model_paused_now("mockllm/model")
+
+        resumed = await client.post("/models/resume", params={"model": "mockllm/model"})
+        assert resumed.json()["changed"] is True
+        assert not model_paused_now("mockllm/model")
 
 
 async def test_route_task_pause_dry_run() -> None:
@@ -807,6 +1149,30 @@ async def test_tasks_listing_reports_paused_and_quiesced(
         rows = (await client.get("/tasks")).json()
         assert rows[0]["paused"] == ["task", "process"]
         assert rows[0]["process_paused"] is True
+
+
+async def test_tasks_listing_reports_paused_now_and_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    register_eval("e1", 3, task_id="t1", task="my_task", model="mockllm/model")
+    _patch_active_samples(monkeypatch, [])
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        rows = (await client.get("/tasks")).json()
+        assert rows[0]["paused_now"] is None
+        assert rows[0]["held"] == 0
+        assert rows[0]["process_paused_now"] is False
+
+        await pause_task("t1", now=True)
+        rows = (await client.get("/tasks")).json()
+        assert rows[0]["paused"] == ["task"]
+        assert rows[0]["paused_now"] == ["task"]
+
+        await pause_process()  # soft — only the task latch is hard
+        rows = (await client.get("/tasks")).json()
+        assert rows[0]["paused"] == ["task", "process"]
+        assert rows[0]["paused_now"] == ["task"]
+        assert rows[0]["process_paused_now"] is False
 
 
 async def test_tasks_listing_paused_with_in_flight_not_quiesced(
@@ -1189,3 +1555,66 @@ def test_eval_model_pause_holds_undispatched_tasks_of_that_model(
     assert observed["registered"] == 1
     assert len(observed["models_paused"]) == 1
     assert observed["models_paused"][0] in models
+
+
+def test_eval_hard_pause_holds_generate_until_resume(tmp_path: Any) -> None:
+    """End-to-end hard pause through a real eval and a real generate call.
+
+    The sample hard-pauses its own task, then calls generate: the call must
+    park at the generate gate (observed via the held count) rather than
+    reaching the model, and proceed once a concurrent resumer — standing in
+    for a control-server route on the eval's loop — resumes the task. The
+    held span must be credited to the sample's waiting time so working_limit
+    enforcement (and the reported working time) exclude it.
+    """
+    from inspect_ai import Task
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai._eval.evalset import eval_set
+    from inspect_ai._util.working import sample_waiting_time
+    from inspect_ai.dataset import Sample
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    observed: dict[str, Any] = {"held": 0, "waiting": 0.0}
+
+    @solver(name=f"hard_pauser_{id(observed)}")
+    def hard_pauser():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            task_id = get_eval_states()[0].task_id
+            await pause_task(task_id, now=True)
+
+            async def resume_when_held() -> None:
+                with anyio.fail_after(20):
+                    while task_held_count(task_id) == 0:
+                        await anyio.sleep(0.01)
+                    observed["held"] = task_held_count(task_id)
+                    await anyio.sleep(0.2)  # keep it held long enough to credit
+                    await resume_task(task_id)
+
+            waiting_before = sample_waiting_time()
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(resume_when_held)
+                state = await generate(state)
+            observed["waiting"] = sample_waiting_time() - waiting_before
+            return state
+
+        return solve
+
+    log_dir = str(tmp_path / "logs")
+    success, logs = eval_set(
+        tasks=[
+            Task(
+                dataset=[Sample(input="x", target="y")],
+                solver=[hard_pauser()],
+                name="hard_pause_e2e",
+            )
+        ],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=0,
+    )
+
+    assert success and logs[0].status == "success"
+    # the generate call was genuinely held (and counted) at the gate
+    assert observed["held"] == 1
+    # the held span was credited as waiting time (~0.2s hold, loose bound)
+    assert observed["waiting"] >= 0.1

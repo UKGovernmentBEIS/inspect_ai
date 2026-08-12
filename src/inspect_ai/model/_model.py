@@ -1181,6 +1181,10 @@ class Model:
             report_sample_waiting_time(waiting_time)
             reported_waiting_time += waiting_time
 
+        # Local import: model is imported very early and the pause gate is
+        # only consulted per attempt (see wait_generate_dispatch's fast path).
+        from inspect_ai._control.pause import wait_generate_dispatch
+
         @retry(
             **model_retry_config(
                 self.api.model_name,
@@ -1194,6 +1198,12 @@ class Model:
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
+            # hard-pause gate (`pause --now`), awaited at attempt start so
+            # first and retry attempts gate uniformly; held time is credited
+            # through report_waiting_time so working_limit enforcement and
+            # the post-call waiting reconciliation below both stay honest
+            await wait_generate_dispatch(self, report_waiting_time)
+
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
 
