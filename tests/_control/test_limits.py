@@ -729,6 +729,20 @@ def test_set_sample_limit_override_rejects_out_of_range() -> None:
     assert sample_limit_override("t1", "message_limit") == MAX_SAMPLE_LIMIT_OVERRIDE
 
 
+def test_sample_limit_override_bound_matches_generate_config_bound() -> None:
+    """The two override bounds must stay equal.
+
+    The shared CLI param type (``_IntOrClearType``) validates all override
+    knobs against ``MAX_GENERATE_CONFIG_OVERRIDE`` only, so a divergence
+    would let the CLI accept values the server rejects (or vice versa).
+    The constants live in different layers (util vs model), so parity is
+    pinned here rather than by one importing the other.
+    """
+    from inspect_ai.util._limit_overrides import MAX_SAMPLE_LIMIT_OVERRIDE
+
+    assert MAX_SAMPLE_LIMIT_OVERRIDE == MAX_GENERATE_CONFIG_OVERRIDE
+
+
 def _sample_root_limits() -> "tuple[Any, Any, Any]":
     """A sample's root limit nodes as the runner creates them (no ceilings)."""
     from inspect_ai.util._limit import message_limit, time_limit, token_limit
