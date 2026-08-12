@@ -97,7 +97,7 @@ inspect eval arc.py \
     --model-role grader=anthropic/claude-sonnet-4-0
 ```
 
-`inspect eval-set` accepts `--model-spec` as well. Task identity includes the model's generation config, so two specs for one model stay two units of work. See [Eval Sets](eval-sets.qmd).
+`inspect eval-set` accepts `--model-spec` as well. Task identity includes the model's generation config, so two specs for one model stay two units of work. Task identity does not include `base_url` or credential model args such as `api_key`, so an eval set rejects two specs that differ only in those as not distinct; give each spec a distinct generation config, or run them with `inspect eval` instead. See [Eval Sets](eval-sets.qmd).
 
 ## Generation Config
 

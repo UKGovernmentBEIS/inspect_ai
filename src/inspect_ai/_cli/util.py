@@ -315,8 +315,8 @@ def parse_model_spec_cli_args(
         # Name a spec by its position and never by its content. The model args
         # of a spec can hold an api key, and its extra_headers can hold a token.
         # An error message reaches a terminal, a CI log, or a bug report.
-        # (model_args_for_log() redacts the same fields before a log records
-        # them.)
+        # (model_args_for_log() redacts api keys from model args before a log
+        # records them; extra_headers is recorded verbatim.)
         label = f"--model-spec #{index}"
 
         try:
@@ -335,6 +335,8 @@ def parse_model_spec_cli_args(
 
         model_name = params.pop("model", None)
         base_url = params.pop("base_url", None)
+        if base_url is not None and not isinstance(base_url, str):
+            raise PrerequisiteError(f"Invalid {label}: base_url must be a string.")
         model_args = params.pop("model_args", {})
         if not isinstance(model_args, dict):
             raise PrerequisiteError(f"Invalid {label}: model_args must be a mapping.")

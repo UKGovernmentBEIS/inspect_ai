@@ -227,6 +227,8 @@ def test_parse_no_model_spec_cli_args(model_spec):
         # a non-string key must not reach the keyword expansion
         ("{model: mockllm/model, 1: 2}", "text field names"),
         ("{model: mockllm/model, model_args: nope}", "model_args must be a mapping"),
+        # a non-string base_url would fail obscurely at request time
+        ("{model: mockllm/model, base_url: 8000}", "base_url must be a string"),
         (
             "{model: mockllm/model, temperature: oops}",
             "temperature: Input should be a valid number",
