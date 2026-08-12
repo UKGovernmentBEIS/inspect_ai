@@ -75,7 +75,7 @@ from inspect_ai.log import (
     EvalSample,
     EvalStats,
 )
-from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._condense import condense_sample, resolve_events_attachments
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
@@ -3035,6 +3035,9 @@ def _eval_retry_error_from_sample(sample: EvalSample) -> EvalRetryError:
         if isinstance(events[i], ModelEvent):
             recent_events = list(events[i:])
             break
+    recent_events = resolve_events_attachments(
+        recent_events, sample.attachments, "full"
+    )
     return EvalRetryError(
         message=sample.error.message,
         traceback=sample.error.traceback,

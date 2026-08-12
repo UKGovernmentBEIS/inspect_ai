@@ -167,12 +167,10 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     attachments = dict(existing_attachments)
     events_fn = _existing_attachments_content_fn(
         existing_attachments,
-        attachments,
         events_attachment_fn(attachments, log_images),
     )
     messages_fn = _existing_attachments_content_fn(
         existing_attachments,
-        attachments,
         messages_attachment_fn(attachments, log_images),
     )
     # The events and messages walks rewrite content differently (events_fn
@@ -242,7 +240,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     ]
     events_data = EventsData(messages=message_pool, calls=call_pool)
 
-    return sample.model_copy(
+    condensed_sample = sample.model_copy(
         update={
             "input": walk_input(sample.input, messages_fn, messages_context),
             "messages": walk_chat_messages(
@@ -252,6 +250,18 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
             "error_retries": condensed_error_retries,
             "attachments": attachments,
             "events_data": events_data,
+        }
+    )
+    referenced_attachments = attachment_refs_from_value(
+        condensed_sample.model_dump(mode="python", exclude={"attachments"})
+    )
+    return condensed_sample.model_copy(
+        update={
+            "attachments": {
+                hash: value
+                for hash, value in attachments.items()
+                if hash in referenced_attachments
+            }
         }
     )
 
@@ -307,7 +317,6 @@ def messages_attachment_fn(
 
 def _existing_attachments_content_fn(
     existing: Mapping[str, str],
-    attachments: MutableMapping[str, str],
     content_fn: Callable[[str], str],
 ) -> Callable[[str], str]:
     """Apply a content policy to values referenced by existing attachments."""
@@ -317,10 +326,7 @@ def _existing_attachments_content_fn(
             hash = text.removeprefix(ATTACHMENT_PROTOCOL)
             value = existing.get(hash)
             if value is not None:
-                rewritten = content_fn(value)
-                if rewritten != text:
-                    attachments.pop(hash, None)
-                return rewritten
+                return content_fn(value)
         return content_fn(text)
 
     return fn

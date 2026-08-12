@@ -53,13 +53,41 @@ async def test_model_boundary_rejects_non_inline_media(
         await get_model("mockllm/model").generate(messages)
 
 
-async def test_model_boundary_rejects_mime_less_data_uri() -> None:
+async def test_model_boundary_accepts_mime_less_image_data_uri() -> None:
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentImage(image="data:;base64,iVBORw0KGgo=")])
+    ]
+
+    await get_model("mockllm/model").generate(messages)
+
+
+async def test_model_boundary_rejects_unrecognized_mime_less_data_uri() -> None:
     messages: list[ChatMessage] = [
         ChatMessageUser(content=[ContentImage(image="data:;base64,AAAA")])
     ]
 
-    with pytest.raises(ValueError, match="does not declare a MIME type"):
+    with pytest.raises(ValueError, match="could not be inferred"):
         await get_model("mockllm/model").generate(messages)
+
+
+async def test_model_boundary_error_identifies_media_location() -> None:
+    reference = "https://example.com/" + ("a" * 70) + "SECRET_TAIL"
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content="first"),
+        ChatMessageUser(
+            content=[ContentText(text="second"), ContentImage(image=reference)]
+        ),
+    ]
+
+    with pytest.raises(UnresolvedMediaError) as error:
+        await get_model("mockllm/model").generate(messages)
+
+    error_message = str(error.value)
+    assert "message index 1" in error_message
+    assert "content index 1" in error_message
+    assert "image reference" in error_message
+    assert reference[:80] in error_message
+    assert "SECRET_TAIL" not in error_message
 
 
 @pytest.mark.parametrize(

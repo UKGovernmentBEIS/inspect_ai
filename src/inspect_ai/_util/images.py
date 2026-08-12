@@ -112,7 +112,7 @@ async def file_as_data(file: str, mime_type: str | None = None) -> tuple[bytes, 
 
         # handle url or file
         if is_http_url(file):
-            async with httpx.AsyncClient(follow_redirects=False) as client:
+            async with httpx.AsyncClient(follow_redirects=True) as client:
                 response = await client.get(file)
                 response.raise_for_status()
                 file_bytes = response.content
@@ -167,12 +167,9 @@ def inline_media_data(
     file: str, expected_kind: MediaKind | None = None
 ) -> tuple[bytes, str]:
     """Decode inline media without performing filesystem or network I/O."""
-    mime_type = _inline_media_mime_type(file, expected_kind)
-
-    try:
-        file_bytes = base64.b64decode(data_uri_to_base64(file), validate=True)
-    except ValueError as ex:
-        raise ValueError("Inline media data URI contains invalid base64 data.") from ex
+    _require_inline_media(file)
+    file_bytes = _decode_inline_media(file)
+    mime_type = _inline_media_mime_type(file, expected_kind, file_bytes)
 
     return file_bytes, mime_type
 
@@ -183,16 +180,38 @@ def inline_media_data_uri(file: str, expected_kind: MediaKind | None = None) -> 
     return file
 
 
-def _inline_media_mime_type(file: str, expected_kind: MediaKind | None) -> str:
+def _require_inline_media(file: str) -> None:
     if not is_data_uri(file):
         raise UnresolvedMediaError(
             "Media references must be materialized before model submission. "
             "Trusted code can call inspect_ai.util.materialize_media()."
         )
 
+
+def _decode_inline_media(file: str) -> bytes:
+    try:
+        return base64.b64decode(data_uri_to_base64(file), validate=True)
+    except ValueError as ex:
+        raise ValueError("Inline media data URI contains invalid base64 data.") from ex
+
+
+def _inline_media_mime_type(
+    file: str,
+    expected_kind: MediaKind | None,
+    file_bytes: bytes | None = None,
+) -> str:
+    _require_inline_media(file)
+
     mime_type = _normalize_mime_type(data_uri_mime_type(file))
     if mime_type is None:
-        raise ValueError("Inline media data URI does not declare a MIME type.")
+        mime_type = _sniff_image_mime_type(
+            file_bytes if file_bytes is not None else _decode_inline_media(file)
+        )
+        if mime_type is None:
+            raise ValueError(
+                "Inline media data URI does not declare a MIME type and its "
+                "content type could not be inferred."
+            )
 
     if expected_kind is not None and not _mime_matches_kind(mime_type, expected_kind):
         raise ValueError(

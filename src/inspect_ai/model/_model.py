@@ -56,7 +56,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.http import status_code_of
-from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai._util.images import UnresolvedMediaError, inline_media_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
@@ -125,10 +125,10 @@ logger = logging.getLogger(__name__)
 
 def _validate_model_input_media(messages: Sequence[ChatMessage]) -> None:
     """Require all media to be inline at the model API boundary."""
-    for message in messages:
+    for message_index, message in enumerate(messages):
         if isinstance(message.content, str):
             continue
-        for content in message.content:
+        for content_index, content in enumerate(message.content):
             if isinstance(content, ContentText):
                 if (
                     isinstance(content.internal, dict)
@@ -136,13 +136,41 @@ def _validate_model_input_media(messages: Sequence[ChatMessage]) -> None:
                 ):
                     validate_agent_message(content.internal["agent_message"])
             elif isinstance(content, ContentImage):
-                inline_media_data_uri(content.image, "image")
+                _validate_inline_media(
+                    content.image, "image", message_index, content_index
+                )
             elif isinstance(content, ContentAudio):
-                inline_media_data_uri(content.audio, "audio")
+                _validate_inline_media(
+                    content.audio, "audio", message_index, content_index
+                )
             elif isinstance(content, ContentVideo):
-                inline_media_data_uri(content.video, "video")
+                _validate_inline_media(
+                    content.video, "video", message_index, content_index
+                )
             elif isinstance(content, ContentDocument):
-                inline_media_data_uri(content.document, "document")
+                _validate_inline_media(
+                    content.document, "document", message_index, content_index
+                )
+
+
+def _validate_inline_media(
+    reference: str,
+    kind: Literal["image", "audio", "video", "document"],
+    message_index: int,
+    content_index: int,
+) -> None:
+    try:
+        inline_media_data_uri(reference, kind)
+    except ValueError as ex:
+        reference_preview = reference[:80] + ("..." if len(reference) > 80 else "")
+        message = (
+            f"{ex} Invalid model input at message index {message_index}, "
+            f"content index {content_index}: {kind} reference "
+            f"{reference_preview!r}."
+        )
+        if isinstance(ex, UnresolvedMediaError):
+            raise UnresolvedMediaError(message) from ex
+        raise ValueError(message) from ex
 
 
 class GenerateInput(NamedTuple):

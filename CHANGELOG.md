@@ -2,7 +2,7 @@
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
-- Media: Materialize trusted fixed-task input independently of `log_images`; require runtime, bridged, and dynamically-enqueued media to be inline before provider serialization.
+- Breaking: Materialize trusted fixed-task media independently of `log_images`; require runtime, bridged, and dynamically-enqueued media to be inline before provider serialization.
 
 ## 0.3.258 (11 August 2026)
 

@@ -2,10 +2,12 @@ import os
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import ContentImage
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import EvalRetryError, EvalSample
 from inspect_ai.log._condense import (
     ATTACHMENT_PROTOCOL,
+    attachment_refs_from_value,
     condense_event,
     condense_sample,
     resolve_sample_attachments,
@@ -136,6 +138,46 @@ def test_recondense_without_images_removes_existing_media_attachments() -> None:
     assert image_data_uri not in serialized
     assert image_data_uri not in without_images.attachments.values()
     assert BASE_64_DATA_REMOVED in serialized
+
+
+def test_recondense_preserves_attachment_shared_by_messages_and_events() -> None:
+    long_text = "shared attachment content " * 8
+    attachment_hash = mm3_hash(long_text)
+    attachment_ref = f"{ATTACHMENT_PROTOCOL}{attachment_hash}"
+    message = ChatMessageUser(content=attachment_ref)
+    event = ModelEvent(
+        model="test-model",
+        input=[message],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("test-model", "response"),
+    )
+    sample = EvalSample(
+        id="sample",
+        epoch=1,
+        input="input",
+        target="target",
+        messages=[message],
+        events=[event],
+        attachments={attachment_hash: long_text},
+    )
+
+    condensed = condense_sample(sample)
+    referenced = attachment_refs_from_value(
+        condensed.model_dump(mode="python", exclude={"attachments"})
+    )
+
+    assert condensed.messages[0].content == long_text
+    assert attachment_hash in referenced
+    assert referenced <= set(condensed.attachments)
+
+    resolved = resolve_sample_attachments(condensed, "full")
+    assert resolved.events is not None
+    resolved_event = next(
+        event for event in resolved.events if isinstance(event, ModelEvent)
+    )
+    assert resolved_event.input[0].content == long_text
 
 
 # def test_transcript_incremental_condense():

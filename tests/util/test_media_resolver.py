@@ -314,7 +314,7 @@ class TestFileAsDataHttp:
 
         assert mime_type == "audio/mpeg"
 
-    async def test_redirect_is_not_followed(self) -> None:
+    async def test_redirect_is_followed(self) -> None:
         requests: list[str] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -331,16 +331,17 @@ class TestFileAsDataHttp:
                 follow_redirects=follow_redirects,
             )
 
-        with (
-            patch(
-                "inspect_ai._util.images.httpx.AsyncClient",
-                side_effect=client_factory,
-            ),
-            pytest.raises(httpx.HTTPStatusError),
+        with patch(
+            "inspect_ai._util.images.httpx.AsyncClient",
+            side_effect=client_factory,
         ):
-            await file_as_data("https://example.com/media")
+            data, _ = await file_as_data("https://example.com/media")
 
-        assert requests == ["https://example.com/media"]
+        assert data == b"secret"
+        assert requests == [
+            "https://example.com/media",
+            "https://example.com/secret",
+        ]
 
     @pytest.mark.parametrize("status_code", [404, 500])
     async def test_non_success_status_rejected(self, status_code: int) -> None:
@@ -404,6 +405,14 @@ class TestInlineMedia:
         with patch("inspect_ai._util.images.base64.b64decode") as decode:
             assert inline_media_data_uri(uri, "image") == uri
         decode.assert_not_called()
+
+    def test_mime_less_image_is_sniffed(self) -> None:
+        uri = "data:;base64,iVBORw0KGgo="
+        assert inline_media_data_uri(uri, "image") == uri
+
+    def test_unrecognized_mime_less_media_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="could not be inferred"):
+            inline_media_data_uri("data:;base64,AAAA", "image")
 
     def test_non_inline_media_rejected(self) -> None:
         with pytest.raises(UnresolvedMediaError, match="materialized"):
