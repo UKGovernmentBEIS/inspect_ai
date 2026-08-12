@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+import anyio
 import click
 import pytest
 from test_helpers.trace import action_record, write_trace_log
@@ -1003,7 +1004,8 @@ def test_resolve_target_server_none_running_exits(
 
 
 def _stub_httpx(
-    monkeypatch: pytest.MonkeyPatch, sequence: list[object]
+    monkeypatch: pytest.MonkeyPatch,
+    sequence: list[object] | dict[str, list[object]],
 ) -> dict[str, int]:
     """Replace httpx in ctl so each ``client.get`` consumes one ``sequence`` item.
 
@@ -1011,9 +1013,23 @@ def _stub_httpx(
     a payload to return from ``response.json()``, or a ``(status_code, payload)``
     tuple for a non-200 response. Returns a dict whose ``"gets"`` entry counts
     how many requests were attempted.
+
+    Both the sync and async clients are stubbed: reads go out over the async
+    client, while a non-idempotent mutation still takes the sync path.
+
+    Pass a **dict keyed by socket path** whenever more than one target is read
+    concurrently — each target then draws from its own queue, so the test does
+    not depend on the order the task group happens to start its reads in
+    (asyncio schedules them FIFO; trio deliberately randomizes). A bare list is
+    one shared queue, fine for a single target's successive attempts.
     """
     counter = {"gets": 0, "posts": 0, "patches": 0}
-    seq = list(sequence)
+    shared = None if isinstance(sequence, dict) else list(sequence)
+    by_socket = (
+        {socket: list(items) for socket, items in sequence.items()}
+        if isinstance(sequence, dict)
+        else {}
+    )
 
     class _Resp:
         def __init__(self, payload: object, status_code: int = 200) -> None:
@@ -1035,9 +1051,27 @@ def _stub_httpx(
         def json(self) -> object:
             return self._payload
 
+    count_key = {"get": "gets", "post": "posts", "patch": "patches"}
+
+    class _Transport:
+        """Stands in for httpx's transport, carrying the uds through to _next."""
+
+        def __init__(self, uds: str | None = None, **kwargs: object) -> None:
+            self.uds = uds
+
+    def _next(kind: str, uds: str | None) -> _Resp:
+        counter[kind] += 1
+        item = (shared if shared is not None else by_socket[str(uds)]).pop(0)
+        if isinstance(item, Exception):
+            raise item
+        if isinstance(item, tuple):
+            status, payload = item
+            return _Resp(payload, status)
+        return _Resp(item)
+
     class _Client:
         def __init__(self, *args: object, **kwargs: object) -> None:
-            pass
+            self.uds = getattr(kwargs.get("transport"), "uds", None)
 
         def __enter__(self) -> "_Client":
             return self
@@ -1045,31 +1079,58 @@ def _stub_httpx(
         def __exit__(self, *args: object) -> None:
             pass
 
-        def _next(self, kind: str) -> _Resp:
-            counter[kind] += 1
-            item = seq.pop(0)
-            if isinstance(item, Exception):
-                raise item
-            if isinstance(item, tuple):
-                status, payload = item
-                return _Resp(payload, status)
-            return _Resp(item)
-
         def get(self, path: str, params: object = None) -> _Resp:
-            return self._next("gets")
+            return _next("gets", self.uds)
 
         def post(self, path: str, params: object = None) -> _Resp:
-            return self._next("posts")
+            return _next("posts", self.uds)
 
         def patch(self, path: str, params: object = None) -> _Resp:
-            return self._next("patches")
+            return _next("patches", self.uds)
 
         def request(self, method: str, path: str, params: object = None) -> _Resp:
-            return getattr(self, method)(path, params)
+            return _next(count_key[method], self.uds)
+
+    class _AsyncClient:
+        # only `request` — the async path is reads and idempotent mutations,
+        # which all go through it; the one-shot mutation takes the sync client
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self.uds = getattr(kwargs.get("transport"), "uds", None)
+
+        async def __aenter__(self) -> "_AsyncClient":
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            pass
+
+        async def request(self, method: str, path: str, params: object = None) -> _Resp:
+            return _next(count_key[method], self.uds)
 
     monkeypatch.setattr("inspect_ai._cli.ctl.httpx.Client", _Client)
-    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", lambda *a, **k: None)
+    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.HTTPTransport", _Transport)
+    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.AsyncClient", _AsyncClient)
+    monkeypatch.setattr("inspect_ai._cli.ctl.httpx.AsyncHTTPTransport", _Transport)
     return counter
+
+
+async def _await_sibling(event: anyio.Event, who: str) -> None:
+    """Park until a sibling read completes, failing loudly if none ever does.
+
+    The barrier the concurrency tests are built on: it can only be crossed
+    with more than one read in flight, so a fan-out that went back to reading
+    one target at a time trips the deadline with a message that says so,
+    rather than hanging the suite or surfacing a bare TimeoutError. Two
+    seconds is generous — a concurrent fan-out crosses it in one scheduling
+    pass, and nothing here waits on real I/O.
+    """
+    try:
+        with anyio.fail_after(2):
+            await event.wait()
+    except TimeoutError:
+        raise AssertionError(
+            f"{who} was still the only read in flight after 2s — the fan-out "
+            "is issuing its reads one at a time"
+        ) from None
 
 
 def _disc(pid: int) -> "DiscoveredControlServer":
@@ -1080,7 +1141,7 @@ def _disc(pid: int) -> "DiscoveredControlServer":
     )
 
 
-def test_get_with_retry_retries_timeout_then_succeeds(
+async def test_get_with_retry_retries_timeout_then_succeeds(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A read that times out twice, then succeeds, returns the payload.
@@ -1089,13 +1150,13 @@ def test_get_with_retry_retries_timeout_then_succeeds(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _get_with_retry
+    from inspect_ai._cli.ctl import _get_with_retry_async
 
     counter = _stub_httpx(
         monkeypatch,
         [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), [{"task_id": "a"}]],
     )
-    result = _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks")
+    result = await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
     assert result == [{"task_id": "a"}]
     assert counter["gets"] == 3
     err = capsys.readouterr().err
@@ -1103,17 +1164,19 @@ def test_get_with_retry_retries_timeout_then_succeeds(
     assert "attempt 1/8" in err and "attempt 2/8" in err
 
 
-def test_get_with_retry_exhausts_and_exits(
+async def test_get_with_retry_exhausts_and_exits(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Eight consecutive timeouts exhaust the retries → error + failure status."""
     import httpx
 
-    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _get_with_retry
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _get_with_retry_async
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS)
     with pytest.raises(click.exceptions.Exit) as exc_info:
-        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks", pid=7)
+        await _get_with_retry_async(
+            "/tmp/x.sock", "/tasks", what="Reading tasks", pid=7
+        )
     assert exc_info.value.exit_code == 1
     assert counter["gets"] == _REQUEST_ATTEMPTS
     err = capsys.readouterr().err
@@ -1177,7 +1240,7 @@ def test_config_set_does_not_retry_timeout(
     assert "Failed to update config" in capsys.readouterr().err
 
 
-def test_get_with_retry_busy_raises_without_terminal_echo(
+async def test_get_with_retry_busy_raises_without_terminal_echo(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A degradable read raises _ServerBusy on exhaustion — no 'gave up' echo.
@@ -1188,11 +1251,11 @@ def test_get_with_retry_busy_raises_without_terminal_echo(
     """
     import httpx
 
-    from inspect_ai._cli.ctl import _get_with_retry, _ServerBusy
+    from inspect_ai._cli.ctl import _get_with_retry_async, _ServerBusy
 
     counter = _stub_httpx(monkeypatch, [httpx.ReadTimeout("slow")] * 2)
     with pytest.raises(_ServerBusy):
-        _get_with_retry(
+        await _get_with_retry_async(
             "/tmp/x.sock",
             "/tasks",
             what="Reading tasks",
@@ -1221,7 +1284,10 @@ def test_fetch_summaries_busy_server_skipped_when_degradable(
 
     _stub_httpx(
         monkeypatch,
-        [httpx.ReadTimeout("slow")] * _DEGRADED_READ_ATTEMPTS + [[{"task_id": "live"}]],
+        {
+            "/tmp/7.sock": [httpx.ReadTimeout("slow")] * _DEGRADED_READ_ATTEMPTS,
+            "/tmp/8.sock": [[{"task_id": "live"}]],
+        },
     )
     fetched = _fetch_summaries([_disc(7), _disc(8)], raise_on_busy=True)
     assert [s["task_id"] for s in fetched.summaries] == ["live"]
@@ -1270,10 +1336,15 @@ def test_fetch_summaries_exact_id_match_short_circuits_fan_out(
     assert counter["gets"] == 1  # pid 8 never contacted
 
 
-def test_fetch_summaries_prefix_query_still_fans_out(
+def test_fetch_summaries_prefix_query_contacts_every_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A prefix (non-exact) query never stops early — ambiguity needs all servers."""
+    """A prefix (non-exact) query never stops early — ambiguity needs all servers.
+
+    It reads them one at a time all the same: any ``stop_on_task_id`` takes the
+    serial branch, since whether a query is an exact id is only knowable from
+    the rows. That costs a scoped read the concurrency an unscoped one gets.
+    """
     from inspect_ai._cli.ctl import _fetch_summaries
 
     counter = _stub_httpx(
@@ -1397,17 +1468,17 @@ def test_sample_events_read_retries_busy_timeout(
     assert "retrying" in capsys.readouterr().err
 
 
-def test_get_with_retry_does_not_retry_connection_error(
+async def test_get_with_retry_does_not_retry_connection_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A non-timeout transport error (server gone) is not retried."""
     import httpx
 
-    from inspect_ai._cli.ctl import _get_with_retry, _ServerUnreachable
+    from inspect_ai._cli.ctl import _get_with_retry_async, _ServerUnreachable
 
     counter = _stub_httpx(monkeypatch, [httpx.ConnectError("refused")])
     with pytest.raises(_ServerUnreachable):
-        _get_with_retry("/tmp/x.sock", "/tasks", what="Reading tasks")
+        await _get_with_retry_async("/tmp/x.sock", "/tasks", what="Reading tasks")
     assert counter["gets"] == 1  # tried once, no retry
 
 
@@ -1427,7 +1498,10 @@ def test_fetch_summaries_skips_gone_server_but_aggregates_live_one(
     # server 7 refuses (gone); server 8 returns one task.
     _stub_httpx(
         monkeypatch,
-        [httpx.ConnectError("refused"), [{"task_id": "live"}]],
+        {
+            "/tmp/7.sock": [httpx.ConnectError("refused")],
+            "/tmp/8.sock": [[{"task_id": "live"}]],
+        },
     )
     summaries = _fetch_summaries([_disc(7), _disc(8)]).summaries
     assert [s["task_id"] for s in summaries] == ["live"]
@@ -1436,6 +1510,75 @@ def test_fetch_summaries_skips_gone_server_but_aggregates_live_one(
     # the skipped server is surfaced, not swallowed
     err = capsys.readouterr().err
     assert "Skipping pid 7" in err
+
+
+def test_fetch_summaries_unreachable_server_does_not_cancel_in_flight_siblings(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """One read failing mid-fan-out leaves its suspended siblings alone.
+
+    The reason each read captures its own `_ServerUnreachable` instead of
+    raising: raised, it would reach the task group and cancel every sibling
+    still awaiting a response. Here pid 8's read is parked when pid 7's fails,
+    so it is genuinely in the cancellation window — the schedule the
+    warn-and-skip tests above never reach, because their stubs finish before a
+    sibling starts.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _fetch_summaries, _ServerUnreachable
+
+    state: dict[str, Any] = {}
+
+    async def fake_get(socket_path: Any, path: str, **kwargs: Any) -> Any:
+        if not state:
+            state["released"] = anyio.Event()
+        pid = int(Path(str(socket_path)).stem)
+        if pid == 7:
+            raise _ServerUnreachable() from httpx.ConnectError("refused")
+        if pid == 8:
+            await _await_sibling(state["released"], "the read for pid 8")
+            return [{"task_id": "parked"}]
+        state["released"].set()
+        return [{"task_id": "late"}]
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry_async", fake_get)
+    summaries = _fetch_summaries([_disc(7), _disc(8), _disc(9)]).summaries
+    assert [s["task_id"] for s in summaries] == ["parked", "late"]
+    assert "Skipping pid 7" in capsys.readouterr().err
+
+
+def test_fetch_summaries_reads_servers_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The unscoped fan-out issues its per-server reads together.
+
+    Each fake read parks until the *next* server's read has completed, so the
+    fetch only returns if they are all in flight at once, and they complete in
+    the reverse of discovery order — which the rows must not inherit.
+    """
+    from inspect_ai._cli.ctl import _fetch_summaries
+
+    pids = [7, 8, 9]
+    state: dict[str, Any] = {}
+
+    async def fake_get(socket_path: Any, path: str, **kwargs: Any) -> Any:
+        if not state:
+            # created up front, by whichever read runs first: a read parks on
+            # its successor's event, which must therefore already exist
+            state["done"] = [anyio.Event() for _ in pids]
+        index = pids.index(int(Path(str(socket_path)).stem))
+        if index + 1 < len(pids):
+            await _await_sibling(
+                state["done"][index + 1], f"the read for pid {pids[index]}"
+            )
+        state["done"][index].set()
+        return [{"task_id": f"task{pids[index]}"}]
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry_async", fake_get)
+    summaries = _fetch_summaries([_disc(pid) for pid in pids]).summaries
+    assert [s["task_id"] for s in summaries] == ["task7", "task8", "task9"]
+    assert [s["pid"] for s in summaries] == pids
 
 
 def test_fetch_summaries_unresponsive_server_exits(
@@ -1450,6 +1593,40 @@ def test_fetch_summaries_unresponsive_server_exits(
     with pytest.raises(click.exceptions.Exit):
         _fetch_summaries([_disc(7)])
     assert "gave up" in capsys.readouterr().err
+
+
+def test_fetch_summaries_all_busy_narrates_once_per_invocation(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Every process wedged narrates per attempt and fails once — not per process.
+
+    Both halves of the busy narration are per-invocation, because the reads
+    are concurrent: they stall in lockstep and reach their deadline together,
+    so per-target narration would answer a wedged eval set with a retry line
+    per process per attempt and then a "gave up" block per process.
+    """
+    import httpx
+
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS, _fetch_summaries
+
+    _stub_httpx(
+        monkeypatch,
+        {
+            f"/tmp/{pid}.sock": [httpx.ReadTimeout("slow")] * _REQUEST_ATTEMPTS
+            for pid in (7, 8, 9)
+        },
+    )
+    with pytest.raises(click.exceptions.Exit):
+        _fetch_summaries([_disc(7), _disc(8), _disc(9)])
+    err = capsys.readouterr().err
+    assert err.count("the eval may be busy") == _REQUEST_ATTEMPTS
+    assert "Reading tasks from 3 processes: no response" in err
+    assert err.count("gave up") == 1
+    # deterministic: the first busy server in discovery order, not whichever
+    # task the scheduler happened to finish first
+    assert "Reading tasks from pid 7: gave up" in err
+    assert err.count("inspect ctl process anomalies") == 1
+    assert "inspect ctl process anomalies 7" in err
 
 
 # --- noun-group surface + agent output contract -----------------------------
@@ -1516,7 +1693,7 @@ def _patch_surface(
     if samples_by_eval is not None:
         # Mirrors the real server: `sample_filter="errors"` returns only
         # errored/retried rows (the CLI keeps no client-side fallback).
-        def fake_fetch_samples(
+        async def fake_fetch_samples(
             socket_path: Any,
             eval_id: str,
             active_since: float | None = None,
@@ -1529,7 +1706,9 @@ def _patch_surface(
                 samples = [s for s in samples if s["error"] or (s["retries"] or 0) > 0]
             return _SamplesPage(as_of=123.0, samples=samples)
 
-        monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_fetch_samples)
+        monkeypatch.setattr(
+            "inspect_ai._cli.ctl._fetch_samples_async", fake_fetch_samples
+        )
 
 
 def test_bare_task_noun_implies_list(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1663,7 +1842,7 @@ def test_sample_errors_requests_server_side_filter(
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     seen: dict[str, Any] = {}
 
-    def fake_samples(
+    async def fake_samples(
         socket_path: Any,
         eval_id: str,
         active_since: float | None = None,
@@ -1677,7 +1856,7 @@ def test_sample_errors_requests_server_side_filter(
             samples=[_sample_row("bad", error="boom")],
         )
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "errors", "--json"])
     assert result.exit_code == 0, result.output
     assert seen["sample_filter"] == "errors"
@@ -1691,7 +1870,7 @@ def test_sample_list_does_not_request_errors_filter(
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     seen: dict[str, Any] = {}
 
-    def fake_samples(
+    async def fake_samples(
         socket_path: Any,
         eval_id: str,
         active_since: float | None = None,
@@ -1702,7 +1881,7 @@ def test_sample_list_does_not_request_errors_filter(
         seen["sample_filter"] = sample_filter
         return _SamplesPage(as_of=123.0, samples=[_sample_row("s1")])
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
     assert seen["sample_filter"] is None
@@ -1716,13 +1895,13 @@ def test_fetch_samples_sends_filter_param(
 
     seen: dict[str, Any] = {}
 
-    def fake_get(
+    async def fake_get(
         socket_path: Any, path: str, *, params: Any = None, **kwargs: Any
     ) -> Any:
         seen["params"] = params
         return {"as_of": 1.0, "samples": []}
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry", fake_get)
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_with_retry_async", fake_get)
     _fetch_samples("/tmp/x.sock", "e1", sample_filter="errors")
     assert seen["params"] == {"filter": "errors"}
     _fetch_samples("/tmp/x.sock", "e1")
@@ -1733,11 +1912,11 @@ def _capture_fetch_kwargs(
     monkeypatch: pytest.MonkeyPatch,
     page: _SamplesPage | None = None,
 ) -> list[dict[str, Any]]:
-    """Stub `_fetch_samples`, recording each call's cap/filter kwargs."""
+    """Stub the samples read, recording each call's cap/filter kwargs."""
     calls: list[dict[str, Any]] = []
     result = page if page is not None else _SamplesPage(as_of=123.0, samples=[])
 
-    def fake_samples(
+    async def fake_samples(
         socket_path: Any,
         eval_id: str,
         active_since: float | None = None,
@@ -1746,7 +1925,7 @@ def _capture_fetch_kwargs(
         calls.append(dict(kwargs))
         return result
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
     return calls
 
 
@@ -1769,6 +1948,27 @@ def test_sample_list_forwards_cap_and_filter_flags(
     cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert calls[-1]["limit"] is None  # server default cap applies
     assert calls[-1]["all_samples"] is False
+
+
+def test_sample_list_attempt_budget_splits_scoped_from_fan_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A scoped read rides the full budget; the fan-out takes the degraded one.
+
+    A scoped read fails the command when its eval stays busy, so it's worth
+    waiting out; an unscoped one warn-and-skips, where one wedged eval must
+    not hold up the rest.
+    """
+    from inspect_ai._cli.ctl import _REQUEST_ATTEMPTS
+
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    calls = _capture_fetch_kwargs(monkeypatch)
+
+    cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert calls[-1]["attempts"] is None  # the degradable default
+
+    cli_runner().invoke(ctl_command, ["sample", "list", "aaa111", "--json"])
+    assert calls[-1]["attempts"] == _REQUEST_ATTEMPTS
 
 
 def test_sample_list_all_requests_full_listing(
@@ -1861,10 +2061,16 @@ def test_sample_list_envelope_aggregates_counts_and_truncated(
             truncated=False,
         ),
     }
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl._fetch_samples",
-        lambda socket_path, eval_id, active_since=None, **kwargs: pages[eval_id],
-    )
+
+    async def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        return pages[eval_id]
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
     result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
@@ -2232,7 +2438,7 @@ def _patch_samples_unreachable_for(
     gone_eval_id: str,
     exc: Exception | None = None,
 ) -> None:
-    """Stub `_fetch_samples` so one eval's read fails.
+    """Stub the samples read so one eval's read fails.
 
     ``exc`` is the error raised for that eval (default: a connection-refused
     ``_ServerUnreachable``; pass a ``_ServerBusy`` to simulate retry
@@ -2247,7 +2453,7 @@ def _patch_samples_unreachable_for(
         exc.__cause__ = httpx.ConnectError("refused")
     failure = exc
 
-    def fake_samples(
+    async def fake_samples(
         socket_path: Any,
         eval_id: str,
         active_since: float | None = None,
@@ -2257,7 +2463,7 @@ def _patch_samples_unreachable_for(
             raise failure
         return _SamplesPage(as_of=123.0, samples=[_sample_row("s2")])
 
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
 
 
 def test_sample_list_unscoped_skips_unreachable_eval(
@@ -3676,7 +3882,7 @@ def test_group_option_forwards_value_and_verb_wins(
 ) -> None:
     captured: dict[str, Any] = {}
 
-    def fake_samples(
+    async def fake_samples(
         socket_path: Any,
         eval_id: str,
         active_since: float | None = None,
@@ -3686,7 +3892,7 @@ def test_group_option_forwards_value_and_verb_wins(
         return _SamplesPage(as_of=123.0, samples=[])
 
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples", fake_samples)
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
     runner = cli_runner()
 
     result = runner.invoke(ctl_command, ["sample", "--active-since", "5.0", "list"])
@@ -4632,6 +4838,101 @@ def test_sample_list_unscoped_skips_busy_eval(
     assert [s["task_id"] for s in payload["samples"]] == ["bbb222"]
     assert "Skipping eval eval_aaa111" in result.stderr
     assert "try again shortly" in result.stderr
+
+
+def test_sample_list_reads_evals_concurrently(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unscoped `sample list` issues its per-eval reads together.
+
+    One blocking read per eval in series is what made this command look hung
+    on an eval set with many running tasks. Each fake read here parks until
+    the *next* eval's read has completed, so the listing only finishes if
+    every read is in flight at once, and the completion order is the reverse
+    of the target order — which the rows must not inherit.
+    """
+    tasks = [_full_summary(f"aaa{i}", f"t{i}") for i in range(4)]
+    _patch_surface(monkeypatch, tasks)
+    state: dict[str, Any] = {}
+
+    async def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        if not state:
+            # created up front, by whichever read runs first: a read parks on
+            # its successor's event, which must therefore already exist
+            state["done"] = [anyio.Event() for _ in tasks]
+        index = int(eval_id.removeprefix("eval_aaa"))
+        if index + 1 < len(tasks):
+            await _await_sibling(state["done"][index + 1], f"the read for {eval_id}")
+        state["done"][index].set()
+        return _SamplesPage(as_of=200.0 - index, samples=[_sample_row(f"s{index}")])
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert [s["sample_id"] for s in payload["samples"]] == ["s0", "s1", "s2", "s3"]
+    assert [s["task_id"] for s in payload["samples"]] == [f"aaa{i}" for i in range(4)]
+    # the envelope keeps the earliest per-eval as_of, so a later poll can't
+    # skip changes that landed while a slower sibling read was still running
+    assert payload["as_of"] == 197.0
+
+
+def test_sample_list_caps_reads_in_flight(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The fan-out reads in bounded waves rather than opening one read per eval.
+
+    A fan-out spans every task in the run, so "all at once" scales with the
+    eval set: the reads all land on a server sharing the eval's single event
+    loop, and a client that runs out of file descriptors reports the evals it
+    could not reach as gone. The wave here is held open until it is full, so
+    the test fails distinguishably if the cap is never reached (too serial)
+    or exceeded (uncapped).
+    """
+    from inspect_ai._cli.ctl import _MAX_CONCURRENT_READS
+
+    tasks = [
+        _full_summary(f"aaa{i}", f"t{i}") for i in range(_MAX_CONCURRENT_READS + 2)
+    ]
+    _patch_surface(monkeypatch, tasks)
+    state: dict[str, Any] = {"in_flight": 0, "peak": 0}
+
+    async def fake_samples(
+        socket_path: Any,
+        eval_id: str,
+        active_since: float | None = None,
+        **kwargs: Any,
+    ) -> _SamplesPage:
+        if "full" not in state:
+            state["full"] = anyio.Event()
+        state["in_flight"] += 1
+        state["peak"] = max(state["peak"], state["in_flight"])
+        if state["in_flight"] == _MAX_CONCURRENT_READS:
+            state["full"].set()
+        try:
+            with anyio.fail_after(2):
+                await state["full"].wait()
+        except TimeoutError:
+            raise AssertionError(
+                f"only {state['peak']} reads were ever in flight after 2s — "
+                f"expected a full wave of {_MAX_CONCURRENT_READS}"
+            ) from None
+        state["in_flight"] -= 1
+        return _SamplesPage(
+            as_of=123.0,
+            samples=[_sample_row(eval_id.removeprefix("eval_"))],
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._fetch_samples_async", fake_samples)
+    result = cli_runner().invoke(ctl_command, ["sample", "list", "--all", "--json"])
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    # every target is still read — the cap paces the fan-out, it doesn't trim it
+    assert [s["sample_id"] for s in payload["samples"]] == [t["task_id"] for t in tasks]
+    assert state["peak"] == _MAX_CONCURRENT_READS
 
 
 def test_sample_list_all_processes_busy_fails_honest(

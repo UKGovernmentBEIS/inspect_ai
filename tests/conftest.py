@@ -134,6 +134,25 @@ def fast_retry_waits(request):
 
 
 @pytest.fixture(autouse=True)
+def isolate_active_model():
+    """Keep the active-model contextvar from leaking across tests.
+
+    `eval` sets the process `active_model` contextvar. A test that runs `eval`
+    or `eval_set` *synchronously* in its own context (not a background thread)
+    keeps that value after the call, so it leaks into later tests. A later test
+    that resolves a bare model then gets the leaked model instead of
+    `INSPECT_EVAL_MODEL`. Restore the contextvar after each test.
+    """
+    from inspect_ai.model._model import active_model_context_var
+
+    token = active_model_context_var.set(active_model_context_var.get(None))
+    try:
+        yield
+    finally:
+        active_model_context_var.reset(token)
+
+
+@pytest.fixture(autouse=True)
 def fresh_concurrency_registry():
     """Reset the process-global concurrency registry before each test.
 

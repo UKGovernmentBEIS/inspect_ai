@@ -36,7 +36,7 @@ import json as json_lib
 import re
 import time
 import traceback
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,9 +48,11 @@ from typing import (
     NoReturn,
     ParamSpec,
     Protocol,
+    TypeVar,
     cast,
 )
 
+import anyio
 import click
 import httpx
 from click.core import ParameterSource
@@ -76,6 +78,7 @@ from inspect_ai._control.state import (
     effective_sample_limit,
     parse_status_filter,
 )
+from inspect_ai._util._async import configured_async_backend, tg_collect
 from inspect_ai._util.name_match import match_name_prefix
 from inspect_ai._util.process import pid_alive
 from inspect_ai._util.trace import (
@@ -1782,6 +1785,7 @@ def _structured_failures(as_json: bool) -> Iterator[None]:
 
 
 _P = ParamSpec("_P")
+_T = TypeVar("_T")
 
 
 def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
@@ -1919,40 +1923,42 @@ def _list_sample_rows(
     else:
         targets = summaries
 
+    reads = _run_async(
+        functools.partial(
+            _read_all_eval_samples,
+            targets,
+            active_since,
+            sample_filter=sample_filter,
+            status=status_param,
+            limit=limit,
+            all_samples=all_samples,
+            # a scoped read fails the command on busy, so it keeps the
+            # full budget; the unscoped fan-out skips on the default
+            attempts=_REQUEST_ATTEMPTS if task is not None else None,
+        )
+    )
+
     as_of_values: list[float] = []
     read: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
-    for target in targets:
-        # Query by the task's current eval id (resolved fresh each invocation,
-        # so this still works after a retry minted a new one).
-        try:
-            page = _fetch_samples(
-                target["socket_path"],
-                target["eval_id"],
-                active_since,
-                sample_filter=sample_filter,
-                status=status_param,
-                limit=limit,
-                all_samples=all_samples,
-                # a scoped read fails the command on busy, so it keeps the
-                # full budget; the unscoped fan-out skips on the default
-                attempts=_REQUEST_ATTEMPTS if task is not None else None,
-            )
-        except _ServerUnreachable as exc:
+    for target, page in reads:
+        if isinstance(page, _ServerUnreachable):
             if task is not None:
-                _exit_samples_unreachable(target["eval_id"], exc, pid=target.get("pid"))
+                _exit_samples_unreachable(
+                    target["eval_id"], page, pid=target.get("pid")
+                )
             # An unscoped read spans whatever evals happen to be running; one
             # process exiting — or staying busy through the retries — between
             # discovery and this read shouldn't fail the invocation (even if
             # it was the only eval).
             hint = (
                 f"try again shortly, or {_anomalies_pointer(target.get('pid'))}"
-                if isinstance(exc, _ServerBusy)
+                if isinstance(page, _ServerBusy)
                 else "it may have just exited"
             )
             click.echo(
                 f"Skipping eval {target['eval_id']}: its samples could not be "
-                f"read ({_unreachable_detail(exc)}) — {hint}.",
+                f"read ({_unreachable_detail(page)}) — {hint}.",
                 err=True,
             )
             continue
@@ -1997,6 +2003,66 @@ def _list_sample_rows(
         counts=counts,
         truncated=truncated,
     )
+
+
+class _EvalSamplesRead(NamedTuple):
+    """One target eval's samples read (see :func:`_read_all_eval_samples`).
+
+    ``page`` is the eval's samples, or the :class:`_ServerUnreachable` that
+    replaced it — captured rather than raised because the reads run
+    concurrently, and an exception escaping into the task group would cancel
+    its siblings where the policy is per-eval warn-and-skip.
+    """
+
+    target: dict[str, Any]
+    page: _SamplesPage | _ServerUnreachable
+
+
+async def _read_all_eval_samples(
+    targets: list[dict[str, Any]],
+    active_since: float | None,
+    *,
+    sample_filter: Literal["errors"] | None,
+    status: str | None,
+    limit: int | None,
+    all_samples: bool,
+    attempts: int | None,
+) -> list[_EvalSamplesRead]:
+    """Read each target eval's samples concurrently, in target order.
+
+    The reads go out together because their cost is round-trip and connection
+    setup, not server work: one at a time, an unscoped listing over an eval
+    set with many running tasks paid that round-trip per eval and looked
+    hung, while each server answered in about a millisecond.
+    """
+    # concurrent reads stall in lockstep, so they share one narrator rather
+    # than each reporting the same wedged process's every attempt
+    narrator = (
+        _BusyNarrator(f"Reading samples from {len(targets)} evals")
+        if len(targets) > 1
+        else None
+    )
+
+    async def read(target: dict[str, Any]) -> _EvalSamplesRead:
+        # Query by the task's current eval id (resolved fresh each invocation,
+        # so this still works after a retry minted a new one).
+        try:
+            page = await _fetch_samples_async(
+                target["socket_path"],
+                target["eval_id"],
+                active_since,
+                sample_filter=sample_filter,
+                status=status,
+                limit=limit,
+                all_samples=all_samples,
+                attempts=attempts,
+                narrator=narrator,
+            )
+        except _ServerUnreachable as exc:
+            return _EvalSamplesRead(target, exc)
+        return _EvalSamplesRead(target, page)
+
+    return await _collect_reads([functools.partial(read, target) for target in targets])
 
 
 class _RowsPrinter(Protocol):
@@ -4131,6 +4197,17 @@ _REQUEST_ATTEMPTS = 8
 # does the sole-server summaries fetch (one server is no fan-out).
 _DEGRADED_READ_ATTEMPTS = 2
 
+# Ceiling on a fan-out's in-flight reads (see `_collect_reads`). The reads are
+# cheap and their cost is round-trip, so a wave of this size already collapses
+# the wall clock of any realistic eval set to a couple of round-trips; raising
+# it buys no time, because the server answering them shares the eval's single
+# event loop and handles them one at a time whatever the client does. What it
+# would buy is a wider blast radius: a fan-out spans *every* task in the run
+# (completed ones included), so an uncapped one opens a connection per task
+# into the process it is inspecting — and a client-side fd exhaustion is an
+# OSError, which this module reads as "the eval has gone away".
+_MAX_CONCURRENT_READS = 32
+
 # A mutation (flush / buffer set) is issued once — it isn't idempotent, so it
 # must not be retried — but it gets the same total wall-clock budget a retried
 # read would consume (one attempt of `_REQUEST_ATTEMPTS * _REQUEST_TIMEOUT`, ie.
@@ -4173,7 +4250,40 @@ class _ServerBusy(_ServerUnreachable):
         self.last_timeout = last_timeout
 
 
-def _get_response_with_retry(
+class _BusyNarrator:
+    """Narrates a fan-out's busy retries once per attempt, not once per target.
+
+    A single read narrates each of its own timed-out attempts (progress
+    feedback: the eval is busy, we're still trying). Concurrently that
+    multiplies — the targets start together and every attempt costs the same
+    timeout, so a wedged eval set produces one line per target per attempt.
+    Sharing one narrator across a fan-out collapses each round to a single
+    line, named for the fan-out (``what``) rather than for whichever target
+    happened to get there first, which is not stable across backends.
+    """
+
+    def __init__(self, what: str) -> None:
+        self._what = what
+        self._narrated: set[int] = set()
+
+    def narrate(self, attempt: int, attempts: int) -> None:
+        if attempt in self._narrated:
+            return
+        self._narrated.add(attempt)
+        _echo_busy_attempt(self._what, attempt, attempts)
+
+
+def _echo_busy_attempt(what: str, attempt: int, attempts: int) -> None:
+    """Report one timed-out attempt (stderr, so ``--json`` stdout stays clean)."""
+    retrying = "; retrying…" if attempt < attempts else "."
+    click.echo(
+        f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
+        f"(attempt {attempt}/{attempts}) — the eval may be busy{retrying}",
+        err=True,
+    )
+
+
+async def _get_response_with_retry_async(
     socket_path: str | Path,
     path: str,
     *,
@@ -4183,6 +4293,7 @@ def _get_response_with_retry(
     raise_on_busy: bool = False,
     attempts: int | None = None,
     pid: int | None = None,
+    narrator: _BusyNarrator | None = None,
 ) -> httpx.Response:
     """Request ``path`` over the UDS, retrying a read timeout.
 
@@ -4211,30 +4322,35 @@ def _get_response_with_retry(
     not be retried and takes the single-shot path in :func:`_request_json`.
 
     Returns the raw response without inspecting its status, so callers that need
-    to handle a meaningful status (eg. a 404) can; :func:`_get_with_retry` is the
-    JSON-decoding wrapper for the common case.
+    to handle a meaningful status (eg. a 404) can;
+    :func:`_get_with_retry_async` is the JSON-decoding wrapper for the common
+    case.
+
+    Async so a fan-out over many evals can issue its reads concurrently (see
+    :func:`_read_all_task_rows` / :func:`_read_all_eval_samples`); single-read
+    call sites use the :func:`_get_response_with_retry` sync facade. A fan-out
+    passes a shared ``narrator`` so the retry narration below reports each
+    attempt once for the invocation rather than once per target (see
+    :class:`_BusyNarrator`).
     """
     if attempts is None:
         attempts = _DEGRADED_READ_ATTEMPTS if raise_on_busy else _REQUEST_ATTEMPTS
-    transport = httpx.HTTPTransport(uds=str(socket_path))
+    transport = httpx.AsyncHTTPTransport(uds=str(socket_path))
     last_timeout: httpx.TimeoutException | None = None
     for attempt in range(1, attempts + 1):
         try:
-            with httpx.Client(
+            async with httpx.AsyncClient(
                 transport=transport,
                 base_url="http://localhost",
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
-                return client.request(method, path, params=params or {})
+                return await client.request(method, path, params=params or {})
         except httpx.TimeoutException as exc:
             last_timeout = exc
-            retrying = "; retrying…" if attempt < attempts else "."
-            click.echo(
-                f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
-                f"(attempt {attempt}/{attempts}) — the eval may be busy"
-                f"{retrying}",
-                err=True,
-            )
+            if narrator is not None:
+                narrator.narrate(attempt, attempts)
+            else:
+                _echo_busy_attempt(what, attempt, attempts)
         except (httpx.HTTPError, OSError) as exc:
             raise _ServerUnreachable() from exc
     if raise_on_busy:
@@ -4242,6 +4358,25 @@ def _get_response_with_retry(
             f"no response after {attempts} attempts — the eval's event loop is busy",
             last_timeout=last_timeout,
         )
+    _exit_busy(what, attempts, last_timeout=last_timeout, pid=pid)
+
+
+def _exit_busy(
+    what: str,
+    attempts: int,
+    *,
+    last_timeout: httpx.TimeoutException | None,
+    pid: int | None,
+) -> NoReturn:
+    """Narrate a read that stayed busy through its retries, and fail the command.
+
+    The terminal half of the busy policy, split out so a fan-out can raise it
+    **once** for the whole invocation: its per-target reads take the
+    ``raise_on_busy`` path (which doesn't narrate), so a run where every
+    process is wedged reports one failure naming one pid, rather than one per
+    process — the reads are concurrent, so without this they would all reach
+    their deadline together and each print its own terminal error.
+    """
     message = (
         f"{what}: gave up after {attempts} attempts of "
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
@@ -4256,7 +4391,61 @@ def _get_response_with_retry(
     )
 
 
-def _get_with_retry(
+def _run_async(func: Callable[[], Awaitable[_T]]) -> _T:
+    """Run one control-channel coroutine to completion from sync CLI code.
+
+    The ctl commands are synchronous click callbacks, so every async read
+    bottoms out here. Never call this (or the sync facades built on it) from
+    async code — it starts its own event loop; a fan-out awaits the ``_async``
+    form directly instead.
+    """
+    return anyio.run(func, backend=configured_async_backend())
+
+
+async def _collect_reads(reads: list[Callable[[], Awaitable[_T]]]) -> list[_T]:
+    """Run a fan-out's reads concurrently, in input order, capped in flight.
+
+    The cap (:data:`_MAX_CONCURRENT_READS`) is what keeps "issue the reads
+    together" from meaning "issue all of them at once" — see the constant for
+    why the ceiling costs nothing and the absence of one does.
+    """
+    limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
+
+    async def limited(read: Callable[[], Awaitable[_T]]) -> _T:
+        async with limiter:
+            return await read()
+
+    return await tg_collect([functools.partial(limited, read) for read in reads])
+
+
+def _get_response_with_retry(
+    socket_path: str | Path,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    what: str,
+    method: Literal["get", "post", "patch"] = "get",
+    raise_on_busy: bool = False,
+    attempts: int | None = None,
+    pid: int | None = None,
+) -> httpx.Response:
+    """Sync facade over :func:`_get_response_with_retry_async` — see it for policy."""
+    return _run_async(
+        functools.partial(
+            _get_response_with_retry_async,
+            socket_path,
+            path,
+            params=params,
+            what=what,
+            method=method,
+            raise_on_busy=raise_on_busy,
+            attempts=attempts,
+            pid=pid,
+        )
+    )
+
+
+async def _get_with_retry_async(
     socket_path: str | Path,
     path: str,
     *,
@@ -4265,17 +4454,18 @@ def _get_with_retry(
     raise_on_busy: bool = False,
     attempts: int | None = None,
     pid: int | None = None,
+    narrator: _BusyNarrator | None = None,
 ) -> Any:
     """GET ``path`` and return its decoded JSON, retrying a busy eval on timeout.
 
-    Wraps :func:`_get_response_with_retry` (``raise_on_busy``, ``attempts``,
-    and ``pid`` ride through, including the attempts-from-raise_on_busy
-    default); a non-2xx status or undecodable body raises
-    :class:`_ServerUnreachable` (a server-side ``500`` or malformed response
-    is not retryable). For endpoints with a meaningful 4xx, call
-    :func:`_get_response_with_retry` directly and inspect the status.
+    Wraps :func:`_get_response_with_retry_async` (``raise_on_busy``,
+    ``attempts``, ``pid``, and ``narrator`` ride through, including the
+    attempts-from-raise_on_busy default); a non-2xx status or undecodable body
+    raises :class:`_ServerUnreachable` (a server-side ``500`` or malformed
+    response is not retryable). For endpoints with a meaningful 4xx, call
+    :func:`_get_response_with_retry_async` directly and inspect the status.
     """
-    response = _get_response_with_retry(
+    response = await _get_response_with_retry_async(
         socket_path,
         path,
         params=params,
@@ -4283,6 +4473,7 @@ def _get_with_retry(
         raise_on_busy=raise_on_busy,
         attempts=attempts,
         pid=pid,
+        narrator=narrator,
     )
     try:
         response.raise_for_status()
@@ -4338,27 +4529,45 @@ def _fetch_summaries(
     only siblings started before the target are skipped, and the
     duplicate-id corner (an old kept-alive attempt a newer process is
     retrying) resolves to the newest attempt.
+
+    Without ``stop_on_task_id`` the reads run concurrently (see
+    :func:`_read_all_task_rows`); rows, and the skip warnings below, still
+    follow discovery order.
     """
+    # Every read takes the raise_on_busy path so none of them narrates its own
+    # terminal error; when the caller wanted exit-on-busy, the first busy
+    # server in discovery order raises for the whole invocation below.
+    attempts = (
+        _REQUEST_ATTEMPTS
+        # a sole server is no fan-out — there's no wedged sibling to protect
+        # against, so ride out a stall on the full budget
+        if not raise_on_busy or len(servers) == 1
+        else _DEGRADED_READ_ATTEMPTS
+    )
+    reads = _run_async(
+        functools.partial(
+            _read_all_task_rows,
+            servers,
+            attempts=attempts,
+            stop_on_task_id=stop_on_task_id,
+        )
+    )
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
-    for server in servers:
-        try:
-            rows = _get_with_retry(
-                server.socket_path,
-                "/tasks",
-                what=f"Reading tasks from pid {server.pid}",
-                raise_on_busy=raise_on_busy,
-                # a sole server is no fan-out — there's no wedged sibling to
-                # protect against, so ride out a stall on the full budget
-                attempts=_REQUEST_ATTEMPTS if len(servers) == 1 else None,
-                pid=server.pid,
-            )
-        except _ServerUnreachable as exc:
+    for server, rows in reads:
+        if isinstance(rows, _ServerUnreachable):
             # a 404 means the process is serving a control API without this
             # route — version skew between the CLI and the eval process —
             # where transport errors mean the process is gone
-            cause = exc.__cause__
-            if isinstance(exc, _ServerBusy):
+            cause = rows.__cause__
+            if isinstance(rows, _ServerBusy):
+                if not raise_on_busy:
+                    _exit_busy(
+                        f"Reading tasks from pid {server.pid}",
+                        attempts,
+                        last_timeout=rows.last_timeout,
+                        pid=server.pid,
+                    )
                 busy_pids.append(server.pid)
                 hint = f"try again shortly, or {_anomalies_pointer(server.pid)}"
             elif (
@@ -4370,22 +4579,98 @@ def _fetch_summaries(
                 hint = "it may have just exited"
             click.echo(
                 f"Skipping pid {server.pid}: its control endpoint could not be "
-                f"read ({_unreachable_detail(exc)}) — {hint}.",
+                f"read ({_unreachable_detail(rows)}) — {hint}.",
                 err=True,
             )
             continue
-        if isinstance(rows, list):
-            # Decorate each row with discovery-side info the server doesn't
-            # see (pid, socket_path).
-            for row in rows:
-                row["pid"] = server.pid
-                row["socket_path"] = str(server.socket_path)
-            summaries.extend(rows)
-            if stop_on_task_id is not None and any(
-                row.get("task_id") == stop_on_task_id for row in rows
-            ):
-                break
+        # Decorate each row with discovery-side info the server doesn't see
+        # (pid, socket_path).
+        for row in rows:
+            row["pid"] = server.pid
+            row["socket_path"] = str(server.socket_path)
+        summaries.extend(rows)
     return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
+
+
+class _ServerRead(NamedTuple):
+    """One server's ``/tasks`` read outcome (see :func:`_read_task_rows`).
+
+    ``rows`` is the decoded payload, or the :class:`_ServerUnreachable` that
+    replaced it — captured rather than raised because the reads run
+    concurrently, and an exception escaping into the task group would cancel
+    its siblings where the policy is per-server warn-and-skip. A payload that
+    isn't a list (a malformed server) is normalized to no rows, which is how
+    it was already treated.
+    """
+
+    server: DiscoveredControlServer
+    rows: list[dict[str, Any]] | _ServerUnreachable
+
+
+async def _read_task_rows(
+    server: DiscoveredControlServer,
+    *,
+    attempts: int,
+    narrator: _BusyNarrator | None,
+) -> _ServerRead:
+    """Read one server's ``/tasks`` rows, capturing an unreachable/busy failure."""
+    try:
+        rows = await _get_with_retry_async(
+            server.socket_path,
+            "/tasks",
+            what=f"Reading tasks from pid {server.pid}",
+            raise_on_busy=True,
+            attempts=attempts,
+            pid=server.pid,
+            narrator=narrator,
+        )
+    except _ServerUnreachable as exc:
+        return _ServerRead(server, exc)
+    return _ServerRead(server, rows if isinstance(rows, list) else [])
+
+
+async def _read_all_task_rows(
+    servers: list[DiscoveredControlServer],
+    *,
+    attempts: int,
+    stop_on_task_id: str | None,
+) -> list[_ServerRead]:
+    """Read every discovered server's ``/tasks`` rows, in discovery order.
+
+    Concurrently by default: the per-read cost is dominated by round-trip and
+    connection setup rather than server work, so a serial loop cost that
+    round-trip once per process and made an unscoped listing over a large
+    eval set look wedged.
+    """
+    read = functools.partial(
+        _read_task_rows,
+        attempts=attempts,
+        # concurrent reads stall in lockstep, so they share one narrator; the
+        # serial branch below narrates per server, as a lone read does
+        narrator=_BusyNarrator(f"Reading tasks from {len(servers)} processes")
+        if stop_on_task_id is None and len(servers) > 1
+        else None,
+    )
+    if stop_on_task_id is None:
+        return await _collect_reads(
+            [functools.partial(read, server) for server in servers]
+        )
+    # The short-circuit decides whether to contact the next server from the
+    # last one's rows, so it stays serial. It runs for any scoped (single-task)
+    # selector — whether a query is the exact id that can actually stop early
+    # is only knowable from the rows — so a name or prefix selector pays the
+    # serial cost for a stop that never comes. Kept because contacting the
+    # servers an exact id skips could make that read *slower*, by waiting out
+    # an unrelated wedged process's retry budget.
+    reads: list[_ServerRead] = []
+    for server in servers:
+        result = await read(server)
+        reads.append(result)
+        if not isinstance(result.rows, _ServerUnreachable) and any(
+            row.get("task_id") == stop_on_task_id for row in result.rows
+        ):
+            break
+    return reads
 
 
 def _fetch_sample_summaries(task_query: str | None = None) -> _FetchedSummaries:
@@ -4558,7 +4843,7 @@ class _SamplesPage(NamedTuple):
     truncated: bool = False
 
 
-def _fetch_samples(
+async def _fetch_samples_async(
     socket_path: str,
     eval_id: str,
     active_since: float | None = None,
@@ -4568,6 +4853,7 @@ def _fetch_samples(
     limit: int | None = None,
     all_samples: bool = False,
     attempts: int | None = None,
+    narrator: _BusyNarrator | None = None,
 ) -> _SamplesPage:
     """Query one control server for an eval's samples.
 
@@ -4594,7 +4880,7 @@ def _fetch_samples(
     Raises :class:`_ServerUnreachable` on a non-retryable read failure and
     :class:`_ServerBusy` when the eval stays busy through ``attempts``
     retries (defaulting to the degraded budget — see
-    :func:`_get_response_with_retry`); the caller owns the outcome:
+    :func:`_get_response_with_retry_async`); the caller owns the outcome:
     warn-and-skip (an unscoped fan-out over many evals), fail the command
     (a single targeted read, which passes the full budget), or degrade in
     place (``sample show``'s old-server fallback listing read, which keeps
@@ -4612,13 +4898,14 @@ def _fetch_samples(
         params["all"] = True
     elif limit is not None:
         params["limit"] = limit
-    page = _get_with_retry(
+    page = await _get_with_retry_async(
         socket_path,
         f"/evals/{eval_id}/samples",
         params=params,
         what=f"Reading samples for eval {eval_id}",
         raise_on_busy=True,
         attempts=attempts,
+        narrator=narrator,
     )
     if isinstance(page, dict):
         samples = page.get("samples")
@@ -4632,6 +4919,33 @@ def _fetch_samples(
         )
     return _SamplesPage(
         as_of=fallback_as_of, samples=page if isinstance(page, list) else []
+    )
+
+
+def _fetch_samples(
+    socket_path: str,
+    eval_id: str,
+    active_since: float | None = None,
+    *,
+    sample_filter: Literal["errors"] | None = None,
+    status: str | None = None,
+    limit: int | None = None,
+    all_samples: bool = False,
+    attempts: int | None = None,
+) -> _SamplesPage:
+    """Sync facade over :func:`_fetch_samples_async` — see it for policy."""
+    return _run_async(
+        functools.partial(
+            _fetch_samples_async,
+            socket_path,
+            eval_id,
+            active_since,
+            sample_filter=sample_filter,
+            status=status,
+            limit=limit,
+            all_samples=all_samples,
+            attempts=attempts,
+        )
     )
 
 
