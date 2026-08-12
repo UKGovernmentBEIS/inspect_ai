@@ -272,8 +272,11 @@ class Forwarders:
         # The snapshot was captured at the same synchronous attachment point
         # as the semantic stream. Any later transition is already queued, so
         # sending the snapshot now (after replay) preserves live FIFO order.
-        with acp_send_guard("ACP turn_state snapshot: send failed"):
+        with acp_send_guard("ACP turn_state snapshot: send failed") as snapshot_status:
             await self._send_turn_state(turn_state)
+        if snapshot_status.should_exit:
+            await self.stop()
+            return
 
         # LIVE forwarders — drain the buffers that have been filling
         # since attach.

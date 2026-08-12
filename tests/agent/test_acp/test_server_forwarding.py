@@ -1886,8 +1886,8 @@ async def test_forwarders_drain_is_noop_when_buffer_empty() -> None:
 
 
 @skip_if_trio
-async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
-    """Drain doesn't hang forever if the forwarder task exited mid-buffer."""
+async def test_initial_turn_state_failure_aborts_forwarder_startup() -> None:
+    """A failed bind snapshot detaches clients and live subscriptions."""
     from unittest.mock import AsyncMock
 
     from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
@@ -1895,9 +1895,6 @@ async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
 
     session, _tr = _make_live_session_with_transcript()
 
-    # send_notification raises on every call → the forwarder's
-    # acp_send_guard sees a send failure on the first item and
-    # exits the loop.
     async def _always_fail(*_args: Any, **_kwargs: Any) -> None:
         raise ConnectionError("peer gone")
 
@@ -1917,15 +1914,9 @@ async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
         wire_session_id="wire-z",
     )
     await forwarders.start(session)
-    try:
-        # Wait for the start preamble + the forwarder task to die.
-        for _ in range(10):
-            await asyncio.sleep(0.01)
-            if forwarders._semantic_task and forwarders._semantic_task.done():
-                break
 
-        # Even if drain captures a non-zero buffered count, it must
-        # not hang once the forwarder is done.
-        await asyncio.wait_for(forwarders.drain(), timeout=0.5)
-    finally:
-        await forwarders.stop()
+    assert forwarders._semantic_task is None
+    assert forwarders._semantic_stream is None
+    assert forwarders._target is None
+    assert session._subscribers == []
+    assert not session.has_approver_clients()
