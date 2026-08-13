@@ -113,6 +113,14 @@ class PauseGate:
         """
         return self._hard
 
+    def would_change(self, now: bool = False) -> bool:
+        """Whether :meth:`pause` with this strength would change the state.
+
+        Side-effect-free: the pause verbs use it to answer idempotent
+        repeats (and dry runs) without flipping the gate.
+        """
+        return not self._paused or self._hard != now
+
     def pause(self, now: bool = False) -> bool:
         """Close the gate (``now`` additionally closes the generate latch).
 
@@ -122,7 +130,7 @@ class PauseGate:
         waiters re-check, find the gate still closed, and re-park). Returns
         whether the state changed.
         """
-        changed = not self._paused or self._hard != now
+        changed = self.would_change(now)
         if self._hard and not now:
             self.wake()
         self._paused = True
@@ -698,7 +706,7 @@ async def pause_task(
     if state.completed_at is not None and not state.retry_pending:
         return {**result, "changed": False, "reason": "task already finished"}
     gate = _task_gate(state.task_id)
-    if gate.paused and gate.hard == now:
+    if not gate.would_change(now):
         reason = "task already paused --now" if now else "task already paused"
         return {**result, "changed": False, "reason": reason}
     if not dry_run:
@@ -755,7 +763,7 @@ async def pause_process(*, now: bool = False, dry_run: bool = False) -> dict[str
     Never ``None`` — a process always exists. Idempotent (``changed: False``
     when already paused at the requested strength).
     """
-    changed = not _process_gate.paused or _process_gate.hard != now
+    changed = _process_gate.would_change(now)
     if changed and not dry_run:
         _process_gate.pause(now)
         await flush_quiesced_tasks()
@@ -890,7 +898,7 @@ async def pause_model(
         return None
     result = _model_result(model, dry_run=dry_run)
     gate = _model_gate(model)
-    if gate.paused and gate.hard == now:
+    if not gate.would_change(now):
         reason = "model already paused --now" if now else "model already paused"
         return {**result, "changed": False, "reason": reason}
     if not dry_run:
