@@ -1,5 +1,6 @@
 from contextlib import contextmanager
-from typing import Generator, Type, TypeVar
+from pathlib import Path
+from typing import Any, Generator, Type, TypeVar
 from unittest.mock import patch
 
 import pytest
@@ -742,21 +743,59 @@ def _emitting_solver_with_model_response(n: int = 100) -> Solver:
     return solve
 
 
-def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Run a one-sample eval whose transcript is bounded-evicted."""
+class _RecordingHook(Hooks):
+    """Needs the full sample (the default) and records each on_sample_end."""
+
+    def __init__(self) -> None:
+        self.samples: list[EvalSample] = []
+
+    async def on_sample_end(self, data: SampleEnd) -> None:
+        self.samples.append(data.sample)
+
+
+class _SummaryOnlyRecordingHook(_RecordingHook):
+    """Opted out of full-sample materialization via needs_full_sample."""
+
+    needs_full_sample = False
+
+
+def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch, log_dir: str) -> None:
+    """Run a one-sample eval whose transcript is bounded-evicted.
+
+    Asserts the eviction precondition (the sample was NOT logged from
+    memory): callers assert full-sample materialization, which holds
+    trivially on the resident path, so a silently broken eviction setup
+    (e.g. a renamed INSPECT_TRANSCRIPT_BOUNDED) would otherwise make those
+    tests pass vacuously.
+    """
     import inspect_ai._eval.task.run as run_module
 
     monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 1)
     monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+
+    from_memory_calls: list[bool] = []
+    original_log_sample = run_module.log_sample
+
+    async def spying_log_sample(*args: Any, **kwargs: Any) -> EvalSample:
+        # from_memory is keyword-only, so it is always present in kwargs
+        from_memory_calls.append(kwargs["from_memory"])
+        return await original_log_sample(*args, **kwargs)
+
+    monkeypatch.setattr(run_module, "log_sample", spying_log_sample)
     eval(
         Task(dataset=[Sample("sample_1")], solver=[_emitting_solver()]),
         model="mockllm/model",
+        log_dir=log_dir,
         display="none",
+    )
+    assert from_memory_calls == [False], (
+        "eviction precondition not met: the sample was logged from memory"
     )
 
 
 def test_opted_out_hook_receives_event_less_sample_when_evicted(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     isolated_hooks_registry,
 ) -> None:
     """The opted-out hook's sample carries neither raw events nor attachments.
@@ -774,20 +813,13 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
     """
     import inspect_ai._eval.task.run as run_module
 
-    class SummaryOnlyHook(Hooks):
-        needs_full_sample = False
-
-        def __init__(self) -> None:
-            self.samples: list[EvalSample] = []
-
-        async def on_sample_end(self, data: SampleEnd) -> None:
-            self.samples.append(data.sample)
-
     monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 20)
     monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    # >100 chars: exceeds the condense threshold, so the response is pooled
+    # as an attachment rather than kept inline
     long_response = "x" * 150
 
-    with _hook_context("summary_only_hook", SummaryOnlyHook) as hook:
+    with _hook_context("summary_only_hook", _SummaryOnlyRecordingHook) as hook:
         eval(
             Task(
                 dataset=[Sample("sample_1")],
@@ -799,27 +831,25 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
                     ModelOutput.from_content("mockllm/model", long_response)
                 ],
             ),
+            log_dir=str(tmp_path),
             display="none",
         )
 
     assert len(hook.samples) == 1
     sample = hook.samples[0]
     assert sample.events == [] and sample.attachments == {}
-    assert sample.id is not None and sample.scores is not None  # summary intact
+    # the fields a summary-only consumer actually reads remain intact
+    assert sample.output.completion == long_response
+    assert sample.messages
+    assert sample.total_time is not None
 
 
 def test_default_hook_still_receives_full_sample_when_evicted(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
-    class FullSampleHook(Hooks):
-        def __init__(self) -> None:
-            self.samples: list[EvalSample] = []
-
-        async def on_sample_end(self, data: SampleEnd) -> None:
-            self.samples.append(data.sample)
-
-    with _hook_context("full_sample_hook", FullSampleHook) as hook:
-        _run_evicted_sample_eval(monkeypatch)
+    with _hook_context("full_sample_hook", _RecordingHook) as hook:
+        _run_evicted_sample_eval(monkeypatch, str(tmp_path))
 
     assert len(hook.samples) == 1
     assert len(hook.samples[0].events) > 0
@@ -827,6 +857,7 @@ def test_default_hook_still_receives_full_sample_when_evicted(
 
 def test_mixed_hooks_both_receive_full_sample_when_one_needs_it(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """One opted-out + one default hook: needs_full_sample is a floor, not per-hook.
 
@@ -836,28 +867,13 @@ def test_mixed_hooks_both_receive_full_sample_when_one_needs_it(
     full-sample hook forces materialization for everyone on the sample,
     including hooks that opted out.
     """
-
-    class SummaryOnlyHook(Hooks):
-        needs_full_sample = False
-
-        def __init__(self) -> None:
-            self.samples: list[EvalSample] = []
-
-        async def on_sample_end(self, data: SampleEnd) -> None:
-            self.samples.append(data.sample)
-
-    class FullSampleHook(Hooks):
-        def __init__(self) -> None:
-            self.samples: list[EvalSample] = []
-
-        async def on_sample_end(self, data: SampleEnd) -> None:
-            self.samples.append(data.sample)
-
     with (
-        _hook_context("mixed_summary_only_hook", SummaryOnlyHook) as summary_hook,
-        _hook_context("mixed_full_sample_hook", FullSampleHook) as full_hook,
+        _hook_context(
+            "mixed_summary_only_hook", _SummaryOnlyRecordingHook
+        ) as summary_hook,
+        _hook_context("mixed_full_sample_hook", _RecordingHook) as full_hook,
     ):
-        _run_evicted_sample_eval(monkeypatch)
+        _run_evicted_sample_eval(monkeypatch, str(tmp_path))
 
     assert len(summary_hook.samples) == 1
     assert len(full_hook.samples) == 1
@@ -902,18 +918,15 @@ def test_any_hook_needs_full_sample_guards_raising_enabled(
     assert "RaisingEnabledHook" in str(warning.call_args)
 
 
-def test_opted_out_hook_unaffected_on_non_evicted_path() -> None:
-    class SummaryOnlyHook(Hooks):
-        needs_full_sample = False
-
-        def __init__(self) -> None:
-            self.samples: list[EvalSample] = []
-
-        async def on_sample_end(self, data: SampleEnd) -> None:
-            self.samples.append(data.sample)
-
-    with _hook_context("summary_only_hook_non_evicted", SummaryOnlyHook) as hook:
-        eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+def test_opted_out_hook_unaffected_on_non_evicted_path(tmp_path: Path) -> None:
+    with _hook_context(
+        "summary_only_hook_non_evicted", _SummaryOnlyRecordingHook
+    ) as hook:
+        eval(
+            Task(dataset=[Sample("sample_1")]),
+            model="mockllm/model",
+            log_dir=str(tmp_path),
+        )
 
     assert len(hook.samples) == 1
     assert len(hook.samples[0].events) > 0
