@@ -5,10 +5,12 @@ wire. They exist so mypy checks the server's construction sites and the
 test doubles, with the CLI casting once at its JSON-parse boundary; see
 "Wire envelopes: TypedDicts, adopted lazily" in
 ``design/ctl/control-channel.md`` for the convention (including why the
-CLI must not validate). Keys legitimately absent on older servers are
-``NotRequired``, keyed to the ``CONTROL_API_VERSION`` history in
-``inspect_ai._control``. The other envelopes get typed here lazily, when
-work next touches them.
+CLI must not validate). Keys legitimately absent on older *released*
+servers are ``NotRequired``, keyed to the ``CONTROL_API_VERSION`` history
+in ``inspect_ai._control``; a key missing only from dead pre-release
+version-0 builds stays required (so construction sites are checked), with
+the CLI keeping a tolerant ``.get()`` read where the field notes say so.
+The other envelopes get typed here lazily, when work next touches them.
 """
 
 from __future__ import annotations
@@ -79,6 +81,8 @@ class UnadjustableMaxSamplesView(TypedDict):
 
     adjustable: Literal[False]
     tracks_adaptive: bool
+    """Required, though pre-release version-0 builds lacked it (see the
+    module docstring for where the ``NotRequired`` line is drawn)."""
 
 
 MaxSamplesView = Union[AdjustableMaxSamplesView, UnadjustableMaxSamplesView]
@@ -123,4 +127,6 @@ class TaskConfigView(ProcessConfigView):
     max_samples: MaxSamplesView
     buffer: dict[str, Any] | None
     """The sample-buffer params (``None`` = no live buffer). Sourced from
-    ``_control/buffer.py`` — a typed-``Any`` island until that view is typed."""
+    ``_control/buffer.py`` — a typed-``Any`` island until that view is typed.
+    Required, but the CLI must read it with ``.get()``: pre-release
+    version-0 task envelopes lacked the key (see the module docstring)."""
