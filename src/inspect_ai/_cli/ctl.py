@@ -1420,7 +1420,7 @@ model_group.hint = lambda token: (
 @_now_option(
     holds=(
         "generate calls to MODEL at their next attempt — including other "
-        "tasks' role/grader calls to it —"
+        "tasks' role/grader calls to it"
     )
 )
 @click.option(
