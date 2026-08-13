@@ -830,7 +830,7 @@ def test_mixed_hooks_both_receive_full_sample_when_one_needs_it(
 ) -> None:
     """One opted-out + one default hook: needs_full_sample is a floor, not per-hook.
 
-    `needs_events` is computed once for the sample from all enabled hooks
+    `materialize_full_sample` is computed once for the sample from all enabled hooks
     combined (`any_hook_needs_full_sample()`), and every
     hook is dispatched the same `SampleEnd.sample` object. So a single
     full-sample hook forces materialization for everyone on the sample,

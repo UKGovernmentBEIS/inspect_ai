@@ -119,6 +119,7 @@ async def test_log_sample_returns_materialized_streaming_sample(
         logger,
         log_images=True,
         from_memory=False,
+        materialize_full_sample=True,
     )
     await _finish_eval(recorder, spec)
 
@@ -163,7 +164,9 @@ async def test_log_sample_rebinds_timelines_to_materialized_events(tmp_path) -> 
     await recorder.log_init(spec, str(tmp_path / "streaming.eval"), clean=True)
     await recorder.log_start(spec, EvalPlan())
 
-    returned = await log_sample(sample, logger, log_images=True, from_memory=False)
+    returned = await log_sample(
+        sample, logger, log_images=True, from_memory=False, materialize_full_sample=True
+    )
     await _finish_eval(recorder, spec)
 
     assert returned.timelines is not None
@@ -379,7 +382,11 @@ async def _log_sample_with_buffer(
     logger._samples_completed = 0
 
     returned = await log_sample(
-        sample, logger, log_images=log_images, from_memory=False
+        sample,
+        logger,
+        log_images=log_images,
+        from_memory=False,
+        materialize_full_sample=True,
     )
     await _finish_eval(recorder, spec)
 
@@ -429,7 +436,9 @@ async def test_log_sample_from_memory_writes_resident_events_without_buffer_read
     logger.flush_pending = []
     logger._samples_completed = 0
 
-    returned = await log_sample(sample, logger, log_images=False, from_memory=True)
+    returned = await log_sample(
+        sample, logger, log_images=False, from_memory=True, materialize_full_sample=True
+    )
     await _finish_eval(recorder, spec)
 
     logged_samples = (
@@ -470,7 +479,7 @@ async def test_log_sample_writes_restored_attachment_content_when_events_reduced
 ) -> None:
     """Checkpoint-restored attachment content must reach the written log.
 
-    Even on the reduced/evicted finalization path (`needs_events=False`).
+    Even on the reduced/evicted finalization path (`materialize_full_sample=False`).
     Simulates a resumed sample the way `_push_host_state`
     (`inspect_ai/util/_checkpoint/hydrate.py`) does for a real checkpoint
     resume: `Transcript._extend_restored_events` pushes a condensed event
@@ -532,7 +541,11 @@ async def test_log_sample_writes_restored_attachment_content_when_events_reduced
     logger._samples_completed = 0
 
     await log_sample(
-        eval_sample, logger, log_images=True, from_memory=False, needs_events=False
+        eval_sample,
+        logger,
+        log_images=True,
+        from_memory=False,
+        materialize_full_sample=False,
     )
     await _finish_eval(recorder, spec)
 
@@ -914,7 +927,7 @@ def _drive_evicted_eval(consumer: Consumer, log_dir: str) -> None:
     """Run a one-sample eval whose transcript is bounded-evicted.
 
     `consumer` selects which finalization consumer (if any) is wired up,
-    mirroring the branches the `needs_events` check in `task_run_sample`
+    mirroring the branches the `materialize_full_sample` check in `task_run_sample`
     covers: a hook (registered by the caller around this call), a scanner, a
     `TaskSource`, or a `SampleSource`.
     """
