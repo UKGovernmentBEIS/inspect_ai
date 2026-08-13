@@ -760,6 +760,13 @@ class _OptedOutHook(Hooks):
     needs_full_sample = False
 
 
+class _DisabledFullSampleHook(Hooks):
+    """Disabled hook that would need a full sample (the default) if enabled."""
+
+    def enabled(self) -> bool:
+        return False
+
+
 def _emitting_solver(n: int = 4) -> Solver:
     """Emits enough transcript events to exceed a resident_tail of 1."""
 
@@ -831,11 +838,20 @@ def _drive_evicted_eval(consumer: str, log_dir: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "consumer",
-    ["none", "hook_full", "hook_opted_out", "scanner", "task_source", "sample_feed"],
+    ("consumer", "expect_materialization"),
+    [
+        ("none", False),
+        ("hook_full", True),
+        ("hook_opted_out", False),
+        ("hook_disabled", False),
+        ("scanner", True),
+        ("task_source", True),
+        ("sample_feed", True),
+    ],
 )
 def test_materialization_is_conditional(
     consumer: str,
+    expect_materialization: bool,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     isolated_hooks_registry,
@@ -875,9 +891,12 @@ def test_materialization_is_conditional(
         hook_registration = _registered_hook(
             "materialization_hook_opted_out", _OptedOutHook
         )
+    elif consumer == "hook_disabled":
+        hook_registration = _registered_hook(
+            "materialization_hook_disabled", _DisabledFullSampleHook
+        )
 
     with hook_registration:
         _drive_evicted_eval(consumer, str(tmp_path))
 
-    expected = consumer not in ("none", "hook_opted_out")
-    assert (calls["n"] > 0) == expected
+    assert (calls["n"] > 0) == expect_materialization
