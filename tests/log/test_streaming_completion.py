@@ -1,4 +1,5 @@
 import contextlib
+import re
 import warnings
 from collections.abc import Awaitable, Callable, Generator, Sequence
 from datetime import datetime, timezone
@@ -23,7 +24,7 @@ from inspect_ai.event import (
 )
 from inspect_ai.hooks import Hooks, hooks
 from inspect_ai.log._condense import condense_sample
-from inspect_ai.log._file import read_eval_log_async
+from inspect_ai.log._file import read_eval_log, read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -768,13 +769,18 @@ class _DisabledFullSampleHook(Hooks):
 
 
 def _emitting_solver(n: int = 4) -> Solver:
-    """Emits enough transcript events to exceed a resident_tail of 1."""
+    """Emits enough transcript events to exceed a resident_tail of 1.
+
+    Each event carries >100 chars of unique content so realtime condensing
+    turns it into an attachment, letting callers assert attachment integrity
+    in the written log non-vacuously.
+    """
 
     @solver
     def emit_events() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             for i in range(n):
-                transcript().info({"i": i})
+                transcript().info({"i": i, "content": f"{i} {_long_content()}"})
             return state
 
         return solve
@@ -900,3 +906,32 @@ def test_materialization_is_conditional(
         _drive_evicted_eval(consumer, str(tmp_path))
 
     assert (calls["n"] > 0) == expect_materialization
+    _assert_written_log_complete(tmp_path)
+
+
+def _assert_written_log_complete(log_dir: Path, n_info_events: int = 4) -> None:
+    """The written log is undamaged whether or not materialization ran.
+
+    Reads the eval log back and asserts the evicted events all landed and
+    that every `attachment://` ref in the sample resolves to attachment
+    content — the user-visible contract that skipping the in-memory
+    re-materialization does not alter what gets logged.
+    """
+    log = read_eval_log(str(next(log_dir.glob("*.eval"))))
+    assert log.status == "success"
+    assert log.samples is not None and len(log.samples) == 1
+    sample = log.samples[0]
+
+    info_indexes = [
+        event.data["i"]
+        for event in sample.events
+        if isinstance(event, InfoEvent)
+        and isinstance(event.data, dict)
+        and "i" in event.data
+    ]
+    assert info_indexes == list(range(n_info_events))
+
+    refs = set(re.findall(r"attachment://(\w+)", sample.model_dump_json()))
+    assert refs, "expected condensed event content to produce attachment refs"
+    assert refs <= set(sample.attachments), "dangling attachment ref in written log"
+    assert all(sample.attachments[ref] for ref in refs)
