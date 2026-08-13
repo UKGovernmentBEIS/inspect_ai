@@ -5516,7 +5516,15 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         if launch is not None:
             rendered = fmt_tasks(limit)
             proposed = requested.get("max_tasks")
-            if proposed is not None and fmt_tasks(proposed) != fmt_tasks(limit):
+            # a `clear` with no override in effect is a no-op (the effective
+            # limit already is the launch config) — no arrow, like the retry
+            # knobs' rendering of the same case
+            is_change = (
+                override is not None
+                if proposed == "clear"
+                else fmt_tasks(proposed) != fmt_tasks(limit)
+            )
+            if proposed is not None and is_change:
                 rendered += f" → {fmt_tasks(proposed)}"
             rendered += (
                 f" ({max_tasks_view.get('in_flight')} in flight, "

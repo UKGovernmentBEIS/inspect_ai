@@ -3543,6 +3543,65 @@ def test_config_max_tasks_renders_no_dispatcher_window(
     assert "applies to task dispatch later in this run" in human.output
 
 
+def test_config_max_tasks_dry_run_clear_arrow_tracks_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A dry-run `clear` renders an arrow only when an override is in effect."""
+    from inspect_ai._control import CONTROL_API_VERSION
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=CONTROL_API_VERSION)],
+    )
+
+    def make_fake_limits(override: int | None) -> Any:
+        def fake_limits(*args: Any, **kwargs: Any) -> _ConfigResult:
+            return _ConfigResult(
+                view={
+                    "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+                    "max_tasks": {
+                        "limit": override if override is not None else 10,
+                        "launch": 10,
+                        "override": override,
+                        "in_flight": 4,
+                        "pending": 6,
+                        "adjustable": True,
+                    },
+                    "max_sandboxes": [],
+                    "adaptive": [],
+                    "buffer": {"log_buffer": 10, "pending": 0, "log_shared": None},
+                    "requested": {"max_tasks": "clear"},
+                    "warnings": [],
+                    "dry_run": True,
+                },
+                mutated=True,
+            )
+
+        return fake_limits
+
+    # no override in effect: `clear` is a no-op, so no arrow (matches the
+    # retry knobs' rendering of the same case)
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", make_fake_limits(None))
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run"]
+    )
+    assert human.exit_code == 0, human.output
+    assert "10 (4 in flight, 6 pending)" in human.output
+    assert "→" not in human.output
+
+    # override in effect: the arrow shows the reversion to launch config
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", make_fake_limits(25))
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run"]
+    )
+    assert human.exit_code == 0, human.output
+    assert (
+        "25 → launch config (4 in flight, 6 pending) (override; launch: 10)"
+        in human.output
+    )
+
+
 def test_discovery_api_version_parsed_with_bootstrap_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
