@@ -191,7 +191,11 @@ class SampleEnd:
     sample_id: str
     """The globally unique identifier for the sample execution."""
     sample: EvalSample
-    """The sample that has run."""
+    """The sample that has run.
+
+    ``events`` and ``attachments`` may be empty when the receiving hook set
+    ``needs_full_sample = False`` (see ``Hooks.needs_full_sample``).
+    """
 
 
 @dataclass(frozen=True)
