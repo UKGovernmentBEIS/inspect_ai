@@ -3257,10 +3257,8 @@ async def model_output_from_message(
         span_recorder=span_recorder,
     )
 
-    # count reasoning tokens (skip empty thinking text -- models with
-    # thinking.display "omitted", e.g. adaptive-by-default models run without
-    # an explicit reasoning config, return thinking blocks whose text is ""
-    # and the count_tokens API rejects empty content with a 400)
+    # count reasoning tokens (skip empty thinking text -- omitted summaries
+    # come back as "" and count_tokens rejects empty content with a 400)
     reasoning_tokens = 0
     if client and model:
         for content_block in message.content:
