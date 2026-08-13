@@ -22,6 +22,12 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import mark_eval_retry_pending
+from inspect_ai._control.max_tasks import (
+    TaskDispatcherStats,
+    effective_max_tasks,
+    register_task_dispatcher,
+    remove_task_dispatcher,
+)
 from inspect_ai._control.pause import (
     add_dispatch_waker,
     dispatch_model_name,
@@ -677,13 +683,19 @@ async def run_task_retry_attempts(
         pending.remove(item)
         return item
 
+    def dispatcher_stats() -> TaskDispatcherStats:
+        return TaskDispatcherStats(
+            launch=parallel, in_flight=in_flight, pending=len(pending)
+        )
+
     async with display().task_screen(task_specs(tasks), parallel=True) as screen:
         init_task_screen(screen)
         try:
-            # registered inside the try so the remove in the finally below
-            # always runs (a failure in task_screen setup would otherwise
-            # leak the waker into the module-level registry)
+            # registered inside the try so the removes in the finally below
+            # always run (a failure in task_screen setup would otherwise
+            # leak them into the module-level registries)
             add_dispatch_waker(wake.set)
+            register_task_dispatcher(dispatcher_stats)
             async with anyio.create_task_group() as tg:
 
                 async def run_one(item: PendingTask) -> None:
@@ -792,8 +804,15 @@ async def run_task_retry_attempts(
                     if injected:
                         add(injected)
 
-                    # dispatch up to the concurrency cap (model-balanced)
-                    while not cancelled and in_flight < parallel and pending:
+                    # dispatch up to the concurrency cap (model-balanced),
+                    # re-reading the live `ctl config --max-tasks` override
+                    # each iteration (a set fires the dispatch wakers, so a
+                    # raise reaches a waiting dispatcher immediately)
+                    while (
+                        not cancelled
+                        and in_flight < effective_max_tasks(parallel)
+                        and pending
+                    ):
                         item = pick_balanced()
                         if item is None:
                             # everything pending is held by a pause latch —
@@ -831,6 +850,7 @@ async def run_task_retry_attempts(
             pass
         finally:
             remove_dispatch_waker(wake.set)
+            remove_task_dispatcher(dispatcher_stats)
             clear_task_screen()
 
     # sort results by index and return just the values

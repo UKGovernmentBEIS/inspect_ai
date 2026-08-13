@@ -106,6 +106,13 @@ class _ParsedRetryKnobs(NamedTuple):
     error: "JSONResponse | None"
 
 
+class _ParsedMaxTasks(NamedTuple):
+    """The parsed ``max_tasks`` knob value, or the 400 that rejects it."""
+
+    value: "int | Literal['clear'] | None"
+    error: "JSONResponse | None"
+
+
 # ---------------------------------------------------------------------------
 # Parameter resolution
 # ---------------------------------------------------------------------------
@@ -453,6 +460,25 @@ class ControlServer:
                         )
                     parsed[label] = value
             return _ParsedRetryKnobs(values=parsed, error=None)
+
+        def _parse_max_tasks(raw: str | None) -> _ParsedMaxTasks:
+            """Parse the ``max_tasks`` knob's raw query value.
+
+            String-typed like the retry knobs to admit the keyword ``clear``,
+            but with a floor of 1 rather than 0 (``max_tasks 0`` would be a
+            disguised pause — ``POST /pause`` is the real spelling). The
+            floor rides the shared ``_limits_below_one`` on the parsed int so
+            the error shape matches the int-typed knobs.
+            """
+            parsed, error = _parse_retry_knobs(("max_tasks", raw))
+            if error is not None:
+                return _ParsedMaxTasks(value=None, error=error)
+            value = parsed["max_tasks"]
+            if isinstance(value, int) and (
+                error := _limits_below_one(("max_tasks", value))
+            ):
+                return _ParsedMaxTasks(value=None, error=error)
+            return _ParsedMaxTasks(value=value, error=None)
 
         def _key_pair_error(
             key: str | None, key_limit: int | None
@@ -838,8 +864,9 @@ class ControlServer:
         # read, like GET. `model` filters the adaptive controllers (name start or
         # after a `/`); `key`/`key_limit` retune a named concurrency() registry
         # entry by exact name (400 for a name with no entry — named limits are
-        # created lazily on first use). The retry knobs (timeout /
-        # attempt_timeout / max_retries) set live overrides; the keyword
+        # created lazily on first use). The override knobs (max_tasks and the
+        # retry knobs timeout / attempt_timeout / max_retries) set live
+        # overrides; the keyword
         # `clear` removes one. `author`/`reason` are provenance for the eval-log
         # record of any applied change (see EvalLog.config_updates); the
         # response's `persisted` reports per applied knob whether that record
@@ -849,6 +876,7 @@ class ControlServer:
         # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
+            max_tasks: str | None = None,
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
             max_connections: int | None = None,
@@ -878,8 +906,12 @@ class ControlServer:
             )
             if retry_error is not None:
                 return retry_error
+            max_tasks_value, max_tasks_error = _parse_max_tasks(max_tasks)
+            if max_tasks_error is not None:
+                return max_tasks_error
             try:
                 return await process_limits(
+                    max_tasks=max_tasks_value,
                     max_sandboxes=max_sandboxes,
                     max_subprocesses=max_subprocesses,
                     max_connections=max_connections,
@@ -928,6 +960,7 @@ class ControlServer:
         async def patch_limits(
             task_id: str,
             max_samples: int | None = None,
+            max_tasks: str | None = None,
             max_sandboxes: int | None = None,
             max_subprocesses: int | None = None,
             max_connections: int | None = None,
@@ -962,10 +995,14 @@ class ControlServer:
             )
             if retry_error is not None:
                 return retry_error
+            max_tasks_value, max_tasks_error = _parse_max_tasks(max_tasks)
+            if max_tasks_error is not None:
+                return max_tasks_error
             try:
                 result = await task_limits(
                     task_id,
                     max_samples=max_samples,
+                    max_tasks=max_tasks_value,
                     max_sandboxes=max_sandboxes,
                     max_subprocesses=max_subprocesses,
                     max_connections=max_connections,

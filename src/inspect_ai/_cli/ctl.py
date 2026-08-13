@@ -114,6 +114,7 @@ _IDLE_POINTER_MIN_SECONDS = 10 * 60
 # knob's advertised blast radius can't drift between the three surfaces.
 _KNOB_SCOPE: dict[str, str] = {
     "max_samples": "task",
+    "max_tasks": "process",
     "max_sandboxes": "process",
     "max_subprocesses": "process",
     "max_connections": "process",
@@ -139,6 +140,7 @@ _KNOB_SCOPE: dict[str, str] = {
 # issue #67.
 _KNOB_SINCE: dict[str, int] = {
     "max_samples": 0,
+    "max_tasks": 0,
     "max_sandboxes": 0,
     "max_subprocesses": 1,
     "max_connections": 0,
@@ -170,16 +172,21 @@ else:
 
 
 class _IntOrClearType(_IntOrClearBase):
-    """Non-negative integer, or the keyword ``clear`` (restore launch config).
+    """Integer >= ``min``, or the keyword ``clear`` (restore launch config).
 
-    The retry-override knobs' value domain: every integer >= 0 (up to the
-    server-shared ``MAX_GENERATE_CONFIG_OVERRIDE`` bound) is a real value
-    (``--max-retries 0`` means fail after the first attempt), so clearing an
-    override needs an out-of-band spelling — the literal ``clear``, passed
-    through to the server verbatim.
+    The live-override knobs' value domain: every in-range integer (up to the
+    server-shared ``MAX_GENERATE_CONFIG_OVERRIDE`` bound) is a real value, so
+    clearing an override needs an out-of-band spelling — the literal
+    ``clear``, passed through to the server verbatim. The retry knobs use the
+    default ``min=0`` (``--max-retries 0`` means fail after the first
+    attempt); ``--max-tasks`` uses ``min=1`` (0 would be a disguised pause —
+    `inspect ctl process pause` is the real spelling).
     """
 
     name = "integer or 'clear'"
+
+    def __init__(self, min: int = 0) -> None:
+        self._min = min
 
     def convert(
         self, value: Any, param: click.Parameter | None, ctx: click.Context | None
@@ -197,9 +204,10 @@ class _IntOrClearType(_IntOrClearBase):
                 parsed = int(value)
             except ValueError:
                 self.fail(f"{value!r} is not an integer or 'clear'.", param, ctx)
-        if parsed < 0:
+        if parsed < self._min:
+            bound = "negative" if self._min == 0 else f"less than {self._min}"
             self.fail(
-                f"{parsed} is negative (pass 'clear' to restore launch config).",
+                f"{parsed} is {bound} (pass 'clear' to restore launch config).",
                 param,
                 ctx,
             )
@@ -214,6 +222,7 @@ class _IntOrClearType(_IntOrClearBase):
 
 
 _INT_OR_CLEAR = _IntOrClearType()
+_INT_MIN_ONE_OR_CLEAR = _IntOrClearType(min=1)
 
 # Rendered for a task-scoped knob that a process-level view can't show.
 _PER_TASK_PLACEHOLDER = "per task (pass a task to view/set)"
@@ -1020,6 +1029,18 @@ def sample_requeue_command(
     ),
 )
 @click.option(
+    "--max-tasks",
+    type=_INT_MIN_ONE_OR_CLEAR,
+    metavar="INTEGER",
+    default=None,
+    help=(
+        f"[{_KNOB_SCOPE['max_tasks']}] Override the max concurrently running "
+        "tasks ('clear' restores launch config). Raising it starts pending "
+        "tasks immediately; more tasks can mean more concurrent sandbox "
+        "startups (see --max-sandboxes)."
+    ),
+)
+@click.option(
     "--max-sandboxes",
     type=click.IntRange(min=1),
     metavar="INTEGER",
@@ -1140,6 +1161,7 @@ def sample_requeue_command(
 def config_command(
     task: str | None,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -1174,7 +1196,11 @@ def config_command(
     what's already buffered now. `--timeout` / `--attempt-timeout` /
     `--max-retries` set live overrides read by the model retry loop, so a
     change reaches even generate calls already retrying (in-flight API
-    requests still drain first); pass `clear` to remove an override. Applied
+    requests still drain first); pass `clear` to remove an override.
+    `--max-tasks` likewise sets a live override, read by the task dispatcher
+    at each dispatch decision: raising it starts pending tasks immediately,
+    lowering never interrupts running tasks (new ones wait until in-flight
+    drains below the limit). Applied
     changes are recorded in each affected eval log (who / when / old → new);
     `--reason` annotates the record with why. TASK
     is required only for setting a task-scoped knob when several tasks run.
@@ -1184,6 +1210,7 @@ def config_command(
     _run_config(
         task,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -3542,6 +3569,7 @@ def _applied_knob_names(
     limits_view: dict[str, Any],
     *,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -3593,6 +3621,9 @@ def _applied_knob_names(
                     for row in limits_view.get("concurrency") or []
                 ),
             ),
+            # like the retry overrides, max_tasks is always adjustable (the
+            # override layer exists regardless of launch config)
+            ("--max-tasks", max_tasks, True),
             ("--timeout", timeout, True),
             ("--attempt-timeout", attempt_timeout, True),
             ("--max-retries", max_retries, True),
@@ -3606,6 +3637,7 @@ def _run_config(
     task: str | None,
     *,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None,
     max_connections: int | None,
@@ -3660,6 +3692,7 @@ def _run_config(
 
     knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
+        "max_tasks": max_tasks,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
@@ -3703,6 +3736,7 @@ def _run_config(
         scope.socket_path,
         scope.task_id,
         max_samples=max_samples,
+        max_tasks=max_tasks,
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
         max_connections=max_connections,
@@ -3734,6 +3768,7 @@ def _run_config(
             applied_names = _applied_knob_names(
                 limits_view,
                 max_samples=max_samples,
+                max_tasks=max_tasks,
                 max_sandboxes=max_sandboxes,
                 max_subprocesses=max_subprocesses,
                 max_connections=max_connections,
@@ -3817,6 +3852,14 @@ def _compose_config(
         knobs["max_samples"] = {
             "scope": _KNOB_SCOPE["max_samples"],
             **limits_view["max_samples"],
+        }
+    # max_tasks (absent from an older server's view — skipped then, like the
+    # retry knobs, rather than shown as a value claim)
+    max_tasks_view = limits_view.get("max_tasks")
+    if max_tasks_view is not None:
+        knobs["max_tasks"] = {
+            "scope": _KNOB_SCOPE["max_tasks"],
+            **max_tasks_view,
         }
     knobs["max_sandboxes"] = {
         "scope": _KNOB_SCOPE["max_sandboxes"],
@@ -5267,6 +5310,7 @@ def _exec_limits(
     task_id: str | None,
     *,
     max_samples: int | None,
+    max_tasks: int | Literal["clear"] | None = None,
     max_sandboxes: int | None,
     max_subprocesses: int | None = None,
     max_connections: int | None,
@@ -5304,6 +5348,7 @@ def _exec_limits(
     """
     knob_values: dict[str, int | Literal["clear"] | None] = {
         "max_samples": max_samples,
+        "max_tasks": max_tasks,
         "max_sandboxes": max_sandboxes,
         "max_subprocesses": max_subprocesses,
         "max_connections": max_connections,
@@ -5454,6 +5499,43 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                 _knob_label("max samples", "max_samples")
                 + "not adjustable (no live sample limiter)"
             )
+
+    # max_tasks — the task dispatchers' live override (absent from an older
+    # server's view). With no live dispatcher (between legacy retry passes /
+    # sequential batches) there are no counters to show, but a set still
+    # lands in the override layer — say so rather than looking parked.
+    max_tasks_view = knobs.get("max_tasks")
+    if max_tasks_view is not None:
+        override = max_tasks_view.get("override")
+        launch = max_tasks_view.get("launch")
+        limit = max_tasks_view.get("limit")
+
+        def fmt_tasks(value: Any) -> str:
+            return "launch config" if value in (None, "clear") else f"{value}"
+
+        if launch is not None:
+            rendered = fmt_tasks(limit)
+            proposed = requested.get("max_tasks")
+            if proposed is not None and fmt_tasks(proposed) != fmt_tasks(limit):
+                rendered += f" → {fmt_tasks(proposed)}"
+            rendered += (
+                f" ({max_tasks_view.get('in_flight')} in flight, "
+                f"{max_tasks_view.get('pending')} pending)"
+            )
+            if override is not None:
+                rendered += f" (override; launch: {launch})"
+        else:
+            rendered = (
+                f"{override} (override)" if override is not None else "launch config"
+            )
+            proposed = requested.get("max_tasks")
+            if proposed is not None and fmt_tasks(proposed) != fmt_tasks(override):
+                rendered += f" → {fmt_tasks(proposed)}"
+            rendered += (
+                " — no task dispatcher is live; applies to task dispatch "
+                "later in this run"
+            )
+        click.echo(_knob_label("max tasks", "max_tasks") + rendered)
 
     sandboxes = (knobs.get("max_sandboxes") or {}).get("providers") or []
     if sandboxes:

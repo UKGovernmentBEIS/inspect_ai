@@ -1,6 +1,6 @@
 # Runtime-tunable `max_tasks` (`inspect ctl config --max-tasks`)
 
-> **Status: proposed.** Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture this knob rides on. Originating issue: meridianlabs-ai/inspect_ai#218.
+> **Status: implemented** (override + handle registry in `_control/max_tasks.py`; dispatcher read in `_eval/run.py`; directive/view in `_control/limits.py`; wire in `_control/server.py`; CLI in `_cli/ctl.py`). Companion to [`control-channel.md`](control-channel.md), which owns the control-channel architecture this knob rides on. Originating issue: meridianlabs-ai/inspect_ai#218.
 
 `inspect ctl config` can retune most of a running eval's concurrency limits
 mid-flight — `max_samples`, `max_connections`, `max_sandboxes`,
