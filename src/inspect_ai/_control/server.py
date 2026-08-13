@@ -470,9 +470,25 @@ class ControlServer:
             floor rides the shared ``_limits_below_one`` on the parsed int so
             the error shape matches the int-typed knobs.
             """
+            from inspect_ai.model._generate_overrides import (
+                MAX_GENERATE_CONFIG_OVERRIDE,
+            )
+
             parsed, error = _parse_retry_knobs(("max_tasks", raw))
             if error is not None:
-                return _ParsedMaxTasks(value=None, error=error)
+                # restate the bound: the shared parse advertises a floor of 0
+                # (right for the retry knobs, wrong here)
+                return _ParsedMaxTasks(
+                    value=None,
+                    error=JSONResponse(
+                        status_code=400,
+                        content={
+                            "error": f"max_tasks must be an integer between "
+                            f"1 and {MAX_GENERATE_CONFIG_OVERRIDE} or "
+                            f"'clear' (got {raw!r})"
+                        },
+                    ),
+                )
             value = parsed["max_tasks"]
             if isinstance(value, int) and (
                 error := _limits_below_one(("max_tasks", value))

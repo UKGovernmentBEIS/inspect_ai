@@ -1063,9 +1063,14 @@ async def test_max_tasks_route_set_clear_and_floor() -> None:
         assert zero.json()["error"] == "max_tasks must be >= 1 (got 0)"
         assert max_tasks_override() == 25
 
+        # the parse error advertises the knob's real floor (1, not the retry
+        # knobs' 0)
         junk = await client.patch("/config", params={"max_tasks": "lots"})
         assert junk.status_code == 400
-        assert "max_tasks" in junk.json()["error"]
+        assert "max_tasks must be an integer between 1 and" in junk.json()["error"]
+        negative = await client.patch("/config", params={"max_tasks": "-5"})
+        assert negative.status_code == 400
+        assert "between 1 and" in negative.json()["error"]
 
         # the task-keyed route carries the knob too (it's process-scoped)
         task_patched = await client.patch(
