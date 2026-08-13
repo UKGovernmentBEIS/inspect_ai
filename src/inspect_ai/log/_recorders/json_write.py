@@ -1,9 +1,12 @@
 """Incremental JSON writers for zip log entries.
 
-Shared by the live streaming recorder (``buffer_sample_streaming``) and the
-filestore recovery writer: one idiom for writing a JSON object entry
-field-by-field, so whole-sample payloads never need a single monolithic
-jsonable tree + byte blob.
+Writers here emit a JSON object entry field-by-field, so whole-sample
+payloads never need a single monolithic jsonable tree + byte blob. The sync
+``write_json_field`` is shared by the live streaming recorder
+(``buffer_sample_streaming``) and the filestore recovery writer; the async
+chunked writers checkpoint between chunks and so require an event loop,
+which only the live recorder has. Recovery's sync writer instead hand-rolls
+its events array and streams attachments via ``_recover/_attachments``.
 """
 
 import json
@@ -88,7 +91,12 @@ async def write_json_object_field(
     comma: bool = False,
     chunk_size: int = DEFAULT_JSON_CHUNK_SIZE,
 ) -> None:
-    """Write ``"name": {...}``, serializing ``mapping`` in item chunks."""
+    """Write ``"name": {...}``, serializing ``mapping`` in item chunks.
+
+    Materializes all of ``mapping``'s items up front, so it suits in-memory
+    mappings only; disk-backed stores stream one item at a time via
+    ``_recover/_attachments.write_attachments_field`` instead.
+    """
     if comma:
         stream.write(b",")
     stream.write(json.dumps(name).encode("utf-8"))

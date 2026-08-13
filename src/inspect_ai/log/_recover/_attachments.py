@@ -79,7 +79,7 @@ def write_attachments_field(
     stream: BinaryWriteStream,
     store: StreamingAttachmentStore,
     *,
-    comma: bool,
+    comma: bool = False,
 ) -> None:
     """Stream the `"attachments"` JSON field to `stream` from `store`.
 

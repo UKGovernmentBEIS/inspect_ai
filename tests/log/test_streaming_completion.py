@@ -44,12 +44,8 @@ from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.json_write import (
     DEFAULT_JSON_CHUNK_SIZE,
     BinaryWriteStream,
-)
-from inspect_ai.log._recorders.json_write import (
-    write_json_array_field as _write_json_array_field,
-)
-from inspect_ai.log._recorders.json_write import (
-    write_json_object_field as _write_json_object_field,
+    write_json_array_field,
+    write_json_object_field,
 )
 from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.log._recorders.types import SampleEvent
@@ -711,7 +707,7 @@ async def test_buffer_sample_streaming_shields_cancellation_mid_write(
     events = [_model(f"event-{i}", _long_content()) for i in range(150)]
     db = _buffer_db(tmp_path, events)
 
-    original_write_json_array_field = _write_json_array_field
+    original_write_json_array_field = write_json_array_field
     cancelled = {"done": False}
 
     # declared with the real signature (not *args/**kwargs) so drift between
@@ -770,7 +766,7 @@ async def test_streamed_write_failure_leaves_log_readable(
         calls["n"] += 1
         if calls["n"] == 2:
             raise RuntimeError("serialization failed mid-write")
-        await _write_json_object_field(*args, **kwargs)
+        await write_json_object_field(*args, **kwargs)
 
     monkeypatch.setattr(eval_module, "write_json_object_field", failing_object_field)
 
