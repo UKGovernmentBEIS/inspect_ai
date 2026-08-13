@@ -6,7 +6,7 @@ import json as json_module
 import re
 import tempfile
 from logging import getLogger
-from typing import IO, Any
+from typing import Any
 
 from pydantic import JsonValue
 
@@ -37,6 +37,9 @@ from inspect_ai.log._log import (
     EvalSpec,
     EventsData,
 )
+from inspect_ai.log._recorders._stream_write import (
+    write_json_field as _write_json_field,
+)
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
 from inspect_ai.model._chat_message import ChatMessage
@@ -49,24 +52,6 @@ from ._reconstruct import (
 )
 
 logger = getLogger(__name__)
-
-
-def _write_json_field(
-    stream: IO[bytes], name: str, value: object, comma: bool = False
-) -> None:
-    """Write a single JSON field (``"name": value``) to a binary stream.
-
-    Args:
-        stream: Writable binary stream.
-        name: JSON key.
-        value: Value to serialize via ``to_json_safe``.
-        comma: If True, prepend a comma separator.
-    """
-    if comma:
-        stream.write(b",")
-    stream.write(json_module.dumps(name).encode("utf-8"))
-    stream.write(b":")
-    stream.write(to_json_safe(value, indent=None))
 
 
 def _write_sample_streaming(
