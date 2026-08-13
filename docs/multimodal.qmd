@@ -89,13 +89,13 @@ image = ContentImage(
 resolvers. Do not call it on model- or tool-controlled references unless that
 access is intentionally authorized.
 
-Model media data URLs must declare a compatible MIME type (for example,
-`data:image/png;base64,...`). HTTP materialization does not follow redirects;
-redirect and error responses fail before their bodies are used. For
-extensionless images, Inspect uses a specific response MIME type or a bounded
-signature check for common image formats. Audio and video should include their
-`format`, and documents may provide `mime_type`, so extensionless references can
-be materialized with an explicit type.
+Model media data URLs may declare a compatible MIME type (for example,
+`data:image/png;base64,...`). When it is omitted, Inspect uses an image signature
+or PNG compatibility default, the `format` of audio and video content, or a
+document's `mime_type`. HTTP materialization follows redirects and rejects error
+responses before their bodies are used. For extensionless media, Inspect uses a
+specific response MIME type, content metadata, or a bounded signature check for
+common image formats.
 
 ### Detail
 

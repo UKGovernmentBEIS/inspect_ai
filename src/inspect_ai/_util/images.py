@@ -30,6 +30,9 @@ MediaKind = Literal["image", "audio", "video", "document"]
 """Media type expected by an inline media consumer."""
 
 _GENERIC_MIME_TYPES = {"application/octet-stream", "binary/octet-stream"}
+_IPV4_TRANSLATED_NETWORK = ipaddress.ip_network("::ffff:0:0:0/96")
+_NAT64_WELL_KNOWN_NETWORK = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL_USE_NETWORK = ipaddress.ip_network("64:ff9b:1::/48")
 _PROVIDER_IMAGE_MAX_BYTES = 20 * 1024 * 1024
 _PROVIDER_IMAGE_MAX_REDIRECTS = 5
 _PROVIDER_IMAGE_REQUEST_TIMEOUT = 10.0
@@ -147,6 +150,15 @@ async def file_as_data(file: str, mime_type: str | None = None) -> tuple[bytes, 
 
 async def file_as_data_uri(file: str, mime_type: str | None = None) -> str:
     if is_data_uri(file):
+        declared_mime_type = _normalize_mime_type(data_uri_mime_type(file))
+        if mime_type is not None and (
+            declared_mime_type is None or declared_mime_type in _GENERIC_MIME_TYPES
+        ):
+            resolved_mime_type = _select_mime_type(
+                declared=declared_mime_type,
+                hint=mime_type,
+            )
+            return as_data_uri(resolved_mime_type, data_uri_to_base64(file))
         return file
     else:
         file_bytes, resolved_mime_type = await file_as_data(file, mime_type)
@@ -275,17 +287,24 @@ async def _public_ip_addresses(
 def _is_public_ip_address(
     address: ipaddress.IPv4Address | ipaddress.IPv6Address,
 ) -> bool:
-    if not address.is_global:
+    if address.is_multicast:
         return False
     if isinstance(address, ipaddress.IPv6Address):
         if address.ipv4_mapped is not None:
-            return address.ipv4_mapped.is_global
+            return _is_public_ip_address(address.ipv4_mapped)
+        if address in _IPV4_TRANSLATED_NETWORK:
+            return _is_public_ip_address(ipaddress.IPv4Address(address.packed[-4:]))
+        if address in _NAT64_WELL_KNOWN_NETWORK:
+            return _is_public_ip_address(ipaddress.IPv4Address(address.packed[-4:]))
+        if address in _NAT64_LOCAL_USE_NETWORK:
+            # RFC 8215 does not define where a local translator embeds IPv4.
+            return False
         if address.sixtofour is not None:
-            return address.sixtofour.is_global
+            return _is_public_ip_address(address.sixtofour)
         if address.teredo is not None:
             server, client = address.teredo
-            return server.is_global and client.is_global
-    return True
+            return _is_public_ip_address(server) and _is_public_ip_address(client)
+    return address.is_global
 
 
 def _validated_provider_image_url(url: httpx.URL) -> httpx.URL:

@@ -1,4 +1,5 @@
 import base64
+import ipaddress
 import os
 import socket
 import tempfile
@@ -17,6 +18,7 @@ from inspect_ai._util.images import (
     MediaKind,
     UnresolvedMediaError,
     _get_resolver,
+    _is_public_ip_address,
     _media_resolvers,
     _provider_image_response_data_uri,
     _PublicNetworkBackend,
@@ -24,6 +26,7 @@ from inspect_ai._util.images import (
     file_as_data_uri,
     inline_media_data,
     inline_media_data_uri,
+    materialize_media,
     media_resolver,
     provider_image_data_uri,
 )
@@ -243,6 +246,25 @@ class TestFileAsDataUri:
         uri = "data:text/plain;base64,aGVsbG8="
         assert await file_as_data_uri(uri) == uri
 
+    @pytest.mark.parametrize(
+        "uri",
+        [
+            "data:;base64,AAAA",
+            "data:application/octet-stream;base64,AAAA",
+            "data:binary/octet-stream;base64,AAAA",
+        ],
+    )
+    async def test_materialize_media_applies_hint_to_untyped_inline_data(
+        self, uri: str
+    ) -> None:
+        assert await materialize_media(uri, "application/pdf") == (
+            "data:application/pdf;base64,AAAA"
+        )
+
+    async def test_materialize_media_preserves_specific_inline_type(self) -> None:
+        uri = "data:text/plain;base64,AAAA"
+        assert await materialize_media(uri, "application/pdf") == uri
+
     async def test_data_scheme_not_matched(self) -> None:
         called = False
 
@@ -450,13 +472,32 @@ class TestProviderImageDataUri:
         [
             "https://127.0.0.1/image.png",
             "https://169.254.169.254/latest/meta-data",
+            "https://224.0.0.1/image.png",
             "https://[::1]/image.png",
             "https://[::ffff:127.0.0.1]/image.png",
+            "https://[::ffff:0:169.254.169.254]/image.png",
+            "https://[64:ff9b::169.254.169.254]/image.png",
+            "https://[64:ff9b::192.168.0.1]/image.png",
+            "https://[64:ff9b::224.0.0.1]/image.png",
+            "https://[64:ff9b:1::a9fe:a9fe]/image.png",
+            "https://[ff02::1]/image.png",
         ],
     )
     async def test_private_ip_address_is_rejected(self, url: str) -> None:
         with pytest.raises(ValueError, match="public address"):
             await provider_image_data_uri(url)
+
+    @pytest.mark.parametrize(
+        "address",
+        [
+            "93.184.216.34",
+            "2606:2800:220:1:248:1893:25c8:1946",
+            "::ffff:0:93.184.216.34",
+            "64:ff9b::93.184.216.34",
+        ],
+    )
+    def test_public_ip_address_is_accepted(self, address: str) -> None:
+        assert _is_public_ip_address(ipaddress.ip_address(address))
 
     async def test_private_dns_result_is_rejected(self) -> None:
         address_info = [
