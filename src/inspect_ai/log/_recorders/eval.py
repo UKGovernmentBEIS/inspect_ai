@@ -926,7 +926,7 @@ class ZipLogFile:
             # collections are streamed after it chunk-by-chunk, so the
             # whole-sample jsonable tree and byte blob never exist at once
             # and the event loop gets a checkpoint between chunks.
-            header: dict[str, Any] = jsonable_dict(
+            header: dict[str, JsonValue] = jsonable_dict(
                 sample.model_dump(
                     mode="python",
                     exclude_none=True,
