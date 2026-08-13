@@ -168,9 +168,7 @@ async def test_provider_serializers_accept_inline_media() -> None:
 async def test_provider_serializers_type_mime_less_media() -> None:
     image = cast(
         Any,
-        await image_block_param(
-            "data:;base64,/9j/4AAQ", mime_type_hint="image/jpeg"
-        ),
+        await image_block_param("data:;base64,/9j/4AAQ", mime_type_hint="image/jpeg"),
     )
     assert image["source"]["media_type"] == "image/jpeg"
 
