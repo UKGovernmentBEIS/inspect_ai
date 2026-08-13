@@ -61,18 +61,25 @@ def set_max_tasks_override(value: int | None) -> None:
     The override applies process-wide from the next dispatch decision —
     every live (and future) dispatcher in the run reads it in its admission
     check — and firing the dispatch wakers here makes a raise take effect
-    immediately rather than at the next completion. Values below 1 raise:
-    the wire layers reject them first (``max_tasks 0`` would be a disguised
-    pause — ``inspect ctl process pause`` is the real spelling), so this
-    guards programmatic callers.
+    immediately rather than at the next completion. An out-of-range value
+    raises: the wire layers reject one first (``max_tasks 0`` would be a
+    disguised pause — ``inspect ctl process pause`` is the real spelling —
+    and values above :data:`MAX_GENERATE_CONFIG_OVERRIDE` are absurd), so
+    like ``set_generate_config_override`` this guards programmatic callers
+    on both sides: a sign or magnitude bug must not become a live override.
     """
-    global _override
-    if value is not None and value < 1:
-        raise ValueError(f"max_tasks override must be >= 1 (got {value})")
-    _override = value
-    from inspect_ai._control.pause import _fire_dispatch_wakers
+    from inspect_ai.model._generate_overrides import MAX_GENERATE_CONFIG_OVERRIDE
 
-    _fire_dispatch_wakers()
+    global _override
+    if value is not None and (value < 1 or value > MAX_GENERATE_CONFIG_OVERRIDE):
+        raise ValueError(
+            f"max_tasks override must be between 1 and "
+            f"{MAX_GENERATE_CONFIG_OVERRIDE} (got {value})"
+        )
+    _override = value
+    from inspect_ai._control.pause import fire_dispatch_wakers
+
+    fire_dispatch_wakers()
 
 
 def max_tasks_override() -> int | None:

@@ -111,7 +111,7 @@ from):
 
 - `max_tasks_override() -> int | None` / `set_max_tasks_override(value:
   int | None)` — module-level state; setting it fires
-  `_fire_dispatch_wakers()`.
+  `fire_dispatch_wakers()`.
 - A **live-dispatcher handle registry**: `run_task_retry_attempts`
   registers a handle at start (and removes it in its `finally`) exposing
   its launch `parallel`, current `in_flight`, and `len(pending)` — the
@@ -284,7 +284,7 @@ controller respects.
 
 1. **Override + handle registry** (`_control/max_tasks.py` or folded into
    an existing `_control` module): override get/set (set fires
-   `_fire_dispatch_wakers()`), dispatcher-handle register/remove/read —
+   `fire_dispatch_wakers()`), dispatcher-handle register/remove/read —
    and the override's reset registered in `reset_run_registries()`
    (`_control/eval_state.py`), per that function's add-resets-here
    contract, so it clears at the outermost run boundary like the retry

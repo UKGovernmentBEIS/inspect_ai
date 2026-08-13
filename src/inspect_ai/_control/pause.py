@@ -359,7 +359,12 @@ def note_dispatch_models(models: list[str]) -> None:
 
 
 def add_dispatch_waker(waker: Callable[[], None]) -> None:
-    """Register a dispatcher wake callback fired on any pause-state change."""
+    """Register a dispatcher wake callback.
+
+    Fired (via :func:`fire_dispatch_wakers`) on any dispatch-relevant state
+    change: pause-state changes here, ``max_tasks`` retunes in
+    :mod:`inspect_ai._control.max_tasks`.
+    """
     _dispatch_wakers.append(waker)
 
 
@@ -371,7 +376,13 @@ def remove_dispatch_waker(waker: Callable[[], None]) -> None:
         pass
 
 
-def _fire_dispatch_wakers() -> None:
+def fire_dispatch_wakers() -> None:
+    """Wake the registered dispatchers so they re-evaluate their admission checks.
+
+    Called on every dispatch-relevant state change: the pause/resume
+    transitions in this module and the ``max_tasks`` retune in
+    :mod:`inspect_ai._control.max_tasks`.
+    """
     for waker in list(_dispatch_wakers):
         waker()
 
@@ -391,7 +402,7 @@ def wake_pause_waiters() -> None:
         gate.wake()
     for gate in _model_gates.values():
         gate.wake()
-    _fire_dispatch_wakers()
+    fire_dispatch_wakers()
 
 
 def reset_task_pause_gates() -> None:
@@ -479,7 +490,7 @@ async def resume_task(task_id: str, *, dry_run: bool = False) -> dict[str, Any] 
         result["paused"] = (
             task_pause_sources(state.task_id, state.model or None) or None
         )
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {**result, "changed": True}
 
 
@@ -516,7 +527,7 @@ async def resume_process(*, dry_run: bool = False) -> dict[str, Any]:
     changed = _process_gate.paused
     if changed and not dry_run:
         _process_gate.resume()
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {
         "ok": True,
         "paused": _process_gate.paused,
@@ -632,7 +643,7 @@ async def resume_model(model: str, *, dry_run: bool = False) -> dict[str, Any] |
     if not dry_run:
         gate.resume()
         result["paused"] = False
-        _fire_dispatch_wakers()
+        fire_dispatch_wakers()
     return {**result, "changed": True}
 
 

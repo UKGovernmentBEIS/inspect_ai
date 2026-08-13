@@ -787,10 +787,11 @@ async def test_max_tasks_first_record_without_dispatcher_has_null_previous() -> 
     assert change.value == 12 and change.previous is None
 
 
-def test_set_max_tasks_override_rejects_below_one() -> None:
-    """The store enforces the floor of 1 for programmatic callers.
+def test_set_max_tasks_override_rejects_out_of_range() -> None:
+    """The store enforces both bounds for programmatic callers.
 
-    max_tasks 0 would be a disguised pause; the wire layers reject it first.
+    max_tasks 0 would be a disguised pause and a magnitude bug an unbounded
+    dispatch limit; the wire layers reject both first.
     """
     from inspect_ai._control.max_tasks import (
         max_tasks_override,
@@ -799,7 +800,12 @@ def test_set_max_tasks_override_rejects_below_one() -> None:
 
     with pytest.raises(ValueError, match="max_tasks"):
         set_max_tasks_override(0)
+    with pytest.raises(ValueError, match="max_tasks"):
+        set_max_tasks_override(MAX_GENERATE_CONFIG_OVERRIDE + 1)
     assert max_tasks_override() is None
+    # the bound itself is a legal value
+    set_max_tasks_override(MAX_GENERATE_CONFIG_OVERRIDE)
+    assert max_tasks_override() == MAX_GENERATE_CONFIG_OVERRIDE
 
 
 def test_set_max_tasks_override_fires_dispatch_wakers() -> None:
