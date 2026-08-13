@@ -409,19 +409,27 @@ def _url_origin(url: httpx.URL) -> str:
 
 
 def inline_media_data(
-    file: str, expected_kind: MediaKind | None = None
+    file: str,
+    expected_kind: MediaKind | None = None,
+    mime_type_hint: str | None = None,
 ) -> tuple[bytes, str]:
     """Decode inline media without performing filesystem or network I/O."""
     _require_inline_media(file)
     file_bytes = _decode_inline_media(file)
-    mime_type = _inline_media_mime_type(file, expected_kind, file_bytes)
+    mime_type = _inline_media_mime_type(file, expected_kind, mime_type_hint, file_bytes)
 
     return file_bytes, mime_type
 
 
-def inline_media_data_uri(file: str, expected_kind: MediaKind | None = None) -> str:
-    """Validate and return an inline media data URI without decoding or I/O."""
-    _inline_media_mime_type(file, expected_kind)
+def inline_media_data_uri(
+    file: str,
+    expected_kind: MediaKind | None = None,
+    mime_type_hint: str | None = None,
+) -> str:
+    """Validate and return a typed inline media data URI without performing I/O."""
+    mime_type = _inline_media_mime_type(file, expected_kind, mime_type_hint)
+    if data_uri_mime_type(file) is None:
+        return as_data_uri(mime_type, data_uri_to_base64(file))
     return file
 
 
@@ -443,20 +451,26 @@ def _decode_inline_media(file: str) -> bytes:
 def _inline_media_mime_type(
     file: str,
     expected_kind: MediaKind | None,
+    mime_type_hint: str | None,
     file_bytes: bytes | None = None,
 ) -> str:
     _require_inline_media(file)
 
     mime_type = _normalize_mime_type(data_uri_mime_type(file))
     if mime_type is None:
-        mime_type = _sniff_image_mime_type(
-            file_bytes if file_bytes is not None else _decode_inline_media(file)
-        )
-        if mime_type is None:
-            raise ValueError(
-                "Inline media data URI does not declare a MIME type and its "
-                "content type could not be inferred."
+        mime_type = _normalize_mime_type(mime_type_hint)
+    if mime_type is None and expected_kind == "image":
+        mime_type = (
+            _sniff_image_mime_type(
+                file_bytes if file_bytes is not None else _decode_inline_media(file)
             )
+            or "image/png"
+        )
+    if mime_type is None:
+        raise ValueError(
+            "Inline media data URI does not declare a MIME type and its "
+            "content type could not be inferred from the media metadata."
+        )
 
     if expected_kind is not None and not _mime_matches_kind(mime_type, expected_kind):
         raise ValueError(

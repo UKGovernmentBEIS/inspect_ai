@@ -2397,6 +2397,17 @@ async def file_for_content(
         else "video"
         if isinstance(content, ContentVideo)
         else "document",
+        mime_type_hint=(
+            ("audio/mpeg" if content.format == "mp3" else "audio/wav")
+            if isinstance(content, ContentAudio)
+            else {
+                "mp4": "video/mp4",
+                "mpeg": "video/mpeg",
+                "mov": "video/quicktime",
+            }[content.format]
+            if isinstance(content, ContentVideo)
+            else content.mime_type
+        ),
     )
     content_sha256 = hashlib.sha256(content_bytes).hexdigest()
     # we cache uploads for re-use, open the db where we track that

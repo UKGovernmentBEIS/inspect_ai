@@ -61,13 +61,24 @@ async def test_model_boundary_accepts_mime_less_image_data_uri() -> None:
     await get_model("mockllm/model").generate(messages)
 
 
-async def test_model_boundary_rejects_unrecognized_mime_less_data_uri() -> None:
-    messages: list[ChatMessage] = [
-        ChatMessageUser(content=[ContentImage(image="data:;base64,AAAA")])
-    ]
+@pytest.mark.parametrize(
+    "content",
+    [
+        ContentImage(image="data:;base64,PHN2Zy8+"),
+        ContentAudio(audio="data:;base64,AAAA", format="mp3"),
+        ContentAudio(audio="data:;base64,AAAA", format="wav"),
+        ContentVideo(video="data:;base64,AAAA", format="mp4"),
+        ContentVideo(video="data:;base64,AAAA", format="mpeg"),
+        ContentVideo(video="data:;base64,AAAA", format="mov"),
+        ContentDocument(document="data:;base64,AAAA", mime_type="application/pdf"),
+    ],
+)
+async def test_model_boundary_accepts_mime_less_media(
+    content: ContentImage | ContentAudio | ContentVideo | ContentDocument,
+) -> None:
+    messages: list[ChatMessage] = [ChatMessageUser(content=[content])]
 
-    with pytest.raises(ValueError, match="could not be inferred"):
-        await get_model("mockllm/model").generate(messages)
+    await get_model("mockllm/model").generate(messages)
 
 
 async def test_model_boundary_error_identifies_media_location() -> None:
@@ -152,6 +163,40 @@ async def test_provider_serializers_accept_inline_media() -> None:
     await chat_content_to_part(cast(Any, None), image)
     await mistral_content_chunk(image)
     await converse_contents([image])
+
+
+async def test_provider_serializers_type_mime_less_media() -> None:
+    image = cast(
+        Any,
+        await image_block_param(
+            "data:;base64,/9j/4AAQ", mime_type_hint="image/jpeg"
+        ),
+    )
+    assert image["source"]["media_type"] == "image/jpeg"
+
+    audio = cast(
+        Any,
+        await openai_chat_completion_part(
+            ContentAudio(audio="data:;base64,AAAA", format="mp3")
+        ),
+    )
+    assert audio["input_audio"]["data"] == "AAAA"
+
+    video = cast(
+        Any,
+        await _openai_responses_content_param(
+            ContentVideo(video="data:;base64,AAAA", format="mov")
+        ),
+    )
+    assert video["file_data"] == "data:video/quicktime;base64,AAAA"
+
+    document = cast(
+        Any,
+        await mistral_conversation_content_chunk(
+            ContentDocument(document="data:;base64,AAAA", mime_type="application/pdf")
+        ),
+    )
+    assert document.document_url == "data:application/pdf;base64,AAAA"
 
 
 async def test_provider_serializers_reject_non_inline_documents() -> None:

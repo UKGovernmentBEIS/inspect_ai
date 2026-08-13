@@ -354,7 +354,9 @@ async def mistral_content_chunk(
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     elif isinstance(content, ContentDocument):
-        file_data_uri = inline_media_data_uri(content.document, "document")
+        file_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
         return DocumentURLChunk(
             document_url=file_data_uri, document_name=content.filename
         )

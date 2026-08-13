@@ -14,6 +14,7 @@ import pytest
 
 from inspect_ai._util.images import (
     _PROVIDER_IMAGE_MAX_BYTES,
+    MediaKind,
     UnresolvedMediaError,
     _get_resolver,
     _media_resolvers,
@@ -634,11 +635,32 @@ class TestInlineMedia:
 
     def test_mime_less_image_is_sniffed(self) -> None:
         uri = "data:;base64,iVBORw0KGgo="
-        assert inline_media_data_uri(uri, "image") == uri
+        assert inline_media_data_uri(uri, "image") == (
+            "data:image/png;base64,iVBORw0KGgo="
+        )
 
-    def test_unrecognized_mime_less_media_is_rejected(self) -> None:
+    def test_mime_less_image_uses_compatibility_default(self) -> None:
+        assert inline_media_data_uri("data:;base64,PHN2Zy8+", "image") == (
+            "data:image/png;base64,PHN2Zy8+"
+        )
+
+    @pytest.mark.parametrize(
+        ("kind", "mime_type"),
+        [
+            pytest.param("audio", "audio/mpeg", id="audio"),
+            pytest.param("video", "video/quicktime", id="video"),
+            pytest.param("document", "application/pdf", id="document"),
+        ],
+    )
+    def test_mime_less_media_uses_hint(self, kind: MediaKind, mime_type: str) -> None:
+        assert (
+            inline_media_data_uri("data:;base64,AAAA", kind, mime_type_hint=mime_type)
+            == f"data:{mime_type};base64,AAAA"
+        )
+
+    def test_mime_less_non_image_without_hint_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="could not be inferred"):
-            inline_media_data_uri("data:;base64,AAAA", "image")
+            inline_media_data_uri("data:;base64,AAAA", "audio")
 
     def test_non_inline_media_rejected(self) -> None:
         with pytest.raises(UnresolvedMediaError, match="materialized"):

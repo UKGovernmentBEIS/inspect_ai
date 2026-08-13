@@ -141,15 +141,33 @@ def _validate_model_input_media(messages: Sequence[ChatMessage]) -> None:
                 )
             elif isinstance(content, ContentAudio):
                 _validate_inline_media(
-                    content.audio, "audio", message_index, content_index
+                    content.audio,
+                    "audio",
+                    message_index,
+                    content_index,
+                    mime_type_hint=(
+                        "audio/mpeg" if content.format == "mp3" else "audio/wav"
+                    ),
                 )
             elif isinstance(content, ContentVideo):
                 _validate_inline_media(
-                    content.video, "video", message_index, content_index
+                    content.video,
+                    "video",
+                    message_index,
+                    content_index,
+                    mime_type_hint={
+                        "mp4": "video/mp4",
+                        "mpeg": "video/mpeg",
+                        "mov": "video/quicktime",
+                    }[content.format],
                 )
             elif isinstance(content, ContentDocument):
                 _validate_inline_media(
-                    content.document, "document", message_index, content_index
+                    content.document,
+                    "document",
+                    message_index,
+                    content_index,
+                    mime_type_hint=content.mime_type,
                 )
 
 
@@ -158,9 +176,10 @@ def _validate_inline_media(
     kind: Literal["image", "audio", "video", "document"],
     message_index: int,
     content_index: int,
+    mime_type_hint: str | None = None,
 ) -> None:
     try:
-        inline_media_data_uri(reference, kind)
+        inline_media_data_uri(reference, kind, mime_type_hint=mime_type_hint)
     except ValueError as ex:
         reference_preview = reference[:80] + ("..." if len(reference) > 80 else "")
         message = (

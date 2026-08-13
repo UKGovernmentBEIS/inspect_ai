@@ -210,14 +210,20 @@ async def openai_chat_completion_part(
             ),
         )
     elif content.type == "audio":
-        audio_data_uri = inline_media_data_uri(content.audio, "audio")
+        audio_data_uri = inline_media_data_uri(
+            content.audio,
+            "audio",
+            mime_type_hint=("audio/mpeg" if content.format == "mp3" else "audio/wav"),
+        )
         audio_data = audio_data_uri.split("base64,")[1]
 
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
     elif content.type == "document":
-        document_data_uri = inline_media_data_uri(content.document, "document")
+        document_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
 
         return File(
             type="file",

@@ -497,6 +497,17 @@ async def _openai_responses_content_param(
             else "video"
             if isinstance(content, ContentVideo)
             else "document",
+            mime_type_hint=(
+                ("audio/mpeg" if content.format == "mp3" else "audio/wav")
+                if isinstance(content, ContentAudio)
+                else {
+                    "mp4": "video/mp4",
+                    "mpeg": "video/mpeg",
+                    "mov": "video/quicktime",
+                }[content.format]
+                if isinstance(content, ContentVideo)
+                else content.mime_type
+            ),
         )
 
         return ResponseInputFileParam(
