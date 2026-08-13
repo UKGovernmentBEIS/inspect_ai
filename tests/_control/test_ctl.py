@@ -35,6 +35,7 @@ from inspect_ai._cli.ctl import (
     ctl_command,
 )
 from inspect_ai._control.discovery import DiscoveredControlServer
+from inspect_ai._control.views import ProcessConfigView, TaskConfigView
 
 
 def _summary(task_id: str, task: str) -> dict[str, str]:
@@ -1188,7 +1189,8 @@ def test_config_read_retries_timeout_then_succeeds(
 
     from inspect_ai._cli.ctl import _exec_limits
 
-    view = {"max_samples": {"adjustable": False}, "buffer": None}
+    # deliberately partial (this exercises transport retry, not shape)
+    view: dict[str, Any] = {"max_samples": {"adjustable": False}, "buffer": None}
     counter = _stub_httpx(
         monkeypatch,
         [httpx.ReadTimeout("slow"), httpx.ReadTimeout("slow"), view],
@@ -2773,16 +2775,18 @@ def _stub_limits(
         # derive from the canonical knob table so a future knob can't be
         # missed here (which would misreport its sets as mutated=False)
         knobs = _KNOB_SCOPE.keys()
+        # typed as the real envelope so shape drift fails mypy
+        view: TaskConfigView = {
+            "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
+            "max_sandboxes": [],
+            "adaptive": [],
+            "buffer": buffer,
+            "requested": None,
+            "warnings": [],
+            "dry_run": False,
+        }
         return _ConfigResult(
-            view={
-                "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
-                "max_sandboxes": [],
-                "adaptive": [],
-                "buffer": buffer,
-                "requested": None,
-                "warnings": [],
-                "dry_run": False,
-            },
+            view=view,
             mutated=any(kwargs.get(k) is not None for k in knobs),
         )
 
@@ -3038,7 +3042,14 @@ def test_config_help_sketches_compose_config_keys() -> None:
     scope = _DirectiveScope(
         socket_path="sock", pid=1, task_id=None, task=None, header="", siblings=0
     )
-    view = _compose_config(scope, {}, dry_run=False, set_values=False, notes=[])
+    empty_view: ProcessConfigView = {
+        "dry_run": False,
+        "max_sandboxes": [],
+        "adaptive": [],
+        "requested": None,
+        "warnings": [],
+    }
+    view = _compose_config(scope, empty_view, dry_run=False, set_values=False, notes=[])
     option = next(
         p
         for p in config_command.params
@@ -3257,6 +3268,7 @@ def test_config_provenance_sent_with_mutations_on_current_server(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {"max_samples": 3},
                 "warnings": [],
                 "dry_run": False,
@@ -3315,6 +3327,7 @@ def test_config_provenance_gated_on_older_server(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {"max_samples": 3},
                 "warnings": [],
                 "dry_run": False,
@@ -3371,6 +3384,7 @@ def test_config_provenance_requires_set_option(
                 "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
                 "max_sandboxes": [],
                 "adaptive": [],
+                "buffer": None,
                 "requested": {},
                 "warnings": [],
                 "dry_run": False,
@@ -3424,6 +3438,7 @@ def test_config_provenance_rides_key_only_retune(
                 "concurrency": [
                     {"name": "my_api", "limit": 2, "in_use": 0, "adjustable": True}
                 ],
+                "buffer": None,
                 "requested": {"concurrency:my_api": 2},
                 "warnings": [],
                 "dry_run": False,
@@ -4175,7 +4190,7 @@ def test_compose_config_labels_every_knob_with_scope() -> None:
         header="h",
         siblings=3,
     )
-    limits_view = {
+    limits_view: TaskConfigView = {
         "max_samples": {"limit": 3, "in_use": 1, "adjustable": True},
         "max_sandboxes": [{"type": "docker", "limit": 4, "in_use": 2}],
         "max_subprocesses": {"limit": 8, "in_use": 1},
@@ -4220,7 +4235,7 @@ def test_compose_config_process_scope_dry_run() -> None:
         header="process · 2 tasks",
         siblings=2,
     )
-    limits_view = {
+    limits_view: ProcessConfigView = {
         "max_sandboxes": [],
         "adaptive": [],
         "requested": {"max_connections": 9},

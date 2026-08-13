@@ -75,7 +75,7 @@ async def test_limits_set_max_samples() -> None:
 
     result = await task_limits("t1", max_samples=30)
     assert result is not None
-    assert result["max_samples"]["limit"] == 30
+    assert result["max_samples"] == {"limit": 30, "in_use": 0, "adjustable": True}
     assert result["requested"] == {"max_samples": 30}
     # the underlying limiter was actually retuned
     assert limiter.limit == 30
@@ -91,7 +91,7 @@ async def test_limits_dry_run_does_not_apply() -> None:
     assert result["dry_run"] is True
     assert result["requested"] == {"max_samples": 30}
     # view reflects the current (unchanged) value, and nothing was applied
-    assert result["max_samples"]["limit"] == 20
+    assert result["max_samples"] == {"limit": 20, "in_use": 0, "adjustable": True}
     assert limiter.limit == 20
 
 
@@ -266,7 +266,7 @@ async def test_limits_unaffected_by_retry_supersede() -> None:
 
     result = await task_limits("t1", max_samples=2)
     assert result is not None
-    assert result["max_samples"]["limit"] == 2
+    assert result["max_samples"] == {"limit": 2, "in_use": 0, "adjustable": True}
     assert limiter.limit == 2  # the task's (shared) limiter was retuned
 
 
