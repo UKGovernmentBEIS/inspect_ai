@@ -585,8 +585,8 @@ def _apply_process_knobs(
     keyword ``clear``, remove) process-wide live overrides —
     always adjustable, since the override layer exists regardless of what
     any task's launch config specifies (for ``max_tasks``, a set landing
-    while no dispatcher is live — e.g. a legacy-mode eval-set sleeping
-    between retry passes — still governs every later dispatch decision in
+    while no dispatcher is live — e.g. during a batch's startup before its
+    dispatcher registers — still governs every later dispatch decision in
     the run; skip-and-warn would silently drop it).
     """
     from inspect_ai._control.max_tasks import (
@@ -812,8 +812,8 @@ def _apply_process_knobs(
 
     # The max_tasks view (re-read after applying, like the others). `limit`
     # is the effective dispatch cap (override ?? launch); `launch` /
-    # `in_flight` / `pending` are None when no dispatcher is live (between
-    # legacy retry passes, between `parallel == 1` batches) — a set still
+    # `in_flight` / `pending` are None when no dispatcher is live (during
+    # batch startup, between `parallel == 1` batches) — a set still
     # applies then, hence `adjustable` is unconditionally True. After a
     # lowering, `in_flight` may exceed `limit` until it drains (never
     # preempts).

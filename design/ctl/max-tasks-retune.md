@@ -184,10 +184,16 @@ inspect ctl config --max-tasks clear
   ("the store always exists"): a set lands in the override layer
   unconditionally and governs every future dispatch decision in the run —
   which is exactly right for the windows where no dispatcher is live (a
-  legacy-mode eval-set sleeping out `retry_wait` between passes, a
-  `parallel == 1` run blocked in `TaskSource.next_tasks()` between
-  batches). Skip-and-warn semantics (the `max_sandboxes` no-limiter
-  pattern) would silently drop a retune landing in those windows.
+  batch still in startup — sandbox image pulls can run for minutes before
+  `run_task_retry_attempts` registers its handle — or a `parallel == 1`
+  run blocked in `TaskSource.next_tasks()` between batches). The legacy
+  `retry_wait` sleep between batch-mode passes is *not* such a window: the
+  control server binds per-`eval()` pass (and `--ctl-server=keep` is
+  rejected with `retry_immediate=False`), so no set can land during it —
+  the override's relevance to legacy mode is only that a set made *during*
+  a pass survives to later passes. Skip-and-warn semantics (the
+  `max_sandboxes` no-limiter pattern) would silently drop a retune landing
+  in the live windows.
   `launch` / `in_flight` / `pending` are `null` with no live dispatcher,
   and the CLI notes "no task dispatcher is live — applies to task dispatch
   later in this run" so a parked or finishing process isn't misread as

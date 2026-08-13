@@ -115,9 +115,10 @@ def task_dispatcher_stats() -> TaskDispatcherStats | None:
     """The live dispatcher's stats, or ``None`` when no dispatcher is live.
 
     ``None`` covers the windows where a set still lands usefully in the
-    override layer — a legacy-mode eval-set sleeping out ``retry_wait``
-    between passes, or a ``parallel == 1`` run blocked between batches —
-    which is why the knob stays adjustable without a handle.
+    override layer — a batch still in startup (e.g. pulling sandbox images)
+    before its dispatcher registers, or a ``parallel == 1`` run blocked
+    between sequential batches — which is why the knob stays adjustable
+    without a handle.
     """
     return _dispatchers[-1]() if _dispatchers else None
 

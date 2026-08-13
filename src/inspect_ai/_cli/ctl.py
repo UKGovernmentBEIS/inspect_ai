@@ -5501,7 +5501,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             )
 
     # max_tasks — the task dispatchers' live override (absent from an older
-    # server's view). With no live dispatcher (between legacy retry passes /
+    # server's view). With no live dispatcher (during batch startup / between
     # sequential batches) there are no counters to show, but a set still
     # lands in the override layer — say so rather than looking parked.
     max_tasks_view = knobs.get("max_tasks")
