@@ -1193,12 +1193,19 @@ class ZipLogFile:
         superseding (same rule as ``_zip_writestr``).
         """
         assert self._zip
+        # the duplicate-name warning is emitted by ZipFile.open itself, so
+        # suppress it only there: catch_warnings mutates process-global state
+        # and must not span the caller's await checkpoints while the entry
+        # is open
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore", message="Duplicate name:", category=UserWarning
             )
-            with self._zip.open(filename, "w", force_zip64=True) as stream:
-                yield stream
+            stream = self._zip.open(filename, "w", force_zip64=True)
+        try:
+            yield stream
+        finally:
+            stream.close()
 
 
 def _sample_history_attachments(

@@ -807,6 +807,30 @@ async def test_streamed_sample_entry_relog_supersedes_with_no_warning(
     assert log.samples[0].target == "answer"
 
 
+@pytest.mark.anyio
+async def test_zip_open_write_restores_warning_filters_before_yield(
+    tmp_path: Path,
+) -> None:
+    """The duplicate-name suppression must not span the open entry's lifetime.
+
+    ``warnings.catch_warnings`` mutates process-global filter state; holding
+    it while the entry is open spans every chunk checkpoint of the streamed
+    write, letting concurrent tasks (e.g. two eval_set tasks, each with its
+    own ``ZipLogFile``) run under -- or clobber -- the mutated filters. The
+    warning is emitted by ``ZipFile.open`` itself, so the suppression only
+    needs to wrap that call.
+    """
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    zip_log = recorder.data[recorder._log_file_key(spec)]
+
+    filters_before = warnings.filters
+    with zip_log._zip_open_write("samples/test.json") as stream:
+        assert warnings.filters is filters_before, (
+            "global warnings filters mutated while the zip entry is open"
+        )
+        stream.write(b"{}")
+
+
 @contextlib.contextmanager
 def _registered_hook(name: str, hook_class: type[Hooks]) -> Generator[None, None, None]:
     """Register `hook_class` under `name` for the duration of the block."""
