@@ -7,7 +7,7 @@ import os
 import shutil
 from collections.abc import Iterator, MutableMapping
 
-from inspect_ai.log._recorders._stream_write import BinaryWriteStream
+from inspect_ai.log._recorders.json_write import BinaryWriteStream
 
 
 class StreamingAttachmentStore(MutableMapping[str, str]):

@@ -37,20 +37,20 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._recorders._stream_write import (
-    JSON_STREAM_CHUNK,
-    BinaryWriteStream,
-)
-from inspect_ai.log._recorders._stream_write import (
-    write_json_array_field as _write_json_array_field,
-)
-from inspect_ai.log._recorders._stream_write import (
-    write_json_object_field as _write_json_object_field,
-)
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.history import SampleHistory
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
+from inspect_ai.log._recorders.json_write import (
+    JSON_STREAM_CHUNK,
+    BinaryWriteStream,
+)
+from inspect_ai.log._recorders.json_write import (
+    write_json_array_field as _write_json_array_field,
+)
+from inspect_ai.log._recorders.json_write import (
+    write_json_object_field as _write_json_object_field,
+)
 from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript

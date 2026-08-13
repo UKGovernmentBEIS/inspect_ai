@@ -68,13 +68,13 @@ from .._log import (
     sort_samples,
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
-from ._stream_write import (
+from .file import FileRecorder, write_local_snapshot
+from .json_write import (
     BinaryWriteStream,
     write_events_data_field,
     write_json_array_field,
     write_json_object_field,
 )
-from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
 

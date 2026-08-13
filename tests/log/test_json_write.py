@@ -2,7 +2,7 @@ import io
 import json
 
 from inspect_ai._util.json import to_json_safe
-from inspect_ai.log._recorders._stream_write import (
+from inspect_ai.log._recorders.json_write import (
     write_events_data_field,
     write_json_array_field,
     write_json_field,

@@ -37,11 +37,11 @@ from inspect_ai.log._log import (
     EvalSpec,
     EventsData,
 )
-from inspect_ai.log._recorders._stream_write import (
-    write_json_field as _write_json_field,
-)
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
+from inspect_ai.log._recorders.json_write import (
+    write_json_field as _write_json_field,
+)
 from inspect_ai.model._chat_message import ChatMessage
 
 from ._attachments import StreamingAttachmentStore, write_attachments_field
