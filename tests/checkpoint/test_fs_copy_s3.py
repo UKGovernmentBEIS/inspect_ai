@@ -1,7 +1,8 @@
 """Tests for the resume-side FS-copy helpers.
 
-Mostly against a moto-backed S3: ``_fs_copy_cross_cutting`` and
-``_fs_copy_repo`` downloading a remote sample dir's contents into a
+Mostly against a moto-backed S3: ``_fs_copy_restic_config`` /
+``_fs_copy_checkpoint_files`` and ``_fs_copy_repo`` downloading a
+remote sample dir's contents into a
 local staging dir, plus the hydrate-time ``host_egress`` that ships the
 resume payload to the new attempt's destination (and records it so the
 next fire's egress doesn't re-upload it). Also covers ``_fs_copy_repo``
@@ -23,8 +24,9 @@ from inspect_ai.util._checkpoint._host_egress import (
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint.hydrate import (
-    _fs_copy_cross_cutting,
+    _fs_copy_checkpoint_files,
     _fs_copy_repo,
+    _fs_copy_restic_config,
 )
 
 S3_BUCKET = "s3://test-bucket"
@@ -55,7 +57,7 @@ def _checkpoint_bytes(checkpoint_id: int) -> bytes:
     )
 
 
-async def test_fs_copy_cross_cutting_downloads_from_s3(
+async def test_fs_copy_config_and_checkpoint_files_download_from_s3(
     tmp_path: Path, mock_s3: None
 ) -> None:
     src = f"{S3_BUCKET}/old-eval.checkpoints/s__0"
@@ -71,7 +73,8 @@ async def test_fs_copy_cross_cutting_downloads_from_s3(
         await _put(fs, f"{src}/ckpt-00001.json", b'{"checkpoint_id":1}')
         await _put(fs, f"{src}/ckpt-00002.json", b'{"checkpoint_id":2}')
 
-        written = await _fs_copy_cross_cutting(src, str(new))
+        written = await _fs_copy_restic_config(src, str(new))
+        written += await _fs_copy_checkpoint_files(src, str(new))
 
     assert set(written) == {
         "restic/restic-config.json",
@@ -85,7 +88,7 @@ async def test_fs_copy_cross_cutting_downloads_from_s3(
     assert (new / "ckpt-00002.json").read_bytes() == b'{"checkpoint_id":2}'
 
 
-async def test_fs_copy_cross_cutting_noop_when_source_missing(
+async def test_fs_copy_config_and_checkpoint_files_noop_when_source_missing(
     tmp_path: Path, mock_s3: None
 ) -> None:
     """A source dir with no relevant files (fresh resume edge) returns []."""
@@ -94,7 +97,8 @@ async def test_fs_copy_cross_cutting_noop_when_source_missing(
     new.mkdir()
 
     async with AsyncFilesystem():
-        written = await _fs_copy_cross_cutting(src, str(new))
+        written = await _fs_copy_restic_config(src, str(new))
+        written += await _fs_copy_checkpoint_files(src, str(new))
 
     assert written == []
     assert not (new / "restic").exists()
@@ -211,10 +215,11 @@ async def test_remote_resume_ships_payload_to_new_destination(
 
         # Resume: download into a fresh local staging dir, then ship the
         # payload to the new attempt's destination (as hydrate does).
-        await _fs_copy_cross_cutting(old_root, str(staging))
         await _fs_copy_repo(
             old_root, "restic/host", str(staging / "restic" / "host"), label="host"
         )
+        await _fs_copy_restic_config(old_root, str(staging))
+        await _fs_copy_checkpoint_files(old_root, str(staging))
         await host_egress(staging_dir=str(staging), destination_dir=new_root)
 
         # The new destination holds the full payload — resumable even if

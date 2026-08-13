@@ -17,6 +17,7 @@ from .eval_checkpoints_dir import (
 )
 from .sample_checkpoints_dir import (
     has_sample_checkpoint,
+    resolve_resumable_sample_dir,
     sample_checkpoints_dir,
 )
 
@@ -33,5 +34,6 @@ __all__ = [
     "eval_checkpoints_dir",
     "eval_checkpoints_dir_from_config",
     "has_sample_checkpoint",
+    "resolve_resumable_sample_dir",
     "sample_checkpoints_dir",
 ]

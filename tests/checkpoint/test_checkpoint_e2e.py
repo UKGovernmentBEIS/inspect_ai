@@ -52,6 +52,7 @@ from checkpoint.resume_kill_thinking_harness import (
     committed_thinking_signatures,
 )
 from inspect_ai import eval_retry
+from inspect_ai._util.file import local_path
 from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.log import list_eval_logs, read_eval_log
@@ -436,3 +437,118 @@ def test_checkpoint_resume_rehydrated_event_layout(
         p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
     )
     assert ckpt3_details.additional_files is None
+
+
+def _run_hydrate_interrupted_resume(
+    log_dir: str, retry_from: str, tests_dir: Path
+) -> None:
+    """Resume in a child process that ``SIGINT``s itself mid-hydration.
+
+    The signal lands on the first repo copy — after the resume-source
+    marker, before the checkpoint files (the commit point) — leaving the
+    new attempt's checkpoints dir torn. The child unwinds gracefully
+    (Ctrl-C semantics), so no signal-death assertion applies; the torn
+    dir itself is asserted by the caller.
+    """
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
+        ),
+    }
+    harness = str(tests_dir / "checkpoint" / "hydrate_interrupt_harness.py")
+    subprocess.run(
+        [sys.executable, harness, log_dir, retry_from],
+        env=env,
+        timeout=600,
+    )
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_resume_survives_interrupted_hydration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An interrupt *during a resume's own startup* doesn't lose the run.
+
+    Hydration copies the prior attempt's checkpoint payload into the new
+    attempt's dir. Interrupting that copy used to leave a dir that looked
+    committed (checkpoint files present) with no restic data behind it —
+    every later resume failed on the missing repo, and each retry copied
+    the bad state forward (#4861). Now the dir commits last (checkpoint
+    files after the repos) and carries a resume-source marker from its
+    first write, so the next retry follows the marker back to the intact
+    source and resumes from there.
+
+    Flow: SIGKILL a fresh attempt at turn 2 (ck1/ck2 committed) →
+    resume and SIGINT it inside the hydration copy window → resume
+    again, in-process, to completion. Asserts the torn dir's on-disk
+    shape (marker, no committed checkpoint) and that the final resume
+    genuinely restored (restore span + only the remaining turns ran)
+    rather than re-running from scratch.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "1")
+    # stateful on disk; reset for flaky-retry re-runs (see the layout test)
+    cancel_file.unlink(missing_ok=True)
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    projects_before = _inspect_projects()
+    try:
+        # --- attempt #0: fresh eval, hard-killed at turn 2 (ck1/ck2) -----
+        _run_killed_attempt(log_dir, None, tests_dir)
+        source_log = _latest_log(log_dir)
+
+        # --- attempt #1: resume, SIGINT inside the hydration copy window -
+        _run_hydrate_interrupted_resume(log_dir, source_log, tests_dir)
+        torn_log = _latest_log(log_dir)
+        assert torn_log != source_log, "the interrupted resume wrote no log"
+
+        # The torn dir must read as uncommitted-but-traceable: the marker
+        # (hydration's first write) is present, the checkpoint files (its
+        # last) are not.
+        torn_dir = (
+            Path(local_path(eval_checkpoints_dir(torn_log, None))) / f"resume__{1}"
+        )
+        assert (torn_dir / "resume-source.json").exists(), (
+            "interrupted hydration left no resume-source marker"
+        )
+        assert not list(torn_dir.glob("ckpt-*.json")), (
+            "interrupted hydration left committed checkpoint files — the "
+            "commit-point ordering regressed"
+        )
+
+        # --- final resume: from the torn log, in-process, to completion --
+        reset_generates()
+        resume = eval_retry(read_eval_log(torn_log), log_dir=log_dir)[0]
+    finally:
+        for name in _inspect_projects() - projects_before:
+            _force_remove_project(name)
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 1
+    sample = resume.samples[0]
+    assert sample.error is None
+
+    # restored, not re-run: only the remaining turns ran (bash + submit)
+    assert generates() == 2
+    assert sample.scores is not None
+    assert sample.scores["includes"].value == CORRECT
+
+    completed = read_eval_log(resume.location)
+    assert completed.samples is not None
+    events = completed.samples[0].events
+    assert_spans_balanced(events)
+    restore_spans = [
+        e for e in events if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
+    ]
+    assert [s.name for s in restore_spans] == ["checkpoint restore 1"]
+    checkpoints = {
+        (e.checkpoint_id, e.trigger) for e in events if isinstance(e, CheckpointEvent)
+    }
+    # ck1/ck2 restored from the source; ck3 (turn) + ck4 (agent_complete)
+    # committed live during the final resume
+    assert checkpoints == {(1, "turn"), (2, "turn"), (3, "turn"), (4, "agent_complete")}

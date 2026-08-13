@@ -7,12 +7,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
+    RESUME_SOURCE_FILE,
     _read_restic_config,
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
+    resolve_resumable_sample_dir,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
+    write_resume_source_marker,
 )
 from inspect_ai.util._checkpoint._layout.schemas import (
     Checkpoint,
@@ -255,3 +258,101 @@ async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
     assert checkpoint is not None
     assert checkpoint.checkpoint_id == 2
     assert checkpoint.trigger == "agent_complete"
+
+
+# -- resume-source marker resolution ------------------------------------
+#
+# The marker is hydration's first write; the checkpoint files are its
+# last (the commit point). `resolve_resumable_sample_dir` is what makes
+# an interrupted hydration recoverable: a dir with no committed
+# checkpoint but a marker resolves to the intact source it was resuming
+# from.
+
+
+async def _dir_with_checkpoint(root: Path, name: str) -> str:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(root / f"{name}.checkpoints"), "s", 0
+    )
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+    return sample_dir
+
+
+async def test_resolve_own_committed_checkpoint_wins(tmp_path: Path) -> None:
+    """A dir with a committed checkpoint resolves to itself, marker or not."""
+    source = await _dir_with_checkpoint(tmp_path, "a")
+    sample_dir = await _dir_with_checkpoint(tmp_path, "b")
+    await write_resume_source_marker(sample_dir, source)
+
+    resolved = await resolve_resumable_sample_dir(sample_dir)
+
+    assert resolved is not None
+    assert resolved.sample_dir == sample_dir
+    assert resolved.checkpoint.checkpoint_id == 1
+
+
+async def test_resolve_follows_marker_from_torn_hydration(tmp_path: Path) -> None:
+    """No committed checkpoint + marker (a torn hydration) → the source."""
+    source = await _dir_with_checkpoint(tmp_path, "a")
+    torn = await ensure_sample_checkpoints_dir(str(tmp_path / "b.checkpoints"), "s", 0)
+    await write_resume_source_marker(torn, source)
+
+    resolved = await resolve_resumable_sample_dir(torn)
+
+    assert resolved is not None
+    assert resolved.sample_dir == source
+    assert resolved.checkpoint.checkpoint_id == 1
+
+
+async def test_resolve_follows_marker_chain(tmp_path: Path) -> None:
+    """Two torn hydrations in a row still resolve back to the source."""
+    source = await _dir_with_checkpoint(tmp_path, "a")
+    torn1 = await ensure_sample_checkpoints_dir(str(tmp_path / "b.checkpoints"), "s", 0)
+    await write_resume_source_marker(torn1, source)
+    torn2 = await ensure_sample_checkpoints_dir(str(tmp_path / "c.checkpoints"), "s", 0)
+    await write_resume_source_marker(torn2, torn1)
+
+    resolved = await resolve_resumable_sample_dir(torn2)
+
+    assert resolved is not None
+    assert resolved.sample_dir == source
+
+
+async def test_resolve_none_when_nothing_committed(tmp_path: Path) -> None:
+    """No checkpoint and no marker (fresh dir) → None (run fresh)."""
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "a.checkpoints"), "s", 0
+    )
+    assert await resolve_resumable_sample_dir(sample_dir) is None
+    # missing dir behaves the same as an empty one
+    assert await resolve_resumable_sample_dir(str(tmp_path / "missing")) is None
+
+
+async def test_resolve_none_on_dangling_marker(tmp_path: Path) -> None:
+    """A marker whose source has been deleted → None (run fresh)."""
+    torn = await ensure_sample_checkpoints_dir(str(tmp_path / "b.checkpoints"), "s", 0)
+    await write_resume_source_marker(torn, str(tmp_path / "deleted.checkpoints/s__0"))
+
+    assert await resolve_resumable_sample_dir(torn) is None
+
+
+async def test_resolve_none_on_torn_marker(tmp_path: Path) -> None:
+    """A marker interrupted mid-write parses as absent → None (run fresh)."""
+    torn = await ensure_sample_checkpoints_dir(str(tmp_path / "b.checkpoints"), "s", 0)
+    (Path(torn) / RESUME_SOURCE_FILE).write_text('{"source_sample')
+
+    assert await resolve_resumable_sample_dir(torn) is None
+
+
+async def test_resolve_bails_on_marker_cycle(tmp_path: Path) -> None:
+    """A hand-crafted marker cycle returns None rather than looping."""
+    d1 = await ensure_sample_checkpoints_dir(str(tmp_path / "a.checkpoints"), "s", 0)
+    d2 = await ensure_sample_checkpoints_dir(str(tmp_path / "b.checkpoints"), "s", 0)
+    await write_resume_source_marker(d1, d2)
+    await write_resume_source_marker(d2, d1)
+
+    assert await resolve_resumable_sample_dir(d1) is None

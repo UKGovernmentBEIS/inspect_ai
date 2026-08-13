@@ -96,6 +96,25 @@ class ResticConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     restic_password: str
+
+
+class ResumeSource(BaseModel):
+    """Resume-source marker file (``<sample-dir>/resume-source.json``).
+
+    Written to the sample checkpoints dir as hydration's *first* write,
+    before any repo or checkpoint files are copied in. Points at the
+    sample dir the hydration is resuming from. If the hydration is
+    interrupted before its checkpoint files land (they are copied last —
+    the commit point), the dir holds no committed checkpoint and resume
+    detection follows this marker back to the intact source instead of
+    re-running the sample from scratch. Harmless once hydration
+    completes: a committed checkpoint in the dir always wins.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    source_sample_dir: str
+    """The sample checkpoints dir this hydration resumed from."""
     """Password used by every repo (host + each sandbox) under this
     sample. Reaches sandbox-side restic via the per-exec environment;
     never persisted in the sandbox."""

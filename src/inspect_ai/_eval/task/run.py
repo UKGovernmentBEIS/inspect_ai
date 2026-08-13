@@ -140,11 +140,8 @@ from inspect_ai.solver._task_state import sample_state, set_sample_state, state_
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint._layout import (
     eval_checkpoints_dir_from_config,
-    has_sample_checkpoint,
+    resolve_resumable_sample_dir,
     sample_checkpoints_dir,
-)
-from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
-    scan_latest_committed_checkpoint,
 )
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
@@ -2634,24 +2631,28 @@ async def _resume_if_checkpointed(
 
     Shared by the task-retry sample source (`eval_log_sample_source`) and
     the requeue re-run path in `run_sample`, so both seed a re-run from a
-    checkpoint the same way.
+    checkpoint the same way. The prior attempt's dir may itself be a torn
+    hydration (no committed checkpoint, only a resume-source marker) —
+    `resolve_resumable_sample_dir` follows the marker back to the intact
+    source, so an interrupted resume never loses the run's progress.
     """
     if eval_checkpoints_dir is None:
         return None
-    if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
+    resolved = await resolve_resumable_sample_dir(
+        sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
+    )
+    if resolved is None:
         return None
-    prior_sample_dir = sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
     # Latest parseable checkpoint with ``trigger == "agent_complete"`` =
     # agent finished cleanly, scoring is the next thing → retry can
     # skip the agent loop (the ``"resume_for_scoring"`` attempt).
-    checkpoint = await scan_latest_committed_checkpoint(prior_sample_dir)
     attempt: Literal["initial", "resume", "resume_for_scoring"] = (
         "resume_for_scoring"
-        if checkpoint is not None and checkpoint.trigger == "agent_complete"
+        if resolved.checkpoint.trigger == "agent_complete"
         else "resume"
     )
     return ResumeCheckpoint(
-        sample_checkpoints_dir=prior_sample_dir,
+        sample_checkpoints_dir=resolved.sample_dir,
         attempt=attempt,
     )
 

@@ -73,6 +73,7 @@ from ._layout.sample_checkpoints_dir import (
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     scan_latest_committed_id,
+    write_resume_source_marker,
 )
 from ._layout.schemas import Checkpoint
 from ._layout.staging_dir import (
@@ -206,17 +207,56 @@ async def hydrate(
 
     sample_context_dir = await ensure_context_dir(sample_root)
 
-    if resume_checkpoint:
-        # Bring the cross-cutting bits over first so `ensure_restic_config`
-        # reads the inherited password instead of minting a fresh one,
-        # and so the checkpoint file count continues from the prior run.
-        await _fs_copy_cross_cutting(
-            resume_checkpoint.sample_checkpoints_dir,
-            sample_root,
-        )
-    restic_config = await ensure_restic_config(sample_root)
     host_restic = await resolve_restic()
     host_repo = host_repo_dir(sample_root)
+
+    # Effective sandbox backup map: explicit config entries plus the
+    # default-user home dir auto-included for every other live sandbox.
+    # Computed once here so backup (every fire) and hydration agree on the
+    # same name set (and the resume repo copies below cover the same set
+    # Phase 2 hydrates).
+    sandbox_backup_paths = await resolve_sandbox_backup_paths(
+        config.sandbox_paths or {}
+    )
+
+    # Resume copies, ordered so an interrupt at any point is recoverable.
+    # The marker lands first (the trail back to the source must survive
+    # however early the interrupt comes) and the checkpoint files land
+    # last, after every byte they index — the same commit-point rule the
+    # fire path and `host_egress` follow. A torn hydration thus leaves no
+    # committed checkpoint, and resume detection follows the marker back
+    # to the intact source instead of re-running the sample from scratch.
+    if resume_checkpoint:
+        source_dir = resume_checkpoint.sample_checkpoints_dir
+        # Marker goes to the *destination*, not the staging root: staging
+        # dirs are per-attempt, and the marker must be findable by the
+        # next attempt when this one dies before its first egress.
+        await write_resume_source_marker(new_sample_checkpoints_dir, source_dir)
+
+        # The source's restic repos (host + per-sandbox) — the bulk of
+        # the bytes. Pairs are independent, so copy in parallel.
+        await tg_collect(
+            [
+                partial(
+                    _fs_copy_repo, source_dir, "restic/host", host_repo, label="host"
+                ),
+                *[
+                    partial(
+                        _fs_copy_repo,
+                        source_dir,
+                        f"restic/sandboxes/{name}",
+                        sandbox_repo_dir(sample_root, name),
+                        label=f"sandbox {name!r}",
+                    )
+                    for name in sandbox_backup_paths
+                ],
+            ]
+        )
+
+        # Inherited password before `ensure_restic_config`, so it reads
+        # the source's rather than minting a fresh one.
+        await _fs_copy_restic_config(source_dir, sample_root)
+    restic_config = await ensure_restic_config(sample_root)
 
     # On resume, find the highest committed checkpoint id (checkpoint
     # files are the source of truth — see ``Checkpoint`` design notes).
@@ -227,6 +267,11 @@ async def hydrate(
     # picks the committed snapshot.
     latest_committed_id: int | None = None
     if resume_checkpoint:
+        # Commit point: checkpoint files last. Also continues the
+        # checkpoint numbering from the prior run.
+        await _fs_copy_checkpoint_files(
+            resume_checkpoint.sample_checkpoints_dir, sample_root
+        )
         latest_committed_id = await scan_latest_committed_id(sample_root)
 
     # Phase 2: host + sandboxes in parallel. Host work runs alongside
@@ -235,14 +280,6 @@ async def hydrate(
     # because the two branches have different return types — only the
     # host branch produces a result that flows to `_EnteredCheckpointer`.
     host_result: _HostHydrationResult | None = None
-
-    # Effective sandbox backup map: explicit config entries plus the
-    # default-user home dir auto-included for every other live sandbox.
-    # Computed once here so backup (every fire) and hydration agree on the
-    # same name set.
-    sandbox_backup_paths = await resolve_sandbox_backup_paths(
-        config.sandbox_paths or {}
-    )
 
     async def _run_host() -> None:
         nonlocal host_result
@@ -321,17 +358,11 @@ async def _hydrate_host(
             await init_repo(host_restic, host_repo, restic_password)
         return _HostHydrationResult()
 
-    # Resume: FS-copy the old host repo into the new one (preserves
-    # snapshot IDs and password), drop any orphan snapshots beyond the
-    # latest committed checkpoint file, restic-restore the latest
+    # Resume (repo already FS-copied by the orchestrator, before the
+    # checkpoint files that index it): drop any orphan snapshots beyond
+    # the latest committed checkpoint file, restic-restore the latest
     # snapshot into the new context subdir, then load the JSON files
     # and push framework state into the live Transcript + Store.
-    await _fs_copy_repo(
-        resume.sample_checkpoints_dir,
-        "restic/host",
-        host_repo,
-        label="host",
-    )
     if latest_committed_id is not None:
         await _drop_orphan_snapshots(
             host_restic, host_repo, restic_password, latest_committed_id
@@ -400,19 +431,14 @@ async def _hydrate_sandbox(
             await init_sandbox_repo(env, restic_password)
         return
 
-    # Resume: FS-copy the old host-side sandbox repo into the new sample
-    # root, drop any orphan snapshots beyond the latest committed
-    # checkpoint file (so the in-container ingress restores the
-    # committed snapshot, not a torn-fire orphan), then ingress it into the
-    # container (which also runs restic-restore to put files at their
-    # original paths).
+    # Resume (host-side repo already FS-copied by the orchestrator,
+    # before the checkpoint files that index it): drop any orphan
+    # snapshots beyond the latest committed checkpoint file (so the
+    # in-container ingress restores the committed snapshot, not a
+    # torn-fire orphan), then ingress the repo into the container
+    # (which also runs restic-restore to put files at their original
+    # paths).
     new_host_side_repo = sandbox_repo_dir(sample_root, name)
-    await _fs_copy_repo(
-        resume.sample_checkpoints_dir,
-        f"restic/sandboxes/{name}",
-        new_host_side_repo,
-        label=f"sandbox {name!r}",
-    )
     if latest_committed_id is not None:
         await _drop_orphan_snapshots(
             host_restic, new_host_side_repo, restic_password, latest_committed_id
@@ -463,13 +489,8 @@ async def _drop_orphan_snapshots(
     return orphan_tags
 
 
-async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> list[str]:
-    """Copy `restic-config.json` and `ckpt-*.json` from old to new sample dir.
-
-    Cross-cutting in the sense that neither belongs exclusively to the
-    host or to any sandbox — they live at the top of the sample
-    checkpoints dir (the checkpoint files) and one level into
-    ``restic/`` (the config) alongside the per-domain repo subtrees.
+async def _fs_copy_restic_config(old_sample_dir: str, new_sample_dir: str) -> list[str]:
+    """Copy ``restic/restic-config.json`` from old to new sample dir.
 
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
@@ -479,14 +500,34 @@ async def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> li
     new = Path(new_sample_dir)
     written: list[str] = []
 
-    with trace_action(logger, "Checkpoint Hydrate", "fs-copy cross-cutting"):
+    with trace_action(logger, "Checkpoint Hydrate", "fs-copy restic config"):
         src_restic_config = f"{old_sample_dir}/restic/restic-config.json"
         if await async_fs.exists(src_restic_config):
             (new / "restic").mkdir(parents=True, exist_ok=True)
             dst = new / "restic" / "restic-config.json"
             await async_fs.get_file(src_restic_config, str(dst))
             written.append("restic/restic-config.json")
+    return written
 
+
+async def _fs_copy_checkpoint_files(
+    old_sample_dir: str, new_sample_dir: str
+) -> list[str]:
+    """Copy ``ckpt-*.json`` from old to new sample dir.
+
+    The commit point of hydration: the orchestrator calls this *after*
+    the repo and config copies, so a checkpoint file's presence always
+    implies the bytes it indexes are in place (see ``hydrate``).
+
+    ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
+    sample dir is always local. Returns the list of paths written,
+    relative to ``new_sample_dir``.
+    """
+    async_fs = get_async_filesystem()
+    new = Path(new_sample_dir)
+    written: list[str] = []
+
+    with trace_action(logger, "Checkpoint Hydrate", "fs-copy checkpoint files"):
         async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
             name = uri.rsplit("/", 1)[-1]
             dst = new / name

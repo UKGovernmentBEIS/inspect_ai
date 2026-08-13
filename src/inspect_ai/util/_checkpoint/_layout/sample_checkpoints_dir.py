@@ -10,6 +10,8 @@ checkpoints dir under the eval checkpoints dir. The dir holds:
   ``host/`` (host restic repo), and
   ``sandboxes/<name>/`` (per-sandbox restic repos).
 - ``context/`` — restic backup source (host context JSON files).
+- ``resume-source.json`` — present only on a resumed attempt: points
+  at the sample dir hydration resumed from (see :class:`ResumeSource`).
 
 The optional ``_<retry>`` suffix on the dir name is omitted until
 ``ActiveSample`` exposes the attempt index — see the TODO at the
@@ -19,14 +21,14 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 from __future__ import annotations
 
 import secrets
-from typing import TypeVar
+from typing import NamedTuple, TypeVar
 
 from pydantic import BaseModel
 
 from inspect_ai._util.asyncfiles import get_async_filesystem
 
 from .._async_fs import async_mkdir
-from .schemas import Checkpoint, ResticConfig
+from .schemas import Checkpoint, ResticConfig, ResumeSource
 from .staging_dir import restic_config_path, restic_dir
 
 _M = TypeVar("_M", bound=BaseModel)
@@ -122,6 +124,72 @@ async def scan_latest_committed_checkpoint(
         except Exception:
             continue
     return None
+
+
+RESUME_SOURCE_FILE = "resume-source.json"
+
+
+class ResolvedResumeDir(NamedTuple):
+    """A sample dir holding a committed checkpoint, plus that checkpoint."""
+
+    sample_dir: str
+    checkpoint: Checkpoint
+
+
+async def write_resume_source_marker(sample_dir: str, source_sample_dir: str) -> None:
+    """Write the resume-source marker into ``sample_dir``.
+
+    Must be hydration's *first* write into the dir, so that however
+    early hydration is interrupted, the trail back to the source
+    survives (see :class:`ResumeSource`).
+    """
+    await _write_model_json(
+        f"{sample_dir}/{RESUME_SOURCE_FILE}",
+        ResumeSource(source_sample_dir=source_sample_dir),
+    )
+
+
+async def resolve_resumable_sample_dir(sample_dir: str) -> ResolvedResumeDir | None:
+    """Resolve ``sample_dir`` to the dir a resume should restore from.
+
+    The dir's own committed checkpoint wins. Failing that, follow the
+    resume-source marker — after an interrupted hydration it is the
+    dir's only surviving write — back toward the source the hydration
+    was resuming from, which held a committed checkpoint when the
+    marker was written. Returns ``None`` when the chain ends with
+    neither a checkpoint nor a marker (nothing ever committed — run
+    fresh), or on a dangling marker (source since deleted).
+    """
+    seen: set[str] = set()
+    current = sample_dir
+    while current not in seen:
+        seen.add(current)
+        checkpoint = await scan_latest_committed_checkpoint(current)
+        if checkpoint is not None:
+            return ResolvedResumeDir(sample_dir=current, checkpoint=checkpoint)
+        marker = await _read_resume_source(current)
+        if marker is None:
+            return None
+        current = marker.source_sample_dir
+    # hydration can't produce a marker cycle (sources strictly predate
+    # the dirs that point at them) — bail rather than loop on a
+    # hand-crafted one
+    return None
+
+
+async def _read_resume_source(sample_dir: str) -> ResumeSource | None:
+    """The dir's resume-source marker, or ``None`` (absent or torn).
+
+    A torn marker means hydration was interrupted mid-way through its
+    very first write — nothing had been restored yet, so treating it
+    as absent (run fresh) loses nothing.
+    """
+    try:
+        return await _load_model_json(
+            f"{sample_dir}/{RESUME_SOURCE_FILE}", ResumeSource
+        )
+    except Exception:
+        return None
 
 
 async def write_checkpoint_file(
