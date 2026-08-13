@@ -99,12 +99,7 @@ async def test_log_sample_returns_materialized_streaming_sample(
     )
     recorder = EvalRecorder(str(tmp_path))
     spec = _eval_spec()
-    logger = TaskLoggerShim(db)
-    logger.recorder = recorder
-    logger.eval = spec
-    logger.flush_buffer = 1
-    logger.flush_pending = []
-    logger._samples_completed = 0
+    logger = _shim_logger(db, recorder, spec)
     await recorder.log_init(spec, str(tmp_path / "streaming.eval"), clean=True)
     await recorder.log_start(spec, EvalPlan())
 
@@ -149,12 +144,7 @@ async def test_log_sample_rebinds_timelines_to_materialized_events(tmp_path) -> 
     db.log_events([SampleEvent(id="sample", epoch=1, event=transcript_event)])
     recorder = EvalRecorder(str(tmp_path))
     spec = _eval_spec()
-    logger = TaskLoggerShim(db)
-    logger.recorder = recorder
-    logger.eval = spec
-    logger.flush_buffer = 1
-    logger.flush_pending = []
-    logger._samples_completed = 0
+    logger = _shim_logger(db, recorder, spec)
     await recorder.log_init(spec, str(tmp_path / "streaming.eval"), clean=True)
     await recorder.log_start(spec, EvalPlan())
 
@@ -359,28 +349,36 @@ async def _start_eval_recorder(tmp_path: Path) -> tuple[EvalRecorder, EvalSpec]:
     return recorder, spec
 
 
-async def _log_sample_with_buffer(
-    tmp_path: Path,
-    sample: EvalSample,
-    events: Sequence[ModelEvent | InfoEvent],
-    *,
-    log_images: bool,
-) -> tuple[EvalSample, EvalSample]:
-    db = _buffer_db(tmp_path, events)
-    recorder, spec = await _start_eval_recorder(tmp_path)
+def _shim_logger(
+    db: SampleBufferDatabase, recorder: EvalRecorder, spec: EvalSpec
+) -> TaskLoggerShim:
     logger = TaskLoggerShim(db)
     logger.recorder = recorder
     logger.eval = spec
     logger.flush_buffer = 1
     logger.flush_pending = []
     logger._samples_completed = 0
+    return logger
+
+
+async def _log_sample_with_buffer(
+    tmp_path: Path,
+    sample: EvalSample,
+    events: Sequence[ModelEvent | InfoEvent],
+    *,
+    log_images: bool,
+    materialize_full_sample: bool = True,
+) -> tuple[EvalSample, EvalSample]:
+    db = _buffer_db(tmp_path, events)
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = _shim_logger(db, recorder, spec)
 
     returned = await log_sample(
         sample,
         logger,
         log_images=log_images,
         from_memory=False,
-        materialize_full_sample=True,
+        materialize_full_sample=materialize_full_sample,
     )
     await _finish_eval(recorder, spec)
 
@@ -423,12 +421,7 @@ async def test_log_sample_from_memory_writes_resident_events_without_buffer_read
     )
     db = _buffer_db(tmp_path, [_model("buffer-1", "answer")])
     recorder, spec = await _start_eval_recorder(tmp_path)
-    logger = TaskLoggerShim(db)
-    logger.recorder = recorder
-    logger.eval = spec
-    logger.flush_buffer = 1
-    logger.flush_pending = []
-    logger._samples_completed = 0
+    logger = _shim_logger(db, recorder, spec)
 
     returned = await log_sample(
         sample, logger, log_images=False, from_memory=True, materialize_full_sample=True
@@ -500,8 +493,9 @@ async def test_log_sample_writes_restored_attachment_content_when_events_reduced
     eval_sample = create_eval_sample(
         start_time=None,
         sample=Sample(id="sample", input="question", target="answer"),
-        # epoch=1 matches the (id, epoch) key `_buffer_db` starts the sample
-        # under below -- `log_sample` looks up the buffer history by this key.
+        # epoch=1 matches the (id, epoch) key `_log_sample_with_buffer`'s
+        # buffer starts the sample under -- `log_sample` looks up the buffer
+        # history by this key.
         state=TaskState(
             model=ModelName("mockllm/model"),
             sample_id="sample",
@@ -523,31 +517,14 @@ async def test_log_sample_writes_restored_attachment_content_when_events_reduced
     # under the buffer's condensing threshold, so its own condenser passes
     # it through untouched and never hashes/stores content for this ref.
     # The seed above is the only place the content is available.
-    db = _buffer_db(
-        tmp_path, [InfoEvent(uuid="buffered", data={"content": restored_ref})]
-    )
-    recorder, spec = await _start_eval_recorder(tmp_path)
-    logger = TaskLoggerShim(db)
-    logger.recorder = recorder
-    logger.eval = spec
-    logger.flush_buffer = 1
-    logger.flush_pending = []
-    logger._samples_completed = 0
-
-    await log_sample(
+    _returned, logged = await _log_sample_with_buffer(
+        tmp_path,
         eval_sample,
-        logger,
+        [InfoEvent(uuid="buffered", data={"content": restored_ref})],
         log_images=True,
-        from_memory=False,
         materialize_full_sample=False,
     )
-    await _finish_eval(recorder, spec)
 
-    logged_samples = (
-        await read_eval_log_async(str(tmp_path / "streaming.eval"))
-    ).samples
-    assert logged_samples is not None
-    logged = logged_samples[0]
     logged_event = logged.events[0]
     assert isinstance(logged_event, InfoEvent)
     assert isinstance(logged_event.data, dict)
@@ -898,24 +875,24 @@ class _DisabledFullSampleHook(Hooks):
         return False
 
 
-def _emitting_solver(n: int = 4) -> Solver:
+@solver
+def _attachment_emitting_solver(n: int = 4) -> Solver:
     """Emits enough transcript events to exceed a resident_tail of 1.
 
     Each event carries >100 chars of unique content so realtime condensing
     turns it into an attachment, letting callers assert attachment integrity
-    in the written log non-vacuously.
+    in the written log non-vacuously. Registered at module level (and named
+    distinctly from test_hooks.py's ``_emitting_solver``): ``@solver``
+    registers by function name in the global registry, so a per-call
+    decoration would re-register on every use.
     """
 
-    @solver
-    def emit_events() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            for i in range(n):
-                transcript().info({"i": i, "content": f"{i} {_long_content()}"})
-            return state
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for i in range(n):
+            transcript().info({"i": i, "content": f"{i} {_long_content()}"})
+        return state
 
-        return solve
-
-    return emit_events()
+    return solve
 
 
 Consumer = Literal[
@@ -939,7 +916,7 @@ def _drive_evicted_eval(consumer: Consumer, log_dir: str) -> None:
     """
     task = Task(
         dataset=[Sample(input="question", target="answer")],
-        solver=[_emitting_solver()],
+        solver=[_attachment_emitting_solver()],
     )
 
     if consumer == "scanner":
@@ -975,7 +952,7 @@ def _drive_evicted_eval(consumer: Consumer, log_dir: str) -> None:
                 return [Sample(input="question", target="answer")]
 
         eval(
-            Task(dataset=_SampleSourceStub(), solver=[_emitting_solver()]),
+            Task(dataset=_SampleSourceStub(), solver=[_attachment_emitting_solver()]),
             model="mockllm/model",
             log_dir=log_dir,
             display="none",
