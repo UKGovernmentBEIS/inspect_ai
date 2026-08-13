@@ -48,9 +48,24 @@ async def _interrupting_fs_copy_repo(
     return await _original_fs_copy_repo(old_sample_dir, subpath, new_repo, label=label)
 
 
+# Distinct exit code asserted by the test: the hook never fired, so the
+# child ran an ordinary uninterrupted resume. Guards against a refactor
+# that moves the repo copies and silently turns the patch into a no-op —
+# without this, the test would fail downstream pointing at the product.
+HOOK_NEVER_FIRED_EXIT_CODE = 17
+
+
 def main() -> None:
     hydrate._fs_copy_repo = _interrupting_fs_copy_repo
-    run_eval(sys.argv[1], sys.argv[2])
+    try:
+        run_eval(sys.argv[1], sys.argv[2])
+    finally:
+        if not _fired:
+            print(
+                "hydrate_interrupt_harness: the _fs_copy_repo hook never fired",
+                file=sys.stderr,
+            )
+            os._exit(HOOK_NEVER_FIRED_EXIT_CODE)
 
 
 if __name__ == "__main__":

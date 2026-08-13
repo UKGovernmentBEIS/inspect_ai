@@ -96,6 +96,9 @@ class ResticConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     restic_password: str
+    """Password used by every repo (host + each sandbox) under this
+    sample. Reaches sandbox-side restic via the per-exec environment;
+    never persisted in the sandbox."""
 
 
 class ResumeSource(BaseModel):
@@ -115,6 +118,3 @@ class ResumeSource(BaseModel):
 
     source_sample_dir: str
     """The sample checkpoints dir this hydration resumed from."""
-    """Password used by every repo (host + each sandbox) under this
-    sample. Reaches sandbox-side restic via the per-exec environment;
-    never persisted in the sandbox."""

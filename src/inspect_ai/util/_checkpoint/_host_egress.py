@@ -21,9 +21,11 @@ Safe upload order — destination is valid at every intermediate state:
 4. ``restic/**/index/**`` (immutable; occasional consolidation)
 5. ``restic/**/snapshots/**`` (references indexes / data)
 6. ``restic/restic-config.json`` (first cycle; password file)
-7. ``ckpt-NNNNN.json`` last (commit point at the destination)
+7. ``ckpt-NNNNN.json`` last (commit point at the destination),
+   newest id first — so an interrupt mid-tier leaves the latest
+   checkpoint in place, never a stale prefix
 
-Within each tier, files are shipped in lexicographic order. The
+Within each other tier, files are shipped in lexicographic order. The
 manifest write at the end is the commit point for the local "I've
 shipped these"; a crash between ship and manifest-replace leaves the
 destination ahead of the manifest, and the next fire's diff re-ships
@@ -167,7 +169,12 @@ def _safe_order(files: list[str]) -> list[str]:
         + sorted(snapshots)
         + sorted(other)
         + sorted(restic_config)
-        + sorted(checkpoint_files)
+        # newest checkpoint file first: a per-fire egress ships one, but
+        # the resume egress ships the whole set, and an interrupt part
+        # way through must leave the *latest* at the destination — a
+        # stale-prefix dir would resolve to an old checkpoint and
+        # outrank its resume-source marker
+        + sorted(checkpoint_files, reverse=True)
     )
 
 

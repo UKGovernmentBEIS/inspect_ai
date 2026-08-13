@@ -204,11 +204,13 @@ def test_safe_order_ships_checkpoint_file_last() -> None:
 
 
 def test_safe_order_checkpoint_file_last_across_multiple() -> None:
-    files = ["ckpt-00002.json", "restic/host/data/ab", "ckpt-00001.json"]
+    files = ["ckpt-00001.json", "restic/host/data/ab", "ckpt-00002.json"]
     ordered = _safe_order(files)
-    # Both checkpoint files come after the data file; within checkpoint files, sorted.
+    # Both checkpoint files come after the data file; within the
+    # checkpoint tier, newest first — an interrupt mid-tier must leave
+    # the latest checkpoint at the destination, never a stale prefix.
     assert ordered == [
         "restic/host/data/ab",
-        "ckpt-00001.json",
         "ckpt-00002.json",
+        "ckpt-00001.json",
     ]

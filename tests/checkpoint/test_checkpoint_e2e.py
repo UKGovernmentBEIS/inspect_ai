@@ -45,6 +45,7 @@ from pathlib import Path
 import pytest
 from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_docker
 
+from checkpoint.hydrate_interrupt_harness import HOOK_NEVER_FIRED_EXIT_CODE
 from checkpoint.resume_kill_harness import (
     CANCEL_FILE_ENV,
     LAYER1_CONTENT,
@@ -492,10 +493,14 @@ def _run_hydrate_interrupted_resume(
         ),
     }
     harness = str(tests_dir / "checkpoint" / "hydrate_interrupt_harness.py")
-    subprocess.run(
+    proc = subprocess.run(
         [sys.executable, harness, log_dir, retry_from],
         env=env,
         timeout=600,
+    )
+    assert proc.returncode != HOOK_NEVER_FIRED_EXIT_CODE, (
+        "the harness's hydration hook never fired — the repo-copy seam it "
+        "patches has moved; this run was an ordinary uninterrupted resume"
     )
 
 

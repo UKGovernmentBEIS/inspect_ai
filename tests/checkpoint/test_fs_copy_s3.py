@@ -76,11 +76,13 @@ async def test_fs_copy_config_and_checkpoint_files_download_from_s3(
         written = await _fs_copy_restic_config(src, str(new))
         written += await _fs_copy_checkpoint_files(src, str(new))
 
-    assert set(written) == {
+    # checkpoint files copy newest first: this copy is multi-write, and a
+    # torn prefix must contain the latest checkpoint, not a stale one
+    assert written == [
         "restic/restic-config.json",
-        "ckpt-00001.json",
         "ckpt-00002.json",
-    }
+        "ckpt-00001.json",
+    ]
     assert (
         new / "restic" / "restic-config.json"
     ).read_bytes() == b'{"restic_password":"the-pw"}'

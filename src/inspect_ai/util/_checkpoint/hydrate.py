@@ -219,43 +219,16 @@ async def hydrate(
         config.sandbox_paths or {}
     )
 
-    # Resume copies, ordered so an interrupt at any point is recoverable.
-    # The marker lands first (the trail back to the source must survive
-    # however early the interrupt comes) and the checkpoint files land
-    # last, after every byte they index — the same commit-point rule the
-    # fire path and `host_egress` follow. A torn hydration thus leaves no
-    # committed checkpoint, and resume detection follows the marker back
-    # to the intact source instead of re-running the sample from scratch.
     if resume_checkpoint:
-        source_dir = resume_checkpoint.sample_checkpoints_dir
-        # Marker goes to the *destination*, not the staging root: staging
-        # dirs are per-attempt, and the marker must be findable by the
-        # next attempt when this one dies before its first egress.
-        await write_resume_source_marker(new_sample_checkpoints_dir, source_dir)
-
-        # The source's restic repos (host + per-sandbox) — the bulk of
-        # the bytes. Pairs are independent, so copy in parallel.
-        await tg_collect(
-            [
-                partial(
-                    _fs_copy_repo, source_dir, "restic/host", host_repo, label="host"
-                ),
-                *[
-                    partial(
-                        _fs_copy_repo,
-                        source_dir,
-                        f"restic/sandboxes/{name}",
-                        sandbox_repo_dir(sample_root, name),
-                        label=f"sandbox {name!r}",
-                    )
-                    for name in sandbox_backup_paths
-                ],
-            ]
+        await _fs_copy_resume_payload(
+            source_dir=resume_checkpoint.sample_checkpoints_dir,
+            sample_root=sample_root,
+            destination_dir=new_sample_checkpoints_dir,
+            host_repo=host_repo,
+            sandbox_names=list(sandbox_backup_paths),
         )
-
-        # Inherited password before `ensure_restic_config`, so it reads
-        # the source's rather than minting a fresh one.
-        await _fs_copy_restic_config(source_dir, sample_root)
+    # after the payload copy so a resume reads the source's inherited
+    # password rather than minting a fresh one
     restic_config = await ensure_restic_config(sample_root)
 
     # On resume, find the highest committed checkpoint id (checkpoint
@@ -267,11 +240,6 @@ async def hydrate(
     # picks the committed snapshot.
     latest_committed_id: int | None = None
     if resume_checkpoint:
-        # Commit point: checkpoint files last. Also continues the
-        # checkpoint numbering from the prior run.
-        await _fs_copy_checkpoint_files(
-            resume_checkpoint.sample_checkpoints_dir, sample_root
-        )
         latest_committed_id = await scan_latest_committed_id(sample_root)
 
     # Phase 2: host + sandboxes in parallel. Host work runs alongside
@@ -489,6 +457,63 @@ async def _drop_orphan_snapshots(
     return orphan_tags
 
 
+async def _fs_copy_resume_payload(
+    *,
+    source_dir: str,
+    sample_root: str,
+    destination_dir: str,
+    host_repo: str,
+    sandbox_names: list[str],
+) -> None:
+    """Copy the source attempt's checkpoint payload into this attempt.
+
+    Single owner of hydration's write order, on which interrupt
+    recovery depends — every step below is positioned deliberately:
+
+    1. The resume-source marker, first, so the trail back to the source
+       survives however early an interrupt comes. Written to the
+       *destination* (not the staging root): staging dirs are
+       per-attempt, and the marker must be findable by the next attempt
+       when this one dies before its first egress.
+    2. The restic repos (host + per-sandbox, parallel — the bulk of the
+       bytes), then the restic config.
+    3. The checkpoint files, *last*, after every byte they index — the
+       commit-point rule the fire path and ``host_egress`` follow. A
+       torn hydration thus leaves no committed checkpoint, and resume
+       detection follows the marker back to the intact source instead
+       of re-running the sample from scratch.
+
+    An in-eval requeue resumes into the *same* dir it resolved from, so
+    both the marker (which would point at itself) and the copies (which
+    would copy files onto themselves) are skipped when source and
+    target coincide; a remote requeue skips only the marker (the copies
+    still pull the remote source into the local staging root).
+    """
+    if source_dir != destination_dir:
+        await write_resume_source_marker(destination_dir, source_dir)
+
+    if source_dir == sample_root:
+        return
+
+    await tg_collect(
+        [
+            partial(_fs_copy_repo, source_dir, "restic/host", host_repo, label="host"),
+            *[
+                partial(
+                    _fs_copy_repo,
+                    source_dir,
+                    f"restic/sandboxes/{name}",
+                    sandbox_repo_dir(sample_root, name),
+                    label=f"sandbox {name!r}",
+                )
+                for name in sandbox_names
+            ],
+        ]
+    )
+    await _fs_copy_restic_config(source_dir, sample_root)
+    await _fs_copy_checkpoint_files(source_dir, sample_root)
+
+
 async def _fs_copy_restic_config(old_sample_dir: str, new_sample_dir: str) -> list[str]:
     """Copy ``restic/restic-config.json`` from old to new sample dir.
 
@@ -513,11 +538,19 @@ async def _fs_copy_restic_config(old_sample_dir: str, new_sample_dir: str) -> li
 async def _fs_copy_checkpoint_files(
     old_sample_dir: str, new_sample_dir: str
 ) -> list[str]:
-    """Copy ``ckpt-*.json`` from old to new sample dir.
+    """Copy ``ckpt-*.json`` from old to new sample dir, highest id first.
 
-    The commit point of hydration: the orchestrator calls this *after*
-    the repo and config copies, so a checkpoint file's presence always
-    implies the bytes it indexes are in place (see ``hydrate``).
+    The commit point of hydration: called *after* the repo and config
+    copies, so a checkpoint file's presence always implies the bytes it
+    indexes are in place (see ``_fs_copy_resume_payload``). The copy is
+    itself multi-write, so it lands the *latest* checkpoint first — a
+    torn prefix must contain the newest file, or a partially-copied dir
+    would resolve to a stale checkpoint (outranking the marker) and the
+    orphan-snapshot drop would then forget every newer snapshot.
+
+    Names that don't parse as ``ckpt-NNNNN`` are skipped: they can
+    never be a committed checkpoint (the resume scan reads only
+    parseable ids), so copying them could only pad the torn window.
 
     ``old_sample_dir`` may be local or remote (e.g. ``s3://``); the new
     sample dir is always local. Returns the list of paths written,
@@ -528,10 +561,17 @@ async def _fs_copy_checkpoint_files(
     written: list[str] = []
 
     with trace_action(logger, "Checkpoint Hydrate", "fs-copy checkpoint files"):
+        entries: list[tuple[int, str]] = []
         async for uri in async_fs.iter_files(old_sample_dir, pattern="ckpt-*.json"):
             name = uri.rsplit("/", 1)[-1]
-            dst = new / name
-            await async_fs.get_file(uri, str(dst))
+            try:
+                checkpoint_id = int(name.removeprefix("ckpt-").removesuffix(".json"))
+            except ValueError:
+                continue
+            entries.append((checkpoint_id, uri))
+        for checkpoint_id, uri in sorted(entries, reverse=True):
+            name = f"ckpt-{checkpoint_id:05d}.json"
+            await async_fs.get_file(uri, str(new / name))
             written.append(name)
     return written
 
