@@ -254,6 +254,14 @@ implementation should prefer the handle's value when available.
 - **Eval-set task retries**: queued retry attempts are pending tasks in
   the same dispatcher, so they benefit from (and count against) the raised
   limit like any other pending task.
+- **Add-task** (`inspect ctl task add`, meridianlabs-ai/inspect_ai#222,
+  planned): injected tasks enter the same dispatcher via the feed, so they
+  respect (and benefit from) the live limit like any other pending task —
+  no special casing needed. The add-task design originally pre-started
+  `parallel` workers at session start, which a live `max_tasks` invalidates
+  (a fixed pool can't honor a raise above its size);
+  [`control-channel.md`](control-channel.md)'s add-task section now keeps
+  the spawn-per-admitted-task dispatcher shape this design relies on.
 
 ## Future work: adaptive `max_tasks`
 
