@@ -38,6 +38,9 @@ from inspect_ai.log._log import (
 from inspect_ai.log._recorders._stream_write import (
     write_json_array_field as _write_json_array_field,
 )
+from inspect_ai.log._recorders._stream_write import (
+    write_json_object_field as _write_json_object_field,
+)
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
@@ -303,6 +306,19 @@ def _history(tmp_path, name: str = "test"):
         [SampleEvent(id="sample", epoch=1, event=_model("event-1", "answer"))]
     )
     return db.open_sample_history("sample", 1)
+
+
+def _history_for(tmp_path: Path, sample: EvalSample, name: str):
+    db = SampleBufferDatabase(str(tmp_path / f"{name}.eval"), db_dir=tmp_path)
+    db.start_sample(sample.summary())
+    db.log_events(
+        [
+            SampleEvent(
+                id=sample.id, epoch=sample.epoch, event=_model("event-1", "answer")
+            )
+        ]
+    )
+    return db.open_sample_history(sample.id, sample.epoch)
 
 
 def _model_with_call(uuid: str, content: str, call_msgs: list[Any]) -> ModelEvent:
@@ -694,6 +710,54 @@ async def test_buffer_sample_streaming_shields_cancellation_mid_write(
 
     assert log.samples is not None
     assert len(log.samples[0].events) == len(events)
+
+
+@pytest.mark.anyio
+async def test_streamed_write_failure_leaves_log_readable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An exception mid-entry-write must not poison the whole log.
+
+    ``_zip_open_write``'s ``__exit__`` finalizes the zip member on any exit
+    path, so a raise between chunks would otherwise register a truncated
+    (invalid JSON) member — and ``_read_log`` parses every sample member
+    eagerly, so even healthy samples become unreadable. The recorder must
+    supersede the truncated member with a valid one before propagating.
+    """
+    import inspect_ai.log._recorders.eval as eval_module
+
+    recorder, spec = await _start_eval_recorder(tmp_path)
+
+    calls = {"n": 0}
+
+    async def failing_object_field(*args: Any, **kwargs: Any) -> None:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("serialization failed mid-write")
+        await _write_json_object_field(*args, **kwargs)
+
+    monkeypatch.setattr(eval_module, "write_json_object_field", failing_object_field)
+
+    sample_1 = EvalSample(id="s1", epoch=1, input="question", target="answer")
+    sample_2 = EvalSample(id="s2", epoch=1, input="question", target="answer")
+
+    with _history_for(tmp_path, sample_1, name="h1") as history:
+        await recorder.log_sample_streaming(spec, sample_1, history)
+    with pytest.raises(RuntimeError, match="serialization failed mid-write"):
+        with _history_for(tmp_path, sample_2, name="h2") as history:
+            await recorder.log_sample_streaming(spec, sample_2, history)
+
+    await _finish_eval(recorder, spec)
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+
+    assert log.samples is not None
+    by_id = {s.id: s for s in log.samples}
+    healthy = by_id["s1"]
+    assert [event.uuid for event in healthy.events] == ["event-1"]
+    # the failed sample is either absent or a valid event-less stub
+    if "s2" in by_id:
+        assert by_id["s2"].events == []
+        assert by_id["s2"].target == "answer"
 
 
 @pytest.mark.anyio

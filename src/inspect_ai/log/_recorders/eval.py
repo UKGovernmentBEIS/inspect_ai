@@ -938,25 +938,35 @@ class ZipLogFile:
             # shield (liveness is retained); cancellation is simply deferred
             # until this entry completes.
             with anyio.CancelScope(shield=True):
-                with self._zip_open_write(
-                    _sample_filename(sample.id, sample.epoch)
-                ) as stream:
-                    # header always has fields (id/epoch), so stripping the
-                    # closing brace and continuing with comma-prefixed fields
-                    # is well-formed
-                    stream.write(header_bytes[:-1])
-                    await write_json_array_field(stream, "events", events, comma=True)
-                    await write_json_object_field(
-                        stream, "attachments", attachments, comma=True
-                    )
-                    stream.write(b',"events_data":{')
-                    await write_json_array_field(
-                        stream, "messages", events_data["messages"]
-                    )
-                    await write_json_array_field(
-                        stream, "calls", events_data["calls"], comma=True
-                    )
-                    stream.write(b"}}")
+                filename = _sample_filename(sample.id, sample.epoch)
+                try:
+                    with self._zip_open_write(filename) as stream:
+                        # header always has fields (id/epoch), so stripping the
+                        # closing brace and continuing with comma-prefixed
+                        # fields is well-formed
+                        stream.write(header_bytes[:-1])
+                        await write_json_array_field(
+                            stream, "events", events, comma=True
+                        )
+                        await write_json_object_field(
+                            stream, "attachments", attachments, comma=True
+                        )
+                        stream.write(b',"events_data":{')
+                        await write_json_array_field(
+                            stream, "messages", events_data["messages"]
+                        )
+                        await write_json_array_field(
+                            stream, "calls", events_data["calls"], comma=True
+                        )
+                        stream.write(b"}}")
+                except BaseException:
+                    # the failed write already registered a truncated member,
+                    # which would make every sample unreadable (_read_log
+                    # parses each member eagerly); supersede it with the
+                    # event-less header (readers resolve duplicate names to
+                    # the last entry), then propagate
+                    self._zip_writestr(filename, header)
+                    raise
 
             # evict a buffered prior record for the same (id, epoch): its
             # member would otherwise be flush-written *after* the streaming
