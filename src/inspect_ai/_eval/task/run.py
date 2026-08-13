@@ -2642,11 +2642,30 @@ async def log_sample(
     from_memory: bool,
     needs_events: bool = True,
 ) -> EvalSample:
-    # No realtime buffer DB, or the full history is still resident in memory:
-    # log directly from the in-memory sample (which carries its events). This
-    # avoids the open_sample_history -> materialize_streaming_sample round-trip
-    # (read every event back out of SQLite + re-validate). `complete_sample`
-    # still finalizes the buffer DB via `_finalize_sample`, so when a realtime
+    """Log a completed sample, returning the sample finalization consumers see.
+
+    Args:
+        eval_sample: The completed sample. Carries its full event history
+            when ``from_memory`` is True, empty events otherwise.
+        logger: Task logger to record the sample with.
+        log_images: Whether to retain base64 images in the log.
+        from_memory: True when the full event history is resident in memory
+            (no realtime buffer DB, or the transcript was never
+            bounded-evicted), so the sample is logged directly rather than
+            streamed back from the buffer.
+        needs_events: On the buffer read-back path, whether some finalization
+            consumer reads the returned sample's event history; when False
+            the returned sample is reduced (empty events and attachments)
+            instead of re-materialized. ``from_memory=True`` with
+            ``needs_events=False`` is a meaningless combination — the
+            from-memory path returns before ``needs_events`` is read — so
+            callers must pair ``from_memory=True`` with the default
+            ``needs_events=True``.
+    """
+    # Logging directly from the in-memory sample avoids the
+    # open_sample_history -> materialize_streaming_sample round-trip (read
+    # every event back out of SQLite + re-validate). `complete_sample` still
+    # finalizes the buffer DB via `_finalize_sample`, so when a realtime
     # buffer exists it stays consistent for live viewing.
     if logger.buffer_db is None or from_memory:
         await logger.complete_sample(
