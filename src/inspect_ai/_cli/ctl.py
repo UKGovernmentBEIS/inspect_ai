@@ -3608,7 +3608,7 @@ def _applied_knob_names(
                 key,
                 key is not None
                 and any(
-                    row.get("name") == key[0] and row.get("adjustable")
+                    row["name"] == key[0] and row["adjustable"]
                     for row in limits_view.get("concurrency") or []
                 ),
             ),
