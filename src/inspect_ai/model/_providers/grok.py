@@ -144,12 +144,9 @@ class GrokAPI(ModelAPI):
         # save model args
         self.streaming = streaming
         self.disable_retry = disable_retry
-        # xAI Priority Processing ("priority", 2x token rates) shipped with
-        # grok-4.6. https://docs.x.ai/developers/grok-4-6
+        # fail fast when the SDK can't express service_tier rather than
+        # TypeError-ing on every generate
         if service_tier is not None and not hasattr(usage_pb2, "ServiceTier"):
-            # chat.create() gained service_tier in xai_sdk 1.17 (alongside the
-            # ServiceTier proto enum); fail fast rather than TypeError-ing on
-            # every generate.
             raise PrerequisiteError(
                 "ERROR: The service_tier model arg requires xai_sdk >= 1.17 "
                 "(pip install --upgrade xai-sdk)."
@@ -524,14 +521,8 @@ class GrokAPI(ModelAPI):
                 case "high":
                     gconfig["reasoning_effort"] = "high"
                 case "xhigh" | "max":
-                    # xhigh became a real effort level with grok-4.6 (xai_sdk
-                    # 1.18 added the gRPC enum value). xAI documents that
-                    # grok-4-family models without xhigh support (e.g.
-                    # grok-4.5) treat it as high, so pass it through and let
-                    # the service downgrade. grok-3-mini documents only
-                    # low/high, so keep the high clamp there — likewise on
-                    # older SDKs whose enum tops out at HIGH.
-                    # https://docs.x.ai/developers/model-capabilities/text/reasoning
+                    # passthrough is safe: the service downgrades xhigh to
+                    # high on models that don't support it
                     if _sdk_supports_xhigh_effort() and not self.is_grok_3_mini():
                         gconfig["reasoning_effort"] = "xhigh"
                     else:
