@@ -8,6 +8,8 @@ shapes, not just our naive default that assumes `.status_code` is universal.
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 
@@ -27,10 +29,12 @@ def _http_response(
     )
 
 
-def _openai_http_response(
-    status: int, headers: dict[str, str] | None = None
-) -> openai_httpx.Response:
-    """Like _http_response, but in the httpx flavor of the installed openai SDK."""
+def _openai_http_response(status: int, headers: dict[str, str] | None = None) -> Any:
+    """Like _http_response, but in the httpx flavor of the installed openai SDK.
+
+    Returns Any: `openai_httpx` is a runtime-selected module, so its types
+    can't appear in annotations.
+    """
     request = openai_httpx.Request("POST", "https://example.com/v1/chat/completions")
     return openai_httpx.Response(
         status_code=status,

@@ -7,6 +7,8 @@ the OpenAI SDK would produce.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from openai import APITimeoutError, BadRequestError
 
@@ -20,7 +22,9 @@ def _make_api() -> OpenAIAPI:
     return OpenAIAPI(model_name="gpt-5", api_key="test-key", responses_api=True)
 
 
-def _request() -> openai_httpx.Request:
+def _request() -> Any:
+    # Any: `openai_httpx` is a runtime-selected module, so its types can't
+    # appear in annotations.
     return openai_httpx.Request("POST", "https://api.openai.com/v1/responses")
 
 
