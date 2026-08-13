@@ -219,6 +219,8 @@ async def test_subprocess_output_limit_under_limit():
     )
     assert result.success is True
     assert result.stdout.strip() == "hello"
+    assert result.stdout_truncated is False
+    assert result.stderr_truncated is False
 
 
 @pytest.mark.anyio
@@ -237,6 +239,8 @@ for i in range(10):
         text=False,
     )
     assert result.success is True
+    assert result.stdout_truncated is True
+    assert result.stderr_truncated is False
     # Should contain trailing digits (7s, 8s, 9s), not leading (0s, 1s)
     assert result.stdout[-100:] == b"9" * 100
     assert b"0" * 50 not in result.stdout  # Leading 0s should be gone
@@ -272,6 +276,22 @@ async def test_subprocess_output_limit_binary():
     assert result.success is True
     assert len(result.stdout) == 50
     assert result.stdout == b"x" * 50
+    assert result.stdout_truncated is True
+    assert result.stderr_truncated is False
+
+
+@pytest.mark.anyio
+async def test_subprocess_output_limit_marks_stderr_truncated():
+    result = await subprocess(
+        [
+            "python3",
+            "-c",
+            "import sys; sys.stderr.write('e' * 100)",
+        ],
+        output_limit=50,
+    )
+    assert result.stderr_truncated is True
+    assert result.stdout_truncated is False
 
 
 @pytest.mark.anyio
@@ -284,6 +304,8 @@ async def test_subprocess_output_limit_no_limit():
     )
     assert result.success is True
     assert len(result.stdout.strip()) == 1000
+    assert result.stdout_truncated is None
+    assert result.stderr_truncated is None
 
 
 @pytest.mark.anyio

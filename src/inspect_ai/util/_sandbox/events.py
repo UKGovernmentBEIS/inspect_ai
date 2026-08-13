@@ -126,12 +126,24 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
             OutputLimitExceededError: If an output stream exceeds the limit.
         """
         limit = SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE
-        stdout_truncated = truncate_string_to_bytes(exec_result.stdout, limit)
-        stderr_truncated = truncate_string_to_bytes(exec_result.stderr, limit)
+        stdout_truncated = (
+            truncate_string_to_bytes(exec_result.stdout, limit)
+            if exec_result.stdout_truncated is None
+            else exec_result.stdout_truncated
+        )
+        stderr_truncated = (
+            truncate_string_to_bytes(exec_result.stderr, limit)
+            if exec_result.stderr_truncated is None
+            else exec_result.stderr_truncated
+        )
         if not stdout_truncated and not stderr_truncated:
             return
-        stdout = stdout_truncated.output if stdout_truncated else exec_result.stdout
-        stderr = stderr_truncated.output if stderr_truncated else exec_result.stderr
+        stdout = exec_result.stdout
+        stderr = exec_result.stderr
+        if not isinstance(stdout_truncated, bool) and stdout_truncated:
+            stdout = stdout_truncated.output
+        if not isinstance(stderr_truncated, bool) and stderr_truncated:
+            stderr = stderr_truncated.output
         raise OutputLimitExceededError(
             limit_str=SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE_STR,
             truncated_output=f"{stdout}{stderr}",

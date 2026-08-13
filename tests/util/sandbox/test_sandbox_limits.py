@@ -1,5 +1,6 @@
 import pytest
 
+from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 from inspect_ai.util._sandbox.limits import (
     OutputLimitExceededError,
     SandboxEnvironmentLimits,
@@ -11,6 +12,24 @@ from inspect_ai.util._sandbox.limits import (
     set_sandbox_limits,
     verify_read_file_size,
 )
+from inspect_ai.util._subprocess import ExecResult
+
+
+def test_verify_exec_result_size_uses_provider_truncation_metadata():
+    with override_max_exec_output_size(5):
+        with pytest.raises(OutputLimitExceededError):
+            SandboxEnvironmentProxy.verify_exec_result_size(
+                ExecResult(True, 0, "x", "", stdout_truncated=True)
+            )
+
+        SandboxEnvironmentProxy.verify_exec_result_size(
+            ExecResult(True, 0, "x" * 100, "", stdout_truncated=False)
+        )
+
+        with pytest.raises(OutputLimitExceededError):
+            SandboxEnvironmentProxy.verify_exec_result_size(
+                ExecResult(True, 0, "x" * 100, "")
+            )
 
 
 def test_default_limits():

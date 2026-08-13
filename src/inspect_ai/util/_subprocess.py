@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from subprocess import DEVNULL, PIPE
-from typing import Generic, Literal, TypeVar, Union, overload
+from typing import Generic, Literal, NamedTuple, TypeVar, Union, overload
 
 import anyio
 from anyio import ClosedResourceError, create_task_group, open_process
@@ -41,6 +41,17 @@ class ExecResult(Generic[T]):
 
     stderr: T
     """Contents of stderr."""
+
+    stdout_truncated: bool | None = None
+    """Whether stdout exceeded its configured capture limit, if known."""
+
+    stderr_truncated: bool | None = None
+    """Whether stderr exceeded its configured capture limit, if known."""
+
+
+class StreamOutput(NamedTuple):
+    data: bytes
+    truncated: bool | None
 
 
 @overload
@@ -160,15 +171,23 @@ async def subprocess(
                 return ExecResult[str](
                     success=success,
                     returncode=returncode,
-                    stdout=stdout.decode(errors="replace") if capture_output else "",
-                    stderr=stderr.decode(errors="replace") if capture_output else "",
+                    stdout=stdout.data.decode(errors="replace")
+                    if capture_output
+                    else "",
+                    stderr=stderr.data.decode(errors="replace")
+                    if capture_output
+                    else "",
+                    stdout_truncated=stdout.truncated if capture_output else None,
+                    stderr_truncated=stderr.truncated if capture_output else None,
                 )
             else:
                 return ExecResult[bytes](
                     success=success,
                     returncode=returncode,
-                    stdout=stdout if capture_output else bytes(),
-                    stderr=stderr if capture_output else bytes(),
+                    stdout=stdout.data if capture_output else bytes(),
+                    stderr=stderr.data if capture_output else bytes(),
+                    stdout_truncated=stdout.truncated if capture_output else None,
+                    stderr_truncated=stderr.truncated if capture_output else None,
                 )
         # Handle cancellation before aclose() is called to avoid deadlock.
         except anyio.get_cancelled_exc_class():
@@ -314,24 +333,24 @@ async def drain_stream(stream: ByteReceiveStream | None) -> None:
 
 async def _read_stream(
     stream: ByteReceiveStream | None, *, output_limit: int | None = None
-) -> bytes:
+) -> StreamOutput:
     if stream is None:
-        return bytes()
+        return StreamOutput(bytes(), None)
     if output_limit is None:
         bytesio = io.BytesIO()
         async for chunk in stream:
             bytesio.write(chunk)
-        return bytesio.getvalue()
+        return StreamOutput(bytesio.getvalue(), None)
     else:
         circular = CircularByteBuffer(output_limit)
         async for chunk in stream:
             circular.write(chunk)
-        return circular.getvalue()
+        return StreamOutput(circular.getvalue(), circular.truncated)
 
 
-async def _log_stream(stream: ByteReceiveStream | None) -> bytes:
+async def _log_stream(stream: ByteReceiveStream | None) -> StreamOutput:
     if stream is None:
-        return bytes()
+        return StreamOutput(bytes(), None)
     buffer = bytes()
     async for chunk in stream:
         parts = (buffer + chunk).split(b"\n")
@@ -340,7 +359,7 @@ async def _log_stream(stream: ByteReceiveStream | None) -> bytes:
             logger.info(line.decode(errors="replace").rstrip())
     if buffer:
         logger.info(buffer.decode(errors="replace").rstrip())
-    return bytes()
+    return StreamOutput(bytes(), None)
 
 
 max_subprocesses_context_var = ContextVar[int](
@@ -357,12 +376,15 @@ class CircularByteBuffer:
         self._max_bytes = max_bytes
         self._chunks: deque[bytes] = deque()
         self._total_bytes = 0
+        self._truncated = False
 
     def write(self, data: bytes) -> None:
         if not data:
             return
         self._chunks.append(data)
         self._total_bytes += len(data)
+        if self._total_bytes > self._max_bytes:
+            self._truncated = True
 
         # Discard oldest chunks until under limit
         while self._total_bytes > self._max_bytes and len(self._chunks) > 1:
@@ -377,3 +399,7 @@ class CircularByteBuffer:
 
     def getvalue(self) -> bytes:
         return b"".join(self._chunks)
+
+    @property
+    def truncated(self) -> bool:
+        return self._truncated
