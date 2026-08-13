@@ -677,9 +677,9 @@ async def test_buffer_sample_streaming_shields_cancellation_mid_write(
     within the same entry) to cancel the enclosing scope, so the cancellation
     is pending at the checkpoint between chunks inside
     ``buffer_sample_streaming``'s zip-entry write. Without shielding that
-    write, the checkpoint raises there, ``_zip_open_write``'s ``__exit__``
-    finalizes the truncated member, and the log becomes unreadable
-    (``_read_log`` parses every sample member eagerly).
+    write, the checkpoint raises there and the mid-write failure repair
+    supersedes the truncated member with an event-less stub, so the
+    sample's events would be silently lost from the finished log.
     """
     import inspect_ai.log._recorders.eval as eval_module
 

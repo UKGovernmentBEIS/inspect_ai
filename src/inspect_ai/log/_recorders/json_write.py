@@ -2,11 +2,12 @@
 
 Writers here emit a JSON object entry field-by-field, so whole-sample
 payloads never need a single monolithic jsonable tree + byte blob. The sync
-``write_json_field`` is shared by the live streaming recorder
-(``buffer_sample_streaming``) and the filestore recovery writer; the async
-chunked writers checkpoint between chunks and so require an event loop,
-which only the live recorder has. Recovery's sync writer instead hand-rolls
-its events array and streams attachments via ``_recover/_attachments``.
+``write_json_field`` serves the filestore recovery writer
+(``_recover/_stream``); the async chunked writers serve the live streaming
+recorder (``buffer_sample_streaming``) — they checkpoint between chunks and
+so require an event loop, which only the live recorder has. Recovery's sync
+writer instead hand-rolls its events array and streams attachments via
+``_recover/_attachments``.
 """
 
 import json

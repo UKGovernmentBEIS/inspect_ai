@@ -1131,7 +1131,8 @@ def any_hook_needs_full_sample() -> bool:
                 return True
         except Exception as ex:
             logger.warning(
-                f"Exception calling enabled() on hook '{hook.__class__.__name__}': {ex}"
+                f"Exception consulting enabled()/needs_full_sample on hook "
+                f"'{hook.__class__.__name__}': {ex}"
             )
             return True
     return False

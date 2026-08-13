@@ -18,9 +18,9 @@ from inspect_ai.model._chat_message import ChatMessageUser
 _HOSTILE = 'héllo 🎉 日本語 "quoted"'
 """Multi-byte content plus an embedded quote, to pin the encode/escape split.
 
-Field names and mapping keys are escaped via ``json.dumps`` while values
-arrive as raw UTF-8 through the chunk byte splice; a refactor to e.g.
-``f'"{name}"'.encode()`` breaks on exactly this content.
+Field names are escaped via ``json.dumps``, while mapping keys and values
+are serialized by ``to_json_safe`` inside the chunk byte splice; a refactor
+to e.g. ``f'"{name}"'.encode()`` breaks on exactly this content.
 """
 
 
