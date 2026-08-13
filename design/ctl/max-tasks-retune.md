@@ -160,10 +160,13 @@ inspect ctl config --max-tasks clear
   `GET`/`PATCH /tasks/{task_id}/config` too, parsed server-side like the
   retry knobs (string, to admit `clear`). The ≥ 1 floor must be enforced
   in that server-side parse, not just by the CLI type: `_parse_retry_knobs`
-  admits 0 and the string-typed param can't ride `_limits_below_one`, so
-  without an explicit check a raw-API caller could set 0 — which the
-  admission check would read as a bogus limit (or, with an `or`-composed
-  read, silently ignore). Both GET views include the knob.
+  admits 0 and the string-typed param can't ride `_limits_below_one` at the
+  route declaration, so without an explicit check a raw-API caller could
+  set 0 — which the admission check would read as a bogus limit (or, with
+  an `or`-composed read, silently ignore). Once parsed, though, the int
+  should be passed through `_limits_below_one` rather than a bespoke floor
+  check, so the error shape (`max_tasks must be >= 1 (got 0)`) matches the
+  int-typed knobs. Both GET views include the knob.
 - **View** (both endpoints):
 
   ```json
@@ -294,13 +297,16 @@ controller respects.
    `max_connections`); record via `_record_retune`-style logic with
    `clear` handling borrowed from the retry knobs.
 4. **Server** (`_control/server.py`): `max_tasks` param on both `PATCH`
-   routes (parsed like the retry knobs to admit `clear`, with an explicit
-   ≥ 1 floor — see CLI and wire surface), included in both `GET` views.
+   routes (parsed like the retry knobs to admit `clear`, with the parsed
+   int floored via `_limits_below_one` — see CLI and wire surface),
+   included in both `GET` views.
 5. **CLI** (`_cli/ctl.py`): `--max-tasks` option (int ≥ 1 or `clear`),
    `_KNOB_SCOPE` / `_KNOB_SINCE` entries, `knob_values` wiring,
    `_exec_limits` pass-through, human rendering.
-6. **Schema/type regeneration** if the OpenAPI spec covers the config
-   endpoints' params (see `.claude/skills/land-ts-mono/SKILL.md`).
+6. **Schema/type regeneration**: none needed — the repo's OpenAPI spec
+   (`src/inspect_ai/_view/inspect-openapi.json`, generated from
+   `view_server_app()` by `src/inspect_ai/_view/schema.py`) covers
+   view-server routes only; the control-server config routes are not in it.
 7. **Tests**: raise mid-run starts pending tasks (and wakes a waiting
    dispatcher); lower never preempts; floor-1 validation (CLI and wire);
    `clear` restores launch; override survives a dispatcher boundary but
