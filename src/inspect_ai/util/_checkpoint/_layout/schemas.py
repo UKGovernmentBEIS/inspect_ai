@@ -102,19 +102,25 @@ class ResticConfig(BaseModel):
 
 
 class ResumeSource(BaseModel):
-    """Resume-source marker file (``<sample-dir>/resume-source.json``).
+    """Resume-source marker file (``resume-source.json``).
 
-    Written to the sample checkpoints dir as hydration's *first* write,
-    before any repo or checkpoint files are copied in. Points at the
-    sample dir the hydration is resuming from. If the hydration is
-    interrupted before its checkpoint files land (they are copied last —
-    the commit point), the dir holds no committed checkpoint and resume
-    detection follows this marker back to the intact source instead of
-    re-running the sample from scratch. Harmless once hydration
-    completes: a committed checkpoint in the dir always wins.
+    Written as a resume copy's *first* write into a destination dir,
+    pointing at the dir being copied from, and deleted only once the
+    copy has fully completed. While present, the destination is not a
+    trustworthy copy — anything resolving it must follow the marker
+    back toward the source. Absence is the completeness commit point:
+    a dir without a marker holds everything its source held.
+
+    Used at two levels (see ``_resume_copy``):
+
+    - In a *sample* checkpoints dir, pointing at the sample dir the
+      resume payload is copied from.
+    - At the *eval* checkpoints dir root, pointing at the prior
+      attempt's eval checkpoints dir — covering candidates whose sample
+      dirs don't exist yet when the greedy copy is interrupted.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    source_sample_dir: str
-    """The sample checkpoints dir this hydration resumed from."""
+    source_dir: str
+    """The dir (sample or eval checkpoints dir) being copied from."""

@@ -2,7 +2,7 @@
 
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
-- Bugfix: Interrupting a checkpoint resume during its startup (Ctrl-C, crash, OOM) no longer leaves the run unresumable — the next retry resumes from the prior attempt's intact checkpoints.
+- Bugfix: Interrupting a checkpointed eval's retry (Ctrl-C, crash, OOM) no longer loses checkpointed progress — even for samples the retry never got to — the next retry resumes from intact checkpoints.
 
 ## 0.3.258 (11 August 2026)
 

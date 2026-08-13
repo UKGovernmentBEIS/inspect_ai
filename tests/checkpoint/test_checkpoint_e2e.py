@@ -47,10 +47,14 @@ from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_doc
 
 from checkpoint.hydrate_interrupt_harness import HOOK_NEVER_FIRED_EXIT_CODE
 from checkpoint.resume_kill_harness import (
+    B_CONTENT,
+    B_SAMPLE_ID,
     CANCEL_FILE_ENV,
     LAYER1_CONTENT,
+    SIBLING_CKPT_GLOB_ENV,
     SIGNAL_ENV,
     TARGET_ENV,
+    TWO_SAMPLE_ENV,
     generates,
     reset_generates,
 )
@@ -478,13 +482,14 @@ def test_checkpoint_resume_rehydrated_event_layout(
 def _run_hydrate_interrupted_resume(
     log_dir: str, retry_from: str, tests_dir: Path
 ) -> None:
-    """Resume in a child process that ``SIGINT``s itself mid-hydration.
+    """Resume in a child process that ``SIGINT``s itself mid-copy.
 
-    The signal lands on the first repo copy — after the resume-source
-    marker, before the checkpoint files (the commit point) — leaving the
-    new attempt's checkpoints dir torn. The child unwinds gracefully
-    (Ctrl-C semantics), so no signal-death assertion applies; the torn
-    dir itself is asserted by the caller.
+    The signal lands on the first repo copy of the greedy startup pass
+    (``copy_resume_payloads``) — after the resume-source markers, before
+    the checkpoint files (the commit point) — leaving the new attempt's
+    checkpoints dir torn. The child unwinds gracefully (Ctrl-C
+    semantics), so no signal-death assertion applies; the torn dir
+    itself is asserted by the caller.
     """
     env = {
         **os.environ,
@@ -511,17 +516,18 @@ def test_checkpoint_resume_survives_interrupted_hydration(
 ) -> None:
     """An interrupt *during a resume's own startup* doesn't lose the run.
 
-    Hydration copies the prior attempt's checkpoint payload into the new
-    attempt's dir. Interrupting that copy used to leave a dir that looked
-    committed (checkpoint files present) with no restic data behind it —
-    every later resume failed on the missing repo, and each retry copied
-    the bad state forward (#4861). Now the dir commits last (checkpoint
-    files after the repos) and carries a resume-source marker from its
-    first write, so the next retry follows the marker back to the intact
-    source and resumes from there.
+    A resume copies the prior attempt's checkpoint payload into the new
+    attempt's dir (greedily, at retry startup — see ``_resume_copy``).
+    Interrupting that copy used to leave a dir that looked committed
+    (checkpoint files present) with no restic data behind it — every
+    later resume failed on the missing repo, and each retry copied the
+    bad state forward (#4861). Now the dir commits last (checkpoint
+    files after the repos) and carries a resume-source marker from the
+    copy's first write until its completion, so the next retry follows
+    the marker back to the intact source and resumes from there.
 
     Flow: SIGKILL a fresh attempt at turn 2 (ck1/ck2 committed) →
-    resume and SIGINT it inside the hydration copy window → resume
+    resume and SIGINT it inside the startup copy window → resume
     again, in-process, to completion. Asserts the torn dir's on-disk
     shape (marker, no committed checkpoint) and that the final resume
     genuinely restored (restore span + only the remaining turns ran)
@@ -548,17 +554,22 @@ def test_checkpoint_resume_survives_interrupted_hydration(
         assert torn_log != source_log, "the interrupted resume wrote no log"
 
         # The torn dir must read as uncommitted-but-traceable: the marker
-        # (hydration's first write) is present, the checkpoint files (its
+        # (the copy's first write) is present, the checkpoint files (its
         # last) are not.
         torn_dir = (
             Path(local_path(eval_checkpoints_dir(torn_log, None))) / f"resume__{1}"
         )
         assert (torn_dir / "resume-source.json").exists(), (
-            "interrupted hydration left no resume-source marker"
+            "interrupted resume copy left no resume-source marker"
         )
         assert not list(torn_dir.glob("ckpt-*.json")), (
-            "interrupted hydration left committed checkpoint files — the "
+            "interrupted resume copy left committed checkpoint files — the "
             "commit-point ordering regressed"
+        )
+        # the eval-level marker is permanent provenance — it must name the
+        # attempt this resume was copying from
+        assert (torn_dir.parent / "resume-source.json").exists(), (
+            "the eval-level resume-source marker is missing"
         )
 
         # --- final resume: from the torn log, in-process, to completion --
@@ -592,3 +603,96 @@ def test_checkpoint_resume_survives_interrupted_hydration(
     # ck1/ck2 restored from the source; ck3 (turn) + ck4 (agent_complete)
     # committed live during the final resume
     assert checkpoints == {(1, "turn"), (2, "turn"), (3, "turn"), (4, "agent_complete")}
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_checkpoint_retry_preserves_queued_sample_checkpoints(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A sample still queued when a retry dies keeps its checkpoints (#4870).
+
+    Two samples, two kills. Attempt #0 runs both concurrently: sample B
+    checkpoints steadily and never crashes; sample A crashes the process
+    once B has a committed checkpoint. Attempt #1 retries with
+    ``max_samples=1``: A resumes first and crashes again — B is still
+    queued, having run *nothing* in attempt #1. Before the greedy startup
+    copy existed, attempt #1 left no trace of B (per-sample copying only
+    happened when a sample started), so the final retry — which resolves
+    attempt #1's dirs — silently re-ran B from scratch. Now the copy runs
+    at retry startup for every incomplete sample, so B's payload is in
+    attempt #1's dir despite B never starting.
+
+    Asserts the on-disk property directly (B's payload present in the
+    dead attempt's dir) and the behavior: the final in-process retry
+    *restores* B (its transcript carries a "checkpoint restore" span)
+    rather than re-running it.
+    """
+    cancel_file = tmp_path / "cancels.txt"
+    log_dir = str(tmp_path / "logs")
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "2")
+    monkeypatch.setenv(TWO_SAMPLE_ENV, "1")
+    monkeypatch.setenv(
+        SIBLING_CKPT_GLOB_ENV,
+        f"{log_dir}/*.checkpoints/{B_SAMPLE_ID}__1/ckpt-*.json",
+    )
+    # stateful on disk; reset for flaky-retry re-runs (see the layout test)
+    cancel_file.unlink(missing_ok=True)
+    shutil.rmtree(log_dir, ignore_errors=True)
+
+    tests_dir = Path(__file__).parent.parent
+
+    projects_before = _inspect_projects()
+    try:
+        # --- attempt #0: both samples in flight, killed once B checkpointed
+        _run_interrupted_attempt(log_dir, None, tests_dir)
+        first_log = _latest_log(log_dir)
+
+        # --- attempt #1: A resumes and crashes; B queued, never started ---
+        _run_interrupted_attempt(log_dir, first_log, tests_dir)
+        second_log = _latest_log(log_dir)
+        assert second_log != first_log, "the retry attempt wrote no log"
+
+        # The #4870 property: the dead retry's checkpoints dir holds B's
+        # payload — copied greedily at startup — even though B never ran.
+        b_dir = Path(local_path(eval_checkpoints_dir(second_log, None))) / (
+            f"{B_SAMPLE_ID}__1"
+        )
+        assert list(b_dir.glob("ckpt-*.json")), (
+            "the retry left no checkpoint payload for the queued sample — "
+            "the greedy startup copy regressed; a further retry would re-run "
+            "the sample from scratch"
+        )
+        assert not (b_dir / "resume-source.json").exists(), (
+            "the queued sample's payload copy never completed (marker present)"
+        )
+
+        # --- final retry: in-process, to completion ----------------------
+        resume = eval_retry(read_eval_log(second_log), log_dir=log_dir, max_samples=1)[
+            0
+        ]
+    finally:
+        for name in _inspect_projects() - projects_before:
+            _force_remove_project(name)
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 2
+    b_sample = next(s for s in resume.samples if s.id == B_SAMPLE_ID)
+    assert b_sample.error is None
+    assert b_sample.scores is not None
+    assert b_sample.scores["includes"].value == CORRECT
+    assert B_CONTENT in b_sample.output.completion
+
+    # B was *restored*, not re-run: its transcript opens with a checkpoint
+    # restore wrap containing its prior-attempt checkpoints
+    assert_spans_balanced(b_sample.events)
+    b_restores = [
+        e
+        for e in b_sample.events
+        if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
+    ]
+    assert [s.name for s in b_restores] == ["checkpoint restore 1"], (
+        "the queued sample did not resume from its checkpoints — its "
+        "prior-attempt progress was silently discarded"
+    )

@@ -140,9 +140,9 @@ from inspect_ai.solver._task_state import sample_state, set_sample_state, state_
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._checkpoint._layout import (
     eval_checkpoints_dir_from_config,
-    resolve_resumable_sample_dir,
-    sample_checkpoints_dir,
+    resolve_resumable_sample_dir_in_chain,
 )
+from inspect_ai.util._checkpoint._resume_copy import copy_resume_payloads
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
@@ -225,11 +225,10 @@ class PreviousError:
     sample: EvalSample
 
 
-SampleLookup = Callable[
-    [int | str, int], Awaitable[EvalSample | ResumeCheckpoint | PreviousError | None]
-]
+SampleLookup = Callable[[int | str, int], Awaitable[EvalSample | PreviousError | None]]
 ErrorHistoryIds = Callable[[], Awaitable[set[tuple[int | str, int]]]]
 PriorExists = Callable[[int | str, int], Awaitable[bool]]
+ReusableIds = Callable[[], Awaitable[set[tuple[int | str, int]]]]
 
 
 async def _never_prior_exists(id: int | str, epoch: int) -> bool:
@@ -237,25 +236,40 @@ async def _never_prior_exists(id: int | str, epoch: int) -> bool:
     return False
 
 
+async def _no_reusable_ids() -> set[tuple[int | str, int]]:
+    """Default reusable-ids probe: nothing known reusable."""
+    return set()
+
+
 class EvalSampleSource(NamedTuple):
     """A prior attempt's sample source.
 
-    `lookup` resolves one planned `(id, epoch)` to a reusable sample, a
-    resume checkpoint, or carried error history. `error_history_ids`
-    returns the `(id, epoch)` pairs that errored in the prior attempt —
-    the only candidates that can yield a `PreviousError` — so teardown
-    carry-forward can probe just those instead of the full plan.
-    `prior_exists` is a cheap presence probe for the prior attempt's record
-    of a sample, used to decide whether its lookup must take the bounded
-    reuse read throttle (a presence hit reads a full sample body; misses
-    must not queue behind those reads). False means "don't throttle" —
-    the sample is known absent, or this source's lookups are cheap
-    (in-memory list scans).
+    `lookup` resolves one planned `(id, epoch)` to a reusable sample or
+    carried error history (checkpoint resume detection is separate —
+    `run_sample` resolves it against the on-disk checkpoint dirs).
+    `error_history_ids` returns the `(id, epoch)` pairs that errored in
+    the prior attempt — the only candidates that can yield a
+    `PreviousError` — so teardown carry-forward can probe just those
+    instead of the full plan. `prior_exists` is a cheap presence probe
+    for the prior attempt's record of a sample, used to decide whether
+    its lookup must take the bounded reuse read throttle (a presence
+    hit reads a full sample body; misses must not queue behind those
+    reads). False means "don't throttle" — the sample is known absent,
+    or this source's lookups are cheap (in-memory list scans).
+    `prior_checkpoints_dir` is the prior attempt's eval checkpoints dir
+    (None when checkpointing was off or vetoed) — the source the greedy
+    startup copy pulls resume payloads from. `reusable_ids` returns the
+    pairs the prior log records as clean completions — a skip hint for
+    the greedy copy (a pair wrongly included, e.g. an invalidated
+    sample the summaries can't distinguish, is still caught by the lazy
+    prior-dir fallback at sample start).
     """
 
     lookup: SampleLookup
     error_history_ids: ErrorHistoryIds
     prior_exists: PriorExists = _never_prior_exists
+    prior_checkpoints_dir: str | None = None
+    reusable_ids: ReusableIds = _no_reusable_ids
 
 
 # Units allocated for sample progress - the total units
@@ -709,6 +723,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             reuse_read_throttle = anyio.Semaphore(REUSED_SAMPLE_READ_CONCURRENCY)
             reuse_settle = _ReuseSweepCountdown(logger, store_len * epochs)
 
+            # bounds the checkpoint resume-detection probes: every planned
+            # sample fires them at startup (each a few small remote reads on
+            # s3 destinations), and unbounded they'd race the whole plan's
+            # probes against the connection pool at once
+            resume_probe_limiter = anyio.CapacityLimiter(REUSED_SAMPLE_READ_CONCURRENCY)
+
             # sample dispatch goes through the pause gate wrapped around the
             # semaphore (a stamped cancel escapes the gate so held samples
             # reach the queue-exit abandon check); scan reuse below keeps the
@@ -864,9 +884,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # PreviousError); kept distinct from the sample-level
                     # retry list so it doesn't suppress sample init/start emits
                     previous_attempt_errors: list[EvalRetryError] = []
-                    previous_sample: (
-                        EvalSample | ResumeCheckpoint | PreviousError | None
-                    ) = None
+                    previous_sample: EvalSample | PreviousError | None = None
                     try:
                         if requeue_prior is not None:
                             # requeued re-run (design/ctl/sample-requeue.md):
@@ -884,6 +902,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 resume_checkpoint = await _resume_if_checkpointed(
                                     requeue_checkpoints_dir, sample_id, epoch
                                 )
+                                if resume_checkpoint is None and sample_source:
+                                    # same last resort as the retry path below:
+                                    # the greedy pass may have failed before
+                                    # this attempt's eval-marker chain existed
+                                    resume_checkpoint = await _resume_if_checkpointed(
+                                        sample_source.prior_checkpoints_dir,
+                                        sample_id,
+                                        epoch,
+                                    )
                             if resume_checkpoint is None:
                                 previous_attempt_errors = _seed_error_retries(
                                     requeue_prior
@@ -983,15 +1010,41 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         if sample_index >= store_len:
                             note_injected_terminal(sample_index, epoch, "completed")
                         return sample_scores
-                    elif isinstance(previous_sample, ResumeCheckpoint):
-                        # signal intent — agent code can branch on
-                        # `cp.attempt`. Hydration runs inside
-                        # `_CheckpointerSetup.__aenter__`.
-                        resume_checkpoint = previous_sample
-                    elif isinstance(previous_sample, PreviousError):
-                        previous_attempt_errors = _seed_error_retries(
-                            previous_sample.sample
-                        )
+                    elif (
+                        requeue_prior is None
+                        and sample_source is not None
+                        and sample_id is not None
+                    ):
+                        # non-clean prior (errored, invalidated, or absent
+                        # from the log): prefer resuming from a checkpoint.
+                        # This attempt's own dir normally holds the payload
+                        # (the greedy startup copy put it there — see
+                        # `copy_resume_payloads`); the eval-dir chain walked
+                        # inside `_resume_if_checkpointed` is the lazy
+                        # fallback for anything the greedy copy skipped or
+                        # failed. The direct prior-dir probe is the last
+                        # resort for when the greedy pass failed before
+                        # even the eval-level marker landed (its warn-and-
+                        # continue path), leaving this attempt's chain
+                        # empty. Hydration runs inside
+                        # `_CheckpointerSetup.__aenter__`; agent code can
+                        # branch on `cp.attempt`.
+                        async with resume_probe_limiter:
+                            resume_checkpoint = await _resume_if_checkpointed(
+                                requeue_checkpoints_dir, sample_id, epoch
+                            )
+                            if resume_checkpoint is None:
+                                resume_checkpoint = await _resume_if_checkpointed(
+                                    sample_source.prior_checkpoints_dir,
+                                    sample_id,
+                                    epoch,
+                                )
+                        if resume_checkpoint is None and isinstance(
+                            previous_sample, PreviousError
+                        ):
+                            previous_attempt_errors = _seed_error_retries(
+                                previous_sample.sample
+                            )
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
@@ -1260,12 +1313,47 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         on_settle=feeder_wake.set,
                     )
 
-                # where a requeued sample's checkpoint (if any) lives — this
-                # attempt's own checkpoints, unlike the sample source's
-                # prior-attempt dir
+                # this attempt's own eval checkpoints dir: where a requeued
+                # or retried sample's checkpoint (if any) lives, and the
+                # destination of the greedy resume copy below
                 requeue_checkpoints_dir = eval_checkpoints_dir_from_config(
                     logger.location, checkpoint, eval_checkpoint
                 )
+
+                # on a retry, copy every incomplete sample's resume payload
+                # from the prior attempt's checkpoints dir into this
+                # attempt's — before any sample runs. Copying lazily at
+                # sample start loses checkpointed progress for samples
+                # still queued when a retry is interrupted: the next retry
+                # resolves only this attempt's (empty) dirs and re-runs
+                # them from scratch.
+                if (
+                    sample_source is not None
+                    and sample_source.prior_checkpoints_dir is not None
+                    and requeue_checkpoints_dir is not None
+                ):
+                    try:
+                        reusable_ids = await sample_source.reusable_ids()
+                        await copy_resume_payloads(
+                            source_eval_dir=sample_source.prior_checkpoints_dir,
+                            destination_eval_dir=requeue_checkpoints_dir,
+                            candidates=[
+                                (sample_id, epoch)
+                                for sample_id in sample_ids
+                                for epoch in range(1, epochs + 1)
+                                if (sample_id, epoch) not in reusable_ids
+                            ],
+                        )
+                    except Exception as ex:
+                        # a transient failure here (e.g. an S3 throttle) must
+                        # not kill the whole retry before any sample runs —
+                        # everything the pass would have copied is still
+                        # reachable lazily through the marker chains at
+                        # sample start
+                        py_logger.warning(
+                            f"Checkpoint resume copy failed at retry startup "
+                            f"(samples will resume lazily instead): {ex}"
+                        )
 
                 # the sample fanout: an injectable scheduler rather than a
                 # one-shot tg_collect, so the control channel's requeue
@@ -2629,17 +2717,21 @@ async def _resume_if_checkpointed(
 ) -> ResumeCheckpoint | None:
     """The sample's on-disk checkpoint resume, or ``None`` when unavailable.
 
-    Shared by the task-retry sample source (`eval_log_sample_source`) and
-    the requeue re-run path in `run_sample`, so both seed a re-run from a
-    checkpoint the same way. The prior attempt's dir may itself be a torn
-    hydration (no committed checkpoint, only a resume-source marker) —
-    `resolve_resumable_sample_dir` follows the marker back to the intact
-    source, so an interrupted resume never loses the run's progress.
+    Shared by `run_sample`'s task-retry and requeue paths, so both seed
+    a re-run from a checkpoint the same way. Both consult this
+    attempt's *own* eval checkpoints dir — the greedy startup copy put
+    the resume payload there (see `copy_resume_payloads`). Resolution
+    then falls back along two marker trails: a torn sample dir's
+    resume-source marker leads to the intact source it was copying
+    from, and the eval dir's permanent marker chains to earlier
+    attempts for samples with no per-sample trail (skipped as reusable,
+    fed in mid-run, or whose copy the interrupt preceded entirely) —
+    so an interrupted resume never loses the run's progress.
     """
     if eval_checkpoints_dir is None:
         return None
-    resolved = await resolve_resumable_sample_dir(
-        sample_checkpoints_dir(eval_checkpoints_dir, id, epoch)
+    resolved = await resolve_resumable_sample_dir_in_chain(
+        eval_checkpoints_dir, id, epoch
     )
     if resolved is None:
         return None
@@ -2673,16 +2765,31 @@ def eval_log_sample_source(
     async def no_error_history() -> set[tuple[int | str, int]]:
         return set()
 
+    prior_summaries_cache: list[EvalSampleSummary] | None = None
+
+    async def prior_summaries() -> list[EvalSampleSummary]:
+        """The prior log's sample summaries, fetched once (success cached).
+
+        One bounded read of the summaries index — never per-sample log
+        reads — shared by the error-history and reusable-ids probes so a
+        retry doesn't download the index twice.
+        """
+        nonlocal prior_summaries_cache
+        if prior_summaries_cache is None:
+            assert eval_log_info is not None
+            prior_summaries_cache = await read_eval_log_sample_summaries_async(
+                eval_log_info
+            )
+        return prior_summaries_cache
+
     async def error_history_from_file() -> set[tuple[int | str, int]]:
         """The prior log's errored `(id, epoch)` pairs, from its summaries.
 
-        One bounded read of the summaries index — never per-sample log
-        reads. Degrades to "no candidates" on failure: this feeds teardown
+        Degrades to "no candidates" on failure: this feeds teardown
         carry-forward, which must not fail (or stall) task shutdown.
         """
-        assert eval_log_info is not None
         try:
-            summaries = await read_eval_log_sample_summaries_async(eval_log_info)
+            summaries = await prior_summaries()
             return {(s.id, s.epoch) for s in summaries if s.error is not None}
         except Exception as ex:
             py_logger.warning(
@@ -2690,19 +2797,34 @@ def eval_log_sample_source(
             )
             return set()
 
-    async def _resume_or_seed_retry(
-        id: int | str, epoch: int, sample: EvalSample | None
-    ) -> ResumeCheckpoint | PreviousError | None:
+    async def reusable_ids_from_file() -> set[tuple[int | str, int]]:
+        """The prior log's clean `(id, epoch)` pairs, from its summaries.
+
+        A skip hint for the greedy resume-payload copy: these pairs are
+        reused from the log, not re-run, so their checkpoint dirs need
+        no copying. Summaries can't see invalidation, so an invalidated
+        sample lands here wrongly — harmless, its resume falls to the
+        eval-dir chain walk at sample start. Degrades to "nothing
+        reusable" on failure (copy more, never less).
+        """
+        try:
+            summaries = await prior_summaries()
+            return {(s.id, s.epoch) for s in summaries if s.error is None}
+        except Exception as ex:
+            py_logger.warning(
+                f"Unable to read sample summaries from retry log file: {ex}"
+            )
+            return set()
+
+    def _seed_retry(sample: EvalSample | None) -> PreviousError | None:
         """Resolve a non-clean prior sample (errored, invalidated, or absent).
 
-        Prefers resuming from an on-disk checkpoint. Failing that, an
-        errored prior sample yields a `PreviousError` so the re-run seeds
-        its `error_retries` with the prior attempt's history; an absent or
-        invalidated sample yields `None` (re-run fresh).
+        An errored prior sample yields a `PreviousError` so the re-run
+        seeds its `error_retries` with the prior attempt's history; an
+        absent or invalidated sample yields `None`. (Checkpoint resume —
+        which outranks both — is resolved by `run_sample` against the
+        on-disk checkpoint dirs, not by the lookup.)
         """
-        resume = await _resume_if_checkpointed(eval_checkpoints_dir, id, epoch)
-        if resume is not None:
-            return resume
         if (
             sample is not None
             and sample.error is not None
@@ -2711,14 +2833,8 @@ def eval_log_sample_source(
             return PreviousError(sample=sample)
         return None
 
-    # take care of no log or no samples in log. Note we still proceed when
-    # in-memory samples and `eval_log_info` are both absent if a
-    # `eval_checkpoints_dir` is available — the prior eval may have been
-    # killed before writing any sample, and on-disk checkpoint files
-    # can still drive resume detection in `read_from_memory` below.
+    # take care of no log at all
     if not eval_log:
-        return EvalSampleSource(no_sample_source, no_error_history)
-    elif not eval_log.samples and not eval_log_info and not eval_checkpoints_dir:
         return EvalSampleSource(no_sample_source, no_error_history)
 
     # determine whether all samples in the dataset have ids (if not, then we can't
@@ -2728,6 +2844,10 @@ def eval_log_sample_source(
         next((sample for sample in dataset if sample.id is None), None) is None
     )
 
+    # the stability guards below deliberately withhold `prior_checkpoints_dir`
+    # too: checkpoint resume keys purely on (id, epoch), so unstable ids or a
+    # changed dataset could restore a prior sample's state onto a different
+    # sample
     if (eval_log.eval.dataset.shuffled or dataset.shuffled) and not samples_have_ids:
         py_logger.warning(
             "Unable to re-use samples from retry log file because the dataset was shuffled "
@@ -2741,6 +2861,15 @@ def eval_log_sample_source(
             + f"(log samples {eval_log.eval.dataset.samples}, dataset samples {len(dataset)})"
         )
         return EvalSampleSource(no_sample_source, no_error_history)
+    elif not eval_log.samples and not eval_log_info:
+        # the prior eval may have been killed before writing any sample —
+        # its on-disk checkpoint dirs can still seed the greedy resume copy
+        # and drive per-sample resume detection in `run_sample`
+        return EvalSampleSource(
+            no_sample_source,
+            no_error_history,
+            prior_checkpoints_dir=eval_checkpoints_dir,
+        )
     elif eval_log_info:
         reader: AsyncZipReader | None = None
         prior_entry_names: set[str] | None = None
@@ -2754,7 +2883,7 @@ def eval_log_sample_source(
 
         async def read_from_file(
             id: int | str, epoch: int
-        ) -> EvalSample | ResumeCheckpoint | PreviousError | None:
+        ) -> EvalSample | PreviousError | None:
             nonlocal reader
             if not reader:
                 reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
@@ -2767,10 +2896,10 @@ def eval_log_sample_source(
                 # the log file itself was never written (the prior attempt
                 # failed before its first flush, e.g. an errored log_start()).
                 # Either way there is no prior sample to reuse.
-                return await _resume_if_checkpointed(eval_checkpoints_dir, id, epoch)
+                return None
             if sample.error is None and sample.invalidation is None:
                 return sample
-            return await _resume_or_seed_retry(id, epoch, sample)
+            return _seed_retry(sample)
 
         async def prior_exists_in_file(id: int | str, epoch: int) -> bool:
             """Presence of the prior sample's zip entry, without a body read.
@@ -2829,12 +2958,14 @@ def eval_log_sample_source(
             prior_exists_in_file
             if EvalRecorder.handles_location(eval_log_info.name)
             else _never_prior_exists,
+            prior_checkpoints_dir=eval_checkpoints_dir,
+            reusable_ids=reusable_ids_from_file,
         )
     else:
 
         async def read_from_memory(
             id: int | str, epoch: int
-        ) -> EvalSample | ResumeCheckpoint | PreviousError | None:
+        ) -> EvalSample | PreviousError | None:
             match = next(
                 (
                     sample
@@ -2845,7 +2976,7 @@ def eval_log_sample_source(
             )
             if match is not None and match.error is None and match.invalidation is None:
                 return match
-            return await _resume_or_seed_retry(id, epoch, match)
+            return _seed_retry(match)
 
         memory_error_ids = {
             (sample.id, sample.epoch)
@@ -2856,7 +2987,21 @@ def eval_log_sample_source(
         async def memory_error_history() -> set[tuple[int | str, int]]:
             return memory_error_ids
 
-        return EvalSampleSource(read_from_memory, memory_error_history)
+        memory_reusable_ids = {
+            (sample.id, sample.epoch)
+            for sample in (eval_log.samples or [])
+            if sample.error is None and sample.invalidation is None
+        }
+
+        async def memory_reusable() -> set[tuple[int | str, int]]:
+            return memory_reusable_ids
+
+        return EvalSampleSource(
+            read_from_memory,
+            memory_error_history,
+            prior_checkpoints_dir=eval_checkpoints_dir,
+            reusable_ids=memory_reusable,
+        )
 
 
 def create_sample_semaphore(

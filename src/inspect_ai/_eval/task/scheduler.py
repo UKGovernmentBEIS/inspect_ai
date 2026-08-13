@@ -284,21 +284,20 @@ class SampleRequeue:
     async def checkpoint_available(self, sample_id: str | int, epoch: int) -> bool:
         """Whether the re-run would resume from an on-disk checkpoint.
 
-        Uses the same marker-following resolution as the re-run itself
+        Uses the same chain-walking resolution as the re-run itself
         (`_resume_if_checkpointed`), so the answer matches what the
         requeue will actually do — including resuming through a torn
-        hydration's resume-source marker.
+        copy's resume-source marker or the eval-dir retry chain.
         """
         if self._checkpoints_dir is None:
             return False
         from inspect_ai.util._checkpoint._layout import (
-            resolve_resumable_sample_dir,
-            sample_checkpoints_dir,
+            resolve_resumable_sample_dir_in_chain,
         )
 
         return (
-            await resolve_resumable_sample_dir(
-                sample_checkpoints_dir(self._checkpoints_dir, sample_id, epoch)
+            await resolve_resumable_sample_dir_in_chain(
+                self._checkpoints_dir, sample_id, epoch
             )
             is not None
         )

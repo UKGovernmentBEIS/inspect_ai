@@ -1,13 +1,15 @@
-"""Harness: resume an eval, then SIGINT it inside hydration's copy window.
+"""Harness: resume an eval, then SIGINT it inside the resume copy window.
 
-Run as a script by the interrupted-hydration e2e test::
+Run as a script by the interrupted-resume e2e test::
 
     python hydrate_interrupt_harness.py <log_dir> <retry_from>
 
 Reuses ``resume_kill_harness``'s task/model registrations and wraps
-``hydrate._fs_copy_repo`` so a real ``SIGINT`` (what Ctrl-C delivers)
-lands *while a repo copy is in flight* — after hydration's marker
-write, before the checkpoint files that would commit the new dir.
+``_resume_copy._fs_copy_repo`` so a real ``SIGINT`` (what Ctrl-C
+delivers) lands *while a repo copy is in flight* — after the copy's
+marker writes, before the checkpoint files that would commit the new
+dir. The greedy startup copy (``copy_resume_payloads``) is the first
+caller, so the interrupt lands there, before any sample runs.
 
 The wrapped first copy sends the signal and then parks instead of
 copying. Parking is what pins the interrupt inside the window: under
@@ -28,10 +30,10 @@ import sys
 
 import anyio
 
-import inspect_ai.util._checkpoint.hydrate as hydrate
+import inspect_ai.util._checkpoint._resume_copy as resume_copy
 from checkpoint.resume_kill_harness import run_eval
 
-_original_fs_copy_repo = hydrate._fs_copy_repo
+_original_fs_copy_repo = resume_copy._fs_copy_repo
 _fired = False
 
 
@@ -56,7 +58,7 @@ HOOK_NEVER_FIRED_EXIT_CODE = 17
 
 
 def main() -> None:
-    hydrate._fs_copy_repo = _interrupting_fs_copy_repo
+    resume_copy._fs_copy_repo = _interrupting_fs_copy_repo
     try:
         run_eval(sys.argv[1], sys.argv[2])
     finally:

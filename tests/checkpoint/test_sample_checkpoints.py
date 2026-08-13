@@ -12,6 +12,7 @@ from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     resolve_resumable_sample_dir,
+    resolve_resumable_sample_dir_in_chain,
     sample_checkpoints_dir,
     scan_latest_committed_checkpoint,
     write_checkpoint_file,
@@ -356,3 +357,60 @@ async def test_resolve_bails_on_marker_cycle(tmp_path: Path) -> None:
     await write_resume_source_marker(d2, d1)
 
     assert await resolve_resumable_sample_dir(d1) is None
+
+
+async def test_resolve_in_chain_walks_eval_markers(tmp_path: Path) -> None:
+    """A sample with no per-sample trail resolves via the eval-dir chain.
+
+    The nearest attempt's eval dir has neither a sample dir nor a
+    per-sample marker for this sample (its greedy copy skipped it, or
+    the sample was fed in mid-run) — the eval dir's permanent
+    resume-source marker leads one attempt back, where the payload is.
+    """
+    old_eval = str(tmp_path / "a.checkpoints")
+    old_sample = await ensure_sample_checkpoints_dir(old_eval, "s", 0)
+    await write_checkpoint_file(
+        sample_checkpoints_dir=old_sample,
+        checkpoint=_checkpoint(
+            checkpoint_id=1, trigger="turn", turn=1, host=_info("snap-1")
+        ),
+    )
+    new_eval = str(tmp_path / "b.checkpoints")
+    Path(new_eval).mkdir()
+    await write_resume_source_marker(new_eval, old_eval)
+
+    resolved = await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0)
+
+    assert resolved is not None
+    assert resolved.sample_dir == old_sample
+
+
+async def test_resolve_in_chain_prefers_nearest_attempt(tmp_path: Path) -> None:
+    """The chain stops at the first attempt holding the sample's payload."""
+    old_eval = str(tmp_path / "a.checkpoints")
+    await _dir_with_checkpoint(tmp_path, "a")
+    new_eval = str(tmp_path / "b.checkpoints")
+    new_sample = await ensure_sample_checkpoints_dir(new_eval, "s", 0)
+    await write_checkpoint_file(
+        sample_checkpoints_dir=new_sample,
+        checkpoint=_checkpoint(
+            checkpoint_id=2, trigger="turn", turn=2, host=_info("snap-2")
+        ),
+    )
+    await write_resume_source_marker(new_eval, old_eval)
+
+    resolved = await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0)
+
+    assert resolved is not None
+    assert resolved.sample_dir == new_sample
+    assert resolved.checkpoint.checkpoint_id == 2
+
+
+async def test_resolve_in_chain_none_when_chain_exhausted(tmp_path: Path) -> None:
+    old_eval = str(tmp_path / "a.checkpoints")
+    Path(old_eval).mkdir()
+    new_eval = str(tmp_path / "b.checkpoints")
+    Path(new_eval).mkdir()
+    await write_resume_source_marker(new_eval, old_eval)
+
+    assert await resolve_resumable_sample_dir_in_chain(new_eval, "s", 0) is None
