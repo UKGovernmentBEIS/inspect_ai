@@ -830,14 +830,17 @@ async def test_streamed_sample_entry_relog_supersedes_with_no_warning(
     """A re-logged (id, epoch) supersedes cleanly with no zipfile warning."""
     recorder, spec = await _start_eval_recorder(tmp_path)
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         with _history(tmp_path, name="h1") as history:
             await recorder.log_sample_streaming(
                 spec, _sample().model_copy(update={"target": "stale"}), history
             )
         with _history(tmp_path, name="h2") as history:
             await recorder.log_sample_streaming(spec, _sample(), history)
+    # scoped to zipfile's duplicate-member warning: promoting *all* warnings
+    # to errors would fail on unrelated third-party deprecations
+    assert not [w for w in caught if "Duplicate name" in str(w.message)]
 
     await _finish_eval(recorder, spec)
     log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
