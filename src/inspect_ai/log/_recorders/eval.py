@@ -69,6 +69,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from ._stream_write import (
+    BinaryWriteStream,
     write_events_data_field,
     write_json_array_field,
     write_json_object_field,
@@ -1184,7 +1185,9 @@ class ZipLogFile:
             )
 
     @contextmanager
-    def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
+    def _zip_open_write(
+        self, filename: str
+    ) -> Generator[BinaryWriteStream, None, None]:
         """Open a ZIP entry for streaming writes.
 
         Returns a writable binary stream. The caller writes raw bytes

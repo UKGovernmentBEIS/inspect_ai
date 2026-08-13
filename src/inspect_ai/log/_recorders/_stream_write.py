@@ -8,7 +8,7 @@ jsonable tree + byte blob.
 
 import json
 from collections.abc import Mapping, Sequence
-from typing import IO, Any
+from typing import Protocol
 
 import anyio.lowlevel
 
@@ -23,8 +23,18 @@ knob: any positive value produces identical JSON.
 """
 
 
+class BinaryWriteStream(Protocol):
+    """Write-only binary sink.
+
+    A zip member write handle (``zipfile._ZipWriteFile``) raises on
+    read/seek/tell, so ``IO[bytes]`` would overpromise what callees may do.
+    """
+
+    def write(self, data: bytes, /) -> int: ...
+
+
 def write_json_field(
-    stream: IO[bytes], name: str, value: object, comma: bool = False
+    stream: BinaryWriteStream, name: str, value: object, *, comma: bool = False
 ) -> None:
     """Write a single JSON field (``"name": value``) to a binary stream.
 
@@ -42,9 +52,9 @@ def write_json_field(
 
 
 async def write_json_array_field(
-    stream: IO[bytes],
+    stream: BinaryWriteStream,
     name: str,
-    items: Sequence[Any],
+    items: Sequence[object],
     *,
     comma: bool = False,
     chunk_size: int = JSON_STREAM_CHUNK,
@@ -71,9 +81,9 @@ async def write_json_array_field(
 
 
 async def write_json_object_field(
-    stream: IO[bytes],
+    stream: BinaryWriteStream,
     name: str,
-    mapping: Mapping[str, Any],
+    mapping: Mapping[str, object],
     *,
     comma: bool = False,
     chunk_size: int = JSON_STREAM_CHUNK,
@@ -95,8 +105,8 @@ async def write_json_object_field(
 
 
 async def write_events_data_field(
-    stream: IO[bytes],
-    events_data: Mapping[str, Any],
+    stream: BinaryWriteStream,
+    events_data: Mapping[str, object],
     *,
     comma: bool = False,
     chunk_size: int = JSON_STREAM_CHUNK,
@@ -107,11 +117,16 @@ async def write_events_data_field(
     ``EventsData`` cannot be silently dropped (pool refs are positional, so a
     dropped pool corrupts reads instead of failing cleanly), and so the caller
     never owns the field's inner braces.
+
+    The value type is ``object`` rather than ``Sequence[object]`` because mypy
+    accepts a TypedDict (``EventsData``, the real caller's type) only against
+    ``Mapping[str, object]``; the isinstance assert restores the sequence type.
     """
     if comma:
         stream.write(b",")
     stream.write(b'"events_data":{')
     for index, (name, items) in enumerate(events_data.items()):
+        assert isinstance(items, Sequence)
         await write_json_array_field(
             stream, name, items, comma=index > 0, chunk_size=chunk_size
         )
