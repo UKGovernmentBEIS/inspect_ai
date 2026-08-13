@@ -174,7 +174,7 @@ class ScoreTracker(Hooks):
         record(data.sample_id, data.sample.scores)
 ```
 
-This is a permission, not a guarantee: it allows the framework to deliver a sample with empty `events` and `attachments` and `timelines` set to `None`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. A hook that overrides `needs_full_sample()` to return `False` must therefore tolerate both forms.
+This is a permission, not a guarantee: it allows the framework to deliver a sample with empty `events` and `attachments` and `timelines` set to `None`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. A hook that overrides `needs_full_sample()` to return `False` must therefore tolerate both forms. The [mlflow_tracking.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/examples/hooks/mlflow_tracking.py) example opts out this way.
 
 ## Requiring Hooks
 
