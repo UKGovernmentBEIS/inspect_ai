@@ -641,9 +641,17 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
     assert params["extra_body"]["reasoning"]["effort"] == expected
 
 
-# -- Grok mapping (the case-statement was buggy; verify the fix preserves behavior) --
+# -- Grok mapping --
+
+# xhigh/max pass through as "xhigh" for grok-4-or-later variants: xhigh is a
+# real effort level from grok-4.6, and xAI documents that grok-4-family models
+# without xhigh support (e.g. grok-4.5) treat it as high, so passing it
+# through preserves user intent on models that honor it. Requires xai_sdk >=
+# 1.18 (pinned in requirements-dev.txt); older SDKs clamp to "high" (covered
+# by test_grok_xhigh_clamped_on_older_sdk below).
 
 
+@pytest.mark.parametrize("model_name", ["grok-4.3", "grok-4.5", "grok-4.6"])
 @pytest.mark.parametrize(
     "effort,expected",
     [
@@ -651,48 +659,44 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
         ("low", "low"),
         ("medium", "medium"),
         ("high", "high"),
-        ("xhigh", "high"),
-        ("max", "high"),
+        ("xhigh", "xhigh"),
+        ("max", "xhigh"),
     ],
 )
-def test_grok_effort_mapping(effort, expected) -> None:
+def test_grok_effort_mapping(model_name, effort, expected) -> None:
     from inspect_ai.model._providers.grok import GrokAPI
 
-    # Use grok-4.3 (a variant that supports reasoning_effort) — the original
-    # grok-4 reasons but rejects the parameter.
-    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
-    config = GenerateConfig(reasoning_effort=effort)
-    gconfig: dict[str, object] = {}
-    if config.reasoning_effort is not None and (
-        api.is_grok_3_mini() or (api.is_grok_4() and not api.is_grok_4_original())
-    ):
-        match config.reasoning_effort:
-            case "minimal" | "low":
-                gconfig["reasoning_effort"] = "low"
-            case "medium":
-                gconfig["reasoning_effort"] = "medium"
-            case "high" | "xhigh" | "max":
-                gconfig["reasoning_effort"] = "high"
-    assert gconfig.get("reasoning_effort") == expected
-
-
-@pytest.mark.parametrize(
-    "effort,expected",
-    [
-        ("minimal", "low"),
-        ("low", "low"),
-        ("medium", "medium"),
-        ("high", "high"),
-        ("xhigh", "high"),
-        ("max", "high"),
-    ],
-)
-def test_grok_4_5_effort_mapping(effort, expected) -> None:
-    from inspect_ai.model._providers.grok import GrokAPI
-
-    api = GrokAPI(model_name="grok-4.5", api_key="test-key")
+    api = GrokAPI(model_name=model_name, api_key="test-key")
     gconfig = api._grok_params(GenerateConfig(reasoning_effort=effort))
     assert gconfig.get("reasoning_effort") == expected
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("low", "low"),
+        ("high", "high"),
+        # grok-3-mini documents only low/high effort; xhigh/max clamp to high
+        ("xhigh", "high"),
+        ("max", "high"),
+    ],
+)
+def test_grok_3_mini_xhigh_clamped(effort, expected) -> None:
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-3-mini", api_key="test-key")
+    gconfig = api._grok_params(GenerateConfig(reasoning_effort=effort))
+    assert gconfig.get("reasoning_effort") == expected
+
+
+def test_grok_xhigh_clamped_on_older_sdk(monkeypatch) -> None:
+    """SDKs predating the EFFORT_XHIGH enum value (< 1.18) clamp to high."""
+    import inspect_ai.model._providers.grok as grok_module
+
+    monkeypatch.setattr(grok_module, "_sdk_supports_xhigh_effort", lambda: False)
+    api = grok_module.GrokAPI(model_name="grok-4.6", api_key="test-key")
+    gconfig = api._grok_params(GenerateConfig(reasoning_effort="xhigh"))
+    assert gconfig.get("reasoning_effort") == "high"
 
 
 def test_grok_4_original_excluded_from_reasoning_effort():
@@ -702,7 +706,13 @@ def test_grok_4_original_excluded_from_reasoning_effort():
     for name in ("grok-4", "grok-4-latest", "grok-4-0709"):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert api.is_grok_4_original(), f"{name} should be detected as original"
-    # grok-4.3 / 4-fast / 4.20 / 4.5 are NOT the original
-    for name in ("grok-4.3", "grok-4-fast-reasoning", "grok-4.20", "grok-4.5"):
+    # grok-4.3 / 4-fast / 4.20 / 4.5 / 4.6 are NOT the original
+    for name in (
+        "grok-4.3",
+        "grok-4-fast-reasoning",
+        "grok-4.20",
+        "grok-4.5",
+        "grok-4.6",
+    ):
         api = GrokAPI(model_name=name, api_key="test-key")
         assert not api.is_grok_4_original(), f"{name} must not be original"

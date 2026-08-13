@@ -89,6 +89,15 @@ _NON_GENERATIVE_TOKENS = (
 )
 
 
+def _sdk_supports_xhigh_effort() -> bool:
+    """Whether the installed xai_sdk can express reasoning_effort="xhigh".
+
+    The gRPC ReasoningEffort enum gained EFFORT_XHIGH in xai_sdk 1.18
+    (shipped alongside grok-4.6); older SDKs reject "xhigh" client-side.
+    """
+    return "EFFORT_XHIGH" in chat_pb2.ReasoningEffort.keys()
+
+
 class GrokAPI(ModelAPI):
     def __init__(
         self,
@@ -98,6 +107,7 @@ class GrokAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         streaming: bool = False,
         disable_retry: bool = False,
+        service_tier: str | None = None,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -134,6 +144,9 @@ class GrokAPI(ModelAPI):
         # save model args
         self.streaming = streaming
         self.disable_retry = disable_retry
+        # xAI Priority Processing ("priority", 2x token rates) shipped with
+        # grok-4.6. https://docs.x.ai/developers/grok-4-6
+        self.service_tier = service_tier
         if self.disable_retry:
             # retrying may be disabled so we can accurately track waiting time
             # (challenging to track GRPC internal retries w/o monkey patching).
@@ -392,7 +405,7 @@ class GrokAPI(ModelAPI):
             self.is_at_least_grok_4()
             and _get_model_info_direct(self.canonical_name()) is None
         ):
-            return "grok/grok-4.5"
+            return "grok/grok-4.6"
         return super().input_tokens_name()
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
@@ -488,7 +501,7 @@ class GrokAPI(ModelAPI):
             gconfig["response_format"] = "json_object"
 
         # grok-3-mini and grok-4-or-later variants (4-fast, 4.1, 4.20, 4.3,
-        # 4.5, plus future/codename models) accept reasoning_effort. The
+        # 4.5, 4.6, plus future/codename models) accept reasoning_effort. The
         # *original* grok-4 reasons but rejects the parameter and must be
         # excluded.
         if config.reasoning_effort is not None and (
@@ -500,12 +513,24 @@ class GrokAPI(ModelAPI):
                     gconfig["reasoning_effort"] = "low"
                 case "medium":
                     gconfig["reasoning_effort"] = "medium"
-                case "high" | "xhigh" | "max":
-                    # xAI documents `xhigh` for grok-4.20-multi-agent (there it
-                    # sets agent count), but the xai_sdk gRPC ReasoningEffort
-                    # enum tops out at HIGH (as of 1.17), so `high` is the
-                    # strongest expressible request on this transport.
+                case "high":
                     gconfig["reasoning_effort"] = "high"
+                case "xhigh" | "max":
+                    # xhigh became a real effort level with grok-4.6 (xai_sdk
+                    # 1.18 added the gRPC enum value). xAI documents that
+                    # grok-4-family models without xhigh support (e.g.
+                    # grok-4.5) treat it as high, so pass it through and let
+                    # the service downgrade. grok-3-mini documents only
+                    # low/high, so keep the high clamp there — likewise on
+                    # older SDKs whose enum tops out at HIGH.
+                    # https://docs.x.ai/developers/model-capabilities/text/reasoning
+                    if _sdk_supports_xhigh_effort() and not self.is_grok_3_mini():
+                        gconfig["reasoning_effort"] = "xhigh"
+                    else:
+                        gconfig["reasoning_effort"] = "high"
+
+        if self.service_tier is not None:
+            gconfig["service_tier"] = self.service_tier
 
         # return encrypted reasoning blocks
         gconfig["use_encrypted_content"] = True

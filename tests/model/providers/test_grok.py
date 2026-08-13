@@ -35,6 +35,18 @@ async def test_grok_api() -> None:
     assert len(response.completion) >= 1
 
 
+def test_grok_service_tier_model_arg() -> None:
+    """The service_tier model arg is passed through to request params."""
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.6", api_key="test-key", service_tier="priority")
+    assert api._grok_params(GenerateConfig())["service_tier"] == "priority"
+
+    # omitted by default (the service default tier applies)
+    default_api = GrokAPI(model_name="grok-4.6", api_key="test-key")
+    assert "service_tier" not in default_api._grok_params(GenerateConfig())
+
+
 class _AlarmTimeout(Exception):
     """Raised when the smoke test alarm times out."""
 
