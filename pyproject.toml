@@ -146,6 +146,13 @@ disallow_untyped_decorators = true
 extra_checks = true
 disable_error_code = "unused-ignore"
 
+[[tool.mypy.overrides]]
+# httpx2 is installed only alongside openai >= 3; when an openai 2.x
+# environment is type-checked it doesn't exist, so resolve it as Any there
+# (see inspect_ai/model/_openai_httpx.py)
+module = ["httpx2"]
+ignore_missing_imports = true
+
 [tool.check-wheel-contents]
 ignore = ["W002", "W009"]
 

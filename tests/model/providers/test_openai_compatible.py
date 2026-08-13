@@ -19,6 +19,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._openai_httpx import openai_httpx
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 from inspect_ai.model._providers.together import TogetherAIAPI
 from inspect_ai.tool import ToolInfo
@@ -137,8 +138,8 @@ def test_handle_bad_request(
     )
     error = APIStatusError(
         message=message,
-        response=httpx.Response(
-            request=httpx.Request(method="POST", url="https://example.com"),
+        response=openai_httpx.Response(
+            request=openai_httpx.Request(method="POST", url="https://example.com"),
             status_code=status_code,
             json={"message": message},
         ),
@@ -222,8 +223,8 @@ def test_handle_bad_request_content_filter(
     )
     error = APIStatusError(
         message=body["message"],
-        response=httpx.Response(
-            request=httpx.Request(method="POST", url="https://example.com"),
+        response=openai_httpx.Response(
+            request=openai_httpx.Request(method="POST", url="https://example.com"),
             status_code=400,
             json=body,
         ),

@@ -1,6 +1,5 @@
 from typing import IO, Any, Generic, Literal, TypeVar
 
-import httpx
 import pydantic
 from openai import AsyncOpenAI
 from openai._types import NOT_GIVEN
@@ -11,6 +10,7 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict, override
 
 from inspect_ai.model._generate_config import BatchConfig
+from inspect_ai.model._openai_httpx import openai_httpx
 from inspect_ai.model._retry import ModelRetryConfig
 
 from .util.batch import (
@@ -150,7 +150,9 @@ class OpenAIBatcher(FileBatcher[ResponseT, CompletedBatchInfo], Generic[Response
         else:
             return request_id, (
                 self._openai_client._make_status_error_from_response(  # pyright: ignore[reportPrivateUsage]
-                    httpx.Response(status_code=error["code"], text=error["message"])
+                    openai_httpx.Response(
+                        status_code=error["code"], text=error["message"]
+                    )
                 )
             )
 

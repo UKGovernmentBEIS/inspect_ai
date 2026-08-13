@@ -1,9 +1,8 @@
 import re
 import time
 from logging import getLogger
-from typing import Any, Literal, Mapping, NamedTuple, cast
+from typing import Any, Callable, Literal, Mapping, NamedTuple, Protocol, cast
 
-import httpx
 from shortuuid import uuid
 
 from inspect_ai._util.constants import HTTP
@@ -278,21 +277,52 @@ class ConverseHooks(HttpHooks):
     USER_AGENT_PREFIX = "ins/rid#"
 
 
+# Structural stand-ins for httpx types, covering only what the hooks touch.
+# The openai SDK is built on legacy `httpx` (openai 2.x) or `httpx2`
+# (openai 3.x); both flavors (and the real httpx types other SDKs hand us)
+# satisfy these protocols.
+class HttpxRequestLike(Protocol):
+    @property
+    def method(self) -> str: ...
+    @property
+    def url(self) -> object: ...
+    @property
+    def headers(self) -> Mapping[str, str]: ...
+
+
+class HttpxResponseLike(Protocol):
+    @property
+    def request(self) -> HttpxRequestLike: ...
+    @property
+    def status_code(self) -> int: ...
+    @property
+    def http_version(self) -> str: ...
+    @property
+    def reason_phrase(self) -> str: ...
+    @property
+    def headers(self) -> Mapping[str, str]: ...
+
+
+class HttpxClientLike(Protocol):
+    @property
+    def event_hooks(self) -> dict[str, list[Callable[..., Any]]]: ...
+
+
 class HttpxHooks(HttpHooks):
-    def __init__(self, client: httpx.AsyncClient):
+    def __init__(self, client: HttpxClientLike):
         super().__init__()
 
         # install hooks
         client.event_hooks["request"].append(self.request_hook)
         client.event_hooks["response"].append(self.response_hook)
 
-    async def request_hook(self, request: httpx.Request) -> None:
+    async def request_hook(self, request: HttpxRequestLike) -> None:
         # update the last request time for this request id (as there could be retries)
         request_id = request.headers.get(self.REQUEST_ID_HEADER, None)
         if request_id:
             self.update_request_time(request_id)
 
-    async def response_hook(self, response: httpx.Response) -> None:
+    async def response_hook(self, response: HttpxResponseLike) -> None:
         message = f'{response.request.method} {response.request.url} "{response.http_version} {response.status_code} {response.reason_phrase}" '
         logger.log(HTTP, message)
         # record status + Retry-After / x-ratelimit-reset-* for next retry classification

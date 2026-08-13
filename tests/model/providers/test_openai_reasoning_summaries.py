@@ -7,10 +7,10 @@ the OpenAI SDK would produce.
 
 from __future__ import annotations
 
-import httpx
 import pytest
 from openai import APITimeoutError, BadRequestError
 
+from inspect_ai.model._openai_httpx import openai_httpx
 from inspect_ai.model._providers.openai import OpenAIAPI
 
 
@@ -20,8 +20,8 @@ def _make_api() -> OpenAIAPI:
     return OpenAIAPI(model_name="gpt-5", api_key="test-key", responses_api=True)
 
 
-def _request() -> httpx.Request:
-    return httpx.Request("POST", "https://api.openai.com/v1/responses")
+def _request() -> openai_httpx.Request:
+    return openai_httpx.Request("POST", "https://api.openai.com/v1/responses")
 
 
 @pytest.mark.anyio
@@ -58,7 +58,7 @@ async def test_reasoning_summaries_unsupported_error_cached(
     api = _make_api()
     try:
         calls = {"n": 0}
-        response = httpx.Response(status_code=400, request=_request())
+        response = openai_httpx.Response(status_code=400, request=_request())
 
         async def unsupported(**kwargs: object) -> object:
             calls["n"] += 1

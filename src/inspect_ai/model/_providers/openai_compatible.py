@@ -2,7 +2,6 @@ import os
 from logging import getLogger
 from typing import Any, cast
 
-import httpx
 from openai import (
     APIStatusError,
     AsyncOpenAI,
@@ -22,6 +21,7 @@ from typing_extensions import override
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._openai import chat_choices_from_openai, openai_classify_retry
+from inspect_ai.model._openai_httpx import openai_httpx
 from inspect_ai.model._openai_responses import ResponsesModelInfo
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.chatapi import (
@@ -150,7 +150,7 @@ class OpenAICompatibleAPI(ModelAPI):
     def _create_http_client(self) -> OpenAIAsyncHttpxClient:
         if self.client_timeout is not None:
             return OpenAIAsyncHttpxClient(
-                timeout=httpx.Timeout(timeout=self.client_timeout, connect=5.0)
+                timeout=openai_httpx.Timeout(timeout=self.client_timeout, connect=5.0)
             )
         return OpenAIAsyncHttpxClient()
 

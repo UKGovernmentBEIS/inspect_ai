@@ -29,6 +29,7 @@ from inspect_ai.model._openai_convert import (
     messages_from_openai,
     messages_to_openai,
 )
+from inspect_ai.model._openai_httpx import openai_httpx
 from inspect_ai.model._providers.providers import (
     validate_anthropic_client,
     validate_openai_client,
@@ -294,7 +295,7 @@ def init_openai_request_patch() -> None:
         if not raw_response:
             return result
 
-        response = httpx.Response(
+        response = openai_httpx.Response(
             status_code=200,
             headers={"content-type": "application/json"},
             content=result.model_dump_json().encode(),

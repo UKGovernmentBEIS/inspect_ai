@@ -2,10 +2,10 @@ import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import httpx
 import pytest
 
 from inspect_ai.model._openai import OpenAIAsyncHttpxClient
+from inspect_ai.model._openai_httpx import openai_httpx
 
 
 class _EchoHandler(BaseHTTPRequestHandler):
@@ -42,5 +42,5 @@ async def test_openai_async_client_respects_http_proxy(monkeypatch: pytest.Monke
 
     with _http_server() as port:
         async with OpenAIAsyncHttpxClient() as client:
-            with pytest.raises(httpx.TransportError):
+            with pytest.raises(openai_httpx.TransportError):
                 await client.get(f"http://127.0.0.1:{port}/")

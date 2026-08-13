@@ -33,10 +33,10 @@ async def test_cloudflare_empty_assistant_message() -> None:
 @skip_if_no_openai_package
 def test_cloudflare_retries_503_as_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     """503 must be retried as a rate limit (scales down adaptive concurrency)."""
-    import httpx
     from openai import InternalServerError
 
     from inspect_ai.model._model import RetryDecision
+    from inspect_ai.model._openai_httpx import openai_httpx
     from inspect_ai.model._providers.cloudflare import CloudFlareAPI
 
     monkeypatch.setenv("CLOUDFLARE_API_KEY", "test-key")
@@ -44,10 +44,10 @@ def test_cloudflare_retries_503_as_rate_limit(monkeypatch: pytest.MonkeyPatch) -
     api = CloudFlareAPI(model_name="moonshotai/kimi-k3")
 
     def sdk_error(status_code: int, headers: dict[str, str] | None = None):
-        response = httpx.Response(
+        response = openai_httpx.Response(
             status_code=status_code,
             headers=headers,
-            request=httpx.Request("POST", "https://example/v1/chat/completions"),
+            request=openai_httpx.Request("POST", "https://example/v1/chat/completions"),
         )
         return InternalServerError("Server Error", response=response, body=None)
 
