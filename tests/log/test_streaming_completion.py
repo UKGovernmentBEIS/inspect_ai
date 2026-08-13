@@ -4,11 +4,13 @@ import warnings
 from collections.abc import Awaitable, Callable, Generator, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 import pytest
+from pydantic import JsonValue
 from test_helpers.task_logger import TaskLoggerShim
+from typing_extensions import assert_never
 
 from inspect_ai import SampleSource, Task, TaskSource, eval
 from inspect_ai._eval.task.run import create_eval_sample, log_sample
@@ -36,14 +38,20 @@ from inspect_ai.log._log import (
     EvalStats,
 )
 from inspect_ai.log._recorders._stream_write import (
+    JSON_STREAM_CHUNK,
+    BinaryWriteStream,
+)
+from inspect_ai.log._recorders._stream_write import (
     write_json_array_field as _write_json_array_field,
 )
 from inspect_ai.log._recorders._stream_write import (
     write_json_object_field as _write_json_object_field,
 )
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer.history import SampleHistory
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
+from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import (
@@ -299,7 +307,9 @@ def _eval_spec() -> EvalSpec:
     )
 
 
-def _history(tmp_path, name: str = "test"):
+def _history(
+    tmp_path: Path, name: str = "test"
+) -> contextlib.AbstractContextManager[SampleHistory]:
     db = SampleBufferDatabase(str(tmp_path / f"{name}.eval"), db_dir=tmp_path)
     db.start_sample(_sample().summary())
     db.log_events(
@@ -308,7 +318,9 @@ def _history(tmp_path, name: str = "test"):
     return db.open_sample_history("sample", 1)
 
 
-def _history_for(tmp_path: Path, sample: EvalSample, name: str):
+def _history_for(
+    tmp_path: Path, sample: EvalSample, name: str
+) -> contextlib.AbstractContextManager[SampleHistory]:
     db = SampleBufferDatabase(str(tmp_path / f"{name}.eval"), db_dir=tmp_path)
     db.start_sample(sample.summary())
     db.log_events(
@@ -321,7 +333,7 @@ def _history_for(tmp_path: Path, sample: EvalSample, name: str):
     return db.open_sample_history(sample.id, sample.epoch)
 
 
-def _model_with_call(uuid: str, content: str, call_msgs: list[Any]) -> ModelEvent:
+def _model_with_call(uuid: str, content: str, call_msgs: list[JsonValue]) -> ModelEvent:
     """A ModelEvent whose ``call`` request populates the call pool.
 
     ``condense_model_event_with_indices`` pools ``call.request["messages"]``
@@ -610,7 +622,7 @@ async def test_streamed_sample_entry_round_trips(tmp_path: Path) -> None:
     events: list[ModelEvent | InfoEvent] = [
         _model(f"event-{i}", _long_content()) for i in range(150)
     ]
-    call_msgs = [{"role": "user", "content": "call-pool message"}]
+    call_msgs: list[JsonValue] = [{"role": "user", "content": "call-pool message"}]
     events[-1] = _model_with_call("event-149", _long_content(), call_msgs)
 
     sample = _sample().model_copy(
@@ -689,11 +701,22 @@ async def test_buffer_sample_streaming_shields_cancellation_mid_write(
     original_write_json_array_field = _write_json_array_field
     cancelled = {"done": False}
 
-    async def cancel_on_first_call(*args: Any, **kwargs: Any) -> None:
+    # declared with the real signature (not *args/**kwargs) so drift between
+    # the shim and write_json_array_field is a type error, not a silent pass
+    async def cancel_on_first_call(
+        stream: BinaryWriteStream,
+        name: str,
+        items: Sequence[object],
+        *,
+        comma: bool = False,
+        chunk_size: int = JSON_STREAM_CHUNK,
+    ) -> None:
         if not cancelled["done"]:
             cancelled["done"] = True
             scope.cancel()
-        await original_write_json_array_field(*args, **kwargs)
+        await original_write_json_array_field(
+            stream, name, items, comma=comma, chunk_size=chunk_size
+        )
 
     with anyio.CancelScope() as scope:
         monkeypatch.setattr(eval_module, "write_json_array_field", cancel_on_first_call)
@@ -876,7 +899,18 @@ def _emitting_solver(n: int = 4) -> Solver:
     return emit_events()
 
 
-def _drive_evicted_eval(consumer: str, log_dir: str) -> None:
+Consumer = Literal[
+    "none",
+    "hook_full",
+    "hook_opted_out",
+    "hook_disabled",
+    "scanner",
+    "task_source",
+    "sample_feed",
+]
+
+
+def _drive_evicted_eval(consumer: Consumer, log_dir: str) -> None:
     """Run a one-sample eval whose transcript is bounded-evicted.
 
     `consumer` selects which finalization consumer (if any) is wired up,
@@ -927,8 +961,15 @@ def _drive_evicted_eval(consumer: str, log_dir: str) -> None:
             log_dir=log_dir,
             display="none",
         )
-    else:
+    elif (
+        consumer == "none"
+        or consumer == "hook_full"
+        or consumer == "hook_opted_out"
+        or consumer == "hook_disabled"
+    ):
         eval(task, model="mockllm/model", log_dir=log_dir, display="none")
+    else:
+        assert_never(consumer)
 
 
 @pytest.mark.parametrize(
@@ -944,7 +985,7 @@ def _drive_evicted_eval(consumer: str, log_dir: str) -> None:
     ],
 )
 def test_materialization_is_conditional(
-    consumer: str,
+    consumer: Consumer,
     expect_materialization: bool,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -964,11 +1005,10 @@ def test_materialization_is_conditional(
     import inspect_ai._eval.task.run as run_module
 
     calls = {"n": 0}
-    original = run_module.materialize_streaming_sample  # type: ignore[attr-defined]
 
-    def counting(sample: EvalSample, history: Any) -> EvalSample:
+    def counting(sample: EvalSample, history: SampleHistory) -> EvalSample:
         calls["n"] += 1
-        return original(sample, history)
+        return materialize_streaming_sample(sample, history)
 
     monkeypatch.setattr(run_module, "materialize_streaming_sample", counting)
     monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 1)
