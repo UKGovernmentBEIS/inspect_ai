@@ -68,7 +68,11 @@ from .._log import (
     sort_samples,
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
-from ._stream_write import write_json_array_field, write_json_object_field
+from ._stream_write import (
+    write_events_data_field,
+    write_json_array_field,
+    write_json_object_field,
+)
 from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
@@ -951,14 +955,8 @@ class ZipLogFile:
                         await write_json_object_field(
                             stream, "attachments", attachments, comma=True
                         )
-                        stream.write(b',"events_data":{')
-                        await write_json_array_field(
-                            stream, "messages", events_data["messages"]
-                        )
-                        await write_json_array_field(
-                            stream, "calls", events_data["calls"], comma=True
-                        )
-                        stream.write(b"}}")
+                        await write_events_data_field(stream, events_data, comma=True)
+                        stream.write(b"}")
                 except BaseException:
                     # the failed write already registered a truncated member,
                     # which would make every sample unreadable (_read_log

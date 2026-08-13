@@ -3,6 +3,7 @@ import json
 
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._recorders._stream_write import (
+    write_events_data_field,
     write_json_array_field,
     write_json_field,
     write_json_object_field,
@@ -47,3 +48,30 @@ async def test_streamed_array_serializes_pydantic_values() -> None:
     assert json.loads(buf.getvalue()) == json.loads(
         to_json_safe({"messages": messages}, indent=None)
     )
+
+
+async def test_streamed_events_data_matches_monolithic_serialization() -> None:
+    events_data = {
+        "messages": [ChatMessageUser(content=f"msg {i}") for i in range(5)],
+        "calls": [{"request": {"messages": [f"call {i}"]}} for i in range(3)],
+    }
+    buf = io.BytesIO()
+    buf.write(b'{"id":"s1"')
+    await write_events_data_field(buf, events_data, comma=True, chunk_size=2)
+    buf.write(b"}")
+
+    expected = b'{"id":"s1","events_data":' + to_json_safe(events_data, indent=None)
+    assert buf.getvalue() == expected + b"}"
+
+
+async def test_streamed_events_data_writes_every_pool() -> None:
+    # a pool added to EventsData must not be silently dropped: events keep
+    # positional refs into it, so a dropped pool corrupts reads
+    events_data = {"messages": [], "calls": [], "futures": [{"x": 1}]}
+    buf = io.BytesIO()
+    buf.write(b"{")
+    await write_events_data_field(buf, events_data)
+    buf.write(b"}")
+    assert json.loads(buf.getvalue()) == {
+        "events_data": {"messages": [], "calls": [], "futures": [{"x": 1}]}
+    }

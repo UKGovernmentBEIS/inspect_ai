@@ -92,3 +92,27 @@ async def write_json_object_field(
         )
         await anyio.lowlevel.checkpoint()
     stream.write(b"}")
+
+
+async def write_events_data_field(
+    stream: IO[bytes],
+    events_data: Mapping[str, Any],
+    *,
+    comma: bool = False,
+    chunk_size: int = JSON_STREAM_CHUNK,
+) -> None:
+    """Write the complete ``"events_data": {...}`` field, one chunked array per pool.
+
+    Iterates the mapping rather than hardcoding pool names so a pool added to
+    ``EventsData`` cannot be silently dropped (pool refs are positional, so a
+    dropped pool corrupts reads instead of failing cleanly), and so the caller
+    never owns the field's inner braces.
+    """
+    if comma:
+        stream.write(b",")
+    stream.write(b'"events_data":{')
+    for index, (name, items) in enumerate(events_data.items()):
+        await write_json_array_field(
+            stream, name, items, comma=index > 0, chunk_size=chunk_size
+        )
+    stream.write(b"}")
