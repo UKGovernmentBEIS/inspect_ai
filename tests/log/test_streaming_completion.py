@@ -10,7 +10,7 @@ import pytest
 from test_helpers.task_logger import TaskLoggerShim
 
 from inspect_ai import SampleSource, Task, TaskSource, eval
-from inspect_ai._eval.task.run import log_sample
+from inspect_ai._eval.task.run import create_eval_sample, log_sample
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
@@ -41,9 +41,15 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.log._transcript import transcript
-from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelCall, ModelOutput
-from inspect_ai.scorer import Score
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+from inspect_ai.model import (
+    ChatMessageUser,
+    GenerateConfig,
+    ModelCall,
+    ModelName,
+    ModelOutput,
+)
+from inspect_ai.scorer import Score, Target
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
@@ -427,6 +433,93 @@ async def test_log_sample_streaming_condenses_core_sample_fields_and_merges_hist
     assert logged_message.content.startswith("attachment://")
     assert event_content in logged.attachments.values()
     assert logged.events_data is None
+
+
+@pytest.mark.anyio
+async def test_log_sample_writes_restored_attachment_content_when_events_reduced(
+    tmp_path: Path,
+) -> None:
+    """Checkpoint-restored attachment content must reach the written log.
+
+    Even on the reduced/evicted finalization path (`needs_events=False`).
+    Simulates a resumed sample the way `_push_host_state`
+    (`inspect_ai/util/_checkpoint/hydrate.py`) does for a real checkpoint
+    resume: `Transcript._extend_restored_events` pushes a condensed event
+    carrying an `attachment://<hash>` ref together with the `{hash:
+    content}` mapping that resolves it. That mapping lives only in the
+    transcript's own attachment store -- the realtime buffer never captured
+    it, since it arrived already condensed rather than as raw content for
+    the buffer's own condenser to hash and store. `create_eval_sample` must
+    seed `EvalSample.attachments` from the transcript unconditionally (not
+    only when `include_events` is set) so the ref still resolves once
+    written, even though the buffer's own history has no content for it.
+    """
+    attachment_hash = "restoredhash"
+    restored_content = _long_content()
+    restored_ref = f"attachment://{attachment_hash}"
+
+    ts = Transcript(bounded=False)
+    ts._extend_restored_events(
+        [InfoEvent(uuid="restored", data={"content": restored_ref})],
+        {attachment_hash: restored_content},
+    )
+    init_transcript(ts)
+
+    eval_sample = create_eval_sample(
+        start_time=None,
+        sample=Sample(id="sample", input="question", target="answer"),
+        # epoch=1 matches the (id, epoch) key `_buffer_db` starts the sample
+        # under below -- `log_sample` looks up the buffer history by this key.
+        state=TaskState(
+            model=ModelName("mockllm/model"),
+            sample_id="sample",
+            epoch=1,
+            input="question",
+            messages=[],
+            target=Target("answer"),
+            output=ModelOutput.from_content("mockllm/model", "answer"),
+        ),
+        scores={},
+        error=None,
+        limit=None,
+        error_retries=[],
+        include_events=False,
+    )
+
+    # The buffer's own history carries the same ref as a short literal
+    # string (as it would if the event were logged already condensed): well
+    # under the buffer's condensing threshold, so its own condenser passes
+    # it through untouched and never hashes/stores content for this ref.
+    # The seed above is the only place the content is available.
+    db = _buffer_db(
+        tmp_path, [InfoEvent(uuid="buffered", data={"content": restored_ref})]
+    )
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    logger = TaskLoggerShim(db)
+    logger.recorder = recorder
+    logger.eval = spec
+    logger.flush_buffer = 1
+    logger.flush_pending = []
+    logger._samples_completed = 0
+
+    await log_sample(
+        eval_sample, logger, log_images=True, from_memory=False, needs_events=False
+    )
+    await _finish_eval(recorder, spec)
+
+    logged_samples = (
+        await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    ).samples
+    assert logged_samples is not None
+    logged = logged_samples[0]
+    logged_event = logged.events[0]
+    assert isinstance(logged_event, InfoEvent)
+    assert isinstance(logged_event.data, dict)
+    assert logged_event.data["content"] == restored_ref
+
+    assert logged.attachments.get(attachment_hash) == restored_content, (
+        "restored attachment content did not reach the written log: dangling ref"
+    )
 
 
 @pytest.mark.anyio
