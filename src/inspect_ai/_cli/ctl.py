@@ -2907,6 +2907,35 @@ def _pause_prefix(*, now: bool, dry_run: bool, target: str = "") -> str:
     return f"{requested} for {target}" if target else requested
 
 
+def _pause_confirmation(
+    *,
+    now: bool,
+    dry_run: bool,
+    target: str = "",
+    body: str,
+    no_new: str,
+    hint_hard: str,
+    hint_soft: str,
+) -> str:
+    """Assemble a pause confirmation from its scope-specific prose.
+
+    Owns the skeleton shared by the three pause scopes (prefix — body;
+    no new X start; trailing hint) so their structure can't drift.
+    ``body`` may contain ``{will}`` placeholders, resolved to would/will
+    here so callers don't need the tense. The hints are appended only
+    for real mutations and carry their own leading punctuation (usually
+    ``". "``; the model scope opens with a parenthetical instead).
+    """
+    will = "would" if dry_run else "will"
+    message = (
+        f"{_pause_prefix(now=now, dry_run=dry_run, target=target)} — "
+        f"{body.format(will=will)}; no new {no_new} {will} start"
+    )
+    if dry_run:
+        return message + "."
+    return message + (hint_hard if now else hint_soft)
+
+
 _PAUSE_ROUTE_MISSING = (
     "This process is running an older inspect without the pause/resume "
     "endpoints; restart the eval to pick up the current version."
@@ -3011,28 +3040,28 @@ def _run_task_pause_resume(
             # `dispatched` counts samples past the gate, including ones still
             # initializing their sandbox (which the listing shows as queued)
             dispatched = int(result.get("dispatched", 0) or 0)
-            will = "would" if dry_run else "will"
             noun = f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
             if now:
                 body = (
-                    f"{noun} {will} hold at "
+                    f"{noun} {{will}} hold at "
                     f"{'its' if dispatched == 1 else 'their'} next model call "
                     f"({_HELD_CAVEAT})"
                 )
             else:
-                body = f"{noun} {will} finish naturally"
-            message = (
-                f"{_pause_prefix(now=now, dry_run=dry_run)} — {body}; "
-                f"no new samples or retry attempts {will} start."
-            )
-            if not dry_run:
-                message += (
-                    " Watch `inspect ctl task list` for the held count;"
-                    " resume with `inspect ctl task resume`."
-                    if now
-                    else " Resume with `inspect ctl task resume`."
+                body = f"{noun} {{will}} finish naturally"
+            click.echo(
+                _pause_confirmation(
+                    now=now,
+                    dry_run=dry_run,
+                    body=body,
+                    no_new="samples or retry attempts",
+                    hint_hard=(
+                        ". Watch `inspect ctl task list` for the held count;"
+                        " resume with `inspect ctl task resume`."
+                    ),
+                    hint_soft=". Resume with `inspect ctl task resume`.",
                 )
-            click.echo(message)
+            )
         elif dry_run:
             click.echo("Would resume — queued samples would dispatch again.")
         else:
@@ -3096,25 +3125,29 @@ def _run_process_pause_resume(
 
     if result.get("changed"):
         if verb == "pause":
-            will = "would" if dry_run else "will"
             body = (
-                f"in-flight samples {will} hold at their next model call "
+                f"in-flight samples {{will}} hold at their next model call "
                 f"({_HELD_CAVEAT})"
                 if now
-                else f"in-flight samples {will} finish"
+                else "in-flight samples {will} finish"
             )
-            message = (
-                f"{_pause_prefix(now=now, dry_run=dry_run, target=f'pid {target.pid}')}"
-                f" — {body}; no new samples, task retries, or eval-set tasks "
-                f"{will} start."
-            )
-            if not dry_run:
-                message += (
-                    " Watch `inspect ctl task list` for "
-                    f"{'the held count' if now else 'quiesced'}; "
-                    "resume with `inspect ctl process resume`."
+            click.echo(
+                _pause_confirmation(
+                    now=now,
+                    dry_run=dry_run,
+                    target=f"pid {target.pid}",
+                    body=body,
+                    no_new="samples, task retries, or eval-set tasks",
+                    hint_hard=(
+                        ". Watch `inspect ctl task list` for the held count; "
+                        "resume with `inspect ctl process resume`."
+                    ),
+                    hint_soft=(
+                        ". Watch `inspect ctl task list` for quiesced; "
+                        "resume with `inspect ctl process resume`."
+                    ),
                 )
-            click.echo(message)
+            )
         elif dry_run:
             click.echo(f"Would resume pid {target.pid}.")
         else:
@@ -3187,7 +3220,6 @@ def _run_model_pause_resume(
             # tasks, which have no row to count
             tasks = int(result.get("tasks", 0) or 0)
             dispatched = int(result.get("dispatched", 0) or 0)
-            will = "would" if dry_run else "will"
             counts = (
                 f"{tasks} running task{'' if tasks == 1 else 's'}, "
                 f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'}"
@@ -3195,27 +3227,29 @@ def _run_model_pause_resume(
             if now:
                 body = (
                     f"{counts}; generate calls to it (role/grader calls "
-                    f"included) {will} hold at their next attempt "
+                    f"included) {{will}} hold at their next attempt "
                     f"({_HELD_CAVEAT})"
                 )
             else:
-                body = f"{counts} {will} finish naturally"
-            message = (
-                f"{_pause_prefix(now=now, dry_run=dry_run, target=model)} — "
-                f"{body}; no new samples, retry attempts, or eval-set tasks "
-                f"of this model {will} start"
-            )
-            if dry_run:
-                message += "."
-            else:
-                message += " (other models keep running)."
-                message += (
-                    " Watch `inspect ctl task list` for held counts;"
-                    " resume with `inspect ctl model resume`."
-                    if now
-                    else " Resume with `inspect ctl model resume`."
+                body = f"{counts} {{will}} finish naturally"
+            click.echo(
+                _pause_confirmation(
+                    now=now,
+                    dry_run=dry_run,
+                    target=model,
+                    body=body,
+                    no_new="samples, retry attempts, or eval-set tasks of this model",
+                    hint_hard=(
+                        " (other models keep running)."
+                        " Watch `inspect ctl task list` for held counts;"
+                        " resume with `inspect ctl model resume`."
+                    ),
+                    hint_soft=(
+                        " (other models keep running)."
+                        " Resume with `inspect ctl model resume`."
+                    ),
                 )
-            click.echo(message)
+            )
         elif dry_run:
             click.echo(f"Would resume {model} — its held work would dispatch again.")
         else:
