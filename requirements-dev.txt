@@ -31,6 +31,8 @@ pytest
 pytest-cov
 pytest-dotenv
 pytest-mock
+# --report-log records per-worker test order for scripts/pytest_bisect.py
+pytest-reportlog
 pytest-textual-snapshot
 pytest-timeout
 pytest-watcher
