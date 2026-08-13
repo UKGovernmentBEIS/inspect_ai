@@ -835,7 +835,10 @@ def _drive_evicted_eval(consumer: str, log_dir: str) -> None:
     ["none", "hook_full", "hook_opted_out", "scanner", "task_source", "sample_feed"],
 )
 def test_materialization_is_conditional(
-    consumer: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    consumer: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    isolated_hooks_registry,
 ) -> None:
     """materialize_streaming_sample runs iff some consumer needs events.
 
@@ -843,6 +846,10 @@ def test_materialization_is_conditional(
     (DEFAULT_RESIDENT_TAIL patched to 1) for each finalization consumer kind,
     and counts calls to materialize_streaming_sample. A plain `def` test:
     `eval()` manages its own event loop and cannot be called from `async def`.
+
+    `isolated_hooks_registry` makes every row deterministic: the negative
+    rows assert that *no* enabled hook needs a full sample, which any
+    installed extension's entry-point hook would otherwise flip.
     """
     import inspect_ai._eval.task.run as run_module
 

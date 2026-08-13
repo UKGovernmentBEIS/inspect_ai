@@ -755,6 +755,7 @@ def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_opted_out_hook_receives_event_less_sample_when_evicted(
     monkeypatch: pytest.MonkeyPatch,
+    isolated_hooks_registry,
 ) -> None:
     """The opted-out hook's sample carries neither raw events nor attachments.
 
@@ -763,6 +764,11 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
     populated by the (still-resident) model event's condensing, not by the
     evicted-vs-resident events list itself, so a scenario with no long
     content can pass `attachments == {}` vacuously.
+
+    `isolated_hooks_registry` keeps the reduction assertion deterministic: an
+    installed extension's entry-point hook (which defaults to
+    `needs_full_sample=True`) would otherwise force full materialization for
+    every hook, this one included.
     """
     import inspect_ai._eval.task.run as run_module
 
