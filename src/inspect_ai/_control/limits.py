@@ -66,7 +66,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 from inspect_ai._control.views import (
-    AdaptiveChangeView,
     AdaptiveControllerView,
     ConcurrencyKeyView,
     MaxSamplesView,
@@ -543,27 +542,6 @@ def _static_semaphores() -> "list[ConcurrencySemaphore]":
     ]
 
 
-def _adaptive_controller_view(
-    ctrl: "AdaptiveConcurrencyController",
-) -> AdaptiveControllerView:
-    """One controller's live limit, in-flight count, bounds, recent changes.
-
-    Built here rather than inline so the dict literals get TypedDict
-    checking — the ``"from"`` key rules out the keyword-call syntax.
-    """
-    recent_changes: list[AdaptiveChangeView] = []
-    for at, _name, old, new, reason in ctrl.history[-_RECENT_CHANGES:]:
-        recent_changes.append({"at": at, "from": old, "to": new, "reason": reason})
-    return {
-        "name": ctrl.name,
-        "limit": ctrl.concurrency,
-        "in_use": ctrl.in_use,
-        "min": ctrl.min,
-        "max": ctrl.max,
-        "recent_changes": recent_changes,
-    }
-
-
 def _apply_process_knobs(
     *,
     max_sandboxes: int | None,
@@ -776,21 +754,19 @@ def _apply_process_knobs(
     # deriving it as `concurrency - value`: once a limit is lowered below the
     # in-flight count, `value` clamps to 0 and that derivation would report
     # `concurrency` instead of the true (higher) borrowed count.
-    max_sandboxes_view = [
-        SandboxLimiterView(
-            type=sandbox_type,
-            limit=sem.concurrency,
-            in_use=sem.in_use,
-        )
+    max_sandboxes_view: list[SandboxLimiterView] = [
+        {
+            "type": sandbox_type,
+            "limit": sem.concurrency,
+            "in_use": sem.in_use,
+        }
         for sandbox_type, sem in sorted(sandbox_limiters().items())
     ]
 
     # `None` distinguishes "no limiter yet" (no subprocess has run) from a
     # live limiter view — the CLI renders the former as inactive.
-    max_subprocesses_view = (
-        SubprocessLimiterView(
-            limit=subprocesses.concurrency, in_use=subprocesses.in_use
-        )
+    max_subprocesses_view: SubprocessLimiterView | None = (
+        {"limit": subprocesses.concurrency, "in_use": subprocesses.in_use}
         if subprocesses is not None
         else None
     )
@@ -799,8 +775,18 @@ def _apply_process_knobs(
     # count, scaling bounds (max reflects any max_connections change applied
     # above), and recent scale changes. Controllers are process-global (one per
     # model, keyed by name); with `model` set this shows only the matching ones.
-    adaptive_view = [
-        _adaptive_controller_view(ctrl)
+    adaptive_view: list[AdaptiveControllerView] = [
+        {
+            "name": ctrl.name,
+            "limit": ctrl.concurrency,
+            "in_use": ctrl.in_use,
+            "min": ctrl.min,
+            "max": ctrl.max,
+            "recent_changes": [
+                {"at": at, "from": old, "to": new, "reason": reason}
+                for (at, _name, old, new, reason) in ctrl.history[-_RECENT_CHANGES:]
+            ],
+        }
         for ctrl in sorted(controllers, key=lambda c: c.name)
     ]
 
@@ -809,13 +795,13 @@ def _apply_process_knobs(
     # shortening, `visible=False` entries included). Re-read after applying,
     # like the other views. A `name` can appear twice when two entries (with
     # distinct storage keys) share a display name.
-    concurrency_view = [
-        ConcurrencyKeyView(
-            name=sem.name,
-            limit=sem.concurrency,
-            in_use=sem.in_use,
-            adjustable=isinstance(sem, ResizableSemaphore),
-        )
+    concurrency_view: list[ConcurrencyKeyView] = [
+        {
+            "name": sem.name,
+            "limit": sem.concurrency,
+            "in_use": sem.in_use,
+            "adjustable": isinstance(sem, ResizableSemaphore),
+        }
         for sem in sorted(_static_semaphores(), key=lambda s: s.name)
     ]
 

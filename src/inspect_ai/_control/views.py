@@ -1,20 +1,14 @@
 """TypedDicts for the control channel's config wire envelopes.
 
-The wire boundary itself is HTTP/JSON, so these types validate nothing at
-runtime — a ``TypedDict`` is a plain dict, so returning one from a route
-changes nothing on the wire. What they buy (see "Wire envelopes: TypedDicts,
-adopted lazily" in ``design/ctl/control-channel.md``): mypy checks every
-server-side construction site (``_control/limits.py``) and the retyped test
-doubles against the real shape, and the CLI ``cast()``s once at its
-JSON-parse boundary — documentation plus downstream field-access checking,
-*not* validation (strict client-side validation would fight version-skew
-tolerance: an older server's envelope must stay acceptable). Keys
-legitimately absent on older servers are ``NotRequired``, keyed to the
-``CONTROL_API_VERSION`` history in ``inspect_ai._control``.
-
-Other envelopes (task summaries, sample listing/show, events, keep/release,
-the error envelope) get typed here lazily, when roadmap work next touches
-them — not as a big-bang sweep.
+Plain dicts at runtime — nothing is validated and nothing changes on the
+wire. They exist so mypy checks the server's construction sites and the
+test doubles, with the CLI casting once at its JSON-parse boundary; see
+"Wire envelopes: TypedDicts, adopted lazily" in
+``design/ctl/control-channel.md`` for the convention (including why the
+CLI must not validate). Keys legitimately absent on older servers are
+``NotRequired``, keyed to the ``CONTROL_API_VERSION`` history in
+``inspect_ai._control``. The other envelopes get typed here lazily, when
+work next touches them.
 """
 
 from __future__ import annotations

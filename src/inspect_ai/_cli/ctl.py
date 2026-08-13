@@ -3546,12 +3546,11 @@ def _as_task_view(
 ) -> TaskConfigView | None:
     """The config view as the task envelope, or ``None`` for a process one.
 
-    The runtime discriminator for the two config envelopes: the per-task keys
-    (``max_samples`` / ``buffer``) ride every task envelope, on every server
-    version, so key presence tells the shapes apart. mypy can't narrow the
-    union from an ``in`` check itself (structurally, a process envelope could
-    carry extra keys) — hence the cast, which like the parse-boundary cast
-    documents shape without validating it.
+    Discriminates on ``max_samples``, which rides every task envelope on
+    every server version. The cast is needed because mypy won't narrow the
+    union from an ``in`` check (structurally, a process envelope could carry
+    extra keys). Callers read ``buffer`` with ``.get()``: task envelopes
+    from pre-release version-0 builds lacked that key.
     """
     return cast(TaskConfigView, limits_view) if "max_samples" in limits_view else None
 
@@ -3587,7 +3586,7 @@ def _applied_knob_names(
             (
                 "--max-samples",
                 max_samples,
-                bool(max_samples_view and max_samples_view.get("adjustable")),
+                bool(max_samples_view and max_samples_view["adjustable"]),
             ),
             (
                 "--max-sandboxes",
@@ -3750,7 +3749,7 @@ def _run_config(
     # server's warnings that this exit would otherwise swallow.
     buffer_warnings: list[str] = []
     task_view = _as_task_view(limits_view)
-    buffer_view = task_view["buffer"] if task_view is not None else None
+    buffer_view = task_view.get("buffer") if task_view is not None else None
     if scope.task_id is not None and buffer_view is None:
         if set_buffer:
             applied_names = _applied_knob_names(
@@ -3874,7 +3873,7 @@ def _compose_config(
         "scope": _KNOB_SCOPE["key"],
         "keys": limits_view.get("concurrency"),
     }
-    buffer_view = task_view["buffer"] if task_view is not None else None
+    buffer_view = task_view.get("buffer") if task_view is not None else None
     if buffer_view is not None:
         knobs["log_buffer"] = {
             "scope": _KNOB_SCOPE["log_buffer"],
@@ -5387,10 +5386,9 @@ def _exec_limits(
         mutate="patch" if set_values else None,
         pid=pid,
     )
-    # the one cast at the JSON-parse boundary (per "Wire envelopes" in
-    # design/ctl/control-channel.md): documents the shape and type-checks
-    # downstream field access, but validates nothing — an older server's
-    # envelope stays acceptable (its missing keys are NotRequired).
+    # the one cast at the JSON-parse boundary — shape documentation for
+    # downstream field access, never validation (see "Wire envelopes" in
+    # design/ctl/control-channel.md)
     view: TaskConfigView | ProcessConfigView = (
         cast(TaskConfigView, raw_view)
         if task_id is not None
