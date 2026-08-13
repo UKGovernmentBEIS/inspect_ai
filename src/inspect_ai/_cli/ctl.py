@@ -309,12 +309,21 @@ def _mirror_list_options(group: click.Group, list_command: click.Command) -> Non
     for param in list_command.params:
         if isinstance(param, click.Option):
             mirrored = copy.copy(param)
-            mirrored.help = "Mirrored from `list` for the bare-noun default."
+            # keep the verb's own help (the payload sketch especially — the
+            # bare noun is the spelling scripted consumers reach for first)
+            mirrored.help = (
+                f"{param.help or ''} Mirrored from `list` for the bare-noun default."
+            ).strip()
             group.params.append(mirrored)
 
 
 def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
-    """The ``--json`` flag every command carries, with per-command envelope help."""
+    """The ``--json`` flag every command carries, with per-command envelope help.
+
+    ``what`` sketches the payload's top-level keys so a scripted consumer can
+    orient the first parse from ``--help`` alone, without a discovery
+    round-trip through the command itself.
+    """
     return click.option(
         "--json",
         "as_json",
@@ -322,6 +331,11 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
         default=False,
         help=f"Output as JSON ({what}).",
     )
+
+
+# The payload sketch every mutation verb's `--json` help shows (pinned to
+# `_mutation_envelope`'s keys by a test).
+_MUTATION_ENVELOPE_HELP = "a `{target, applied, dry_run, detail}` mutation envelope"
 
 
 @click.group("ctl")
@@ -333,7 +347,11 @@ def ctl_command() -> None:
     All commands accept `--json`; a failed `--json` invocation emits an
     `{"error": {kind, exception, message, status}}` envelope on stdout
     (exit code stays non-zero; click usage errors — unknown option,
-    missing argument — still exit 2 without one).
+    missing argument — still exit 2 without one). With no running evals,
+    commands that resolve a single task or sample target (and `config`)
+    print `null`, except the paged reads (`sample events` / `sample
+    messages`), which print an empty page (identifier echo with `task_id`
+    null); list verbs print their usual envelope with empty rows.
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
@@ -467,7 +485,7 @@ _mirror_list_options(task_group, task_list_command)
 
 @task_group.command("log-flush")
 @click.argument("task", required=False)
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def task_log_flush_command(task: str | None, as_json: bool) -> None:
     """Flush a running task's buffered samples to its log now.
 
@@ -500,13 +518,7 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     default=False,
     help="Report what would be cancelled without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) -> None:
     """Cancel a running task.
 
@@ -536,7 +548,7 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     """Pause a running task (stop dispatching new work; in-flight finishes).
 
@@ -559,7 +571,7 @@ def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def task_resume_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     """Resume a paused task (the inverse of `inspect ctl task pause`).
 
@@ -705,7 +717,10 @@ def sample_errors_command(task: str | None, as_json: bool) -> None:
     default=False,
     help="Show the full traceback for each error (default: message only).",
 )
-@_json_option("the sample's summary + error detail")
+@_json_option(
+    "the sample's summary + error detail — a flat `{task_id, task, sample_id, "
+    "epoch, status, ..., error, error_retries, scores}` object"
+)
 def sample_show_command(
     task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
 ) -> None:
@@ -796,7 +811,7 @@ def sample_show_command(
     default=None,
     help="Only events at/before this unix timestamp.",
 )
-@_json_option("the `{events, next, done}` envelope")
+@_json_option("the `{task_id, sample_id, epoch, events, next, done}` envelope")
 def sample_events_command(
     task: str,
     sample_id: str,
@@ -866,12 +881,8 @@ def sample_events_command(
     default=False,
     help="Return raw ChatMessage JSON instead of the compact summary.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the `{as_of, status, count, messages}` envelope).",
+@_json_option(
+    "the `{task_id, sample_id, epoch, as_of, status, count, messages}` envelope"
 )
 def sample_messages_command(
     task: str,
@@ -924,13 +935,7 @@ def sample_messages_command(
     default=False,
     help="Report what would be cancelled without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def sample_cancel_command(
     task: str,
     sample_id: str,
@@ -967,13 +972,7 @@ def sample_cancel_command(
     default=False,
     help="Report what would be re-run without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def sample_requeue_command(
     task: str,
     sample_id: str,
@@ -1136,7 +1135,10 @@ def sample_requeue_command(
     default=False,
     help="Report what would change without applying it (with a set option).",
 )
-@_json_option("the config view, every knob labeled with its scope")
+@_json_option(
+    "a `{target, knobs, warnings, notes, applied, dry_run, persisted, "
+    "requested}` view, every knob labeled with its scope"
+)
 def config_command(
     task: str | None,
     max_samples: int | None,
@@ -1250,7 +1252,7 @@ _mirror_list_options(process_group, process_list_command)
 
 @process_group.command("keep")
 @click.argument("pid", required=False, type=int)
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_keep_command(pid: int | None, as_json: bool) -> None:
     """Keep a running inspect process alive after its eval finishes.
 
@@ -1264,7 +1266,7 @@ def process_keep_command(pid: int | None, as_json: bool) -> None:
 
 @process_group.command("release")
 @click.argument("pid", required=False, type=int)
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_release_command(pid: int | None, as_json: bool) -> None:
     """Release a lingering --ctl-server=keep process so it can exit.
 
@@ -1283,7 +1285,7 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
     """Pause a whole running eval or eval-set (stop dispatching new work; in-flight finishes).
 
@@ -1306,7 +1308,7 @@ def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_resume_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
     """Resume a paused eval or eval-set (the inverse of `process pause`).
 
@@ -1383,7 +1385,7 @@ model_group.hint = lambda token: (
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def model_pause_command(
     model: str, pid: int | None, dry_run: bool, as_json: bool
 ) -> None:
@@ -1410,7 +1412,7 @@ def model_pause_command(
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def model_resume_command(
     model: str, pid: int | None, dry_run: bool, as_json: bool
 ) -> None:
