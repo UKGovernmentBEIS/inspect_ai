@@ -478,6 +478,11 @@ async def test_log_sample_writes_restored_attachment_content_when_events_reduced
     seed `EvalSample.attachments` from the transcript unconditionally (not
     only when `include_events` is set) so the ref still resolves once
     written, even though the buffer's own history has no content for it.
+
+    The no-eviction setup (`bounded=False`) is deliberate: it isolates the
+    one thing this code path could regress, the unconditional attachment
+    seeding. Bounded eviction dropping the restored mapping itself is a
+    pre-existing upstream bug tracked separately.
     """
     attachment_hash = "restoredhash"
     restored_content = _long_content()
