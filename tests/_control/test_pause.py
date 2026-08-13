@@ -91,6 +91,14 @@ def _patch_active_samples(
     monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: samples)
 
 
+class _FakeSample:
+    """The slice of ``ActiveSample`` the generate gate reads via ``sample_active``."""
+
+    eval_id = "e1"
+    id = "as1"
+    interrupt_action: Any = None
+
+
 # ---------------------------------------------------------------------------
 # task pause/resume directives
 # ---------------------------------------------------------------------------
@@ -719,11 +727,6 @@ async def test_generate_gate_task_scope_counts_held_samples(
     register_eval("e1", 5, task_id="t1", model="mockllm/model")
     await pause_task("t1", now=True)
 
-    class _FakeSample:
-        eval_id = "e1"
-        id = "as1"
-        interrupt_action: Any = None
-
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
     model = get_model("mockllm/model", memoize=False)
     passed = anyio.Event()
@@ -755,11 +758,6 @@ async def test_generate_gate_model_scope_keys_on_called_model(
     register_eval("e1", 5, task_id="t1", model="mockllm/other")
     note_dispatch_models(["mockllm/model"])
     await pause_model("mockllm/model", now=True)
-
-    class _FakeSample:
-        eval_id = "e1"
-        id = "as1"
-        interrupt_action: Any = None
 
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
     model = get_model("mockllm/model", memoize=False)
@@ -835,11 +833,6 @@ async def test_generate_gate_stamped_interrupt_escapes(
     register_eval("e1", 5, task_id="t1", model="mockllm/model")
     await pause_task("t1", now=True)
 
-    class _FakeSample:
-        eval_id = "e1"
-        id = "as1"
-        interrupt_action: Any = None
-
     sample = _FakeSample()
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
     import inspect_ai._control.pause as pause_module
@@ -881,11 +874,6 @@ async def test_generate_gate_cancellation_credits_tail(
     """
     register_eval("e1", 5, task_id="t1", model="mockllm/model")
     await pause_task("t1", now=True)
-
-    class _FakeSample:
-        eval_id = "e1"
-        id = "as1"
-        interrupt_action: Any = None
 
     monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: _FakeSample())
     model = get_model("mockllm/model", memoize=False)
