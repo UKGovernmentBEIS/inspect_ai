@@ -39,7 +39,7 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.history import SampleHistory
-from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
+from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile, _sample_filename
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.json_write import (
     DEFAULT_JSON_CHUNK_SIZE,
@@ -806,11 +806,19 @@ async def test_streaming_path_never_serializes_whole_sample(
     monkeypatch.setattr(ZipLogFile, "_zip_writestr", recording)
 
     recorder, spec = await _start_eval_recorder(tmp_path)
+    sample = _sample()
     with _history(tmp_path) as history:
-        await recorder.log_sample_streaming(spec, _sample(), history)
+        await recorder.log_sample_streaming(spec, sample, history)
     await _finish_eval(recorder, spec)
 
-    assert not any(f.startswith("samples/") and f.endswith(".json") for f in written), (
+    # positive controls, so the guard can't pass vacuously: the spy did
+    # record the non-sample members, and the streamed sample itself landed
+    assert written, "spy recorded no writes at all: _zip_writestr patch inert"
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+    assert log.samples is not None
+    assert len(log.samples[0].events) == 1
+
+    assert _sample_filename(sample.id, sample.epoch) not in written, (
         f"sample entry written via monolithic writestr: {written}"
     )
 
