@@ -43,8 +43,6 @@ from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.json_write import (
     DEFAULT_JSON_CHUNK_SIZE,
-    BinaryWriteStream,
-    write_json_array_field,
     write_json_object_field,
 )
 from inspect_ai.log._recorders.streaming import materialize_streaming_sample
@@ -628,11 +626,12 @@ async def test_streamed_sample_entry_round_trips(tmp_path: Path) -> None:
     Covers >1 chunk of events, non-empty message and call pools, an
     attachment, a score, an error, and a limit - order-insensitive.
     """
+    n_events = DEFAULT_JSON_CHUNK_SIZE + 50
     events: list[ModelEvent | InfoEvent] = [
-        _model(f"event-{i}", _long_content()) for i in range(150)
+        _model(f"event-{i}", _long_content()) for i in range(n_events)
     ]
     call_msgs: list[JsonValue] = [{"role": "user", "content": "call-pool message"}]
-    events[-1] = _model_with_call("event-149", _long_content(), call_msgs)
+    events[-1] = _model_with_call(f"event-{n_events - 1}", _long_content(), call_msgs)
 
     sample = _sample().model_copy(
         update={
@@ -646,7 +645,7 @@ async def test_streamed_sample_entry_round_trips(tmp_path: Path) -> None:
         tmp_path, sample, events, log_images=True
     )
 
-    assert len(logged.events) == len(returned.events) == 150
+    assert len(logged.events) == len(returned.events) == n_events
     assert logged.events == returned.events
     assert logged.attachments == returned.attachments
     assert len(logged.attachments) > 0
@@ -687,54 +686,54 @@ async def test_streamed_sample_entry_empty_events_edge(tmp_path: Path) -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "writer_name", ["write_json_array_field", "write_json_object_field"]
+)
 async def test_buffer_sample_streaming_shields_cancellation_mid_write(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    writer_name: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A cancellation delivered mid-entry-write must not truncate the member.
 
     Deterministic stand-in for real task cancellation landing at one of the
-    checkpoints inside the entry write: monkeypatches ``write_json_array_field``
-    to cancel the enclosing scope on its first call (serializing the "events"
-    field), so the cancellation is pending at the checkpoint between chunks
-    inside ``buffer_sample_streaming``'s zip-entry write. Without shielding
-    that write, the checkpoint raises there, ``_zip_open_write``'s ``__exit__``
+    checkpoints inside the entry write: monkeypatches the named writer (the
+    "events" array and the "attachments" object are distinct landing sites
+    within the same entry) to cancel the enclosing scope, so the cancellation
+    is pending at the checkpoint between chunks inside
+    ``buffer_sample_streaming``'s zip-entry write. Without shielding that
+    write, the checkpoint raises there, ``_zip_open_write``'s ``__exit__``
     finalizes the truncated member, and the log becomes unreadable
     (``_read_log`` parses every sample member eagerly).
     """
     import inspect_ai.log._recorders.eval as eval_module
 
     recorder, spec = await _start_eval_recorder(tmp_path)
-    events = [_model(f"event-{i}", _long_content()) for i in range(150)]
+    events = [
+        _model(f"event-{i}", _long_content())
+        for i in range(DEFAULT_JSON_CHUNK_SIZE + 50)
+    ]
     db = _buffer_db(tmp_path, events)
 
-    original_write_json_array_field = write_json_array_field
-    cancelled = {"done": False}
+    original_writer = getattr(eval_module, writer_name)
+    fired = {"done": False}
 
-    # declared with the real signature (not *args/**kwargs) so drift between
-    # the shim and write_json_array_field is a type error, not a silent pass
-    async def cancel_on_first_call(
-        stream: BinaryWriteStream,
-        name: str,
-        items: Sequence[object],
-        *,
-        comma: bool = False,
-        chunk_size: int = DEFAULT_JSON_CHUNK_SIZE,
-    ) -> None:
-        if not cancelled["done"]:
-            cancelled["done"] = True
-            scope.cancel()
-        await original_write_json_array_field(
-            stream, name, items, comma=comma, chunk_size=chunk_size
-        )
+    async def cancel_then_delegate(*args: Any, **kwargs: Any) -> None:
+        fired["done"] = True
+        # cancel() is idempotent, so no first-call guard is needed
+        scope.cancel()
+        await original_writer(*args, **kwargs)
 
     with anyio.CancelScope() as scope:
-        monkeypatch.setattr(eval_module, "write_json_array_field", cancel_on_first_call)
+        monkeypatch.setattr(eval_module, writer_name, cancel_then_delegate)
         with db.open_sample_history("sample", 1) as history:
             await recorder.log_sample_streaming(spec, _sample(), history)
         # The shield only defers cancellation past the entry write, it must
         # not drop it: liveness is retained via the checkpoint below.
         await anyio.lowlevel.checkpoint()
 
+    assert fired["done"], (
+        f"spy never fired: buffer_sample_streaming no longer routes"
+        f" through {writer_name}"
+    )
     assert scope.cancelled_caught, "deferred cancellation was never delivered"
 
     await _finish_eval(recorder, spec)
