@@ -8,6 +8,8 @@ cursor validation), and rendering helpers.
 
 import json
 import os
+import re
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -3014,6 +3016,222 @@ def test_knob_since_table_is_consistent() -> None:
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
 
 
+def test_mutation_envelope_help_sketches_actual_keys() -> None:
+    """The shared --help sketch names exactly `_mutation_envelope`'s keys.
+
+    Every mutation verb's --json help shows `_MUTATION_ENVELOPE_HELP` so a
+    scripted consumer can orient the first parse from --help alone; this
+    pins the sketch to the envelope builder so the two can't drift.
+    """
+    from inspect_ai._cli.ctl import _MUTATION_ENVELOPE_HELP, _mutation_envelope
+
+    envelope = _mutation_envelope(
+        {"task_id": "aaa111"}, {"ok": True, "changed": True}, dry_run=False
+    )
+    assert "{" + ", ".join(envelope.keys()) + "}" in _MUTATION_ENVELOPE_HELP
+
+
+def test_config_help_sketches_compose_config_keys() -> None:
+    """`config --help`'s --json sketch names exactly `_compose_config`'s keys."""
+    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope, config_command
+
+    scope = _DirectiveScope(
+        socket_path="sock", pid=1, task_id=None, task=None, header="", siblings=0
+    )
+    view = _compose_config(scope, {}, dry_run=False, set_values=False, notes=[])
+    option = next(
+        p
+        for p in config_command.params
+        if isinstance(p, click.Option) and p.name == "as_json"
+    )
+    assert "{" + ", ".join(view.keys()) + "}" in (option.help or "")
+
+
+def test_every_json_option_help_sketches_payload_keys() -> None:
+    """Every visible ctl command's --json help sketches the payload shape.
+
+    The agent output contract: a scripted consumer should learn each
+    command's --json top-level keys from --help, not by parsing a payload
+    and failing. A brace in the help is the sketch's marker.
+    """
+
+    def visible_commands(
+        group: click.Group, prefix: str = ""
+    ) -> Iterator[tuple[str, click.Command]]:
+        for name, cmd in group.commands.items():
+            if cmd.hidden:
+                continue
+            yield f"{prefix}{name}", cmd
+            if isinstance(cmd, click.Group):
+                yield from visible_commands(cmd, f"{prefix}{name} ")
+
+    for path, cmd in visible_commands(ctl_command):
+        json_options = [
+            p for p in cmd.params if isinstance(p, click.Option) and p.name == "as_json"
+        ]
+        if isinstance(cmd, click.Group) and "list" not in cmd.commands:
+            # a group without a bare-noun list default (e.g. `model`) carries
+            # no mirrored --json of its own; groups with one must mirror it
+            continue
+        assert json_options, f"`{path}` has no --json option"
+        help_text = json_options[0].help or ""
+        assert help_text.startswith("Output as JSON ("), path
+        assert "{" in help_text, f"`{path}` --json help has no payload sketch"
+
+
+def _json_help_sketch_keys(*path: str) -> list[str]:
+    """The key list inside a command's --json help `{...}` payload sketch."""
+    cmd: click.Command = ctl_command
+    for name in path:
+        assert isinstance(cmd, click.Group)
+        cmd = cmd.commands[name]
+    option = next(
+        p for p in cmd.params if isinstance(p, click.Option) and p.name == "as_json"
+    )
+    match = re.search(r"\{([^}]*)\}", option.help or "")
+    assert match is not None, f"`{' '.join(path)}` --json help has no payload sketch"
+    return [key.strip() for key in match.group(1).split(",")]
+
+
+def _assert_payload_matches_sketch(payload: dict[str, Any], *path: str) -> None:
+    """Assert a --json payload's top-level keys match the command's help sketch.
+
+    An exact ordered match, except when the sketch elides keys with `...` (a
+    flat object whose middle rides on the server response): there the keys
+    before the `...` must lead the payload in order, and every other sketched
+    key must be present (their order isn't guaranteed — a key the server's
+    row already carries keeps the row's position on dict merge).
+    """
+    sketch = _json_help_sketch_keys(*path)
+    actual = list(payload.keys())
+    label = " ".join(path)
+    if "..." in sketch:
+        cut = sketch.index("...")
+        assert actual[:cut] == sketch[:cut], (
+            f"`{label}` payload does not lead with the sketched keys: "
+            f"{actual} vs sketch {sketch}"
+        )
+        missing = set(sketch[cut + 1 :]) - set(actual)
+        assert not missing, f"`{label}` payload is missing sketched keys {missing}"
+    else:
+        assert actual == sketch, (
+            f"`{label}` payload keys {actual} != help sketch {sketch}"
+        )
+
+
+def test_task_list_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "task", "list")
+
+
+def test_sample_listing_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample list` and `sample errors` share the listing envelope sketch."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("s1"), _sample_row("bad", error="boom")]
+        },
+    )
+    runner = cli_runner()
+    for verb in ("list", "errors"):
+        result = runner.invoke(ctl_command, ["sample", verb, "--json"])
+        assert result.exit_code == 0, result.output
+        _assert_payload_matches_sketch(json.loads(result.stdout), "sample", verb)
+
+
+def test_sample_show_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The flat show object leads with the sketch's identity keys.
+
+    The payload's middle is the server's detail response (elided as `...` in
+    the sketch); the stubbed detail mirrors the terminal-path response shape
+    (``message_count`` included, so no fallback listing fetch fires — the
+    detail's own keys are pinned by the server-side tests).
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    detail = {
+        "sample_id": "s1",
+        "epoch": 1,
+        "status": "completed",
+        "total_time": 1.0,
+        "total_tokens": 5,
+        "message_count": 1,
+        "retries": 0,
+        "error": None,
+        "error_retries": [],
+        "scores": {},
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: dict(detail)
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "show")
+
+
+def test_sample_events_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both the served page and the no-evals empty page keep the sketched shape."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_events",
+        lambda *a, **k: {"events": [], "next": None, "done": True},
+    )
+    runner = cli_runner()
+    result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "events")
+
+    _patch_surface(monkeypatch, [])
+    result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "events")
+
+
+def test_sample_messages_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both the served page and the no-evals empty page keep the sketched shape."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_messages",
+        lambda *a, **k: {"as_of": 1.0, "status": "running", "count": 0, "messages": []},
+    )
+    runner = cli_runner()
+    result = runner.invoke(
+        ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "messages")
+
+    _patch_surface(monkeypatch, [])
+    result = runner.invoke(
+        ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "messages")
+
+
+def test_process_list_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = cli_runner().invoke(ctl_command, ["process", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "process", "list")
+
+
 def test_config_provenance_sent_with_mutations_on_current_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -5367,6 +5585,13 @@ def test_process_anomalies_explicit_pid_json(trace_dir: Path) -> None:
     assert [row["action"] for row in section["cancelled"]] == ["Subprocess"]
     assert [row["action"] for row in section["errors"]] == ["Sandbox"]
     assert section["timeouts"] == []
+
+
+def test_process_anomalies_json_payload_matches_help_sketch(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    assert result.exit_code == 0
+    _assert_payload_matches_sketch(json.loads(result.stdout), "process", "anomalies")
 
 
 def test_process_anomalies_dead_pid_reads_gz(
