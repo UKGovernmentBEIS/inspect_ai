@@ -42,7 +42,7 @@ from inspect_ai.log._recorders.buffer.history import SampleHistory
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.json_write import (
-    JSON_STREAM_CHUNK,
+    DEFAULT_JSON_CHUNK_SIZE,
     BinaryWriteStream,
 )
 from inspect_ai.log._recorders.json_write import (
@@ -709,7 +709,7 @@ async def test_buffer_sample_streaming_shields_cancellation_mid_write(
         items: Sequence[object],
         *,
         comma: bool = False,
-        chunk_size: int = JSON_STREAM_CHUNK,
+        chunk_size: int = DEFAULT_JSON_CHUNK_SIZE,
     ) -> None:
         if not cancelled["done"]:
             cancelled["done"] = True

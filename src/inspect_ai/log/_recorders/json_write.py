@@ -14,7 +14,7 @@ import anyio.lowlevel
 
 from inspect_ai._util.json import to_json_safe
 
-JSON_STREAM_CHUNK = 100
+DEFAULT_JSON_CHUNK_SIZE = 100
 """Items serialized per chunk when streaming arrays/objects.
 
 Bounds both the transient memory (one chunk's jsonable tree + bytes) and
@@ -57,7 +57,7 @@ async def write_json_array_field(
     items: Sequence[object],
     *,
     comma: bool = False,
-    chunk_size: int = JSON_STREAM_CHUNK,
+    chunk_size: int = DEFAULT_JSON_CHUNK_SIZE,
 ) -> None:
     """Write ``"name": [...]``, serializing ``items`` in chunks.
 
@@ -86,7 +86,7 @@ async def write_json_object_field(
     mapping: Mapping[str, object],
     *,
     comma: bool = False,
-    chunk_size: int = JSON_STREAM_CHUNK,
+    chunk_size: int = DEFAULT_JSON_CHUNK_SIZE,
 ) -> None:
     """Write ``"name": {...}``, serializing ``mapping`` in item chunks."""
     if comma:
@@ -109,7 +109,7 @@ async def write_events_data_field(
     events_data: Mapping[str, object],
     *,
     comma: bool = False,
-    chunk_size: int = JSON_STREAM_CHUNK,
+    chunk_size: int = DEFAULT_JSON_CHUNK_SIZE,
 ) -> None:
     """Write the complete ``"events_data": {...}`` field, one chunked array per pool.
 
