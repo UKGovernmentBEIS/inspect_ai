@@ -146,6 +146,14 @@ class GrokAPI(ModelAPI):
         self.disable_retry = disable_retry
         # xAI Priority Processing ("priority", 2x token rates) shipped with
         # grok-4.6. https://docs.x.ai/developers/grok-4-6
+        if service_tier is not None and not hasattr(usage_pb2, "ServiceTier"):
+            # chat.create() gained service_tier in xai_sdk 1.17 (alongside the
+            # ServiceTier proto enum); fail fast rather than TypeError-ing on
+            # every generate.
+            raise PrerequisiteError(
+                "ERROR: The service_tier model arg requires xai_sdk >= 1.17 "
+                "(pip install --upgrade xai-sdk)."
+            )
         self.service_tier = service_tier
         if self.disable_retry:
             # retrying may be disabled so we can accurately track waiting time
@@ -529,7 +537,9 @@ class GrokAPI(ModelAPI):
                     else:
                         gconfig["reasoning_effort"] = "high"
 
-        if self.service_tier is not None:
+        # batch requests are processed on xAI's own batch tier, so a
+        # synchronous processing tier doesn't apply there
+        if self.service_tier is not None and not self._batcher:
             gconfig["service_tier"] = self.service_tier
 
         # return encrypted reasoning blocks

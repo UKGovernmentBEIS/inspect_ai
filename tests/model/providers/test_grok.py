@@ -47,6 +47,29 @@ def test_grok_service_tier_model_arg() -> None:
     assert "service_tier" not in default_api._grok_params(GenerateConfig())
 
 
+def test_grok_service_tier_omitted_for_batch() -> None:
+    """Batch requests use xAI's batch tier, so service_tier is not sent."""
+    from typing import Any, cast
+
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    api = GrokAPI(model_name="grok-4.6", api_key="test-key", service_tier="priority")
+    api._batcher = cast(Any, object())
+    assert "service_tier" not in api._grok_params(GenerateConfig())
+
+
+def test_grok_service_tier_requires_sdk_support(monkeypatch) -> None:
+    """SDKs predating chat.create(service_tier=...) (< 1.17) fail fast."""
+    from xai_sdk.chat import usage_pb2  # type: ignore[import-untyped]
+
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    monkeypatch.delattr(usage_pb2, "ServiceTier")
+    with pytest.raises(PrerequisiteError, match="service_tier"):
+        GrokAPI(model_name="grok-4.6", api_key="test-key", service_tier="priority")
+
+
 class _AlarmTimeout(Exception):
     """Raised when the smoke test alarm times out."""
 

@@ -647,7 +647,7 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
 # real effort level from grok-4.6, and xAI documents that grok-4-family models
 # without xhigh support (e.g. grok-4.5) treat it as high, so passing it
 # through preserves user intent on models that honor it. Requires xai_sdk >=
-# 1.18 (pinned in requirements-dev.txt); older SDKs clamp to "high" (covered
+# 1.18 (the requirements-dev.txt floor); older SDKs clamp to "high" (covered
 # by test_grok_xhigh_clamped_on_older_sdk below).
 
 
@@ -674,14 +674,16 @@ def test_grok_effort_mapping(model_name, effort, expected) -> None:
 @pytest.mark.parametrize(
     "effort,expected",
     [
+        ("minimal", "low"),
         ("low", "low"),
+        ("medium", "medium"),
         ("high", "high"),
         # grok-3-mini documents only low/high effort; xhigh/max clamp to high
         ("xhigh", "high"),
         ("max", "high"),
     ],
 )
-def test_grok_3_mini_xhigh_clamped(effort, expected) -> None:
+def test_grok_3_mini_effort_mapping(effort, expected) -> None:
     from inspect_ai.model._providers.grok import GrokAPI
 
     api = GrokAPI(model_name="grok-3-mini", api_key="test-key")
