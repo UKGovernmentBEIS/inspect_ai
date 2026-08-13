@@ -2894,7 +2894,9 @@ def _run_task_cancel(
 
 
 # the hard-pause caveat, shared by the three pause scopes' messages
-_HELD_CAVEAT = "outstanding calls finish; time limits keep running while held"
+_HELD_CAVEAT = (
+    "outstanding calls finish; wall-clock time limits keep running while held"
+)
 
 
 def _pause_prefix(*, now: bool, dry_run: bool, target: str = "") -> str:
