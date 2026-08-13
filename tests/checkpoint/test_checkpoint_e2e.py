@@ -534,7 +534,7 @@ def test_checkpoint_resume_survives_interrupted_hydration(
     projects_before = _inspect_projects()
     try:
         # --- attempt #0: fresh eval, hard-killed at turn 2 (ck1/ck2) -----
-        _run_killed_attempt(log_dir, None, tests_dir)
+        _run_interrupted_attempt(log_dir, None, tests_dir)
         source_log = _latest_log(log_dir)
 
         # --- attempt #1: resume, SIGINT inside the hydration copy window -
