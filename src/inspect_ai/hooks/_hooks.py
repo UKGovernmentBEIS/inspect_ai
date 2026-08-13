@@ -1105,6 +1105,28 @@ def get_all_hooks() -> list[Hooks]:
     return _hooks_cache
 
 
+def any_hook_needs_full_sample() -> bool:
+    """Whether any enabled hook requires the fully materialized sample.
+
+    Read at sample-finalization start to decide whether a bounded-evicted
+    event history must be re-materialized for ``on_sample_end`` (see
+    ``Hooks.needs_full_sample``). The ``enabled()`` gate is load-bearing:
+    always-registered module-level hooks (e.g. in ``tests/_control/``) rely
+    on it to not defeat the optimization. A hook whose ``enabled()`` raises
+    is logged and conservatively counted as needing the full sample.
+    """
+    for hook in get_all_hooks():
+        try:
+            if hook.enabled() and hook.needs_full_sample:
+                return True
+        except Exception as ex:
+            logger.warning(
+                f"Exception calling enabled() on hook '{hook.__class__.__name__}': {ex}"
+            )
+            return True
+    return False
+
+
 async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
     for hook in get_all_hooks():
         if not hook.enabled():

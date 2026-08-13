@@ -1660,7 +1660,6 @@ async def task_run_sample(
         emit_sample_init,
         emit_sample_scoring,
         emit_sample_start,
-        get_all_hooks,
         start_sample_event_emitter,
     )
 
@@ -2338,23 +2337,18 @@ async def task_run_sample(
                                 logger.buffer_db is None
                                 or not sample_transcript.history.resident_events_truncated
                             )
-                            # On the evicted path the full event history is
-                            # re-materialized from the buffer only if some
-                            # consumer actually reads it.
-                            #
-                            # Hooks are snapshotted here, at finalization
-                            # start, not at the later on_sample_end dispatch:
-                            # a hook that enables itself in that window would
-                            # still receive the reduced sample. Accepted —
-                            # hook registration/enablement is a startup-time
-                            # activity, not something toggled mid-finalization.
-                            needs_events = log_from_memory or (
-                                (scanner is not None and scan_id is not None)
-                                or sample_feed is not None
-                                or task_source is not None
-                                or any(
-                                    hook.enabled() and hook.needs_full_sample
-                                    for hook in get_all_hooks()
+                            # the log_from_memory disjunct is inert for
+                            # behavior (log_sample never reads needs_events
+                            # on the from-memory path) but upholds the
+                            # documented invariant that from_memory=True is
+                            # always paired with needs_events=True
+                            needs_events = (
+                                log_from_memory
+                                or _finalization_consumes_events(
+                                    scanning=scanner is not None
+                                    and scan_id is not None,
+                                    sample_feed=sample_feed,
+                                    task_source=task_source,
                                 )
                             )
                             eval_sample = await log_sample(
@@ -2609,6 +2603,34 @@ def create_eval_sample(
         error=error,
         error_retries=error_retries,
         limit=limit,
+    )
+
+
+def _finalization_consumes_events(
+    *,
+    scanning: bool,
+    sample_feed: SampleSource | None,
+    task_source: TaskSource | None,
+) -> bool:
+    """Whether any finalization consumer reads the sample's event history.
+
+    On the bounded-evicted path the full event history is re-materialized
+    from the buffer only if some consumer actually reads it. Consumers are
+    the scanner, a sample-feed / task-source completion callback, and any
+    enabled hook that hasn't opted out via ``Hooks.needs_full_sample``.
+    Hooks are snapshotted here, at finalization start, not at the later
+    ``on_sample_end`` dispatch: a hook that enables itself in that window
+    would still receive the reduced sample. Accepted — hook
+    registration/enablement is a startup-time activity, not something
+    toggled mid-finalization.
+    """
+    from inspect_ai.hooks._hooks import any_hook_needs_full_sample
+
+    return (
+        scanning
+        or sample_feed is not None
+        or task_source is not None
+        or any_hook_needs_full_sample()
     )
 
 
