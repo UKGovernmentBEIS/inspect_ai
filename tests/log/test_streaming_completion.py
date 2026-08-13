@@ -870,7 +870,8 @@ class _FullSampleHook(Hooks):
 
 
 class _OptedOutHook(Hooks):
-    needs_full_sample = False
+    def needs_full_sample(self) -> bool:
+        return False
 
 
 class _DisabledFullSampleHook(Hooks):

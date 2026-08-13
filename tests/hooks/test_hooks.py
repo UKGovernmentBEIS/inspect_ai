@@ -775,9 +775,10 @@ class _RecordingHook(Hooks):
 
 
 class _SummaryOnlyRecordingHook(_RecordingHook):
-    """Opted out of full-sample materialization via needs_full_sample."""
+    """Opted out of full-sample materialization via needs_full_sample()."""
 
-    needs_full_sample = False
+    def needs_full_sample(self) -> bool:
+        return False
 
 
 def _run_evicted_sample_eval(
@@ -830,8 +831,8 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
     content can pass `attachments == {}` vacuously.
 
     `isolated_hooks_registry` keeps the reduction assertion deterministic: an
-    installed extension's entry-point hook (which defaults to
-    `needs_full_sample=True`) would otherwise force full materialization for
+    installed extension's entry-point hook (whose `needs_full_sample()`
+    defaults to `True`) would otherwise force full materialization for
     every hook, this one included.
     """
     import inspect_ai._eval.task.run as run_module
@@ -922,7 +923,7 @@ def test_mixed_hooks_both_receive_full_sample_when_one_needs_it(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    """One opted-out + one default hook: needs_full_sample is a floor, not per-hook.
+    """One opted-out + one default hook: needs_full_sample() is a floor, not per-hook.
 
     `materialize_full_sample` is computed once for the sample from all enabled hooks
     combined (`any_hook_needs_full_sample()`), and every
@@ -948,7 +949,8 @@ def test_any_hook_needs_full_sample_predicate(isolated_hooks_registry) -> None:
     """Only hooks that are enabled and haven't opted out count."""
 
     class OptedOutHook(Hooks):
-        needs_full_sample = False
+        def needs_full_sample(self) -> bool:
+            return False
 
     class DisabledHook(Hooks):
         def enabled(self) -> bool:
@@ -979,6 +981,23 @@ def test_any_hook_needs_full_sample_guards_raising_enabled(
         with patch.object(hooks_module.logger, "warning") as warning:
             assert any_hook_needs_full_sample()
     assert "RaisingEnabledHook" in str(warning.call_args)
+
+
+def test_any_hook_needs_full_sample_guards_raising_needs_full_sample(
+    isolated_hooks_registry,
+) -> None:
+    """A raising needs_full_sample() is logged and counted as needing the full sample."""
+
+    class RaisingNeedsFullSampleHook(Hooks):
+        def needs_full_sample(self) -> bool:
+            raise RuntimeError("needs_full_sample() failed")
+
+    with _hook_context(
+        "predicate_raising_needs_full_sample_hook", RaisingNeedsFullSampleHook
+    ):
+        with patch.object(hooks_module.logger, "warning") as warning:
+            assert any_hook_needs_full_sample()
+    assert "RaisingNeedsFullSampleHook" in str(warning.call_args)
 
 
 def test_opted_out_hook_unaffected_on_non_evicted_path(tmp_path: Path) -> None:

@@ -92,7 +92,7 @@ Event data is owned by the framework. In particular, objects reachable from `Sam
 
 Hooks run within the evaluation, so keep them fast and resilient. Events from different samples and tasks may fire concurrently, and any exception raised by a hook is caught and logged as a warning (it does not fail the run) — with the exception of `LimitExceededError`, which is allowed to propagate so that hooks can enforce limits.
 
-In addition to these lifecycle events, three non-event controls let you tune hook behaviour: the [`enabled()`](#disabling-hooks) method gates whether a hook is active, the [`needs_full_sample`](#skipping-full-sample-materialization) class attribute lets summary-only hooks skip full-sample materialization, and the [`override_api_key()`](#api-key-override) method can rewrite model API keys. All are covered below.
+In addition to these lifecycle events, three non-event controls let you tune hook behaviour: the [`enabled()`](#disabling-hooks) method gates whether a hook is active, the [`needs_full_sample()`](#skipping-full-sample-materialization) method lets summary-only hooks skip full-sample materialization, and the [`override_api_key()`](#api-key-override) method can rewrite model API keys. All are covered below.
 
 ## Hook Object Lifecycle
 
@@ -162,18 +162,19 @@ Because `enabled()` is consulted before every hook invocation (potentially many 
 
 ## Skipping Full Sample Materialization
 
-By default, `SampleEnd.sample` is the fully materialized `EvalSample`, complete `events` and `attachments` included. For long samples this can be expensive to reconstruct, so hooks whose `on_sample_end` reads only summary-level fields (scores, error, timings, etc.) can opt out by setting the `needs_full_sample` class attribute to `False`:
+By default, `SampleEnd.sample` is the fully materialized `EvalSample`, complete `events` and `attachments` included. For long samples this can be expensive to reconstruct, so hooks whose `on_sample_end` reads only summary-level fields (scores, error, timings, etc.) can opt out by overriding the `needs_full_sample()` method to return `False`:
 
 ``` python
 @hooks(name="score_tracker", description="Tracks sample scores")
 class ScoreTracker(Hooks):
-    needs_full_sample = False
+    def needs_full_sample(self) -> bool:
+        return False
 
     async def on_sample_end(self, data: SampleEnd) -> None:
         record(data.sample_id, data.sample.scores)
 ```
 
-This is a permission, not a guarantee: it allows the framework to deliver a sample with empty `events` and `attachments` and `timelines` set to `None`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. A hook that sets `needs_full_sample = False` must therefore tolerate both forms.
+This is a permission, not a guarantee: it allows the framework to deliver a sample with empty `events` and `attachments` and `timelines` set to `None`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. A hook that overrides `needs_full_sample()` to return `False` must therefore tolerate both forms.
 
 ## Requiring Hooks
 

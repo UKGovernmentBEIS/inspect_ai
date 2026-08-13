@@ -2618,7 +2618,7 @@ def _finalization_consumes_events(
     On the bounded-evicted path the full event history is re-materialized
     from the buffer only if some consumer actually reads it. Consumers are
     the scanner, a sample-feed / task-source completion callback, and any
-    enabled hook that hasn't opted out via ``Hooks.needs_full_sample``.
+    enabled hook that hasn't opted out via ``Hooks.needs_full_sample()``.
     Hooks are snapshotted here, at finalization start, not at the later
     ``on_sample_end`` dispatch: a hook that enables itself in that window
     would still receive the reduced sample. Accepted — hook
@@ -2693,7 +2693,7 @@ async def log_sample(
         # attachments and timelines too (TimelineEvent holds real Event
         # refs, which would otherwise hand back the event tree the
         # reduction withholds), so an opted-out consumer
-        # (Hooks.needs_full_sample) gets the fully reduced sample;
+        # (Hooks.needs_full_sample()) gets the fully reduced sample;
         # consumers that read them force materialize_full_sample=True at
         # the call site, so nothing that reads them can observe the
         # reduced sample. logging_sample was derived above, before this
