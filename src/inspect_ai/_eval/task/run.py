@@ -2657,7 +2657,8 @@ async def log_sample(
         materialize_full_sample: On the buffer read-back path, whether some
             finalization consumer reads the returned sample's event history;
             when False the returned sample is reduced (empty events and
-            attachments) instead of re-materialized. ``from_memory=True``
+            attachments, timelines ``None``) instead of re-materialized.
+            ``from_memory=True``
             with ``materialize_full_sample=False`` is a meaningless
             combination — the from-memory path returns before
             ``materialize_full_sample`` is read — so callers must pair
@@ -2689,14 +2690,18 @@ async def log_sample(
         # live only in the transcript dict, not the buffer history, so it
         # must seed both the written log and materialize_streaming_sample's
         # merge. The materialize_full_sample=False branch empties
-        # attachments too, so an opted-out consumer (Hooks.needs_full_sample)
-        # gets the fully reduced sample; consumers that read either force
-        # materialize_full_sample=True at the call site, so nothing that
-        # reads them can observe the reduced sample.
+        # attachments and timelines too (TimelineEvent holds real Event
+        # refs, which would otherwise hand back the event tree the
+        # reduction withholds), so an opted-out consumer
+        # (Hooks.needs_full_sample) gets the fully reduced sample;
+        # consumers that read them force materialize_full_sample=True at
+        # the call site, so nothing that reads them can observe the
+        # reduced sample. logging_sample was derived above, before this
+        # branch, so the written log keeps its timelines either way.
         materialized_sample = (
             materialize_streaming_sample(eval_sample, sample_history)
             if materialize_full_sample
-            else eval_sample.model_copy(update={"attachments": {}})
+            else eval_sample.model_copy(update={"attachments": {}, "timelines": None})
         )
         await logger.complete_sample_streaming(
             logging_sample, sample_history, flush=True

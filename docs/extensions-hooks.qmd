@@ -173,7 +173,7 @@ class ScoreTracker(Hooks):
         record(data.sample_id, data.sample.scores)
 ```
 
-This is a permission, not a guarantee: it allows the framework to deliver a sample with empty `events` and `attachments`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. A hook that sets `needs_full_sample = False` must therefore tolerate both forms.
+This is a permission, not a guarantee: it allows the framework to deliver a sample with empty `events` and `attachments` and `timelines` set to `None`, but the reduction only happens when *every* enabled hook has opted out and nothing else in the eval needs the full sample. A hook that sets `needs_full_sample = False` must therefore tolerate both forms.
 
 ## Requiring Hooks
 

@@ -193,8 +193,9 @@ class SampleEnd:
     sample: EvalSample
     """The sample that has run.
 
-    ``events`` and ``attachments`` may be empty when the receiving hook set
-    ``needs_full_sample = False`` (see ``Hooks.needs_full_sample``).
+    ``events`` and ``attachments`` may be empty and ``timelines`` ``None``
+    when the receiving hook set ``needs_full_sample = False`` (see
+    ``Hooks.needs_full_sample``).
     """
 
 
@@ -409,9 +410,10 @@ class Hooks:
     whose events were bounded-evicted from memory, when no other registered
     consumer (another hook, a scanner, a sample/task source) requires it. If
     finalization does skip it, ``SampleEnd.sample`` arrives with empty
-    ``events`` and ``attachments``; if another consumer forces
-    materialization, this hook still receives the fully populated sample. The
-    default preserves the fully populated sample unconditionally.
+    ``events`` and ``attachments`` and ``timelines`` set to ``None``; if
+    another consumer forces materialization, this hook still receives the
+    fully populated sample. The default preserves the fully populated sample
+    unconditionally.
     """
 
     def enabled(self) -> bool:

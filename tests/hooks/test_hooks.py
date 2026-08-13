@@ -13,6 +13,7 @@ from inspect_ai._util.environ import environ_var
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.registry import _registry, registry_info, registry_lookup
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event import TimelineEvent, timeline_build
 from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
     BeforeModelGenerate,
@@ -35,6 +36,7 @@ from inspect_ai.hooks._hooks import (
     override_api_key,
 )
 from inspect_ai.hooks._startup import init_hooks
+from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model import ModelOutput, get_model
@@ -743,6 +745,25 @@ def _emitting_solver_with_model_response(n: int = 100) -> Solver:
     return solve
 
 
+@solver
+def _timeline_adding_solver(n: int = 4) -> Solver:
+    """Emits enough events to exceed a resident_tail of 1, then adds a timeline.
+
+    The timeline wraps the still-resident transcript events, giving the
+    reduced path a `timelines` field whose leaves are real Event objects.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for i in range(n):
+            transcript().info({"i": i})
+        transcript().add_timeline(
+            timeline_build(list(transcript().events), name="test-timeline")
+        )
+        return state
+
+    return solve
+
+
 class _RecordingHook(Hooks):
     """Needs the full sample (the default) and records each on_sample_end."""
 
@@ -759,7 +780,9 @@ class _SummaryOnlyRecordingHook(_RecordingHook):
     needs_full_sample = False
 
 
-def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch, log_dir: str) -> None:
+def _run_evicted_sample_eval(
+    monkeypatch: pytest.MonkeyPatch, log_dir: str, solve: Solver | None = None
+) -> None:
     """Run a one-sample eval whose transcript is bounded-evicted.
 
     Asserts the eviction precondition (the sample was NOT logged from
@@ -783,7 +806,7 @@ def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch, log_dir: str) -> N
 
     monkeypatch.setattr(run_module, "log_sample", spying_log_sample)
     eval(
-        Task(dataset=[Sample("sample_1")], solver=[_emitting_solver()]),
+        Task(dataset=[Sample("sample_1")], solver=[solve or _emitting_solver()]),
         model="mockllm/model",
         log_dir=log_dir,
         display="none",
@@ -842,6 +865,46 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
     assert sample.output.completion == long_response
     assert sample.messages
     assert sample.total_time is not None
+
+
+def test_opted_out_hook_receives_timeline_less_sample_when_evicted(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    isolated_hooks_registry,
+) -> None:
+    """The opted-out hook's sample carries no timelines, but the log keeps them.
+
+    `TimelineEvent.event` holds real Event objects (shared refs, not
+    copies), so timelines riding through the reduction would hand the hook
+    the full event tree that emptying `events` was meant to withhold — and
+    retaining the sample would pin that memory. The written log must be
+    unaffected: it draws timelines from the same `EvalSample` before the
+    reduction branch, so clearing them any earlier (e.g. in
+    `create_eval_sample`) would silently drop them from the log.
+    """
+    with _hook_context("timeline_summary_only_hook", _SummaryOnlyRecordingHook) as hook:
+        _run_evicted_sample_eval(
+            monkeypatch, str(tmp_path), solve=_timeline_adding_solver()
+        )
+
+    assert len(hook.samples) == 1
+    sample = hook.samples[0]
+    assert sample.events == []
+    assert sample.timelines is None
+
+    log = read_eval_log(str(next(tmp_path.glob("*.eval"))))
+    assert log.samples is not None
+    logged = log.samples[0]
+    assert logged.timelines is not None
+    assert logged.timelines[0].name == "test-timeline"
+    # the timeline's UUID refs rebind to the logged events on read-back
+    logged_event_ids = {event.uuid for event in logged.events}
+    timeline_event_ids = {
+        item.event.uuid
+        for item in logged.timelines[0].root.content
+        if isinstance(item, TimelineEvent)
+    }
+    assert timeline_event_ids and timeline_event_ids <= logged_event_ids
 
 
 def test_default_hook_still_receives_full_sample_when_evicted(
