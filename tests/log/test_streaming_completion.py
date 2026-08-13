@@ -1,11 +1,14 @@
+import warnings
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 from test_helpers.task_logger import TaskLoggerShim
 
 from inspect_ai._eval.task.run import log_sample
+from inspect_ai._util.error import EvalError
 from inspect_ai.event import (
     InfoEvent,
     ModelEvent,
@@ -21,14 +24,16 @@ from inspect_ai.log._log import (
     EvalPlan,
     EvalResults,
     EvalSample,
+    EvalSampleLimit,
     EvalSpec,
     EvalStats,
 )
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
-from inspect_ai.log._recorders.eval import EvalRecorder
+from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
+from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelCall, ModelOutput
+from inspect_ai.scorer import Score
 
 
 def _model(uuid: str, content: str) -> ModelEvent:
@@ -273,13 +278,25 @@ def _eval_spec() -> EvalSpec:
     )
 
 
-def _history(tmp_path):
-    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+def _history(tmp_path, name: str = "test"):
+    db = SampleBufferDatabase(str(tmp_path / f"{name}.eval"), db_dir=tmp_path)
     db.start_sample(_sample().summary())
     db.log_events(
         [SampleEvent(id="sample", epoch=1, event=_model("event-1", "answer"))]
     )
     return db.open_sample_history("sample", 1)
+
+
+def _model_with_call(uuid: str, content: str, call_msgs: list[Any]) -> ModelEvent:
+    """A ModelEvent whose ``call`` request populates the call pool.
+
+    ``condense_model_event_with_indices`` pools ``call.request["messages"]``
+    the same way it pools ``input`` — see ``_CALL_MESSAGE_KEYS`` in
+    ``inspect_ai.event._pool``.
+    """
+    return _model(uuid, content).model_copy(
+        update={"call": ModelCall(request={"messages": call_msgs}, response={})}
+    )
 
 
 def _buffer_db(
@@ -460,3 +477,115 @@ async def test_json_recorder_log_sample_streaming_includes_history_attachments(
     assert isinstance(logged_info_event.data, dict)
     assert logged_info_event.data["content"] == buffered_info_event.data["content"]
     assert long_content in log.samples[0].attachments.values()
+
+
+@pytest.mark.anyio
+async def test_streamed_sample_entry_round_trips(tmp_path: Path) -> None:
+    """The streamed zip entry reads back equal to the materialized sample.
+
+    Covers >1 chunk of events, non-empty message and call pools, an
+    attachment, a score, an error, and a limit - order-insensitive.
+    """
+    events: list[ModelEvent | InfoEvent] = [
+        _model(f"event-{i}", _long_content()) for i in range(150)
+    ]
+    call_msgs = [{"role": "user", "content": "call-pool message"}]
+    events[-1] = _model_with_call("event-149", _long_content(), call_msgs)
+
+    sample = _sample().model_copy(
+        update={
+            "scores": {"accuracy": Score(value=1.0, answer="42")},
+            "error": EvalError(message="boom", traceback="tb", traceback_ansi="tb"),
+            "limit": EvalSampleLimit(type="message", limit=50.0),
+        }
+    )
+
+    returned, logged = await _log_sample_with_buffer(
+        tmp_path, sample, events, log_images=True
+    )
+
+    assert len(logged.events) == len(returned.events) == 150
+    assert logged.events == returned.events
+    assert logged.attachments == returned.attachments
+    assert len(logged.attachments) > 0
+    assert logged.scores == returned.scores == sample.scores
+    assert logged.error == returned.error == sample.error
+    assert logged.limit == returned.limit == sample.limit
+    assert logged.events_data is None
+
+    first_event = logged.events[0]
+    assert isinstance(first_event, ModelEvent)
+    assert first_event.input[0].content == "question"
+
+    call_event = logged.events[-1]
+    assert isinstance(call_event, ModelEvent)
+    assert call_event.call is not None
+    assert call_event.call.request["messages"] == call_msgs
+
+
+@pytest.mark.anyio
+async def test_streamed_sample_entry_empty_events_edge(tmp_path: Path) -> None:
+    """A sample whose history has zero events still writes a valid entry."""
+    recorder, spec = await _start_eval_recorder(tmp_path)
+
+    db = SampleBufferDatabase(str(tmp_path / "empty.eval"), db_dir=tmp_path)
+    db.start_sample(_sample().summary())
+
+    with db.open_sample_history("sample", 1) as history:
+        await recorder.log_sample_streaming(spec, _sample(), history)
+
+    await _finish_eval(recorder, spec)
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+
+    assert log.samples is not None
+    logged = log.samples[0]
+    assert logged.events == []
+    assert logged.attachments == {}
+    assert logged.events_data is None
+
+
+@pytest.mark.anyio
+async def test_streaming_path_never_serializes_whole_sample(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Guard: no whole-sample writestr on the streaming path."""
+    written: list[str] = []
+    original = ZipLogFile._zip_writestr
+
+    def recording(self: ZipLogFile, filename: str, data: Any) -> None:
+        written.append(filename)
+        return original(self, filename, data)
+
+    monkeypatch.setattr(ZipLogFile, "_zip_writestr", recording)
+
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    with _history(tmp_path) as history:
+        await recorder.log_sample_streaming(spec, _sample(), history)
+    await _finish_eval(recorder, spec)
+
+    assert not any(f.startswith("samples/") and f.endswith(".json") for f in written), (
+        f"sample entry written via monolithic writestr: {written}"
+    )
+
+
+@pytest.mark.anyio
+async def test_streamed_sample_entry_relog_supersedes_with_no_warning(
+    tmp_path: Path,
+) -> None:
+    """A re-logged (id, epoch) supersedes cleanly with no zipfile warning."""
+    recorder, spec = await _start_eval_recorder(tmp_path)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with _history(tmp_path, name="h1") as history:
+            await recorder.log_sample_streaming(
+                spec, _sample().model_copy(update={"target": "stale"}), history
+            )
+        with _history(tmp_path, name="h2") as history:
+            await recorder.log_sample_streaming(spec, _sample(), history)
+
+    await _finish_eval(recorder, spec)
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+
+    assert log.samples is not None and len(log.samples) == 1
+    assert log.samples[0].target == "answer"
