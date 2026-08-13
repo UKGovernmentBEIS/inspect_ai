@@ -13,6 +13,7 @@ from typing import Any
 
 import anyio
 import click
+import httpx
 import pytest
 from test_helpers.trace import action_record, write_trace_log
 
@@ -4967,6 +4968,68 @@ def test_sample_requeue_bulk_reports_mixed_results(
     assert "Failed to update requeue" not in human.stdout
     assert "Nothing to do for sample s3 (epoch 1)" in human.stdout
     assert "Requeued 1 of 3 samples (1 no-op, 1 rejected)." in human.stdout
+
+
+def test_sample_requeue_bulk_rejection_reported_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A recorded rejection appears only in the stdout report, not on stderr.
+
+    Runs the real ``_request_json`` (the tests above mock it away, which is
+    exactly how the double print escaped them): without ``echo_failures=
+    False`` every rejection would also surface as transport stderr narration
+    ("Failed to update requeue of sample ..."), printing each failure twice
+    in a terminal.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 2
+    _patch_surface(monkeypatch, [summary])
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={"error": "task already finished"},
+            request=httpx.Request("POST", f"http://localhost{path}"),
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_response_with_retry", respond)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "2"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "Rejected sample s1 (epoch 1) — task already finished" in result.stdout
+    assert "Rejected sample s2 (epoch 2) — task already finished" in result.stdout
+    assert "Requeued 0 of 2 samples (2 rejected)." in result.stdout
+    assert "Failed to update requeue" not in result.stderr
+
+
+def test_sample_requeue_bulk_abort_still_reaches_stderr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An aborting failure is echoed to stderr exactly once despite the suppression.
+
+    With ``echo_failures=False`` the sweep owns the echo for failures it
+    re-raises — a router 404 (older server without the endpoint) must still
+    reach the user, and only once.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+
+    def respond(socket_path: str, path: str, **kwargs: Any) -> httpx.Response:
+        # FastAPI's stock router 404 (no {"error": ...} body) — see _handler_404
+        return httpx.Response(
+            404,
+            json={"detail": "Not Found"},
+            request=httpx.Request("POST", f"http://localhost{path}"),
+        )
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._get_response_with_retry", respond)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "1"]
+    )
+    assert result.exit_code == 1
+    assert result.stderr.count(_REQUEUE_ROUTE_MISSING) == 1
 
 
 def test_sample_requeue_bulk_aborts_on_missing_route(

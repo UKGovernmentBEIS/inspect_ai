@@ -3473,11 +3473,12 @@ def _requeue_pairs(
     fail every remaining post identically (unreachable/busy process, missing
     route on an older server) aborts the whole command — safe to re-run, the
     endpoint is idempotent. The command exits zero once every sample was
-    attempted; per-sample outcomes live in the results. A recorded rejection
-    has already been echoed to stderr by :func:`_request_json` before it is
-    caught here — deliberate: stderr stays narration in both output modes
-    (and doubles as live progress on a long sweep); the stdout report is the
-    authoritative outcome.
+    attempted; per-sample outcomes live in the results. The posts run with
+    ``echo_failures=False`` so a recorded rejection is reported exactly once,
+    in the stdout report — otherwise every rejection would also appear as
+    transport stderr narration, doubling the output. That makes this caller
+    responsible for echoing the failures it re-raises (the abort path), since
+    nothing downstream prints them in human mode.
     """
 
     def what(sample_id: str) -> str:
@@ -3502,6 +3503,7 @@ def _requeue_pairs(
                 mutate="post",
                 retry_mutation=True,
                 pid=target.get("pid"),
+                echo_failures=False,
             )
         except _CtlFailure as exc:
             if exc.missing_route or exc.kind not in (
@@ -3509,6 +3511,7 @@ def _requeue_pairs(
                 "invalid_request",
                 "http_error",
             ):
+                click.echo(exc.message, err=True)
                 raise
             results.append(
                 {
@@ -5336,6 +5339,7 @@ def _request_json(
     mutate: Literal["post", "patch"] | None = None,
     retry_mutation: bool = False,
     pid: int | None = None,
+    echo_failures: bool = True,
 ) -> dict[str, Any]:
     """GET (retrying a busy process) or mutate ``path``; return its JSON dict.
 
@@ -5360,8 +5364,27 @@ def _request_json(
     ``pid`` scopes the retry-exhaustion escalation pointer to the target
     process (see :func:`_get_response_with_retry`) — pass it when the caller
     has already resolved one.
+
+    ``echo_failures=False`` suppresses the stderr echo that normally precedes
+    each raised :class:`_CtlFailure` — for callers that catch the failure and
+    render it themselves (the bulk-requeue sweep records per-sample
+    rejections in its stdout report; echoing here too would print every
+    rejection twice). Such callers take over the raiser-echoes contract: any
+    failure they re-raise instead of recording must be echoed first.
     """
     verb = "update" if mutate else "read"
+
+    def fail(
+        kind: _ErrorKind,
+        message: str,
+        *,
+        status: int | None = None,
+        missing_route: bool = False,
+    ) -> NoReturn:
+        if echo_failures:
+            click.echo(message, err=True)
+        raise _CtlFailure(kind, message, status=status, missing_route=missing_route)
+
     try:
         if mutate is not None and retry_mutation:
             response = _get_response_with_retry(
@@ -5389,15 +5412,15 @@ def _request_json(
             )
         if response.status_code == 404:
             if not_found_missing_route is not None and not _handler_404(response):
-                _fail(
+                fail(
                     "not_found",
                     not_found_missing_route,
                     status=404,
                     missing_route=True,
                 )
-            _fail("not_found", not_found, status=404)
+            fail("not_found", not_found, status=404)
         if response.status_code == 400:
-            _fail(
+            fail(
                 "invalid_request",
                 f"Invalid request: {_error_detail_from_response(response)}",
                 status=400,
@@ -5406,11 +5429,13 @@ def _request_json(
         result = response.json()
     except _ServerUnreachable as exc:
         message = f"{_failure_prefix(verb, what)}{_unreachable_detail(exc)}"
-        click.echo(message, err=True)
+        if echo_failures:
+            click.echo(message, err=True)
         raise _unreachable_failure(message, exc) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
         message = f"{_failure_prefix(verb, what)}{_error_detail(exc)}"
-        click.echo(message, err=True)
+        if echo_failures:
+            click.echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
 
