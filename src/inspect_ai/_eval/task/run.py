@@ -1660,6 +1660,7 @@ async def task_run_sample(
         emit_sample_init,
         emit_sample_scoring,
         emit_sample_start,
+        get_all_hooks,
         start_sample_event_emitter,
     )
 
@@ -2337,6 +2338,18 @@ async def task_run_sample(
                                 logger.buffer_db is None
                                 or not sample_transcript.history.resident_events_truncated
                             )
+                            # On the evicted path the full event history is
+                            # re-materialized from the buffer only if some
+                            # consumer actually reads it.
+                            needs_events = log_from_memory or (
+                                (scanner is not None and scan_id is not None)
+                                or sample_feed is not None
+                                or task_source is not None
+                                or any(
+                                    hook.enabled() and hook.needs_full_sample
+                                    for hook in get_all_hooks()
+                                )
+                            )
                             eval_sample = await log_sample(
                                 eval_sample=make_eval_sample(
                                     include_events=log_from_memory
@@ -2344,6 +2357,7 @@ async def task_run_sample(
                                 logger=logger,
                                 log_images=log_images,
                                 from_memory=log_from_memory,
+                                needs_events=needs_events,
                             )
                         else:
                             eval_sample = make_eval_sample()
@@ -2597,6 +2611,7 @@ async def log_sample(
     log_images: bool,
     *,
     from_memory: bool,
+    needs_events: bool = True,
 ) -> EvalSample:
     # No realtime buffer DB, or the full history is still resident in memory:
     # log directly from the in-memory sample (which carries its events). This
@@ -2620,7 +2635,15 @@ async def log_sample(
     with logger.buffer_db.open_sample_history(
         eval_sample.id, eval_sample.epoch
     ) as sample_history:
-        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
+        # eval_sample is event-less by construction on this path
+        # (include_events=False); consumers that read events force
+        # needs_events=True at the call site, so nothing that reads
+        # events can observe the reduced sample
+        materialized_sample = (
+            materialize_streaming_sample(eval_sample, sample_history)
+            if needs_events
+            else eval_sample
+        )
         await logger.complete_sample_streaming(
             logging_sample, sample_history, flush=True
         )

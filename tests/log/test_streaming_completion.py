@@ -1,5 +1,6 @@
+import contextlib
 import warnings
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Generator, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -7,8 +8,11 @@ from typing import Any
 import pytest
 from test_helpers.task_logger import TaskLoggerShim
 
+from inspect_ai import SampleSource, Task, TaskSource, eval
 from inspect_ai._eval.task.run import log_sample
 from inspect_ai._util.error import EvalError
+from inspect_ai._util.registry import _registry
+from inspect_ai.dataset import Sample
 from inspect_ai.event import (
     InfoEvent,
     ModelEvent,
@@ -16,6 +20,7 @@ from inspect_ai.event import (
     TimelineEvent,
     TimelineSpan,
 )
+from inspect_ai.hooks import Hooks, hooks
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._log import (
@@ -32,8 +37,10 @@ from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
 from inspect_ai.log._recorders.json import JSONRecorder
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelCall, ModelOutput
 from inspect_ai.scorer import Score
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 
 
 def _model(uuid: str, content: str) -> ModelEvent:
@@ -589,3 +596,137 @@ async def test_streamed_sample_entry_relog_supersedes_with_no_warning(
 
     assert log.samples is not None and len(log.samples) == 1
     assert log.samples[0].target == "answer"
+
+
+@contextlib.contextmanager
+def _registered_hook(name: str, hook_class: type[Hooks]) -> Generator[None, None, None]:
+    """Register `hook_class` under `name` for the duration of the block."""
+    hooks(name, description=f"{name}-description")(hook_class)
+    try:
+        yield
+    finally:
+        del _registry[f"hooks:{name}"]
+
+
+class _FullSampleHook(Hooks):
+    pass
+
+
+class _OptedOutHook(Hooks):
+    needs_full_sample = False
+
+
+def _emitting_solver(n: int = 4) -> Solver:
+    """Emits enough transcript events to exceed a resident_tail of 1."""
+
+    @solver
+    def emit_events() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            for i in range(n):
+                transcript().info({"i": i})
+            return state
+
+        return solve
+
+    return emit_events()
+
+
+def _drive_evicted_eval(consumer: str, log_dir: str) -> None:
+    """Run a one-sample eval whose transcript is bounded-evicted.
+
+    `consumer` selects which finalization consumer (if any) is wired up,
+    mirroring the branches the `needs_events` check in `task_run_sample`
+    covers: a hook (registered by the caller around this call), a scanner, a
+    `TaskSource`, or a `SampleSource`.
+    """
+    task = Task(
+        dataset=[Sample(input="question", target="answer")],
+        solver=[_emitting_solver()],
+    )
+
+    if consumer == "scanner":
+        pytest.importorskip("inspect_scout")
+        from inspect_scout import Result, Transcript
+        from inspect_scout import scanner as scout_scanner
+
+        @scout_scanner(messages="all")
+        def _echo_scanner() -> Callable[[Transcript], Awaitable[Result]]:
+            async def scan(transcript: Transcript) -> Result:
+                return Result(value="ok")
+
+            return scan
+
+        eval(
+            task,
+            scanner=[_echo_scanner()],
+            model="mockllm/model",
+            log_dir=log_dir,
+            display="none",
+        )
+    elif consumer == "task_source":
+
+        class _TaskSourceStub(TaskSource):
+            def initial_tasks(self) -> list[Task]:
+                return [task]
+
+        eval(_TaskSourceStub(), model="mockllm/model", log_dir=log_dir, display="none")
+    elif consumer == "sample_feed":
+
+        class _SampleSourceStub(SampleSource):
+            def initial_samples(self) -> list[Sample]:
+                return [Sample(input="question", target="answer")]
+
+        eval(
+            Task(dataset=_SampleSourceStub(), solver=[_emitting_solver()]),
+            model="mockllm/model",
+            log_dir=log_dir,
+            display="none",
+        )
+    else:
+        eval(task, model="mockllm/model", log_dir=log_dir, display="none")
+
+
+@pytest.mark.parametrize(
+    "consumer",
+    ["none", "hook_full", "hook_opted_out", "scanner", "task_source", "sample_feed"],
+)
+def test_materialization_is_conditional(
+    consumer: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """materialize_streaming_sample runs iff some consumer needs events.
+
+    Drives a one-sample eval whose transcript is bounded-evicted
+    (DEFAULT_RESIDENT_TAIL patched to 1) for each finalization consumer kind,
+    and counts calls to materialize_streaming_sample. A plain `def` test:
+    `eval()` manages its own event loop and cannot be called from `async def`.
+    """
+    import inspect_ai._eval.task.run as run_module
+
+    calls = {"n": 0}
+    original = run_module.materialize_streaming_sample  # type: ignore[attr-defined]
+
+    def counting(sample: EvalSample, history: Any) -> EvalSample:
+        calls["n"] += 1
+        return original(sample, history)
+
+    monkeypatch.setattr(run_module, "materialize_streaming_sample", counting)
+    monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 1)
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+
+    hook_registration: contextlib.AbstractContextManager[None] = (
+        contextlib.nullcontext()
+    )
+    if consumer == "hook_full":
+        hook_registration = _registered_hook(
+            "materialization_hook_full", _FullSampleHook
+        )
+    elif consumer == "hook_opted_out":
+        hook_registration = _registered_hook(
+            "materialization_hook_opted_out", _OptedOutHook
+        )
+
+    with hook_registration:
+        _drive_evicted_eval(consumer, str(tmp_path))
+
+    expected = consumer not in ("none", "hook_opted_out")
+    assert (calls["n"] > 0) == expected

@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Generator, Type, TypeVar
 from unittest.mock import patch
 
@@ -31,6 +32,8 @@ from inspect_ai.hooks._hooks import (
     override_api_key,
 )
 from inspect_ai.hooks._startup import init_hooks
+from inspect_ai.log._log import EvalSample
+from inspect_ai.log._transcript import transcript
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 
@@ -587,9 +590,14 @@ def test_hooks_decorator_returns_class() -> None:
     class TestHooksClass(Hooks):
         pass
 
-    assert isinstance(TestHooksClass, type)
-    instance = TestHooksClass()
-    assert isinstance(instance, Hooks)
+    try:
+        assert isinstance(TestHooksClass, type)
+        instance = TestHooksClass()
+        assert isinstance(instance, Hooks)
+    finally:
+        # Registration is a side effect of the decorator, not under test here;
+        # clean it up so it doesn't leak into other tests via get_all_hooks().
+        del _registry["hooks:test_hooks_class"]
 
 
 def test_required_hooks_when_all_installed(
@@ -694,6 +702,92 @@ def _create_mock_hooks(name: str, hooks_class: Type[T]) -> Generator[T, None, No
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry[f"hooks:{name}"]
+
+
+@contextmanager
+def _hook_context(name: str, hooks_class: Type[T]) -> Generator[T, None, None]:
+    """`_create_mock_hooks` adapted for use as a `with` block in a test body."""
+    yield from _create_mock_hooks(name, hooks_class)
+
+
+@solver
+def _emitting_solver(n: int = 4) -> Solver:
+    """Emits enough transcript events to exceed a resident_tail of 1."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for i in range(n):
+            transcript().info({"i": i})
+        return state
+
+    return solve
+
+
+def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Run a one-sample eval whose transcript is bounded-evicted."""
+    import inspect_ai._eval.task.run as run_module
+
+    monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 1)
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    eval(
+        Task(dataset=[Sample("sample_1")], solver=[_emitting_solver()]),
+        model="mockllm/model",
+        display="none",
+    )
+
+
+def test_opted_out_hook_receives_event_less_sample_when_evicted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class SummaryOnlyHook(Hooks):
+        needs_full_sample = False
+
+        def __init__(self) -> None:
+            self.samples: list[EvalSample] = []
+
+        async def on_sample_end(self, data: SampleEnd) -> None:
+            self.samples.append(data.sample)
+
+    with _hook_context("summary_only_hook", SummaryOnlyHook) as hook:
+        _run_evicted_sample_eval(monkeypatch)
+
+    assert len(hook.samples) == 1
+    sample = hook.samples[0]
+    assert sample.events == [] and sample.attachments == {}
+    assert sample.id is not None and sample.scores is not None  # summary intact
+
+
+def test_default_hook_still_receives_full_sample_when_evicted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FullSampleHook(Hooks):
+        def __init__(self) -> None:
+            self.samples: list[EvalSample] = []
+
+        async def on_sample_end(self, data: SampleEnd) -> None:
+            self.samples.append(data.sample)
+
+    with _hook_context("full_sample_hook", FullSampleHook) as hook:
+        _run_evicted_sample_eval(monkeypatch)
+
+    assert len(hook.samples) == 1
+    assert len(hook.samples[0].events) > 0
+
+
+def test_opted_out_hook_unaffected_on_non_evicted_path() -> None:
+    class SummaryOnlyHook(Hooks):
+        needs_full_sample = False
+
+        def __init__(self) -> None:
+            self.samples: list[EvalSample] = []
+
+        async def on_sample_end(self, data: SampleEnd) -> None:
+            self.samples.append(data.sample)
+
+    with _hook_context("summary_only_hook_non_evicted", SummaryOnlyHook) as hook:
+        eval(Task(dataset=[Sample("sample_1")]), model="mockllm/model")
+
+    assert len(hook.samples) == 1
+    assert len(hook.samples[0].events) > 0
 
 
 @solver
