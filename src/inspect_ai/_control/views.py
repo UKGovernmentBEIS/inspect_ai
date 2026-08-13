@@ -103,6 +103,9 @@ class ProcessConfigView(TypedDict):
     """``None`` = no subprocess limiter yet; absent before version 1."""
 
     adaptive: list[AdaptiveControllerView]
+    """Required, though pre-release version-0 builds lacked it — the CLI
+    reads it with ``.get()`` (see the module docstring)."""
+
     retry: NotRequired[dict[str, int | None]]
     """Active retry-loop overrides (``None`` = launch config applies per
     call); absent before version 4."""
