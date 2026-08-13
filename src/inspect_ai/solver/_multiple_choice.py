@@ -130,7 +130,10 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
 
         matched = matched.replace(" ", "")
 
-        split_comma = set(matched.split(","))
+        #split_comma = set(matched.split(",")) # error code replaced with code below (Line: 136)
+        #In parse_answers() for multiple_correct=True, matched.replace(" AND ", ",") and space stripping caused inputs like "ANSWER: A, B, and #C" or "ANSWER: A, C," to produce empty string elements "" when split by comma (e.g. {"A", "B", "", "C"})
+        
+        split_comma = set(x for x in matched.split(",") if x)
         if split_comma.issubset(allowed_options):
             answers = split_comma
             return answers
