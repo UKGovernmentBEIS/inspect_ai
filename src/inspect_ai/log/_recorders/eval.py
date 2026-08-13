@@ -930,25 +930,33 @@ class ZipLogFile:
                 )
             )
             header_bytes = to_json_safe(header, indent=None)
-            with self._zip_open_write(
-                _sample_filename(sample.id, sample.epoch)
-            ) as stream:
-                # header always has fields (id/epoch), so stripping the
-                # closing brace and continuing with comma-prefixed fields
-                # is well-formed
-                stream.write(header_bytes[:-1])
-                await write_json_array_field(stream, "events", events, comma=True)
-                await write_json_object_field(
-                    stream, "attachments", attachments, comma=True
-                )
-                stream.write(b',"events_data":{')
-                await write_json_array_field(
-                    stream, "messages", events_data["messages"]
-                )
-                await write_json_array_field(
-                    stream, "calls", events_data["calls"], comma=True
-                )
-                stream.write(b"}}")
+            # Shielded: sample members must always be complete JSON (_read_log
+            # parses every one eagerly, so a truncated member fails the whole
+            # log read). Without the shield, a cancellation delivered at one
+            # of the checkpoints below would let _zip_open_write's __exit__
+            # finalize a truncated member. Checkpoints still yield under the
+            # shield (liveness is retained); cancellation is simply deferred
+            # until this entry completes.
+            with anyio.CancelScope(shield=True):
+                with self._zip_open_write(
+                    _sample_filename(sample.id, sample.epoch)
+                ) as stream:
+                    # header always has fields (id/epoch), so stripping the
+                    # closing brace and continuing with comma-prefixed fields
+                    # is well-formed
+                    stream.write(header_bytes[:-1])
+                    await write_json_array_field(stream, "events", events, comma=True)
+                    await write_json_object_field(
+                        stream, "attachments", attachments, comma=True
+                    )
+                    stream.write(b',"events_data":{')
+                    await write_json_array_field(
+                        stream, "messages", events_data["messages"]
+                    )
+                    await write_json_array_field(
+                        stream, "calls", events_data["calls"], comma=True
+                    )
+                    stream.write(b"}}")
 
             # evict a buffered prior record for the same (id, epoch): its
             # member would otherwise be flush-written *after* the streaming

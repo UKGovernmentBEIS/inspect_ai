@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import anyio
 import pytest
 from test_helpers.task_logger import TaskLoggerShim
 
@@ -32,6 +33,9 @@ from inspect_ai.log._log import (
     EvalSampleLimit,
     EvalSpec,
     EvalStats,
+)
+from inspect_ai.log._recorders._stream_write import (
+    write_json_array_field as _write_json_array_field,
 )
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.eval import EvalRecorder, ZipLogFile
@@ -549,6 +553,53 @@ async def test_streamed_sample_entry_empty_events_edge(tmp_path: Path) -> None:
     assert logged.events == []
     assert logged.attachments == {}
     assert logged.events_data is None
+
+
+@pytest.mark.anyio
+async def test_buffer_sample_streaming_shields_cancellation_mid_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A cancellation delivered mid-entry-write must not truncate the member.
+
+    Deterministic stand-in for real task cancellation landing at one of the
+    checkpoints inside the entry write: monkeypatches ``write_json_array_field``
+    to cancel the enclosing scope on its first call (serializing the "events"
+    field), so the cancellation is pending at the checkpoint between chunks
+    inside ``buffer_sample_streaming``'s zip-entry write. Without shielding
+    that write, the checkpoint raises there, ``_zip_open_write``'s ``__exit__``
+    finalizes the truncated member, and the log becomes unreadable
+    (``_read_log`` parses every sample member eagerly).
+    """
+    import inspect_ai.log._recorders.eval as eval_module
+
+    recorder, spec = await _start_eval_recorder(tmp_path)
+    events = [_model(f"event-{i}", _long_content()) for i in range(150)]
+    db = _buffer_db(tmp_path, events)
+
+    original_write_json_array_field = _write_json_array_field
+    cancelled = {"done": False}
+
+    async def cancel_on_first_call(*args: Any, **kwargs: Any) -> None:
+        if not cancelled["done"]:
+            cancelled["done"] = True
+            scope.cancel()
+        await original_write_json_array_field(*args, **kwargs)
+
+    with anyio.CancelScope() as scope:
+        monkeypatch.setattr(eval_module, "write_json_array_field", cancel_on_first_call)
+        with db.open_sample_history("sample", 1) as history:
+            await recorder.log_sample_streaming(spec, _sample(), history)
+        # The shield only defers cancellation past the entry write, it must
+        # not drop it: liveness is retained via the checkpoint below.
+        await anyio.lowlevel.checkpoint()
+
+    assert scope.cancelled_caught, "deferred cancellation was never delivered"
+
+    await _finish_eval(recorder, spec)
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+
+    assert log.samples is not None
+    assert len(log.samples[0].events) == len(events)
 
 
 @pytest.mark.anyio

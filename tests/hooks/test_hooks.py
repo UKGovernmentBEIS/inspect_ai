@@ -817,6 +817,46 @@ def test_default_hook_still_receives_full_sample_when_evicted(
     assert len(hook.samples[0].events) > 0
 
 
+def test_mixed_hooks_both_receive_full_sample_when_one_needs_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One opted-out + one default hook: needs_full_sample is a floor, not per-hook.
+
+    `needs_events` is computed once for the sample from all enabled hooks
+    combined (`any(hook.enabled() and hook.needs_full_sample ...)`), and every
+    hook is dispatched the same `SampleEnd.sample` object. So a single
+    full-sample hook forces materialization for everyone on the sample,
+    including hooks that opted out.
+    """
+
+    class SummaryOnlyHook(Hooks):
+        needs_full_sample = False
+
+        def __init__(self) -> None:
+            self.samples: list[EvalSample] = []
+
+        async def on_sample_end(self, data: SampleEnd) -> None:
+            self.samples.append(data.sample)
+
+    class FullSampleHook(Hooks):
+        def __init__(self) -> None:
+            self.samples: list[EvalSample] = []
+
+        async def on_sample_end(self, data: SampleEnd) -> None:
+            self.samples.append(data.sample)
+
+    with (
+        _hook_context("mixed_summary_only_hook", SummaryOnlyHook) as summary_hook,
+        _hook_context("mixed_full_sample_hook", FullSampleHook) as full_hook,
+    ):
+        _run_evicted_sample_eval(monkeypatch)
+
+    assert len(summary_hook.samples) == 1
+    assert len(full_hook.samples) == 1
+    assert len(summary_hook.samples[0].events) > 0
+    assert summary_hook.samples[0] is full_hook.samples[0]
+
+
 def test_opted_out_hook_unaffected_on_non_evicted_path() -> None:
     class SummaryOnlyHook(Hooks):
         needs_full_sample = False

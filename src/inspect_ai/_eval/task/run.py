@@ -2341,6 +2341,13 @@ async def task_run_sample(
                             # On the evicted path the full event history is
                             # re-materialized from the buffer only if some
                             # consumer actually reads it.
+                            #
+                            # Hooks are snapshotted here, at finalization
+                            # start, not at the later on_sample_end dispatch:
+                            # a hook that enables itself in that window would
+                            # still receive the reduced sample. Accepted —
+                            # hook registration/enablement is a startup-time
+                            # activity, not something toggled mid-finalization.
                             needs_events = log_from_memory or (
                                 (scanner is not None and scan_id is not None)
                                 or sample_feed is not None
@@ -2583,7 +2590,7 @@ def create_eval_sample(
         uuid=state.uuid,
         events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
-        attachments=dict(transcript().attachments) if include_events else {},
+        attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
@@ -2635,14 +2642,19 @@ async def log_sample(
     with logger.buffer_db.open_sample_history(
         eval_sample.id, eval_sample.epoch
     ) as sample_history:
-        # eval_sample has empty events/attachments by construction on this
-        # path (include_events=False); consumers that read either force
+        # eval_sample carries full attachments even though its events are
+        # empty on this path: checkpoint-restored attachment content can
+        # live only in the transcript dict, not the buffer history, so it
+        # must seed both the written log and materialize_streaming_sample's
+        # merge. The needs_events=False branch empties attachments too, so
+        # an opted-out consumer (Hooks.needs_full_sample) gets the fully
+        # reduced sample; consumers that read either force
         # needs_events=True at the call site, so nothing that reads them
-        # can observe the reduced sample
+        # can observe the reduced sample.
         materialized_sample = (
             materialize_streaming_sample(eval_sample, sample_history)
             if needs_events
-            else eval_sample
+            else eval_sample.model_copy(update={"attachments": {}})
         )
         await logger.complete_sample_streaming(
             logging_sample, sample_history, flush=True

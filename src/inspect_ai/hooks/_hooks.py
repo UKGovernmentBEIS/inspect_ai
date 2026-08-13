@@ -400,11 +400,14 @@ class Hooks:
     """Whether ``on_sample_end`` requires the fully materialized sample.
 
     Hooks that read only summary-level fields (id, scores, error, ...) may
-    set this ``False``: for samples whose events were bounded-evicted from
-    memory, ``SampleEnd.sample`` then arrives with empty ``events`` and
-    ``attachments`` and finalization skips re-materializing the event
-    history from the realtime buffer. The default preserves the fully
-    populated sample.
+    set this ``False``. This is a permission, not a guarantee: it tells
+    finalization it MAY skip re-materializing the event history for samples
+    whose events were bounded-evicted from memory, when no other registered
+    consumer (another hook, a scanner, a sample/task source) requires it. If
+    finalization does skip it, ``SampleEnd.sample`` arrives with empty
+    ``events`` and ``attachments``; if another consumer forces
+    materialization, this hook still receives the fully populated sample. The
+    default preserves the fully populated sample unconditionally.
     """
 
     def enabled(self) -> bool:
