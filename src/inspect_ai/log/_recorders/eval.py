@@ -965,7 +965,11 @@ class ZipLogFile:
                     # which would make every sample unreadable (_read_log
                     # parses each member eagerly); supersede it with the
                     # event-less header (readers resolve duplicate names to
-                    # the last entry), then propagate
+                    # the last entry), then propagate. Timelines are dropped
+                    # too: their events serialize as UUID strings that cannot
+                    # rebind against the stub's empty events, which would fail
+                    # the read the stub exists to protect.
+                    header.pop("timelines", None)
                     self._zip_writestr(filename, header)
                     raise
 

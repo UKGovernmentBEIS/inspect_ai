@@ -774,6 +774,77 @@ async def test_streamed_write_failure_leaves_log_readable(
 
 
 @pytest.mark.anyio
+async def test_streamed_write_failure_stub_drops_timelines(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The repair stub must not retain timelines.
+
+    Timeline events serialize as event-UUID strings which are rebound against
+    ``sample.events`` on read; the stub's events are empty, so a retained
+    timeline fails validation — turning the repair stub itself into the
+    poisoned member it exists to prevent.
+    """
+    import inspect_ai.log._recorders.eval as eval_module
+
+    recorder, spec = await _start_eval_recorder(tmp_path)
+
+    calls = {"n": 0}
+
+    async def failing_object_field(*args: Any, **kwargs: Any) -> None:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("serialization failed mid-write")
+        await write_json_object_field(*args, **kwargs)
+
+    monkeypatch.setattr(eval_module, "write_json_object_field", failing_object_field)
+
+    def _timeline_sample(id: str) -> EvalSample:
+        return EvalSample(
+            id=id,
+            epoch=1,
+            input="question",
+            target="answer",
+            timelines=[
+                Timeline(
+                    name="main",
+                    description="main timeline",
+                    root=TimelineSpan(
+                        id="root",
+                        name="root",
+                        content=[TimelineEvent(event=_model("event-1", "answer"))],
+                    ),
+                )
+            ],
+        )
+
+    sample_1 = _timeline_sample("s1")
+    sample_2 = _timeline_sample("s2")
+
+    with _history_for(tmp_path, sample_1, name="h1") as history:
+        await recorder.log_sample_streaming(spec, sample_1, history)
+    with pytest.raises(RuntimeError, match="serialization failed mid-write"):
+        with _history_for(tmp_path, sample_2, name="h2") as history:
+            await recorder.log_sample_streaming(spec, sample_2, history)
+
+    await _finish_eval(recorder, spec)
+    log = await read_eval_log_async(str(tmp_path / "streaming.eval"))
+
+    assert log.samples is not None
+    by_id = {s.id: s for s in log.samples}
+    # the healthy streamed member keeps its timeline, rebound to its events
+    healthy = by_id["s1"]
+    assert [event.uuid for event in healthy.events] == ["event-1"]
+    assert healthy.timelines is not None
+    healthy_timeline_event = healthy.timelines[0].root.content[0]
+    assert isinstance(healthy_timeline_event, TimelineEvent)
+    assert healthy_timeline_event.event is healthy.events[0]
+    # the repaired stub drops timelines alongside its events/attachments
+    if "s2" in by_id:
+        assert by_id["s2"].events == []
+        assert by_id["s2"].timelines is None
+
+
+@pytest.mark.anyio
 async def test_streaming_path_never_serializes_whole_sample(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
