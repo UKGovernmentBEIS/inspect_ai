@@ -2583,7 +2583,7 @@ def create_eval_sample(
         uuid=state.uuid,
         events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
-        attachments=dict(transcript().attachments),
+        attachments=dict(transcript().attachments) if include_events else {},
         model_usage=sample_model_usage(),
         role_usage=sample_role_usage(),
         model_fallbacks=sample_model_fallbacks() or None,
@@ -2635,10 +2635,10 @@ async def log_sample(
     with logger.buffer_db.open_sample_history(
         eval_sample.id, eval_sample.epoch
     ) as sample_history:
-        # eval_sample is event-less by construction on this path
-        # (include_events=False); consumers that read events force
-        # needs_events=True at the call site, so nothing that reads
-        # events can observe the reduced sample
+        # eval_sample has empty events/attachments by construction on this
+        # path (include_events=False); consumers that read either force
+        # needs_events=True at the call site, so nothing that reads them
+        # can observe the reduced sample
         materialized_sample = (
             materialize_streaming_sample(eval_sample, sample_history)
             if needs_events

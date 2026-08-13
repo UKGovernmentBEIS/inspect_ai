@@ -34,6 +34,7 @@ from inspect_ai.hooks._hooks import (
 from inspect_ai.hooks._startup import init_hooks
 from inspect_ai.log._log import EvalSample
 from inspect_ai.log._transcript import transcript
+from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 
@@ -722,6 +723,23 @@ def _emitting_solver(n: int = 4) -> Solver:
     return solve
 
 
+@solver
+def _emitting_solver_with_model_response(n: int = 100) -> Solver:
+    """Emits filler events, then a real generate() call.
+
+    With a small resident tail, the filler events are evicted while the
+    trailing model-call events stay resident — the shape needed to exercise
+    a hook opt-out against a model response that's still in memory.
+    """
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        for i in range(n):
+            transcript().info({"i": i})
+        return await generate(state)
+
+    return solve
+
+
 def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch) -> None:
     """Run a one-sample eval whose transcript is bounded-evicted."""
     import inspect_ai._eval.task.run as run_module
@@ -738,6 +756,16 @@ def _run_evicted_sample_eval(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_opted_out_hook_receives_event_less_sample_when_evicted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The opted-out hook's sample carries neither raw events nor attachments.
+
+    A >100-char model response inside the resident tail is the shape that
+    catches attachments leaking independently of events: attachments are
+    populated by the (still-resident) model event's condensing, not by the
+    evicted-vs-resident events list itself, so a scenario with no long
+    content can pass `attachments == {}` vacuously.
+    """
+    import inspect_ai._eval.task.run as run_module
+
     class SummaryOnlyHook(Hooks):
         needs_full_sample = False
 
@@ -747,8 +775,24 @@ def test_opted_out_hook_receives_event_less_sample_when_evicted(
         async def on_sample_end(self, data: SampleEnd) -> None:
             self.samples.append(data.sample)
 
+    monkeypatch.setattr(run_module, "DEFAULT_RESIDENT_TAIL", 20)
+    monkeypatch.setenv("INSPECT_TRANSCRIPT_BOUNDED", "true")
+    long_response = "x" * 150
+
     with _hook_context("summary_only_hook", SummaryOnlyHook) as hook:
-        _run_evicted_sample_eval(monkeypatch)
+        eval(
+            Task(
+                dataset=[Sample("sample_1")],
+                solver=[_emitting_solver_with_model_response()],
+            ),
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    ModelOutput.from_content("mockllm/model", long_response)
+                ],
+            ),
+            display="none",
+        )
 
     assert len(hook.samples) == 1
     sample = hook.samples[0]
