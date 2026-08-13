@@ -934,6 +934,8 @@ class ZipLogFile:
                 )
             )
             header_bytes = to_json_safe(header, indent=None)
+            # non-empty dict ({...} not {}): id/epoch are required non-None
+            assert len(header_bytes) > 2
             # Shielded: sample members must always be complete JSON (_read_log
             # parses every one eagerly, so a truncated member fails the whole
             # log read). Without the shield, a cancellation delivered at one
