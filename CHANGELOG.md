@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Models: OpenAI, OpenAI-compatible, Anthropic and Groq now allow 60s rather than 5s for connection setup, so a busy event loop is much less likely to cause `APIConnectionError`.
 - Anthropic: models returning omitted (empty) thinking summaries no longer misreport `usage.reasoning_tokens` and log a token-counting warning on every generate.
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.

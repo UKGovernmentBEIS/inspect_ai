@@ -59,6 +59,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
+from inspect_ai._util.http_defaults import default_client_kwargs
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
@@ -1222,30 +1223,14 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     return value
 
 
-# httpx-native equivalents of openai's DEFAULT_TIMEOUT / DEFAULT_CONNECTION_LIMITS
-# (same values). Do NOT import those from `openai`: openai >= 3.0 is built on
-# httpx2, and its httpx2-typed constants silently corrupt the timeout config of
-# our legacy `httpx.AsyncClient`, failing every request with APIConnectionError.
-DEFAULT_TIMEOUT = httpx.Timeout(timeout=600, connect=5.0)
-DEFAULT_CONNECTION_LIMITS = httpx.Limits(
-    max_connections=1000, max_keepalive_connections=100
-)
-
-
 class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that uses OpenAI's default settings.
+    """Async client carrying the shared HTTP defaults (see `_util.http_defaults`).
 
-    This ensures proper proxy support and follows OpenAI's recommended configuration.
-    OpenAI has already incorporated timeout improvements for reasoning models in their
-    default transport, so we don't need custom socket options.
-
+    Do NOT source these from `openai`: openai >= 3.0 is built on httpx2, and
+    its httpx2-typed `DEFAULT_TIMEOUT` / `DEFAULT_CONNECTION_LIMITS` silently
+    corrupt the timeout config of this legacy `httpx.AsyncClient`, failing
+    every request with APIConnectionError.
     """
 
     def __init__(self, **kwargs: Any) -> None:
-        # Use OpenAI's default settings which handle proxies correctly
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        super().__init__(**kwargs)
+        super().__init__(**default_client_kwargs(**kwargs))

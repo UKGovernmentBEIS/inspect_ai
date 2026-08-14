@@ -34,6 +34,7 @@ from inspect_ai.model._providers.util.llama31 import Llama31Handler
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS
 
+from ..._util.http_defaults import connect_timeout
 from .._chat_message import ChatMessage, ChatMessageTool
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
@@ -149,8 +150,14 @@ class OpenAICompatibleAPI(ModelAPI):
 
     def _create_http_client(self) -> OpenAIAsyncHttpxClient:
         if self.client_timeout is not None:
+            # client_timeout is the overall budget and must not shorten the
+            # connect deadline. The SDK stamps its own scalar over this one per
+            # request, where the client's floor_connect_timeout hook applies.
             return OpenAIAsyncHttpxClient(
-                timeout=httpx.Timeout(timeout=self.client_timeout, connect=5.0)
+                timeout=httpx.Timeout(
+                    timeout=self.client_timeout,
+                    connect=max(self.client_timeout, connect_timeout()),
+                )
             )
         return OpenAIAsyncHttpxClient()
 
