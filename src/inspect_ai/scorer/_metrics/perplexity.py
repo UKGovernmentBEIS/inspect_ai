@@ -12,9 +12,11 @@ Two aggregation strategies are provided:
   lm-evaluation-harness (``weighted_perplexity``).
 
 - ``perplexity_per_seq``: Equal weight per sample regardless of length.
-  Computes ``exp(mean(per-sample NLL))`` -- the geometric mean of
-  per-sample perplexities.  This matches the EleutherAI
-  lm-evaluation-harness (``perplexity``).
+  Computes ``exp(mean_over_samples(-sum_log_probs_i / num_tokens_i))``
+  -- the geometric mean of per-sample perplexities.  This has no
+  equivalent in the EleutherAI lm-evaluation-harness: its ``perplexity``
+  aggregation is ``exp(-mean(loglikelihood_i))`` over raw per-document
+  log-likelihoods, with no per-token normalization.
 
 Both metrics expect each score's metadata to contain ``"num_tokens"``
 and ``"sum_log_probs"`` (set by the perplexity and target_perplexity
@@ -23,8 +25,8 @@ scorers).
 References:
     - HuggingFace Transformers, "Perplexity of fixed-length models":
       https://huggingface.co/docs/transformers/en/perplexity
-    - EleutherAI lm-evaluation-harness, ``weighted_perplexity`` and
-      ``perplexity`` aggregation functions:
+    - EleutherAI lm-evaluation-harness, ``weighted_perplexity``
+      aggregation function:
       https://github.com/EleutherAI/lm-evaluation-harness/blob/main/lm_eval/api/metrics.py
 """
 
@@ -90,12 +92,15 @@ def perplexity_per_seq() -> Metric:
     """Corpus-level perplexity with equal weight per sample.
 
     Each sample's per-token NLL is averaged, then exponentiated.
-    Computed as ``exp(mean_over_samples(nll_i / num_tokens_i))``.
+    Computed as ``exp(mean_over_samples(-sum_log_probs_i / num_tokens_i))``
+    -- the geometric mean of per-sample perplexities.
 
     Unlike ``perplexity_per_token``, this gives equal weight to each
     sample regardless of length, preventing long samples from
-    dominating the metric.  This matches the EleutherAI
-    lm-evaluation-harness (``perplexity``).
+    dominating the metric.  The EleutherAI lm-evaluation-harness
+    ``perplexity`` aggregation is a different metric,
+    ``exp(-mean(loglikelihood_i))`` over raw per-document
+    log-likelihoods with no per-token normalization.
     """
 
     def metric_fn(scores: list[SampleScore]) -> float:
