@@ -45,14 +45,13 @@ def self_critique(
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # resolve model
-        nonlocal model
-        model = model if isinstance(model, Model) else get_model(model)
+        target_model = model if isinstance(model, Model) else get_model(model)
 
         # metadata without critique template variables
         metadata = omit(state.metadata, ["question", "completion", "critique"])
 
         # run critique
-        critique = await model.generate(
+        critique = await target_model.generate(
             critique_templ.format(
                 question=state.input_text,
                 completion=state.output.completion,

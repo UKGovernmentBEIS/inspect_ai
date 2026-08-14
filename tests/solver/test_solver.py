@@ -101,3 +101,42 @@ def test_valid_solvers_succeed():
 
     for f in [is_async, IsAsyncCallable]:
         solver(name=f.__name__)(f)()
+
+
+def test_self_critique_active_model_dynamic_resolution():
+    import asyncio
+
+    from inspect_ai.model import GenerateConfig, get_model
+    from inspect_ai.model._model import init_active_model
+    from inspect_ai.solver import self_critique
+
+    async def run():
+        s = self_critique()
+        m1 = get_model("mockllm/model1")
+        m2 = get_model("mockllm/model2")
+
+        async def dummy_gen(st):
+            return st
+
+        init_active_model(m1, GenerateConfig())
+        state1 = TaskState(
+            model="mockllm/model1", sample_id=1, epoch=1, input="q1", messages=[]
+        )
+        state1.output.completion = "ans1"
+        await s(state1, dummy_gen)
+
+        init_active_model(m2, GenerateConfig())
+        state2 = TaskState(
+            model="mockllm/model2", sample_id=2, epoch=1, input="q2", messages=[]
+        )
+        state2.output.completion = "ans2"
+        await s(state2, dummy_gen)
+
+        closure_models = [
+            c.cell_contents
+            for c in s.__closure__ or []
+            if hasattr(c.cell_contents, "name")
+        ]
+        assert not closure_models
+
+    asyncio.run(run())
