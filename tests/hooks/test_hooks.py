@@ -968,36 +968,29 @@ def test_any_hook_needs_full_sample_predicate(isolated_hooks_registry) -> None:
                 assert any_hook_needs_full_sample()
 
 
-def test_any_hook_needs_full_sample_guards_raising_enabled(
-    isolated_hooks_registry,
+class _RaisingEnabledHook(Hooks):
+    def enabled(self) -> bool:
+        raise RuntimeError("enabled() failed")
+
+
+class _RaisingNeedsFullSampleHook(Hooks):
+    def needs_full_sample(self) -> bool:
+        raise RuntimeError("needs_full_sample() failed")
+
+
+@pytest.mark.parametrize(
+    "hook_class",
+    [_RaisingEnabledHook, _RaisingNeedsFullSampleHook],
+    ids=["enabled", "needs_full_sample"],
+)
+def test_any_hook_needs_full_sample_guards_raising_hook(
+    isolated_hooks_registry, hook_class: type[Hooks]
 ) -> None:
-    """A raising enabled() is logged and counted as needing the full sample."""
-
-    class RaisingEnabledHook(Hooks):
-        def enabled(self) -> bool:
-            raise RuntimeError("enabled() failed")
-
-    with _hook_context("predicate_raising_enabled_hook", RaisingEnabledHook):
+    """A raising predicate method is logged and counted as needing the full sample."""
+    with _hook_context("predicate_raising_hook", hook_class):
         with patch.object(hooks_module.logger, "warning") as warning:
             assert any_hook_needs_full_sample()
-    assert "RaisingEnabledHook" in str(warning.call_args)
-
-
-def test_any_hook_needs_full_sample_guards_raising_needs_full_sample(
-    isolated_hooks_registry,
-) -> None:
-    """A raising needs_full_sample() is logged and counted as needing the full sample."""
-
-    class RaisingNeedsFullSampleHook(Hooks):
-        def needs_full_sample(self) -> bool:
-            raise RuntimeError("needs_full_sample() failed")
-
-    with _hook_context(
-        "predicate_raising_needs_full_sample_hook", RaisingNeedsFullSampleHook
-    ):
-        with patch.object(hooks_module.logger, "warning") as warning:
-            assert any_hook_needs_full_sample()
-    assert "RaisingNeedsFullSampleHook" in str(warning.call_args)
+    assert hook_class.__name__ in str(warning.call_args)
 
 
 def test_opted_out_hook_unaffected_on_non_evicted_path(tmp_path: Path) -> None:

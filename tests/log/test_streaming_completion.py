@@ -297,12 +297,7 @@ def _eval_spec() -> EvalSpec:
 def _history(
     tmp_path: Path, name: str = "test"
 ) -> contextlib.AbstractContextManager[SampleHistory]:
-    db = SampleBufferDatabase(str(tmp_path / f"{name}.eval"), db_dir=tmp_path)
-    db.start_sample(_sample().summary())
-    db.log_events(
-        [SampleEvent(id="sample", epoch=1, event=_model("event-1", "answer"))]
-    )
-    return db.open_sample_history("sample", 1)
+    return _history_for(tmp_path, _sample(), name)
 
 
 def _history_for(
@@ -725,6 +720,21 @@ async def test_buffer_sample_streaming_shields_cancellation_mid_write(
     assert len(log.samples[0].events) == len(events)
 
 
+def _fail_second_object_field_write(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the second sample's streamed entry raise mid-write (one object-field write per sample)."""
+    import inspect_ai.log._recorders.eval as eval_module
+
+    calls = {"n": 0}
+
+    async def failing_object_field(*args: Any, **kwargs: Any) -> None:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("serialization failed mid-write")
+        await write_json_object_field(*args, **kwargs)
+
+    monkeypatch.setattr(eval_module, "write_json_object_field", failing_object_field)
+
+
 @pytest.mark.anyio
 async def test_streamed_write_failure_leaves_log_readable(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -737,19 +747,8 @@ async def test_streamed_write_failure_leaves_log_readable(
     eagerly, so even healthy samples become unreadable. The recorder must
     supersede the truncated member with a valid one before propagating.
     """
-    import inspect_ai.log._recorders.eval as eval_module
-
     recorder, spec = await _start_eval_recorder(tmp_path)
-
-    calls = {"n": 0}
-
-    async def failing_object_field(*args: Any, **kwargs: Any) -> None:
-        calls["n"] += 1
-        if calls["n"] == 2:
-            raise RuntimeError("serialization failed mid-write")
-        await write_json_object_field(*args, **kwargs)
-
-    monkeypatch.setattr(eval_module, "write_json_object_field", failing_object_field)
+    _fail_second_object_field_write(monkeypatch)
 
     sample_1 = EvalSample(id="s1", epoch=1, input="question", target="answer")
     sample_2 = EvalSample(id="s2", epoch=1, input="question", target="answer")
@@ -784,19 +783,8 @@ async def test_streamed_write_failure_stub_drops_timelines(
     timeline fails validation — turning the repair stub itself into the
     poisoned member it exists to prevent.
     """
-    import inspect_ai.log._recorders.eval as eval_module
-
     recorder, spec = await _start_eval_recorder(tmp_path)
-
-    calls = {"n": 0}
-
-    async def failing_object_field(*args: Any, **kwargs: Any) -> None:
-        calls["n"] += 1
-        if calls["n"] == 2:
-            raise RuntimeError("serialization failed mid-write")
-        await write_json_object_field(*args, **kwargs)
-
-    monkeypatch.setattr(eval_module, "write_json_object_field", failing_object_field)
+    _fail_second_object_field_write(monkeypatch)
 
     def _timeline_sample(id: str) -> EvalSample:
         return EvalSample(
