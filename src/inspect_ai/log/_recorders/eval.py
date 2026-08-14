@@ -69,6 +69,12 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder, write_local_snapshot
+from .json_write import (
+    BinaryWriteStream,
+    write_events_data_field,
+    write_json_array_field,
+    write_json_object_field,
+)
 
 logger = getLogger(__name__)
 
@@ -916,7 +922,11 @@ class ZipLogFile:
             attachments = _sample_history_attachments(
                 sample, history, events, events_data
             )
-            sample_data: dict[str, Any] = jsonable_dict(
+            # Header = the event-less sample's own fields (small). The large
+            # collections are streamed after it chunk-by-chunk, so the
+            # whole-sample jsonable tree and byte blob never exist at once
+            # and the event loop gets a checkpoint between chunks.
+            header: dict[str, JsonValue] = jsonable_dict(
                 sample.model_dump(
                     mode="python",
                     exclude_none=True,
@@ -924,15 +934,44 @@ class ZipLogFile:
                     fallback=lambda _x: None,
                 )
             )
-            sample_data.update(
-                {
-                    "events": events,
-                    "attachments": attachments,
-                    "events_data": events_data,
-                }
-            )
-
-            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
+            header_bytes = to_json_safe(header, indent=None)
+            # non-empty dict ({...} not {}): id/epoch are required non-None
+            assert len(header_bytes) > 2
+            # Shielded: sample members must always be complete JSON (_read_log
+            # parses every one eagerly, so a truncated member fails the whole
+            # log read). Without the shield, a cancellation delivered at one
+            # of the checkpoints below would let _zip_open_write's __exit__
+            # finalize a truncated member. Checkpoints still yield under the
+            # shield (liveness is retained); cancellation is simply deferred
+            # until this entry completes.
+            with anyio.CancelScope(shield=True):
+                filename = _sample_filename(sample.id, sample.epoch)
+                try:
+                    with self._zip_open_write(filename) as stream:
+                        # header always has fields (id/epoch), so stripping the
+                        # closing brace and continuing with comma-prefixed
+                        # fields is well-formed
+                        stream.write(header_bytes[:-1])
+                        await write_json_array_field(
+                            stream, "events", events, comma=True
+                        )
+                        await write_json_object_field(
+                            stream, "attachments", attachments, comma=True
+                        )
+                        await write_events_data_field(stream, events_data, comma=True)
+                        stream.write(b"}")
+                except BaseException:
+                    # the failed write already registered a truncated member,
+                    # which would make every sample unreadable (_read_log
+                    # parses each member eagerly); supersede it with the
+                    # event-less header (readers resolve duplicate names to
+                    # the last entry), then propagate. Timelines are dropped
+                    # too: their events serialize as UUID strings that cannot
+                    # rebind against the stub's empty events, which would fail
+                    # the read the stub exists to protect.
+                    header.pop("timelines", None)
+                    self._zip_writestr(filename, header)
+                    raise
 
             # evict a buffered prior record for the same (id, epoch): its
             # member would otherwise be flush-written *after* the streaming
@@ -1150,16 +1189,30 @@ class ZipLogFile:
             )
 
     @contextmanager
-    def _zip_open_write(self, filename: str) -> Generator[IO[bytes], None, None]:
+    def _zip_open_write(
+        self, filename: str
+    ) -> Generator[BinaryWriteStream, None, None]:
         """Open a ZIP entry for streaming writes.
 
         Returns a writable binary stream. The caller writes raw bytes
         (typically JSON) directly. The entry is finalized when the
-        context manager exits.
+        context manager exits. Repeated member names are deliberate
+        superseding (same rule as ``_zip_writestr``).
         """
         assert self._zip
-        with self._zip.open(filename, "w", force_zip64=True) as stream:
+        # the duplicate-name warning is emitted by ZipFile.open itself, so
+        # suppress it only there: catch_warnings mutates process-global state
+        # and must not span the caller's await checkpoints while the entry
+        # is open
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Duplicate name:", category=UserWarning
+            )
+            stream = self._zip.open(filename, "w", force_zip64=True)
+        try:
             yield stream
+        finally:
+            stream.close()
 
 
 def _sample_history_attachments(
