@@ -3,6 +3,15 @@
 - Scoring: New machine-readable `Score.reason` field records why a score has an abnormal value (e.g. `invalid_response_format`, `grader_parse_failure`), is preserved across score edits, and appears as `score_<name>_reason` dataframe columns. (#4567)
 - Scoring: `pattern()` and `answer()` now score unmatched output as `INCORRECT` with `reason="invalid_response_format"` instead of `NOANSWER`, keeping format violations in the metric denominator. (#4567)
 - Scoring: `perplexity()` and `target_perplexity()` now return `Score.unscored()` with a `reason` instead of a raw NaN value when logprobs are unavailable. (#4567)
+- Anthropic: models returning omitted (empty) thinking summaries no longer misreport `usage.reasoning_tokens` and log a token-counting warning on every generate.
+- Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
+- Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
+- Control Channel: `inspect ctl` mutations with piped or captured output now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
+- Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
+
+## 0.3.258 (11 August 2026)
+
+- Control Channel: `inspect ctl sample` and other unscoped commands no longer appear to hang on eval sets with many running tasks. (#4789)
 - Inspect View: `bundle_log_dir()` allows `output_dir` starting with `hf/` when `log_dir` is current directory or parent directory.
 - Utilities: `data_uri_to_base64()` strips `data:` headers from URIs with empty media types.
 - Datasets: `hf_dataset(..., auto_id=True, shuffle=True)` now attaches each auto id to its record (matching csv/json) instead of the shuffled position, so a record keeps the same id across seeds and limited slices. (#4459) Note: ids for affected datasets will change once on upgrade (row order for a given seed is unchanged) — avoid retrying an in-flight `eval_set` across this boundary. Previously, unseeded shuffles assigned irreproducible ids, which silently corrupted `eval_set` retries on affected datasets; those workflows are now correct.
@@ -12,6 +21,9 @@
 - Agent Bridge: The final agent state now surfaces the real conversation instead of a side call (e.g. opencode's session title) when the scaffold decorates the task prompt, such as opencode quote-wrapping it. (#4768)
 - Inspect View: Logs inside the configured directory now open on Windows when listings identify them with canonical file URIs. (#4765)
 - Bugfix: Dataset fields holding float `NaN` (as produced by Pandas, Hugging Face, CSV, and PyArrow sources for missing values) are now treated as missing for `input`, `choices`, `setup`, `sandbox`, `files`, and `metadata`, matching the existing `target` behavior. (#4626)
+- Bugfix: OpenAI and OpenAI-compatible providers no longer fail every request with `APIConnectionError: Connection error.` when openai 3.x is installed.
+- Reasoning: Unsupported extended `reasoning_effort` values are now mapped to valid provider/model tiers for Together, SambaNova, Perplexity, and Fireworks.
+- Models: New `--model-spec` option runs several models in one `inspect eval` or `inspect eval-set` command, each with its own generation config, model args, and base url.
 
 ## 0.3.257 (11 August 2026)
 
