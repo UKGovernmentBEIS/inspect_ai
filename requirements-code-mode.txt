@@ -1,1 +1,1 @@
-pydantic-monty
+pydantic-monty<0.0.19
