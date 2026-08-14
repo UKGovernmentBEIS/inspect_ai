@@ -271,7 +271,9 @@ def test_client_timeout_sets_http_timeout() -> None:
     assert timeout.read == 1800.0
     assert timeout.write == 1800.0
     assert timeout.pool == 1800.0
-    assert timeout.connect == 5.0
+    # The connect deadline is floored at the shared default rather than pinned
+    # to it, so a budget already above the floor carries through unchanged.
+    assert timeout.connect == 1800.0
 
 
 def test_client_timeout_default_uses_sdk_default() -> None:
@@ -297,7 +299,7 @@ async def test_client_timeout_preserved_after_reinitialize() -> None:
     api.initialize()
     assert not api.http_client.is_closed
     assert api.http_client.timeout.read == 1800.0
-    assert api.http_client.timeout.connect == 5.0
+    assert api.http_client.timeout.connect == 1800.0
 
 
 def test_user_supplied_http_client_not_overridden() -> None:
