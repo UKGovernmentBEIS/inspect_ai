@@ -1060,6 +1060,7 @@ async def _eval_async_inner(
                         recorder=recorder,
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
+                        approval=approval,
                         solver=solver,
                         scanner=scanner,
                         scan_id=scan_id,

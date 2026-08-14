@@ -46,7 +46,7 @@ from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
-from inspect_ai.approval._policy import config_from_approval_policies
+from inspect_ai.approval._policy import ApprovalPolicy, config_from_approval_policies
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
@@ -137,6 +137,7 @@ async def eval_run(
     recorder: Recorder,
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
+    approval: list[ApprovalPolicy] | None = None,
     solver: Solver | SolverSpec | None = None,
     scanner: "Scanners | None" = None,
     scan_id: str | None = None,
@@ -340,11 +341,12 @@ async def eval_run(
                 else:
                     task.score_on_error = task_eval_config.score_on_error
 
-                # approval policies. no reverse assignment: an eval-level
-                # approver is installed globally and wins, so a task's own
-                # policies apply only when there isn't one -- the same
-                # condition init_task_context applies them on.
-                if task_eval_config.approval is None and task.approval:
+                # approval
+                if approval:
+                    # override task (eval_config already reflects approval)
+                    task.approval = approval
+                elif task.approval:
+                    # use task (eval_config needs to be updated to reflect it)
                     task_eval_config.approval = config_from_approval_policies(
                         task.approval
                     )
