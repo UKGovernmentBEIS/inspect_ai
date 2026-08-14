@@ -4,7 +4,7 @@
 - Grok: Support for Grok 4.6, including its new `xhigh` reasoning effort and a `service_tier` model argument for Priority Processing.
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
-- Breaking: Materialize trusted fixed-task media independently of `log_images`; require runtime, bridged, and dynamically-enqueued media to be inline before provider serialization.
+- Breaking: Fixed task media is materialized independently of `log_images`; trusted runtime paths/URLs require `materialize_media()`, while sandbox bridges require inline media.
 - Mistral: Provider-generated images remain available when replayed in subsequent conversation turns.
 - Control Channel: `inspect ctl` mutations with piped or captured output now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
 - Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.

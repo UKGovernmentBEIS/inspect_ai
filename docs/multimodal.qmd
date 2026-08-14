@@ -26,6 +26,48 @@ Note that model providers only support multimodal inputs for a subset of their m
 
 Some OpenAI and Google models additionally support [Multimodal Output](#multimodal-output).
 
+## Media References and Authority
+
+Paths and URLs in the fixed task dataset—including a `SampleSource`'s
+`initial_samples()` seed—are materialized before they enter the sample's runtime
+message state. The dataset seed is therefore trusted configuration when it
+contains non-inline media references.
+
+::: {.callout-warning appearance="simple"}
+### Runtime Media Must Be Inline
+
+Media introduced later by a tool, solver, dynamically-created task, or
+`SampleSource` (`next_samples()`, `sample_complete()`, or `enqueue_sample()`)
+must already be a data URL. Sandboxed agent bridges enforce the same rule.
+
+Trusted runtime code can explicitly convert an authorized path or URL with
+`await materialize_media(reference)`. Do not call `materialize_media()` on
+model- or tool-controlled references unless filesystem or network access is
+intentionally authorized.
+:::
+
+In-process bridges explicitly materialize non-inline media before model
+submission; they already share the evaluator's filesystem and network. Trusted
+runtime code can materialize media in the same way:
+
+``` python
+from inspect_ai.model import ContentImage
+from inspect_ai.util import materialize_media
+
+image = ContentImage(
+    image=await materialize_media("picture.png")
+)
+```
+
+`materialize_media()` can read files, fetch URLs, and invoke configured media
+resolvers. Model media data URLs may declare a compatible MIME type (for
+example, `data:image/png;base64,...`). When it is omitted, Inspect uses an image
+signature or PNG compatibility default, the `format` of audio and video
+content, or a document's `mime_type`. HTTP materialization follows redirects
+and rejects error responses before their bodies are used. For extensionless
+media, Inspect uses a specific response MIME type, content metadata, or a
+bounded signature check for common image formats.
+
 ## Images {#provider-notes}
 
 Please see provider specific documentation on which models support image input:
@@ -62,40 +104,6 @@ input = [
     ])
 ]
 ```
-
-Paths and URLs in the fixed task dataset—including a `SampleSource`'s
-`initial_samples()` seed—are materialized before they enter the sample's runtime
-message state. The dataset seed is therefore trusted configuration when it
-contains non-inline media references.
-
-Media introduced later by a tool, solver, dynamically-created task, or
-`SampleSource` (`next_samples()`, `sample_complete()`, or `enqueue_sample()`)
-must already be a data URL. Sandboxed agent bridges enforce the same rule by
-default. In-process bridges explicitly materialize non-inline media before
-model submission; they already share the evaluator's filesystem and network.
-Trusted runtime code that intentionally needs to materialize a path or URL can
-do so explicitly:
-
-``` python
-from inspect_ai.model import ContentImage
-from inspect_ai.util import materialize_media
-
-image = ContentImage(
-    image=await materialize_media("picture.png")
-)
-```
-
-`materialize_media()` can read files, fetch URLs, and invoke configured media
-resolvers. Do not call it on model- or tool-controlled references unless that
-access is intentionally authorized.
-
-Model media data URLs may declare a compatible MIME type (for example,
-`data:image/png;base64,...`). When it is omitted, Inspect uses an image signature
-or PNG compatibility default, the `format` of audio and video content, or a
-document's `mime_type`. HTTP materialization follows redirects and rejects error
-responses before their bodies are used. For extensionless media, Inspect uses a
-specific response MIME type, content metadata, or a bounded signature check for
-common image formats.
 
 ### Detail
 
