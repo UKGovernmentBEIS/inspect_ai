@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import NamedTuple
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
@@ -43,10 +44,15 @@ def addition():
     return execute
 
 
+class ApprovalEval(NamedTuple):
+    log: EvalLog
+    task: Task
+
+
 def eval_with_approval(
     policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
     task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
-) -> EvalLog:
+) -> ApprovalEval:
     if policy is not None:
         if isinstance(policy, str):
             policy = (Path(__file__).parent / policy).as_posix()
@@ -80,7 +86,7 @@ def eval_with_approval(
         approval=task_policy,
     )
 
-    return eval(task, model=model, approval=policy)[0]
+    return ApprovalEval(eval(task, model=model, approval=policy)[0], task)
 
 
 def check_approval(
@@ -89,7 +95,7 @@ def check_approval(
     approver: str = "auto",
     task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
 ) -> ApprovalEvent:
-    log = eval_with_approval(policy, task_policy)
+    log = eval_with_approval(policy, task_policy).log
 
     approval = find_approval(log)
     assert approval
@@ -159,12 +165,12 @@ def test_approve_no_reject():
 
 
 def test_task_approval_recorded_in_config():
-    log = eval_with_approval(task_policy=reject_all_policy)
+    log = eval_with_approval(task_policy=reject_all_policy).log
     assert log.eval.config.approval == reject_all_config
 
 
 def test_task_approval_config_file_recorded_in_config():
-    log = eval_with_approval(task_policy="reject.yaml")
+    log = eval_with_approval(task_policy="reject.yaml").log
     approval = log.eval.config.approval
     assert approval
     assert [(a.name, a.tools, a.params) for a in approval.approvers] == [
@@ -175,14 +181,17 @@ def test_task_approval_config_file_recorded_in_config():
 
 
 def test_eval_approval_takes_precedence_in_config():
-    log = eval_with_approval(policy=reject_all_policy, task_policy=approve_all_policy)
-    assert log.eval.config.approval == reject_all_config
-    approval = find_approval(log)
+    result = eval_with_approval(
+        policy=reject_all_policy, task_policy=approve_all_policy
+    )
+    assert result.log.eval.config.approval == reject_all_config
+    assert result.task.approval == [reject_all_policy]
+    approval = find_approval(result.log)
     assert approval and approval.decision == "reject"
 
 
 def test_no_approval_recorded_in_config():
-    assert eval_with_approval().eval.config.approval is None
+    assert eval_with_approval().log.eval.config.approval is None
 
 
 def test_approve_config():
