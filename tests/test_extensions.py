@@ -131,11 +131,5 @@ async def test_hooks():
         await emit_run_start(eval_set_id=None, run_id="42", tasks=[])
     finally:
         _registry.pop("hooks:preexisting_test_hook", None)
-        # entry-point loading (triggered above) registers this permanently
-        # for the rest of the process, since the underlying module is only
-        # ever imported once; remove it so later tests aren't affected by
-        # its presence in the hooks registry. Package-sourced registrations
-        # are namespaced by package name (registry_name()).
-        _registry.pop("hooks:inspect_package/custom_hook", None)
 
     assert module.run_ids == ["42"]
