@@ -47,18 +47,43 @@ def seconds_between(start: str | None, end: str | None) -> float | None:
 
 
 def fetch_runs(repo: str, limit: int) -> list[dict[str, Any]]:
-    runs: list[dict[str, Any]] = []
+    by_id: dict[int, dict[str, Any]] = {}
     page = 1
-    while len(runs) < limit:
+    while len(by_id) < limit:
         batch = gh_api(
             f"repos/{repo}/actions/runs"
             f"?event=pull_request&status=completed&per_page=100&page={page}"
         )["workflow_runs"]
         if not batch:
             break
-        runs.extend(batch)
+        by_id.update({run["id"]: run for run in batch})
         page += 1
-    return runs[:limit]
+    runs = sorted(by_id.values(), key=lambda r: r["run_started_at"], reverse=True)[
+        :limit
+    ]
+    warn_on_time_gap(runs)
+    return runs
+
+
+def warn_on_time_gap(runs: list[dict[str, Any]]) -> None:
+    """Warn when the snapshot's runs aren't one contiguous stretch of time.
+
+    The runs endpoint occasionally serves a stale page, so pages that should
+    be adjacent aren't, and the snapshot silently ends up with a multi-week
+    hole in the middle — which skews every median and (if the older clump
+    predates a CI change) can drop the pytest --durations data entirely.
+    Re-running the collector gets a clean window.
+    """
+    starts = [t for r in runs if (t := parse_ts(r["run_started_at"]))]
+    gaps = [(a - b).total_seconds() / 3600 for a, b in zip(starts, starts[1:])]
+    if gaps and max(gaps) > 12:
+        span = (starts[0] - starts[-1]).total_seconds() / 3600
+        print(
+            f"WARNING: {max(gaps):.0f}h gap inside the {span:.0f}h run window "
+            f"({starts[-1].isoformat()} .. {starts[0].isoformat()}) — the API "
+            "likely served a stale page; re-run the collector.",
+            file=sys.stderr,
+        )
 
 
 def job_record(run: dict[str, Any], job: dict[str, Any]) -> dict[str, Any]:

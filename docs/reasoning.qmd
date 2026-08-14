@@ -94,16 +94,17 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 defaults to `high` effort and its reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 and Grok 4.6 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input     | API value         |
+|-------------------|-------------------|
+| `none`            | reasoning omitted |
+| `minimal` / `low` | `low`             |
+| `medium`          | `medium`          |
+| `high`            | `high`            |
+| `xhigh` / `max`   | `xhigh`           |
 
-xAI documents an `xhigh` effort for `grok-4.20-multi-agent` (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above `high`, so `xhigh` and `max` clamp to `high` for that model as well.
+`xhigh` is a real effort level from `grok-4.6` (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` >= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
 
 #### DeepSeek
 
@@ -145,16 +146,50 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 
 
 
-#### Groq / Ollama / SageMaker
+#### Groq / Ollama / SageMaker / SambaNova
 
-Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values:
+Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values. `none` is not a supported value, so it is omitted and the provider/model default applies — this does not disable reasoning (always-on models keep reasoning):
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal` / `low`        | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Together
+
+Together accepts `low` / `medium` / `high` for all reasoning models, and additionally `xhigh` / `max` on some (e.g. DeepSeek V4 Pro); only gpt-oss rejects the top-end values. `minimal` is never accepted. `none` is not a supported effort value, so it is omitted and the provider/model default applies — to turn reasoning off on hybrid models, pass `reasoning={"enabled": false}` rather than an effort value.
+
+| Inspect input             | API value (gpt-oss)              | API value (other models)         |
+|---------------------------|----------------------------------|----------------------------------|
+| `none`                    | omitted (provider/model default) | omitted (provider/model default) |
+| `minimal`                 | `low`                            | `low`                            |
+| `low` / `medium` / `high` | identical                        | identical                        |
+| `xhigh` / `max`           | `high`                           | identical                        |
+
+#### Perplexity
+
+Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values. `none` is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):
+
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal`                | `minimal`                        |
+| `low`                    | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Fireworks
+
+Effort validity is model-dependent. No Fireworks model accepts `minimal` (→ `low`). gpt-oss and MiniMax M2 accept only `low` / `medium` / `high`: they reject `none` (omitted, so the provider/model default applies) and `xhigh` / `max` (→ `high`). Other reasoning models — DeepSeek, GLM, Kimi, and MiniMax M3 — accept `none` and `xhigh` / `max`, so those pass through:
+
+| Inspect input             | API value (gpt-oss / MiniMax M2) | API value (other models) |
+|---------------------------|----------------------------------|--------------------------|
+| `none`                    | omitted (provider/model default) | `none`                   |
+| `minimal`                 | `low`                            | `low`                    |
+| `low` / `medium` / `high` | identical                        | identical                |
+| `xhigh` / `max`           | `high`                           | identical                |
 
 #### Bedrock
 

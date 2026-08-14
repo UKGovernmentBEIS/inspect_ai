@@ -32,6 +32,7 @@ description: Task scoring and metrics.
 ### bootstrap_stderr
 ### perplexity_per_token
 ### perplexity_per_seq
+### krippendorff_alpha
 
 ## Reducers
 
@@ -42,6 +43,7 @@ description: Task scoring and metrics.
 ### mean_score
 ### median_score
 ### mode_score
+### collect_score
 
 ## Types
 

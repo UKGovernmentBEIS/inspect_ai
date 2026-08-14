@@ -24,6 +24,6 @@ def data_uri_mime_type(data_url: str) -> str | None:
 
 
 def data_uri_to_base64(data_uri: str) -> str:
-    pattern = r"^data:[^,]+,"
+    pattern = r"^data:[^,]*,"
     stripped_uri = re.sub(pattern, "", data_uri)
     return stripped_uri
