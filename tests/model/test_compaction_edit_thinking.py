@@ -235,6 +235,17 @@ async def test_thinking_compaction_grok_4_5() -> None:
     )
 
 
+@skip_if_no_grok
+@pytest.mark.slow
+async def test_thinking_compaction_grok_4_6() -> None:
+    # grok-4.6 reasoning cannot be disabled, so thinking is reliably present
+    # even at low effort
+    await check_thinking_compaction(
+        "grok/grok-4.6",
+        GenerateConfig(reasoning_effort="low"),
+    )
+
+
 @skip_if_no_moonshot
 @pytest.mark.slow
 async def test_thinking_compaction_moonshot() -> None:
