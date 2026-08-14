@@ -39,6 +39,7 @@ from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
 from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
+from inspect_ai.approval._policy import config_from_approval_policies
 from inspect_ai.dataset._dataset import Dataset, Sample
 from inspect_ai.log import EvalConfig, EvalLog
 from inspect_ai.log._file import EvalLogInfo
@@ -325,6 +326,18 @@ async def eval_run(
                     task_eval_config.score_on_error = task.score_on_error
                 else:
                     task.score_on_error = task_eval_config.score_on_error
+
+                # approval policies (record the task's policies in the log when
+                # eval() didn't specify any). unlike the fields above there is
+                # no write-back to the task: the policies actually applied are
+                # resolved through the tool approval context var (eval-level
+                # policies from eval_resolve_tasks() take precedence over the
+                # task's in init_task_context()), so the config is a record of
+                # that resolution rather than a second source for it.
+                if task_eval_config.approval is None and task.approval:
+                    task_eval_config.approval = config_from_approval_policies(
+                        task.approval
+                    )
 
                 # merge eval-level and task-level tags
                 merged_tags = list(set(tags or []) | set(task.tags or [])) or None

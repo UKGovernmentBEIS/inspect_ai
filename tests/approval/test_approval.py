@@ -12,10 +12,11 @@ from inspect_ai.approval import (
     auto_approver,
     read_approval_policies,
 )
+from inspect_ai.approval._policy import config_from_approval_policies
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import ChatMessage, ModelOutput, get_model
+from inspect_ai.model import ChatMessage, Model, ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool._tool import tool
@@ -42,27 +43,20 @@ def addition():
     return execute
 
 
-def check_approval(
+def resolve_policy(
     policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
-    decision: ApprovalDecision,
-    approver: str = "auto",
-    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
-) -> ApprovalEvent:
-    if policy is not None:
-        if isinstance(policy, str):
-            policy = (Path(__file__).parent / policy).as_posix()
+) -> str | list[ApprovalPolicy] | None:
+    if policy is None:
+        return None
 
-        policy = policy if isinstance(policy, list | str) else [policy]
+    if isinstance(policy, str):
+        return (Path(__file__).parent / policy).as_posix()
 
-    if task_policy is not None:
-        if isinstance(task_policy, str):
-            task_policy = (Path(__file__).parent / task_policy).as_posix()
+    return policy if isinstance(policy, list) else [policy]
 
-        task_policy = (
-            task_policy if isinstance(task_policy, list | str) else [task_policy]
-        )
 
-    model = get_model(
+def approval_model() -> Model:
+    return get_model(
         "mockllm/model",
         custom_outputs=[
             ModelOutput.for_tool_call(
@@ -74,14 +68,38 @@ def check_approval(
         ],
     )
 
-    task = Task(
+
+def approval_task(
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
+    name: str | None = None,
+) -> Task:
+    return Task(
+        name=name,
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=[use_tools(addition()), generate()],
         scorer=match(numeric=True),
-        approval=task_policy,
+        approval=resolve_policy(task_policy),
     )
 
-    log = eval(task, model=model, approval=policy)[0]
+
+def run_approval_eval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> EvalLog:
+    return eval(
+        approval_task(task_policy),
+        model=approval_model(),
+        approval=resolve_policy(policy),
+    )[0]
+
+
+def check_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
+    decision: ApprovalDecision,
+    approver: str = "auto",
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> ApprovalEvent:
+    log = run_approval_eval(policy, task_policy)
 
     approval = find_approval(log)
     assert approval
@@ -147,6 +165,58 @@ def test_approve_no_reject():
 
 def test_approve_config():
     check_approval("approve.yaml", decision="approve")
+
+
+def test_task_approval_recorded_in_eval_config():
+    """Policies from Task(approval=...) are recorded in the log. (#4881)"""
+    log = run_approval_eval(None, task_policy=approve_all_policy)
+
+    assert log.eval.config.approval == config_from_approval_policies(
+        [approve_all_policy]
+    )
+
+
+def test_task_approval_config_file_recorded_in_eval_config():
+    log = run_approval_eval(None, task_policy="approve.yaml")
+
+    assert log.eval.config.approval is not None
+    assert [
+        (approver.name, approver.tools)
+        for approver in log.eval.config.approval.approvers
+    ] == [("auto", "foo*"), ("auto", "*"), ("auto", ["foo*", "add*"])]
+
+
+def test_eval_approval_recorded_over_task_approval():
+    """eval() policies win at runtime, so they are what the log records."""
+    log = run_approval_eval(reject_all_policy, task_policy=approve_all_policy)
+
+    assert log.eval.config.approval == config_from_approval_policies(
+        [reject_all_policy]
+    )
+
+    # the recorded policy is the one that actually ran
+    approval = find_approval(log)
+    assert approval and approval.decision == "reject"
+
+
+def test_no_approval_recorded_when_unspecified():
+    log = run_approval_eval(None)
+
+    assert log.eval.config.approval is None
+
+
+def test_task_approval_not_shared_across_tasks():
+    """One task's policies don't leak into another task's log."""
+    with_policy = approval_task(approve_all_policy, name="with_policy")
+    without_policy = approval_task(None, name="without_policy")
+
+    logs = eval([with_policy, without_policy], model=approval_model())
+
+    recorded = {log.eval.task: log.eval.config.approval for log in logs}
+    assert recorded["with_policy"] == config_from_approval_policies(
+        [approve_all_policy]
+    )
+    assert recorded["without_policy"] is None
 
 
 def test_read_approval_policies_file_uri():
