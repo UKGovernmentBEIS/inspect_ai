@@ -12,6 +12,7 @@ from inspect_ai.approval import (
     auto_approver,
     read_approval_policies,
 )
+from inspect_ai.approval._policy import ApprovalPolicyConfig, ApproverPolicyConfig
 from inspect_ai.dataset import Sample
 from inspect_ai.event._approval import ApprovalEvent
 from inspect_ai.log._log import EvalLog
@@ -42,12 +43,10 @@ def addition():
     return execute
 
 
-def check_approval(
-    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
-    decision: ApprovalDecision,
-    approver: str = "auto",
+def eval_with_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
     task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
-) -> ApprovalEvent:
+) -> EvalLog:
     if policy is not None:
         if isinstance(policy, str):
             policy = (Path(__file__).parent / policy).as_posix()
@@ -81,7 +80,16 @@ def check_approval(
         approval=task_policy,
     )
 
-    log = eval(task, model=model, approval=policy)[0]
+    return eval(task, model=model, approval=policy)[0]
+
+
+def check_approval(
+    policy: str | ApprovalPolicy | list[ApprovalPolicy] | None,
+    decision: ApprovalDecision,
+    approver: str = "auto",
+    task_policy: str | ApprovalPolicy | list[ApprovalPolicy] | None = None,
+) -> ApprovalEvent:
+    log = eval_with_approval(policy, task_policy)
 
     approval = find_approval(log)
     assert approval
@@ -93,6 +101,11 @@ def check_approval(
 
 approve_all_policy = ApprovalPolicy(approver=auto_approver(), tools="*")
 reject_all_policy = ApprovalPolicy(approver=auto_approver("reject"), tools="*")
+reject_all_config = ApprovalPolicyConfig(
+    approvers=[
+        ApproverPolicyConfig(name="auto", tools="*", params={"decision": "reject"})
+    ]
+)
 
 
 def test_approve():
@@ -143,6 +156,33 @@ def test_approve_no_reject():
             ApprovalPolicy(approver=auto_approver("approve"), tools="add*"),
         ],
     )
+
+
+def test_task_approval_recorded_in_config():
+    log = eval_with_approval(task_policy=reject_all_policy)
+    assert log.eval.config.approval == reject_all_config
+
+
+def test_task_approval_config_file_recorded_in_config():
+    log = eval_with_approval(task_policy="reject.yaml")
+    approval = log.eval.config.approval
+    assert approval
+    assert [(a.name, a.tools, a.params) for a in approval.approvers] == [
+        ("auto", "foo*", {"decision": "reject"}),
+        ("auto", "*", {"decision": "escalate"}),
+        ("auto", ["foo*", "add*"], {"decision": "reject"}),
+    ]
+
+
+def test_eval_approval_takes_precedence_in_config():
+    log = eval_with_approval(policy=reject_all_policy, task_policy=approve_all_policy)
+    assert log.eval.config.approval == reject_all_config
+    approval = find_approval(log)
+    assert approval and approval.decision == "reject"
+
+
+def test_no_approval_recorded_in_config():
+    assert eval_with_approval().eval.config.approval is None
 
 
 def test_approve_config():
