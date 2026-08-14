@@ -324,6 +324,7 @@ def _remove_host_path(path: Path) -> None:
         path.unlink(missing_ok=True)
 
 
+@pytest.mark.slow
 @skip_if_no_docker
 async def test_docker_read_file_contains_untrusted_sources(
     docker_environment: DockerSandboxEnvironment,

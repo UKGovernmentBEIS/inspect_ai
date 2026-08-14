@@ -19,7 +19,7 @@ mistralai>=2.4.5
 moto[server]>=5.1.5
 mypy>=2.3.0 # older mypy emits a `misc` error at a site where the ignore was removed as unused
 nbformat
-openai>=2.45.0
+openai>=3.0.0
 pandas>=2.0.0
 pandas-stubs
 panflute
@@ -31,6 +31,8 @@ pytest
 pytest-cov
 pytest-dotenv
 pytest-mock
+# --report-log records per-worker test order for scripts/pytest_bisect.py
+pytest-reportlog
 pytest-textual-snapshot
 pytest-timeout
 pytest-watcher
