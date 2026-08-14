@@ -1,6 +1,6 @@
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 from openai import APIStatusError, LengthFinishReasonError
 from openai.types.chat import ChatCompletion
@@ -137,8 +137,8 @@ def test_handle_bad_request(
     )
     error = APIStatusError(
         message=message,
-        response=httpx.Response(
-            request=httpx.Request(method="POST", url="https://example.com"),
+        response=httpx2.Response(
+            request=httpx2.Request(method="POST", url="https://example.com"),
             status_code=status_code,
             json={"message": message},
         ),
@@ -222,8 +222,8 @@ def test_handle_bad_request_content_filter(
     )
     error = APIStatusError(
         message=body["message"],
-        response=httpx.Response(
-            request=httpx.Request(method="POST", url="https://example.com"),
+        response=httpx2.Response(
+            request=httpx2.Request(method="POST", url="https://example.com"),
             status_code=400,
             json=body,
         ),
@@ -290,7 +290,7 @@ async def test_client_timeout_preserved_after_reinitialize() -> None:
 
 
 def test_user_supplied_http_client_not_overridden() -> None:
-    custom_client = httpx.AsyncClient(timeout=httpx.Timeout(42.0))
+    custom_client = httpx2.AsyncClient(timeout=httpx2.Timeout(42.0))
     api = OpenAICompatibleAPI(
         model_name="openai-api/openai/gpt-5",
         api_key="test",
