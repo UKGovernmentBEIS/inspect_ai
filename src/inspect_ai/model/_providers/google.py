@@ -13,7 +13,6 @@ from typing import Any, Literal, NamedTuple, cast
 # SDK Docs: https://googleapis.github.io/python-genai/
 import aiohttp
 import anyio
-import httpx
 from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
@@ -74,6 +73,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
+from inspect_ai._util.http_defaults import default_async_client
 from inspect_ai._util.images import inline_media_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
@@ -910,12 +910,14 @@ class GoogleGenAIAPI(ModelAPI):
             base_url=self.base_url,
             api_version=self.api_version,
         )
-        # aiohttp requires asyncio; use httpx under trio for compatibility
+        # aiohttp requires asyncio; use httpx under trio for compatibility.
+        # Only this path gets the shared HTTP defaults: the aiohttp path sets no
+        # connect deadline at all, so there is none there to be outlasted.
         if (
             current_async_backend() == "trio"
             and http_options.httpx_async_client is None
         ):
-            http_options.httpx_async_client = httpx.AsyncClient()
+            http_options.httpx_async_client = default_async_client()
         api_key = self.api_key
         if self._oauth and self._credentials is not None:
             # The dev-endpoint client requires a non-empty api_key; pass a
