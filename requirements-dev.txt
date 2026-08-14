@@ -55,6 +55,6 @@ types-psutil
 types-python-dateutil
 types-PyYAML
 types-regex
-xai_sdk>=1.7.0
+xai_sdk>=1.18.0
 # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
 zipfile-zstd>=0.0.4; python_version < '3.14'
