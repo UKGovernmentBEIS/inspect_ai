@@ -1,19 +1,35 @@
-import asyncio
 from collections.abc import Sequence
 from typing import Literal
+
+import anyio
 
 from inspect_ai._util.content import (
     Content,
     ContentText,
 )
-from inspect_ai.tool import Tool, ToolDef, tool
+from inspect_ai._util.error import pip_dependency_error
 
+from ..._tool import Tool, tool
+from ..._tool_def import ToolDef
+from .._execute import code_viewer
 from ._run_code_executor import (
     MontyRunCodeExecutor,
     RunCodeExecutor,
     RunCodeResult,
     StubRunCodeExecutor,
 )
+
+TRUNCATION_MARKER = "..."
+
+PYTHON_TYPES = {
+    "string": "str",
+    "integer": "int",
+    "number": "float",
+    "boolean": "bool",
+    "array": "list",
+    "object": "dict",
+    "null": "None",
+}
 
 
 def _tool_defs(tools: Sequence[Tool] | None) -> list[ToolDef]:
@@ -31,9 +47,9 @@ def _tool_signature(tool_def: ToolDef) -> str:
     required = set(parameters.required or [])
 
     for name, schema in parameters.properties.items():
-        typ = schema.type or "any"
-        optional = "" if name in required else " | None"
-        args.append(f"{name}: {typ}{optional}")
+        typ = PYTHON_TYPES.get(str(schema.type), "Any")
+        default = "" if name in required else f" = {schema.default!r}"
+        args.append(f"{name}: {typ}{default}")
 
     return f"await {tool_def.name}({', '.join(args)})"
 
@@ -47,6 +63,10 @@ def _resolve_executor(
     """Resolve a run_code executor name or custom executor."""
     if isinstance(executor, str):
         if executor == "monty":
+            try:
+                import pydantic_monty  # noqa: F401
+            except ImportError:
+                raise pip_dependency_error("run_code", ["pydantic-monty"])
             return MontyRunCodeExecutor(
                 tool_defs=tool_defs,
                 max_inner_tool_calls=max_inner_tool_calls,
@@ -110,8 +130,10 @@ def _truncate_content(content: list[Content], max_chars: int | None) -> list[Con
         suffix = f"... [truncated to {max_chars} chars]"
         if remaining > len(suffix):
             text = item.text[: remaining - len(suffix)] + suffix
+        elif remaining > len(TRUNCATION_MARKER):
+            text = item.text[: remaining - len(TRUNCATION_MARKER)] + TRUNCATION_MARKER
         else:
-            text = item.text[:remaining]
+            text = TRUNCATION_MARKER[:remaining]
         result.append(ContentText(text=text))
         remaining = 0
     return result
@@ -137,20 +159,21 @@ def _tool_interface_description(tool_defs: list[ToolDef]) -> str:
     return "\n".join(lines)
 
 
-def _tool_def_by_name(tool_defs: list[ToolDef]) -> dict[str, ToolDef]:
-    """Return tool definitions indexed by name.
+def _validate_tool_names(tool_defs: list[ToolDef]) -> None:
+    """Check that allowlisted tools have distinct names.
+
+    Each tool becomes an external function in the runtime namespace, so
+    duplicate names would silently shadow one another.
 
     Raises:
         ValueError: If more than one allowlisted tool has the same name.
     """
-    tool_def_by_name: dict[str, ToolDef] = {}
+    seen: set[str] = set()
 
     for tool_def in tool_defs:
-        if tool_def.name in tool_def_by_name:
+        if tool_def.name in seen:
             raise ValueError(f"Duplicate run_code inner tool name: {tool_def.name}")
-        tool_def_by_name[tool_def.name] = tool_def
-
-    return tool_def_by_name
+        seen.add(tool_def.name)
 
 
 def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
@@ -197,10 +220,10 @@ def _run_code_usage_description(tool_defs: list[ToolDef]) -> str:
     return "\n".join(lines)
 
 
-@tool
+@tool(viewer=code_viewer("python", "code"))
 def run_code(
     tools: Sequence[Tool] | None = None,
-    timeout: int | None = None,
+    timeout: float | None = None,
     executor: RunCodeExecutor | Literal["monty", "stub"] = "monty",
     max_inner_tool_calls: int | None = None,
     include_tool_call_trace: bool = False,
@@ -219,8 +242,7 @@ def run_code(
         max_output_chars: Maximum number of characters returned by run_code. If None, output is not truncated.
     """
     tool_defs = _tool_defs(tools)
-    tool_def_by_name = _tool_def_by_name(tool_defs)
-    tool_defs = list(tool_def_by_name.values())
+    _validate_tool_names(tool_defs)
     usage_description = _run_code_usage_description(tool_defs)
     executor = _resolve_executor(
         executor,
@@ -235,11 +257,9 @@ def run_code(
             code: Python code to execute.
         """
         try:
-            result = await asyncio.wait_for(
-                executor.execute(code),
-                timeout=timeout,
-            )
-        except asyncio.TimeoutError:
+            with anyio.fail_after(timeout):
+                result = await executor.execute(code)
+        except TimeoutError:
             return [
                 ContentText(
                     text=f"run_code execution timed out after {timeout} seconds."

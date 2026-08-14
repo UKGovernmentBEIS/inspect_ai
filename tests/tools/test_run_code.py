@@ -1,11 +1,13 @@
-import asyncio
-
+import anyio
 import pytest
+from test_helpers.utils import skip_if_trio
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.exception import TerminateSampleError
+from inspect_ai._util.registry import registry_info
 from inspect_ai.approval import ApprovalPolicy, approval, auto_approver
 from inspect_ai.tool import Tool, ToolDef, ToolError, run_code
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tools._run_code._bridge import (
     RunCodeInnerToolCallTraceEntry,
     RunCodeMaxToolCallsExceededError,
@@ -15,18 +17,13 @@ from inspect_ai.tool._tools._run_code._bridge import (
 from inspect_ai.tool._tools._run_code._run_code import (
     _format_run_code_result,
     _run_code_usage_description,
-    _tool_def_by_name,
     _tool_defs,
     _tool_interface_description,
     _tool_signature,
     _truncate_content,
+    _validate_tool_names,
 )
 from inspect_ai.tool._tools._run_code._run_code_executor import RunCodeResult
-
-
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
 
 
 def test_run_code_tool_constructs():
@@ -42,6 +39,15 @@ def test_run_code_tool_def_has_name():
 def test_run_code_accepts_empty_tools_list():
     tool = run_code(tools=[])
     assert callable(tool)
+
+
+def test_run_code_viewer_renders_code():
+    viewer = registry_info(run_code()).metadata["viewer"]
+
+    view = viewer(ToolCall(id="1", function="run_code", arguments={"code": "1 + 1"}))
+
+    assert view.call is not None
+    assert "```python\n1 + 1\n```" in view.call.content
 
 
 @pytest.mark.anyio
@@ -85,7 +91,7 @@ def test_tool_signature_includes_parameter_schema():
 
     signature = _tool_signature(tool_defs[0])
 
-    assert signature == "await dummy_tool(value: string)"
+    assert signature == "await dummy_tool(value: str)"
 
 
 def test_tool_interface_description_without_tools():
@@ -99,7 +105,7 @@ def test_tool_interface_description_with_tool():
 
     description = _tool_interface_description(tool_defs)
 
-    assert "await dummy_tool(value: string)" in description
+    assert "await dummy_tool(value: str)" in description
     assert "Echo a value." in description
 
 
@@ -108,7 +114,7 @@ def test_run_code_description_mentions_wrapped_tool():
     tool_def = ToolDef(tool)
 
     assert "Use `await`" in tool_def.description
-    assert "await dummy_tool(value: string)" in tool_def.description
+    assert "await dummy_tool(value: str)" in tool_def.description
     assert "Echo a value." in tool_def.description
 
 
@@ -141,6 +147,7 @@ async def test_run_code_returns_executor_error():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_executes_simple_code_with_monty():
     pytest.importorskip("pydantic_monty")
 
@@ -151,6 +158,7 @@ async def test_run_code_executes_simple_code_with_monty():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_raises_tool_error_on_monty_syntax_error():
     pytest.importorskip("pydantic_monty")
 
@@ -163,6 +171,7 @@ async def test_run_code_raises_tool_error_on_monty_syntax_error():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_raises_tool_error_on_monty_runtime_error():
     pytest.importorskip("pydantic_monty")
 
@@ -175,6 +184,7 @@ async def test_run_code_raises_tool_error_on_monty_runtime_error():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_returns_falsy_results():
     pytest.importorskip("pydantic_monty")
 
@@ -204,15 +214,8 @@ async def test_external_functions_call_wrapped_tool():
     assert result == "hello"
 
 
-def test_external_functions_reject_duplicate_tool_names():
-    tool_defs = _tool_defs([dummy_tool(), dummy_tool()])
-    bridge = RunCodeToolBridge(tool_defs)
-
-    with pytest.raises(ValueError, match="Duplicate"):
-        bridge.external_functions()
-
-
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_can_call_wrapped_tool_with_monty():
     pytest.importorskip("pydantic_monty")
 
@@ -292,6 +295,7 @@ async def test_run_code_bridge_records_inner_tool_error():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_monty_raises_tool_error_on_max_tool_calls():
     pytest.importorskip("pydantic_monty")
 
@@ -376,6 +380,7 @@ def test_format_run_code_result_with_error_trace():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_can_include_inner_tool_trace_with_monty():
     pytest.importorskip("pydantic_monty")
 
@@ -394,7 +399,7 @@ async def test_run_code_can_include_inner_tool_trace_with_monty():
 
 class SlowRunCodeExecutor:
     async def execute(self, code: str) -> RunCodeResult:
-        await asyncio.sleep(1)
+        await anyio.sleep(1)
         return RunCodeResult(output=[ContentText(text="finished")])
 
 
@@ -468,6 +473,7 @@ def test_truncate_content_handles_max_chars_below_suffix():
 
     total = sum(len(item.text) for item in result if isinstance(item, ContentText))
     assert total <= 5
+    assert result[0].text.endswith("...")
 
 
 def test_run_code_preview_truncates_long_values():
@@ -491,7 +497,7 @@ def test_run_code_rejects_duplicate_wrapped_tool_names():
     tool_defs = _tool_defs([dummy_tool(), dummy_tool()])
 
     with pytest.raises(ValueError, match="Duplicate run_code inner tool name"):
-        _tool_def_by_name(tool_defs)
+        _validate_tool_names(tool_defs)
 
 
 def test_run_code_rejects_duplicate_wrapped_tool_names_at_construction():
@@ -512,7 +518,7 @@ def test_run_code_usage_description_with_tools_mentions_await():
     description = _run_code_usage_description(tool_defs)
 
     assert "Use `await`" in description
-    assert "await dummy_tool(value: string)" in description
+    assert "await dummy_tool(value: str)" in description
     assert "Echo a value." in description
 
 
@@ -550,6 +556,7 @@ async def test_run_code_bridge_can_call_multiple_wrapped_tools():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_can_call_multiple_wrapped_tools_with_monty():
     pytest.importorskip("pydantic_monty")
 
@@ -599,6 +606,7 @@ async def test_external_functions_preserve_scalar_return_type():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_chains_typed_tool_results_with_monty():
     pytest.importorskip("pydantic_monty")
 
@@ -656,6 +664,7 @@ async def test_external_functions_preserve_structured_return_type():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_iterates_structured_tool_result_with_monty():
     pytest.importorskip("pydantic_monty")
 
@@ -686,6 +695,7 @@ def test_project_result_raises_on_unprojectable_value():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_can_call_wrapped_tools_with_asyncio_gather():
     pytest.importorskip("pydantic_monty")
 
@@ -821,6 +831,7 @@ async def test_run_code_bridge_uses_inspect_approval_for_inner_tool_calls():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_monty_uses_inspect_approval_for_inner_tool_calls():
     pytest.importorskip("pydantic_monty")
 
@@ -863,6 +874,7 @@ async def test_run_code_monty_uses_inspect_approval_for_inner_tool_calls():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_monty_runs_inner_tool_when_approval_allows_it():
     pytest.importorskip("pydantic_monty")
 
@@ -937,6 +949,7 @@ async def test_run_code_bridge_collects_image_artifacts():
 
 
 @pytest.mark.anyio
+@skip_if_trio  # pydantic-monty runs on asyncio
 async def test_run_code_artifacts_appear_in_result():
     pytest.importorskip("pydantic_monty")
     tool = run_code(tools=[image_tool()], executor="monty")

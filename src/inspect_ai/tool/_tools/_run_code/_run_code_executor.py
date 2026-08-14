@@ -4,8 +4,10 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from inspect_ai._util.content import Content, ContentText
-from inspect_ai.tool import ToolDef, ToolError
+from inspect_ai._util.error import pip_dependency_error
 
+from ..._tool import ToolError
+from ..._tool_def import ToolDef
 from ._bridge import RunCodeInnerToolCallTraceEntry, RunCodeToolBridge
 
 
@@ -61,13 +63,7 @@ class MontyRunCodeExecutor:
             import pydantic_monty
             from pydantic_monty import MontyError
         except ImportError:
-            return RunCodeResult(
-                output=[],
-                error=(
-                    "pydantic-monty is not installed. "
-                    "Install inspect-ai[code-mode] to use run_code execution."
-                ),
-            )
+            raise pip_dependency_error("run_code", ["pydantic-monty"])
 
         bridge = RunCodeToolBridge(
             self.tool_defs,
