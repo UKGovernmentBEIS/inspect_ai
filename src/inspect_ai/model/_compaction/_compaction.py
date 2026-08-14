@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Sequence
+from typing import Any, NamedTuple, Sequence
 
 import anyio
 from pydantic import BaseModel, Field
@@ -22,7 +22,7 @@ from .._model import (
 from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
-from .types import Compact, CompactionStrategy
+from .types import Compact, CompactionResult, CompactionStrategy
 
 logger = getLogger(__name__)
 
@@ -54,6 +54,25 @@ class _CompactionState(BaseModel):
 
     memory_warning_issued: bool = False
     """Whether a pre-compaction memory warning was issued for the window."""
+
+
+class _CompactionRun(NamedTuple):
+    """Result of `_perform_compaction`, including which strategies ran."""
+
+    outcome: CompactionResult
+    """Outcome of the final pass — the one that produced the returned input."""
+
+    passes: list[str]
+    """Applied strategy name for each pass, in order."""
+
+    fallback_reason: str | None
+    """First fallback reason across all passes, not just the final one.
+
+    A run can fall back on an early pass and then succeed on its preferred
+    delegate later, leaving the final outcome with no reason recorded. The
+    fallback still happened and still cost a generate, so it is reported at
+    run level.
+    """
 
 
 def compaction(
@@ -209,7 +228,7 @@ def compaction(
 
             if force or total_tokens > threshold:
                 # perform compaction (with iteration if needed)
-                c_input, c_message = await _perform_compaction(
+                compaction_result = await _perform_compaction(
                     strategy=strategy,
                     messages=target_messages,
                     tools=tools_info,
@@ -218,6 +237,8 @@ def compaction(
                     tool_tokens=tool_tokens,
                     prefix_tokens=prefix_tokens,
                 )
+                c_input = compaction_result.outcome.input
+                c_message = compaction_result.outcome.message
 
                 # track all messages that were processed in this compaction pass
                 for m in state.compacted_input + unprocessed:
@@ -228,25 +249,47 @@ def compaction(
                 if c_message is not None:
                     state.processed_message_ids.add(message_id(c_message))
 
-                # Preserve prefix messages based on strategy type
-                if strategy.preserve_prefix:
-                    # Non-native strategies: prepend any prefix messages not in output
-                    input_ids = {message_id(m) for m in c_input}
-                    prepend_prefix = [
-                        m for m in prefix if message_id(m) not in input_ids
-                    ]
-                else:
-                    # Native compaction: only prepend system messages
-                    # (user content is preserved by provider or in compaction block)
-                    prepend_prefix = [m for m in prefix if m.role == "system"]
-                pre_collapse_input = prepend_prefix + c_input
-                c_message_was_in_input = c_message is not None and any(
-                    m is c_message for m in pre_collapse_input
+                # Filter by id in both branches — the system-only rule below
+                # would be safe if native were the only producer, but a
+                # delegating strategy can emit summary output (which does
+                # carry system messages) on the same handler.
+                input_ids = {message_id(m) for m in c_input}
+                candidates = [m for m in prefix if message_id(m) not in input_ids]
+                if not compaction_result.outcome.preserve_prefix:
+                    candidates = [m for m in candidates if m.role == "system"]
+
+                # Splice rather than concatenate so a restored input message
+                # cannot land ahead of a system message already in c_input.
+                lead = 0
+                while lead < len(c_input) and c_input[lead].role == "system":
+                    lead += 1
+                pre_collapse_input = (
+                    [m for m in candidates if m.role == "system"]
+                    + c_input[:lead]
+                    + [m for m in candidates if m.role != "system"]
+                    + c_input[lead:]
                 )
+                # #3886 nulls c_message when a collapse absorbs the summary:
+                # the merged message inherits the summary metadata and stays
+                # replaceable, so the caller must not append a second copy.
+                # That holds only when the strategy's own output caused the
+                # merge. When a prefix message we spliced in absorbed the
+                # summary, the caller still needs to record it.
+                strategy_absorbed_c_message = False
+                if c_message is not None and any(
+                    m is c_message for m in compaction_result.outcome.input
+                ):
+                    collapsed_output = collapse_consecutive_messages_for_api(
+                        list(compaction_result.outcome.input), target_model.api
+                    )
+                    strategy_absorbed_c_message = not any(
+                        m is c_message for m in collapsed_output
+                    )
+
                 c_input = collapse_consecutive_messages_for_api(
                     pre_collapse_input, target_model.api
                 )
-                if c_message_was_in_input and not any(m is c_message for m in c_input):
+                if strategy_absorbed_c_message:
                     c_message = None
 
                 # update input
@@ -260,6 +303,23 @@ def compaction(
                 compacted_hidden = _redacted_reasoning_tokens_total(
                     state.compacted_input, target_model
                 )
+                metadata: dict[str, Any] = {
+                    "strategy": strategy.__class__.__name__,
+                    "messages_before": len(target_messages),
+                    "messages_after": len(state.compacted_input),
+                    "trigger": "forced" if force else "threshold",
+                }
+                outcome = compaction_result.outcome
+                if outcome.applied != strategy.__class__.__name__:
+                    metadata["strategy_applied"] = outcome.applied
+                # Run level, not final-pass level: a run that fell back on an
+                # early pass and then succeeded natively still paid for the
+                # fallback, and the final outcome carries no reason.
+                if compaction_result.fallback_reason is not None:
+                    metadata["fallback_reason"] = compaction_result.fallback_reason
+                if len(set(compaction_result.passes)) > 1:
+                    metadata["passes"] = list(compaction_result.passes)
+
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,
@@ -267,12 +327,7 @@ def compaction(
                         source="inspect",
                         tokens_before=total_tokens,
                         tokens_after=compacted_tokens + compacted_hidden,
-                        metadata={
-                            "strategy": strategy.__class__.__name__,
-                            "messages_before": len(target_messages),
-                            "messages_after": len(state.compacted_input),
-                            "trigger": "forced" if force else "threshold",
-                        },
+                        metadata=metadata,
                     )
                 )
 
@@ -413,7 +468,7 @@ async def _perform_compaction(
     threshold: int,
     tool_tokens: int,
     prefix_tokens: int,
-) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+) -> _CompactionRun:
     """Perform compaction, iterating if necessary to get under threshold.
 
     Args:
@@ -426,18 +481,22 @@ async def _perform_compaction(
         prefix_tokens: Token count for prefix messages (for error reporting).
 
     Returns:
-        Tuple of (compacted messages, optional summary message).
+        The final pass's outcome plus the applied strategy of each pass.
 
     Raises:
         RuntimeError: If compaction cannot reduce tokens below threshold.
     """
     MAX_ITERATIONS = 3
-    c_input, c_message = await strategy.compact(model, messages, tools)
-    compacted_tokens = await model.count_tokens(c_input)
+    passes: list[str] = []
+    fallback_reason: str | None = None
+    outcome = await strategy.compact_outcome(model, messages, tools)
+    passes.append(outcome.applied)
+    fallback_reason = fallback_reason or outcome.fallback_reason
+    compacted_tokens = await model.count_tokens(outcome.input)
     # Surviving messages may still carry redacted-reasoning cost that
     # `count_tokens` (and `usage.input_tokens`) doesn't see; include it
     # so the threshold check reflects the model's effective context.
-    hidden_tokens = _redacted_reasoning_tokens_total(c_input, model)
+    hidden_tokens = _redacted_reasoning_tokens_total(outcome.input, model)
     total_compacted = tool_tokens + compacted_tokens + hidden_tokens
 
     for _ in range(MAX_ITERATIONS):
@@ -447,9 +506,11 @@ async def _perform_compaction(
         prev_total = total_compacted
 
         # Try compacting again
-        c_input, c_message = await strategy.compact(model, list(c_input), tools)
-        compacted_tokens = await model.count_tokens(c_input)
-        hidden_tokens = _redacted_reasoning_tokens_total(c_input, model)
+        outcome = await strategy.compact_outcome(model, list(outcome.input), tools)
+        passes.append(outcome.applied)
+        fallback_reason = fallback_reason or outcome.fallback_reason
+        compacted_tokens = await model.count_tokens(outcome.input)
+        hidden_tokens = _redacted_reasoning_tokens_total(outcome.input, model)
         total_compacted = tool_tokens + compacted_tokens + hidden_tokens
 
         # Stop if no progress (can't reduce further)
@@ -468,7 +529,9 @@ async def _perform_compaction(
             f"tool definitions and prefix."
         )
 
-    return c_input, c_message
+    return _CompactionRun(
+        outcome=outcome, passes=passes, fallback_reason=fallback_reason
+    )
 
 
 def _resolve_threshold(model: Model, threshold: int | float) -> int:

@@ -1,20 +1,31 @@
 """End-to-end tests for react() agent compaction integration."""
 
+from typing import Any
+
+import pytest
+
 from inspect_ai import Task, eval
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.event import CompactionEvent
 from inspect_ai.log import EvalLog
 from inspect_ai.model import (
+    ChatMessage,
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
+    CompactionAuto,
+    CompactionEdit,
+    CompactionResult,
+    CompactionStrategy,
+    CompactionSummary,
+    CompactionTrim,
+    Model,
     ModelOutput,
     get_model,
 )
-from inspect_ai.model._compaction import CompactionEdit, CompactionTrim
 from inspect_ai.scorer import includes
-from inspect_ai.tool import Tool, tool
+from inspect_ai.tool import Tool, ToolInfo, tool
 from inspect_ai.tool._tools._memory import memory
 
 
@@ -333,3 +344,238 @@ def test_react_threads_checkpointer_into_compaction() -> None:
     cp_off = RecordingCheckpointer()
     assert _agent_compact(None, [], None, model, cp_off) is None
     assert "compaction" not in cp_off.callbacks
+
+
+def _compaction_metadata(log: EvalLog) -> dict[str, Any]:
+    """First CompactionEvent's metadata from an eval log."""
+    assert log.samples
+    events = [e for e in log.samples[0].events if isinstance(e, CompactionEvent)]
+    assert events, "Expected at least one CompactionEvent"
+    return events[0].metadata or {}
+
+
+# Threshold for tests that exercise CompactionSummary's real (model-calling)
+# summarization path. react's fixed overhead (tool schemas + prefix) is
+# roughly 220 tokens on its own, so the threshold must sit above that or
+# compaction fires before any conversation content exists. The trailing
+# "filler" mock output in `_long_conversation_model` exists because
+# CompactionSummary's own `model.generate()` call consumes from the same
+# mockllm output queue as the conversation turns.
+_SUMMARY_THRESHOLD = 1000
+
+
+def _long_conversation_model() -> Model:
+    """A mock model that produces enough content to cross a low threshold.
+
+    The trailing "filler" output exists to be consumed by CompactionSummary's
+    internal `model.generate()` call (see `_SUMMARY_THRESHOLD`) so that call
+    doesn't re-embed a full-size block; "submit" remains available for the
+    conversation's real final turn.
+    """
+    return get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(model="mockllm/model", content="X" * 4000),
+            ModelOutput.from_content(model="mockllm/model", content="Y" * 4000),
+            ModelOutput.from_content(model="mockllm/model", content="filler"),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
+        ],
+    )
+
+
+def test_compaction_event_records_summary_fallback() -> None:
+    """Mockllm has no native compaction, so Auto falls back and says why."""
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=CompactionAuto(threshold=_SUMMARY_THRESHOLD)),
+    )
+
+    log = eval(task, model=_long_conversation_model())[0]
+    assert log.status == "success"
+    metadata = _compaction_metadata(log)
+
+    assert metadata["strategy"] == "CompactionAuto"
+    assert metadata["strategy_applied"] == "CompactionSummary"
+    fallback_reason = metadata["fallback_reason"]
+    assert "not supported" in fallback_reason
+    # Pins FIX 3: the provider's own message must appear (not be dropped by
+    # a doubly-nested repr), and exactly once (not doubled).
+    provider_message = "MockLLM does not support native compaction."
+    assert fallback_reason.count(provider_message) == 1
+
+
+def test_compaction_event_records_native_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When native succeeds, the event names it and carries no fallback reason."""
+    auto = CompactionAuto(threshold=_SUMMARY_THRESHOLD)
+
+    async def fake_native(
+        m: Model, msgs: list[ChatMessage], t: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return [
+            ChatMessageAssistant(content="[COMPACTED BLOCK]"),
+            ChatMessageUser(content="Please continue working."),
+        ], None
+
+    monkeypatch.setattr(auto._native, "compact", fake_native)
+
+    task_prompt = "UNIQUE-TASK-PROMPT"
+    task = Task(
+        dataset=[Sample(input=task_prompt, target="done")],
+        solver=react(compaction=auto),
+    )
+
+    log = eval(task, model=_long_conversation_model())[0]
+    assert log.status == "success"
+    metadata = _compaction_metadata(log)
+
+    assert metadata["strategy"] == "CompactionAuto"
+    assert metadata["strategy_applied"] == "CompactionNative"
+    assert "fallback_reason" not in metadata
+
+    # The provenance above and the prefix rule are separate fields consumed at
+    # separate call sites, so assert the user-facing outcome too: native
+    # withholds the sample input, and it must not be re-prepended.
+    assert log.samples
+    model_inputs = [e.input for e in log.samples[0].events if e.event == "model"]
+    assert not any(
+        m.role == "user" and task_prompt in m.text for m in model_inputs[-1]
+    ), "sample input was re-sent after native compaction"
+
+
+def test_compaction_event_omits_provenance_for_plain_strategy() -> None:
+    """A non-delegating strategy emits no strategy_applied key."""
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=CompactionSummary(threshold=_SUMMARY_THRESHOLD)),
+    )
+
+    log = eval(task, model=_long_conversation_model())[0]
+    assert log.status == "success"
+    metadata = _compaction_metadata(log)
+
+    assert metadata["strategy"] == "CompactionSummary"
+    assert "strategy_applied" not in metadata
+    assert "fallback_reason" not in metadata
+    assert "passes" not in metadata
+
+
+class _FlipFlopStrategy(CompactionStrategy):
+    """Reports a different applied strategy on each pass.
+
+    Relies on the dataset having a single sample: the call counter is
+    instance state, so it's only deterministic across one sample's events.
+    """
+
+    def __init__(self) -> None:
+        # Must exceed react's ~220 token fixed overhead (tool schemas +
+        # prefix), or compaction fires before any conversation content exists
+        # and the run dies on "Compaction insufficient" instead of testing
+        # anything.
+        super().__init__(type="summary", threshold=500, memory=False)
+        self.calls = 0
+
+    async def compact_outcome(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> CompactionResult:
+        self.calls += 1
+        if self.calls == 1:
+            # still over threshold, so _perform_compaction runs another pass
+            return CompactionResult(
+                input=[ChatMessageAssistant(content="B" * 4000, id="big")],
+                message=None,
+                preserve_prefix=True,
+                applied="AlphaStrategy",
+            )
+        return CompactionResult(
+            input=[ChatMessageAssistant(content="small", id="small")],
+            message=None,
+            preserve_prefix=True,
+            applied="BetaStrategy",
+        )
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        outcome = await self.compact_outcome(model, messages, tools)
+        return outcome.input, outcome.message
+
+
+def test_compaction_event_records_differing_passes() -> None:
+    """When passes used different strategies, the event lists the sequence."""
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=_FlipFlopStrategy()),
+    )
+
+    log = eval(task, model=_long_conversation_model())[0]
+    assert log.status == "success"
+    metadata = _compaction_metadata(log)
+
+    assert metadata["passes"] == ["AlphaStrategy", "BetaStrategy"]
+    assert metadata["strategy_applied"] == "BetaStrategy"
+
+
+class _FallbackThenNativeStrategy(CompactionStrategy):
+    """Falls back on its first pass, then succeeds natively on the second.
+
+    Relies on the dataset having a single sample: the call counter is
+    instance state, so it's only deterministic across one sample's events.
+    """
+
+    def __init__(self) -> None:
+        # See _SUMMARY_THRESHOLD: must clear react's fixed overhead.
+        super().__init__(type="summary", threshold=500, memory=False)
+        self.calls = 0
+
+    async def compact_outcome(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> CompactionResult:
+        self.calls += 1
+        if self.calls == 1:
+            # still over threshold, so _perform_compaction runs another pass
+            return CompactionResult(
+                input=[ChatMessageAssistant(content="B" * 4000, id="big")],
+                message=None,
+                preserve_prefix=True,
+                applied="CompactionSummary",
+                fallback_reason="native compaction not supported: nope",
+            )
+        return CompactionResult(
+            input=[ChatMessageAssistant(content="small", id="small")],
+            message=None,
+            preserve_prefix=True,
+            applied="CompactionNative",
+        )
+
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        outcome = await self.compact_outcome(model, messages, tools)
+        return outcome.input, outcome.message
+
+
+def test_compaction_event_reports_fallback_from_an_earlier_pass() -> None:
+    """A fallback on an early pass survives a later success on the final pass.
+
+    Reading `fallback_reason` off the final outcome alone would lose it: that
+    pass carries no reason, but the summarization it fell back to still ran
+    and still cost a generate.
+    """
+    task = Task(
+        dataset=[Sample(input="Test", target="done")],
+        solver=react(compaction=_FallbackThenNativeStrategy()),
+    )
+
+    log = eval(task, model=_long_conversation_model())[0]
+    assert log.status == "success"
+    metadata = _compaction_metadata(log)
+
+    assert metadata["strategy_applied"] == "CompactionNative"
+    assert "not supported" in metadata["fallback_reason"]
+    assert metadata["passes"] == ["CompactionSummary", "CompactionNative"]
