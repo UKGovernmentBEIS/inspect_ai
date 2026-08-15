@@ -14,11 +14,12 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.tool import ToolDef
-from inspect_ai.tool._tool import ToolApprovalError, ToolError, ToolParsingError
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.events import SandboxTimeoutError
+
+from ..._tool import ToolApprovalError, ToolError, ToolParsingError
+from ..._tool_def import ToolDef
 
 
 def _preview(value: Any, *, max_chars: int = 500) -> str:
@@ -205,8 +206,6 @@ class RunCodeToolBridge:
         external_functions: dict[str, Callable[..., Any]] = {}
 
         for tool_def in self.tool_defs:
-            if tool_def.name in external_functions:
-                raise ValueError(f"Duplicate run_code inner tool name: {tool_def.name}")
 
             async def call_tool(
                 *args: Any,
@@ -240,8 +239,8 @@ class RunCodeToolBridge:
             result = await self._execute_inspect_tool_call(tool_def, arguments)
             value = self._project_result(result, tool_def.name)
             artifact_count = len(self.artifacts) - artifacts_before
-            call_trace_entry.result_preview = _preview(
-                f"{value!r} | artifacts={artifact_count}"
+            call_trace_entry.result_preview = (
+                f"{_preview(value)} | artifacts={artifact_count}"
             )
             return value
         except Exception as exc:
@@ -272,8 +271,6 @@ class RunCodeToolBridge:
         try:
             return to_jsonable_python(result, fallback=lambda value: str(value))
         except Exception as exc:
-            from inspect_ai.tool._tool import ToolError
-
             raise ToolError(
                 f"run_code: tool '{tool_name}' returned a value that can't be "
                 f"projected into the runtime ({type(result).__name__}): {exc}"

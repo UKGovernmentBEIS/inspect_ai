@@ -25,6 +25,7 @@ pip
 pre-commit
 pyarrow>=10.0.1
 pyarrow-stubs
+pydantic-monty<0.0.19
 pytest
 pytest-cov
 pytest-dotenv
