@@ -2,11 +2,12 @@ import os
 from logging import getLogger
 from typing import Any, cast
 
-import httpx
+import httpx2
 from openai import (
     APIStatusError,
     AsyncOpenAI,
     BadRequestError,
+    DefaultAsyncHttpxClient,
     LengthFinishReasonError,
     PermissionDeniedError,
     UnprocessableEntityError,
@@ -40,7 +41,6 @@ from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput
 from .._openai import (
-    OpenAIAsyncHttpxClient,
     OpenAIResponseError,
     is_gpt_5_model,
     is_o_series_model,
@@ -147,12 +147,18 @@ class OpenAICompatibleAPI(ModelAPI):
         # create client
         self.initialize()
 
-    def _create_http_client(self) -> OpenAIAsyncHttpxClient:
+    def _create_http_client(self) -> DefaultAsyncHttpxClient:
+        # DefaultAsyncHttpxClient is the SDK's own httpx2.AsyncClient with
+        # OpenAI's recommended defaults (timeout, connection limits, redirect
+        # and proxy handling). Source the client from the SDK rather than
+        # hand-building an httpx client with equivalent defaults: a client and
+        # its config objects must be the same httpx flavor — a mismatch
+        # silently corrupts the timeout config (#4837).
         if self.client_timeout is not None:
-            return OpenAIAsyncHttpxClient(
-                timeout=httpx.Timeout(timeout=self.client_timeout, connect=5.0)
+            return DefaultAsyncHttpxClient(
+                timeout=httpx2.Timeout(timeout=self.client_timeout, connect=5.0)
             )
-        return OpenAIAsyncHttpxClient()
+        return DefaultAsyncHttpxClient()
 
     def _create_client(self) -> AsyncOpenAI:
         return AsyncOpenAI(

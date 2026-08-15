@@ -19,7 +19,7 @@ mistralai>=2.4.5
 moto[server]>=5.1.5
 mypy>=2.3.0 # older mypy emits a `misc` error at a site where the ignore was removed as unused
 nbformat
-openai>=2.45.0
+openai>=3.0.0
 pandas>=2.0.0
 pandas-stubs
 panflute
@@ -55,6 +55,6 @@ types-psutil
 types-python-dateutil
 types-PyYAML
 types-regex
-xai_sdk>=1.7.0
+xai_sdk>=1.18.0
 # zipfile-zstd patches zipfile to support zstd compression (for creating test fixtures)
 zipfile-zstd>=0.0.4; python_version < '3.14'
