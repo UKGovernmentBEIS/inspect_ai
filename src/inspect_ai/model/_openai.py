@@ -9,10 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
 
-import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
@@ -1222,22 +1219,3 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that uses OpenAI's default settings.
-
-    This ensures proper proxy support and follows OpenAI's recommended configuration.
-    OpenAI has already incorporated timeout improvements for reasoning models in their
-    default transport, so we don't need custom socket options.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # Use OpenAI's default settings which handle proxies correctly
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        super().__init__(**kwargs)

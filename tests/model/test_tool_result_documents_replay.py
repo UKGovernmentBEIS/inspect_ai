@@ -1,4 +1,9 @@
-from inspect_ai._util.content import ContentDocument, ContentImage, ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentText,
+)
 from inspect_ai._util.registry import RegistryInfo, set_registry_info
 from inspect_ai.model import ChatMessage, ChatMessageTool, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
@@ -138,6 +143,48 @@ def test_combined_image_and_document_extraction():
                 ],
             ),
             ChatMessageUser(content=[image, document], tool_call_id=["mixed"]),
+        ],
+    )
+
+
+def test_non_placeholder_media_does_not_leak_tool_call_id():
+    """Media without a placeholder cannot leak its ID across a user boundary."""
+    audio = ContentAudio(audio="a.mp3", format="mp3")
+    image = ContentImage(image="image_for_tool")
+    user = ChatMessageUser(content="in between")
+
+    transformed = tool_result_media_as_user_message(
+        [
+            ChatMessageTool(
+                tool_call_id="call_AUDIO",
+                function="listen",
+                content=[audio],
+            ),
+            user,
+            ChatMessageTool(
+                tool_call_id="call_IMG",
+                function="shot",
+                content=[image],
+            ),
+        ],
+        (ContentAudio, ContentImage),
+    )
+
+    assert_messages_equal(
+        transformed,
+        [
+            ChatMessageTool(
+                tool_call_id="call_AUDIO",
+                function="listen",
+                content=[audio],
+            ),
+            user,
+            ChatMessageTool(
+                tool_call_id="call_IMG",
+                function="shot",
+                content=[ContentText(text="Image content is included below.")],
+            ),
+            ChatMessageUser(content=[image], tool_call_id=["call_IMG"]),
         ],
     )
 

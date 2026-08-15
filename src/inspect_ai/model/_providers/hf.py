@@ -44,6 +44,7 @@ from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_info import MODEL_INFO_LOOKUP_API_KEY
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -58,6 +59,17 @@ logger = getLogger(__name__)
 
 
 HF_TOKEN = "HF_TOKEN"
+
+
+def hub_token(api_key: str | None) -> str | None:
+    """Token to pass to the Hub, or `None` to let `huggingface_hub` resolve one.
+
+    Resolves `MODEL_INFO_LOOKUP_API_KEY` to `None`. Sending the placeholder as a
+    token makes the Hub treat the request as unauthenticated (and rate limit it
+    as such), and passing any token at all stops `huggingface_hub` falling back
+    to `HF_TOKEN` or the token cached by `huggingface-cli login`.
+    """
+    return None if api_key == MODEL_INFO_LOOKUP_API_KEY else api_key
 
 
 class HuggingFaceAPI(ModelAPI):
@@ -141,7 +153,7 @@ class HuggingFaceAPI(ModelAPI):
             self.model: Any = model_loader.from_pretrained(
                 model_path,
                 device_map=self.device,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
                 **model_args,
             )
@@ -149,7 +161,7 @@ class HuggingFaceAPI(ModelAPI):
             self.model = model_loader.from_pretrained(
                 model_name,
                 device_map=self.device,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
                 **model_args,
             )
@@ -158,26 +170,26 @@ class HuggingFaceAPI(ModelAPI):
         if tokenizer:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                 tokenizer,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
             )
         elif model_path:
             if tokenizer_path:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                     tokenizer_path,
-                    token=self.api_key,
+                    token=hub_token(self.api_key),
                     trust_remote_code=trust_remote_code,
                 )
             else:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                     model_path,
-                    token=self.api_key,
+                    token=hub_token(self.api_key),
                     trust_remote_code=trust_remote_code,
                 )
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                 model_name,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
             )
         # LLMs generally don't have a pad token and we need one for batching

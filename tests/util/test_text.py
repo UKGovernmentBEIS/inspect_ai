@@ -30,6 +30,19 @@ from inspect_ai._util.text import strip_numeric_punctuation
         # discussion.
         ("20%", "20%"),
         ("60%", "60%"),
+        # LaTeX-escaped currency/formatting symbols are un-escaped before
+        # stripping. Models commonly write "\$20" instead of "$20" inside
+        # LaTeX math mode, since a bare "$" would otherwise open/close a
+        # math expression. Without un-escaping first, "\$20" becomes "\20"
+        # (the backslash isn't itself a stripped character), which fails to
+        # parse as a number and is silently rejected by callers such as
+        # match(numeric=True) - the last valid number before it in the text
+        # gets matched instead, which is very often wrong.
+        ("\\$20", "20"),
+        ("\\£20", "20"),
+        ("\\€20", "20"),
+        ("\\*20\\*", "20"),
+        ("\\_20\\_", "20"),
     ],
 )
 def test_strip_numeric_punctuation(input_str: str, expected: str) -> None:

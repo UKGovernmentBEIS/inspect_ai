@@ -30,6 +30,9 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          # blob:none: all refs/commits for setuptools_scm, no historical
+          # file contents (the full pack is ~400MB and fetch time is erratic)
+          filter: "blob:none"
       - name: Lint with Ruff
         uses: astral-sh/ruff-action@v4.1.0
         with:
@@ -50,6 +53,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
@@ -78,6 +82,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Set up Python
         uses: actions/setup-python@v7
@@ -98,29 +103,28 @@ jobs:
         if: ${{ !cancelled() }}
         run: uv cache prune --ci
 
-  # Detect whether anything outside docs changed, so the (expensive) test
-  # matrix can be skipped on documentation-only changes. A skipped job-level
-  # `if` still reports a (non-blocking) check, unlike workflow-level
-  # `paths-ignore` which would strand a required check.
+  # Detect which areas changed so conditional jobs (docs, sandbox-tools-unit)
+  # can be skipped. A skipped job-level `if` still reports a (non-blocking)
+  # check, unlike workflow-level `paths-ignore` which would strand a
+  # required check. That only holds for non-matrix jobs: a skipped matrix
+  # job reports one check run under its unexpanded name, so required
+  # contexts named for the expanded legs (`test (3.10)`, `test (3.11)`)
+  # would never report. Docs-only detection for the test matrix therefore
+  # lives inside the test job itself — see the comment there.
   changes:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      code: ${{ steps.filter.outputs.code }}
-      sandbox_tools: ${{ steps.filter.outputs.sandbox_tools }}
-      docs: ${{ steps.filter.outputs.docs }}
+      sandbox_tools: ${{ steps.areas.outputs.sandbox_tools }}
+      docs: ${{ steps.areas.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
-        id: filter
+        id: areas
         with:
           filters: |
-            code:
-              - '**'
-              - '!docs/**'
-              - '!**/*.md'
             sandbox_tools:
               - 'src/inspect_sandbox_tools/**'
             docs:
@@ -135,7 +139,7 @@ jobs:
   # is pure conversion: no code execution, no API keys.
   docs:
     needs: changes
-    if: needs.changes.outputs.docs == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -143,6 +147,7 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v9.0.0
@@ -165,42 +170,110 @@ jobs:
         run: uv cache prune --ci
 
   test:
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
     strategy:
       matrix:
         python-version: ["3.10", "3.11"]
 
     steps:
+      # Docs-only detection runs as a step rather than a `needs: changes`
+      # job gate for two reasons. Latency: the job queues at run start
+      # instead of behind a full queue+run cycle of the changes job
+      # (~2.5 min median, ~8 min p90 of PR wall clock under runner
+      # contention). Correctness: `test (3.10)` and `test (3.11)` are
+      # required status checks under their expanded matrix names, and a
+      # skipped matrix job reports a single check run under the unexpanded
+      # name `test`, so a job-level `if` would leave the required contexts
+      # unreported and block docs-only PRs forever. Gated no-op steps let
+      # each leg report success under its required name in seconds.
+      #
+      # On pull_request the filter reads the diff from the API and needs no
+      # checkout, so it runs first and docs-only PRs skip the checkout too.
+      # On push it diffs the pushed commits and requires a checkout, hence
+      # the split checkout steps. On workflow_dispatch there is no base to
+      # diff against (paths-filter sees only the last commit), so manual
+      # runs always do the full build.
+      # 'every' is required for the negations to bite: the default 'some'
+      # quantifier matches a file against ANY pattern, and '**' matches
+      # everything, so `code` would be unconditionally true.
       - uses: actions/checkout@v7
+        if: github.event_name != 'pull_request'
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
+          submodules: true
+
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!**/*.md'
+
+      - name: Set RUN_TESTS
+        run: echo "RUN_TESTS=${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.code == 'true' }}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request' && env.RUN_TESTS == 'true'
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          filter: "blob:none"
           submodules: true
 
       - name: Install uv
+        if: env.RUN_TESTS == 'true'
         uses: astral-sh/setup-uv@v9.0.0
         with:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
+        if: env.RUN_TESTS == 'true'
+        # tests/test_package is pre-installed so ensure_test_package_installed()
+        # short-circuits instead of pip-installing it mid-run (~9s on the
+        # xdist critical path, paid by whichever test calls it first).
         run: |-
           uv venv
           uv pip install .[dev]
+          uv pip install --no-deps ./tests/test_package
 
       - name: Test with pytest
+        if: env.RUN_TESTS == 'true'
         # --timeout (thread method) dumps a traceback and fails a hung test
         # rather than letting the job hang to the job-level timeout; this works
         # even through anyio cancel shields, which the conftest async timeout
         # cannot. The 900s budget sits above the conftest 300s per-test timeout
         # so it only fires on genuine hangs.
-        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread
+        # --durations feeds the recurring CI-performance analysis
+        # (design/ci-perf/): per-test timings are mined from these logs.
+        # --report-log records each test's worker and completion order, so a
+        # failure caused by an earlier test on the same worker can be replayed
+        # and bisected offline with scripts/pytest_bisect.py. Written
+        # uncompressed: reportlog flushes every line, and flushing a .gz forces
+        # a zlib flush per line (~4x the per-test cost). upload-artifact
+        # compresses on upload anyway.
+        run: uv run pytest -rA --doctest-modules --color=yes -n auto --timeout=900 --timeout-method=thread --durations=50 --durations-min=1 --report-log=test-report-log.jsonl --report-log-exclude-logs-on-passed-tests
+
+      - name: Upload test order log
+        if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-report-log-${{ matrix.python-version }}
+          path: test-report-log.jsonl
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Minimize uv cache
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.RUN_TESTS == 'true' }}
         run: uv cache prune --ci
 
   # Fast, self-contained unit tests for the injected sandbox-tools package
@@ -211,7 +284,7 @@ jobs:
   # Docker or a built binary (unlike the slow-tool-tests-* jobs below).
   sandbox-tools-unit:
     needs: changes
-    if: needs.changes.outputs.sandbox_tools == 'true'
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.sandbox_tools == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -513,5 +586,6 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          filter: "blob:none"
 
       - uses: hynek/build-and-inspect-python-package@v2

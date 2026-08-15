@@ -1,0 +1,54 @@
+{
+  "contents": [
+    {
+      "parts": [
+        {
+          "text": "<USER_REQUEST>\n\nList the files in the workspace to see what's there.\n\n</USER_REQUEST>"
+        }
+      ],
+      "role": "user"
+    },
+    {
+      "parts": [
+        {
+          "text": "<think redacted=\"true\" internal=\"eyJnZW1pbmlfZnVuY3Rpb25fY2FsbF9pZCI6ICI1dHBrS2RZVSJ9\">\nEswcCskcARFNMg+UgYioxFENZ1QwlBiDRcR55h9Y7qJN5bgGp30zTIGzFIbaX1uDdmjsTRIMMED\n</think>"
+        },
+        {
+          "functionCall": {
+            "args": {
+              "Arguments": {},
+              "ServerName": "taiga-mcp",
+              "ToolName": "list_files",
+              "toolAction": "Listing files in workspace",
+              "toolSummary": "List files in workspace"
+            },
+            "name": "call_mcp_tool"
+          },
+          "thoughtSignature": "EswcCskcARFNMg+UgYioxFENZ1QwlBiDRcR55h9Y7qJN5bgGp30zTIGzFIbaX1uDdmjsTRIMMED"
+        }
+      ],
+      "role": "model"
+    },
+    {
+      "parts": [
+        {
+          "functionResponse": {
+            "name": "call_mcp_tool",
+            "response": {
+              "output": "Encountered error in step execution: denied by pre-tool hook: Denied by policy 'deny_all'."
+            }
+          }
+        }
+      ],
+      "role": "model"
+    }
+  ],
+  "system_instruction": {
+    "parts": [
+      {
+        "text": "You are an agentic AI assistant. Do ALL task work through the taiga-mcp MCP tools. For lazily-loaded tools, call the tool using the `call_mcp_tool` tool. (System prompt trimmed from the live capture; the tests do not inspect its content.)"
+      }
+    ],
+    "role": "user"
+  }
+}

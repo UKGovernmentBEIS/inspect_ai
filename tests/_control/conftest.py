@@ -10,24 +10,22 @@ from click.testing import CliRunner
 
 
 @pytest.fixture(autouse=True)
-def _isolate_active_model() -> Iterator[None]:
-    """Keep the active-model contextvar from leaking across tests.
+def _isolate_terminal_source_caches() -> Iterator[None]:
+    """Keep the terminal-source caches from leaking across tests.
 
-    ``eval`` sets the process ``active_model`` contextvar. Tests in this
-    suite run ``eval`` / ``eval_set`` *synchronously* in the test's own
-    context (not a background thread), so without isolation that set
-    persists after the call and leaks ``mockllm/model`` into later tests —
-    e.g. one resolving a bare ``inspect`` model, which then resolves to the
-    leaked active model instead of ``INSPECT_EVAL_MODEL``. Restore the
-    contextvar after each test.
+    The events / messages readers cache resolved terminal sources for a few
+    seconds (see ``inspect_ai._control.terminal_cache``). Tests in this suite
+    reuse eval/sample ids (``e1`` / ``s1``) across monkeypatched sources, so
+    without clearing, one test's cached source (which outlives its
+    monkeypatches) would be served to the next.
     """
-    from inspect_ai.model._model import active_model_context_var
+    from inspect_ai._control.terminal_cache import clear_terminal_source_caches
 
-    token = active_model_context_var.set(active_model_context_var.get(None))
+    clear_terminal_source_caches()
     try:
         yield
     finally:
-        active_model_context_var.reset(token)
+        clear_terminal_source_caches()
 
 
 @pytest.fixture

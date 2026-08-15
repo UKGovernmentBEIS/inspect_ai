@@ -32,8 +32,10 @@ from anthropic.lib.streaming import AsyncMessageStream
 from anthropic.types import (
     Base64PDFSourceParam,
     CacheControlEphemeralParam,
+    CitationsConfigParam,
     CodeExecutionToolResultBlock,
     CodeExecutionToolResultBlockParam,
+    Container,
     ContentBlock,
     ContentBlockParam,
     ContentBlockSourceParam,
@@ -57,6 +59,7 @@ from anthropic.types import (
     ToolChoiceParam,
     ToolChoiceToolParam,
     ToolParam,
+    ToolReferenceBlockParam,
     ToolResultBlockParam,
     ToolTextEditor20250124Param,
     ToolUseBlock,
@@ -213,6 +216,10 @@ _REASONING_TOKENS_UNSUPPORTED_ERROR = (
     "anthropic model '{model}' does not support 'reasoning_tokens' (extended "
     "thinking with an explicit token budget was removed in Claude 4.7). Use "
     "'reasoning_effort' to control reasoning depth instead."
+)
+_DISABLED_THINKING_EFFORT_WARNING = (
+    "anthropic model '{model}' rejects disabled thinking (reasoning_effort="
+    "'none') combined with effort above 'high'; clamping effort to 'high'."
 )
 _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "anthropic: {count} mid-conversation system message(s) were repositioned "
@@ -535,14 +542,9 @@ class AnthropicAPI(ModelAPI):
             if FALLBACK_BETA not in betas and _input_has_fallback(input):
                 betas.append(FALLBACK_BETA)
 
-            # resolve betas and extra headers — preserve any client default
-            # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
+            # resolve betas and extra headers
             if len(betas) > 0:
-                for b in self._client_default_betas():
-                    if b not in betas:
-                        betas.insert(0, b)
-                betas = list(dict.fromkeys(betas))  # remove duplicates
-                extra_headers["anthropic-beta"] = ",".join(betas)
+                extra_headers["anthropic-beta"] = self._beta_header_value(betas)
             request["extra_headers"] = extra_headers
 
             # mcp servers
@@ -550,6 +552,12 @@ class AnthropicAPI(ModelAPI):
                 if EXTRA_BODY not in request:
                     request[EXTRA_BODY] = dict()
                 request[EXTRA_BODY]["mcp_servers"] = mcp_servers_param
+
+            # resume the prior turn's code execution container if it left
+            # work pending (e.g. a client tool call cut the turn short)
+            container = _pending_container_for_input(input)
+            if container is not None:
+                request["container"] = container
 
             model_call = set_active_model_event_call(request, model_call_filter)
 
@@ -634,11 +642,19 @@ class AnthropicAPI(ModelAPI):
         # turn can become the "latest" one and trip those checks — neutralize
         # thinking to plain text before counting (see the helper's docstring).
         messages = neutralize_thinking_for_token_counting(messages)
+        normalize_document_citations(messages)
+
+        # Honor per-request extra headers (config.extra_headers), mirroring
+        # generate — pull any anthropic-beta values out of the headers so
+        # they merge with the betas collected below.
+        headers: dict[str, str] = (
+            (config.extra_headers or {}).copy() if config is not None else {}
+        )
+        betas: list[str] = self._pull_betas_from_headers(headers)
 
         # Beta opt-ins required for special content in the history. The API
         # validates content block types for token counting too, so replayed
         # compaction and fallback blocks need the same betas as generate.
-        betas: list[str] = []
         request_extra: dict[str, Any] = {}
         if has_compaction:
             betas.append("compact-2026-01-12")
@@ -648,7 +664,9 @@ class AnthropicAPI(ModelAPI):
         if has_fallback:
             betas.append(FALLBACK_BETA)
         if betas:
-            request_extra["extra_headers"] = {"anthropic-beta": ",".join(betas)}
+            headers["anthropic-beta"] = self._beta_header_value(betas)
+        if headers:
+            request_extra["extra_headers"] = headers
 
         response = await self.client.messages.count_tokens(
             model=self.service_model_name(),
@@ -843,6 +861,34 @@ class AnthropicAPI(ModelAPI):
         )
         return [b.strip() for b in client_beta.split(",") if b.strip()]
 
+    @staticmethod
+    def _pull_betas_from_headers(headers: dict[str, str]) -> list[str]:
+        """Pop anthropic-beta values out of extra headers.
+
+        Accepts the `anthropic_beta` underscore convention and the literal
+        `anthropic-beta` header spelling; header names are case-insensitive,
+        so match case-insensitively. Mutates `headers`, removing matched keys.
+        """
+        beta_keys = [
+            k for k in headers if k.lower() in ("anthropic_beta", "anthropic-beta")
+        ]
+        return [
+            beta
+            for key in beta_keys
+            for b in headers.pop(key).split(",")
+            if (beta := b.strip())
+        ]
+
+    def _beta_header_value(self, betas: list[str]) -> str:
+        """Value for a per-request anthropic-beta header.
+
+        A per-request anthropic-beta header overrides the client default
+        header rather than merging with it, so fold in any client default
+        betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN) and
+        de-duplicate.
+        """
+        return ",".join(dict.fromkeys(self._client_default_betas() + betas))
+
     def completion_config(
         self, config: GenerateConfig
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
@@ -861,16 +907,7 @@ class AnthropicAPI(ModelAPI):
         params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = (config.extra_headers or {}).copy()
         extra_body: dict[str, Any] = {}
-        betas: list[str] = self.betas.copy()
-
-        # pull betas out of headers (accept the underscore convention and the
-        # literal 'anthropic-beta' header spelling; header names are
-        # case-insensitive, so match case-insensitively)
-        for key in list(headers.keys()):
-            if key.lower() in ("anthropic_beta", "anthropic-beta"):
-                anthropic_beta_header = headers.pop(key)
-                if anthropic_beta_header:
-                    betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
+        betas: list[str] = self.betas + self._pull_betas_from_headers(headers)
 
         # Claude 4.7+ is always in adaptive thinking and rejects these params
         # regardless of config; other models only reject them under thinking.
@@ -943,10 +980,26 @@ class AnthropicAPI(ModelAPI):
                 betas.append("output-128k-2025-02-19")
 
         elif config.reasoning_effort == "none" and self._supports_disabling_thinking():
-            # Claude 4.7+ (incl. Sonnet 5) run adaptive thinking by default, so
-            # `reasoning_effort="none"` must explicitly disable it. Pre-4.7 models
-            # default to no thinking, so omitting the field already suffices.
+            # Claude 4.7+ (incl. Sonnet 5 and Opus 5) run adaptive thinking by
+            # default, so `reasoning_effort="none"` must explicitly disable it.
+            # Pre-4.7 models default to no thinking, so omitting the field
+            # already suffices.
             params["thinking"] = {"type": "disabled"}
+            # Opus 5 returns a 400 for disabled thinking combined with effort
+            # above `high` (Opus 4.8 and Sonnet 5 accept the combination).
+            output_config = params.get("output_config")
+            if (
+                self.is_claude_opus_5()
+                and isinstance(output_config, dict)
+                and output_config.get("effort") in ("xhigh", "max")
+            ):
+                warn_once(
+                    logger,
+                    _DISABLED_THINKING_EFFORT_WARNING.format(
+                        model=self.service_model_name()
+                    ),
+                )
+                params["output_config"] = OutputConfigParam(effort="high")
 
         # config that applies to all models
         if config.stop_seqs is not None:
@@ -1067,15 +1120,22 @@ class AnthropicAPI(ModelAPI):
     def _supports_disabling_thinking(self) -> bool:
         """Whether `reasoning_effort="none"` should send `thinking:{type:"disabled"}`.
 
-        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5) run adaptive thinking by default and
-        accept `disabled` to turn it off. Fable/Mythos 5 also always think but
-        reject `disabled` (400), so they're excluded — their thinking can't be
-        turned off. Pre-4.7 models default to no thinking, so `"none"` is honored
-        by simply omitting the `thinking` field.
+        Claude 4.7+ (Opus 4.7/4.8, Sonnet 5, Opus 5) run adaptive thinking by
+        default and accept `disabled` to turn it off (on Opus 5 only at effort
+        `high` or below — see completion_config).
         """
-        return self.is_claude_4_7_or_later() and not (
-            self.is_claude_5() and not self.is_claude_sonnet_5()
-        )
+        if not self.is_claude_4_7_or_later():
+            # pre-4.7 models default to no thinking, so `"none"` is honored by
+            # simply omitting the `thinking` field
+            return False
+        if not self.is_claude_5():
+            # Opus 4.7 / 4.8 (and future 4.x minors)
+            return True
+        # Claude 5: only tier-named models accept `disabled`. Fable/Mythos also
+        # always think but reject `disabled` (400) — as do unknown codename
+        # Claude 5 models, which are assumed to follow Fable rather than the
+        # tier-named (opus/sonnet) models.
+        return self.is_claude_sonnet_5() or self.is_claude_opus_5()
 
     def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
         """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
@@ -1147,6 +1207,9 @@ class AnthropicAPI(ModelAPI):
 
     def is_claude_sonnet_5(self) -> bool:
         return self.is_claude_5() and "sonnet" in self.model_family()
+
+    def is_claude_opus_5(self) -> bool:
+        return self.is_claude_5() and "opus" in self.model_family()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
@@ -1229,11 +1292,10 @@ class AnthropicAPI(ModelAPI):
             return True
         if _CACHE_DIAGNOSIS_BETA in self._client_default_betas():
             return True
-        for key, val in (config.extra_headers or {}).items():
-            if key.lower() in ("anthropic_beta", "anthropic-beta") and val:
-                if _CACHE_DIAGNOSIS_BETA in [b.strip() for b in val.split(",")]:
-                    return True
-        return False
+        # extraction pops matched keys, so pass a throwaway copy
+        return _CACHE_DIAGNOSIS_BETA in self._pull_betas_from_headers(
+            dict(config.extra_headers or {})
+        )
 
     @override
     def connection_key(self) -> str:
@@ -1262,16 +1324,17 @@ class AnthropicAPI(ModelAPI):
             return "anthropic/claude-opus-4-6"  # 1MM
         elif self.is_claude_latest():
             # Unknown future version: assume the current 1M frontier.
-            return "anthropic/claude-opus-4-8"  # 1MM
+            return "anthropic/claude-opus-5"  # 1MM
         elif (
             self.is_claude_5() and _get_model_info_direct(self.canonical_name()) is None
         ):
             # A Claude 5 variant not yet registered in the model-info database
             # (e.g. a tier-named claude-*-5 or a new codename): assume the 1M
             # Claude 5 frontier rather than missing the lookup. Registered
-            # Claude 5 models (Fable/Mythos and their point releases, which
-            # fuzzy-match their base entry) fall through to the database below.
-            return "anthropic/claude-opus-4-8"  # 1MM
+            # Claude 5 models (Opus/Sonnet/Fable/Mythos and their point
+            # releases, which fuzzy-match their base entry) fall through to the
+            # database below.
+            return "anthropic/claude-opus-5"  # 1MM
         else:
             return super().input_tokens_name()
 
@@ -1482,6 +1545,8 @@ class AnthropicAPI(ModelAPI):
             if message_params:
                 add_lookback_cache_control(message_params, self.cache_ttl)
 
+        normalize_document_citations(message_params)
+
         # return chat input
         return (
             system_param,
@@ -1564,16 +1629,18 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            # Among Claude 5 models only Sonnet 5 is documented to support native
-            # computer use (the computer-use-2025-11-24 tool). Fable/Mythos 5 are
-            # not listed in Anthropic's computer-use docs, so error for those
-            # rather than degrade to a non-native fallback tool.
-            if self.is_claude_5() and not self.is_claude_sonnet_5():
+            # Among Claude 5 models only Sonnet 5 and Opus 5 are documented to
+            # support native computer use (the computer-use-2025-11-24 tool).
+            # Fable/Mythos 5 are not listed in Anthropic's computer-use docs, so
+            # error for those rather than degrade to a non-native fallback tool.
+            if self.is_claude_5() and not (
+                self.is_claude_sonnet_5() or self.is_claude_opus_5()
+            ):
                 raise PrerequisiteError(
                     f"Computer use is not supported by the model '{self.service_model_name()}'. "
-                    "Anthropic's native computer use requires a Claude 4.x model or "
-                    "Claude Sonnet 5 (e.g. claude-opus-4-8, claude-sonnet-4-6, or "
-                    "claude-sonnet-5)."
+                    "Anthropic's native computer use requires a Claude 4.x model, "
+                    "Claude Sonnet 5, or Claude Opus 5 (e.g. claude-opus-4-8, "
+                    "claude-sonnet-5, or claude-opus-5)."
                 )
             # Note: The dimensions passed here for display_width_px and display_height_px
             # should match the dimensions of screenshots returned by the tool. Those
@@ -1585,8 +1652,8 @@ class AnthropicAPI(ModelAPI):
             #
             # TODO: enhance this code to calculate the dimensions based on the scaled screen
             # size used by the container.
-            # computer_20251124 is supported by Claude Sonnet 5, Opus 4.6/4.7/4.8,
-            # Sonnet 4.6, and Opus 4.5
+            # computer_20251124 is supported by Claude Opus 5, Sonnet 5,
+            # Opus 4.6/4.7/4.8, Sonnet 4.6, and Opus 4.5
             if self.is_claude_frontier() or (
                 self.is_claude_4_5() and self.is_claude_4_opus()
             ):
@@ -1802,16 +1869,17 @@ def _supports_web_search(model_name: str) -> bool:
 
 
 def _supports_code_interpreter(model_name: str) -> bool:
+    # https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool#model-compatibility
+    # (all Claude 5 models — Opus, Sonnet, Fable, Mythos — support it)
     return model_name.startswith(
         (
             "claude-opus-4",
             "claude-sonnet-4",
-            "claude-sonnet-5",
             "claude-haiku-4",
             "claude-3-7-sonnet",
             "claude-3-5-haiku-latest",
         )
-    )
+    ) or _is_claude_5(model_name)
 
 
 def _supports_memory(model_name: str) -> bool:
@@ -2396,6 +2464,55 @@ async def message_param(message: ChatMessage) -> MessageParam:
         )
 
 
+def normalize_document_citations(messages: list[MessageParam]) -> None:
+    documents = _citation_document_blocks(messages)
+    if any("citations" in document for document in documents):
+        for document in documents:
+            document["citations"] = CitationsConfigParam(enabled=True)
+
+
+def _citation_document_blocks(messages: list[MessageParam]) -> list[DocumentBlockParam]:
+    documents: list[DocumentBlockParam] = []
+    for message in messages:
+        content = message["content"]
+        if isinstance(content, str):
+            continue
+        for block in content:
+            if _is_citation_document_block(block):
+                documents.append(block)
+            elif _is_tool_result_block(block):
+                tool_result_content = block.get("content")
+                if tool_result_content is None or isinstance(tool_result_content, str):
+                    continue
+                documents.extend(
+                    content_block
+                    for content_block in tool_result_content
+                    if _is_citation_document_block(content_block)
+                )
+    return documents
+
+
+CitationCandidateBlock = ContentBlock | ContentBlockParam | ToolReferenceBlockParam
+
+
+def _is_citation_document_block(
+    block: CitationCandidateBlock,
+) -> TypeGuard[DocumentBlockParam]:
+    return _is_document_block(block) and block["source"]["type"] != "content"
+
+
+def _is_document_block(
+    block: CitationCandidateBlock,
+) -> TypeGuard[DocumentBlockParam]:
+    return isinstance(block, dict) and block.get("type") == "document"
+
+
+def _is_tool_result_block(
+    block: CitationCandidateBlock,
+) -> TypeGuard[ToolResultBlockParam]:
+    return isinstance(block, dict) and block.get("type") == "tool_result"
+
+
 MessageBlock = Union[
     TextBlock
     | BetaTextBlock
@@ -2558,6 +2675,21 @@ async def assistant_message_block_params(
                     block_params.extend(_span_block_params(span, message))
             else:
                 block_params.extend(await message_block_params(content))
+        # a span whose results never arrived (the turn ended first, e.g. a
+        # client tool call cut in) has no content item to anchor it, so the
+        # loop above never emits it. it must still be replayed: the API
+        # resumes the pending work and requires its use block (plus the
+        # `container` request param) to do so. only spans that never produced
+        # content qualify -- a span whose content items were removed by a
+        # scaffold edit was deleted deliberately and stays dropped. with no
+        # anchor, the span lands after the content-derived blocks rather than
+        # at its original wire position (which is not recorded); the API does
+        # not require intra-message position fidelity (client tool_use blocks
+        # are likewise always re-appended last, below).
+        for span in record or []:
+            if not span.content_ids and id(span) not in emitted:
+                emitted.add(id(span))
+                block_params.extend(_span_block_params(span, message))
 
     # move the first instance of thinking to the front (we only need to do this
     # for claude 3 models as we enable interleaved thinking for claude 4)
@@ -2631,7 +2763,13 @@ class _ServerToolSpan:
     """Ids of the ContentToolUse items produced by this span (content order)."""
 
     open_use_ids: set[str] = field(default_factory=set)
-    """Tool use ids awaiting results (recording-time bookkeeping only)."""
+    """Tool use ids awaiting results.
+
+    Used while recording to detect span completion; non-empty on a taken
+    span means the turn ended with the work still pending, which is what
+    obligates the follow-up request to name the container (see
+    `_pending_container_for_input`). Ids stay set even after a later turn's
+    result arrives (see `add_prior_turn_result`)."""
 
 
 class _ServerToolSpanRecorder:
@@ -2676,6 +2814,32 @@ class _ServerToolSpanRecorder:
             self._spans.append(span)
             self._open = None
 
+    def add_prior_turn_result(
+        self, result: _ServerToolSpanBlockParam, content_id: str
+    ) -> None:
+        """Record a result whose use block was recorded in a prior turn.
+
+        A turn can end while a server tool call is still running (e.g. a
+        client tool call cut it short); the result then arrives in a later
+        response. The use block replays with its own (prior) message, so
+        only the result is recorded here.
+
+        The prior message's span deliberately stays open (its use id remains
+        in `open_use_ids`): whether the work is pending depends on the input
+        being replayed, not on this sample-global record. If a scaffold later
+        truncates history back to the prior message, the work is pending
+        again from the API's perspective and the container must be re-sent;
+        when this result's message follows the prior one in the input, the
+        prior message is no longer the last assistant message, so
+        `_pending_container_for_input` sends no container.
+        """
+        span = self._open_span()
+        span.blocks.append(result)
+        span.content_ids.append(content_id)
+        if not span.open_use_ids:
+            self._spans.append(span)
+            self._open = None
+
     def take_spans(self, include_open: bool) -> list[_ServerToolSpan]:
         """Take all completed spans (and optionally any still-open span)."""
         spans = self._spans
@@ -2706,6 +2870,18 @@ class _AssistantInternal:
     """Server tool spans keyed by member tool use id (for replay of messages
     whose id was rewritten, e.g. by the agent bridge -- server tool use ids
     survive the bridge whereas message ids do not)."""
+    containers: dict[str, str] = field(default_factory=dict)
+    """Code execution container ids keyed by assistant message id.
+
+    Replayed as the `container` request param when a turn left code
+    execution pending (see `_pending_container_for_input`).
+
+    Unlike `server_tool_span_index`, there is no fallback for message ids
+    rewritten by the agent bridge: a pending span has produced no content,
+    so no bridge-surviving key exists to index by. Pending-work resumption
+    therefore does not survive a bridge id rewrite (the bridge does not
+    carry server tool state in general -- its anthropic impl handles
+    neither `server_tool_use` blocks nor the `container` param)."""
 
 
 def assistant_internal() -> _AssistantInternal:
@@ -2766,6 +2942,7 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
             ).items()
         }
     )
+    internal.containers.update(cast("dict[str, str]", value.get("containers", {})))
 
 
 def dump_anthropic_assistant_internal() -> JsonValue | None:
@@ -2795,6 +2972,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         or internal.tool_call_internal_names
         or internal.server_mcp_tool_uses
         or span_table
+        or internal.containers
     ):
         return None
     return cast(
@@ -2822,6 +3000,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
                 content_id: span_indexes[id(span)]
                 for content_id, span in internal.server_tool_span_index.items()
             },
+            "containers": dict(internal.containers),
         },
     )
 
@@ -2860,10 +3039,11 @@ def index_server_tool_spans(spans: list[_ServerToolSpan]) -> None:
 
 
 def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
-    """Re-key the head message's spans under the tail message id.
+    """Re-key the head message's spans and container under the tail message id.
 
     Continuations merge head message content into the tail message, so spans
-    recorded under the head message id belong to the tail message.
+    (and the container id) recorded under the head message id belong to the
+    tail message.
     """
     if head_id is None or tail_id is None or head_id == tail_id:
         return
@@ -2873,6 +3053,66 @@ def merge_server_tool_spans(head_id: str | None, tail_id: str | None) -> None:
         internal.server_tool_spans[tail_id] = (
             head_spans + internal.server_tool_spans.get(tail_id, [])
         )
+    head_container = internal.containers.pop(head_id, None)
+    if head_container is not None:
+        # the tail response's own container (the same container, re-reported)
+        # wins if present
+        internal.containers.setdefault(tail_id, head_container)
+
+
+def _prior_turn_server_tool_use(tool_use_id: str) -> BetaServerToolUseBlock | None:
+    """Server tool use block recorded in a prior turn's span (if any).
+
+    A turn can end while a server tool call is still running (e.g. a client
+    tool call cut it short); the result then arrives in a later response
+    with no use block of its own. The use block lives in the prior
+    assistant message's recorded span.
+    """
+    internal = assistant_internal()
+    for spans in internal.server_tool_spans.values():
+        for span in spans:
+            if tool_use_id not in span.open_use_ids:
+                continue
+            for block in span.blocks:
+                block_dict = cast("dict[str, Any]", block)
+                if (
+                    block_dict.get("type") == "server_tool_use"
+                    and block_dict.get("id") == tool_use_id
+                ):
+                    return BetaServerToolUseBlock.model_validate(
+                        {"caller": {"type": "direct"}, **block_dict}
+                    )
+    return None
+
+
+def _pending_container_for_input(input: list[ChatMessage]) -> str | None:
+    """Container id to resume when the last assistant turn left work pending.
+
+    A turn that mixes code-execution-backed server tool use (including web
+    search with dynamic filtering) with a client tool call ends with
+    stop_reason "tool_use" while the container work is still running. The
+    follow-up request must name the container or the API rejects it with
+    "container_id is required when there are pending tool uses generated by
+    code execution with tools."
+
+    Only pending work triggers this -- a container from fully-completed work
+    is not replayed, since unconditionally reusing containers across turns
+    would change behavior (state carry-over) and risk naming an expired
+    container.
+    """
+    last_assistant = next(
+        (m for m in reversed(input) if isinstance(m, ChatMessageAssistant)), None
+    )
+    if last_assistant is None or last_assistant.id is None:
+        return None
+    internal = assistant_internal()
+    container = internal.containers.get(last_assistant.id)
+    if container is None:
+        return None
+    spans = internal.server_tool_spans.get(last_assistant.id, [])
+    if any(span.open_use_ids for span in spans):
+        return container
+    return None
 
 
 def _server_tool_span_for_content(
@@ -3017,11 +3257,12 @@ async def model_output_from_message(
         span_recorder=span_recorder,
     )
 
-    # count reasoning tokens
+    # count reasoning tokens (skip empty thinking text -- omitted summaries
+    # come back as "" and count_tokens rejects empty content with a 400)
     reasoning_tokens = 0
     if client and model:
         for content_block in message.content:
-            if isinstance(content_block, ThinkingBlock):
+            if isinstance(content_block, ThinkingBlock) and content_block.thinking:
                 reasoning_tokens += await count_tokens(
                     client, model, content_block.thinking
                 )
@@ -3076,6 +3317,11 @@ async def model_output_from_message(
     spans = span_recorder.take_spans(include_open=not pause_turn)
     if spans and choice.message.id is not None:
         record_server_tool_spans(choice.message.id, spans)
+
+    # record the code execution container id so a follow-up request can name
+    # it when this turn left container work pending
+    if message.container is not None and choice.message.id is not None:
+        assistant_internal().containers[choice.message.id] = message.container.id
 
     # return ModelOutput
     usage = message.usage.model_dump()
@@ -3324,20 +3570,31 @@ def content_and_tool_calls_from_assistant_content_blocks(
         elif content_block.type == "web_fetch_tool_result":
             # confirm that there is a pending tool use
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
+            )
             if pending_tool_use is None:
-                raise RuntimeError(
-                    "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
-                )
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
 
             # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    BetaWebFetchToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            fetch_result_param = cast(
+                BetaWebFetchToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
             )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    fetch_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, fetch_result_param, pending_tool_use.id
+                )
 
             # append content
             content.append(
@@ -3355,24 +3612,37 @@ def content_and_tool_calls_from_assistant_content_blocks(
             or content_block.type == "text_editor_code_execution_tool_result"
             or content_block.type == "code_execution_tool_result"
         ):
-            # confirm that there is a pending tool use
+            # confirm that there is a pending tool use (falling back to a use
+            # block recorded in a prior turn -- the turn can end with the call
+            # still running, its result arriving in a later response)
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
+            )
             if pending_tool_use is None:
-                raise RuntimeError(
-                    "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
-                )
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
 
             # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    BetaBashCodeExecutionToolResultBlockParam
-                    | BetaTextEditorCodeExecutionToolResultBlockParam
-                    | CodeExecutionToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            code_result_param = cast(
+                BetaBashCodeExecutionToolResultBlockParam
+                | BetaTextEditorCodeExecutionToolResultBlockParam
+                | CodeExecutionToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
             )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    code_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, code_result_param, pending_tool_use.id
+                )
 
             # append to content
             content.append(
@@ -3445,20 +3715,31 @@ def content_and_tool_calls_from_assistant_content_blocks(
             content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
         ):
             pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
+            prior_turn_use = (
+                _prior_turn_server_tool_use(content_block.tool_use_id)
+                if pending_tool_use is None
+                else None
+            )
             if pending_tool_use is None:
-                raise RuntimeError(
-                    "WebSearchToolResultBlock without previous ServerToolUseBlock"
-                )
+                if prior_turn_use is None:
+                    raise RuntimeError(
+                        "WebSearchToolResultBlock without previous ServerToolUseBlock"
+                    )
+                pending_tool_use = prior_turn_use
 
             # record span block params for verbatim replay
-            span_recorder.add_result(
-                pending_tool_use,
-                cast(
-                    WebSearchToolResultBlockParam,
-                    content_block.model_dump(exclude_none=True),
-                ),
-                pending_tool_use.id,
+            search_result_param = cast(
+                WebSearchToolResultBlockParam,
+                content_block.model_dump(exclude_none=True),
             )
+            if prior_turn_use is not None:
+                span_recorder.add_prior_turn_result(
+                    search_result_param, pending_tool_use.id
+                )
+            else:
+                span_recorder.add_result(
+                    pending_tool_use, search_result_param, pending_tool_use.id
+                )
 
             content.append(
                 ContentToolUse(
@@ -3764,12 +4045,15 @@ def _strip_reasoning(message: ChatMessageAssistant) -> ChatMessageAssistant:
 async def _capture_compaction_from_stream(
     stream: AsyncMessageStream,
 ) -> tuple[Message, str | None]:
-    """Consume a streaming response and capture any compaction content.
+    """Consume a streaming response and capture content the SDK drops.
 
     The Anthropic SDK's streaming doesn't properly accumulate compaction_delta
     events into the final message snapshot. This function iterates through all
     streaming events, captures any compaction_delta content, and returns the
     final message with the compaction content properly set.
+
+    It also captures the code execution `container` from the message_delta
+    event, which the SDK likewise drops (see the WORKAROUND comment below).
 
     Args:
         stream: The Anthropic AsyncMessageStream from messages.stream().
@@ -3780,9 +4064,19 @@ async def _capture_compaction_from_stream(
         is the raw content captured from compaction_delta events (or None).
     """
     compaction_content: str | None = None
+    container: Container | None = None
 
     # Iterate through all streaming events to capture compaction_delta content
     async for event in stream:
+        # WORKAROUND for an Anthropic python SDK bug: the non-beta stream
+        # accumulator drops `message_delta.container`, so the final snapshot
+        # always reports container=None even though the wire delivered the id
+        # (breaking code execution container continuations). Capture it from
+        # the raw event and patch the snapshot below. Remove this (and the
+        # patch below) once the upstream fix lands:
+        # https://github.com/anthropics/anthropic-sdk-python/pull/1776
+        if event.type == "message_delta":
+            container = getattr(event.delta, "container", None) or container
         if (
             hasattr(event, "delta")
             and getattr(event.delta, "type", None) == "compaction_delta"
@@ -3791,6 +4085,9 @@ async def _capture_compaction_from_stream(
 
     # Get the final message snapshot
     message = stream.current_message_snapshot
+    # WORKAROUND (see above): patch the container the SDK snapshot dropped
+    if message.container is None and container is not None:
+        message.container = container
 
     # Fix up compaction blocks with captured content
     if compaction_content is not None:
@@ -4068,9 +4365,12 @@ async def message_block_params(
             source = PlainTextSourceParam(
                 type="text", media_type="text/plain", data=file_bytes.decode()
             )
-        return [
-            DocumentBlockParam(type="document", source=source, title=content.filename)
-        ]
+        document_block = DocumentBlockParam(
+            type="document", source=source, title=content.filename
+        )
+        if content.citations and not is_image_type(content.mime_type):
+            document_block["citations"] = CitationsConfigParam(enabled=True)
+        return [document_block]
 
     elif isinstance(content, ContentData):
         compaction_param = _compaction_from_content_data(content)

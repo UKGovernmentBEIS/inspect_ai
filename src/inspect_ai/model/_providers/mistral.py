@@ -75,6 +75,7 @@ from .._model_output import (
 )
 from .mistral_conversation import (
     mistral_conversation_generate,
+    mistral_reasoning_effort,
 )
 from .util import (
     environment_prerequisite_error,
@@ -196,6 +197,10 @@ class MistralAPI(ModelAPI):
                 http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
                 | (config.extra_headers or {}),
             )
+            if config.reasoning_effort is not None:
+                request["reasoning_effort"] = mistral_reasoning_effort(
+                    config.reasoning_effort
+                )
             if config.temperature is not None:
                 request["temperature"] = config.temperature
             if config.top_p is not None:

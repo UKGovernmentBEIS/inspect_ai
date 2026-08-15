@@ -154,7 +154,7 @@ async def write_recovered_eval_log(
                     f"Recovering sample {processed}/{total_streaming} "
                     f"id={summary.id} epoch={summary.epoch} segments={seg_count}"
                 )
-                written_summary = _write_sample_streaming(
+                written_summary, sample_metadata = _write_sample_streaming(
                     zip_log,
                     streaming_buffer,
                     summary,
@@ -173,7 +173,7 @@ async def write_recovered_eval_log(
                             name: SampleScore(
                                 score=score,
                                 sample_id=written_summary.id,
-                                sample_metadata=written_summary.metadata,
+                                sample_metadata=sample_metadata,
                             )
                             for name, score in written_summary.scores.items()
                         }
@@ -211,6 +211,9 @@ async def write_recovered_eval_log(
             reducers=reducers,
             scorers=scorers_info,
             metrics=metrics,
+            # failed_count covers errored and still-in-progress samples, so
+            # the remainder is exactly the samples that completed cleanly
+            completed_samples=sample_count - failed_count,
         )
     except Exception as ex:
         logger.warning(f"Unable to recompute metrics for recovered log: {ex}")
@@ -269,11 +272,11 @@ class _StatsAccumulator:
         for model, usage in model_usage.items():
             if model not in self._model_usage:
                 self._model_usage[model] = ModelUsage()
-            self._model_usage[model] = _add_usage(self._model_usage[model], usage)
+            self._model_usage[model] += usage
         for role, usage in role_usage.items():
             if role not in self._role_usage:
                 self._role_usage[role] = ModelUsage()
-            self._role_usage[role] = _add_usage(self._role_usage[role], usage)
+            self._role_usage[role] += usage
 
     def stats(self) -> EvalStats:
         return EvalStats(
@@ -282,25 +285,3 @@ class _StatsAccumulator:
             model_usage=self._model_usage,
             role_usage=self._role_usage,
         )
-
-
-def _add_usage(a: ModelUsage, b: ModelUsage) -> ModelUsage:
-    """Sum two ModelUsage instances."""
-    return ModelUsage(
-        input_tokens=a.input_tokens + b.input_tokens,
-        output_tokens=a.output_tokens + b.output_tokens,
-        total_tokens=a.total_tokens + b.total_tokens,
-        input_tokens_cache_write=_add_optional(
-            a.input_tokens_cache_write, b.input_tokens_cache_write
-        ),
-        input_tokens_cache_read=_add_optional(
-            a.input_tokens_cache_read, b.input_tokens_cache_read
-        ),
-    )
-
-
-def _add_optional(a: int | None, b: int | None) -> int | None:
-    """Add two optional ints, returning None only if both are None."""
-    if a is None and b is None:
-        return None
-    return (a or 0) + (b or 0)
