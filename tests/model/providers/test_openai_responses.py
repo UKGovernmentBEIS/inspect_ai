@@ -470,6 +470,53 @@ async def test_responses_api_no_background_by_default() -> None:
     assert "background" not in request
 
 
+async def test_background_response_retries_openai_connection_error() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    import httpx2
+    from openai import APIConnectionError
+    from openai.types.responses import Response
+    from tenacity import wait_none
+
+    from inspect_ai.model._providers.openai_responses import (
+        wait_for_background_response,
+    )
+
+    pending_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        status="in_progress",
+    )
+    completed_response = pending_response.model_copy(update={"status": "completed"})
+
+    client = MagicMock()
+    client.responses.retrieve = AsyncMock(
+        side_effect=[
+            APIConnectionError(request=httpx2.Request("GET", "https://example.com")),
+            completed_response,
+        ]
+    )
+
+    with (
+        patch(
+            "inspect_ai.model._providers.openai_responses.anyio.sleep",
+            new=AsyncMock(),
+        ),
+        patch(
+            "inspect_ai.model._providers.openai_responses.wait_exponential_jitter",
+            return_value=wait_none(),
+        ),
+    ):
+        response = await wait_for_background_response(client, pending_response)
+
+    assert response is completed_response
+    assert client.responses.retrieve.await_count == 2
+
+
 def test_fix_function_tool_parameters_string_to_dict():
     """Test that string parameters in FunctionTool are parsed to dicts."""
     from openai.types.responses import FunctionTool, Response

@@ -1,3 +1,7 @@
+## Unreleased
+
+- OpenAI: Background response polling now retries transient OpenAI SDK connection and timeout errors.
+
 ## 0.3.259 (16 August 2026)
 
 - Inspect View: The Messages tab now paginates chunked evals, loading further pages as you scroll instead of the entire sample up front, so huge samples open quickly (non-chunked evals still load in full). (#498)

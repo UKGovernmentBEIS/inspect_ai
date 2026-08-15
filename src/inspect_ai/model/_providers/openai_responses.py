@@ -25,7 +25,7 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
+from inspect_ai._util.httpx import log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._generate_config import has_image_output
@@ -42,6 +42,7 @@ from .._openai import (
     OpenAIResponseError,
     openai_handle_bad_request,
     openai_media_filter,
+    openai_should_retry,
 )
 from .._openai_responses import (
     ResponsesModelInfo,
@@ -261,7 +262,7 @@ async def wait_for_background_response(
     @retry(
         wait=wait_exponential_jitter(),
         stop=stop_after_attempt(5) | stop_after_delay(60),
-        retry=retry_if_exception(httpx_should_retry),
+        retry=retry_if_exception(openai_should_retry),
         before_sleep=log_httpx_retry_attempt(
             f"background polling: {model_response.model}"
         ),
