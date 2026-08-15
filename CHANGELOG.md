@@ -13,6 +13,7 @@
 - OpenAI: the OpenAI providers and agent bridge now require openai >= 3.0.0, which verifies TLS against the OS trust store instead of certifi's bundle.
 - Scoring: Model-graded scorers can require their grader model role, preventing unintended fallback to the model being evaluated. (#4695)
 - Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
+- Multiple Choice: Answers listing choices with an Oxford or trailing comma (e.g. `ANSWER: A, B, and C`) are now scored correctly instead of as no answer.
 
 ## 0.3.258 (11 August 2026)
 
