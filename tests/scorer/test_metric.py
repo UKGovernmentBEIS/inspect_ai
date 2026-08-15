@@ -529,7 +529,12 @@ def test_clustered_stderr_matches_pairwise_definition():
     assert se == pytest.approx(expected, rel=1e-12)
 
 
-def test_clustered_stderr_preserves_nan_cluster_behavior():
+def test_clustered_stderr_nan_cluster_id_raises():
+    # Previously NaN identifiers counted toward the finite-cluster correction
+    # while matching no per-cluster variance mask, silently corrupting the SE
+    # (see the retired preserves-nan-cluster-behavior pin). Cluster
+    # partitioning is now shared with ci(), and a float NaN id is treated as
+    # missing metadata, matching the dataset NaN-as-missing convention.
     scores = [
         SampleScore(
             score=Score(value=1.0), sample_metadata={"my_cluster": float("nan")}
@@ -540,10 +545,8 @@ def test_clustered_stderr_preserves_nan_cluster_behavior():
         for _ in range(50)
     ]
 
-    # NaN identifiers count as a cluster for the finite-cluster correction,
-    # but their samples did not match the old per-cluster mask and therefore
-    # did not contribute to the variance.
-    assert stderr(cluster="my_cluster")(scores) == pytest.approx((1250.0**0.5) / 100.0)
+    with pytest.raises(ValueError, match="has no cluster metadata"):
+        stderr(cluster="my_cluster")(scores)
 
 
 def test_clustered_stderr_single_sample_missing_metadata_raises():
@@ -1135,8 +1138,39 @@ def test_ci_bootstrap_close_to_t():
 
 
 def test_ci_unknown_method_raises():
+    # invalid method fails at construction, not first use, so it can't be
+    # masked by empty/singleton inputs
     with pytest.raises(ValueError):
-        ci(method="nope")([SampleScore(score=Score(value=i)) for i in range(5)])
+        ci(method="nope")  # type: ignore[arg-type]
+
+
+def test_ci_short_sample_still_validates_cluster():
+    # the < 2 short-circuit must not hide a misconfigured cluster key
+    # (mirrors the stderr(cluster=...) short-input regression)
+    with pytest.raises(ValueError):
+        ci(cluster="c")([SampleScore(score=Score(value=1))])
+    # a valid singleton still collapses to the point interval
+    single = [SampleScore(score=Score(value=3.0), sample_metadata={"c": "a"})]
+    assert ci(cluster="c")(single) == {"lower": 3.0, "upper": 3.0}
+
+
+def test_cluster_nan_id_treated_as_missing():
+    # float NaN metadata means "missing" (dataset convention): raise rather
+    # than silently forming NaN clusters with ambiguous equality semantics
+    scores = [
+        SampleScore(score=Score(value=1), sample_metadata={"c": "a"}),
+        SampleScore(score=Score(value=0), sample_metadata={"c": float("nan")}),
+    ]
+    with pytest.raises(ValueError):
+        ci(cluster="c")(scores)
+    with pytest.raises(ValueError):
+        stderr(cluster="c")(scores)
+    none_scores = [
+        SampleScore(score=Score(value=1), sample_metadata={"c": None}),
+        SampleScore(score=Score(value=0), sample_metadata={"c": "a"}),
+    ]
+    with pytest.raises(ValueError):
+        ci(cluster="c")(none_scores)
 
 
 def test_ci_clustered_t_uses_clustered_stderr_and_df():

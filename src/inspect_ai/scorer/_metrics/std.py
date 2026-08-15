@@ -54,34 +54,40 @@ def bootstrap_stderr(
     return metric
 
 
-def _clustered_stderr(
+def _cluster_partition(
     scores: list[SampleScore], cluster: str, to_float: ValueToFloat, metric_name: str
-) -> float:
-    """Clustered standard error of the mean.
+) -> list[list[float]]:
+    """Validate cluster metadata and partition score values by cluster id.
+
+    Single source of truth for cluster identity: every consumer (clustered
+    standard error, t degrees of freedom, cluster bootstrap) must derive its
+    cluster count from the same partition, so equality semantics cannot drift
+    between them. A missing key, `None`, or float NaN cluster id raises
+    (float NaN metadata means "missing", matching the dataset convention).
+    """
+    groups: dict[object, list[float]] = {}
+    for sample_score in scores:
+        metadata = sample_score.sample_metadata
+        cluster_id = metadata.get(cluster) if metadata is not None else None
+        if cluster_id is None or (
+            isinstance(cluster_id, float) and math.isnan(cluster_id)
+        ):
+            raise ValueError(
+                f"Sample {sample_score.sample_id} has no cluster metadata. To compute `{metric_name}` with clustering, each sample metadata must have a value for '{cluster}'"
+            )
+        groups.setdefault(cluster_id, []).append(to_float(sample_score.score.value))
+    return list(groups.values())
+
+
+def _clustered_stderr(partition: list[list[float]]) -> float:
+    """Clustered standard error of the mean over a cluster partition.
 
     For details, see Appendix A of https://arxiv.org/pdf/2411.00640.
     The version here uses a finite cluster correction (unlike the paper)
     """
     import numpy as np
 
-    cluster_list = []
-    value_list = []
-    for sample_score in scores:
-        if (
-            sample_score.sample_metadata is None
-            or cluster not in sample_score.sample_metadata
-        ):
-            raise ValueError(
-                f"Sample {sample_score.sample_id} has no cluster metadata. To compute `{metric_name}` with clustering, each sample metadata must have a value for '{cluster}'"
-            )
-        cluster_list.append(sample_score.sample_metadata[cluster])
-        value_list.append(to_float(sample_score.score.value))
-    clusters = np.array(cluster_list)
-    values = np.array(value_list)
-
-    # Convert to numpy arrays and get unique clusters
-    unique_clusters = np.unique(clusters)
-    cluster_count = len(unique_clusters)
+    cluster_count = len(partition)
 
     # The finite-cluster correction divides by (cluster_count - 1), so
     # mirror the non-clustered path's n < 2 guard and return 0 rather
@@ -89,20 +95,21 @@ def _clustered_stderr(
     if cluster_count < 2:
         return 0.0
 
+    cluster_arrays = [np.asarray(group, dtype=float) for group in partition]
+    values = np.concatenate(cluster_arrays)
     mean = float(np.mean(values))
 
     # sum_i sum_j (s_i - mean)(s_j - mean) over a cluster is the square
     # of that cluster's deviation sum. Computing the identity directly
     # avoids materialising a k-by-k outer product for every cluster.
     clustered_variance = 0.0
-    for cluster_id in unique_clusters:
-        cluster_data = values[clusters == cluster_id]
+    for cluster_data in cluster_arrays:
         clustered_variance += ((cluster_data - mean).sum()) ** 2
 
     # Multiply by C / (C - 1) to unbias the variance estimate
     standard_error = np.sqrt(
         clustered_variance * cluster_count / (cluster_count - 1)
-    ) / len(scores)
+    ) / len(values)
 
     return cast(float, standard_error)
 
@@ -129,7 +136,9 @@ def stderr(
 
     def clustered_metric(scores: list[SampleScore]) -> float:
         assert cluster is not None
-        return _clustered_stderr(scores, cluster, to_float, "stderr")
+        return _clustered_stderr(
+            _cluster_partition(scores, cluster, to_float, "stderr")
+        )
 
     def metric(scores: list[SampleScore]) -> float:
         import numpy as np
@@ -201,6 +210,8 @@ def ci(
     """
     if not 0.0 < level < 1.0:
         raise ValueError(f"ci `level` must be in the open interval (0, 1), got {level}")
+    if method not in ("t", "bootstrap"):
+        raise ValueError(f"Unknown ci method '{method}' (expected 't' or 'bootstrap')")
 
     tail = (1.0 - level) / 2.0
 
@@ -208,6 +219,18 @@ def ci(
         import numpy as np
 
         values = [to_float(score.score.value) for score in scores]
+
+        # validate and partition clusters before any short-circuit, so a
+        # misconfigured cluster key fails loudly even on singleton inputs
+        # (mirroring stderr's behavior); the partition is the single source
+        # of truth for cluster identity across the SE, the degrees of
+        # freedom, and the cluster bootstrap.
+        partition = (
+            _cluster_partition(scores, cluster, to_float, "ci")
+            if cluster is not None
+            else None
+        )
+
         if len(values) < 2:
             # interval is undefined for < 2 observations; collapse to the point
             point = float(values[0]) if values else 0.0
@@ -215,32 +238,19 @@ def ci(
 
         if method == "t":
             mean = float(np.mean(values))
-            if cluster is not None:
-                se = _clustered_stderr(scores, cluster, to_float, "ci")
-                # _clustered_stderr validated that every sample has the key
-                cluster_count = len(
-                    {
-                        cast("dict[str, object]", sample_score.sample_metadata)[cluster]
-                        for sample_score in scores
-                    }
-                )
-                df = max(cluster_count - 1, 1)
+            if partition is not None:
+                se = _clustered_stderr(partition)
+                df = max(len(partition) - 1, 1)
             else:
                 se = _clt_stderr(values)
                 df = len(values) - 1
             t = _t_inv_cdf(1.0 - tail, df)
             return {"lower": mean - t * se, "upper": mean + t * se}
-        elif method == "bootstrap":
-            boot_means = _bootstrap_means(
-                scores, values, to_float, cluster, num_samples
-            )
+        else:
+            boot_means = _bootstrap_means(values, partition, num_samples)
             lower = float(np.quantile(boot_means, tail))
             upper = float(np.quantile(boot_means, 1.0 - tail))
             return {"lower": lower, "upper": upper}
-        else:
-            raise ValueError(
-                f"Unknown ci method '{method}' (expected 't' or 'bootstrap')"
-            )
 
     return metric_fn
 
@@ -258,21 +268,19 @@ def _clt_stderr(values: list[float]) -> float:
 
 
 def _bootstrap_means(
-    scores: list[SampleScore],
     values: list[float],
-    to_float: ValueToFloat,
-    cluster: str | None,
+    partition: list[list[float]] | None,
     num_samples: int,
 ) -> list[float]:
     """Bootstrap distribution of the mean.
 
-    Resamples individual scores i.i.d. when `cluster` is None, otherwise
+    Resamples individual scores i.i.d. when `partition` is None, otherwise
     resamples whole clusters with replacement (cluster bootstrap) so
     within-cluster correlation is preserved.
     """
     import numpy as np
 
-    if cluster is None:
+    if partition is None:
         data = np.asarray(values, dtype=float)
         n = len(data)
         return [
@@ -280,19 +288,7 @@ def _bootstrap_means(
             for _ in range(num_samples)
         ]
 
-    groups: dict[object, list[float]] = {}
-    for sample_score in scores:
-        if (
-            sample_score.sample_metadata is None
-            or cluster not in sample_score.sample_metadata
-        ):
-            raise ValueError(
-                f"Sample {sample_score.sample_id} has no cluster metadata. To compute `ci` with clustering, each sample metadata must have a value for '{cluster}'"
-            )
-        key = sample_score.sample_metadata[cluster]
-        groups.setdefault(key, []).append(to_float(sample_score.score.value))
-
-    cluster_arrays = [np.asarray(v, dtype=float) for v in groups.values()]
+    cluster_arrays = [np.asarray(group, dtype=float) for group in partition]
     num_clusters = len(cluster_arrays)
     means: list[float] = []
     for _ in range(num_samples):

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Metrics: `stderr(cluster=...)` now raises when a sample's cluster id is missing, `None`, or float NaN (previously NaN ids inflated the finite-cluster correction while contributing nothing to the variance, silently understating the standard error). Float NaN metadata is treated as missing, matching the dataset convention.
 - Metrics: Add `ci()` metric reporting a confidence interval for the mean (as `{"lower", "upper"}`). Defaults to `mean ± t · stderr` with a Student-t critical value (`n - 1` degrees of freedom; `clusters - 1` when `cluster=` is set) so small samples get honest widths; `method="bootstrap"` gives a percentile (cluster) bootstrap interval. (#4160)
 - Scoring: New `precomputed_scores()` scorer applies scores computed outside of Inspect (e.g. human ratings) from a JSON or JSON Lines file, matched to samples by id and epoch.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
