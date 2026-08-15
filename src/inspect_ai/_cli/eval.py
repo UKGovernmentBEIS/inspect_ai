@@ -49,6 +49,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     OutputModality,
     ResponseSchema,
 )
+from inspect_ai.model._model_alias import init_model_aliases, parse_model_aliases
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
@@ -315,6 +316,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_MODEL_ROLE",
         help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+    )
+    @click.option(
+        "--model-alias",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_MODEL_ALIASES",
+        help="Model alias (alias=model), e.g. --model-alias safe/name=openai/gpt-4o. Requests for the alias are dispatched to the model it resolves to, while logs and displays show only the alias. Repeat the option (and/or use a comma-separated list) for multiple aliases.",
     )
     @click.option(
         "-T",
@@ -1074,6 +1082,7 @@ def _eval_command_impl(
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
+    model_alias: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
     s: tuple[str, ...] | None,
@@ -1205,6 +1214,7 @@ def _eval_command_impl(
         model_spec=model_spec,
         run_config=run_config,
         model_role=model_role,
+        model_alias=model_alias,
         t=t,
         task_config=task_config,
         s=s,
@@ -1376,6 +1386,7 @@ def eval_set_command(
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
+    model_alias: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
     s: tuple[str, ...] | None,
@@ -1524,6 +1535,7 @@ def eval_set_command(
             model_spec=model_spec,
             run_config=run_config,
             model_role=model_role,
+            model_alias=model_alias,
             t=t,
             task_config=task_config,
             s=s,
@@ -1841,6 +1853,7 @@ def eval_exec(
     model_spec: tuple[str, ...] | None,
     run_config: str | None,
     model_role: tuple[str, ...] | None,
+    model_alias: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
     s: tuple[str, ...] | None,
@@ -1921,6 +1934,13 @@ def eval_exec(
         raise PrerequisiteError("--run-config cannot be used with --task-config.")
     if run_config and solver_config:
         raise PrerequisiteError("--run-config cannot be used with --solver-config.")
+
+    # initialize model aliases (resolved by get_model(), so they must be in
+    # place before any models are created below)
+    try:
+        init_model_aliases(parse_model_aliases(model_alias))
+    except ValueError as ex:
+        raise PrerequisiteError(str(ex)) from ex
 
     run_params = parse_run_config(run_config) if run_config else {}
 

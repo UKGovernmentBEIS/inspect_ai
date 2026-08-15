@@ -113,6 +113,11 @@ from ._generate_config import (
     active_generate_config,
     set_active_generate_config,
 )
+from ._model_alias import (
+    redact_aliased_model,
+    redact_aliased_model_call,
+    resolve_model_alias,
+)
 from ._model_call import ModelCall, as_error_response
 from ._model_data.model_data import ModelCost
 from ._model_output import ModelFallback, ModelOutput, ModelUsage
@@ -696,6 +701,12 @@ class Model:
         self.model_args = model_args if model_args is not None else {}
         self._role: str | None = None
         self._explicit_base_url: str | None = None
+        # alias the model was requested via (and the real model it resolved
+        # to) -- set by get_model() when an alias is resolved. the alias is
+        # reported as the model's name; the target is used only to redact
+        # the real model name from recorded data.
+        self._alias: str | None = None
+        self._alias_target: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -734,7 +745,9 @@ class Model:
 
     @property
     def name(self) -> str:
-        """Model name."""
+        """Model name (the alias if the model was resolved via an alias)."""
+        if self._alias is not None:
+            return self._alias.partition("/")[2]
         return self.api.model_name
 
     def canonical_name(self) -> str:
@@ -1331,6 +1344,17 @@ class Model:
                 output = result
                 call = None
 
+            # a model resolved via an alias records the alias rather than the
+            # real model name (in raw model call data as well as the output)
+            if self._alias is not None and self._alias_target is not None:
+                if call is not None:
+                    redact_aliased_model_call(call, self._alias, self._alias_target)
+                if isinstance(output, ModelOutput):
+                    output.model = self._alias
+                    for choice in output.choices:
+                        if choice.message.model is not None:
+                            choice.message.model = self._alias
+
             # raise error
             if isinstance(output, Exception):
                 complete(output, call)
@@ -1342,6 +1366,8 @@ class Model:
                 # agent bridge can forward a faithful provider error rather
                 # than crashing the model proxy.
                 error = repr(output)
+                if self._alias is not None and self._alias_target is not None:
+                    error = redact_aliased_model(error, self._alias, self._alias_target)
                 request = json.dumps(call.request, indent=2) if call is not None else ""
                 max_lines = 200
                 request_lines = request.splitlines()
@@ -1351,10 +1377,15 @@ class Model:
                         + request_lines[-max_lines:]
                     )
                 error_message = f"\nRequest:\n{request}\n\n{error}"
+                provider_message = str(output)
+                if self._alias is not None and self._alias_target is not None:
+                    provider_message = redact_aliased_model(
+                        provider_message, self._alias, self._alias_target
+                    )
                 raise ModelGenerateError(
                     error_message,
                     status_code=status_code_of(output),
-                    provider_message=str(output),
+                    provider_message=provider_message,
                 ) from output
 
             # update output with time (call.time captures time spent
@@ -1692,10 +1723,21 @@ class Model:
                 event.output = result
             else:
                 display_conversation_assistant_error(result)
-                event.error = exception_message(result)
+                error = exception_message(result)
                 traceback_text, traceback_ansi = format_traceback(
                     type(result), result, result.__traceback__
                 )
+                # errors for a model resolved via an alias record the alias
+                # rather than the real model name
+                if self._alias is not None and self._alias_target is not None:
+                    error = redact_aliased_model(error, self._alias, self._alias_target)
+                    traceback_text = redact_aliased_model(
+                        traceback_text, self._alias, self._alias_target
+                    )
+                    traceback_ansi = redact_aliased_model(
+                        traceback_ansi, self._alias, self._alias_target
+                    )
+                event.error = error
                 event.traceback = traceback_text
                 event.traceback_ansi = traceback_ansi
 
@@ -1716,6 +1758,10 @@ class Model:
                     event.call.response = as_error_response(result.response)
                 else:
                     event.call.response = as_error_response(str(result))
+                if self._alias is not None and self._alias_target is not None:
+                    redact_aliased_model_call(
+                        event.call, self._alias, self._alias_target
+                    )
 
             event.pending = None
             if sink is None:
@@ -1805,6 +1851,13 @@ class ModelName:
             (api, name) = self._parse_model(model)
             if api is None:
                 raise ValueError("API not specified for model name")
+            self.api = api
+            self.name = name
+        elif model._alias is not None:
+            # models resolved via an alias report the alias (which is
+            # validated as api_name/model_name when parsed)
+            (api, name) = self._parse_model(model._alias)
+            assert api is not None
             self.api = api
             self.name = name
         else:
@@ -1950,6 +2003,13 @@ def get_model(
                 "No model specified (and no model environment variable defined)"
             )
 
+    # resolve any model alias for the requested model (the alias' target is
+    # dispatched to, while the model reports the alias as its name)
+    requested_model = model
+    alias_target = resolve_model_alias(model)
+    if alias_target is not None:
+        model = alias_target
+
     # see if we can return a memoized model instance
     # (exclude mockllm since custom_outputs is an infinite generator)
     model_cache_key: str = ""  # for mypy below
@@ -1957,7 +2017,7 @@ def get_model(
         memoize = False
     if memoize:
         model_cache_key = (
-            model
+            requested_model
             + str(role)
             + config.model_dump_json(exclude_none=True)
             + str(base_url)
@@ -2001,6 +2061,9 @@ def get_model(
         )
         m = Model(modelapi_instance, config, model_args)
         m._explicit_base_url = base_url
+        if alias_target is not None:
+            m._alias = requested_model
+            m._alias_target = alias_target
         if role is not None:
             m._set_role(role)
         if memoize:

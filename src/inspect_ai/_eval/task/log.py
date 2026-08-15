@@ -54,6 +54,7 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import model_usage, role_usage
+from inspect_ai.model._model_alias import model_aliases_for_log
 from inspect_ai.model._model_config import (
     model_args_for_log,
     model_roles_to_model_roles_config,
@@ -252,6 +253,7 @@ class TaskLogger:
             model_generate_config=model.config,
             model_base_url=model.explicit_base_url,
             model_roles=model_roles_to_model_roles_config(model_roles),
+            model_aliases=model_aliases_for_log(),
             dataset=EvalDataset(
                 name=dataset.name,
                 location=cwd_relative_path(dataset.location),
