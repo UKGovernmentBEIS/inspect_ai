@@ -1,5 +1,8 @@
 ## Unreleased
 
+- Scoring: New `precomputed_scores()` scorer applies scores computed outside of Inspect (e.g. human ratings) from a JSON or JSON Lines file, matched to samples by id and epoch.
+- Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
+- Scoring: `model_graded_qa`/`model_graded_fact` now leave a sample unscored when the default grader's final `GRADE:` verdict is a letter the instructions never offered, instead of scoring a grade mentioned earlier in its reasoning. Note: re-scoring existing logs may shift metrics and sample counts — samples whose grader verdict was off-menu (including `P` grades when `partial_credit` is disabled) were previously scored from an earlier on-menu mention and are now unscored with `grade_parse_failure` recorded.
 - Anthropic: models returning omitted (empty) thinking summaries no longer misreport `usage.reasoning_tokens` and log a token-counting warning on every generate.
 - Grok: Support for Grok 4.6, including its new `xhigh` reasoning effort and a `service_tier` model argument for Priority Processing.
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
@@ -9,6 +12,7 @@
 - Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
 - OpenAI: the OpenAI providers and agent bridge now require openai >= 3.0.0, which verifies TLS against the OS trust store instead of certifi's bundle.
 - Scoring: Model-graded scorers can require their grader model role, preventing unintended fallback to the model being evaluated. (#4695)
+- Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
 
 ## 0.3.258 (11 August 2026)
 
