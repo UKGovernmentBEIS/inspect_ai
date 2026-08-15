@@ -97,7 +97,7 @@ To instead keep the process alive after the eval finishes — its state still qu
 
 `--detach` works the same on `inspect eval-set` and `inspect eval-retry` (a multi-file retry hands off on its first `launch` record; later files' records go to the output file). Because a detached eval must be observable and cancellable while running, combining `--detach` with `--ctl-server=false` is an error.
 
-To make an agent (Claude Code or similar) use this workflow for long-running evals, paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
+To make an agent (Claude Code or similar) use this workflow for long-running evals, install [inspect-skills](https://github.com/meridianlabs-ai/inspect-skills#install), or paste a snippet like this into your eval repo's `CLAUDE.md` / `AGENTS.md`:
 
 ```markdown
 For evals that may run longer than a few minutes, do not run
@@ -312,6 +312,20 @@ $ inspect ctl sample requeue gpqa 17 3
 The command is idempotent: requeuing a sample whose re-run is already pending, queued, or running — or one that hasn't started yet — is a clean no-op reporting the sample's current status (`changed: false` in the `--json` detail), so a retrying script can re-issue safely without double-queueing. While the re-run waits its turn, `sample list` and `sample show` render the sample as `queued` with its prior error shown as retry history.
 
 Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
+
+## Repeated Mutations
+
+Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent's shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `task cancel`, `task pause`/`resume`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
+
+```bash
+$ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |
+    while read -r s e; do inspect ctl sample requeue gpqa "$s" "$e"; done | tee requeue.log
+requeue gpqa/11 (epoch 1): accepted — will re-run from the back of the sample queue
+requeue gpqa/17 (epoch 1): accepted — will resume from its checkpoint
+requeue gpqa/23 (epoch 1): no-op — a re-run is already pending
+```
+
+(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) One exception to the strict one-line shape: a qualified `config` set appends `!` warning and `note:` lines after its outcome line (a process-scoped retune's blast-radius note, a knob that could not be applied), so scripts that count lines should prefer `--json`. Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: it takes precedence over both terse flags, and the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (`task log-flush` reports `applied: true` even when nothing was buffered — its `detail` carries the flushed count).
 
 ## Pause and Resume
 

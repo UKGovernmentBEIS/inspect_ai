@@ -158,13 +158,19 @@ async def test_read_file_rejects_successful_copy_without_output(
     assert ex.value.filename == "socket"
 
 
+@pytest.mark.parametrize(
+    "docker_error",
+    [
+        "Could not find the file in the container",
+        "Error response from daemon: no such file or directory",
+    ],
+)
 async def test_read_file_preserves_missing_file_error(
+    docker_error: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     environment = _environment()
-    copy_mock = AsyncMock(
-        side_effect=RuntimeError("Could not find the file in the container")
-    )
+    copy_mock = AsyncMock(side_effect=RuntimeError(docker_error))
     monkeypatch.setattr(docker_module, "compose_cp", copy_mock)
 
     with pytest.raises(FileNotFoundError) as ex:
@@ -318,6 +324,7 @@ def _remove_host_path(path: Path) -> None:
         path.unlink(missing_ok=True)
 
 
+@pytest.mark.slow
 @skip_if_no_docker
 async def test_docker_read_file_contains_untrusted_sources(
     docker_environment: DockerSandboxEnvironment,
