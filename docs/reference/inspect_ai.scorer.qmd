@@ -18,10 +18,15 @@ description: Task scoring and metrics.
 ### perplexity
 ### target_perplexity
 ### multi_scorer
+### precomputed_scores
 
 ## Metrics
 
 ### accuracy
+### categorical
+### frequency
+### grouped
+### aggregate
 ### mean
 ### std
 ### stderr
@@ -29,6 +34,7 @@ description: Task scoring and metrics.
 ### ci
 ### perplexity_per_token
 ### perplexity_per_seq
+### krippendorff_alpha
 
 ## Reducers
 
@@ -39,6 +45,7 @@ description: Task scoring and metrics.
 ### mean_score
 ### median_score
 ### mode_score
+### collect_score
 
 ## Types
 

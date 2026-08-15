@@ -121,17 +121,6 @@
     ]
   },
   {
-    "id": "lunette",
-    "name": "Lunette",
-    "url": "https://docs.lunette.dev",
-    "desc": "Platform for understanding and improving agents.",
-    "author": "Fulcrum Research",
-    "author_url": "https://fulcrumresearch.ai",
-    "categories": [
-      "Analysis"
-    ]
-  },
-  {
     "id": "inspect-wandb",
     "name": "Inspect WandB",
     "url": "https://github.com/DanielPolatajko/inspect_wandb",
@@ -154,12 +143,45 @@
     ]
   },
   {
+    "id": "inspect-falsify",
+    "name": "Inspect falsify",
+    "url": "https://github.com/studio-11-co/falsify-inspect",
+    "desc": "Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.",
+    "author": "C\u00fcneyt \u00d6zt\u00fcrk",
+    "author_url": "https://falsify.dev",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
     "id": "cje",
     "name": "CJE",
     "url": "https://github.com/cimo-labs/cje",
     "desc": "Calibrated judge evaluation \u2014 calibrate model-graded scorer accuracy using causal inference with optional oracle labels.",
     "author": "CIMO Labs",
     "author_url": "https://cimolabs.com",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-claim-support",
+    "name": "Inspect Claim Support",
+    "url": "https://github.com/avalyset/inspect-claim-support",
+    "desc": "Faithfulness / claim-support scorer \u2014 checks whether a claimed answer is substantiated by the transcript. Absence of evidence is not treated as support.",
+    "author": "Eirik Botten Nicolaysen",
+    "author_url": "https://github.com/avalyset",
+    "categories": [
+      "Analysis"
+    ]
+  },
+  {
+    "id": "inspect-judge-drift",
+    "name": "Inspect Judge Drift",
+    "url": "https://github.com/avalyset/inspect-judge-drift",
+    "desc": "Judge-drift measurement \u2014 re-grades a stored eval log with two graders over the same samples, so the judge model is the only variable. Grade-parse failures are reported as unscored, never fabricated into verdicts.",
+    "author": "Eirik Botten Nicolaysen",
+    "author_url": "https://github.com/avalyset",
     "categories": [
       "Analysis"
     ]
@@ -231,6 +253,17 @@
     ]
   },
   {
+    "id": "evalport",
+    "name": "EvalPort",
+    "url": "https://github.com/adhabnr-ux/evalport",
+    "desc": "Open standard for portable LLM evaluation datasets. Convert between Inspect AI and other eval frameworks (DeepEval, Promptfoo, LangSmith, etc.) using a portable JSON format.",
+    "author": "Sahi Katukojula",
+    "author_url": "https://github.com/adhabnr-ux",
+    "categories": [
+      "Frameworks"
+    ]
+  },
+  {
     "id": "inspect-flow",
     "name": "Inspect Flow",
     "url": "https://meridianlabs-ai.github.io/inspect_flow/",
@@ -248,6 +281,17 @@
     "desc": "Platform for running Inspect AI evaluations on cloud infrastructure.",
     "author": "METR",
     "author_url": "https://github.com/METR/hawk",
+    "categories": [
+      "Tooling"
+    ]
+  },
+  {
+    "id": "optstop",
+    "name": "Optstop",
+    "url": "https://github.com/UKGovernmentBEIS/optstop",
+    "desc": "Adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.",
+    "author": "UK AISI",
+    "author_url": "https://github.com/UKGovernmentBEIS/optstop",
     "categories": [
       "Tooling"
     ]

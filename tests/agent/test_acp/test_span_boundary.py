@@ -244,6 +244,9 @@ def test_no_remaining_literal_agent_type_in_span_call_sites() -> None:
     pattern = re.compile(r'span\([^)]*type\s*=\s*"agent"', re.DOTALL)
     offenders: list[str] = []
     for path in src.rglob("*.py"):
+        # skip dangling symlinks (e.g. local build artifacts under binaries/)
+        if not path.is_file():
+            continue
         text = path.read_text()
         if pattern.search(text):
             offenders.append(str(path))

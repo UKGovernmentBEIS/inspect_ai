@@ -18,11 +18,23 @@ from inspect_ai.model._model_info import (
     get_model_input_tokens,
     set_model_cost,
 )
+from inspect_ai.model._registry import modelapi
 
 
 class _TestModelAPI(ModelAPI):
     async def generate(self, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
+
+
+@modelapi("noload")
+def noload() -> type[ModelAPI]:
+    """A registered provider whose constructor loads nothing (no weights)."""
+
+    class NoLoadModelAPI(ModelAPI):
+        async def generate(self, *args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError
+
+    return NoLoadModelAPI
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +62,54 @@ class TestGetModelInfo:
         assert info is not None
         assert info.context_length is not None
         assert info.organization == "OpenAI"
+
+    def test_known_kimi_model(self):
+        """Test lookup of a known Moonshot AI Kimi model."""
+        info = get_model_info("moonshotai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+        assert info.output_tokens == 1048576
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "max"
+
+    def test_kimi_via_moonshot_provider(self):
+        """Test lookup via the moonshot provider prefix."""
+        info = get_model_info("moonshot/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
+    def test_kimi_org_detection_on_hosting_provider(self):
+        """Test kimi-* org detection for hosting providers (e.g. azureai)."""
+        info = get_model_info("azureai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+
+    def test_known_deepseek_v4_model(self):
+        """Test lookup of a known DeepSeek V4 model."""
+        info = get_model_info("deepseek/deepseek-v4-pro")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.context_length == 1048576
+        assert info.output_tokens == 393216
+        assert info.reasoning is True
+        assert info.reasoning_effort_default == "high"
+
+    def test_deepseek_v4_flash_snapshot(self):
+        """Test lookup of a DeepSeek V4 Flash versioned snapshot."""
+        info = get_model_info("deepseek/DeepSeek-V4-Flash-0731")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.snapshot == "0731"
+
+    def test_deepseek_org_detection_on_hosting_provider(self):
+        """Test deepseek-* org detection for hosting providers (e.g. azureai)."""
+        info = get_model_info("azureai/deepseek-v4-flash")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+        assert info.context_length == 1048576
 
     def test_unknown_model_returns_none(self):
         """Test that unknown models return None."""
@@ -118,6 +178,14 @@ class TestGetModelInfo:
         info = get_model_info("anthropic/claude-opus-4-6")
         assert info is not None
         assert info.context_length == 1_000_000
+
+    def test_kimi_k3_context_length(self):
+        """Test that Kimi K3 resolves via a gateway provider with 1MM context window."""
+        info = get_model_info("cloudflare/moonshotai/kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+        assert info.context_length == 1048576
+        assert info.reasoning is True
 
     def test_claude_sonnet_4_6_context_length(self):
         """Test that Claude Sonnet 4.6 has 1MM context window."""
@@ -226,6 +294,120 @@ class TestModelInfoFields:
                 assert info.context_length > 0, f"{model} has invalid context_length"
 
 
+class TestModelDataConsistency:
+    """Consistency checks across the model data YAML files."""
+
+    def test_colliding_lookup_keys_agree_across_files(self) -> None:
+        """Entries in different files that collide on a lookup key must agree.
+
+        When cross-file duplicates exist, exact lookups are unaffected, but
+        for any other casing the winner in `_build_lookup_index()` depends
+        on filesystem glob order. That is harmless while the entries agree
+        on functional metadata; this test fails if they ever drift.
+        sync_models.py excludes curated models from the generated
+        together.yml (see tests/model/test_sync_models.py), so this test now
+        mainly backstops collisions between curated files. Display-only
+        fields (display_name, organization) may differ. Same-file collisions
+        are excluded: they resolve deterministically by insertion order, and
+        the recurring `latest` version key shadows earlier models by design.
+        """
+        from pathlib import Path
+
+        from inspect_ai.model._model_data import model_data
+        from inspect_ai.model._model_data.model_data import (
+            create_model_info,
+            load_organizations_from_yaml,
+            model_key,
+        )
+        from inspect_ai.model._model_info import _normalize_for_lookup
+
+        functional_fields = (
+            "context_length",
+            "output_tokens",
+            "reasoning",
+            "reasoning_effort_default",
+            "knowledge_cutoff_date",
+            "release_date",
+            "family",
+        )
+
+        data_dir = Path(model_data.__file__).parent
+        entries: dict[str, list[tuple[str, str, ModelInfo]]] = {}
+        for info_file in sorted(data_dir.glob("*.yml")):
+            for org, org_data in load_organizations_from_yaml(info_file).items():
+                for model_name, model_def in org_data.models.items():
+                    names = [model_name, *(model_def.aliases or [])]
+                    infos = [create_model_info(org_data.display_name, model_def)] * len(
+                        names
+                    )
+                    for version_name, version_data in (
+                        model_def.versions or {}
+                    ).items():
+                        version_info = create_model_info(
+                            org_data.display_name, model_def, version_data
+                        )
+                        for name in [version_name, *(version_data.aliases or [])]:
+                            names.append(name)
+                            infos.append(version_info)
+                    for name, info in zip(names, infos):
+                        key = model_key(org, name)
+                        entries.setdefault(_normalize_for_lookup(key), []).append(
+                            (info_file.name, key, info)
+                        )
+
+        for normalized, group in entries.items():
+            for i, (first_file, first_key, first_info) in enumerate(group):
+                for other_file, other_key, other_info in group[i + 1 :]:
+                    if other_file == first_file:
+                        continue
+                    for field in functional_fields:
+                        first_value = getattr(first_info, field)
+                        other_value = getattr(other_info, field)
+                        if first_value is None or other_value is None:
+                            continue
+                        assert first_value == other_value, (
+                            f"Model data entries colliding on lookup key "
+                            f"'{normalized}' disagree on {field}: "
+                            f"{first_file}:{first_key} has {first_value!r} but "
+                            f"{other_file}:{other_key} has {other_value!r}"
+                        )
+
+
+class TestProviderScopedOrgs:
+    """Provider-scoped catalogs are exact-match only.
+
+    `fireworks.yml` is keyed by the hosting provider rather than the model
+    creator, so its entries are authoritative for a `fireworks/...` lookup but
+    must never win a fuzzy match against another provider's bare model name.
+    """
+
+    def test_exact_lookup_uses_the_fireworks_catalog(self):
+        info = get_model_info("fireworks/deepseek-r1-0528")
+        assert info is not None
+        assert info.context_length == 163840
+
+    def test_case_insensitive_lookup_still_reaches_the_catalog(self):
+        info = get_model_info("fireworks/DeepSeek-R1-0528")
+        assert info is not None
+        assert info.context_length == 163840
+
+    def test_bare_name_does_not_fuzzy_match_a_fireworks_entry(self):
+        """A bare `kimi-k3` (e.g. from Groq) keeps resolving to Moonshot AI.
+
+        "fireworks" is shorter than "moonshotai", so without the exclusion it
+        would outscore the curated entry.
+        """
+        info = get_model_info("kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+
+    def test_bare_name_resolution_is_unchanged_for_shadowed_models(self):
+        """Adding fireworks/deepseek-r1-0528 must not alter the bare lookup."""
+        info = get_model_info("deepseek-r1-0528")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+
+
 class TestGetModelInputTokens:
     """Tests for get_model_input_tokens function."""
 
@@ -241,12 +423,48 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
-    def test_claude_latest_defaults_to_200k(self):
-        """Test that a future Claude model (is_claude_latest) maps to haiku-4-5 (200K)."""
+    def test_claude_opus_5(self):
+        """Test that Claude Opus 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-opus-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_fable_5(self):
+        """Test that Claude Fable 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-fable-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_mythos_5(self):
+        """Test that Claude Mythos 5 reports 1MM input tokens."""
+        model = get_model("anthropic/claude-mythos-5")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 1_000_000
+
+    def test_claude_latest_defaults_to_1m(self):
+        """An unknown/future Claude model (is_claude_latest) assumes the 1M frontier."""
         # Use a hypothetical future model name that triggers is_claude_latest()
         model = get_model("anthropic/claude-sonnet-4-9")
         tokens = get_model_input_tokens(model)
-        assert tokens == 200_000
+        assert tokens == 1_000_000
+
+    def test_unregistered_claude_5_defaults_to_1m(self):
+        """Unregistered Claude 5 variants assume the 1M frontier.
+
+        Claude 5 detection matches any ``claude-*-5``, so a tier-named
+        ``claude-opus-5-0`` or a new codename ``claude-saga-5`` is classified as
+        Claude 5 (is_claude_5) even though it is not in the database. The
+        input_tokens_name() fallback must still resolve such names to 1M rather
+        than missing the database lookup entirely.
+        """
+        for model_name in (
+            "anthropic/claude-opus-5-0",
+            "anthropic/claude-sonnet-5-0",
+            "anthropic/claude-saga-5",
+        ):
+            model = get_model(model_name)
+            tokens = get_model_input_tokens(model)
+            assert tokens == 1_000_000, model_name
 
     def test_claude_latest_with_1m_beta(self):
         """Test that a future Claude model with 1M beta maps to opus-4-6 (1MM)."""
@@ -257,8 +475,8 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
-    def test_openai_codename_maps_to_gpt_5_5(self):
-        """An OpenAI codename (is_latest) aliases to gpt-5.5's input tokens."""
+    def test_openai_codename_maps_to_gpt_5_6(self):
+        """An OpenAI codename (is_latest) aliases to gpt-5.6's input tokens."""
         model = get_model("openai/foo-bar-22", api_key="test-key")
         tokens = get_model_input_tokens(model)
         assert tokens == 922_000
@@ -272,7 +490,7 @@ class TestGetModelInputTokens:
     def test_explicit_set_model_info_overrides_codename_alias(self):
         """An explicit set_model_info() wins over the frontier aliasing.
 
-        A codename normally aliases to gpt-5.5's window; an explicit registration
+        A codename normally aliases to gpt-5.6's window; an explicit registration
         means the caller knows the real window and must take precedence.
         """
         model = get_model("openai/foo-bar-22", api_key="test-key")
@@ -283,7 +501,7 @@ class TestGetModelInputTokens:
     def test_codename_override_does_not_affect_frontier_model(self):
         """Overriding a codename must not leak into the real frontier model."""
         set_model_info("openai/foo-bar-22", ModelInfo(context_length=4242))
-        frontier = get_model("openai/gpt-5.5", api_key="test-key")
+        frontier = get_model("openai/gpt-5.6", api_key="test-key")
         tokens = get_model_input_tokens(frontier)
         assert tokens is not None
         assert tokens != 4242
@@ -373,3 +591,112 @@ class TestResultCaching:
         assert after.cost is not None
         assert after.cost.input == 1.0
         assert after.cost.output == 2.0
+
+
+class TestDoesNotReinstantiateProvider:
+    """Lookups for an already-instantiated model must never re-resolve a provider.
+
+    Re-resolving instantiates the provider a second time, which for local
+    providers (e.g. HuggingFace) reloads the model weights into GPU memory and
+    can OOM-crash the run. These guard the per-generation / startup hot paths.
+    """
+
+    @staticmethod
+    def _track_get_model(monkeypatch: Any) -> list[Any]:
+        """Patch get_model to record calls. Returns the call-args list.
+
+        Counting (rather than raising) is required because the provider-resolving
+        fallback in _resolve_model_info swallows exceptions via a broad
+        ``except (ValueError, Exception)`` -- a raised AssertionError would be
+        caught and the unwanted instantiation would go undetected.
+        """
+        calls: list[Any] = []
+
+        def tracking_get_model(*args: Any, **kwargs: Any) -> None:
+            calls.append((args, kwargs))
+            raise RuntimeError("provider resolution should not happen")
+
+        monkeypatch.setattr("inspect_ai.model._model.get_model", tracking_get_model)
+        return calls
+
+    def test_record_usage_does_not_instantiate_provider(self, monkeypatch):
+        """Recording usage for a local model must not re-resolve (reload) it."""
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelUsage
+
+        # create the model first
+        model = get_model("noload/totally-unknown-model-xyz")
+
+        calls = self._track_get_model(monkeypatch)
+
+        record_and_check_model_usage(
+            model,
+            ModelUsage(input_tokens=1, output_tokens=1, total_tokens=2),
+        )
+        assert calls == []
+
+    def test_get_model_input_tokens_does_not_instantiate_provider(self, monkeypatch):
+        """Compaction's context-window lookup must not re-resolve the model."""
+        # create the model first (via the registered no-load provider) so the
+        # patch below only affects the get_model_input_tokens() call path
+        model = get_model("noload/totally-unknown-model-xyz")
+
+        calls = self._track_get_model(monkeypatch)
+
+        assert get_model_input_tokens(model) is None
+        assert calls == []
+
+    def test_direct_lookup_still_returns_configured_cost(self):
+        """The fix must not drop cost data for the usage-recording path.
+
+        Built-in models ship no cost; cost comes from set_model_cost() /
+        --model-cost-config. record_and_check_model_usage() now uses the direct
+        lookup, so configured costs must still be visible through it.
+        """
+        set_model_cost(
+            "anthropic/claude-sonnet-4",
+            ModelCost(
+                input=1.0, output=2.0, input_cache_write=0.5, input_cache_read=0.1
+            ),
+        )
+        info = _get_model_info_direct("anthropic/claude-sonnet-4")
+        assert info is not None
+        assert info.cost is not None
+        assert info.cost.input == 1.0
+
+    def test_direct_lookup_finds_cost_keyed_by_full_model_string(self):
+        """Cost keyed under the user-facing string must be found for a Model.
+
+        Routed providers (together, hf-inference-providers, custom routed
+        providers) strip a route prefix in canonical_name(), so it differs from
+        the user-facing string that set_model_info/set_model_cost key under.
+        mockllm reproduces the mismatch: str(model) is "mockllm/model" but
+        canonical_name() is "model". A canonical-only lookup drops the cost.
+        """
+        from inspect_ai.model._model import record_and_check_model_usage
+        from inspect_ai.model._model_output import ModelUsage
+
+        set_model_info(
+            "mockllm/model",
+            ModelInfo(
+                cost=ModelCost(
+                    input=1000.0,
+                    output=1000.0,
+                    input_cache_write=0.0,
+                    input_cache_read=0.0,
+                )
+            ),
+        )
+        model = get_model("mockllm/model")
+        assert str(model) == "mockllm/model"
+        assert model.canonical_name() == "model"
+
+        info = _get_model_info_direct(model)
+        assert info is not None
+        assert info.cost is not None
+        assert info.cost.input == 1000.0
+
+        usage = ModelUsage(input_tokens=3, output_tokens=4, total_tokens=7)
+        record_and_check_model_usage(model, usage)
+        # (3 * 1000 + 4 * 1000) / 1_000_000 = 0.007
+        assert usage.total_cost == pytest.approx(0.007)

@@ -9,6 +9,7 @@ from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util.deprecation import deprecation_warning
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE
 
 from ..._tool import Tool, ToolResult, tool
 from ._exa import ExaOptions, exa_search_provider
@@ -227,7 +228,9 @@ def web_search(
         )
 
     return ToolDef(
-        execute, name="web_search", options=dict(normalized_providers)
+        execute,
+        name="web_search",
+        options={INTERNAL_TOOL_TYPE: "web_search", **dict(normalized_providers)},
     ).as_tool()
 
 

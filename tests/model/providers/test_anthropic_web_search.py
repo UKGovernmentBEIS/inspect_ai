@@ -1,9 +1,11 @@
 import pytest
 
 from inspect_ai.model._providers.anthropic import (
+    AnthropicAPI,
     _supports_web_search,
     _web_search_tool_params,
 )
+from inspect_ai.tool._tool_info import ToolInfo
 
 
 class TestAnthropicWebSearch:
@@ -38,6 +40,93 @@ class TestAnthropicWebSearch:
             {"name": "web_fetch", "type": "web_fetch_20250910", "max_uses": 666},
             {"name": "web_search", "type": "web_search_20250305", "max_uses": 666},
         ]
+
+    def test_web_search_tool_with_filtering(self):
+        assert _web_search_tool_params({}, web_search_filtering=True) == [
+            {"name": "web_fetch", "type": "web_fetch_20260209"},
+            {
+                "name": "web_search",
+                "type": "web_search_20260209",
+            },
+        ]
+
+    def test_web_search_tool_with_filtering_and_options(self):
+        options = {"max_uses": 666, "allowed_domains": ["nhl.com"]}
+
+        result = _web_search_tool_params(options, web_search_filtering=True)
+
+        assert result == [
+            {
+                "name": "web_fetch",
+                "type": "web_fetch_20260209",
+                "max_uses": 666,
+                "allowed_domains": ["nhl.com"],
+            },
+            {
+                "name": "web_search",
+                "type": "web_search_20260209",
+                "max_uses": 666,
+                "allowed_domains": ["nhl.com"],
+            },
+        ]
+
+
+class TestWebSearchFilteringGate:
+    """Gating for web search dynamic filtering.
+
+    Dynamic filtering is enabled for frontier models (Claude 4.6 and later)
+    but not on Vertex or Bedrock.
+    """
+
+    WEB_SEARCH_TOOL = ToolInfo(
+        name="web_search", description="Search the web", options={"anthropic": {}}
+    )
+
+    def _api(self, model_name: str, service: str | None = None) -> AnthropicAPI:
+        api = AnthropicAPI(model_name=model_name, api_key="test-key")
+        if service is not None:
+            api.service = service
+        return api
+
+    def _tool_types(self, api: AnthropicAPI) -> list[str] | None:
+        params = api.web_search_tool_params(self.WEB_SEARCH_TOOL)
+        return [str(p["type"]) for p in params] if params is not None else None
+
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "claude-sonnet-4-6",
+            "claude-opus-4-7",
+            "claude-opus-4-8",
+            "claude-fable-5",
+        ],
+    )
+    def test_filtering_enabled_for_frontier_models(self, model_name: str):
+        assert self._tool_types(self._api(model_name)) == [
+            "web_fetch_20260209",
+            "web_search_20260209",
+        ]
+
+    @pytest.mark.parametrize(
+        "model_name",
+        ["claude-sonnet-4-5", "claude-opus-4-1"],
+    )
+    def test_filtering_disabled_for_non_frontier_models(self, model_name: str):
+        assert self._tool_types(self._api(model_name)) == [
+            "web_fetch_20250910",
+            "web_search_20250305",
+        ]
+
+    @pytest.mark.parametrize("service", ["vertex", "bedrock"])
+    def test_filtering_disabled_on_vertex_and_bedrock(self, service: str):
+        assert self._tool_types(self._api("claude-opus-4-8", service)) == [
+            "web_fetch_20250910",
+            "web_search_20250305",
+        ]
+
+    def test_no_params_without_anthropic_option(self):
+        tool = ToolInfo(name="web_search", description="Search the web")
+        assert self._api("claude-opus-4-8").web_search_tool_params(tool) is None
 
 
 class TestSupportsWebSearch:

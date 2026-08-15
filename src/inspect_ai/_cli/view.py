@@ -6,6 +6,7 @@ import click
 from typing_extensions import Unpack
 
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._view.network import ViewerNetworkPolicyError
 from inspect_ai._view.view import view
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 
@@ -23,9 +24,24 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     @click.option(
         "--host",
         default=DEFAULT_SERVER_HOST,
-        help="Tcp/Ip host. Note: you can use `0.0.0.0` to expose the viewer and connect remotely (e.g. SSH).",
+        help="TCP/IP bind host. Non-loopback binds require authorization or an explicit unsafe acknowledgement.",
     )
     @click.option("--port", default=DEFAULT_VIEW_PORT, help="TCP/IP port")
+    @click.option(
+        "--trusted-origin",
+        multiple=True,
+        help="Exact browser origin allowed to use the viewer. Repeat for multiple origins.",
+    )
+    @click.option(
+        "--trusted-host",
+        multiple=True,
+        help="Additional exact HTTP authority allowed for non-browser clients.",
+    )
+    @click.option(
+        "--unsafe-allow-unauthenticated",
+        is_flag=True,
+        help="Acknowledge unauthenticated access when binding beyond loopback.",
+    )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
         return cast(click.Context, func(*args, **kwargs))
@@ -56,6 +72,9 @@ def start(
     recursive: bool,
     host: str,
     port: int,
+    trusted_origin: tuple[str, ...],
+    trusted_host: tuple[str, ...],
+    unsafe_allow_unauthenticated: bool,
     **common: Unpack[CommonOptions],
 ) -> None:
     """View evaluation logs."""
@@ -74,14 +93,20 @@ def start(
         os.unsetenv(INSPECT_VIEW_AUTHORIZATION_TOKEN)
 
     # run the viewer
-    view(
-        log_dir=common["log_dir"],
-        recursive=recursive,
-        host=host,
-        port=port,
-        authorization=authorization,
-        log_level=common["log_level"],
-    )
+    try:
+        view(
+            log_dir=common["log_dir"],
+            recursive=recursive,
+            host=host,
+            port=port,
+            trusted_origins=trusted_origin,
+            trusted_hosts=trusted_host,
+            authorization=authorization,
+            unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
+            log_level=common["log_level"],
+        )
+    except ViewerNetworkPolicyError as ex:
+        raise click.UsageError(str(ex)) from ex
 
 
 @view_command.command("bundle")

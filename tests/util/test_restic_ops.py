@@ -10,11 +10,18 @@ Both keep files only, cap the list, and count the overflow.
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from types import SimpleNamespace
+
+import anyio
+import pytest
+from test_helpers.restic import SUMMARY_SNAPSHOT_ID, restic_summary_json
 
 from inspect_ai.util._restic.ops import (
     _parse_changed_files,
     _parse_listed_files,
     _previous_id,
+    run_backup,
 )
 
 # --- restic ls (full snapshot) -------------------------------------------
@@ -134,3 +141,29 @@ def test_previous_id_matches_short_prefix() -> None:
 
 def test_previous_id_absent_snapshot() -> None:
     assert _previous_id(_SNAPS, "zzzz") is None
+
+
+# --- run_backup invocation (host-side) -----------------------------------
+
+
+async def test_run_backup_passes_quiet(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Host ``restic backup`` runs with ``--quiet``.
+
+    Without it restic emits one JSON ``status`` line per progress tick
+    (~60/s), every one of which ``from_stdout`` discards — but
+    ``anyio.run_process`` first buffers the whole stream in memory,
+    unbounded in backup duration. ``--quiet`` drops the status stream
+    while the trailing ``summary`` line (the only line we read) survives.
+    """
+    captured: dict[str, list[str]] = {}
+
+    async def fake_run_process(command: list[str], **kwargs: object) -> SimpleNamespace:
+        captured["command"] = command
+        return SimpleNamespace(stdout=restic_summary_json().encode())
+
+    monkeypatch.setattr(anyio, "run_process", fake_run_process)
+
+    summary = await run_backup(Path("/usr/bin/restic"), "/repo", "pw", "/src", "tag")
+
+    assert "--quiet" in captured["command"]
+    assert summary.snapshot_id == SUMMARY_SNAPSHOT_ID  # quiet summary still parses

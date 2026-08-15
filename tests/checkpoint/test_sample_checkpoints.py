@@ -11,6 +11,7 @@ from inspect_ai.util._checkpoint._layout.sample_checkpoints_dir import (
     ensure_restic_config,
     ensure_sample_checkpoints_dir,
     sample_checkpoints_dir,
+    scan_latest_committed_checkpoint,
     write_checkpoint_file,
 )
 from inspect_ai.util._checkpoint._layout.schemas import (
@@ -221,3 +222,36 @@ async def test_checkpoint_file_is_pretty_printed_json(tmp_path: Path) -> None:
     raw = Path(path).read_text()
     assert json.loads(raw)["checkpoint_id"] == 1
     assert "\n" in raw
+
+
+async def test_scan_latest_committed_checkpoint_returns_latest_parseable(
+    tmp_path: Path,
+) -> None:
+    sample_dir = await ensure_sample_checkpoints_dir(
+        str(tmp_path / "foo.checkpoints"), "s", 0
+    )
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=1,
+            trigger="turn",
+            turn=1,
+            host=_info("snap-1"),
+        ),
+    )
+    await write_checkpoint_file(
+        sample_checkpoints_dir=sample_dir,
+        checkpoint=_checkpoint(
+            checkpoint_id=2,
+            trigger="agent_complete",
+            turn=2,
+            host=_info("snap-2"),
+        ),
+    )
+    (Path(sample_dir) / "ckpt-00003.json").write_text("{")
+
+    checkpoint = await scan_latest_committed_checkpoint(sample_dir)
+
+    assert checkpoint is not None
+    assert checkpoint.checkpoint_id == 2
+    assert checkpoint.trigger == "agent_complete"

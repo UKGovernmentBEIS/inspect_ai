@@ -19,6 +19,7 @@ from anthropic.types import (
     ToolReferenceBlockParam,
     Usage,
     WebSearchTool20250305Param,
+    WebSearchTool20260209Param,
 )
 from anthropic.types import StopReason as AnthropicStopReason
 from anthropic.types.beta import (
@@ -79,8 +80,11 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
+    withheld_bridge_tool,
 )
 
 logger = getLogger(__name__)
@@ -89,8 +93,8 @@ logger = getLogger(__name__)
 async def inspect_anthropic_api_request_impl(
     json_data: dict[str, Any],
     headers: dict[str, str] | None,
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
     *,
     beta: bool = False,
@@ -113,18 +117,25 @@ async def inspect_anthropic_api_request_impl(
         )
 
     tools = tools_from_anthropic_tools(
-        anthropic_tools, anthropic_mcp_servers, web_search, code_execution
+        anthropic_tools,
+        anthropic_mcp_servers,
+        web_search,
+        code_execution,
+        bridge.allow_remote_mcp,
     )
 
     # tool choice
     anthropic_tool_choice: ToolChoiceParam | None = json_data.get("tool_choice", None)
-    tool_choice = tool_choice_from_anthropic_tool_choice(anthropic_tool_choice)
+    tool_choice = relax_tool_choice_for_withheld(
+        tool_choice_from_anthropic_tool_choice(anthropic_tool_choice), tools
+    )
 
     # convert to inspect messages
     input: list[MessageParam] = json_data["messages"]
     debug_log("SCAFFOLD INPUT", input)
 
     messages = await messages_from_anthropic_input(input, tools)
+    validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -152,7 +163,7 @@ async def inspect_anthropic_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # return message (use beta message type if request came from beta endpoint)
     message_class = BetaMessage if beta else Message
@@ -204,6 +215,16 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
         if thinking.get("type", None) == "enabled":
             config.reasoning_tokens = thinking.get("budget_tokens", None)
 
+    # `output_config.effort` carries the reasoning depth for adaptive thinking
+    # (Claude 4.6+ clients send `thinking: {"type": "adaptive"}` and convey the
+    # depth here rather than via `budget_tokens`). Forward it so the served model
+    # keeps the requested effort instead of silently dropping it.
+    output_config = json_data.get("output_config", None)
+    if output_config:
+        effort = output_config.get("effort", None)
+        if effort is not None:
+            config.effort = effort
+
     tool_choice = json_data.get("tool_choice", {})
     if tool_choice.get("disable_parallel_tool_use", None) is True:
         config.parallel_tool_calls = False
@@ -222,8 +243,9 @@ def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
 def tools_from_anthropic_tools(
     anthropic_tools: list[ToolParamDef] | None,
     anthropic_mcp_servers: list[BetaRequestMCPServerURLDefinitionParam] | None,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
 ) -> list[ToolInfo | Tool]:
     tools: list[ToolInfo | Tool] = []
 
@@ -243,22 +265,40 @@ def tools_from_anthropic_tools(
         elif is_computer_tool(anthropic_tool):
             tools.append(computer())
         elif is_web_search_tool(anthropic_tool):
-            tools.append(
-                web_search(
-                    resolve_web_search_providers(anthropic_tool, web_search_providers)
+            if web_search_providers is None:
+                withheld_bridge_tool("web_search")
+            else:
+                tools.append(
+                    web_search(
+                        resolve_web_search_providers(
+                            anthropic_tool, web_search_providers
+                        )
+                    )
                 )
-            )
         elif is_web_fetch_tool(anthropic_tool):
-            # web fetch tool is collapsed into web_search for inspect
-            pass
+            # Inspect has no standalone fetch tool: on Anthropic, fetch rides
+            # along with a granted web_search (the provider emits both), so a
+            # declaration of it maps to nothing of its own. A client that
+            # declares fetch *without* search therefore gets no web tool even
+            # when search is granted — mapping it to web_search would hand it
+            # the search capability it didn't ask for.
+            if web_search_providers is None:
+                withheld_bridge_tool("web_fetch")
         elif is_code_execution_tool(anthropic_tool):
-            tools.append(code_execution(providers=code_execution_providers))
+            if code_execution_providers is None:
+                withheld_bridge_tool("code_execution")
+            else:
+                tools.append(code_execution(providers=code_execution_providers))
         elif is_bash_tool(anthropic_tool):
             tools.append(bash())
         else:
             raise RuntimeError(
                 f"ToolParam of type {anthropic_tool['type']} not supported by agent bridge."
             )
+
+    if anthropic_mcp_servers and not allow_remote_mcp:
+        withheld_bridge_tool("mcp_servers")
+        anthropic_mcp_servers = None
 
     for mcp_server in anthropic_mcp_servers or []:
         # allowed tools (default is 'all')
@@ -305,7 +345,8 @@ def tools_from_anthropic_tools(
 
 
 def resolve_web_search_providers(
-    tool_param: WebSearchTool20250305Param, web_search: WebSearchProviders
+    tool_param: WebSearchTool20250305Param | WebSearchTool20260209Param,
+    web_search: WebSearchProviders,
 ) -> WebSearchProviders:
     # pass through anthropic options if there is no special anthropic config
     anthropic_options = web_search.get("anthropic", False)
@@ -435,7 +476,7 @@ async def messages_from_anthropic_input(
                     ):
                         pending_user_content.append(c)
                     else:
-                        raise RuntimeError("Unexpected input parameter: {c}")
+                        raise RuntimeError(f"Unexpected input parameter: {c}")
 
                 flush_pending_user_content()
 
@@ -510,7 +551,7 @@ def base_64_data(data: str | IO[bytes] | PathLike[str]) -> str:
     if isinstance(data, str):
         return data
     else:
-        raise RuntimeError("Unsupported image content type: {data}")
+        raise RuntimeError(f"Unsupported image content type: {data}")
 
 
 def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:

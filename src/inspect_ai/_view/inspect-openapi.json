@@ -20,7 +20,7 @@
             "type": "integer"
           },
           "min": {
-            "default": 4,
+            "default": 10,
             "title": "Min",
             "type": "integer"
           },
@@ -131,6 +131,31 @@
           "anchor_id"
         ],
         "title": "AnchorEvent",
+        "type": "object"
+      },
+      "AppConfig": {
+        "description": "Application configuration returned by GET /app-config.",
+        "properties": {
+          "inspect_version": {
+            "title": "Inspect Version",
+            "type": "string"
+          },
+          "scout_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scout Version"
+          }
+        },
+        "required": [
+          "inspect_version"
+        ],
+        "title": "AppConfig",
         "type": "object"
       },
       "ApprovalEvent": {
@@ -609,6 +634,16 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Logprobs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StopDetails"
               },
               {
                 "type": "null"
@@ -1186,10 +1221,25 @@
               "manual",
               "token",
               "cost",
-              "budget"
+              "budget",
+              "agent_complete"
             ],
             "title": "Trigger",
             "type": "string"
+          },
+          "trigger_metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Metadata"
           },
           "turn": {
             "title": "Turn",
@@ -1228,7 +1278,7 @@
         "type": "object"
       },
       "CheckpointSampleConfig": {
-        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_location``\nand ``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.",
         "properties": {
           "max_consecutive_failures": {
             "anyOf": [
@@ -1342,6 +1392,17 @@
             ],
             "title": "Pending"
           },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
           "source": {
             "anyOf": [
               {
@@ -1425,6 +1486,74 @@
         "title": "CompactionEvent",
         "type": "object"
       },
+      "ConfigUpdate": {
+        "description": "A group of config changes applied together, sharing provenance.",
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigValueChange"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ProvenanceData"
+          },
+          "scope": {
+            "enum": [
+              "task",
+              "process"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "changes",
+          "scope",
+          "provenance"
+        ],
+        "title": "ConfigUpdate",
+        "type": "object"
+      },
+      "ConfigValueChange": {
+        "description": "One knob's value change within a config update.",
+        "properties": {
+          "cleared": {
+            "default": false,
+            "title": "Cleared",
+            "type": "boolean"
+          },
+          "config": {
+            "enum": [
+              "eval",
+              "generate",
+              "concurrency"
+            ],
+            "title": "Config",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "required": [
+          "config",
+          "name",
+          "value",
+          "cleared",
+          "previous"
+        ],
+        "title": "ConfigValueChange",
+        "type": "object"
+      },
       "ConnectionLimitChange": {
         "description": "Record of an adaptive-connections controller scale change.",
         "properties": {
@@ -1441,13 +1570,21 @@
             "type": "integer"
           },
           "reason": {
-            "enum": [
-              "slow_start",
-              "steady_state_up",
-              "rate_limit"
+            "anyOf": [
+              {
+                "enum": [
+                  "slow_start",
+                  "steady_state_up",
+                  "rate_limit"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "manual",
+                "type": "string"
+              }
             ],
-            "title": "Reason",
-            "type": "string"
+            "title": "Reason"
           },
           "timestamp": {
             "title": "Timestamp",
@@ -1630,6 +1767,11 @@
       "ContentDocument": {
         "description": "Document content (e.g. a PDF).",
         "properties": {
+          "citations": {
+            "default": false,
+            "title": "Citations",
+            "type": "boolean"
+          },
           "document": {
             "title": "Document",
             "type": "string"
@@ -1663,7 +1805,8 @@
           "type",
           "document",
           "filename",
-          "mime_type"
+          "mime_type",
+          "citations"
         ],
         "title": "ContentDocument",
         "type": "object"
@@ -2612,6 +2755,28 @@
             ],
             "title": "Token Limit"
           },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "turn_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Limit"
+          },
           "working_limit": {
             "anyOf": [
               {
@@ -2738,6 +2903,20 @@
       "EvalLog": {
         "description": "Evaluation log.",
         "properties": {
+          "config_updates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ConfigUpdate"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Updates"
+          },
           "error": {
             "anyOf": [
               {
@@ -2859,6 +3038,17 @@
       "EvalMetric": {
         "description": "Metric for evaluation score.",
         "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
           "metadata": {
             "anyOf": [
               {
@@ -3049,7 +3239,35 @@
             "anyOf": [
               {
                 "items": {
-                  "anyOf": [
+                  "discriminator": {
+                    "mapping": {
+                      "anchor": "#/components/schemas/AnchorEvent",
+                      "approval": "#/components/schemas/ApprovalEvent",
+                      "branch": "#/components/schemas/BranchEvent",
+                      "checkpoint": "#/components/schemas/CheckpointEvent",
+                      "compaction": "#/components/schemas/CompactionEvent",
+                      "error": "#/components/schemas/ErrorEvent",
+                      "info": "#/components/schemas/InfoEvent",
+                      "input": "#/components/schemas/InputEvent",
+                      "interrupt": "#/components/schemas/InterruptEvent",
+                      "logger": "#/components/schemas/LoggerEvent",
+                      "model": "#/components/schemas/ModelEvent",
+                      "sample_init": "#/components/schemas/SampleInitEvent",
+                      "sample_limit": "#/components/schemas/SampleLimitEvent",
+                      "sandbox": "#/components/schemas/SandboxEvent",
+                      "score": "#/components/schemas/ScoreEvent",
+                      "score_edit": "#/components/schemas/ScoreEditEvent",
+                      "span_begin": "#/components/schemas/SpanBeginEvent",
+                      "span_end": "#/components/schemas/SpanEndEvent",
+                      "state": "#/components/schemas/StateEvent",
+                      "step": "#/components/schemas/StepEvent",
+                      "store": "#/components/schemas/StoreEvent",
+                      "subtask": "#/components/schemas/SubtaskEvent",
+                      "tool": "#/components/schemas/ToolEvent"
+                    },
+                    "propertyName": "event"
+                  },
+                  "oneOf": [
                     {
                       "$ref": "#/components/schemas/SampleInitEvent"
                     },
@@ -3251,7 +3469,35 @@
           },
           "events": {
             "items": {
-              "anyOf": [
+              "discriminator": {
+                "mapping": {
+                  "anchor": "#/components/schemas/AnchorEvent",
+                  "approval": "#/components/schemas/ApprovalEvent",
+                  "branch": "#/components/schemas/BranchEvent",
+                  "checkpoint": "#/components/schemas/CheckpointEvent",
+                  "compaction": "#/components/schemas/CompactionEvent",
+                  "error": "#/components/schemas/ErrorEvent",
+                  "info": "#/components/schemas/InfoEvent",
+                  "input": "#/components/schemas/InputEvent",
+                  "interrupt": "#/components/schemas/InterruptEvent",
+                  "logger": "#/components/schemas/LoggerEvent",
+                  "model": "#/components/schemas/ModelEvent",
+                  "sample_init": "#/components/schemas/SampleInitEvent",
+                  "sample_limit": "#/components/schemas/SampleLimitEvent",
+                  "sandbox": "#/components/schemas/SandboxEvent",
+                  "score": "#/components/schemas/ScoreEvent",
+                  "score_edit": "#/components/schemas/ScoreEditEvent",
+                  "span_begin": "#/components/schemas/SpanBeginEvent",
+                  "span_end": "#/components/schemas/SpanEndEvent",
+                  "state": "#/components/schemas/StateEvent",
+                  "step": "#/components/schemas/StepEvent",
+                  "store": "#/components/schemas/StoreEvent",
+                  "subtask": "#/components/schemas/SubtaskEvent",
+                  "tool": "#/components/schemas/ToolEvent"
+                },
+                "propertyName": "event"
+              },
+              "oneOf": [
                 {
                   "$ref": "#/components/schemas/SampleInitEvent"
                 },
@@ -3433,6 +3679,20 @@
             "title": "Metadata",
             "type": "object"
           },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -3529,6 +3789,39 @@
             ],
             "title": "Timelines"
           },
+          "token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit"
+          },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -3539,6 +3832,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
@@ -3594,6 +3898,7 @@
               "working",
               "message",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -3879,6 +4184,20 @@
             "title": "Metadata",
             "type": "object"
           },
+          "model_fallbacks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ModelFallback"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Fallbacks"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -3943,6 +4262,39 @@
             ],
             "title": "Target"
           },
+          "token_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit"
+          },
+          "token_limit_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Type"
+          },
+          "token_limit_usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Limit Usage"
+          },
           "total_time": {
             "anyOf": [
               {
@@ -3953,6 +4305,17 @@
               }
             ],
             "title": "Total Time"
+          },
+          "turn_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn Count"
           },
           "uuid": {
             "anyOf": [
@@ -4878,6 +5241,20 @@
             ],
             "title": "Extra Headers"
           },
+          "fallback_models": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Models"
+          },
           "frequency_penalty": {
             "anyOf": [
               {
@@ -5071,6 +5448,21 @@
               }
             ],
             "title": "Reasoning History"
+          },
+          "reasoning_mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "standard",
+                  "pro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Mode"
           },
           "reasoning_summary": {
             "anyOf": [
@@ -6317,6 +6709,17 @@
           "log_dir": {
             "title": "Log Dir",
             "type": "string"
+          },
+          "log_dir_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Dir Uri"
           }
         },
         "required": [
@@ -7049,6 +7452,43 @@
         "title": "ModelEvent",
         "type": "object"
       },
+      "ModelFallback": {
+        "description": "A model fallback (request served by a different model than requested).",
+        "properties": {
+          "count": {
+            "default": 1,
+            "title": "Count",
+            "type": "integer"
+          },
+          "fallback_model": {
+            "title": "Fallback Model",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "fallback_model",
+          "count"
+        ],
+        "title": "ModelFallback",
+        "type": "object"
+      },
       "ModelOutput": {
         "description": "Output from model generation.",
         "properties": {
@@ -7075,6 +7515,16 @@
               }
             ],
             "title": "Error"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelFallback"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "metadata": {
             "anyOf": [
@@ -7784,6 +8234,7 @@
               "time",
               "working",
               "token",
+              "turn",
               "cost",
               "operator",
               "custom"
@@ -9187,6 +9638,81 @@
           "name"
         ],
         "title": "StepEvent",
+        "type": "object"
+      },
+      "StopCategory": {
+        "description": "A single refusal/safety category reported by (or derived for) a model stop.",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "StopCategory",
+        "type": "object"
+      },
+      "StopDetails": {
+        "description": "Additional detail about why a model stopped generating (e.g. a content refusal).\n\n`categories` is the canonical list (always iterable; a single-category provider\nappears as one entry). `category` and `explanation` are a convenience high-level\nsummary derived from the same data \u2014 `category` is the primary category and\n`explanation` is human-readable (synthesized from `categories` when the provider\nsupplies no text). Read either way; both describe the same stop.",
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/StopCategory"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "categories"
+        ],
+        "title": "StopDetails",
         "type": "object"
       },
       "StoreEvent": {
@@ -10647,6 +11173,24 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/app-config": {
+      "get": {
+        "operationId": "api_app_config_app_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppConfig"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api App Config"
+      }
+    },
     "/chat-message": {
       "get": {
         "operationId": "_chat_message_chat_message_get",
@@ -10887,8 +11431,8 @@
       }
     },
     "/log-delete/{log}": {
-      "get": {
-        "operationId": "api_log_delete_log_delete__log__get",
+      "delete": {
+        "operationId": "api_log_delete_log_delete__log__delete",
         "parameters": [
           {
             "in": "path",
@@ -10905,7 +11449,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Api Log Delete Log Delete  Log  Get",
+                  "title": "Response Api Log Delete Log Delete  Log  Delete",
                   "type": "boolean"
                 }
               }
@@ -11121,8 +11665,8 @@
       }
     },
     "/log-message": {
-      "get": {
-        "operationId": "api_log_message_log_message_get",
+      "post": {
+        "operationId": "api_log_message_log_message_post",
         "parameters": [
           {
             "in": "query",

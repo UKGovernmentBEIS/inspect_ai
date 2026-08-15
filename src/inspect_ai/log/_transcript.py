@@ -59,6 +59,30 @@ def transcript_bounded_enabled() -> bool:
     return value.strip().lower() not in ("0", "false", "no", "off")
 
 
+DEFAULT_RESIDENT_TAIL = 100
+"""Default number of most-recent events a bounded transcript keeps in memory.
+
+Shared source of truth for the resident window. Consumers that read a
+recent slice of history (e.g. the ACP replay-on-attach in
+``agent/_acp/session_router.py``, whose ``REPLAY_MAX_EVENTS`` is aligned to
+this value) can rely on that slice being served from resident,
+attachment-resolved memory rather than re-materialized from the buffer DB.
+"""
+
+
+class TranscriptHistoryUnavailableError(RuntimeError):
+    """A transcript's event history can no longer be served.
+
+    Raised by the bounded-memory history accessors when evicted events can't
+    be materialized: either the transcript has no history provider, or the
+    provider's backing store has been torn down or deleted (eg. the realtime
+    sample buffer racing eval teardown). Storage-agnostic — consumers catch
+    this rather than the backing store's own exception types. A
+    ``RuntimeError`` subclass so callers handling "history not available"
+    generically keep working.
+    """
+
+
 class TranscriptHistoryProvider(Protocol):
     @property
     def event_count(self) -> int: ...
@@ -69,7 +93,7 @@ class TranscriptHistoryProvider(Protocol):
 
     def recent_events(self, n: int | None = None) -> Sequence[Event]: ...
 
-    def events_from(self, start: int) -> Sequence[Event]: ...
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]: ...
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]: ...
 
@@ -153,10 +177,9 @@ class _TranscriptEventsView(Sequence[Event]):
             if provider is not None:
                 if start >= 0:
                     return provider.events_from(start)
-                if -start <= min(
-                    self._transcript._resident_tail, len(self._transcript._events)
-                ):
-                    return self._transcript._events[start:]
+                window = self._transcript._trailing_window(-start)
+                if window is not None:
+                    return window
                 return provider.recent_events(-start)
         return self._materialize()[index]
 
@@ -250,23 +273,76 @@ class TranscriptHistory:
             insertion order.
 
         Raises:
-            RuntimeError: If `n` is `None`, events have been truncated, and no
-                history provider is available to materialize the full history.
+            TranscriptHistoryUnavailableError: If `n` is `None`, events
+                have been truncated, and no history provider is available to
+                materialize the full history.
         """
         transcript = self._transcript
         if n is not None and n <= 0:
             return []
         if transcript._history_provider is None:
             if n is None and transcript._events_truncated:
-                raise RuntimeError(
+                raise TranscriptHistoryUnavailableError(
                     "Full transcript history is not available from this Transcript"
                 )
             return transcript._events if n is None else transcript._events[-n:]
-        if n is not None and n <= min(
-            transcript._resident_tail, len(transcript._events)
-        ):
-            return transcript._events[-n:]
+        if n is not None:
+            window = transcript._trailing_window(n)
+            if window is not None:
+                return window
         return transcript._history_provider.recent_events(n)
+
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        """Return events from logical index ``start`` onward.
+
+        Serves from resident memory when ``start`` falls inside the resident
+        window, falling back to the history provider to materialize evicted
+        events. Prefer this over slicing ``resident_events`` when the caller's
+        position is a *logical* history index (eg. a resume cursor) that may
+        point below the resident window.
+
+        Args:
+            start: Logical index (0-based) of the first event to return.
+                Negative values are treated as 0.
+            limit: Maximum number of events to return. ``None`` returns
+                everything through the end of the history.
+
+        Returns:
+            Events from ``start`` (inclusive), in insertion order. Empty when
+            ``start`` is at or past the end of the history.
+
+        Raises:
+            TranscriptHistoryUnavailableError: If events have been
+                truncated, the requested range extends beyond the trailing
+                resident window, and no history provider is available to
+                materialize the evicted events.
+        """
+        transcript = self._transcript
+        start = max(0, start)
+        count = transcript._event_count
+        if start >= count:
+            return []
+        if not transcript._events_truncated:
+            # nothing evicted: resident events ARE the logical history. Slice
+            # page-bounded in one step — copying the whole tail and then
+            # trimming it would be O(remaining history) per page on large
+            # transcripts.
+            end = count if limit is None else start + limit
+            return transcript._events[start:end]
+        # Once events have been evicted, resident events are NOT a contiguous
+        # suffix of the logical history (pinned/pending events survive at
+        # their insertion positions), so a logical offset can't be mapped
+        # into ``_events`` by suffix arithmetic — only the trailing window is
+        # a memory read (see `Transcript._trailing_window` for the
+        # invariant). Anything earlier must come from the provider.
+        window = transcript._trailing_window(count - start, limit)
+        if window is not None:
+            return window
+        if transcript._history_provider is None:
+            raise TranscriptHistoryUnavailableError(
+                "Full transcript history is not available from this Transcript"
+            )
+        return transcript._history_provider.events_from(start, limit)
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]:
         """Return events from the last occurrence of a given event type onward.
@@ -283,14 +359,15 @@ class TranscriptHistory:
             transcript, or all events if no match is found.
 
         Raises:
-            RuntimeError: If events have been truncated and no history provider
-                is available to materialize the full history.
+            TranscriptHistoryUnavailableError: If events have been
+                truncated and no history provider is available to materialize
+                the full history.
         """
         transcript = self._transcript
         if transcript._events_truncated:
             if transcript._history_provider is not None:
                 return transcript._history_provider.events_since_last(event_type)
-            raise RuntimeError(
+            raise TranscriptHistoryUnavailableError(
                 "Full transcript history is not available from this Transcript"
             )
         events = list(transcript._events)
@@ -421,7 +498,7 @@ class Transcript:
         `history.resident_events`, `history.event_count`, `history.last_event`, or
         `history.recent_events()`.
         """
-        if self._history_provider is None:
+        if self._history_provider is None or not self._events_truncated:
             return self._events
         return self._events_view
 
@@ -462,6 +539,15 @@ class Transcript:
     def _event(self, event: Event) -> None:
         track_pending = event.uuid is not None
         event_key = self._ensure_event_key(event)
+        # Duplicate detection covers RESIDENT events only — tracking every
+        # historical uuid would defeat bounded memory, so re-appending a uuid
+        # whose original was evicted is accepted (incrementing _event_count)
+        # even though the buffer database collapses both rows to one logical
+        # event. That puts logical offsets out of sync with buffer rows, which the
+        # control channel's cursor paging assumes aligned; no production path
+        # re-appends an evicted uuid (event *updates* go through
+        # _event_updated, which doesn't increment the count), so this is a
+        # documented limitation rather than a guarded one.
         if event_key in self._resident_event_ids:
             raise ValueError(f"Duplicate event uuid: {event_key}")
         self._process_event(event)
@@ -617,6 +703,28 @@ class Transcript:
         for ref in list(self._attachments):
             if ref not in self._attachment_refcount:
                 self._attachments.pop(ref, None)
+
+    def _trailing_window(self, n: int, limit: int | None = None) -> list[Event] | None:
+        """The newest ``n`` logical events, served from resident memory.
+
+        The eviction invariant this relies on — maintained by
+        :meth:`_evict_events`, and the single place it should be reasoned
+        about: eviction removes only the *oldest evictable* events, while
+        pinned and pending events survive at their insertion positions. Older
+        positions in ``_events`` may therefore be gapped relative to the
+        logical history, but the trailing ``min(_resident_tail,
+        len(_events))`` elements are always exactly the newest logical
+        events, in order.
+
+        Returns the window (optionally capped at ``limit`` events from its
+        start) when ``n`` lies within that guarantee, else ``None`` — the
+        caller must then materialize from the history provider (or fail).
+        """
+        if n > min(self._resident_tail, len(self._events)):
+            return None
+        first = len(self._events) - n
+        end = len(self._events) if limit is None else first + limit
+        return self._events[first:end]
 
     def _evict_events(self) -> None:
         if not self._bounded:

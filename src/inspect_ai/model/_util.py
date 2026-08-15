@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from copy import copy
 from typing import TYPE_CHECKING, Mapping
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._model import Model, get_model
-from inspect_ai.model._model_info import get_model_info
+from inspect_ai.model._model_info import _get_model_info_direct
 
 if TYPE_CHECKING:
     from inspect_ai._eval.task.resolved import ResolvedTask
@@ -15,7 +16,7 @@ def resolve_model_roles(
 ) -> dict[str, Model] | None:
     if model_roles is not None:
         resolved_model_roles = {
-            k: get_model(v, memoize=False) if isinstance(v, str) else v
+            k: get_model(v, memoize=False) if isinstance(v, str) else copy(v)
             for k, v in model_roles.items()
         }
         for k, v in resolved_model_roles.items():
@@ -47,7 +48,10 @@ def resolve_model_costs(
         missing: list[str] = []
         for model in models:
             model_name = f"{model}"
-            info = get_model_info(model_name)
+            # direct (non provider-resolving) lookup: these models are already
+            # instantiated, so resolving a provider here would re-instantiate
+            # them (reloading local weights)
+            info = _get_model_info_direct(model)
             if info is None or info.cost is None:
                 missing.append(model_name)
 

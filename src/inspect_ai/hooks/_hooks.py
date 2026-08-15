@@ -18,7 +18,13 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.event import Event
 from inspect_ai.hooks._legacy import override_api_key_legacy
-from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
+from inspect_ai.log._log import (
+    EvalLog,
+    EvalPlan,
+    EvalSample,
+    EvalSampleSummary,
+    EvalSpec,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
@@ -93,7 +99,20 @@ class TaskStart:
     eval_id: str
     """The globally unique identifier for this task execution."""
     spec: EvalSpec
-    """Specification of the task."""
+    """Specification of the task.
+
+    Do not mutate: this is the object the recorder holds until the final log
+    write, so changing it here corrupts the written log header.
+    """
+    plan: EvalPlan
+    """All solvers that will be run, in order.
+
+    Note that a ``finish`` solver is reported both in ``finish`` and as the
+    last entry of ``steps``, so read one or the other, not both.
+
+    Do not mutate: this is the object the recorder holds until the final log
+    write, so changing it here corrupts the written log header.
+    """
 
 
 @dataclass(frozen=True)
@@ -289,6 +308,33 @@ class BeforeModelGenerate:
 
 
 @dataclass(frozen=True)
+class ModelRetry:
+    """Model retry hook event data."""
+
+    model_name: str
+    """The name of the model whose call is being retried."""
+    attempt: int
+    """The number of the attempt that just failed (1 for the first failure)."""
+    wait_time: float
+    """The time in seconds that will be waited (backoff) before the next attempt. This is
+    the time attributable to rate limiting and other transient retries."""
+    eval_set_id: str | None = None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str | None = None
+    """The globally unique identifier for the run (if any)."""
+    eval_id: str | None = None
+    """The globally unique identifier for the task execution (if any)."""
+    sample_id: str | None = None
+    """The globally unique identifier for the sample execution (if any)."""
+    task_name: str | None = None
+    """The name of the task whose model call is being retried (if any)."""
+    exception_type: str | None = None
+    """The type name of the exception that triggered the retry (e.g. "RateLimitError"), if known."""
+    status_code: int | None = None
+    """The HTTP status code of the failure that triggered the retry (e.g. 429 or 503), if any."""
+
+
+@dataclass(frozen=True)
 class SampleScoring:
     """Sample scoring hook event data."""
 
@@ -318,6 +364,25 @@ class Hooks:
     Note that whenever hooks are called, they are wrapped in a try/except block to
     catch any exceptions that may occur. This is to ensure that a hook failure does not
     affect the overall execution of the eval. If a hook fails, a warning will be logged.
+
+    #### Hook lifecycle
+
+    The ``@hooks`` decorator instantiates your class once, at import time, and
+    registers that single instance. Inspect never creates a second instance and
+    never destroys it: the registry holds it for the lifetime of the process, and
+    there is no teardown event. Do per-run cleanup in ``on_run_end`` or
+    ``on_eval_set_end``.
+
+    Because there is exactly one instance, ``self`` is shared by every eval set,
+    run, task, sample and epoch in the process:
+
+    - State stored on ``self`` by one sample is visible to all the others. Key
+      per-sample state by ``data.sample_id`` and remove it in ``on_sample_end``,
+      otherwise it accumulates for the life of the process.
+    - Samples run concurrently on a single event loop, so a call for one sample
+      can begin at any ``await`` in an in-flight call for another. Don't assume
+      one call completes before the next begins. (Within a single sample,
+      ``on_sample_event`` calls are serialized.)
 
     #### Ownership of hook event data
 
@@ -469,6 +534,19 @@ class Hooks:
         """
         pass
 
+    async def on_model_retry(self, data: ModelRetry) -> None:
+        """Called before a model call is retried after a transient failure.
+
+        Fires once per retry (i.e. not for the initial attempt), before the
+        backoff sleep. Useful for surfacing how much time is spent in rate
+        limiting and other retries (see `data.wait_time` for the upcoming
+        backoff duration).
+
+        Args:
+           data: Model retry data.
+        """
+        pass
+
     async def on_sample_attempt_start(self, data: SampleAttemptStart) -> None:
         """On sample attempt start.
 
@@ -546,6 +624,11 @@ def hooks(name: str, description: str) -> Callable[..., Type[T]]:
     of a subclass of `Hooks`. This decorator will instantiate the hook class
     and store it in the registry.
 
+    Instantiation happens eagerly, when the decorator runs (i.e. when the
+    defining module is imported), and the resulting instance is reused for every
+    event for the lifetime of the process. See `Hooks` for what that implies for
+    instance state.
+
     Args:
         name (str): Name of the subscriber (e.g. "audit logging").
         description (str): Short description of the hook (e.g. "Copies eval files to
@@ -606,12 +689,13 @@ async def emit_run_end(
     await _emit_to_all(lambda hook: hook.on_run_end(data))
 
 
-async def emit_task_start(logger: TaskLogger) -> None:
+async def emit_task_start(logger: TaskLogger, plan: EvalPlan) -> None:
     data = TaskStart(
         eval_set_id=logger.eval.eval_set_id,
         run_id=logger.eval.run_id,
         eval_id=logger.eval.eval_id,
         spec=logger.eval,
+        plan=plan,
     )
     await _emit_to_all(lambda hook: hook.on_task_start(data))
 
@@ -893,6 +977,42 @@ async def emit_model_usage(
 async def emit_model_cache_usage(model_name: str, usage: ModelUsage) -> None:
     data = ModelCacheUsageData(model_name=model_name, usage=usage)
     await _emit_to_all(lambda hook: hook.on_model_cache_usage(data))
+
+
+async def emit_model_retry(
+    model_name: str,
+    attempt: int,
+    wait_time: float,
+    exception_type: str | None = None,
+    status_code: int | None = None,
+) -> None:
+    # Read eval context from the active sample contextvar (if available).
+    active = sample_active()
+    eval_set_id: str | None = None
+    run_id: str | None = None
+    eval_id: str | None = None
+    sample_id: str | None = None
+    task_name: str | None = None
+    if active is not None:
+        eval_set_id = active.eval_set_id
+        run_id = active.run_id
+        eval_id = active.eval_id
+        sample_id = active.sample_uuid
+        task_name = active.task
+
+    data = ModelRetry(
+        model_name=model_name,
+        attempt=attempt,
+        wait_time=wait_time,
+        eval_set_id=eval_set_id,
+        run_id=run_id,
+        eval_id=eval_id,
+        sample_id=sample_id,
+        task_name=task_name,
+        exception_type=exception_type,
+        status_code=status_code,
+    )
+    await _emit_to_all(lambda hook: hook.on_model_retry(data))
 
 
 async def emit_sample_scoring(

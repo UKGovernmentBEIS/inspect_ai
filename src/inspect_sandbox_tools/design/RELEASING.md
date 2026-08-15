@@ -33,12 +33,14 @@ Build production binaries for both architectures:
 python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --all --dev=false
 ```
 
-This creates Docker containers with PyInstaller, builds static executables via StaticX, and places them in `src/inspect_ai/binaries/`:
+This creates Docker containers with PyInstaller, builds `--onedir` bundles, tars each bundle tree, and places the tar artifacts in `src/inspect_ai/binaries/`. It builds all four arch × libc variants:
 
-- `inspect-sandbox-tools-amd64-v{VERSION}`
-- `inspect-sandbox-tools-arm64-v{VERSION}`
+- `inspect-sandbox-tools-amd64-v{VERSION}` (glibc)
+- `inspect-sandbox-tools-arm64-v{VERSION}` (glibc)
+- `inspect-sandbox-tools-amd64-musl-v{VERSION}` (musl, built via `Dockerfile.pyinstaller.musl`)
+- `inspect-sandbox-tools-arm64-musl-v{VERSION}` (musl)
 
-Requires Docker with multi-architecture support.
+Requires Docker with multi-architecture support. (Build a single variant with `--arch {amd64,arm64} [--musl]`.)
 
 ### 4. Validate across distros
 
@@ -46,7 +48,7 @@ Requires Docker with multi-architecture support.
 python -m inspect_ai.tool._sandbox_tools_utils.validate_distros
 ```
 
-Tests both executables across Ubuntu, Debian, and Kali Linux containers.
+Routes each artifact to the matching distro set: glibc variants across Ubuntu/Debian/Kali, the musl variant across Alpine.
 
 ### 5. Upload to S3
 
@@ -54,9 +56,9 @@ Tests both executables across Ubuntu, Debian, and Kali Linux containers.
 python src/inspect_ai/tool/_sandbox_tools_utils/upload_to_s3.py {VERSION}
 ```
 
-Uploads both amd64 and arm64 binaries to the `inspect-sandbox-tools` bucket (us-east-2) with public-read ACL so runtime S3 downloads work without credentials.
+Uploads all four artifacts (amd64/arm64 × glibc/musl) to the `inspect-sandbox-tools` bucket (us-east-2) with public-read ACL so runtime S3 downloads work without credentials.
 
-**URL pattern:** `https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-{arch}-v{version}`
+**URL pattern:** `https://inspect-sandbox-tools.s3.us-east-2.amazonaws.com/inspect-sandbox-tools-{arch}[-musl]-v{version}`
 
 ### 6. Merge the PR
 
@@ -70,15 +72,18 @@ The `inspect_ai` release script automatically pulls sandbox tools from S3:
 python scripts/pypi-release.py release v{INSPECT_AI_VERSION}
 ```
 
-This downloads the binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI.
+This downloads the **glibc** binaries from S3 into `src/inspect_ai/binaries/`, bundles them into the wheel as package data, and publishes to PyPI. The musl variants are intentionally **not** bundled — they live on S3 and are fetched at runtime when a musl sandbox is detected (keeps the wheel small for the common case).
 
 ## How binaries are resolved at runtime
 
-`src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` uses a three-tier fallback:
+Injection first detects the sandbox's arch and libc (`recon.detect_sandbox_os` →
+`architecture` + `libc`) and resolves the matching artifact name (adding `-musl` for
+musl sandboxes). `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py` then uses a
+three-tier fallback:
 
-1. **Local** — looks for the executable in `inspect_ai/binaries/`
-2. **S3 download** — if the install is "clean" (no local edits to sandbox tools), downloads from S3
-3. **Local build** — prompts the user to build locally via Docker
+1. **Local** — looks for the executable in `inspect_ai/binaries/` (only the glibc variants are bundled into the wheel)
+2. **S3 download** — if the install is "clean" (no local edits to sandbox tools), downloads from S3 (this is the normal path for the musl variants)
+3. **Local build** — prompts the user to build locally via Docker (`--musl` for the musl variant)
 
 The install state detection (`_get_install_state`) determines which tiers are attempted:
 

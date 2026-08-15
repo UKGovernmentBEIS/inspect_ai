@@ -1,16 +1,30 @@
-"""End-to-end checkpoint resume test: cancel an attempt, then retry it.
+"""End-to-end checkpoint resume test: interrupt an attempt, then retry — twice.
 
 Drives a ``react()`` agent through tool-calling turns with
 ``TurnInterval(every=1)``, so a checkpoint fires at the start of each turn
-after the first; the agent then calls a ``cancel`` tool that interrupts the
-sample mid-run, leaving committed checkpoints on disk.
-``test_checkpoint_resume_runs_to_completion`` then ``eval_retry``s the
-cancelled run and asserts it resumes and completes successfully. It checks,
-via the public ``.eval`` log: the restored checkpoints appear as
-``CheckpointEvent``s inside the ``prior_run`` ("checkpoint restore") span, a
-new checkpoint commits *during* the retry (a ``CheckpointEvent`` outside that
-span, continuing the numbering), and resume restored the prior conversation
-(only the remaining turns run, not a replay from scratch).
+after the first. The agent calls a ``crash`` tool that signals its own
+process mid-run, parametrized over both ways a run really ends:
+
+- ``SIGKILL`` — an *unanticipated* death (power loss / OOM / preemption)
+  with no graceful unwind, no log finalize, and an orphaned sandbox
+  container. Recovering from exactly that is the point of checkpointing.
+- ``SIGINT`` — what Ctrl-C delivers. The opposite hazard: a lot of cleanup
+  *does* run (sandbox teardown, log finalize, the sample logged with a
+  cancellation error), any of which could plausibly leave the run
+  unresumable.
+
+Because a real ``SIGKILL`` can't kill the pytest process and let it continue,
+each killed attempt runs in a **child process** (the harness in
+``tests/checkpoint/resume_kill_harness.py``, run as a script); the
+``crash`` tool kills that child. ``test_checkpoint_resume_rehydrated_event_layout``
+kills a fresh attempt (after ck1/ck2 commit), resumes and kills again (after
+ck3), then resumes a final time *in-process* to completion. It checks, via
+the public ``.eval`` log: each resume's restored checkpoints appear as
+``CheckpointEvent``s inside its own ``prior_run`` ("checkpoint restore N")
+span; the wraps are sequentially numbered, span-balanced siblings; a new
+checkpoint commits *during* the final resume (a ``CheckpointEvent`` outside
+the wraps, continuing the numbering); and resume restored the prior
+conversation (only the remaining turns run, not a replay from scratch).
 
 Requires Docker: the sandbox backup path injects/execs a Linux restic
 binary inside the sandbox, which only works with a Linux container
@@ -20,48 +34,38 @@ binary inside the sandbox, which only works with a Linux container
 
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
 from pathlib import Path
-from typing import Any
 
-import anyio
 import pytest
-from test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_docker
 
-from inspect_ai import Task, eval, eval_retry, task
-from inspect_ai.agent import react
-from inspect_ai.dataset import Sample
+from checkpoint.resume_kill_harness import (
+    CANCEL_FILE_ENV,
+    LAYER1_CONTENT,
+    SIGNAL_ENV,
+    TARGET_ENV,
+    generates,
+    reset_generates,
+)
+from checkpoint.resume_kill_thinking_harness import (
+    CRASH_FILE_ENV,
+    committed_thinking_signatures,
+)
+from inspect_ai import eval_retry
 from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
-from inspect_ai.log import read_eval_log
-from inspect_ai.log._samples import sample_active
-from inspect_ai.model import (
-    ChatMessage,
-    ChatMessageTool,
-    GenerateConfig,
-    ModelOutput,
-    modelapi,
+from inspect_ai.log import list_eval_logs, read_eval_log
+from inspect_ai.scorer import CORRECT
+from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
+    eval_checkpoints_dir,
 )
-from inspect_ai.model._providers.mockllm import MockLLM
-from inspect_ai.scorer import CORRECT, includes
-from inspect_ai.tool import Tool, ToolChoice, ToolInfo, bash, tool
-from inspect_ai.util import CheckpointConfig, TurnInterval, store
-
-LAYER1_CONTENT = "plain1"
-STORE_KEY = "answer"
-# Write under $HOME (not /workspace) so the default-user home-dir auto-backup
-# captures it — the task declares no `sandbox_paths`, exercising
-# `resolve_sandbox_backup_paths` / `_resolve_home_and_cache`. Also drop a file
-# under the XDG cache dir ($HOME/.cache) to prove auto-home mode excludes it.
-WRITE_CMD = (
-    'mkdir -p "$HOME/workspace/decoded" "$HOME/.cache" && '
-    f"printf '{LAYER1_CONTENT}' > \"$HOME/workspace/decoded/layer1.txt\" && "
-    'printf cache > "$HOME/.cache/junk.txt"'
-)
-# Written on the post-resume turn so the ckpt-3 snapshot has a non-empty
-# diff vs its parent (ckpt-2) — used to assert file listing records the
-# *changed* file, not the unchanged `layer1.txt`.
-RESUME_WRITE_CMD = 'printf resumed > "$HOME/workspace/resumed.txt"'
-SCRIPTED_MODEL = "scripteddecode/model"
+from inspect_ai.util._checkpoint._sandbox_restic.repo import _SANDBOX_RESTIC_DIR
 
 
 def assert_spans_balanced(events: list[Event]) -> None:
@@ -71,7 +75,7 @@ def assert_spans_balanced(events: list[Event]) -> None:
     the innermost open span, and nothing may be left open at the end.
     Presence/membership assertions can't catch an *additive* structural
     corruption (extra unbalanced spans wrapped around otherwise-correct
-    content) — this can. See ``test_checkpoint_resume_spans_balanced``.
+    content) — this can.
     """
     stack: list[str] = []
     for e in events:
@@ -86,219 +90,360 @@ def assert_spans_balanced(events: list[Event]) -> None:
     assert not stack, f"{len(stack)} unclosed span(s): {stack}"
 
 
-class _ResumeState:
-    """Module-level state shared by the scripted provider and the cancel tool.
+def _latest_log(log_dir: str) -> str:
+    """Location of the most recently written eval log.
 
-    ``cancelled`` lets the scripted model emit a ``cancel`` call on the
-    first attempt and continue past it on resume (the cancel leaves no trace
-    in the restored conversation, so an out-of-band flag is needed to
-    distinguish the two). ``generates`` counts model calls so the resume test
-    can prove the conversation was restored (only the remaining turns run)
-    rather than re-run from scratch.
+    Filenames are timestamp-prefixed, so lexicographic max is newest.
     """
-
-    cancelled: bool = False
-    generates: int = 0
-
-
-_resume_state = _ResumeState()
+    logs = list_eval_logs(log_dir)
+    assert logs, f"no eval logs under {log_dir}"
+    return max(logs, key=lambda info: info.name).name
 
 
-@tool
-def remember() -> Tool:
-    async def execute(key: str, value: str) -> str:
-        """Record a key/value note in the sample store.
+def _run_interrupted_attempt(
+    log_dir: str,
+    retry_from: str | None,
+    tests_dir: Path,
+    interrupt: str = "SIGKILL",
+    harness_name: str = "resume_kill_harness.py",
+) -> None:
+    """Run an eval in a child process that signals itself mid-run.
 
-        Args:
-            key: short label for the note.
-            value: the value to remember.
-
-        Returns:
-            Confirmation string.
-        """
-        store().set(key, value)
-        return f"remembered: {key}"
-
-    return execute
-
-
-@tool
-def cancel() -> Tool:
-    async def execute() -> str:
-        """Cancel the run immediately (interrupts the sample)."""
-        active = sample_active()
-        assert active is not None, "expected an active sample"
-        _resume_state.cancelled = True
-        active.interrupt("error")
-        # interrupt cancels the surrounding scope; never return normally.
-        await anyio.sleep_forever()
-        return "cancelled"
-
-    return execute
-
-
-# eval_retry reconstructs the task by registry name and rebuilds the model by
-# name from the log — so the task must be a registered @task and the scripted
-# behavior must live in a registered model provider (a plain mockllm
-# custom_outputs object would not survive the round-trip). The provider drives
-# a linear script keyed off the number of completed tool turns in the restored
-# conversation, plus `_resume_state`:
-#
-#   turn 0: bash (write a sandbox file)          -> ckpt-1 fires next turn
-#   turn 1: remember (write the store)           -> ckpt-2 fires next turn
-#   turn 2: cancel (first attempt) ............... interrupt, then resume
-#           bash (write a *new* sandbox file)    -> ckpt-3 fires next turn
-#   turn 3: submit
-#
-# The post-resume bash turn exists so a *new* checkpoint (ckpt-3) fires during
-# the retry — the trigger resets on resume, so a single submit turn alone would
-# commit nothing. It writes a new file (not the one from turn 0) so ckpt-3's
-# diff-vs-parent file listing has a deterministic changed file to assert on.
-
-
-def _scripted_outputs(
-    input: list[ChatMessage],
-    tools: list[ToolInfo],
-    tool_choice: ToolChoice,
-    config: GenerateConfig,
-) -> ModelOutput:
-    _resume_state.generates += 1
-    completed_tool_turns = sum(1 for m in input if isinstance(m, ChatMessageTool))
-    if completed_tool_turns == 0:
-        return ModelOutput.for_tool_call(SCRIPTED_MODEL, "bash", {"command": WRITE_CMD})
-    if completed_tool_turns == 1:
-        return ModelOutput.for_tool_call(
-            SCRIPTED_MODEL, "remember", {"key": STORE_KEY, "value": LAYER1_CONTENT}
+    ``SIGKILL`` is an unanticipated death (no unwind, no log finalize);
+    ``SIGINT`` is what Ctrl-C delivers (graceful cancel, finalized log,
+    sandboxes torn down). Asserts the attempt ended the way the signal
+    implies, so a mode that silently stopped taking effect can't pass.
+    """
+    env = {
+        **os.environ,
+        "PYTHONPATH": os.pathsep.join(
+            p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
+        ),
+        SIGNAL_ENV: interrupt,
+    }
+    harness = str(tests_dir / "checkpoint" / harness_name)
+    proc = subprocess.run(
+        [sys.executable, harness, log_dir, retry_from or ""],
+        env=env,
+        timeout=600,
+    )
+    if interrupt == "SIGKILL":
+        assert proc.returncode == -signal.SIGKILL, (
+            f"expected the child to die by SIGKILL (-{signal.SIGKILL}); "
+            f"got returncode {proc.returncode}"
         )
-    if completed_tool_turns == 2 and not _resume_state.cancelled:
-        return ModelOutput.for_tool_call(SCRIPTED_MODEL, "cancel", {})
-    if completed_tool_turns == 2:
-        # post-resume turn: write a new sandbox file so ckpt-3 commits on
-        # retry with a non-empty diff vs its parent.
-        return ModelOutput.for_tool_call(
-            SCRIPTED_MODEL, "bash", {"command": RESUME_WRITE_CMD}
+    else:
+        # The child's exit code is not a useful signal here: inspect absorbs
+        # the interrupt rather than re-raising KeyboardInterrupt, so a
+        # SIGINTed eval() exits 0 and a SIGINTed eval_retry() exits 1 on an
+        # IndexError. What matters is that the run wound down gracefully —
+        # a *finalized* log with status "cancelled" (a hard kill never
+        # finalizes one).
+        assert proc.returncode != -signal.SIGKILL, "child was hard-killed, not SIGINTed"
+        status = read_eval_log(_latest_log(log_dir), header_only=True).status
+        assert status == "cancelled", (
+            f"expected the SIGINTed attempt to finalize a cancelled log; got '{status}'"
         )
-    return ModelOutput.for_tool_call(
-        SCRIPTED_MODEL, "submit", {"answer": LAYER1_CONTENT}
+
+
+def _inspect_projects() -> set[str]:
+    """Names of inspect docker compose projects currently known to docker."""
+    result = subprocess.run(
+        ["docker", "compose", "ls", "--all", "--format", "json"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return set()
+    try:
+        projects = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError:
+        return set()
+    return {
+        p.get("Name", "") for p in projects if p.get("Name", "").startswith("inspect-")
+    }
+
+
+def _project_container_ids(name: str) -> list[str]:
+    """Container ids belonging to a compose project."""
+    return subprocess.run(
+        ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={name}"],
+        capture_output=True,
+        text=True,
+    ).stdout.split()
+
+
+def _force_remove_project(name: str) -> None:
+    """Best-effort force-remove the containers of a leaked compose project."""
+    ids = _project_container_ids(name)
+    if ids:
+        subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
+
+
+def _assert_restic_dir_hidden(container_id: str) -> None:
+    """The injected restic dir is inside ``.cache`` and root-only.
+
+    Probes the live sandbox container of a killed attempt (checkpoints
+    committed → binary + repo injected):
+
+    - the path sits under ``/root/.cache/`` — inside the always-on backup
+      exclude (``**/.cache``, so the repo never backs itself up) and under
+      a parent whose dirent is invisible to non-root; and
+    - the dir is mode 0700 owned by root with the repo present, and a
+      non-root uid cannot list it.
+    """
+    assert _SANDBOX_RESTIC_DIR.startswith("/root/.cache/")
+
+    stat = subprocess.run(
+        ["docker", "exec", container_id, "stat", "-c", "%a %u", _SANDBOX_RESTIC_DIR],
+        capture_output=True,
+        text=True,
+    )
+    assert stat.returncode == 0, f"restic dir missing in sandbox: {stat.stderr}"
+    assert stat.stdout.split() == ["700", "0"]
+
+    repo = subprocess.run(
+        ["docker", "exec", container_id, "test", "-d", f"{_SANDBOX_RESTIC_DIR}/repo"],
+        capture_output=True,
+    )
+    assert repo.returncode == 0, "restic repo missing in sandbox"
+
+    denied = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "-u",
+            "65534:65534",
+            container_id,
+            "ls",
+            _SANDBOX_RESTIC_DIR,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert denied.returncode != 0, (
+        f"restic dir is listable by a non-root user: {denied.stdout}"
     )
 
 
-@modelapi(name="scripteddecode")
-def _scripteddecode_provider() -> type[MockLLM]:
-    class ScriptedDecode(MockLLM):
-        def __init__(self, model_name: str, **kwargs: Any) -> None:
-            # ignore any persisted custom_outputs; drive from _scripted_outputs
-            kwargs.pop("custom_outputs", None)
-            super().__init__(model_name, custom_outputs=_scripted_outputs, **kwargs)
+def _thinking_signatures(log_location: str) -> set[str]:
+    """Anthropic thinking-block signatures dumped under a run's checkpoints dir.
 
-    return ScriptedDecode
+    Reads every ``context/assistant_internal.json`` under the checkpoints dir
+    derived from ``log_location`` (a run writes its checkpoints to a dir keyed
+    off its *own* log basename, so this isolates one run's dumps from another's).
+    """
+    return committed_thinking_signatures(eval_checkpoints_dir(log_location, None))
 
 
-@task
-def resume_decode_task() -> Task:
-    return Task(
-        dataset=[Sample(id="resume", input="decode the layers", target=LAYER1_CONTENT)],
-        solver=react(tools=[bash(timeout=60), remember(), cancel()]),
-        scorer=includes(),
-        # Default sandbox image: its ~955 MB /root is mostly /root/.cache,
-        # which auto-home mode excludes — so the egress stays small without a
-        # custom small-home image, and this exercises that exclude for real.
-        sandbox="docker",
-        checkpoint=CheckpointConfig(
-            trigger=TurnInterval(every=1),
-            # No sandbox_paths: the default sandbox's $HOME is auto-captured.
-            retention="retain",
-        ),
+@skip_if_no_anthropic
+@skip_if_no_docker
+@pytest.mark.slow
+@flaky_retry(max_retries=2)
+def test_checkpoint_resume_restores_assistant_internal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A real Anthropic model's thinking blocks survive a hard-kill + resume.
+
+    With extended thinking on, the provider records thinking blocks (keyed by
+    signature) in its per-sample assistant-internal state. This drives one
+    tool turn — so a checkpoint with a recorded block commits — then
+    ``SIGKILL``s the eval, and resumes.
+
+    Two artifact assertions (resume *succeeding* can't catch a regression: the
+    request builder reconstructs a thinking block from the message's own
+    ``ContentReasoning`` on a cache miss, so a broken restore degrades fidelity
+    rather than erroring):
+
+    1. the killed attempt dumped real thinking-block signatures into its
+       checkpoint host context (real-provider serialization works); and
+    2. those signatures reappear in the *resume's* own checkpoint dump —
+       replaying history never re-records them, so they're present only if
+       restore put them back into the live assistant-internal state.
+    """
+    crash_file = tmp_path / "crashed.txt"
+    monkeypatch.setenv(CRASH_FILE_ENV, str(crash_file))
+
+    log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
+
+    # flaky-retry re-runs this body in-process reusing `tmp_path`. Both the
+    # crash marker and the log dir are stateful on disk: a stale crash marker
+    # would skip the kill, and stale checkpoints would trip the `crash` tool's
+    # "thinking checkpoint committed" gate before this run commits its own.
+    # Reset both so every attempt starts clean.
+    crash_file.unlink(missing_ok=True)
+    shutil.rmtree(log_dir, ignore_errors=True)
+
+    projects_before = _inspect_projects()
+    try:
+        _run_interrupted_attempt(
+            log_dir, None, tests_dir, harness_name="resume_kill_thinking_harness.py"
+        )
+        killed_log = _latest_log(log_dir)
+        prekill_sigs = _thinking_signatures(killed_log)
+        assert prekill_sigs, (
+            "no Anthropic thinking-block signatures were checkpointed before "
+            "the kill — the model may not have thought + called a tool before "
+            "the first checkpoint fired"
+        )
+
+        resume = eval_retry(
+            read_eval_log(killed_log), log_dir=log_dir, display="plain"
+        )[0]
+    finally:
+        for name in _inspect_projects() - projects_before:
+            _force_remove_project(name)
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 1
+    assert resume.samples[0].error is None
+
+    postresume_sigs = _thinking_signatures(resume.location)
+    assert prekill_sigs <= postresume_sigs, (
+        "pre-kill thinking-block signatures are missing from the resume's own "
+        "checkpoint dump — assistant-internal state was not restored on resume"
     )
 
 
 @skip_if_no_docker
 @pytest.mark.slow
-def test_checkpoint_resume_runs_to_completion(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("interrupt", ["SIGKILL", "SIGINT"])
+def test_checkpoint_resume_rehydrated_event_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: str
 ) -> None:
-    monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
-    # Opt into per-snapshot file listing so the ckpt JSON records the
-    # sandbox file paths (exercises host-side `restic ls` on the egressed
-    # sandbox repo).
-    monkeypatch.setenv("INSPECT_CHECKPOINT_LIST_FILES", "1")
-    _resume_state.cancelled = False
-    _resume_state.generates = 0
+    """Resume works whether the eval was hard-killed or Ctrl-C'd.
+
+    Ctrl-C (SIGINT) runs a lot of graceful cleanup a hard kill skips —
+    sandbox teardown, log finalize, a sample logged with a cancellation
+    error — so it reaches checkpoint resume down a different path than
+    the SIGKILL case, and gets the same result.
+    """
+    # Crash count (host file) + target are inherited by the child processes.
+    cancel_file = tmp_path / "cancels.txt"
+    monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
+    monkeypatch.setenv(TARGET_ENV, "2")
+    # The crash count is stateful on disk. Under flaky-retry (this test is
+    # `_needs_flaky_retry` via `skip_if_no_docker`) the body re-runs with the
+    # same `tmp_path`, so reset it — otherwise a retry would inherit a
+    # count >= target, no attempt would crash, and the retry would
+    # spuriously fail.
+    cancel_file.unlink(missing_ok=True)
 
     log_dir = str(tmp_path / "logs")
+    tests_dir = Path(__file__).parent.parent
 
-    # --- initial attempt: cancels mid-run after checkpoints commit ---------
-    log = eval(resume_decode_task(), model=SCRIPTED_MODEL, log_dir=log_dir)[0]
-    assert log.status == "error"
-    assert _resume_state.cancelled is True
-    assert _resume_state.generates >= 3  # bash, remember, cancel
+    # A hard kill skips sandbox teardown, so each killed attempt leaks its
+    # sandbox container. Track inspect projects before/after and force-remove
+    # the ones this test leaks (the final resume cleans up its own).
+    projects_before = _inspect_projects()
+    try:
+        # --- attempt #0: fresh eval, interrupted at turn 2 (after ck1/ck2) --
+        _run_interrupted_attempt(log_dir, None, tests_dir, interrupt)
 
-    # --- retry: resume from checkpoint and run to completion ---------------
-    _resume_state.generates = 0
-    retry_log = eval_retry(log, log_dir=log_dir)[0]
+        leaked = [
+            cid
+            for name in _inspect_projects() - projects_before
+            for cid in _project_container_ids(name)
+        ]
+        if interrupt == "SIGKILL":
+            # The hard kill leaves the attempt's sandbox container running —
+            # probe it for the restic dir's location and permissions.
+            assert leaked, "expected the killed attempt to leak its sandbox container"
+            _assert_restic_dir_hidden(leaked[0])
+        else:
+            assert not leaked, f"Ctrl-C should tear down the sandbox; leaked {leaked}"
 
-    assert retry_log.status == "success"
-    assert retry_log.samples is not None and len(retry_log.samples) == 1
-    sample = retry_log.samples[0]
+        # --- attempt #1: resume, work one turn (ck3), interrupt at turn 3 ---
+        _run_interrupted_attempt(log_dir, _latest_log(log_dir), tests_dir, interrupt)
+
+        # --- final resume: runs in this process, to completion --------------
+        reset_generates()
+        resume = eval_retry(read_eval_log(_latest_log(log_dir)), log_dir=log_dir)[0]
+    finally:
+        for name in _inspect_projects() - projects_before:
+            _force_remove_project(name)
+
+    assert resume.status == "success"
+    assert resume.samples is not None and len(resume.samples) == 1
+    sample = resume.samples[0]
     assert sample.error is None
 
-    # resume restored the prior conversation, so only the remaining turns ran
-    # (one bash + submit = 2 generates; a fresh re-run would have redone the
-    # turn-0 bash + turn-1 remember as well).
-    assert _resume_state.generates == 2
+    # the final resume restored the full prior conversation, so only the
+    # remaining turns ran (one bash + submit = 2 generates; a fresh re-run
+    # would have redone the earlier turns as well).
+    assert generates() == 2
 
     # the restored + completed run scored correct
     assert sample.scores is not None
     assert sample.scores["includes"].value == CORRECT
     assert LAYER1_CONTENT in sample.output.completion
 
-    # --- examine the completed .eval: restore span + checkpoint events -----
-    completed = read_eval_log(retry_log.location)
+    # --- examine the completed .eval: restore spans + checkpoint events ----
+    completed = read_eval_log(resume.location)
     assert completed.samples is not None
     events = completed.samples[0].events
 
-    # the rehydrated history is wrapped in a single "checkpoint restore" span
-    # (type "prior_run")
+    # the rehydrated wraps must be self-contained, balanced subtrees — not
+    # closed while restored structural spans are still open (the regression)
+    assert_spans_balanced(events)
+
+    # each resume contributed one "checkpoint restore" (prior_run) wrap,
+    # sequentially numbered
     restore_spans = [
         e for e in events if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
     ]
-    assert len(restore_spans) == 1
-    restore_span = restore_spans[0]
-    assert restore_span.name.startswith("checkpoint restore")
+    assert [s.name for s in restore_spans] == [
+        "checkpoint restore 1",
+        "checkpoint restore 2",
+    ]
 
-    # events contained by that span (between its begin and matching end)
-    begin_idx = next(
-        i
-        for i, e in enumerate(events)
-        if isinstance(e, SpanBeginEvent) and e.id == restore_span.id
-    )
-    end_idx = next(
-        i
-        for i, e in enumerate(events)
-        if isinstance(e, SpanEndEvent) and e.id == restore_span.id
-    )
-    restored = events[begin_idx + 1 : end_idx]
+    # index range each wrap spans (begin..matching end)
+    def _span_range(span_id: str) -> tuple[int, int]:
+        begin_idx = next(
+            i
+            for i, e in enumerate(events)
+            if isinstance(e, SpanBeginEvent) and e.id == span_id
+        )
+        end_idx = next(
+            i
+            for i, e in enumerate(events)
+            if isinstance(e, SpanEndEvent) and e.id == span_id
+        )
+        return begin_idx, end_idx
 
-    # a CheckpointEvent for each checkpoint that fired in the initial attempt,
-    # all rehydrated inside the restore span
+    wrap_ranges = [_span_range(s.id) for s in restore_spans]
+
+    def _in_wrap(i: int) -> bool:
+        return any(begin < i < end for begin, end in wrap_ranges)
+
+    # every checkpoint that fired before a kill is rehydrated inside a wrap:
+    # ckpt-1/ckpt-2 (initial attempt) and ckpt-3 (first resume).
     restored_checkpoint_ids = {
-        e.checkpoint_id for e in restored if isinstance(e, CheckpointEvent)
-    }
-    assert restored_checkpoint_ids == {1, 2}
-
-    # the prior tool activity was rehydrated inside the span too
-    restored_tools = {e.function for e in restored if isinstance(e, ToolEvent)}
-    assert {"bash", "remember"} <= restored_tools
-
-    # a checkpoint committed *during* the retry shows up as a CheckpointEvent
-    # outside the restore span (the live resumed session), continuing the
-    # numbering past the restored ones.
-    new_checkpoint_ids = {
         e.checkpoint_id
         for i, e in enumerate(events)
-        if isinstance(e, CheckpointEvent) and not (begin_idx < i < end_idx)
+        if isinstance(e, CheckpointEvent) and _in_wrap(i)
     }
-    assert new_checkpoint_ids == {3}
+    assert restored_checkpoint_ids == {1, 2, 3}
+
+    # the prior tool activity was rehydrated inside the wraps too
+    restored_tools = {
+        e.function
+        for i, e in enumerate(events)
+        if isinstance(e, ToolEvent) and _in_wrap(i)
+    }
+    assert {"bash", "remember"} <= restored_tools
+
+    # the checkpoints committed *during* the final resume are live — outside
+    # any wrap — and continue the numbering past the restored ones: ckpt-4 is
+    # the post-resume turn fire, ckpt-5 is the `agent_complete` finalize fired
+    # when the agent loop exits cleanly (the scoring-phase resume marker).
+    new_checkpoints = {
+        (e.checkpoint_id, e.trigger)
+        for i, e in enumerate(events)
+        if isinstance(e, CheckpointEvent) and not _in_wrap(i)
+    }
+    assert new_checkpoints == {(4, "turn"), (5, "agent_complete")}
 
     # File listing (opt-in) records each sandbox snapshot's added/changed
     # files (diff vs parent), not the whole tree.
@@ -326,50 +471,3 @@ def test_checkpoint_resume_runs_to_completion(
         p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
     )
     assert ckpt3_details.additional_files is None
-
-
-@skip_if_no_docker
-@pytest.mark.slow
-@pytest.mark.xfail(
-    reason="resume rehydrates the prior run's still-open structural spans "
-    "(solvers/react, open at checkpoint-fire time) as raw span_begins with "
-    "no matching span_end, so the `prior_run` wrap closes out of order. "
-    "Regressed in #4062 (bounded transcript store dropped the "
-    "checkpoint-spans-only capture boundary). Remove xfail once the "
-    "rehydrated wrap is span-balanced again.",
-    strict=True,
-)
-def test_checkpoint_resume_spans_balanced(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The resumed run's committed transcript must be span-balanced.
-
-    Same cancel-then-retry flow as
-    ``test_checkpoint_resume_runs_to_completion``, but asserts structural
-    well-formedness of the event stream rather than content presence — the
-    one check that catches the rehydration regression.
-    """
-    monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
-    _resume_state.cancelled = False
-    _resume_state.generates = 0
-
-    log_dir = str(tmp_path / "logs")
-
-    # initial attempt: cancels mid-run after checkpoints commit
-    log = eval(resume_decode_task(), model=SCRIPTED_MODEL, log_dir=log_dir)[0]
-    assert log.status == "error"
-
-    # the cancelled run's own transcript closes its spans on interrupt unwind
-    initial = read_eval_log(log.location)
-    assert initial.samples is not None
-    assert_spans_balanced(initial.samples[0].events)
-
-    # retry: resume from checkpoint and run to completion
-    retry_log = eval_retry(log, log_dir=log_dir)[0]
-    assert retry_log.status == "success"
-
-    # the rehydrated `prior_run` wrap must be a self-contained, balanced
-    # subtree — not closed while restored structural spans are still open
-    completed = read_eval_log(retry_log.location)
-    assert completed.samples is not None
-    assert_spans_balanced(completed.samples[0].events)

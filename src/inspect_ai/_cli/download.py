@@ -1,14 +1,11 @@
-"""Hidden CLI commands for inspect-managed binary downloads.
+"""CLI commands for inspect-managed binary downloads.
 
 Currently exposes a single subcommand, ``restic``, which pre-warms the
 restic binary cache (every supported platform) so that a checkpointed
 eval starts without waiting for downloads.
 
-The command group is hidden (``hidden=True``) for now: checkpointing
-itself is not yet user-visible, so exposing the command surface to
-customers would advertise functionality that has nothing to do. Shape
-is ``inspect download <kind>`` so other downloadable artifacts can slot
-in without restructuring the namespace.
+Shape is ``inspect download <kind>`` so other downloadable artifacts
+can slot in without restructuring the namespace.
 """
 
 import anyio
@@ -26,12 +23,12 @@ from inspect_ai.util._restic import (
 )
 
 
-@click.group("download", hidden=True)
+@click.group("download")
 def download_command() -> None:
-    """Inspect-managed binary downloads (hidden; internal use)."""
+    """Inspect-managed binary downloads."""
 
 
-@download_command.command("restic", hidden=True)
+@download_command.command("restic")
 def restic_command() -> None:
     """Pre-warm the restic binary cache for every supported platform."""
     anyio.run(_download_all_restic, backend=configured_async_backend())

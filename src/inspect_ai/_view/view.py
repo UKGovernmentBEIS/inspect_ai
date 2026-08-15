@@ -15,6 +15,7 @@ from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
 
+from .network import resolve_viewer_network_policy
 from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ def view(
     authorization: str | None = None,
     log_level: str | None = None,
     fs_options: dict[str, Any] = {},
+    trusted_origins: tuple[str, ...] = (),
+    trusted_hosts: tuple[str, ...] = (),
+    unsafe_allow_unauthenticated: bool = False,
 ) -> None:
     """Run the Inspect View server.
 
@@ -42,6 +46,11 @@ def view(
         fs_options: Additional arguments to pass through to the filesystem provider
             (e.g. `S3FileSystem`). Use `{"anon": True }` if you are accessing a
             public S3 bucket with no credentials.
+        trusted_origins: Exact browser origins allowed to use the viewer.
+        trusted_hosts: Additional exact HTTP authorities allowed for non-browser
+            clients.
+        unsafe_allow_unauthenticated: Allow a non-loopback bind without request
+            authorization.
     """
     init_dotenv()
     init_logger(log_level)
@@ -49,6 +58,15 @@ def view(
     # initialize the log_dir
     if not log_dir:
         log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
+
+    network_policy = resolve_viewer_network_policy(
+        bind_host=host,
+        port=port,
+        trusted_hosts=trusted_hosts,
+        trusted_origins=trusted_origins,
+        authorization=authorization,
+        unsafe_allow_unauthenticated=unsafe_allow_unauthenticated,
+    )
 
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
@@ -60,7 +78,7 @@ def view(
         recursive=recursive,
         host=host,
         port=port,
-        authorization=authorization,
+        network_policy=network_policy,
         fs_options=fs_options,
     )
 

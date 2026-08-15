@@ -9,10 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
 
-import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
@@ -49,7 +46,7 @@ from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -93,7 +90,15 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+from ._model_output import (
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    StopReason,
+    as_stop_reason,
+    collect_stop_details,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +123,17 @@ def is_o_series_model(model_name: str) -> bool:
     if bool(re.match(r"^o\d+", name)):
         return True
     return "gpt" not in name and bool(re.search(r"o\d+", name))
+
+
+_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
+
+
+def supports_native_max_reasoning_effort(model_name: str) -> bool:
+    """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
+    match = _GPT_VERSION_RE.match(model_name.lower())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
 
 
 def needs_max_completion_tokens(model_name: str) -> bool:
@@ -295,6 +311,20 @@ async def messages_to_openai(
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
     """
     return [await openai_chat_message(message, system_role) for message in messages]
+
+
+def fill_empty_assistant_content(
+    messages: list[ChatCompletionMessageParam],
+) -> list[ChatCompletionMessageParam]:
+    """Replace empty assistant message content with NO_CONTENT.
+
+    Some services (e.g. Moonshot, and CloudFlare gateway-hosted models)
+    reject requests that replay an assistant message with empty content.
+    """
+    for message in messages:
+        if message["role"] == "assistant" and not message.get("content"):
+            message["content"] = NO_CONTENT
+    return messages
 
 
 def openai_completion_params(
@@ -896,6 +926,53 @@ def model_output_from_openai(
     )
 
 
+def openai_stop_details(choice: Any) -> StopDetails | None:
+    """Extract refusal/content-filter detail from an OpenAI-style `Choice`.
+
+    Covers the OpenAI SDK family (OpenAI, Azure OpenAI, DeepSeek, vLLM, LM Studio,
+    Together, Groq). Refusal text comes from `message.refusal`; Azure adds a
+    `content_filter_results` object (a declared field on some SDK versions,
+    otherwise under `model_extra`).
+    """
+    message = getattr(choice, "message", None)
+    explanation = getattr(message, "refusal", None) if message is not None else None
+
+    # Azure content filtering: declared field, else under model_extra (OpenAI SDK)
+    # or additional_properties (azure.ai.inference SDK)
+    filter_results = getattr(choice, "content_filter_results", None)
+    if filter_results is None:
+        extra = getattr(choice, "model_extra", None) or getattr(
+            choice, "additional_properties", None
+        )
+        if isinstance(extra, dict):
+            filter_results = extra.get("content_filter_results")
+
+    # Only categories that actually triggered filtering count — `detected` alone
+    # (e.g. protected-material/jailbreak flagged but not blocked) can appear on a
+    # normal `stop` completion and must not be reported as a stop reason.
+    categories: list[StopCategory] = []
+    if isinstance(filter_results, dict):
+        for name, info in filter_results.items():
+            if isinstance(info, dict) and info.get("filtered"):
+                level = info.get("severity")
+                categories.append(
+                    StopCategory(
+                        category=str(name),
+                        level=str(level) if level is not None else None,
+                    )
+                )
+
+    if not categories and not explanation:
+        return None
+
+    finish_reason = getattr(choice, "finish_reason", None)
+    return StopDetails(
+        type="content_filter" if finish_reason == "content_filter" else "refusal",
+        explanation=explanation,
+        categories=categories,
+    )
+
+
 def chat_choices_from_openai(
     response: ChatCompletion,
     tools: list[ToolInfo],
@@ -912,6 +989,9 @@ def chat_choices_from_openai(
                 response.model, choice.message, tools, reasoning_extractor
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
+            stop_details=collect_stop_details(
+                "openai", logger, functools.partial(openai_stop_details, choice)
+            ),
             logprobs=(
                 Logprobs(**choice.logprobs.model_dump())
                 if choice.logprobs and choice.logprobs.content is not None
@@ -1089,6 +1169,7 @@ def openai_handle_bad_request(
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
+    stop_details: StopDetails | None = None
     if e.code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
@@ -1099,10 +1180,22 @@ def openai_handle_bad_request(
         or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
+        if e.code == "cyber_policy":
+            stop_details = StopDetails(
+                type="refusal",
+                category="cyber",
+                explanation=content,
+                categories=[StopCategory(category="cyber")],
+            )
+        else:
+            stop_details = StopDetails(type="refusal", explanation=content)
 
     if stop_reason:
         return ModelOutput.from_content(
-            model=model_name, content=content, stop_reason=stop_reason
+            model=model_name,
+            content=content,
+            stop_reason=stop_reason,
+            stop_details=stop_details,
         )
     else:
         return e
@@ -1126,22 +1219,3 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that uses OpenAI's default settings.
-
-    This ensures proper proxy support and follows OpenAI's recommended configuration.
-    OpenAI has already incorporated timeout improvements for reasoning models in their
-    default transport, so we don't need custom socket options.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # Use OpenAI's default settings which handle proxies correctly
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        super().__init__(**kwargs)

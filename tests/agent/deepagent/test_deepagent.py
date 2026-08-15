@@ -56,6 +56,10 @@ def test_deepagent_end_to_end() -> None:
     tool_event = get_tool_event(log)
     assert tool_event is not None
     assert tool_event.function == "agent"
+    # The dispatch must have SUCCEEDED. Without this the test passes on a tool parse error
+    # too (a rejected call still emits an "agent" ToolEvent and the eval still succeeds), so
+    # it silently tolerated a broken dispatch.
+    assert tool_event.error is None
 
 
 def _resolve_attachment(sample, text: str) -> str:
@@ -153,7 +157,6 @@ def test_deepagent_forked_subagent_inherits_parallel_guidance() -> None:
                 model="mockllm/model",
                 tool_name="agent",
                 tool_arguments={
-                    "subagent_type": "forked_helper",
                     "prompt": "Help me.",
                 },
             ),

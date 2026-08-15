@@ -1,9 +1,11 @@
 import abc
+import json
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Literal, Protocol, TypeAlias
+from logging import getLogger
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias
 
-from pydantic import BaseModel, JsonValue
+from pydantic import BaseModel, ConfigDict, JsonValue
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 
@@ -12,7 +14,31 @@ from ..._log import EvalSampleSummary
 if TYPE_CHECKING:
     from .history import SampleHistory
 
+logger = getLogger(__name__)
+
 JsonData: TypeAlias = dict[str, JsonValue]
+
+
+def parse_sample_metadata(
+    contents: str | bytes,
+    *,
+    id: str | int,
+    epoch: int,
+) -> dict[str, Any] | None:
+    """Parse persisted sample metadata, warning when it is not a JSON object."""
+    try:
+        value = json.loads(contents)
+        if not isinstance(value, dict):
+            raise ValueError("sample metadata must be a JSON object")
+        return value
+    except ValueError as ex:
+        logger.warning(
+            "Unable to read sample metadata for id=%s epoch=%s: %s",
+            id,
+            epoch,
+            ex,
+        )
+        return None
 
 
 class TranscriptEventSink(Protocol):
@@ -37,6 +63,8 @@ class TranscriptEventSink(Protocol):
 
 
 class Samples(BaseModel):
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     samples: list[EvalSampleSummary]
     metrics: list[TaskDisplayMetric]
     refresh: int
@@ -76,6 +104,8 @@ class CallPoolData(BaseModel):
 
 
 class SampleData(BaseModel):
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     events: list[EventData]
     attachments: list[AttachmentData]
     message_pool: list[MessagePoolData] = []
@@ -150,6 +180,11 @@ class SampleBuffer(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def get_sample_metadata(self, id: str | int, epoch: int) -> dict[str, Any] | None:
+        """Get the full metadata persisted for a sample, if available."""
+        ...
+
+    @abc.abstractmethod
     def sample_event_count(self, id: str | int, epoch: int) -> int:
         """Return the number of distinct events recorded for a sample."""
         ...
@@ -173,7 +208,13 @@ class SampleBuffer(abc.ABC):
         epoch: int,
         n: int,
     ) -> AbstractContextManager["SampleHistory"]:
-        """Open a consistent snapshot of the last ``n`` sample events."""
+        """Open a consistent snapshot of the last ``n`` sample events.
+
+        The yielded history is page-scoped: its pools carry only the entries
+        referenced by the page's events (position-keyed, possibly sparse) and
+        ``SampleHistory.events_data`` raises ``RuntimeError``. Use
+        ``open_sample_history`` when dense full pools are required.
+        """
         ...
 
     @abc.abstractmethod
@@ -182,8 +223,19 @@ class SampleBuffer(abc.ABC):
         id: str | int,
         epoch: int,
         start: int,
+        limit: int | None = None,
     ) -> AbstractContextManager["SampleHistory"]:
-        """Open a consistent sample-history snapshot from ``start`` onward."""
+        """Open a consistent sample-history snapshot from ``start`` onward.
+
+        ``limit`` caps the number of events read (``None`` = through the end),
+        so cursored page readers don't materialize the full remaining history
+        to serve one page.
+
+        The yielded history is page-scoped: its pools carry only the entries
+        referenced by the page's events (position-keyed, possibly sparse) and
+        ``SampleHistory.events_data`` raises ``RuntimeError``. Use
+        ``open_sample_history`` when dense full pools are required.
+        """
         ...
 
     @abc.abstractmethod

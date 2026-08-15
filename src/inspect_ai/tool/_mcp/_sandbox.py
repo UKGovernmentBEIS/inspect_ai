@@ -11,7 +11,6 @@ from mcp.types import (
     INTERNAL_ERROR,
     ErrorData,
     JSONRPCError,
-    JSONRPCMessage,
     JSONRPCNotification,
 )
 
@@ -27,9 +26,24 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_t
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 
+from ._compat import (
+    JSONRPC_MESSAGE_VALIDATOR,
+    jsonrpc_message,
+    jsonrpc_message_root,
+)
 from ._context import MCPServerContext
 
 logger = getLogger(__name__)
+
+# Default per-request timeout (seconds) applied when a sandbox MCP server is
+# created without an explicit `timeout`. Shared so the in-sandbox transport
+# timeout and the host-side MCP read timeout normalize to the same value.
+DEFAULT_SANDBOX_TIMEOUT = 180
+
+# Upper bound (seconds) on the best-effort server shutdown performed during
+# `sandbox_client` teardown. Kept short and independent of the per-request
+# timeout so a slow/broken transport cannot stall teardown.
+_KILL_SERVER_TIMEOUT = 30
 
 
 # Pardon the type: ignore's here. This code is a modified clone of Anthropic code
@@ -43,9 +57,9 @@ async def sandbox_client(  # type: ignore
     *,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
-    timeout: int | None = None,  # default 180 seconds
+    timeout: int | None = None,  # default DEFAULT_SANDBOX_TIMEOUT seconds
 ) -> MCPServerContext:  # type: ignore
-    timeout = timeout or 180
+    timeout = timeout or DEFAULT_SANDBOX_TIMEOUT
     sandbox_environment = await sandbox_with_injected_tools(sandbox_name=sandbox_name)
 
     # Create transport for all RPC calls
@@ -89,7 +103,7 @@ async def sandbox_client(  # type: ignore
             async with write_stream_reader:
                 # This reads messages until the stream is closed
                 async for message in write_stream_reader:
-                    root = message.message.root
+                    root = jsonrpc_message_root(message.message)
                     if isinstance(root, JSONRPCRequest):
                         try:
                             response = await exec_model_request(
@@ -98,7 +112,7 @@ async def sandbox_client(  # type: ignore
                                     "session_id": session_id,
                                     "request": root.model_dump(),
                                 },
-                                result_type=JSONRPCMessage,
+                                result_type=JSONRPC_MESSAGE_VALIDATOR,
                                 transport=transport,
                                 error_mapper=SandboxToolsErrorMapper,
                                 timeout=timeout,
@@ -119,7 +133,7 @@ async def sandbox_client(  # type: ignore
                                 error_message = f"MCP request failed before completing ({type(ex).__name__}): {ex}"
                             await send_to_read_stream(
                                 SessionMessage(
-                                    message=JSONRPCMessage(
+                                    message=jsonrpc_message(
                                         JSONRPCError(
                                             jsonrpc="2.0",
                                             id=root.id,
@@ -134,7 +148,9 @@ async def sandbox_client(  # type: ignore
                             )
                             continue
                         await send_to_read_stream(
-                            SessionMessage(message=response),
+                            SessionMessage(
+                                message=jsonrpc_message(jsonrpc_message_root(response))
+                            ),
                         )
                     elif isinstance(root, JSONRPCNotification):
                         try:
@@ -173,11 +189,26 @@ async def sandbox_client(  # type: ignore
         try:
             yield read_stream, write_stream
         finally:
-            await exec_scalar_request(
-                method="mcp_kill_server",
-                params={"session_id": session_id},
-                result_type=type(None),
-                transport=transport,
-                error_mapper=SandboxToolsErrorMapper,
-                timeout=timeout,
-            )
+            # Best-effort server shutdown. This runs while the surrounding task
+            # group is being torn down, so it must neither hang nor raise: a
+            # slow or broken transport here would otherwise corrupt the
+            # cancel-scope unwinding and surface as an inscrutable "Attempted to
+            # exit a cancel scope ..." RuntimeError that masks the real failure.
+            # We shield so a pending outer cancellation can't abort the kill
+            # mid-flight, bound it with our own deadline, and swallow any error.
+            try:
+                with anyio.move_on_after(_KILL_SERVER_TIMEOUT, shield=True):
+                    await exec_scalar_request(
+                        method="mcp_kill_server",
+                        params={"session_id": session_id},
+                        result_type=type(None),
+                        transport=transport,
+                        error_mapper=SandboxToolsErrorMapper,
+                        timeout=_KILL_SERVER_TIMEOUT,
+                    )
+            except Exception as ex:
+                logger.warning(
+                    "Sandbox MCP server shutdown failed (%s): %s",
+                    type(ex).__name__,
+                    ex,
+                )

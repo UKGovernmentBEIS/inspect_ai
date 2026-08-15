@@ -134,6 +134,11 @@ class RichDisplay(Display):
             self.live = None
 
     @override
+    def update_task_count(self, n: int) -> None:
+        self.total_tasks += n
+        self._update_display()
+
+    @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         # for typechekcer

@@ -7,6 +7,7 @@ from typing import Any
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
+from inspect_ai.log._config_update import ConfigUpdate
 from inspect_ai.log._log import EvalPlan, EvalSample, EvalSampleSummary, EvalSpec
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
@@ -16,6 +17,7 @@ from inspect_ai.log._recorders.eval import (
     SUMMARIES_JSON,
     SUMMARY_DIR,
     LogStart,
+    _read_config_updates_async,
 )
 from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
@@ -41,6 +43,9 @@ class CrashedEvalLog:
 
     sample_entries: list[str] = field(default_factory=list)
     """ZIP entry names for flushed samples (e.g. 'samples/sample_1_1.json')."""
+
+    config_updates: list[ConfigUpdate] = field(default_factory=list)
+    """Mid-run config changes from journal flushes (see `EvalLog.config_updates`)."""
 
 
 async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
@@ -78,6 +83,9 @@ async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
         # Read journal summaries
         summaries = await _read_journal_summaries(reader, entry_names)
 
+        # Read journaled config updates (mid-run ctl retunes)
+        config_updates, _ = await _read_config_updates_async(reader)
+
         # Collect sample entry names (don't read the data)
         sample_entries = sorted(
             name
@@ -92,6 +100,7 @@ async def read_crashed_eval_log(location: str) -> CrashedEvalLog:
             plan=start.plan,
             summaries=summaries,
             sample_entries=sample_entries,
+            config_updates=config_updates,
         )
 
 

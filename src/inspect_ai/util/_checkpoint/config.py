@@ -3,9 +3,7 @@
 These dataclasses are the public surface that users construct when
 configuring checkpointing on a :class:`Sample`, :class:`Task`, or
 ``eval(...)``. Configs at different levels are combined via per-field
-merging — see :func:`merge_checkpoint_configs` in this module. The
-full semantic model is described in
-``design/plans/checkpointing-working.md`` §2.
+merging — see :func:`merge_checkpoint_configs` in this module.
 
 Every field on :class:`CheckpointConfig` defaults to ``None`` so that
 "not set at this level" is distinguishable from "explicitly set to a
@@ -17,18 +15,28 @@ filled in with their canonical defaults.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ._triggers import CheckpointTrigger, TokenInterval
+
+if TYPE_CHECKING:
+    from inspect_ai.solver._task_state import TaskState
+    from inspect_ai.util._checkpoint.report import ResumeReport
+
+    OnCheckpointCallback = Callable[[TaskState], Awaitable[None]]
+    OnResumeCallback = Callable[
+        [TaskState, Literal["initial", "resume", "resume_for_scoring"]],
+        Awaitable["ResumeReport | str | None"],
+    ]
 
 DEFAULT_CHECKPOINT_TRIGGER = TokenInterval(every=500_000)
 """Trigger used when checkpointing is enabled but no layer set a trigger."""
 
 MAX_LISTED_FILES = 100
-"""Max files recorded per snapshot in a checkpoint file when file listing
-is enabled (``INSPECT_CHECKPOINT_LIST_FILES``); the count beyond this is
-recorded in ``additional_files``."""
+"""Max files recorded per snapshot in a checkpoint file; the count beyond
+this is recorded in ``additional_files``."""
 
 
 @dataclass
@@ -39,12 +47,10 @@ class CheckpointSampleConfig:
     also accepted at the task and eval layers (where they participate in
     the per-field merge — precedence: eval > sample > task).
 
-    The fields excluded from this base class — ``checkpoints_dir`` and
-    ``retention`` — are eval-wide concerns that the sample layer must
+    The fields excluded from this base class — ``checkpoints_location``
+    and ``retention`` — are eval-wide concerns that the sample layer must
     not influence. They live only on the derived :class:`CheckpointConfig`,
     which is the type used at the task and eval layers.
-
-    See ``design/plans/checkpointing-working.md`` §2.
     """
 
     trigger: CheckpointTrigger | None = None
@@ -74,12 +80,10 @@ class CheckpointConfig(CheckpointSampleConfig):
     config; the layers are combined per-field at sample-run time
     (precedence: eval > sample > task).
 
-    Adds the eval-wide fields (``checkpoints_dir``, ``retention``) to
-    the sample-permitted base class. Sample-layer configs use the base
+    Adds the eval-wide fields (``checkpoints_location``, ``retention``)
+    to the sample-permitted base class. Sample-layer configs use the base
     :class:`CheckpointSampleConfig` directly — these fields cannot be
     set per-sample.
-
-    See ``design/plans/checkpointing-working.md`` §2.
     """
 
     checkpoints_location: str | None = None
@@ -95,6 +99,29 @@ class CheckpointConfig(CheckpointSampleConfig):
     completion; ``"retain"`` keeps it for later inspection or replay.
     ``None`` = inherit / use the default (``"delete"``). Eval-wide —
     settable only at the task or eval layer."""
+
+
+class CheckpointDisabled(CheckpointConfig):
+    """Sentinel ``CheckpointConfig`` meaning checkpointing is vetoed.
+
+    Produced by ``normalize_checkpoint(False)``. When the task or eval layer is
+    this value, checkpointing is disabled for that scope, overriding an enable
+    at any other layer (see ``checkpoint_vetoed`` and
+    ``merge_checkpoint_configs``). It subclasses ``CheckpointConfig`` so that
+    existing ``CheckpointConfig | None`` annotations accept it unchanged;
+    resolvers detect it via ``isinstance``.
+    """
+
+
+def checkpoint_vetoed(
+    task: CheckpointConfig | None, eval_: CheckpointConfig | None
+) -> bool:
+    """True if the task or eval layer vetoes checkpointing (``checkpoint=False``).
+
+    A veto at either layer disables checkpointing, overriding an enable at the
+    other. The sample layer cannot veto (it has no ``False`` form).
+    """
+    return isinstance(task, CheckpointDisabled) or isinstance(eval_, CheckpointDisabled)
 
 
 @dataclass
@@ -116,12 +143,17 @@ class ResolvedCheckpointConfig:
     retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
+    on_checkpoint: OnCheckpointCallback | None = None
+    on_resume: OnResumeCallback | None = None
 
 
 def merge_checkpoint_configs(
     task: CheckpointConfig | None = None,
     sample: CheckpointSampleConfig | None = None,
     eval_: CheckpointConfig | None = None,
+    *,
+    on_checkpoint: OnCheckpointCallback | None = None,
+    on_resume: OnResumeCallback | None = None,
 ) -> ResolvedCheckpointConfig | None:
     """Merge checkpoint config layers across task, sample, and eval.
 
@@ -131,7 +163,7 @@ def merge_checkpoint_configs(
     The sample layer is typed :class:`CheckpointSampleConfig`, so it can
     only contribute to fields shared with that base class
     (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``). The
-    eval-wide fields (``checkpoints_dir``, ``retention``) come only
+    eval-wide fields (``checkpoints_location``, ``retention``) come only
     from the task or eval layers.
 
     For every field, the highest-priority layer with a non-None value
@@ -152,6 +184,8 @@ def merge_checkpoint_configs(
     is enabled but no layer (including the sample) set a ``trigger``,
     the trigger defaults to :data:`DEFAULT_CHECKPOINT_TRIGGER`.
     """
+    if checkpoint_vetoed(task, eval_):
+        return None
     if task is None and eval_ is None:
         return None
 
@@ -187,6 +221,8 @@ def merge_checkpoint_configs(
         retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,
+        on_checkpoint=on_checkpoint,
+        on_resume=on_resume,
     )
 
 
@@ -195,14 +231,18 @@ def normalize_checkpoint(
 ) -> CheckpointConfig | None:
     """Normalize a public ``checkpoint=`` argument to a ``CheckpointConfig``.
 
-    ``True`` enables checkpointing without pinning a trigger — the
-    concrete default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved
-    per-sample by :func:`merge_checkpoint_configs`, exactly matching the
-    bare ``--checkpoint`` CLI flag. ``False`` / ``None`` disable it. A
-    :class:`CheckpointConfig` is returned unchanged.
+    ``True`` enables checkpointing without pinning a trigger — the concrete
+    default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved per-sample by
+    :func:`merge_checkpoint_configs`, matching the bare ``--checkpoint`` CLI
+    flag. ``False`` is a **veto**: it returns :class:`CheckpointDisabled`, which
+    disables checkpointing for that layer's scope, overriding an enable at
+    another layer. ``None`` inherits (no opinion). A :class:`CheckpointConfig`
+    is returned unchanged.
     """
     if checkpoint is True:
         return CheckpointConfig(trigger=None)
-    if checkpoint is False or checkpoint is None:
+    if checkpoint is False:
+        return CheckpointDisabled()
+    if checkpoint is None:
         return None
     return checkpoint

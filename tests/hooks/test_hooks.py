@@ -14,6 +14,7 @@ from inspect_ai.hooks._hooks import (
     ApiKeyOverride,
     BeforeModelGenerate,
     Hooks,
+    ModelRetry,
     ModelUsageData,
     RunEnd,
     RunStart,
@@ -48,6 +49,7 @@ class MockHooks(Hooks):
         self.sample_event_events: list[SampleEvent] = []
         self.sample_end_events: list[SampleEnd] = []
         self.model_usage_events: list[ModelUsageData] = []
+        self.model_retry_events: list[ModelRetry] = []
         self.before_model_generate_events: list[BeforeModelGenerate] = []
 
     def assert_no_events(self) -> None:
@@ -62,6 +64,7 @@ class MockHooks(Hooks):
         assert not self.sample_event_events
         assert not self.sample_end_events
         assert not self.model_usage_events
+        assert not self.model_retry_events
         assert not self.before_model_generate_events
 
     def enabled(self) -> bool:
@@ -99,6 +102,9 @@ class MockHooks(Hooks):
 
     async def on_model_usage(self, data: ModelUsageData) -> None:
         self.model_usage_events.append(data)
+
+    async def on_model_retry(self, data: ModelRetry) -> None:
+        self.model_retry_events.append(data)
 
     async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
         self.before_model_generate_events.append(data)
@@ -180,6 +186,20 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert before_gen.task_name is not None
 
 
+def test_task_start_carries_plan_including_setup_steps(
+    mock_hooks: MockHooks,
+) -> None:
+    task = Task(dataset=[Sample("sample_1")], setup=_setup_marker_solver())
+
+    eval(task, model="mockllm/model")
+
+    assert len(mock_hooks.task_start_events) == 1
+    steps = [step.solver for step in mock_hooks.task_start_events[0].plan.steps]
+    # resolve_plan unrolls setup onto the front, ahead of the solver
+    assert "_setup_marker_solver" in steps[0]
+    assert len(steps) > 1
+
+
 def test_can_subscribe_to_events_with_multiple_hooks(
     mock_hooks: MockHooks, hooks_2: MockHooks
 ) -> None:
@@ -201,6 +221,39 @@ def test_can_subscribe_to_events_with_multiple_hooks(
         assert len(h.sample_end_events) == 1
         assert len(h.model_usage_events) == 1
         assert len(h.before_model_generate_events) == 1
+
+
+def test_model_retry_hook(mock_hooks: MockHooks) -> None:
+    import anyio
+
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    anyio.run(emit_model_retry, "mockllm/model", 2, 1.5)
+
+    assert len(mock_hooks.model_retry_events) == 1
+    retry = mock_hooks.model_retry_events[0]
+    assert retry.model_name == "mockllm/model"
+    assert retry.attempt == 2
+    assert retry.wait_time == 1.5
+    # no active sample in this context, so eval/sample ids are None
+    assert retry.sample_id is None
+    assert retry.eval_id is None
+    # cause not provided, so it defaults to None
+    assert retry.exception_type is None
+    assert retry.status_code is None
+
+
+def test_model_retry_hook_carries_cause(mock_hooks: MockHooks) -> None:
+    import anyio
+
+    from inspect_ai.hooks._hooks import emit_model_retry
+
+    anyio.run(emit_model_retry, "mockllm/model", 1, 0.5, "RateLimitError", 429)
+
+    assert len(mock_hooks.model_retry_events) == 1
+    retry = mock_hooks.model_retry_events[0]
+    assert retry.exception_type == "RateLimitError"
+    assert retry.status_code == 429
 
 
 def test_hooks_on_multiple_tasks(mock_hooks: MockHooks) -> None:
@@ -641,6 +694,16 @@ def _create_mock_hooks(name: str, hooks_class: Type[T]) -> Generator[T, None, No
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry[f"hooks:{name}"]
+
+
+@solver
+def _setup_marker_solver() -> Solver:
+    """No-op setup step, so the plan has a setup entry to find."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return state
+
+    return solve
 
 
 @solver

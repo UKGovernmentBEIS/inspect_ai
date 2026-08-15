@@ -72,6 +72,9 @@ class PlainDisplay(Display):
             if self.tasks:
                 self._print_results()
 
+    def update_task_count(self, n: int) -> None:
+        self.total_tasks += n
+
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         # Print initial task information using a rich panel
@@ -105,16 +108,20 @@ class PlainDisplay(Display):
 
 
 class PlainProgress(Progress):
-    def __init__(self, total: int):
+    def __init__(self, total: int, on_update: Callable[[], None] | None = None):
         self.total = total
         self.current = 0
+        self.on_update = on_update
 
     def update(self, n: int = 1) -> None:
         self.current += n
-        # No direct printing - PlainTaskDisplay handles it
+        if self.on_update:
+            self.on_update()
 
     def complete(self) -> None:
         self.current = self.total
+        if self.on_update:
+            self.on_update()
 
 
 class PlainTaskDisplay(TaskDisplay):
@@ -132,7 +139,10 @@ class PlainTaskDisplay(TaskDisplay):
 
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]:
-        self.progress_display = PlainProgress(self.task.profile.steps)
+        self.progress_display = PlainProgress(
+            self.task.profile.steps,
+            on_update=self._print_status_throttled,
+        )
         yield self.progress_display
 
     @throttle(5)
@@ -160,9 +170,12 @@ class PlainTaskDisplay(TaskDisplay):
                 )
 
             # Add step progress
-            progress_percent = int(
-                self.progress_display.current / self.progress_display.total * 100
-            )
+            if self.progress_display.total == 0:
+                progress_percent = 100 if self.progress_display.current else 0
+            else:
+                progress_percent = int(
+                    self.progress_display.current / self.progress_display.total * 100
+                )
             status_parts.append(
                 f"Steps: {self.progress_display.current:3d}/{self.progress_display.total} {progress_percent:3d}%"
             )

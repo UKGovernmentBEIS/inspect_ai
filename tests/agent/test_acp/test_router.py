@@ -12,6 +12,7 @@ Two test styles:
 from typing import Any, cast
 
 import anyio
+import pytest
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
@@ -60,6 +61,12 @@ from inspect_ai.model._model_output import (
 from inspect_ai.tool._tool import Tool, tool
 
 from ._capture import acp_test_active_sample
+
+# Heavy socket-integration suite: real AF_UNIX round-trips + agent evals
+# (~1.3s+ per test). Marked slow to keep it off the per-PR CI critical path
+# (the slow suite runs in a separate environment); lighter ACP tests still run
+# on every PR.
+pytestmark = pytest.mark.slow
 
 # ---------------------------------------------------------------------------
 # Test helpers

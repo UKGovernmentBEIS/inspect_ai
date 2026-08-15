@@ -8,7 +8,6 @@ from inspect_ai.util._sandbox.local import LocalSandboxEnvironment
 from inspect_ai.util._sandbox.self_check import self_check
 
 
-@skip_if_no_docker
 @pytest.mark.slow
 async def test_self_check_local(request) -> None:
     task_name = f"{__name__}_{request.node.name}_local"

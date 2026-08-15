@@ -52,12 +52,6 @@
   author: "[Transluce](https://transluce.org/introducing-docent)"
   categories: ["Analysis"]
 
-- name: "[Lunette](https://docs.lunette.dev)"
-  description: |
-    Platform for understanding and improving agents.
-  author: "[Fulcrum Research](https://fulcrumresearch.ai)"
-  categories: ["Analysis"]
-
 - name: "[Inspect WandB](https://github.com/DanielPolatajko/inspect_wandb)"
   description: |
     Integration with Weights and Biases platform.
@@ -70,10 +64,28 @@
   author: "[Debu Sinha](https://github.com/debu-sinha)"
   categories: ["Analysis"]
 
+- name: "[Inspect falsify](https://github.com/studio-11-co/falsify-inspect)"
+  description: |
+    Pre-register an evaluation's success criteria (metric, threshold, dataset hash, seed) as a tamper-evident PRML manifest before the run, then verify eval logs against the locked claim via installed hooks.
+  author: "[Cüneyt Öztürk](https://falsify.dev)"
+  categories: ["Analysis"]
+
 - name: "[CJE](https://github.com/cimo-labs/cje)"
   description: |
     Calibrated judge evaluation — calibrate model-graded scorer accuracy using causal inference with optional oracle labels.
   author: "[CIMO Labs](https://cimolabs.com)"
+  categories: ["Analysis"]
+
+- name: "[Inspect Claim Support](https://github.com/avalyset/inspect-claim-support)"
+  description: |
+    Faithfulness / claim-support scorer — checks whether a claimed answer is substantiated by the transcript. Absence of evidence is not treated as support.
+  author: "[Eirik Botten Nicolaysen](https://github.com/avalyset)"
+  categories: ["Analysis"]
+
+- name: "[Inspect Judge Drift](https://github.com/avalyset/inspect-judge-drift)"
+  description: |
+    Judge-drift measurement — re-grades a stored eval log with two graders over the same samples, so the judge model is the only variable. Grade-parse failures are reported as unscored, never fabricated into verdicts.
+  author: "[Eirik Botten Nicolaysen](https://github.com/avalyset)"
   categories: ["Analysis"]
 
 - name: "[Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/)"
@@ -86,6 +98,12 @@
   description: |
     Platform for running Inspect AI evaluations on cloud infrastructure. 
   author: "[METR](https://github.com/METR/hawk)"
+  categories: ["Tooling"]
+
+- name: "[Optstop](https://github.com/UKGovernmentBEIS/optstop)"
+  description: |
+    Adaptive optimal stopping algorithms to help efficiently determine when enough data has been collected to make reliable inferences.
+  author: "[UK AISI](https://github.com/UKGovernmentBEIS/optstop)"
   categories: ["Tooling"]
 
 - name: "[Evaljobs](https://github.com/dvsrepo/evaljobs)"
@@ -157,3 +175,9 @@
     Automatically load pricing data for models under test.
   author: "[Jason Gwartz](https://github.com/jasongwartz)"
   categories: ["Tooling"]
+
+- name: "[EvalPort](https://github.com/adhabnr-ux/evalport)"
+  description: |
+    Open standard for portable LLM evaluation datasets. Convert between Inspect AI and other eval frameworks (DeepEval, Promptfoo, LangSmith, etc.) using a portable JSON format.
+  author: "[Sahi Katukojula](https://github.com/adhabnr-ux)"
+  categories: ["Frameworks"]

@@ -5,10 +5,15 @@ import shutil
 import subprocess
 import sys
 import warnings
+from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import boto3
 import pytest
 from moto.server import ThreadedMotoServer
+
+if TYPE_CHECKING:
+    from test_helpers.chunked_corpus import ChunkedCorpus
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "helpers"))
 
@@ -65,10 +70,216 @@ def local_inspect_tools(request):
     return request.config.getoption("--local-inspect-tools")
 
 
+# Chunked-format corpora (large-samples effort): converted once per
+# session; imports are function-local so conftest stays light for runs
+# that never request them.
+
+
+@pytest.fixture(scope="session")
+def chunked_corpus(tmp_path_factory: pytest.TempPathFactory) -> "ChunkedCorpus":
+    """Chunked conversions of every test `.eval` log (default chunk size).
+
+    Realistic writer-policy corpus: most samples fit a single chunk.
+    """
+    from test_helpers.chunked_corpus import build_chunked_corpus
+
+    from inspect_ai.log._recorders.chunked.format import DEFAULT_CHUNK_SIZE
+
+    return build_chunked_corpus(
+        tmp_path_factory.mktemp("chunked_corpus"), DEFAULT_CHUNK_SIZE
+    )
+
+
+@pytest.fixture(scope="session")
+def chunked_corpus_small_chunks(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> "ChunkedCorpus":
+    """Chunked conversions with a tiny chunk size (multi-chunk samples)."""
+    from test_helpers.chunked_corpus import (
+        CORPUS_SMALL_CHUNK_SIZE,
+        build_chunked_corpus,
+    )
+
+    return build_chunked_corpus(
+        tmp_path_factory.mktemp("chunked_corpus_small"), CORPUS_SMALL_CHUNK_SIZE
+    )
+
+
+@pytest.fixture(autouse=True)
+def fast_retry_waits(request):
+    """Zero out model-generate and chat-API retry backoff during tests.
+
+    Both retry paths default to ``wait_exponential_jitter(initial=3, ...)`` /
+    ``wait_exponential_jitter()``, so any test that exercises a retry waits a
+    real 3s + 6s + ... per attempt. The backoff *duration* is never the thing
+    under test, so we replace the module-level ``wait_exponential_jitter`` with
+    a no-wait stand-in. Tests that genuinely assert on backoff timing can opt
+    out with ``@pytest.mark.real_retry_wait``.
+    """
+    if request.node.get_closest_marker("real_retry_wait"):
+        yield
+        return
+
+    from tenacity.wait import wait_none
+
+    import inspect_ai.model._providers.util.chatapi as chatapi
+    import inspect_ai.model._retry as model_retry
+
+    def no_wait(*args: object, **kwargs: object) -> wait_none:
+        return wait_none()
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(model_retry, "wait_exponential_jitter", no_wait)
+        mp.setattr(chatapi, "wait_exponential_jitter", no_wait)
+        yield
+
+
+@pytest.fixture(autouse=True)
+def isolate_active_model():
+    """Keep the active-model contextvar from leaking across tests.
+
+    `eval` sets the process `active_model` contextvar. A test that runs `eval`
+    or `eval_set` *synchronously* in its own context (not a background thread)
+    keeps that value after the call, so it leaks into later tests. A later test
+    that resolves a bare model then gets the leaked model instead of
+    `INSPECT_EVAL_MODEL`. Restore the contextvar after each test.
+    """
+    from inspect_ai.model._model import active_model_context_var
+
+    token = active_model_context_var.set(active_model_context_var.get(None))
+    try:
+        yield
+    finally:
+        active_model_context_var.reset(token)
+
+
+@pytest.fixture(autouse=True)
+def fresh_concurrency_registry():
+    """Reset the process-global concurrency registry before each test.
+
+    Registry entries wrap anyio primitives bound to the async backend they
+    were created under. `eval()` calls `init_concurrency()` at startup but
+    leaves its entries behind on exit, so a fixture that runs `eval()` (on
+    its own asyncio loop — e.g. building a log file for async tests) leaves
+    an asyncio-bound limiter registered under the model's connection key. A
+    later trio test in the same process that generates against the same model
+    then reuses that limiter and crashes with "no running event loop"
+    (asyncio-backend acquire under trio). Give every test the same clean
+    slate an eval run gets.
+    """
+    from inspect_ai.util._concurrency import init_concurrency
+
+    init_concurrency()
+    yield
+
+
+@pytest.fixture(scope="session")
+def registrations_at_session_start() -> dict[str, object]:
+    """Load extension entry points up front, then snapshot the registry.
+
+    Registration is an import side effect, so it happens at most once per
+    process: `ensure_entry_points()` re-runs `ep.load()`, but the `@hooks` /
+    `@modelapi` / ... decorators inside it do not re-run once the module is in
+    `sys.modules`. Nothing can re-create a registration that a test deletes.
+
+    Loading here — before any test body — is what stops a *first* load from
+    landing inside a test that has temporarily emptied the registry
+    (`registry_find` re-scans entry points whenever a find comes up empty).
+    That is how a registration once got created and then destroyed within a
+    single test, breaking unrelated tests later on the same worker. Note that
+    `ensure_test_package_installed()` calls `clear_entry_points_state()`, so a
+    later full re-scan can still happen; it is harmless, because by then the
+    modules are imported and re-loading them registers nothing new.
+
+    The snapshot is what `protect_registrations` puts back, and is the only
+    way back, for the same reason.
+
+    A regression is not unit-testable — it turns on *when* the load happens
+    during session startup — but it reproduces in about two seconds: restore
+    the pre-45de3f534 `_without_registered_hooks` in
+    tests/model/test_tool_info_lifecycle.py, then run that file's
+    `test_no_hook_model_event_tools_share_raw_tool_parameters` followed by
+    `tests/test_extensions.py::test_hooks`, collecting `tests/_control` first.
+    That last part matters: it registers a hook at import time, so
+    `init_hooks()`'s once-only first `get_all_hooks()` finds one and skips the
+    entry-point load, which defers the load into the fixture.
+    """
+    from inspect_ai._util.entrypoints import ensure_entry_points
+    from inspect_ai._util.registry import _registry
+
+    ensure_entry_points()
+    return dict(_registry)
+
+
+@pytest.fixture(autouse=True)
+def protect_registrations(
+    registrations_at_session_start: dict[str, object],
+) -> Iterator[None]:
+    """Restore any registration a test removed, and error its teardown.
+
+    Restoring stops the damage from spreading: without it a test that drops a
+    registration keeps passing while unrelated later tests on the same worker
+    fail, which is expensive to diagnose. Erroring names the test that did it
+    (it reports as a teardown ERROR, not as a failure of the test itself).
+    """
+    from inspect_ai._util.registry import (
+        _registry,
+        registry_add,
+        registry_info,
+    )
+
+    yield
+
+    missing = registrations_at_session_start.keys() - _registry.keys()
+    for key in missing:
+        registered = registrations_at_session_start[key]
+        registry_add(registered, registry_info(registered))
+    if missing:
+        pytest.fail(
+            f"test removed registration(s) that existed before it ran: "
+            f"{sorted(missing)}. Registration is an import side effect and "
+            f"cannot be redone, so this breaks unrelated later tests on the "
+            f"same worker. Restore exactly what you removed, and leave in "
+            f"place anything registered while you held the registry open."
+        )
+
+
+@pytest.fixture
+def no_model_copyreg_reducer():
+    """Suspend any copyreg reducer registered for Model for the test's duration.
+
+    Importing inspect_scout registers ``copyreg.pickle(Model, ...)`` (so Models
+    can cross multiprocessing boundaries), but ``copyreg.dispatch_table`` is
+    also consulted by ``copy.copy()``, which then reconstructs through memoized
+    ``get_model()`` and returns a shared instance instead of a copy. Tests that
+    assert ``copy()``-produces-a-distinct-``Model`` semantics (role stamping)
+    fail whenever an earlier test in the same worker imported inspect_scout.
+    Remove the entry for the test and restore it after, since inspect_scout's
+    own pickling still needs it. Workaround until
+    https://github.com/meridianlabs-ai/inspect_scout/issues/537 scopes the
+    reducer to pickling.
+    """
+    import copyreg
+
+    from inspect_ai.model._model import Model
+
+    saved = copyreg.dispatch_table.pop(Model, None)
+    try:
+        yield
+    finally:
+        if saved is not None:
+            copyreg.dispatch_table[Model] = saved
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
+    config.addinivalue_line(
+        "markers",
+        "real_retry_wait: opt out of the fast-retry fixture and use real "
+        "exponential backoff (for tests that assert on retry wait timing)",
+    )
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
     # Dummy provider keys so tests that only construct a client (not call the
     # API) work without real credentials. Real keys (when present) win via

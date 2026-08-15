@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .types import CheckpointTriggerKind
+from .types import TriggerFire
 
 
 class _TokenIntervalTrigger:
@@ -17,7 +17,7 @@ class _TokenIntervalTrigger:
         self._every = every
         self._reference: int | None = None
 
-    def tick(self) -> CheckpointTriggerKind | None:
+    def tick(self) -> TriggerFire | None:
         # Imported inside tick() to avoid a circular import: this
         # module is loaded during `inspect_ai.util._checkpoint`
         # package init, before `inspect_ai.model` finishes its own
@@ -28,7 +28,15 @@ class _TokenIntervalTrigger:
         if self._reference is None:
             self._reference = current
             return None
-        if current - self._reference >= self._every:
+        since_last_fire = current - self._reference
+        if since_last_fire >= self._every:
             self._reference = current
-            return "token"
+            return TriggerFire(
+                "token",
+                {
+                    "every": self._every,
+                    "tokens_since_last_fire": since_last_fire,
+                    "sample_total_tokens": current,
+                },
+            )
         return None

@@ -51,14 +51,14 @@ def researcher() -> Agent:
 
     async def execute(state: AgentState) -> AgentState:
         """Research assistant."""
-        
+
         state.messages.append(
-            ChatMessageSystem("You are an expert researcher.")
+            ChatMessageSystem(content="You are an expert researcher.")
         )
-        
-        state = run(research_planner(), state)
-        state = run(research_searcher(), state)
-        state = run(research_writer(), state)
+
+        state = await run(research_planner(), state)
+        state = await run(research_searcher(), state)
+        state = await run(research_writer(), state)
 
         return state
 ```
@@ -75,6 +75,27 @@ plans = await gather(
 ```
 
 Note that the `run()` method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the `state`).
+
+### Running Agents in Solvers
+
+The copying behavior described above also means that `run()` never propagates the agent's conversation back to its input — it returns a new `AgentState`, and the caller decides what to do with it. This matters in particular when calling `run()` from a [solver](solvers.qmd): if you discard the returned state, the agent's conversation and output will not appear in the sample's messages (though they remain visible in the sample transcript), and scorers that read `state.output` or `state.messages` will not see the agent's work. Copy the fields you need back into the `TaskState`:
+
+``` python
+@solver
+def research_solver() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        # per-sample setup
+        ...
+        # run the agent, then reflect its conversation and
+        # output back into the task state
+        agent_state = await run(researcher(), state.messages)
+        state.messages = agent_state.messages
+        state.output = agent_state.output
+        return state
+    return solve
+```
+
+Alternatively, if you don't need custom per-sample logic around the agent, use `as_solver()` to convert the agent into a solver that updates the `TaskState` automatically.
 
 
 ## Tools

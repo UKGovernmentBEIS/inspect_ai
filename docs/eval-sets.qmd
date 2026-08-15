@@ -42,6 +42,10 @@ success, logs = eval_set(
 
 Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.
 
+To give each model its own generation config, model args, or base url, use one `--model-spec` option per model instead of `--model`. This also lets an eval set run the same model more than once with different options. See [Multiple Models](models.qmd#multiple-models).
+
+Eval sets often run for a long time: to run one in the background, detached from your terminal, launch it with `--detach` and monitor it with `inspect ctl` (see [Detached Launch](control-channel.qmd#detached-launch)).
+
 The `eval_set()` function returns a tuple of bool (whether all tasks completed successfully) and a list of `EvalLog` headers (i.e. raw sample data is not included in the logs returned).
 
 ### Re-Running
@@ -147,6 +151,18 @@ You can bundle a standalone version of the log viewer for an eval set using the 
 : {tbl-colwidths=\[40,60\]}
 
 The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](log-viewer.qmd#sec-publishing) for additional details.
+
+## Inspect Flow
+
+Eval sets handle running, retrying, and tracking a set of tasks. As that work grows (many tasks across many models with varying parameters, then reviewing and promoting the results), you may want more structure than ad-hoc scripts provide. [Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/) is a companion package for running and managing evaluations at scale, built on top of eval sets. It provides:
+
+- Declarative, type-safe specs that define an evaluation across tasks, models, and parameters.
+- Matrix parameter sweeps for systematic exploration across tasks, models, and hyperparameters.
+- Reusable defaults with automatic inheritance, so common settings are configured once.
+- A Flow Store that indexes evaluation logs and reuses them across runs and directories.
+- Composable post-evaluation steps to tag, validate, and promote logs.
+
+See the [Inspect Flow documentation](https://meridianlabs-ai.github.io/inspect_flow/) to learn more.
 
 ## Logging Context
 

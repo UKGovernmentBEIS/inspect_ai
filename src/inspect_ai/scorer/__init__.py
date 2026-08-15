@@ -22,7 +22,10 @@ from ._metric import (
     value_to_float,
 )
 from ._metrics.accuracy import accuracy
+from ._metrics.aggregate import aggregate
+from ._metrics.categorical import categorical, frequency
 from ._metrics.grouped import grouped
+from ._metrics.krippendorff import krippendorff_alpha
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
 from ._metrics.std import bootstrap_stderr, ci, std, stderr, var
@@ -30,10 +33,12 @@ from ._model import model_graded_fact, model_graded_qa
 from ._multi import multi_scorer
 from ._pattern import pattern
 from ._perplexity import perplexity
+from ._precomputed import precomputed_scores
 from ._reducer import (
     ScoreReducer,
     ScoreReducers,
     at_least,
+    collect_score,
     max_score,
     mean_score,
     median_score,
@@ -66,15 +71,20 @@ __all__ = [
     "Value",
     "ValueToFloat",
     "accuracy",
+    "aggregate",
     "answer",
     "at_least",
     "bootstrap_stderr",
+    "categorical",
     "choice",
     "ci",
+    "collect_score",
     "exact",
     "f1",
+    "frequency",
     "grouped",
     "includes",
+    "krippendorff_alpha",
     "match",
     "math",
     "max_score",
@@ -92,6 +102,7 @@ __all__ = [
     "perplexity",
     "perplexity_per_seq",
     "perplexity_per_token",
+    "precomputed_scores",
     "score",
     "score_reducer",
     "scorer",

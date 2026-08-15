@@ -1,14 +1,26 @@
+import json
 from pathlib import Path
 
 import anyio
-from test_helpers.utils import failing_solver_deterministic
+from test_helpers.utils import failing_solver_deterministic, identity_solver
 
 from inspect_ai import Task, eval
-from inspect_ai._eval.task.run import eval_log_sample_source
+from inspect_ai._eval.task.run import PreviousError, eval_log_sample_source
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
-from inspect_ai.solver import TaskState
+from inspect_ai.log import EvalLog, recompute_metrics
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    mean,
+    scorer,
+    stderr,
+)
+from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
 
@@ -39,6 +51,148 @@ def _make_task(
         score_on_error=score_on_error,
         fail_on_error=fail_on_error,
     )
+
+
+def _checkpoint_json(checkpoint_id: int, trigger: str) -> str:
+    return json.dumps(
+        {
+            "checkpoint_id": checkpoint_id,
+            "trigger": trigger,
+            "turn": checkpoint_id,
+            "created_at": "2026-04-26T14:23:11Z",
+            "duration_ms": 0,
+            "size_bytes": 0,
+            "host": {
+                "snapshot_id": f"snap-{checkpoint_id}",
+                "size_bytes": 0,
+                "duration_ms": 0,
+            },
+            "sandboxes": {},
+        }
+    )
+
+
+@solver
+def solver_that_raises_on_sample_2():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id == 2:
+            raise RuntimeError("boom")
+        state.metadata["ran"] = True
+        return state
+
+    return solve
+
+
+@scorer(metrics=[accuracy()])
+def score_by_solver_completion() -> Scorer:
+    """CORRECT only if the solver ran to completion (partial state → INCORRECT)."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value=CORRECT if state.metadata.get("ran") else INCORRECT)
+
+    return score
+
+
+@scorer(metrics=[accuracy()])
+def raising_scorer(fail_ids: list[int]) -> Scorer:
+    """Stands in for an external grader that raises on some samples."""
+
+    async def score(state: TaskState, target: Target) -> Score:
+        if state.sample_id in fail_ids:
+            raise RuntimeError(f"grader unavailable for sample {state.sample_id}")
+        return Score(value=CORRECT)
+
+    return score
+
+
+def test_completed_samples_independent_of_scorer_order():
+    # a raising scorer leaves any earlier scorer's score on the errored sample,
+    # so that sample still reaches the metrics input — which made
+    # completed_samples (documented as "samples completed without error") vary
+    # with where the raising scorer sat in the scorer list. Errored samples
+    # must be counted out either way.
+    def run(scorers: list[Scorer]) -> EvalLog:
+        return eval(
+            Task(
+                dataset=MemoryDataset(
+                    [Sample(id=i, input="hi", target="ok") for i in range(1, 5)]
+                ),
+                solver=identity_solver(),
+                scorer=scorers,
+            ),
+            model="mockllm/model",
+            fail_on_error=False,
+            display="none",
+        )[0]
+
+    for log in (
+        run([constant_scorer(), raising_scorer([2, 3])]),
+        run([raising_scorer([2, 3]), constant_scorer()]),
+    ):
+        assert log.samples is not None
+        assert sorted(str(s.id) for s in log.samples if s.error is not None) == [
+            "2",
+            "3",
+        ]
+        assert log.results is not None
+        assert log.results.total_samples == 4
+        assert log.results.completed_samples == 2
+
+
+def test_recompute_metrics_preserves_completed_samples():
+    # score edits (and `inspect score --action overwrite`) rebuild results from
+    # the sample scores alone; without recounting the persisted per-sample
+    # error state they silently restore the inflated, scorer-order-dependent
+    # count that test_completed_samples_independent_of_scorer_order pins.
+    log = eval(
+        Task(
+            dataset=MemoryDataset(
+                [Sample(id=i, input="hi", target="ok") for i in range(1, 5)]
+            ),
+            solver=identity_solver(),
+            scorer=[constant_scorer(), raising_scorer([2, 3])],
+        ),
+        model="mockllm/model",
+        fail_on_error=False,
+        display="none",
+    )[0]
+
+    assert log.results is not None
+    assert log.results.completed_samples == 2
+
+    recompute_metrics(log)
+
+    assert log.results is not None
+    assert log.results.total_samples == 4
+    assert log.results.completed_samples == 2
+
+
+def test_score_on_error_contributes_to_metrics():
+    # 2 samples; sample 2's solver raises and is scored INCORRECT on its
+    # partial state. With score_on_error=True that errored-but-scored sample
+    # must contribute to metrics: accuracy 0.5 (1 correct / 2), not 1.0, and
+    # scored_samples == 2 (not 1). See docs/handling-errors.qmd.
+    log = eval(
+        Task(
+            dataset=MemoryDataset([Sample(id=1, input="hi"), Sample(id=2, input="hi")]),
+            solver=solver_that_raises_on_sample_2(),
+            scorer=score_by_solver_completion(),
+        ),
+        score_on_error=True,
+        fail_on_error=False,
+        display="none",
+    )[0]
+
+    assert log.results is not None
+    score = log.results.scores[0]
+    assert score.metrics["accuracy"].value == 0.5
+    assert score.scored_samples == 2
+
+    # sample 2 is still recorded as an error and scored INCORRECT
+    assert log.samples is not None
+    sample_2 = next(s for s in log.samples if s.id == 2)
+    assert sample_2.error is not None
+    assert sample_2.scores["score_by_solver_completion"].value == INCORRECT
 
 
 def test_score_on_error_basic():
@@ -164,11 +318,12 @@ def test_score_on_error_eval_arg_overrides_task():
     assert sample.scores is not None and len(sample.scores) > 0
 
 
-def test_score_on_error_sample_source_skips_errored():
+def test_score_on_error_sample_source_seeds_retry_for_errored():
     # Run a real eval producing an errored-but-scored sample, then feed the
-    # log to eval_log_sample_source — it should return None for the errored
-    # sample (so eval_set retries will re-run it from scratch). This is the
-    # mechanism by which eval_set retries surface unfixed errors.
+    # log to eval_log_sample_source — for an errored sample it returns a
+    # PreviousError carrying the prior error's retry history (so eval_set
+    # retries re-run it from scratch but seed error_retries with the prior
+    # error, surfacing the retry on the re-run sample).
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
     errored_sample = log.samples[0]
@@ -179,13 +334,17 @@ def test_score_on_error_sample_source_skips_errored():
     source = eval_log_sample_source(log, None, dataset)
 
     async def call() -> object:
-        return await source(errored_sample.id, errored_sample.epoch)
+        return await source.lookup(errored_sample.id, errored_sample.epoch)
 
-    assert anyio.run(call) is None
+    result = anyio.run(call)
+    assert isinstance(result, PreviousError)
+    assert result.sample.id == errored_sample.id
+    assert result.sample.error is not None
+    assert result.sample.error.message == errored_sample.error.message
 
 
 def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) -> None:
-    # errored sample + sidecar on disk → factory returns ResumeCheckpoint
+    # errored sample + checkpoint file on disk → factory returns ResumeCheckpoint
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
     errored_sample = log.samples[0]
@@ -193,22 +352,50 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
     eval_ckpt_dir = tmp_path / "eval.checkpoints"
     sample_dir = eval_ckpt_dir / f"{errored_sample.id}__{errored_sample.epoch}"
     sample_dir.mkdir(parents=True)
-    (sample_dir / "ckpt-00001.json").write_text("{}")
+    (sample_dir / "ckpt-00001.json").write_text(_checkpoint_json(1, "turn"))
 
     dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
     source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
     assert result.sample_checkpoints_dir == str(sample_dir)
+    assert result.attempt == "resume"
+
+
+def test_eval_log_sample_source_scoring_resume_for_agent_complete_checkpoint(
+    tmp_path: Path,
+) -> None:
+    log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
+    assert log.samples is not None
+    errored_sample = log.samples[0]
+
+    eval_ckpt_dir = tmp_path / "eval.checkpoints"
+    sample_dir = eval_ckpt_dir / f"{errored_sample.id}__{errored_sample.epoch}"
+    sample_dir.mkdir(parents=True)
+    (sample_dir / "ckpt-00001.json").write_text(_checkpoint_json(1, "turn"))
+    (sample_dir / "ckpt-00002.json").write_text(_checkpoint_json(2, "agent_complete"))
+
+    dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
+    source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
+
+    async def call() -> object:
+        async with AsyncFilesystem():
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
+
+    result = anyio.run(call)
+    assert isinstance(result, ResumeCheckpoint)
+    assert result.sample_checkpoints_dir == str(sample_dir)
+    assert result.attempt == "resume_for_scoring"
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:
-    # errored sample + no sidecar → factory still returns None
+    # errored sample + no sidecar → no checkpoint resume, so the factory
+    # falls back to a PreviousError seeding the re-run's error_retries
     log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
     assert log.samples is not None
     errored_sample = log.samples[0]
@@ -221,6 +408,8 @@ def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) ->
 
     async def call() -> object:
         async with AsyncFilesystem():
-            return await source(errored_sample.id, errored_sample.epoch)
+            return await source.lookup(errored_sample.id, errored_sample.epoch)
 
-    assert anyio.run(call) is None
+    result = anyio.run(call)
+    assert isinstance(result, PreviousError)
+    assert result.sample.error is not None

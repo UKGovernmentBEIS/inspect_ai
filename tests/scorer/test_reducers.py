@@ -6,6 +6,7 @@ from functools import reduce
 from typing import Any
 
 import numpy as np
+import pytest
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
@@ -14,8 +15,10 @@ from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
     Score,
     ScoreReducer,
+    Value,
     ValueToFloat,
     at_least,
+    collect_score,
     match,
     max_score,
     mean_score,
@@ -26,7 +29,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.scorer._reducer.reducer import pass_at, pass_k
-from inspect_ai.scorer._reducer.registry import REDUCER_NAME, reducer_log_name
+from inspect_ai.scorer._reducer.registry import reducer_log_name
 
 avg_reducer = mean_score()
 median_reducer = median_score()
@@ -43,6 +46,7 @@ pass_k_2_no_threshold = pass_k(2)
 pass_k_3_threshold = pass_k(3, 2)
 pass_k_5_no_threshold = pass_k(5)
 pass_k_5_threshold = pass_k(5, 2)
+collect_reducer = collect_score()
 
 
 def test_simple_reducers() -> None:
@@ -73,6 +77,26 @@ def test_all_nan_simple_reducers() -> None:
     assert _is_nan(pass_k_3_threshold(simple_scores).value)
     assert _is_nan(pass_k_5_no_threshold(simple_scores).value)
     assert _is_nan(pass_k_5_threshold(simple_scores).value)
+
+
+def test_empty_simple_reducers() -> None:
+    # An empty score list reaches the reducer when a sample produced no scores;
+    # every reducer should fall back to NaN instead of raising IndexError.
+    empty_scores: list[Score] = []
+
+    assert _is_nan(avg_reducer(empty_scores).value)
+    assert _is_nan(median_reducer(empty_scores).value)
+    assert _is_nan(mode_reducer(empty_scores).value)
+    assert _is_nan(max_reducer(empty_scores).value)
+    assert _is_nan(at_least_3_reducer(empty_scores).value)
+    assert _is_nan(pass_at_2_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_3_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_no_threshhold(empty_scores).value)
+    assert _is_nan(pass_at_5_threshhold(empty_scores).value)
+    assert _is_nan(pass_k_2_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_3_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_no_threshold(empty_scores).value)
+    assert _is_nan(pass_k_5_threshold(empty_scores).value)
 
 
 def test_list_reducers() -> None:
@@ -107,6 +131,65 @@ def test_all_nan_list_reducers() -> None:
     assert_list_nan(reduced)
     reduced = pass_k_2_no_threshold(list_scores).value
     assert_list_nan(reduced)
+
+
+def test_list_reducers_mismatched_lengths_raise() -> None:
+    # Lists that differ in length across epochs can't be reduced index-by-index.
+    # Depending on which epoch came first this previously either crashed with a
+    # cryptic IndexError or silently dropped the trailing values; now it should
+    # raise a clear ValueError pointing at the inconsistency.
+    list_score_sets = [
+        [
+            Score(value=[1, 2, 3]),
+            Score(value=[1, 2]),
+        ],
+        [
+            Score(value=[1, 2]),
+            Score(value=[1, 2, 3]),
+        ],
+    ]
+
+    for list_scores in list_score_sets:
+        for reducer in [
+            avg_reducer,
+            median_reducer,
+            mode_reducer,
+            max_reducer,
+            at_least_3_reducer,
+            pass_at_2_no_threshhold,
+            pass_k_2_no_threshold,
+        ]:
+            with pytest.raises(ValueError, match="mismatched length"):
+                reducer(list_scores)
+
+
+def test_dict_reducers_mismatched_keys_raise() -> None:
+    # Dicts with different keys across epochs can't be reduced key-by-key. The
+    # missing key previously surfaced as a cryptic KeyError (or was silently
+    # ignored); now it should raise a clear ValueError.
+    dict_score_sets = [
+        [
+            Score(value={"coolness": 5, "spiciness": 1}),
+            Score(value={"coolness": 4}),
+        ],
+        [
+            Score(value={"coolness": 4}),
+            Score(value={"coolness": 5, "spiciness": 1}),
+        ],
+    ]
+
+    for dict_scores in dict_score_sets:
+        for reducer in [
+            avg_reducer,
+            median_reducer,
+            mode_reducer,
+            max_reducer,
+            at_least_3_reducer,
+            pass_at_2_no_threshhold,
+            pass_k_2_no_threshold,
+        ]:
+            with pytest.raises(ValueError, match="mismatched key"):
+                reducer(dict_scores)
 
 
 def test_nan_root_list_reducers() -> None:
@@ -243,6 +326,19 @@ def test_nan_root_first_score_dict_reducers() -> None:
 
     assert avg_reducer(dict_scores).value == {"coolness": 3, "spiciness": 1}
     assert max_reducer(dict_scores).value == {"coolness": 4, "spiciness": 1}
+
+
+def test_dict_reducer_value_to_float_applied_once() -> None:
+    # A custom value_to_float should be applied once per value, like the scalar
+    # and list branches. Halving isn't idempotent, so applying it twice in the
+    # dict branch halves each value again (mean 1.5 instead of 3.0).
+    def half(value: Value) -> float:
+        assert isinstance(value, (int, float))
+        return value / 2
+
+    dict_scores = [Score(value={"x": 4}), Score(value={"x": 8})]
+    assert mean_score(value_to_float=half)(dict_scores).value == {"x": 3.0}
+    assert median_score(value_to_float=half)(dict_scores).value == {"x": 3.0}
 
 
 def test_score_unscored() -> None:
@@ -431,23 +527,18 @@ def test_create_reducers_exact_name_with_trailing_digits() -> None:
     assert create_reducers("pass_k_3")
 
 
-def test_at_least_reducer_name_includes_k() -> None:
-    # Regression: the REDUCER_NAME override inside at_least()/pass_at() was
-    # being written to the global factory wrapper rather than the returned
-    # reducer closure, so the registry name never picked up the `k` suffix
-    # and each call leaked global state onto the factory.
+def test_parameterized_reducer_log_name_includes_k() -> None:
+    # Registry metadata keeps the stable factory lookup name while log names
+    # are derived from the registered parameters.
     r3 = at_least(3)
-    assert registry_info(r3).name.endswith("at_least_3")
+    assert registry_info(r3).name.endswith("at_least")
     # creating another instance must not retroactively affect r3
     _ = at_least(7)
-    assert registry_info(r3).name.endswith("at_least_3")
-    # the factory itself should not accumulate per-call state
-    assert not hasattr(at_least, REDUCER_NAME)
-    # log name must not double-append the suffix
+    assert registry_info(r3).name.endswith("at_least")
+    # log names remain parameterized without replacing the registry key
     assert reducer_log_name(r3) == "at_least_3"
     assert reducer_log_name(pass_at(4)) == "pass_at_4"
     assert reducer_log_name(pass_k(4)) == "pass_k_4"
-    assert not hasattr(pass_k, REDUCER_NAME)
 
 
 def test_max_reducer_dict_per_key_nan_order_independent() -> None:
@@ -555,7 +646,9 @@ def test_no_reducer():
 def test_default_reducer():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=4)[0]
-    assert log.eval.config.epochs_reducer == ["mean"]
+    # the default is not recorded so that recompute can distinguish an
+    # explicit reducer choice from the (per-scorer) auto-selected default
+    assert log.eval.config.epochs_reducer is None
 
 
 def test_eval_reducer():
@@ -675,6 +768,53 @@ def _test_dict_reducers_impl(include_nan: bool = False) -> None:
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
     assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert pass_k_2_no_threshold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+
+
+def test_collect_scalar() -> None:
+    scores = [Score(value=1), Score(value=0), Score(value=1)]
+    assert collect_reducer(scores).value == [1, 0, 1]
+
+
+def test_collect_strings() -> None:
+    scores = [Score(value="a"), Score(value="b")]
+    assert collect_reducer(scores).value == ["a", "b"]
+
+
+def test_collect_drops_nan() -> None:
+    scores = [Score(value=1), Score(value=float("nan")), Score(value=0)]
+    assert collect_reducer(scores).value == [1, 0]
+
+
+def test_collect_all_nan() -> None:
+    scores = [Score(value=float("nan")), Score(value=float("nan"))]
+    assert _is_nan(collect_reducer(scores).value)
+
+
+def test_collect_lookup_by_name() -> None:
+    reducer = create_reducers("collect")[0]
+    assert reducer([Score(value=1), Score(value=2)]).value == [1, 2]
+
+
+def test_collect_non_scalar_raises() -> None:
+    for non_scalar in (Score(value={"a": 1}), Score(value=[1, 2])):
+        with pytest.raises(ValueError, match="requires scalar score values"):
+            collect_reducer([Score(value=1), non_scalar])
+
+
+def test_collect_preserve_metadata() -> None:
+    scores = [
+        Score(
+            value=1, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+        Score(
+            value=0, answer="1", explanation="An explanation", metadata={"foo": "bar"}
+        ),
+    ]
+    reduced = collect_reducer(scores)
+    assert reduced.value == [1, 0]
+    assert reduced.answer == "1"
+    assert reduced.explanation == "An explanation"
+    assert reduced.metadata == {"foo": "bar"}
 
 
 def _is_nan(x: Any) -> bool:

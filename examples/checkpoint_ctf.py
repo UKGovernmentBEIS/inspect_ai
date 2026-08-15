@@ -24,10 +24,13 @@ To exercise resume: kill the eval mid-way (Ctrl-C), then
 
 from textwrap import dedent
 
+import anyio
+
 from inspect_ai import Task, task
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.scorer import includes
+from inspect_ai.scorer import Score, Scorer, Target, accuracy, includes, scorer
+from inspect_ai.solver import TaskState
 from inspect_ai.tool import Tool, bash, tool
 from inspect_ai.util import CheckpointConfig, store
 from inspect_ai.util._checkpoint._triggers.types import TokenInterval
@@ -110,6 +113,27 @@ PROMPT = dedent(
 )
 
 
+@scorer(metrics=[accuracy()])
+def slow_scorer(delay_seconds: float = 10.0) -> Scorer:
+    """Sleep `delay_seconds` then pass — gives a window to Ctrl-C during scoring.
+
+    Used to exercise scoring-phase resume: kill the eval while this scorer
+    is running, then `inspect eval retry <log>` should skip the agent
+    entirely and re-run scoring against the rehydrated state.
+    """
+
+    async def score(state: TaskState, target: Target) -> Score:
+        print(
+            f"[slow_scorer] sleeping {delay_seconds}s — Ctrl-C now "
+            f"to test scoring-phase resume"
+        )
+        await anyio.sleep(delay_seconds)
+        print("[slow_scorer] finished")
+        return Score(value=1.0, answer=state.output.completion)
+
+    return score
+
+
 @tool
 def remember() -> Tool:
     async def execute(key: str, value: str) -> str:
@@ -143,7 +167,7 @@ def cp_ctf() -> Task:
             )
         ],
         solver=react(tools=[bash(timeout=60), remember()]),
-        scorer=includes(),
+        scorer=[includes(), slow_scorer()],
         sandbox="docker",
         checkpoint=CheckpointConfig(
             # checkpoints_location="s3://epateytest2/checkpoints",
@@ -176,7 +200,7 @@ if __name__ == "__main__":
 
     # Default log: a known-incomplete-with-sidecars cp_ctf run captured
     # for local debugging. Override by passing a log path as argv[1].
-    DEFAULT_LOG = "logs/2026-05-27T13-12-16-00-00_cp-ctf_BwXJKGp4xBy6XNMcby9AAd.eval"
+    DEFAULT_LOG = "logs/2026-05-29T14-12-32-00-00_cp-ctf_5tQHovYkUTezLyUr6iuLvh.eval"
     log_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_LOG
 
     print(f"Retrying {log_path}")

@@ -8,6 +8,7 @@ from openai import (
     AsyncAzureOpenAI,
     AsyncBedrockOpenAI,
     AsyncOpenAI,
+    DefaultAsyncHttpxClient,
     NotFoundError,
     NotGiven,
     RateLimitError,
@@ -26,20 +27,21 @@ from inspect_ai.model._providers.openai_completions import (
 )
 from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
-from inspect_ai.model._retry import ModelRetryConfig, model_retry_config
+from inspect_ai.model._retry import ModelRetryConfig, batch_admin_retry_config
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, RetryDecision, log_model_retry
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
-    OpenAIAsyncHttpxClient,
     is_gpt_5_model,
     is_latest_model,
     is_o_series_model,
     openai_classify_retry,
+    openai_should_retry,
+    supports_native_max_reasoning_effort,
 )
 from .._openai_responses import (
     chat_messages_from_compact_response,
@@ -238,7 +240,7 @@ class OpenAIAPI(ModelAPI):
 
         # extract http_client and api_version before storing model_args
         self.http_client = (
-            model_args.pop("http_client", None) or OpenAIAsyncHttpxClient()
+            model_args.pop("http_client", None) or DefaultAsyncHttpxClient()
         )
         if self.is_azure():
             # resolve version
@@ -314,7 +316,7 @@ class OpenAIAPI(ModelAPI):
         super().initialize()
 
         if self.http_client.is_closed:
-            self.http_client = OpenAIAsyncHttpxClient()
+            self.http_client = DefaultAsyncHttpxClient()
 
         self.client = self._create_client()
 
@@ -447,6 +449,11 @@ class OpenAIAPI(ModelAPI):
         name = self.model_family()
         return self.is_gpt_5() and "-pro" in name
 
+    def supports_max_reasoning_effort(self) -> bool:
+        return supports_native_max_reasoning_effort(self.model_family()) or (
+            self.is_latest()
+        )
+
     def is_gpt_5_chat(self) -> bool:
         name = self.model_family()
         return self.is_gpt_5() and "-chat" in name
@@ -576,7 +583,7 @@ class OpenAIAPI(ModelAPI):
         # context window / token accounting match (bump when a newer frontier
         # ships). Mirrors Anthropic's is_claude_latest() aliasing.
         if self.is_latest():
-            return "openai/gpt-5.5"
+            return "openai/gpt-5.6"
         return super().input_tokens_name()
 
     @override
@@ -605,7 +612,7 @@ class OpenAIAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
@@ -621,10 +628,18 @@ class OpenAIAPI(ModelAPI):
         # simple request with reasoning summaries and if it succeeds we
         # set the reasoning_summaries bit (we do this once for the lifetime
         # of the model provider instance). use the lock to guard against
-        # multiple samples doing this concurrently at startup
+        # multiple samples doing this concurrently at startup.
+        #
+        # fast path: once cached, return without touching the lock. this
+        # method is awaited on every generate() call (when
+        # config.reasoning_summary is None), so under high concurrency the
+        # uncontested-but-serialised lock acquire becomes a measurable
+        # bottleneck. the read is a sync attribute lookup of a bool so it is
+        # safe outside the lock.
+        if self._reasoning_summaries is not None:
+            return self._reasoning_summaries
         async with self._reasoning_summaries_lock:
             if self._reasoning_summaries is None:
-                reasoning_summaries = False
                 if self.responses_api and self.has_reasoning_options():
                     try:
                         await self.client.responses.create(
@@ -632,23 +647,27 @@ class OpenAIAPI(ModelAPI):
                             input="Please say 'hello, world'",
                             reasoning={"effort": "low", "summary": "auto"},
                         )
-                        reasoning_summaries = True
-                    except Exception:
-                        pass
-                self._reasoning_summaries = reasoning_summaries
+                        self._reasoning_summaries = True
+                    except Exception as ex:
+                        # A transient failure (timeout, dropped connection,
+                        # rate limit, 5xx) tells us nothing about whether
+                        # summaries are supported. Don't cache it, otherwise a
+                        # blip at startup would disable summaries for the rest
+                        # of the run; leave the bit unset so a later sample
+                        # re-probes. A deterministic rejection (e.g. the account
+                        # isn't a verified organization) does mean they aren't
+                        # available, so cache that.
+                        if openai_should_retry(ex):
+                            return False
+                        self._reasoning_summaries = False
+                else:
+                    self._reasoning_summaries = False
 
             return self._reasoning_summaries
 
     def _resolve_batcher(self, config: GenerateConfig, for_responses_api: bool) -> None:
         def _resolve_retry_config() -> ModelRetryConfig:
-            return model_retry_config(
-                self.model_name,
-                config.max_retries,
-                config.timeout,
-                self.should_retry,
-                lambda ex: None,
-                log_model_retry,
-            )
+            return batch_admin_retry_config(self.model_name, config, self.should_retry)
 
         # TODO: Bogus that we have to do this on each call. Ideally, it would be
         # done only once and ideally by non-provider specific code.
@@ -727,16 +746,24 @@ class OpenAIAPI(ModelAPI):
     def _get_reasoning_params_for_config(
         self, config: GenerateConfig | None
     ) -> Reasoning | None:
-        """Get reasoning parameters from config for compact/count_tokens calls."""
+        """Get reasoning parameters from the generation config."""
         if config is None:
             return None
 
         reasoning: Reasoning = {}
         if config.reasoning_effort is not None:
             effort = (
-                config.reasoning_effort if config.reasoning_effort != "max" else "xhigh"
+                "xhigh"
+                if (
+                    config.reasoning_effort == "max"
+                    and not self.supports_max_reasoning_effort()
+                )
+                else config.reasoning_effort
             )
-            reasoning["effort"] = effort
+            reasoning["effort"] = effort  # type: ignore
+        if config.reasoning_mode is not None:
+            # `mode` is not yet in the SDK's Reasoning TypedDict
+            reasoning["mode"] = config.reasoning_mode  # type: ignore[typeddict-unknown-key]
         if config.reasoning_summary is not None and config.reasoning_summary != "none":
             reasoning["summary"] = config.reasoning_summary
 

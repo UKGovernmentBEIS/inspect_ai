@@ -8,13 +8,12 @@ from types import TracebackType
 from typing import Any, AsyncIterator, Callable
 
 import anyio
-from mcp import McpError
 from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.client.streamable_http import streamablehttp_client
 from mcp.types import (
     AudioContent,
+    CallToolResult,
     EmbeddedResource,
     ImageContent,
     ResourceLink,
@@ -36,8 +35,16 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._anyio import inner_exception
 
+from ._compat import (
+    MCP_READ_TIMEOUT_CODES,
+    McpError,
+    read_timeout_arg,
+    result_is_error,
+    streamablehttp_client,
+    tool_input_schema,
+)
 from ._context import MCPServerContext
-from ._sandbox import sandbox_client
+from ._sandbox import DEFAULT_SANDBOX_TIMEOUT, sandbox_client
 from ._types import MCPServer
 from .sampling import as_inspect_content_list, sampling_fn
 
@@ -86,11 +93,21 @@ class MCPServerLocal(MCPServer):
         *,
         name: str,
         events: bool,
+        timeout: int | None = None,
     ) -> None:
         super().__init__()
         self._client = client
         self._name = name
         self._events = events
+        self._timeout = timeout
+        # Per-instance session table. Keyed on anyio task id, which is
+        # id(asyncio.current_task()) — a memory address that Python recycles
+        # once the task is GC'd. Storing this on the instance (rather than
+        # the class) means task-id collisions across different MCPServerLocal
+        # instances can't leak one sample's cached session — including its
+        # cached tool list — into another sample that happens to run on a
+        # reused task id.
+        self._task_sessions: dict[str, "MCPServerLocalSession"] = {}
 
     @override
     async def __aenter__(self) -> MCPServer:
@@ -109,17 +126,17 @@ class MCPServerLocal(MCPServer):
     async def tools(self) -> list[Tool]:
         return await self._task_session().tools()
 
-    # create a separate MCPServer session per async task / server name
-    _task_sessions: dict[str, "MCPServerLocalSession"] = {}
-
     def _task_session(self) -> "MCPServerLocalSession":
         task_id = anyio.get_current_task().id
         session_key = f"{task_id}_{self._name}"
         if session_key not in self._task_sessions:
-            MCPServerLocal._task_sessions[session_key] = MCPServerLocalSession(
-                self._client, name=self._name, events=self._events
+            self._task_sessions[session_key] = MCPServerLocalSession(
+                self._client,
+                name=self._name,
+                events=self._events,
+                timeout=self._timeout,
             )
-        return MCPServerLocal._task_sessions[session_key]
+        return self._task_sessions[session_key]
 
 
 class MCPServerLocalSession(MCPServer):
@@ -129,12 +146,14 @@ class MCPServerLocalSession(MCPServer):
         *,
         name: str,
         events: bool,
+        timeout: int | None = None,
     ) -> None:
         super().__init__()
         self._refcount = 0
         self._client = client
         self._name = name
         self._events = events
+        self._timeout = timeout
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
         self._cached_tool_list: list[MCPTool] | None = None
@@ -182,6 +201,11 @@ class MCPServerLocalSession(MCPServer):
                 finally:
                     self._session = None
                     self._exit_stack = None
+                    # Drop the cached tool list so a reused session object
+                    # (e.g., if an outer cache hands this instance to a
+                    # different sample) re-fetches tools from the server on
+                    # next __aenter__ rather than returning a stale list.
+                    self._cached_tool_list = None
 
     @override
     async def tools(self) -> list[Tool]:
@@ -214,10 +238,40 @@ class MCPServerLocalSession(MCPServer):
                         logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
                     ):
                         try:
-                            result = await tool_session.call_tool(mcp_tool.name, kwargs)
-                            if result.isError:
+                            # Bound the wait on a tool response with the configured
+                            # timeout. Without this, a lost/dropped transport response
+                            # (e.g. the sandbox carrier exec times out at the OS level
+                            # but its JSON-RPC error never wakes this await) deadlocks
+                            # the call FOREVER, ignoring the per-RPC timeout entirely.
+                            # On expiry `ClientSession` raises an McpError carrying
+                            # a request-timeout code, which the handler below
+                            # translates to a TimeoutError so the outer handler
+                            # surfaces a ToolError — notifying the model rather than
+                            # letting the sample hang until the working-time cap.
+                            result = await tool_session.call_tool(
+                                mcp_tool.name,
+                                kwargs,
+                                read_timeout_seconds=read_timeout_arg(self._timeout),
+                            )
+                            # mcp 2.x types call_tool as returning a union that
+                            # includes input-required/claimed results, but those
+                            # are raised (not returned) unless explicitly enabled
+                            # via allow_input_required/allow_claimed.
+                            if not isinstance(result, CallToolResult):
+                                raise RuntimeError(
+                                    f"Unexpected MCP call_tool result: {type(result)}"
+                                )
+                            if result_is_error(result):
                                 raise ToolError(tool_result_as_text(result.content))
                         except McpError as e:
+                            # A read_timeout_seconds expiry surfaces as an McpError
+                            # carrying a request-timeout code. Re-raise it as a
+                            # TimeoutError so the outer handler converts it to a
+                            # ToolError; exception_for_rpc_response_error would
+                            # otherwise map the unrecognized code to a RuntimeError
+                            # that errors the sample instead of reaching the model.
+                            if e.error.code in MCP_READ_TIMEOUT_CODES:
+                                raise TimeoutError(e.error.message) from e
                             # Some errors that are raised via McpError (e.g. -32603)
                             # need to be converted to ToolError so that they make it
                             # back to the model.
@@ -238,7 +292,7 @@ class MCPServerLocalSession(MCPServer):
                 raise
 
         # get parameters (fill in missing ones)
-        parameters = ToolParams.model_validate(mcp_tool.inputSchema)
+        parameters = ToolParams.model_validate(tool_input_schema(mcp_tool))
         for name, param in parameters.properties.items():
             param.description = param.description or name
 
@@ -314,7 +368,7 @@ def create_server_streamablehttp(
 ) -> MCPServer:
     return MCPServerLocal(
         lambda: streamablehttp_client(url, headers, timeout, sse_read_timeout),
-        name=url,
+        name=name,
         events=True,
     )
 
@@ -379,6 +433,12 @@ def create_server_sandbox(
     sandbox: str | None = None,
     timeout: int | None = None,
 ) -> MCPServer:
+    # Normalize the default once so the in-sandbox transport timeout and the
+    # host-side MCP read timeout share one effective value. Passing the raw
+    # `None` through would leave the host read timeout unbounded (the transport
+    # would still default internally), so a default `mcp_server_sandbox()` call
+    # could deadlock if the transport response is lost.
+    effective_timeout = timeout if timeout is not None else DEFAULT_SANDBOX_TIMEOUT
     # TODO: Confirm the lifetime concepts. By the time a request makes it to the
     # sandbox, it's going to need both a session id and a server "name".
     return MCPServerLocal(
@@ -390,10 +450,11 @@ def create_server_sandbox(
                 env=env,
             ),
             sandbox_name=sandbox,
-            timeout=timeout,
+            timeout=effective_timeout,
         ),
         name=name,
         events=False,
+        timeout=effective_timeout,
     )
 
 

@@ -19,6 +19,12 @@ from inspect_ai.model._model_data.model_data import (
 if TYPE_CHECKING:
     from inspect_ai.model._model import Model  # noqa: F401
 
+# Placeholder api key passed when a provider is instantiated purely to
+# canonicalize a model name (see _get_model_info). It exists so that providers
+# which require a key can still be constructed, and is not a credential:
+# providers must not send it to their underlying SDK.
+MODEL_INFO_LOOKUP_API_KEY = "__model_info_lookup__"
+
 # Custom model registry (populated by set_model_info)
 _custom_models: dict[str, ModelInfo] = {}
 
@@ -26,9 +32,9 @@ _custom_models: dict[str, ModelInfo] = {}
 _model_info_cache: dict[str, ModelInfo] | None = None
 
 # Memoized results of model info lookups keyed by input identifier (string name
-# or Model.canonical_name()) and whether provider resolution is enabled.
-# Includes negative results so failed lookups aren't repeated on every turn.
-# Invalidated by set_model_info, set_model_cost, and clear_model_info_cache.
+# or str(Model)) and whether provider resolution is enabled. Includes negative
+# results so failed lookups aren't repeated on every turn. Invalidated by
+# set_model_info, set_model_cost, and clear_model_info_cache.
 _result_cache: dict[tuple[str, bool], ModelInfo | None] = {}
 
 
@@ -77,6 +83,15 @@ SERVICE_PREFIXES = {"azure", "bedrock", "vertex"}
 # For these providers, we need to detect the organization from the model name.
 HOSTING_PROVIDERS = {"azureai", "bedrock", "vertex"}
 
+# Organizations whose database keys name a hosting deployment rather than a
+# model creator. Such an entry is authoritative for its own exact key
+# ("fireworks/deepseek-r1-0528" is what Fireworks actually serves) but must
+# never be a fuzzy candidate for another provider's bare model name: match
+# scores fall off with the length of the org prefix, so "fireworks" would
+# outscore "moonshotai" for a bare `kimi-k3` query and shadow the curated
+# entry. Exact and case-insensitive lookup still reach these keys.
+PROVIDER_SCOPED_ORGS = {"fireworks"}
+
 
 def _detect_org_from_model_name(model_name: str) -> str | None:
     """Detect the organization from a model name pattern.
@@ -109,6 +124,14 @@ def _detect_org_from_model_name(model_name: str) -> str | None:
     # Google models: gemini-*
     if name.startswith("gemini"):
         return "google"
+
+    # Moonshot AI models: kimi-*
+    if name.startswith("kimi"):
+        return "moonshotai"
+
+    # DeepSeek models: deepseek-*
+    if name.startswith("deepseek"):
+        return "deepseek"
 
     return None
 
@@ -206,6 +229,9 @@ def _fuzzy_match(name: str, db: dict[str, ModelInfo]) -> ModelInfo | None:
     best_match: tuple[int, str, ModelInfo] | None = None  # (score, key, info)
 
     for key, info in db.items():
+        if key.split("/", 1)[0].lower() in PROVIDER_SCOPED_ORGS:
+            continue
+
         key_model = _extract_model_name(key)
         key_normalized = _normalize_for_fuzzy(key_model)
 
@@ -291,7 +317,7 @@ def _get_model_info(
     # Import here to avoid circular imports
     from inspect_ai.model._model import Model
 
-    identifier = model.canonical_name() if isinstance(model, Model) else model
+    identifier = str(model) if isinstance(model, Model) else model
     cache_key = (identifier, resolve_provider)
     if cache_key in _result_cache:
         return _result_cache[cache_key]
@@ -312,15 +338,20 @@ def _resolve_model_info(
     # Get the database
     db = _get_model_info_db()
 
-    # If already a Model instance, use its canonical name directly
     if isinstance(model, Model):
-        name = model.canonical_name()
+        canonical = model.canonical_name()
 
-        # Check custom registry first
-        if name in _custom_models:
-            return _custom_models[name]
+        # Custom registrations (set_model_info / set_model_cost /
+        # --model-cost-config) may be keyed under either the user-facing model
+        # string or the canonical name. The two differ for providers that strip a
+        # route prefix in canonical_name() (together, hf-inference-providers,
+        # custom routed providers), so check both, preferring the more specific
+        # full string. The database is keyed by canonical name only.
+        for name in (str(model), canonical):
+            if name in _custom_models:
+                return _custom_models[name]
 
-        return _lookup_in_db(name, db)
+        return _lookup_in_db(canonical, db)
 
     # For string model names, try direct lookup first (no SDK required)
     # The database includes aliases for common model name formats
@@ -340,7 +371,7 @@ def _resolve_model_info(
     # Fall back to full provider instantiation (requires SDK)
     # This handles cases where the model name needs provider-specific canonicalization
     try:
-        resolved = get_model(model, api_key="__model_info_lookup__")
+        resolved = get_model(model, api_key=MODEL_INFO_LOOKUP_API_KEY)
         name = resolved.canonical_name()
 
         if name in _custom_models:
@@ -368,7 +399,9 @@ def get_model_input_tokens(model: Model) -> int | None:
         return explicit.input_tokens
 
     model_name = model.input_tokens_name()
-    model_info = get_model_info(model_name)
+    # direct (non provider-resolving) lookup: the model is already instantiated,
+    # so resolving a provider here would re-instantiate it (reloading local weights)
+    model_info = _get_model_info_direct(model_name)
     if model_info:
         return model_info.input_tokens
     elif str(model).startswith("mockllm/"):

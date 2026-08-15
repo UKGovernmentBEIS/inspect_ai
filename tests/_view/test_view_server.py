@@ -1,13 +1,18 @@
 """Tests for the inspect view server."""
 
 import asyncio
+import contextlib
 import json
+import logging
 import math
+import time
 import urllib.parse
 import zipfile
+from io import BytesIO
 from pathlib import Path
 from typing import IO, Any, ContextManager, Generator, TextIO, cast
 
+import anyio
 import fastapi.testclient
 import fsspec  # type: ignore
 import pytest
@@ -21,10 +26,27 @@ import inspect_ai.dataset
 import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
+from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.event_loop_monitor import event_loop_monitor
+from inspect_ai._util.json import to_json_safe
 from inspect_ai._view import fastapi_server
-from inspect_ai._view.common import get_direct_url
+from inspect_ai._view.common import (
+    get_direct_url,
+    get_log_bytes,
+    normalize_uri,
+    read_eval_set_info_async,
+    stream_log_bytes,
+)
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
+from inspect_ai.event import ScoreEvent
+from inspect_ai.log import list_eval_logs_async
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.scorer import Score
+
+FRONTEND_REQUEST_HEADERS = {
+    fastapi_server.VIEW_REQUEST_HEADER: fastapi_server.VIEW_REQUEST_HEADER_VALUE,
+    "Sec-Fetch-Dest": "empty",
+}
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Test client wrapper
@@ -75,6 +97,20 @@ class ViewTestClient:
             kwargs["json"] = json
         resp = self._tc.request(method, path, **kwargs)
         return SimpleResponse(resp.status_code, resp.content, dict(resp.headers))
+
+    def frontend_request(
+        self,
+        method: str,
+        path: str,
+        headers: dict[str, str] | None = None,
+        json: Any = None,
+    ) -> SimpleResponse:
+        return self.request(
+            method,
+            path,
+            headers={**FRONTEND_REQUEST_HEADERS, **(headers or {})},
+            json=json,
+        )
 
     def log_path(self, filename: str) -> str:
         return str(self.log_dir / filename)
@@ -323,6 +359,17 @@ def test_api_log(view_client: ViewTestClient) -> None:
     assert resp.json()["eval"]["task"] == "task"
 
 
+def test_api_app_config(view_client: ViewTestClient) -> None:
+    resp = view_client.request("GET", "/app-config")
+    resp.raise_for_status()
+    config = resp.json()
+    assert config["inspect_version"] == inspect_ai.__version__
+    # scout is an optional dependency: present as a string when installed,
+    # otherwise null.
+    assert "scout_version" in config
+    assert config["scout_version"] is None or isinstance(config["scout_version"], str)
+
+
 def test_api_log_info(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     write_eval_log(view_client.log_dir, fname)
@@ -337,9 +384,68 @@ def test_api_log_info(view_client: ViewTestClient) -> None:
 def test_api_log_delete(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request("GET", view_client.log_url("log-delete", fname))
+    resp = view_client.frontend_request(
+        "DELETE", view_client.log_url("log-delete", fname)
+    )
     resp.raise_for_status()
     assert not Path(full_path).exists()
+
+
+def test_api_log_delete_get_is_side_effect_free(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("log-delete", fname))
+    assert resp.status_code == 405
+    assert Path(full_path).exists()
+
+
+@pytest.mark.parametrize("fetch_dest", ["audio", "document", "image", "style", "video"])
+def test_api_log_delete_rejects_passive_fetch_destinations(
+    view_client: ViewTestClient, fetch_dest: str
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.frontend_request(
+        "DELETE",
+        view_client.log_url("log-delete", fname),
+        headers={"Sec-Fetch-Dest": fetch_dest},
+    )
+    assert resp.status_code == 403
+    assert Path(full_path).exists()
+
+
+def test_api_log_delete_cross_origin_metadata_still_requires_frontend_header(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_del_delid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "DELETE",
+        view_client.log_url("log-delete", fname),
+        headers={
+            "Origin": "https://example.com",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    assert resp.status_code == 403
+    assert Path(full_path).exists()
+
+
+def test_api_log_edit_requires_frontend_request(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        headers={"Sec-Fetch-Dest": "empty"},
+        json={
+            "edits": [{"type": "tags", "tags_add": ["x"], "tags_remove": []}],
+            "provenance": {"author": "alice"},
+        },
+    )
+    assert resp.status_code == 403
+    assert inspect_ai.log.read_eval_log(full_path, header_only=True).tags == []
 
 
 def test_api_log_edit_metadata_null_value_persists(
@@ -351,7 +457,7 @@ def test_api_log_edit_metadata_null_value_persists(
     # checks the key landed with value None.
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -388,7 +494,7 @@ def test_api_log_edit_returns_409_for_in_progress_log(
     # so the client can render the right message).
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname, status="started")
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -412,7 +518,7 @@ def test_api_log_edit_returns_409_for_in_progress_log(
 def test_api_log_edit_tags_roundtrip(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -436,7 +542,7 @@ def test_api_log_edit_tags_roundtrip(view_client: ViewTestClient) -> None:
 def test_api_log_edit_noop_returns_unchanged(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -456,7 +562,7 @@ def test_api_log_edit_noop_returns_unchanged(view_client: ViewTestClient) -> Non
 def test_api_log_edit_invalid_tag_returns_400(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -473,7 +579,7 @@ def test_api_log_edit_missing_provenance_returns_422(
 ) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     write_eval_log(view_client.log_dir, fname)
-    resp = view_client.request(
+    resp = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={"edits": [{"type": "tags", "tags_add": ["x"]}]},
@@ -487,7 +593,7 @@ def test_api_log_edit_append_preserves_prior_updates(
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
 
-    first = view_client.request(
+    first = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -497,7 +603,7 @@ def test_api_log_edit_append_preserves_prior_updates(
     )
     first.raise_for_status()
 
-    second = view_client.request(
+    second = view_client.frontend_request(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
@@ -576,6 +682,22 @@ def test_api_logs_listing(view_client: ViewTestClient) -> None:
     assert tasks == {"t1", "t2"}
 
 
+def test_api_logs_listing_log_dir_uri(view_client: ViewTestClient) -> None:
+    write_eval_log_named(
+        view_client.log_dir, "2025-01-01T00-00-00+00-00_t1_id1.eval", "t1", "id1"
+    )
+    resp = view_client.request(
+        "GET", f"/logs?log_dir={urllib.parse.quote_plus(str(view_client.log_dir))}"
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    # The canonical dir URI shares the file names' namespace, so names are
+    # dir-prefixed identities (what the viewer's cache scoping relies on).
+    assert body["log_dir_uri"]
+    for f in body["files"]:
+        assert f["name"].startswith(body["log_dir_uri"] + "/")
+
+
 def test_api_log_headers(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname, status="started")
@@ -621,14 +743,74 @@ def test_api_events_no_param(view_client: ViewTestClient) -> None:
     assert resp.json() == []
 
 
-def test_api_log_message(view_client: ViewTestClient) -> None:
+@pytest.fixture
+def client_log_messages(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    messages: list[str] = []
+    monkeypatch.setattr(
+        logging.getLogger(fastapi_server.__name__), "warning", messages.append
+    )
+    return messages
+
+
+def test_api_log_message(
+    view_client: ViewTestClient, client_log_messages: list[str]
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.frontend_request(
+        "POST",
+        f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
+    )
+    assert resp.status_code == 204
+    assert any("[CLIENT MESSAGE]" in message for message in client_log_messages)
+
+
+def test_api_log_message_get_is_side_effect_free(
+    view_client: ViewTestClient, client_log_messages: list[str]
+) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
     resp = view_client.request(
         "GET",
         f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
     )
-    assert resp.status_code == 204
+    assert resp.status_code == 405
+    assert client_log_messages == []
+
+
+@pytest.mark.parametrize("fetch_dest", ["audio", "document", "image", "style", "video"])
+def test_api_log_message_rejects_passive_fetch_destinations(
+    view_client: ViewTestClient,
+    client_log_messages: list[str],
+    fetch_dest: str,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.frontend_request(
+        "POST",
+        f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
+        headers={"Sec-Fetch-Dest": fetch_dest},
+    )
+    assert resp.status_code == 403
+    assert client_log_messages == []
+
+
+def test_api_log_message_cross_origin_metadata_still_requires_frontend_header(
+    view_client: ViewTestClient, client_log_messages: list[str]
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        f"/log-message?log_file={urllib.parse.quote_plus(full_path)}&message=hello",
+        headers={
+            "Origin": "https://example.com",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Site": "cross-site",
+        },
+    )
+    assert resp.status_code == 403
+    assert client_log_messages == []
 
 
 def test_api_log_files_full_listing(view_client: ViewTestClient) -> None:
@@ -779,6 +961,29 @@ def test_api_pending_samples_with_buffer(view_client: ViewTestClient) -> None:
     assert resp2.status_code == 304
 
 
+def test_api_pending_samples_preserves_non_finite_scores(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+    buffer = inspect_ai.log._recorders.buffer.filestore.SampleBufferFilestore(
+        full_path, create=False
+    )
+    manifest = buffer.read_manifest()
+    assert manifest is not None
+    manifest.samples[0].summary.scores = {"listy": Score(value=[float("nan"), 1.0])}
+    buffer.write_manifest(manifest)
+
+    response = view_client.request(
+        "GET", f"/pending-samples?log={urllib.parse.quote_plus(full_path)}"
+    )
+
+    response.raise_for_status()
+    value = response.json()["samples"][0]["scores"]["listy"]["value"]
+    assert math.isnan(value[0])
+
+
 def test_api_pending_sample_data_no_buffer(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
@@ -805,6 +1010,56 @@ def test_api_pending_sample_data_with_buffer(view_client: ViewTestClient) -> Non
     assert body["events"][0]["event"] == {"message": "hello"}
 
 
+def test_api_pending_sample_data_preserves_non_finite_scores(
+    view_client: ViewTestClient,
+) -> None:
+    from inspect_ai.log._recorders.buffer.filestore import (
+        SampleBufferFilestore,
+        SegmentFile,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+    buffer = SampleBufferFilestore(full_path, create=False)
+    score_event = ScoreEvent(
+        score=Score(value=[float("nan"), 1.0]),
+        scorer="listy",
+    )
+    buffer.write_segment(
+        0,
+        [
+            SegmentFile(
+                id="sample1",
+                epoch=0,
+                data=SampleData(
+                    events=[
+                        EventData(
+                            id=1,
+                            event_id="evt0",
+                            sample_id="sample1",
+                            epoch=0,
+                            event=score_event.model_dump(mode="json"),
+                        )
+                    ],
+                    attachments=[],
+                ),
+            )
+        ],
+    )
+
+    response = view_client.request(
+        "GET",
+        f"/pending-sample-data?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0",
+    )
+
+    response.raise_for_status()
+    value = response.json()["events"][0]["event"]["score"]["value"]
+    assert math.isnan(value[0])
+
+
 def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
     resp = view_client.request(
         "GET",
@@ -812,6 +1067,184 @@ def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
     )
     resp.raise_for_status()
     assert resp.json() is None
+
+
+def test_api_eval_set_uses_fs_options_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_read_eval_set_info(log_dir: str, fs_options: dict[str, Any] = {}) -> None:
+        calls.append((log_dir, fs_options))
+        return None
+
+    monkeypatch.setattr(fastapi_server, "read_eval_set_info", fake_read_eval_set_info)
+    app = fastapi_server.view_server_app(fs_options={"anon": True})
+    with fastapi.testclient.TestClient(app) as client:
+        resp = client.request(
+            "GET",
+            f"/eval-set?dir={urllib.parse.quote_plus('s3://bucket/logs')}",
+        )
+
+    resp.raise_for_status()
+    assert resp.json() is None
+    assert calls == [("s3://bucket/logs", {"anon": True})]
+
+
+def _patch_flat_filesystem(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Stub common.filesystem so az:// paths don't construct a real adlfs fs."""
+    from inspect_ai._view import common
+
+    class FlatFileSystem:
+        sep = "/"
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FlatFileSystem:
+        return FlatFileSystem()
+
+    monkeypatch.setattr(common, "filesystem", fake_filesystem)
+
+
+async def test_read_eval_set_info_async_suppresses_azure_auth_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class AzureAuthErrorFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise Exception("Server failed to authenticate the request")
+
+    result = await read_eval_set_info_async(
+        "az://container/logs", cast(AsyncFilesystem, AzureAuthErrorFilesystem())
+    )
+    assert result is None
+
+
+async def test_read_eval_set_info_async_raises_non_auth_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_flat_filesystem(monkeypatch)
+
+    class BrokenFilesystem:
+        async def exists(self, filename: str) -> bool:
+            raise RuntimeError("connection reset by peer")
+
+    with pytest.raises(RuntimeError):
+        await read_eval_set_info_async(
+            "az://container/logs", cast(AsyncFilesystem, BrokenFilesystem())
+        )
+
+
+async def test_list_eval_logs_async_uses_fsspec_path_with_fs_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from inspect_ai._util._async import current_async_backend
+    from inspect_ai._util.file import FileInfo
+    from inspect_ai.log import _file as log_file
+
+    filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    async_filesystem_calls: list[tuple[str, dict[str, Any]]] = []
+    sync_ls_calls: list[tuple[str, bool]] = []
+
+    class FakeFileSystem:
+        def is_s3(self) -> bool:
+            return True
+
+        def is_async(self) -> bool:
+            return True
+
+        def exists(self, path: str) -> bool:
+            return True
+
+        def ls(self, path: str, recursive: bool = False) -> list[FileInfo]:
+            sync_ls_calls.append((path, recursive))
+            return [
+                FileInfo(
+                    name=f"{path}/2026-01-01T00-00-00_task_id.eval",
+                    type="file",
+                    size=123,
+                    mtime=1710000000.0,
+                    etag=None,
+                )
+            ]
+
+        def _file_info(self, info: dict[str, Any]) -> FileInfo:
+            return FileInfo(
+                name=info["name"],
+                type=info["type"],
+                size=info.get("size", 0),
+                mtime=info.get("mtime"),
+                etag=None,
+            )
+
+    class FakeAsyncFileSystem:
+        async def _exists(self, log_dir: str) -> bool:
+            return True
+
+        def invalidate_cache(self, log_dir: str) -> None:
+            pass
+
+        async def _ls(self, log_dir: str, detail: bool = True) -> list[dict[str, Any]]:
+            return [
+                {
+                    "name": f"{log_dir}/2026-01-01T00-00-00_task_id.eval",
+                    "type": "file",
+                    "size": 123,
+                    "mtime": 1710000000.0,
+                }
+            ]
+
+    def fake_filesystem(path: str, fs_options: dict[str, Any] = {}) -> FakeFileSystem:
+        filesystem_calls.append((path, fs_options))
+        return FakeFileSystem()
+
+    @contextlib.asynccontextmanager
+    async def fake_async_filesystem(
+        location: str, fs_options: dict[str, Any] = {}
+    ) -> Any:
+        async_filesystem_calls.append((location, fs_options))
+        yield FakeAsyncFileSystem()
+
+    class UnexpectedAsyncFilesystem:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise AssertionError("AsyncFilesystem fast path should not be used")
+
+    monkeypatch.setattr(log_file, "filesystem", fake_filesystem)
+    monkeypatch.setattr(log_file, "async_filesystem", fake_async_filesystem)
+    monkeypatch.setattr(log_file, "AsyncFilesystem", UnexpectedAsyncFilesystem)
+
+    logs = await list_eval_logs_async(
+        "s3://bucket/logs", recursive=False, fs_options={"anon": True}
+    )
+
+    assert filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+    if current_async_backend() == "asyncio":
+        assert async_filesystem_calls == [("s3://bucket/logs", {"anon": True})]
+        assert sync_ls_calls == []
+    else:
+        # under trio the fsspec asynchronous=True path is unavailable, so the
+        # listing falls back to fsspec's backend-agnostic sync API
+        assert async_filesystem_calls == []
+        assert sync_ls_calls == [("s3://bucket/logs", False)]
+    assert len(logs) == 1
+    assert logs[0].name == "s3://bucket/logs/2026-01-01T00-00-00_task_id.eval"
+    assert logs[0].task == "task"
+    assert logs[0].task_id == "id"
+
+
+async def test_list_eval_logs_async_s3_missing_bucket_returns_empty(
+    mock_s3: None,
+) -> None:
+    logs = await list_eval_logs_async("s3://no-such-bucket/logs")
+    assert logs == []
+
+
+async def test_list_eval_logs_async_s3_lists_logs(mock_s3: None) -> None:
+    s3_log = (
+        "s3://test-bucket/list-fast-path/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
+    await _write_eval_log_to_s3_async(s3_log)
+    logs = await list_eval_logs_async("s3://test-bucket/list-fast-path")
+    assert [log.name for log in logs] == [s3_log]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -950,7 +1383,9 @@ def test_fastapi_log_delete_forbidden(
     test_client_with_restrictive_access: TestClient, mock_s3_eval_file: str
 ) -> None:
     response = test_client_with_restrictive_access.request(
-        "GET", f"/log-delete/{mock_s3_eval_file}"
+        "DELETE",
+        f"/log-delete/{mock_s3_eval_file}",
+        headers=FRONTEND_REQUEST_HEADERS,
     )
     assert response.status_code == 403
     assert inspect_ai._util.file.filesystem("memory://").exists(mock_s3_eval_file)
@@ -962,6 +1397,7 @@ def test_fastapi_log_edit_forbidden(
     response = test_client_with_restrictive_access.request(
         "POST",
         f"/log-edit/{mock_s3_eval_file}",
+        headers=FRONTEND_REQUEST_HEADERS,
         json={
             "edits": [{"type": "tags", "tags_add": ["x"], "tags_remove": []}],
             "provenance": {"author": "alice"},
@@ -1189,7 +1625,38 @@ def test_fastapi_only_dir_access_policy() -> None:
     policy = fastapi_server.OnlyDirAccessPolicy("/allowed/dir")
     assert asyncio.run(policy.can_read(None, "/allowed/dir/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/other/dir/file.eval"))  # type: ignore[arg-type]
+    assert not asyncio.run(policy.can_read(None, "/allowed/directory/file.eval"))  # type: ignore[arg-type]
     assert not asyncio.run(policy.can_read(None, "/allowed/dir/../etc/passwd"))  # type: ignore[arg-type]
+    assert not asyncio.run(policy.can_read(None, "unsupported://dir/file.eval"))  # type: ignore[arg-type]
+
+
+def test_normalize_uri_preserves_windows_drive() -> None:
+    windows_uri = "file://C:/Users/example/logs/run.eval"
+    assert normalize_uri(windows_uri) == windows_uri
+    assert normalize_uri("file:///C:/Users/example/logs/run.eval") == windows_uri
+    assert normalize_uri(urllib.parse.quote(windows_uri, safe="")) == windows_uri
+    assert normalize_uri("file://c:/Users/example/logs/run.eval") == (
+        "file://c:/Users/example/logs/run.eval"
+    )
+
+
+def test_fastapi_only_dir_access_policy_accepts_listed_file_uri(
+    tmp_path: Path,
+) -> None:
+    log_file = write_eval_log(tmp_path, "run.eval")
+    fs = inspect_ai._util.file.filesystem(log_file)
+    listed_uri = fs.path_as_uri(fs.fs._strip_protocol(log_file))
+
+    with fastapi.testclient.TestClient(
+        fastapi_server.view_server_app(
+            default_dir=str(tmp_path),
+            access_policy=fastapi_server.OnlyDirAccessPolicy(str(tmp_path)),
+        )
+    ) as client:
+        encoded_uri = urllib.parse.quote(listed_uri, safe="")
+        response = client.get(f"/logs/{encoded_uri}")
+
+    assert response.status_code == 200
 
 
 def test_fastapi_only_dir_policy_integration(mock_s3_eval_file: str) -> None:
@@ -1520,13 +1987,8 @@ def test_api_pending_sample_data_urls_tail_without_cap_returns_all(
     assert body["has_more"] is False
 
 
-def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
-    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
-
-    Defaults to a finished log (``status="success"``) so edit tests pass
-    the in-progress gate; override for tests that need a running log.
-    """
-    eval_log = inspect_ai.log.EvalLog(
+def _make_s3_eval_log(status: str = "success") -> inspect_ai.log.EvalLog:
+    return inspect_ai.log.EvalLog(
         status=status,  # type: ignore[arg-type]
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
@@ -1537,7 +1999,23 @@ def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
             config=inspect_ai.log.EvalConfig(),
         ),
     )
-    inspect_ai.log.write_eval_log(eval_log, s3_path, "eval")
+
+
+def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
+    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
+
+    Defaults to a finished log (``status="success"``) so edit tests pass
+    the in-progress gate; override for tests that need a running log.
+    """
+    inspect_ai.log.write_eval_log(_make_s3_eval_log(status), s3_path, "eval")
+
+
+async def _write_eval_log_to_s3_async(s3_path: str, status: str = "success") -> None:
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        zf.writestr("header.json", to_json_safe(_make_s3_eval_log(status), indent=None))
+    async with AsyncFilesystem() as fs:
+        await fs.write_file(s3_path, buffer.getvalue())
 
 
 def test_api_log_returns_etag_header_for_s3(mock_s3: None, tmp_path: Path) -> None:
@@ -1608,7 +2086,7 @@ def test_api_log_edit_s3_returns_new_etag(mock_s3: None, tmp_path: Path) -> None
         original_etag = read_resp.headers["etag"]
 
         # Edit with matching If-Match — should succeed and return a new ETag.
-        edit_resp = client.request(
+        edit_resp = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             headers={"If-Match": original_etag},
@@ -1646,7 +2124,7 @@ def test_api_log_edit_s3_stale_if_match_returns_412(
         original_etag = read_resp.headers["etag"]
 
         # First edit succeeds (consumes the ETag).
-        first = client.request(
+        first = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             headers={"If-Match": original_etag},
@@ -1658,7 +2136,7 @@ def test_api_log_edit_s3_stale_if_match_returns_412(
         first.raise_for_status()
 
         # Second edit with the now-stale ETag should 412.
-        second = client.request(
+        second = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             headers={"If-Match": original_etag},
@@ -1689,7 +2167,7 @@ def test_api_log_edit_s3_without_if_match_succeeds(
 
     client = ViewTestClient(tmp_path)
     try:
-        resp = client.request(
+        resp = client.frontend_request(
             "POST",
             f"/log-edit/{s3_log}",
             json={
@@ -1739,3 +2217,240 @@ def test_api_pending_sample_data_urls_s3_populates_direct_url(
     assert direct_url is not None
     assert direct_url.startswith("http")
     assert "test-bucket" in direct_url
+
+
+async def test_get_log_bytes_local_does_not_block_event_loop(tmp_path: Path) -> None:
+    """A local byte-range read must not pin the event loop.
+
+    `get_log_bytes` reads local files via asyncfiles' anyio-backed reader,
+    so a large read yields to the loop instead of running to completion in
+    one blocking `fs.read_bytes`. We guard that by monitoring loop lateness
+    while the read runs: a blocking read stalls the loop for ~the entire
+    read duration, a non-blocking one barely at all.
+
+    The assertion is relative (stall vs. read duration) so it is
+    independent of machine speed and file size. It would fail if the local
+    path regressed to a synchronous read.
+    """
+    # Build a file large enough that a single synchronous read takes long
+    # enough to dwarf scheduler jitter (a 1MB buffer reused to keep the
+    # write cheap and the bytes non-sparse so the read isn't elided).
+    log_file = tmp_path / "big.bin"
+    size = 256 * 1024 * 1024
+    chunk = b"\xa5" * (1024 * 1024)
+    with open(log_file, "wb") as f:
+        for _ in range(size // len(chunk)):
+            f.write(chunk)
+
+    path = log_file.as_posix()
+
+    # Warm the page cache before monitoring: a cold first read off slow disk
+    # inflates read_duration with I/O wait that also skews the stall ratio.
+    with open(log_file, "rb") as f:
+        while f.read(len(chunk)):
+            pass
+
+    async with event_loop_monitor(interval=0.002) as stats:
+        # let the monitor establish its cadence before the read starts
+        await anyio.sleep(0.02)
+        start = time.monotonic()
+        data = await get_log_bytes(path, 0, size - 1)
+        read_duration = time.monotonic() - start
+        # let the monitor wake and record the post-block tick
+        await anyio.sleep(0.01)
+
+    assert len(data) == size
+    # Sanity: the read must be substantial enough for the signal to mean
+    # something (guards against a no-op fast path elsewhere).
+    assert read_duration > 0.01, f"read too fast to be meaningful: {read_duration:.4f}s"
+
+    # A blocking read stalls the loop for ~100% of its duration; 0.8 keeps
+    # full discriminating power while tolerating GIL/scheduler contention.
+    stalled_fraction = stats.max_lateness / read_duration
+    assert stats.max_lateness < read_duration * 0.8, (
+        f"event loop stalled {stats.max_lateness_ms:.0f}ms during a "
+        f"{read_duration * 1000:.0f}ms local read "
+        f"({stalled_fraction:.0%} of it) — the read is blocking the loop"
+    )
+
+
+async def test_event_loop_monitor_propagates_body_exception_bare() -> None:
+    """Exceptions raised in the monitored block propagate unwrapped.
+
+    anyio task groups wrap body exceptions in an ExceptionGroup; the
+    monitor unwraps so callers' `except SpecificError` keeps working.
+    """
+    with pytest.raises(ValueError):
+        async with event_loop_monitor():
+            raise ValueError("boom")
+
+
+async def _consume(stream: Any) -> bytes:
+    chunks = []
+    async for chunk in stream:
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+async def test_stream_log_bytes_streams_large_local_file(tmp_path: Path) -> None:
+    """Local files over the stream threshold are streamed, not buffered.
+
+    Regression guard: this path previously fell through to the S3-only
+    branch and raised "Expected S3FileSystem" for any local file larger
+    than the threshold (notably `/log-download` of a >50MB local log).
+
+    A low `stream_threshold_bytes` forces the streaming branch with a
+    small file. The result must be an async byte stream (not a buffered
+    `BytesIO`) that yields the exact file contents.
+    """
+    payload = bytes(range(256)) * 4096  # 1MB of non-uniform bytes
+    log_file = tmp_path / "log.bin"
+    log_file.write_bytes(payload)
+    path = log_file.as_posix()
+
+    # full file, threshold below the file size -> streaming branch
+    stream = await stream_log_bytes(path, stream_threshold_bytes=16)
+    assert not isinstance(stream, BytesIO)
+    assert await _consume(stream) == payload
+
+    # ranged read whose size exceeds the threshold also streams, returning
+    # exactly the requested (inclusive) range
+    ranged = await stream_log_bytes(path, 10, 99, stream_threshold_bytes=16)
+    assert not isinstance(ranged, BytesIO)
+    assert await _consume(ranged) == payload[10:100]
+
+
+def test_api_log_download_content_length_matches_body_when_stat_is_stale(
+    view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Content-Length must come from the actual body, not an earlier stat.
+
+    In-progress .eval files are rewritten in place, so the size measured
+    before the read can disagree with the bytes actually read. Simulate
+    that race deterministically by making the endpoint's get_log_size
+    over-report: the download must still succeed with the real bytes and
+    a Content-Length that matches them (previously the stale size was
+    stamped on the response, producing a header/body mismatch that makes
+    clients abort the download).
+    """
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    actual_size = Path(full_path).stat().st_size
+
+    async def stale_get_log_size(log_file: str) -> int:
+        return actual_size + 1000
+
+    monkeypatch.setattr(fastapi_server, "get_log_size", stale_get_log_size)
+
+    resp = view_client.request("GET", view_client.log_url("log-download", fname))
+    resp.raise_for_status()
+    assert len(resp.content) == actual_size
+    content_length = resp.headers.get("content-length")
+    if content_length is not None:
+        assert int(content_length) == len(resp.content)
+
+
+async def test_stream_log_bytes_local_streams_in_large_chunks(tmp_path: Path) -> None:
+    """The local streaming branch must pull large chunks per receive.
+
+    Iterating a ByteReceiveStream directly uses anyio's 64KB default —
+    one worker-thread hop per 64KB, which throttles large downloads. The
+    streaming branch reads 1MB per receive, so a multi-MB stream must
+    yield chunks larger than 64KB (the final chunk may be short).
+    """
+    payload = bytes(range(256)) * (3 * 4096)  # 3MB
+    log_file = tmp_path / "log.bin"
+    log_file.write_bytes(payload)
+
+    stream = await stream_log_bytes(log_file.as_posix(), stream_threshold_bytes=16)
+    assert not isinstance(stream, BytesIO)
+    chunks = [chunk async for chunk in stream]
+    assert b"".join(chunks) == payload
+    assert any(len(chunk) > 65536 for chunk in chunks), (
+        f"all {len(chunks)} chunks were <= 64KB — the stream is using "
+        "anyio's default receive size (one thread hop per 64KB)"
+    )
+
+
+async def test_stream_log_bytes_local_does_not_restat_known_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A known file size must not be re-stat'ed by the read path.
+
+    stream_log_bytes resolves the open-ended range itself, so the
+    get_log_bytes it delegates to must never call get_log_size (which is
+    a synchronous fs.info on the event loop for local files — previously
+    every /log-download stat'ed the file twice).
+    """
+    payload = b"x" * 1024
+    log_file = tmp_path / "log.bin"
+    log_file.write_bytes(payload)
+
+    calls = 0
+    real_get_log_size = inspect_ai._view.common.get_log_size
+
+    async def counting_get_log_size(log_file: str) -> int:
+        nonlocal calls
+        calls += 1
+        return await real_get_log_size(log_file)
+
+    monkeypatch.setattr(inspect_ai._view.common, "get_log_size", counting_get_log_size)
+
+    result = await stream_log_bytes(log_file.as_posix(), log_file_size=len(payload))
+    assert isinstance(result, BytesIO)
+    assert result.getvalue() == payload
+    assert calls == 0, (
+        f"get_log_size called {calls}x despite log_file_size being supplied"
+    )
+
+
+async def test_stream_log_bytes_local_stale_low_size_reads_to_eof(
+    tmp_path: Path,
+) -> None:
+    """A stale-low log_file_size must not truncate an open-ended local read.
+
+    In-progress .eval files grow between the caller's stat and the read;
+    log_file_size may only route buffered-vs-streaming, never bound the
+    bytes. Simulate the race with a log_file_size smaller than the file:
+    both branches must return the full current contents.
+    """
+    payload = bytes(range(256)) * 16  # 4KB of non-uniform bytes
+    log_file = tmp_path / "grow.bin"
+    log_file.write_bytes(payload)
+    path = log_file.as_posix()
+
+    # stale size below threshold -> buffered branch
+    buffered = await stream_log_bytes(path, log_file_size=len(payload) // 2)
+    assert isinstance(buffered, BytesIO)
+    assert buffered.getvalue() == payload
+
+    # stale size above threshold -> streaming branch
+    streamed = await stream_log_bytes(
+        path, log_file_size=len(payload) // 2, stream_threshold_bytes=16
+    )
+    assert not isinstance(streamed, BytesIO)
+    assert await _consume(streamed) == payload
+
+
+def test_api_log_download_returns_full_body_when_stat_is_stale_low(
+    view_client: ViewTestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file that grows between stat and read must download in full.
+
+    Counterpart to the stale over-report test above: an under-reported
+    size is the dangerous direction, since a truncated body ships with a
+    matching framework-computed Content-Length — 200 OK, silently corrupt
+    .eval, nothing for the client to detect.
+    """
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    actual_size = Path(full_path).stat().st_size
+
+    async def stale_get_log_size(log_file: str) -> int:
+        return actual_size // 2
+
+    monkeypatch.setattr(fastapi_server, "get_log_size", stale_get_log_size)
+
+    resp = view_client.request("GET", view_client.log_url("log-download", fname))
+    resp.raise_for_status()
+    assert resp.content == Path(full_path).read_bytes()

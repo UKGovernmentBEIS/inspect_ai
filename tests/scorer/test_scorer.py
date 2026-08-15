@@ -5,6 +5,7 @@ from test_helpers.utils import ensure_test_package_installed, run_example
 
 from inspect_ai import Task, eval, score
 from inspect_ai.dataset import Sample
+from inspect_ai.log import recompute_metrics
 from inspect_ai.scorer import Score, Scorer, Target, accuracy, includes, scorer
 from inspect_ai.scorer._scorer import scorer_create
 from inspect_ai.solver import TaskState
@@ -24,6 +25,25 @@ def match() -> Scorer:
 
 def test_scorer_lookup():
     scorer = scorer_create("test_match")
+    assert scorer
+
+
+@scorer(metrics=[accuracy()], name="test_match_kwargs")
+def match_kwargs(**kwargs) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        return Score(value="C")
+
+    return score
+
+
+def test_scorer_create_replays_name_kwarg_without_collision():
+    """A `**kwargs` key named `name` must survive scorer replay from a log (#4375).
+
+    Flat capture records such a key at the top level of EvalScore.params, so
+    replaying it via scorer_create must not collide with scorer_create's own
+    `name` parameter.
+    """
+    scorer = scorer_create("test_match_kwargs", name="demo")
     assert scorer
 
 
@@ -101,3 +121,19 @@ def test_score_unique():
     assert eval_log.results.scores[0].name == "simple_score"
     assert eval_log.results.scores[1].name == "simple_score1"
     assert eval_log.results.scores[2].name == "simple_score2"
+
+
+def test_recompute_duplicate_scorer_names():
+    task = Task(
+        dataset=[Sample(input="Say hello.", target="Hello")],
+        scorer=[match(), match()],
+        epochs=2,
+    )
+    eval_log = eval(tasks=task, model="mockllm/model", display="none")[0]
+    assert eval_log.results is not None
+
+    before = [score.name for score in eval_log.results.scores]
+    assert before == ["test_match", "test_match1"]
+
+    recompute_metrics(eval_log)
+    assert [score.name for score in eval_log.results.scores] == before

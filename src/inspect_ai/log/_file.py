@@ -1,10 +1,19 @@
+import asyncio
+import contextlib
+import inspect
 import os
 import re
+from collections.abc import Iterable
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import IO, Any, Callable, Generator, Literal, cast
+from typing import IO, Any, AsyncIterator, Callable, Generator, Literal, cast
 
+import anyio.to_thread
+import fsspec  # type: ignore
+from botocore.exceptions import ClientError
+from fsspec.asyn import AsyncFileSystem  # type: ignore
+from fsspec.core import split_protocol  # type: ignore
 from pydantic import (
     BaseModel,
     Field,
@@ -12,12 +21,14 @@ from pydantic import (
 
 from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
-from inspect_ai._util.asyncfiles import get_async_filesystem
+from inspect_ai._util.asyncfiles import AsyncFilesystem, get_async_filesystem
+from inspect_ai._util.azure import azure_warning_hint, should_suppress_azure_error
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import (
     FileInfo,
+    default_fs_options,
     file,
     filesystem,
 )
@@ -111,16 +122,26 @@ def list_eval_logs(
        List of EvalLog Info.
 
     """
+    # don't mix trio and asyncio (guard only the filter path: it reads log
+    # headers via the trio-incompatible sync read_eval_log; unfiltered listing
+    # is called from async code and only reads headers as a best-effort
+    # fallback for non-conforming filenames, which degrades to empty task
+    # fields rather than raising)
+    if filter and current_async_backend() == "trio":
+        raise RuntimeError(
+            "list_eval_logs with a filter cannot be called from a trio async context (please use list_eval_logs_async instead)"
+        )
+
     # get the eval logs
+    logger.debug(f"Listing eval logs for {log_dir}")
     fs = filesystem(log_dir, fs_options)
     if fs.exists(log_dir):
-        logger.debug(f"Listing eval logs for {log_dir}")
         eval_logs = log_files_from_ls(
             fs.ls(log_dir, recursive=recursive), formats, descending
         )
-        logger.debug(f"Listing eval logs for {log_dir} completed")
     else:
-        return []
+        eval_logs = []
+    logger.debug(f"Listing eval logs for {log_dir} completed")
 
     # apply filter if requested
     if filter:
@@ -131,6 +152,242 @@ def list_eval_logs(
         ]
     else:
         return eval_logs
+
+
+async def list_eval_logs_async(
+    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
+    formats: list[Literal["eval", "json"]] | None = None,
+    filter: Callable[[EvalLog], bool] | None = None,
+    recursive: bool = True,
+    descending: bool = True,
+    fs_options: dict[str, Any] = {},
+) -> list[EvalLogInfo]:
+    """List all eval logs in a directory (async).
+
+    Async equivalent of `list_eval_logs()`. Prefer this when calling from an
+    async context: the listing itself is async for filesystem providers that
+    support it (e.g. s3, gcs, azure) rather than blocking the event loop
+    (except remote listings under trio other than plain S3, which fall back
+    to fsspec's sync API), and log headers (for `filter`, and as a fallback for
+    non-conforming filenames) are read with `read_eval_log_async()` — the
+    sync version's `read_eval_log()` raises when called from a trio async
+    context.
+
+    Args:
+      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
+      formats (Literal["eval", "json"]): Formats to list (default
+        to listing all formats)
+      filter (Callable[[EvalLog], bool]): Filter to limit logs returned.
+         Note that the EvalLog instance passed to the filter has only
+         the EvalLog header (i.e. does not have the samples or logging output).
+      recursive (bool): List log files recursively (defaults to True).
+      descending (bool): List in descending order.
+      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
+          to the filesystem provider (e.g. `S3FileSystem`).
+
+    Returns:
+       List of EvalLog Info.
+
+    """
+    logger.debug(f"Listing eval logs for {log_dir}")
+    eval_logs = await _list_eval_logs_async(
+        log_dir, formats, recursive, descending, fs_options
+    )
+    logger.debug(f"Listing eval logs for {log_dir} completed")
+
+    # apply filter if requested
+    if filter:
+        # bound the header-read fan-out (one read per log file otherwise)
+        semaphore = anyio.Semaphore(8)
+
+        async def read_header(log: EvalLogInfo) -> EvalLog:
+            async with semaphore:
+                return await read_eval_log_async(log.name, header_only=True)
+
+        headers = await tg_collect([partial(read_header, log) for log in eval_logs])
+        return [log for log, header in zip(eval_logs, headers) if filter(header)]
+    else:
+        return eval_logs
+
+
+async def _list_eval_logs_async(
+    log_dir: str,
+    formats: list[Literal["eval", "json"]] | None,
+    recursive: bool,
+    descending: bool,
+    fs_options: dict[str, Any],
+) -> list[EvalLogInfo]:
+    # async filesystem if we can
+    fs = filesystem(log_dir, fs_options)
+    if fs.is_s3() and not fs_options:
+        # S3: list via the shared async filesystem (one warm aioboto3 client +
+        # connection pool, reused across requests when the view server binds it).
+        # iter_files(detail=True) is a single list_objects_v2 sweep that returns
+        # FileInfo (name/size/mtime) — no separate existence precheck or per-file
+        # stat — and a missing prefix simply yields nothing.
+        try:
+            async with AsyncFilesystem() as afs:
+                logs = [
+                    info
+                    async for info in afs.iter_files(
+                        log_dir, recursive=recursive, detail=True
+                    )
+                ]
+        except ClientError as ex:
+            # a missing bucket is an empty listing (as with the existence
+            # precheck the other branches perform), not an error
+            if ex.response.get("Error", {}).get("Code") in (
+                "NoSuchBucket",
+                "404",
+                "NotFound",
+            ):
+                return []
+            raise
+        # resolve to eval logs (async fan-out so header reads on
+        # non-conforming filenames don't block the event loop)
+        return await log_files_from_ls_async(logs, formats, descending)
+    elif fs.is_async() and current_async_backend() != "asyncio":
+        # fsspec's asynchronous=True mode requires a running asyncio loop, so
+        # under trio list via fsspec's sync API instead, which drives its own
+        # background event-loop thread and is backend-agnostic. Called
+        # directly rather than via to_thread: remote-fsspec sync calls must
+        # not run in our threadpool (see the fsspec warning in AGENTS.md).
+        try:
+            exists = fs.exists(log_dir)
+        except Exception as ex:  # noqa: BLE001
+            if should_suppress_azure_error(log_dir, ex):
+                logger.warning(azure_warning_hint(log_dir, ex))
+                exists = True
+            else:
+                raise
+        if not exists:
+            return []
+        logs = fs.ls(log_dir, recursive=recursive)
+        return await log_files_from_ls_async(logs, formats, descending)
+    elif fs.is_async():
+        async with async_filesystem(log_dir, fs_options=fs_options) as async_fs:
+            # Attempt existence check with robust handling for Azure-style auth issues.
+            try:
+                exists = await async_fs._exists(log_dir)
+            except Exception as ex:  # noqa: BLE001
+                if should_suppress_azure_error(log_dir, ex):
+                    logger.warning(azure_warning_hint(log_dir, ex))
+                    exists = True
+                else:
+                    # TODO: Add S3 login error catching, as well as any other remote file system of interest
+                    # Re-raise non-auth related issues
+                    raise
+
+            if exists:
+                # prevent caching of listings
+                async_fs.invalidate_cache(log_dir)
+                # list logs
+                if recursive:
+                    if _walk_supports_detail(async_fs):
+                        files = await _walk_with_detail(async_fs, log_dir)
+                    else:
+                        files = await _walk_without_detail(async_fs, log_dir)
+                else:
+                    files = cast(
+                        list[dict[str, Any]],
+                        await async_fs._ls(log_dir, detail=True),
+                    )
+                logs = [fs._file_info(file) for file in files]
+                # resolve to eval logs (async fan-out so header reads on
+                # non-conforming filenames don't block the event loop)
+                return await log_files_from_ls_async(logs, formats, descending)
+            else:
+                return []
+    else:
+        # sync filesystem (e.g. local) — run the existence check and the
+        # (potentially large recursive) listing in a worker thread so they
+        # don't block the event loop
+        if not await anyio.to_thread.run_sync(fs.exists, log_dir):
+            return []
+        logs = await anyio.to_thread.run_sync(
+            partial(fs.ls, log_dir, recursive=recursive)
+        )
+        return await log_files_from_ls_async(logs, formats, descending)
+
+
+@contextlib.asynccontextmanager
+async def async_filesystem(
+    location: str, fs_options: dict[str, Any] = {}
+) -> AsyncIterator[AsyncFileSystem]:
+    # determine protocol
+    protocol, _ = split_protocol(location)
+    protocol = protocol or "file"
+
+    # build options
+    options = default_fs_options(location)
+    options.update(fs_options)
+
+    if protocol == "s3":
+        # s3fs is only needed for s3 locations; keep it out of the import graph
+        # of `inspect_ai.log` (which is imported by nearly everything).
+        from s3fs import S3FileSystem  # type: ignore
+
+        options["skip_instance_cache"] = True
+        s3 = S3FileSystem(asynchronous=True, **options)
+        session = await s3.set_session()
+        try:
+            yield s3
+        finally:
+            await session.close()
+    else:
+        options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
+        yield fsspec.filesystem(protocol, **options)
+
+
+def _walk_supports_detail(fs: AsyncFileSystem) -> bool:
+    walk = getattr(fs, "_walk", None)
+    if walk is None:
+        return False
+    try:
+        signature = inspect.signature(walk)
+    except (TypeError, ValueError):
+        return False
+    parameter = signature.parameters.get("detail")
+    if parameter is None:
+        return False
+    return parameter.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    )
+
+
+async def _walk_with_detail(fs: AsyncFileSystem, log_dir: str) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    async for _, _, filenames in fs._walk(log_dir, detail=True):
+        files.extend(filenames.values())
+    return files
+
+
+async def _walk_without_detail(
+    fs: AsyncFileSystem, log_dir: str
+) -> list[dict[str, Any]]:
+    files: list[dict[str, Any]] = []
+    stack: list[str] = [log_dir]
+    seen: set[str] = set()
+    while stack:
+        current = stack.pop()
+        try:
+            entries = await fs._ls(current, detail=True)
+        except OSError:
+            # match fsspec walk's on_error="omit" (used by _walk_with_detail
+            # and the sync fs.ls path): skip unlistable directories, but let
+            # non-OSError failures (e.g. auth errors) propagate
+            continue
+        for entry in entries:
+            name = entry.get("name") or entry.get("path")
+            if not name:
+                continue
+            files.append(entry)
+            entry_type = entry.get("type")
+            if (entry_type == "directory" or name.endswith("/")) and name not in seen:
+                seen.add(name)
+                stack.append(name)
+    return files
 
 
 def write_eval_log(
@@ -266,6 +523,7 @@ def read_eval_log(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -279,6 +537,10 @@ def read_eval_log(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
+       exclude_fields: Set of EvalSample field names to skip when loading
+          samples (e.g. {"messages", "events", "store", "attachments"}).
+          Ignored for .json format logs (only applies to .eval logs). Has no
+          effect when header_only is True or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -293,10 +555,7 @@ def read_eval_log(
     # flow, so force the use of asyncio
     return run_coroutine(
         read_eval_log_async(
-            log_file,
-            header_only,
-            resolve_attachments,
-            format,
+            log_file, header_only, resolve_attachments, format, exclude_fields
         )
     )
 
@@ -306,6 +565,7 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -319,6 +579,10 @@ async def read_eval_log_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension).
+       exclude_fields: Set of EvalSample field names to skip when loading
+          samples (e.g. {"messages", "events", "store", "attachments"}).
+          Ignored for .json format logs (only applies to .eval logs). Has no
+          effect when header_only is True or when log_file is an IO[bytes] stream.
 
     Returns:
        EvalLog object read from file.
@@ -349,7 +613,10 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_location(log_file)
         else:
             recorder_type = recorder_type_for_format(format)
-        log = await recorder_type.read_log(log_file, header_only)
+
+        exclude_fields = _normalize_excluded_fields(exclude_fields)
+
+        log = await recorder_type.read_log(log_file, header_only, exclude_fields)
 
     if log.samples:
         log.samples = [
@@ -431,6 +698,7 @@ def read_eval_log_sample(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        EvalSample object read from file.
@@ -495,6 +763,7 @@ async def read_eval_log_sample_async(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
        reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
@@ -522,19 +791,174 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    if exclude_fields:
-        if "events" not in exclude_fields:
-            # events_data is needed to resolve refs in events
-            exclude_fields = exclude_fields - {"events_data"}
-        else:
-            # no events means events_data is useless
-            exclude_fields = exclude_fields | {"events_data"}
+    exclude_fields = _normalize_excluded_fields(exclude_fields)
 
     sample = await recorder_type.read_log_sample(
         log_file, id, epoch, uuid, exclude_fields, reader
     )
 
     return _resolve_sample_for_read(sample, resolve_attachments)
+
+
+def read_eval_log_samples_by_id(
+    log_file: str | Path | EvalLogInfo,
+    samples: Iterable[tuple[str | int, int]],
+    *,
+    concurrency: int = 8,
+    resolve_attachments: bool | Literal["full", "core"] = False,
+    format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
+) -> list[EvalSample]:
+    """Read a specific subset of samples from an evaluation log concurrently.
+
+    Fetches only the requested ``(id, epoch)`` samples (rather than reading the
+    entire log) and reads them in parallel. This is substantially faster than
+    looping over `read_eval_log_sample` when you need a subset of a large log.
+
+    Concurrency model: all reads share a single ``AsyncZipReader``. The zip
+    central directory is parsed once and cached (lock-guarded); each requested
+    sample is then fetched via an independent byte-range read, so no single
+    zipfile handle or cursor is shared across the concurrent reads. ``concurrency``
+    bounds the number of in-flight reads (each read is a range fetch plus JSON
+    parse plus Pydantic validation); actual speedup depends on the backing
+    filesystem I/O and per-sample parse cost and does not necessarily scale
+    linearly with ``concurrency``.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       samples (Iterable[tuple[str | int, int]]): Iterable of ``(id, epoch)``
+          tuples identifying the samples to read.
+       concurrency (int): Maximum number of samples to read concurrently
+          (defaults to 8).
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
+          to their full content.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          each sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
+
+    Returns:
+       List of EvalSample objects in the same order as `samples`.
+
+    Raises:
+       IndexError: If any requested id and epoch are not found.
+    """
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
+        raise RuntimeError(
+            "read_eval_log_samples_by_id cannot be called from a trio async context (please use read_eval_log_samples_by_id_async instead)"
+        )
+
+    # resolve to file path
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
+    async def do_read() -> list[EvalSample]:
+        reader = AsyncZipReader(get_async_filesystem(), log_file)
+        return await read_eval_log_samples_by_id_async(
+            log_file,
+            samples,
+            concurrency=concurrency,
+            resolve_attachments=resolve_attachments,
+            format=format,
+            exclude_fields=exclude_fields,
+            reader=reader,
+        )
+
+    return run_coroutine(do_read())
+
+
+async def read_eval_log_samples_by_id_async(
+    log_file: str | Path | EvalLogInfo,
+    samples: Iterable[tuple[str | int, int]],
+    *,
+    concurrency: int = 8,
+    resolve_attachments: bool | Literal["full", "core"] = False,
+    format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
+    reader: AsyncZipReader | None = None,
+) -> list[EvalSample]:
+    """Read a specific subset of samples from an evaluation log concurrently.
+
+    Fetches only the requested ``(id, epoch)`` samples (rather than reading the
+    entire log) and reads them in parallel. This is substantially faster than
+    looping over `read_eval_log_sample_async` when you need a subset of a large
+    log.
+
+    Concurrency model: all reads share a single ``AsyncZipReader``. The zip
+    central directory is parsed once and cached (lock-guarded); each requested
+    sample is then fetched via an independent byte-range read, so no single
+    zipfile handle or cursor is shared across the concurrent reads. ``concurrency``
+    bounds the number of in-flight reads (each read is a range fetch plus JSON
+    parse plus Pydantic validation); actual speedup depends on the backing
+    filesystem I/O and per-sample parse cost and does not necessarily scale
+    linearly with ``concurrency``.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       samples (Iterable[tuple[str | int, int]]): Iterable of ``(id, epoch)``
+          tuples identifying the samples to read.
+       concurrency (int): Maximum number of samples to read concurrently
+          (defaults to 8).
+       resolve_attachments (bool): Resolve attachments (duplicated content blocks)
+          to their full content.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          each sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
+       reader (AsyncZipReader | None): Optional async zip reader to share across
+          the concurrent reads. A single reader is safe to reuse because each
+          member read issues independent byte-range requests; the only shared
+          state is the cached central directory. If not provided, one is created.
+
+    Returns:
+       List of EvalSample objects in the same order as `samples`.
+
+    Raises:
+       IndexError: If any requested id and epoch are not found.
+    """
+    # resolve to file path
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+
+    # materialise the requested samples so we can preserve order and reuse them
+    requested = list(samples)
+
+    # share a single reader across all reads (its central directory is cached
+    # and guarded by a lock, and member reads use independent range requests)
+    shared_reader = reader or AsyncZipReader(get_async_filesystem(), log_file)
+
+    # bound the number of concurrent reads
+    semaphore = anyio.Semaphore(max(1, concurrency))
+
+    async def read_one(id: str | int, epoch: int) -> EvalSample:
+        async with semaphore:
+            return await read_eval_log_sample_async(
+                log_file,
+                id,
+                epoch,
+                resolve_attachments=resolve_attachments,
+                format=format,
+                exclude_fields=exclude_fields,
+                reader=shared_reader,
+            )
+
+    # tg_collect preserves the order of the input functions
+    return await tg_collect([partial(read_one, id, epoch) for id, epoch in requested])
 
 
 def read_eval_log_sample_summaries(
@@ -615,6 +1039,7 @@ def read_eval_log_samples(
        exclude_fields (set[str] | None): Set of field names to exclude when reading
           the sample. Useful when reading large samples with fields like
           'store' or 'attachments' that aren't needed.
+          Ignored for .json format logs (only applies to .eval logs).
 
     Returns:
        Generator of EvalSample objects in the log file.
@@ -909,6 +1334,17 @@ def to_overview(header: EvalLog) -> LogOverview:
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def _normalize_excluded_fields(exclude_fields: set[str] | None) -> set[str] | None:
+    if exclude_fields:
+        if "events" not in exclude_fields:
+            # events_data is needed to resolve refs in events
+            exclude_fields = exclude_fields - {"events_data"}
+        else:
+            # no events means events_data is useless
+            exclude_fields = exclude_fields | {"events_data"}
+    return exclude_fields
 
 
 def _resolve_sample_for_read(

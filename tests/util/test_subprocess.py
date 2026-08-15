@@ -6,10 +6,12 @@ from pathlib import Path
 from random import random
 from typing import cast
 
+import anyio
 import psutil
 import pytest
 from anyio.abc import ByteReceiveStream
 
+import inspect_ai.util._subprocess as _subprocess_mod
 from inspect_ai.util import subprocess
 from inspect_ai.util._subprocess import _log_stream
 from inspect_ai.util._subprocess import logger as _subprocess_logger
@@ -68,7 +70,10 @@ async def test_subprocess_env():
 
 
 @pytest.mark.anyio
-async def test_subprocess_timeout():
+async def test_subprocess_timeout(monkeypatch):
+    # Shrink the post-SIGTERM grace so the test doesn't pay the full 2s
+    # production grace on top of the 1s timeout (behavior is unchanged).
+    monkeypatch.setattr(_subprocess_mod, "SUBPROCESS_SIGTERM_GRACE_SECONDS", 0.2)
     # The random() serves as adding a unique "signature" to the subprocess command
     timeout_duration = 10 + random()
     subprocess_cmds = ["sleep", str(timeout_duration)]
@@ -108,11 +113,101 @@ async def test_subprocess_which_ignores_sigterm_timeout():
     assert time.time() - start_time < 5, "Process was not killed in time"
 
 
+@pytest.mark.anyio
+async def test_subprocess_registers_resizable_limiter():
+    """subprocess() tracks its resizable limiter for the control channel.
+
+    The `"subprocesses"` concurrency key is backed by a ResizableSemaphore and
+    registered with the process-global slot the `ctl config --max-subprocesses`
+    directive reads, so a mid-flight retune reaches the limiter that later
+    subprocess() calls acquire from (the registry coalesces on key).
+    """
+    from inspect_ai.util._concurrency import (
+        ResizableSemaphore,
+        init_concurrency,
+        subprocess_limiter,
+    )
+
+    init_concurrency()
+    try:
+        assert subprocess_limiter() is None
+        result = await subprocess(["python3", "-c", "print('ok')"])
+        assert result.success
+        limiter = subprocess_limiter()
+        assert isinstance(limiter, ResizableSemaphore)
+
+        # a retune sticks: later calls reuse the same registry instance
+        limiter.concurrency = 2
+        result = await subprocess(["python3", "-c", "print('ok')"])
+        assert result.success
+        assert subprocess_limiter() is limiter
+        assert limiter.concurrency == 2
+    finally:
+        # the limiter is event-loop-bound; don't leak it to other tests
+        init_concurrency()
+    assert subprocess_limiter() is None
+
+
 def _process_found(pattern: str) -> bool:
     return any(
         pattern in " ".join(p.info["cmdline"] or [])
         for p in psutil.process_iter(["cmdline"])
     )
+
+
+@pytest.mark.anyio
+async def test_subprocess_timeout_with_lost_child_watcher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: timeout must still fire when process.wait() never resolves.
+
+    Under heavy subprocess churn, asyncio's child watcher can miss a process
+    exit, leaving ``process.wait()`` parked forever. The shielded cleanup paths
+    (``gracefully_terminate_cancelled_subprocess`` and the inlined ``aclose``)
+    must bound their final ``wait()`` so the caller's TimeoutError still
+    propagates instead of deadlocking inside an uncancellable shield.
+    """
+    # Keep the test fast: the bound is a safety net, not a tuning knob.
+    monkeypatch.setattr(_subprocess_mod, "LOST_SUBPROCESS_WAIT_TIMEOUT", 1)
+    monkeypatch.setattr(_subprocess_mod, "SUBPROCESS_SIGTERM_GRACE_SECONDS", 0.2)
+
+    real_open_process = anyio.open_process
+
+    async def hung_wait() -> int:
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    async def open_process_lost_watcher(*args, **kwargs):
+        process = await real_open_process(*args, **kwargs)
+        # Simulate the child-watcher race: the OS process is reapable (and
+        # SIGTERM/SIGKILL still land), but the transport's wait() never
+        # observes the exit.
+        monkeypatch.setattr(process, "wait", hung_wait)
+        return process
+
+    monkeypatch.setattr(_subprocess_mod, "open_process", open_process_lost_watcher)
+
+    # inspect_ai's package loggers have propagate=False once init_logger()
+    # has run (any prior test in the worker may have triggered it), so caplog
+    # never sees these — capture at the call site instead, matching the
+    # pattern used elsewhere in this file.
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        _subprocess_logger, "warning", lambda msg, *a: warnings.append(msg % a)
+    )
+
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        # Outer fail_after guards against regression to an unbounded shielded
+        # wait — without the fix this would hang here indefinitely.
+        with anyio.fail_after(20):
+            await subprocess(["sleep", "30"], timeout=1)
+    elapsed = time.monotonic() - start
+
+    # 1s timeout + 2s SIGTERM grace + 1s bounded wait (graceful) + 1s bounded
+    # wait (aclose) ≈ 5s; allow generous slack.
+    assert elapsed < 15, f"cleanup took {elapsed:.1f}s; shielded wait not bounded?"
+    assert any("child watcher" in w for w in warnings), warnings
 
 
 @pytest.mark.anyio

@@ -1,4 +1,7 @@
 import contextlib
+import importlib
+import socket
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable
@@ -95,14 +98,25 @@ def _make_simulated_mcp_client(
     )
     from mcp.shared.message import SessionMessage
     from mcp.types import (
-        LATEST_PROTOCOL_VERSION,
         Implementation,
         InitializeResult,
-        JSONRPCMessage,
         JSONRPCNotification,
         JSONRPCRequest,
         JSONRPCResponse,
         ServerCapabilities,
+    )
+
+    from inspect_ai.tool._mcp._compat import jsonrpc_message, jsonrpc_message_root
+
+    # mcp 2.x initialize accepts only handshake (pre-"modern") versions and
+    # rejects LATEST_PROTOCOL_VERSION; 1.x has no LATEST_HANDSHAKE_VERSION
+    protocol_version = (
+        getattr(
+            importlib.import_module("mcp.client.session"),
+            "LATEST_HANDSHAKE_VERSION",
+            None,
+        )
+        or importlib.import_module("mcp.types").LATEST_PROTOCOL_VERSION
     )
 
     @contextlib.asynccontextmanager
@@ -119,17 +133,25 @@ def _make_simulated_mcp_client(
             try:
                 async with write_stream_reader:
                     async for message in write_stream_reader:
-                        root = message.message.root
+                        root = jsonrpc_message_root(message.message)
                         if isinstance(root, JSONRPCRequest):
                             if root.method == "initialize":
-                                init = InitializeResult(
-                                    protocolVersion=LATEST_PROTOCOL_VERSION,
-                                    capabilities=ServerCapabilities(),
-                                    serverInfo=Implementation(name="test", version="1"),
+                                # model_validate because keyword construction
+                                # is version-specific (camelCase on 1.x,
+                                # snake_case on 2.x); the camelCase spelling
+                                # validates on both
+                                init = InitializeResult.model_validate(
+                                    {
+                                        "protocolVersion": protocol_version,
+                                        "capabilities": ServerCapabilities(),
+                                        "serverInfo": Implementation(
+                                            name="test", version="1"
+                                        ),
+                                    }
                                 )
                                 await read_stream_writer.send(
                                     SessionMessage(
-                                        message=JSONRPCMessage(
+                                        message=jsonrpc_message(
                                             JSONRPCResponse(
                                                 jsonrpc="2.0",
                                                 id=root.id,
@@ -177,16 +199,16 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
         INTERNAL_ERROR,
         ErrorData,
         JSONRPCError,
-        JSONRPCMessage,
     )
     from mcp.types import Tool as MCPTool
 
+    from inspect_ai.tool._mcp._compat import jsonrpc_message
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
     from inspect_ai.util._anyio import inner_exception
 
     def on_tool_call(root: Any) -> SessionMessage:
         return SessionMessage(
-            message=JSONRPCMessage(
+            message=jsonrpc_message(
                 JSONRPCError(
                     jsonrpc="2.0",
                     id=root.id,
@@ -203,10 +225,12 @@ async def test_mcp_tool_call_timeout_becomes_tool_error() -> None:
     client = _make_simulated_mcp_client(on_tool_call, unexpected_methods=unexpected)
 
     session = MCPServerLocalSession(client, name="test-timeout", events=False)
-    fake_tool = MCPTool(
-        name="slow_tool",
-        description="A tool that times out",
-        inputSchema={"type": "object", "properties": {}},
+    fake_tool = MCPTool.model_validate(
+        {
+            "name": "slow_tool",
+            "description": "A tool that times out",
+            "inputSchema": {"type": "object", "properties": {}},
+        }
     )
     tool_def = session._tool_def_from_mcp_tool(fake_tool)
 
@@ -265,7 +289,9 @@ async def _drive_sandbox_request(sandbox_module):
     """Send one tools/call request through `sandbox_client` and return the response."""
     from mcp import StdioServerParameters
     from mcp.shared.message import SessionMessage
-    from mcp.types import JSONRPCMessage, JSONRPCRequest
+    from mcp.types import JSONRPCRequest
+
+    from inspect_ai.tool._mcp._compat import jsonrpc_message
 
     server_params = StdioServerParameters(command="fake")
     async with sandbox_module.sandbox_client(server_params) as (
@@ -274,7 +300,7 @@ async def _drive_sandbox_request(sandbox_module):
     ):
         await write_stream.send(
             SessionMessage(
-                message=JSONRPCMessage(
+                message=jsonrpc_message(
                     JSONRPCRequest(jsonrpc="2.0", id=42, method="tools/call", params={})
                 )
             )
@@ -296,13 +322,15 @@ async def test_sandbox_writer_synthesizes_jsonrpc_error_for_non_timeout(monkeypa
     """
     from mcp.types import INTERNAL_ERROR, JSONRPCError
 
+    from inspect_ai.tool._mcp._compat import jsonrpc_message_root
+
     async def _raising_exec_model_request(*args: Any, **kwargs: Any) -> Any:
         raise RuntimeError("boom")
 
     sandbox_module = _patch_sandbox_module(monkeypatch, _raising_exec_model_request)
     response_msg = await _drive_sandbox_request(sandbox_module)
 
-    root = response_msg.message.root
+    root = jsonrpc_message_root(response_msg.message)
     assert isinstance(root, JSONRPCError)
     assert root.id == 42
     assert root.error.code == INTERNAL_ERROR
@@ -315,13 +343,15 @@ async def test_sandbox_writer_uses_friendly_message_for_timeout(monkeypatch):
     """TimeoutError gets the friendlier 'timed out' wording the model expects."""
     from mcp.types import INTERNAL_ERROR, JSONRPCError
 
+    from inspect_ai.tool._mcp._compat import jsonrpc_message_root
+
     async def _timeout_exec_model_request(*args: Any, **kwargs: Any) -> Any:
         raise TimeoutError("transport deadline exceeded")
 
     sandbox_module = _patch_sandbox_module(monkeypatch, _timeout_exec_model_request)
     response_msg = await _drive_sandbox_request(sandbox_module)
 
-    root = response_msg.message.root
+    root = jsonrpc_message_root(response_msg.message)
     assert isinstance(root, JSONRPCError)
     assert root.id == 42
     assert root.error.code == INTERNAL_ERROR
@@ -337,9 +367,10 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
     """
     from mcp import StdioServerParameters
     from mcp.shared.message import SessionMessage
-    from mcp.types import JSONRPCMessage, JSONRPCNotification
+    from mcp.types import JSONRPCNotification
 
     from inspect_ai.tool._mcp import _sandbox as sandbox_module
+    from inspect_ai.tool._mcp._compat import jsonrpc_message
 
     class _FakeTransport:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -383,7 +414,7 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
     ):
         await write_stream.send(
             SessionMessage(
-                message=JSONRPCMessage(
+                message=jsonrpc_message(
                     JSONRPCNotification(
                         jsonrpc="2.0", method="notifications/initialized"
                     )
@@ -400,6 +431,38 @@ async def test_sandbox_writer_logs_warning_when_notification_fails(monkeypatch):
     assert "notification dropped" in captured[0]
     assert "TimeoutError" in captured[0]
     assert "notify timeout" in captured[0]
+
+
+@skip_if_no_mcp_package
+async def test_sandbox_kill_failure_does_not_propagate(monkeypatch):
+    """A failing `mcp_kill_server` during teardown must be swallowed, not raised.
+
+    The kill RPC runs inside the `sandbox_client` task-group teardown. If it
+    raises (e.g. broken/slow transport), the exception corrupts cancel-scope
+    unwinding and surfaces as an inscrutable "Attempted to exit a cancel scope
+    ..." RuntimeError that masks the real failure. Teardown must be best-effort.
+    """
+    from mcp import StdioServerParameters
+
+    async def _fake_exec_scalar_request(*args: Any, **kwargs: Any) -> Any:
+        if kwargs.get("method") == "mcp_launch_server":
+            return 1
+        if kwargs.get("method") == "mcp_kill_server":
+            raise RuntimeError("simulated kill failure")
+        return None
+
+    sandbox_module = _patch_sandbox_module(monkeypatch, _fake_exec_scalar_request)
+    monkeypatch.setattr(
+        sandbox_module, "exec_scalar_request", _fake_exec_scalar_request
+    )
+
+    server_params = StdioServerParameters(command="fake")
+    # Entering and exiting must complete cleanly despite the failing kill.
+    async with sandbox_module.sandbox_client(server_params) as (
+        read_stream,
+        write_stream,
+    ):
+        await write_stream.aclose()
 
 
 @skip_if_no_mcp_package
@@ -424,6 +487,61 @@ async def test_mcp_connection_refcount():
     async with mcp_connection(server):
         tools_reopen = await server.tools()
         assert len(tools_reopen) > 0
+
+
+def _free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port: int = s.getsockname()[1]
+        return port
+
+
+@skip_if_no_mcp_package
+async def test_mcp_server_http_roundtrip():
+    """Round trip through the streamable-HTTP compat shim against a live server.
+
+    Exercises the installed major's branch of `_compat.streamablehttp_client`;
+    the 2.x branch resolves `create_mcp_http_client` / `streamable_http_client`
+    / `httpx2` dynamically (invisible to mypy), so only a live connection can
+    catch a wrong name or module location.
+    """
+    from inspect_ai.tool import mcp_server_http
+
+    port = _free_port()
+    process = subprocess.Popen(
+        [
+            sys.executable,
+            MCP_TEST_SERVER,
+            "--transport",
+            "streamable-http",
+            "--port",
+            str(port),
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        with anyio.fail_after(30):
+            while True:
+                try:
+                    socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                    break
+                except OSError:
+                    assert process.poll() is None, "MCP HTTP server exited early"
+                    await anyio.sleep(0.1)
+
+        server = mcp_server_http(url=f"http://127.0.0.1:{port}/mcp")
+        async with mcp_connection(server):
+            tools = await server.tools()
+            tool_names = {ToolDef(t).name for t in tools}
+            assert "echo" in tool_names
+            echo_tool = next(t for t in tools if ToolDef(t).name == "echo")
+            result = await echo_tool(message="hello")
+            assert isinstance(result, list)
+            assert result[0].text == "hello"
+    finally:
+        process.terminate()
+        process.wait(timeout=10)
 
 
 # to run this test:

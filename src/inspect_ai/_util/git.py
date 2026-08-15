@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import BaseModel
 
@@ -9,6 +10,22 @@ class GitContext(BaseModel):
     origin: str
     commit: str
     dirty: bool
+
+
+def redact_url_credentials(url: str) -> str:
+    """Strip any embedded ``user:password@`` credentials from a URL's netloc.
+
+    Used to keep authentication tokens out of recorded git origins (eval logs
+    and other persisted/shareable metadata).
+    """
+    try:
+        parts = urlparse(url)
+    except ValueError:
+        return url
+    if "@" in parts.netloc:
+        netloc = parts.netloc.rsplit("@", 1)[1]
+        return urlunparse(parts._replace(netloc=netloc))
+    return url
 
 
 def git_context() -> GitContext | None:
@@ -34,6 +51,7 @@ def git_context() -> GitContext | None:
         capture_output=True,
         text=True,
     ).stdout.strip()
+    origin = redact_url_credentials(origin)
 
     # check if working tree is dirty
     status_result = subprocess.run(

@@ -10,6 +10,7 @@ from inspect_ai.agent._bridge.responses_impl import (
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._openai_responses import (
+    RESPONSES_NAMESPACE,
     is_custom_tool_param,
     is_function_tool_param,
     is_namespace_tool_param,
@@ -64,20 +65,41 @@ def test_tools_from_responses_tool_flattens_namespace():
         "description": "Submission tools",
         "tools": [_function_tool("submit_pov"), _function_tool("submit_patch")],
     }
-    tools = tools_from_responses_tool(ns, {}, {})
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     assert [t.name for t in tools] == ["submit_pov", "submit_patch"]
     for t in tools:
         assert isinstance(t, ToolInfo)
 
 
+def test_tools_from_responses_tool_stashes_namespace_on_options():
+    ns = {
+        "type": "namespace",
+        "name": "multi_agent_v1",
+        "description": "Multi-agent orchestration tools",
+        "tools": [_function_tool("spawn_agent"), _custom_tool("wait_agent")],
+    }
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
+    for t in tools:
+        assert isinstance(t, ToolInfo)
+        assert t.options is not None
+        assert t.options[RESPONSES_NAMESPACE] == (
+            "multi_agent_v1",
+            "Multi-agent orchestration tools",
+        )
+
+
 def test_tools_from_responses_tool_single_function():
-    tools = tools_from_responses_tool(_function_tool("calc"), {}, {})
+    tools = tools_from_responses_tool(
+        _function_tool("calc"), {}, {}, allow_remote_mcp=True
+    )
     assert len(tools) == 1
     assert tools[0].name == "calc"
 
 
 def test_tools_from_responses_tool_passes_through_custom():
-    tools = tools_from_responses_tool(_custom_tool("exec"), {}, {})
+    tools = tools_from_responses_tool(
+        _custom_tool("exec"), {}, {}, allow_remote_mcp=True
+    )
     assert len(tools) == 1
     assert tools[0].name == "exec"
 
@@ -89,17 +111,17 @@ def test_namespace_with_mixed_inner_tools():
         "description": "mixed",
         "tools": [_function_tool("fn"), _custom_tool("ct")],
     }
-    tools = tools_from_responses_tool(ns, {}, {})
+    tools = tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True)
     assert [t.name for t in tools] == ["fn", "ct"]
 
 
 def test_empty_namespace_returns_empty_list():
     ns = {"type": "namespace", "name": "empty", "description": "empty", "tools": []}
-    assert tools_from_responses_tool(ns, {}, {}) == []
+    assert tools_from_responses_tool(ns, {}, {}, allow_remote_mcp=True) == []
 
 
 def test_tool_from_responses_tool_unchanged_for_function():
-    t = tool_from_responses_tool(_function_tool("x"), {}, {})
+    t = tool_from_responses_tool(_function_tool("x"), {}, {}, allow_remote_mcp=True)
     assert isinstance(t, ToolInfo)
     assert t.name == "x"
 

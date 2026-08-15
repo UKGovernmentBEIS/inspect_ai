@@ -1,9 +1,22 @@
-from .._metric import Metric, SampleScore, metric
+from .._metric import (
+    Metric,
+    SampleScore,
+    ValueToFloat,
+    metric,
+    value_to_float,
+)
 
 
 @metric
-def mean() -> Metric:
+def mean(to_float: ValueToFloat = value_to_float()) -> Metric:
     """Compute mean of all scores.
+
+    Args:
+       to_float: Function for mapping `Value` to float for computing
+          metrics. The default `value_to_float()` maps CORRECT ("C") to 1.0,
+          INCORRECT ("I") to 0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0,
+          casts numeric values to float directly, and prints a warning and returns
+          0 if the Value is a complex object (list or dict).
 
     Returns:
        mean metric
@@ -12,6 +25,11 @@ def mean() -> Metric:
     def metric(scores: list[SampleScore]) -> float:
         import numpy as np
 
-        return np.mean([score.score.as_float() for score in scores]).item()
+        if not scores:
+            # No scores to average; return 0 rather than nan (and avoid the
+            # numpy empty-slice warning), mirroring the empty-input guards in
+            # accuracy()/std()/var().
+            return 0.0
+        return np.mean([to_float(score.score.value) for score in scores]).item()
 
     return metric

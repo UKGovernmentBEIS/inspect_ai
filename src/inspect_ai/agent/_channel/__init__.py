@@ -13,8 +13,10 @@ Three roles:
   to intervene — the ACP transport today, future subagent supervisors.
   Exposes only :meth:`AgentRef.post` and :meth:`AgentRef.interrupt`.
 - **Consumer**: the agent loop. Acquires its channel via
-  :func:`agent_channel` (context manager) and reads via
-  :meth:`AgentChannel.drain` / :meth:`AgentChannel.recv`.
+  :func:`agent_channel` (context manager) and drives each turn through
+  the high-level facade :meth:`AgentChannel.before_turn` /
+  :meth:`AgentChannel.turn_scope` / :meth:`AgentChannel.after_cancel`
+  (the pattern documented in ``docs/intervention.qmd``).
 
 Inert by default: with no producer attached, ``drain`` returns ``[]``
 and the scope never cancels. An eval with no ACP attached pays no

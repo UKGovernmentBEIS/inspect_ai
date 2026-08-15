@@ -16,11 +16,11 @@ from typing import Any
 from textual.app import App
 from textual.binding import Binding
 
+from inspect_ai._util.sockets import parse_host_port
 from inspect_ai.agent._acp.discovery import (
     TargetAddress,
     TargetResolutionError,
     list_discovered_evals,
-    parse_host_port,
 )
 
 from . import client as _client

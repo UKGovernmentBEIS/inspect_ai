@@ -1,23 +1,26 @@
+from functools import partial
 from logging import getLogger
 from typing import IO, Any, get_args
 
 import ijson  # type: ignore
 from ijson import IncompleteJSONError
 from ijson.backends.python import UnexpectedSymbol  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_core import from_json
 from typing_extensions import override
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.atomic_write import atomic_write_bytes
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
     get_deserializing_context,
 )
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import absolute_file_path, file, filesystem
+from inspect_ai._util.file import absolute_file_path, file, filesystem, local_path
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
+from .._config_update import ConfigUpdate
 from .._edit import LogUpdate
 from .._log import (
     EvalLog,
@@ -25,6 +28,7 @@ from .._log import (
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
     EvalStatus,
@@ -32,7 +36,7 @@ from .._log import (
 )
 from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
-from .file import FileRecorder
+from .file import FileRecorder, write_local_snapshot
 
 logger = getLogger(__name__)
 
@@ -65,6 +69,12 @@ class JSONRecorder(FileRecorder):
     class JSONLogFile(BaseModel):
         file: str
         data: EvalLog
+        # Per-sample summaries cached as samples are logged. Computing a
+        # summary is expensive for large samples (thin_data runs
+        # textwrap.shorten / JSON size probes over full-size fields), and
+        # `sample_summaries` is polled by the control channel — recomputing
+        # over the whole in-memory log on every request stalls the event loop.
+        summaries: list[EvalSampleSummary] = Field(default_factory=list)
 
     def __init__(
         self,
@@ -103,11 +113,49 @@ class JSONRecorder(FileRecorder):
         log.data.plan = plan
 
     @override
-    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(
+        self, eval: EvalSpec, sample: EvalSample, *, write_through: bool = False
+    ) -> None:
+        # write_through is ignored: the .json format holds the whole log in
+        # memory for its lifetime by design, so there is no cheaper local
+        # tier to write into (no regression, no benefit).
         log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
+        log.summaries.append(sample.summary())
+
+    @override
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return list(log.summaries)
+
+    @override
+    async def buffered_sample(
+        self, eval: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        # The whole in-memory log (full samples, events included) is retained
+        # until log_finish, so this is gap-free and ahead of disk for the entire
+        # run — the counterpart to sample_summaries for whole samples.
+        log = self.data.get(self._log_file_key(eval))
+        if log is None or log.data.samples is None:
+            return None
+        for sample in log.data.samples:
+            if sample.id == id and sample.epoch == epoch:
+                return sample
+        return None
+
+    @override
+    async def log_config_update(self, eval: EvalSpec, update: ConfigUpdate) -> None:
+        # accumulate on the in-memory log; it hits disk at the next flush /
+        # log_finish like everything else in this format (weaker crash
+        # durability than .eval, consistent with the format's general story)
+        log = self.data[self._log_file_key(eval)]
+        if log.data.config_updates is None:
+            log.data.config_updates = []
+        log.data.config_updates.append(update)
 
     @override
     async def log_finish(
@@ -121,6 +169,7 @@ class JSONRecorder(FileRecorder):
         header_only: bool = False,
         invalidated: bool = False,
         log_updates: list[LogUpdate] | None = None,
+        config_updates: list[ConfigUpdate] | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
@@ -128,6 +177,9 @@ class JSONRecorder(FileRecorder):
         log.data.results = results
         log.data.invalidated = invalidated
         log.data.log_updates = log_updates
+        # None means "not supplied" — keep the updates accumulated mid-run
+        if config_updates is not None:
+            log.data.config_updates = config_updates
         log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
@@ -153,7 +205,8 @@ class JSONRecorder(FileRecorder):
     @override
     async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
-        await self.write_log(log.file, log.data)
+        # intermediate snapshot: skip fsync (see _write_log_impl)
+        await self._write_log_impl(log.file, log.data, fsync=False)
 
     @override
     @classmethod
@@ -161,6 +214,7 @@ class JSONRecorder(FileRecorder):
         cls,
         location: str,
         header_only: bool = False,
+        exclude_fields: set[str] | None = None,
     ) -> EvalLog:
         fs = filesystem(location)
 
@@ -216,6 +270,25 @@ class JSONRecorder(FileRecorder):
         if_match_etag: str | None = None,
         header_only: bool = False,
     ) -> None:
+        await cls._write_log_impl(location, log, if_match_etag, header_only, fsync=True)
+
+    @classmethod
+    async def _write_log_impl(
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
+        *,
+        fsync: bool,
+    ) -> None:
+        """Write the log, controlling durability of the local write.
+
+        The public ``write_log`` always passes ``fsync=True`` (a caller
+        writing a log expects it durable); intermediate ``flush()`` passes
+        ``fsync=False`` for a skippable snapshot (see
+        ``write_local_snapshot``).
+        """
         from inspect_ai.log._file import eval_log_json
 
         if header_only:
@@ -237,12 +310,23 @@ class JSONRecorder(FileRecorder):
             await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write
-            # get log as bytes
+            # get log as bytes (serialized on the event loop: the pydantic
+            # log object may be mutated by concurrent coroutines, whereas
+            # the resulting bytes are immutable and safe to hand to a thread)
             log_bytes = eval_log_json(log)
 
             with trace_action(logger, "Log Write", location):
-                with file(location, "wb") as f:
-                    f.write(log_bytes)
+                if fs.is_local():
+                    await write_local_snapshot(
+                        location,
+                        fsync,
+                        partial(
+                            atomic_write_bytes, local_path(location), log_bytes, fsync
+                        ),
+                    )
+                else:
+                    with file(location, "wb") as f:
+                        f.write(log_bytes)
 
     @classmethod
     async def _merge_disk_samples_for_header_only(
@@ -340,21 +424,38 @@ async def _s3_read_with_etag(
         return content, etag
 
 
+def _scan_header_keys(f: IO[bytes]) -> tuple[int | None, str]:
+    """Stream a JSON eval log's top-level keys, stopping at ``samples``.
+
+    Reads only as far as the start of the (potentially huge) ``samples`` array
+    and returns ``(version, last_header_field)`` — the log version and the name
+    of the last header field seen. The second pass stops re-parsing once it has
+    consumed ``last_header_field``, so it never has to materialize ``samples``.
+    Consumes ``f``; callers re-parsing the same handle must ``seek(0)`` after.
+    """
+    version: int | None = None
+    last_header_field = "stats"
+
+    for prefix, event, value in ijson.parse(f):
+        if (prefix, event) == ("version", "number"):
+            version = value
+        elif event == "map_key" and prefix == "":
+            # Stop at the top-level `samples` key, which can be enormous. Break
+            # *before* recording it: `samples` must not become last_header_field
+            # or the second pass would have to materialize the whole array to
+            # reach it. last_header_field stays the last real header field.
+            if value == "samples":
+                break
+            last_header_field = value
+
+    return version, last_header_field
+
+
 def _read_header_streaming(log_file: str) -> EvalLog:
     with file(log_file, "rb") as f:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
-        version: int | None = None
-        last_header_field = "stats"
-
-        for prefix, event, value in ijson.parse(f):
-            if (prefix, event) == ("version", "number"):
-                version = value
-            elif prefix == "samples":
-                # Break as soon as we hit samples as that can be very large
-                break
-            elif event == "map_key" and prefix == "":
-                last_header_field = value
+        version, last_header_field = _scan_header_keys(f)
 
         if version is None:
             raise ValueError("Unable to read version of log format.")
@@ -374,6 +475,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         stats: EvalStats | None = None
         error: EvalError | None = None
         log_updates: list[LogUpdate] | None = None
+        config_updates: list[ConfigUpdate] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(EvalStatus)
@@ -392,6 +494,8 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 error = EvalError.model_validate(v)
             elif k == "log_updates":
                 log_updates = [LogUpdate.model_validate(u) for u in v]
+            elif k == "config_updates":
+                config_updates = [ConfigUpdate.model_validate(u) for u in v]
             if k == last_header_field:
                 break
 
@@ -408,6 +512,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         status=status,
         invalidated=invalidated,
         log_updates=log_updates,
+        config_updates=config_updates,
         version=version,
         error=error,
         location=log_file,

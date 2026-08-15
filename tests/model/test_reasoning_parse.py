@@ -89,6 +89,42 @@ def test_reasoning_parse_unclosed_tag():
     assert reasoning is None
 
 
+def test_reasoning_parse_nested_blocks():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think>inner</think> continues</think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think>inner</think> continues"
+    assert content == "Visible text"
+
+
+def test_reasoning_parse_nested_blocks_with_extra_close_tag():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think>inner</think> continues</think></think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think>inner</think> continues"
+    assert content == "</think>Visible text"
+
+
+def test_reasoning_parse_malformed_nested_block_falls_back():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think> inner text </think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think> inner text"
+    assert content == "Visible text"
+
+
+def test_reasoning_parse_unclosed_nested_block_falls_back():
+    content, reasoning = parse_content_with_reasoning(
+        "<think>Outer <think>inner</think> continues<think> inner </think>Visible text"
+    )
+    assert reasoning is not None
+    assert reasoning.reasoning == "Outer <think>inner"
+    assert content == "continues<think> inner </think>Visible text"
+
+
 # New tests for signature attribute
 def test_reasoning_parse_with_signature():
     content, reasoning = parse_content_with_reasoning(

@@ -14,22 +14,26 @@ from __future__ import annotations
 
 from inspect_ai._util.file import basename, dirname
 
-from ..config import CheckpointConfig
+from ..config import CheckpointConfig, checkpoint_vetoed
 
 _LOG_SUFFIX = ".eval"
+_RECOVERED_SUFFIX = "-recovered"
 
 
 def log_basename(log_location: str) -> str:
-    """Return the log's basename with any trailing ``.eval`` stripped.
+    """Return the log's basename with recovery and log suffixes stripped.
 
     Used to derive the per-eval ``<log-base>.checkpoints/`` directory
     name (durable, alongside the log) and the matching per-eval working
     dir under ``inspect_cache_dir("checkpoints")/`` (ephemeral, host
-    cache). Single owner of the ``.eval`` suffix convention.
+    cache). Single owner of the ``.eval`` / ``-recovered`` suffix
+    conventions.
     """
     base = basename(log_location)
     if base.endswith(_LOG_SUFFIX):
         base = base[: -len(_LOG_SUFFIX)]
+    if base.endswith(_RECOVERED_SUFFIX):
+        base = base[: -len(_RECOVERED_SUFFIX)]
     return base
 
 
@@ -54,11 +58,14 @@ def eval_checkpoints_dir_from_config(
 ) -> str | None:
     """Resolve the eval checkpoints dir from task + eval config layers.
 
-    Returns ``None`` if neither layer supplies a config — meaning the
-    eval was run without checkpointing. Otherwise computes the dir,
-    honoring an explicit ``checkpoints_location`` override (eval layer
-    wins over task; sample layer cannot set this field).
+    Returns ``None`` if either layer vetoes checkpointing
+    (``checkpoint=False``), or if neither layer supplies a config.
+    Otherwise computes the dir, honoring an explicit
+    ``checkpoints_location`` override (eval layer wins over task;
+    sample layer cannot set this field).
     """
+    if checkpoint_vetoed(task, eval_):
+        return None
     if task is None and eval_ is None:
         return None
     override: str | None = None

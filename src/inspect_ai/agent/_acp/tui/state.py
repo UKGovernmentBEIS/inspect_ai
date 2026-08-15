@@ -53,9 +53,11 @@ from inspect_ai.agent._acp.inspect_ext import (
     MESSAGE_ROLE_META_KEY,
     MODEL_EVENT_COMPLETE_META_KEY,
     MODEL_EVENT_PENDING_META_KEY,
+    MODEL_FALLBACK_META_KEY,
     MODEL_META_KEY,
     PICKER_META_KEY,
     REPLAY_META_KEY,
+    TOOL_CALL_CANCELABLE_META_KEY,
     TOTAL_MESSAGES_META_KEY,
     USER_SOURCE_META_KEY,
 )
@@ -143,6 +145,14 @@ class MessageGroup:
     segments: list[Segment] = field(default_factory=list)
     model: str | None = None
     """Source model name from ``_meta['inspect.model']`` if present."""
+
+    fallback_model: str | None = None
+    """Serving model from ``_meta['inspect.model_fallback']`` if present.
+
+    Set when the requested model's safety classifiers refused and a
+    fallback model served the generation — the chip renders it as an
+    italic ``(fallback → model)`` suffix after the model name.
+    """
 
     pending: bool = False
     """Whether the originating model event is still in flight.
@@ -407,6 +417,16 @@ class ToolCallState:
     :class:`SessionState`'s ``cancel_tool_call_id`` accessor filters
     cards with this flag set so ``^L`` advances to the next eligible
     tool.
+    """
+    cancelable: bool = True
+    """Whether ``inspect/cancel_tool_call`` can act on this tool.
+
+    False for bridged agents' tool calls (carried via
+    ``TOOL_CALL_CANCELABLE_META_KEY`` on the ``ToolCallStart``): the bridged
+    scaffold runs the tool, so there's no pending ``ToolEvent`` to cancel and the
+    request would no-op. The ``cancel_tool_call_ids`` accessor filters these out
+    so the per-tool cancel affordance isn't offered (turn-level interrupt still
+    works). Absent meta ⇒ True (the react default).
     """
     parallel_batch_id: int | None = None
     """Sticky id of the parallel batch this tool joined, or None for solo tools.
@@ -1855,8 +1875,8 @@ class SessionState:
 
         Wire shape mirrors :class:`inspect_ai.event.SampleLimitEvent`:
         a ``type`` discriminator (``message`` / ``time`` / ``working``
-        / ``token`` / ``cost`` / ``operator`` / ``custom``) plus a
-        human-readable ``message`` and an optional numeric ``limit``.
+        / ``token`` / ``turn`` / ``cost`` / ``operator`` / ``custom``)
+        plus a human-readable ``message`` and an optional numeric ``limit``.
 
         The chip surfaces all three: the type and the numeric limit
         in the header (``limit · token · 100.0k``), and the message
@@ -2620,6 +2640,9 @@ class SessionState:
         if isinstance(model, str) and model:
             group.model = model
             self.current_model = model
+        fallback_model = meta.get(MODEL_FALLBACK_META_KEY)
+        if isinstance(fallback_model, str) and fallback_model:
+            group.fallback_model = fallback_model
         # User source is stamped by the server (input / operator /
         # generate / null). First chunk wins — the server emits one
         # chunk per user message, but be defensive against future
@@ -2685,6 +2708,7 @@ class SessionState:
         """Build a fresh ToolCallState from the first update we see."""
         status = update.status or "in_progress"
         start_time = self._now()
+        meta = getattr(update, "field_meta", None) or {}
         tc = ToolCallState(
             tool_call_id=update.tool_call_id,
             title=update.title,
@@ -2694,6 +2718,7 @@ class SessionState:
             raw_input=update.raw_input,
             raw_output=update.raw_output,
             start_time=start_time,
+            cancelable=bool(meta.get(TOOL_CALL_CANCELABLE_META_KEY, True)),
         )
         # Terminal-on-first-sight (e.g. replay of a completed tool):
         # set end_time = start_time so duration reads as ~0 instead
@@ -2851,9 +2876,11 @@ class SessionState:
         Eligibility (same as :attr:`cancel_tool_call_id`): in-flight
         (``pending`` / ``in_progress``), not awaiting an operator
         approval decision (the approval bar's ``reject`` /
-        ``terminate`` is the right exit there), and not already
+        ``terminate`` is the right exit there), not already
         cancel-requested (so a second ``^L`` is a no-op on tools the
-        operator has already cancelled).
+        operator has already cancelled), and ``cancelable`` (bridged
+        agents' tool calls have no pending ``ToolEvent`` to cancel, so
+        they're excluded — a ``^L`` there would no-op).
 
         Under parallel tool calls multiple tools share the in-flight
         state; a single ``^L`` press fans out to cancel all of them
@@ -2868,6 +2895,7 @@ class SessionState:
             if tc.status in ("pending", "in_progress")
             and tc.pending_approval is None
             and not tc.cancel_requested
+            and tc.cancelable
         ]
         eligible.sort(key=lambda tc: tc.start_time)
         return [tc.tool_call_id for tc in eligible]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import sys
 from inspect import get_annotations, isclass
 from typing import (
     TYPE_CHECKING,
@@ -9,6 +10,7 @@ from typing import (
     Literal,
     TypeGuard,
     cast,
+    get_args,
     overload,
 )
 
@@ -47,10 +49,12 @@ RegistryType = Literal[
     "scorer",
     "solver",
     "task",
+    "task_source",
     "tool",
     "loader",
     "scanner",
     "scanjob",
+    "validation_predicate",
 ]
 """Enumeration of registry object types.
 
@@ -59,6 +63,8 @@ registered using a decorator (e.g. `@task`, `@solver`).
 Registered objects can in turn be created dynamically using
 the `registry_create()` function.
 """
+
+_REGISTRY_TYPE_VALUES: frozenset[str] = frozenset(get_args(RegistryType))
 
 
 class RegistryInfo(BaseModel):
@@ -72,6 +78,48 @@ class RegistryInfo(BaseModel):
 
     metadata: dict[str, Any] = Field(default_factory=dict)
     """Additional registry metadata."""
+
+
+def set_annotations(wrapper: Callable[..., Any], annotations: dict[str, Any]) -> None:
+    """Set `wrapper`'s annotations in both PEP 649 representations.
+
+    On Python 3.14+ a bare `wrapper.__annotations__ = ...` assignment sets the lazy
+    `__annotate__` to None, and mutating the dict in place doesn't update
+    `__annotate__` at all. Either way, a further `functools.wraps` layer (which
+    copies `__annotate__`, not `__annotations__`) then silently drops the
+    annotations — e.g. in user decorators that extend @task/@solver/@agent and
+    re-register their own wrapper. Setting both representations keeps annotations
+    consistent under further wrapping. Always use this instead of assigning
+    `__annotations__` directly.
+    """
+    annotations = dict(annotations)
+    wrapper.__annotations__ = annotations
+    if sys.version_info >= (3, 14):
+        from annotationlib import Format  # type: ignore[import-not-found,unused-ignore]
+
+        def __annotate__(format: Format) -> dict[str, Any]:
+            # NotImplementedError is the protocol's "format not supported" signal:
+            # PEP 749 requires it for VALUE_WITH_FAKE_GLOBALS (hand-written annotate
+            # functions can't run under fake globals), and annotationlib's consumers
+            # compute FORWARDREF/STRING themselves by falling back to VALUE. See
+            # "Format compatibility" in the annotationlib docs:
+            # https://docs.python.org/3.14/library/annotationlib.html
+            if format != Format.VALUE:
+                raise NotImplementedError(format)
+            return dict(annotations)
+
+        wrapper.__annotate__ = __annotate__  # type: ignore[attr-defined,unused-ignore]
+
+
+def set_return_annotation(wrapper: Callable[..., Any], return_type: type[Any]) -> None:
+    """Restore `wrapper`'s return annotation after `functools.wraps` clobbered it.
+
+    Decorators like @task wrap the user's function with `functools.wraps` (so name,
+    docstring, and params carry over) but need the wrapper itself to be annotated as
+    returning the registry type: `registry_create` consults the return
+    annotation to decide whether a registered callable is a factory to invoke.
+    """
+    set_annotations(wrapper, {**wrapper.__annotations__, "return": return_type})
 
 
 def registry_add(o: object, info: RegistryInfo) -> None:
@@ -102,6 +150,7 @@ def registry_tag(
     type: Callable[..., Any],
     o: object,
     info: RegistryInfo,
+    /,
     *args: Any,
     **kwargs: Any,
 ) -> None:
@@ -111,6 +160,11 @@ def registry_tag(
     add the object to the registry (call registry_add() to both
     tag and add an object to the registry). Call registry_info()
     on a tagged/registered object to retrieve its info
+
+    `type`, `o` and `info` are positional-only so that a creation keyword
+    argument sharing one of those names (e.g. a `@solver` that takes a
+    `type` **kwarg) lands in `**kwargs` instead of colliding with the
+    parameter and raising `TypeError: got multiple values for argument`.
 
     Args:
         type (T): type of object being tagged
@@ -128,19 +182,44 @@ def registry_tag(
 
 
 def extract_named_params(
-    type: Callable[..., Any], apply_defaults: bool, *args: Any, **kwargs: Any
+    type: Callable[..., Any], apply_defaults: bool, /, *args: Any, **kwargs: Any
 ) -> dict[str, Any]:
-    # bind arguments to params
+    # positional-only for the same collision reason documented on
+    # registry_tag: a creation keyword argument named `type` must land in
+    # **kwargs rather than in these leading parameters.
     named_params: dict[str, Any] = {}
 
+    sig = inspect.signature(type)
     if apply_defaults:
-        bound_params = inspect.signature(type).bind_partial(*args, **kwargs)
+        bound_params = sig.bind_partial(*args, **kwargs)
         bound_params.apply_defaults()
     else:
-        bound_params = inspect.signature(type).bind(*args, **kwargs)
+        bound_params = sig.bind(*args, **kwargs)
 
+    # arguments passed through a **kwargs (VAR_KEYWORD) parameter are collected
+    # by inspect under the variadic parameter's own name (e.g. {"kwargs": {...}}).
+    # Record them under their original keyword names instead, so that capturing
+    # and then replaying a spec is idempotent rather than nesting the kwargs one
+    # level deeper on every round-trip (#4374).
+    var_keyword = next(
+        (
+            name
+            for name, param in sig.parameters.items()
+            if param.kind == inspect.Parameter.VAR_KEYWORD
+        ),
+        None,
+    )
+
+    # limitation: flattening last means a **kwargs key that shares its name with
+    # a positional-only parameter (e.g. `def f(x, /, **kw)` called as `f(1, x=2)`)
+    # overwrites that parameter's captured value. Such a signature could never
+    # replay from a kwargs dict anyway, so we accept the lossy capture.
     for param, value in bound_params.arguments.items():
-        named_params[param] = registry_value(value)
+        if param == var_keyword and isinstance(value, dict):
+            for kwarg_name, kwarg_value in value.items():
+                named_params[kwarg_name] = registry_value(kwarg_value)
+        else:
+            named_params[param] = registry_value(value)
 
     # callables are not serializable so use their names
     for param in named_params.keys():
@@ -342,37 +421,10 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # 
         LookupError: If the named object was not found in the registry.
         TypeError: If the specified parameters are not valid for the object.
     """
-    return create_registry_object(type, name, kwargs)
-
-
-def create_registry_object(
-    type: RegistryType, name: str, args: dict[str, Any]
-) -> object:
-    """Create a registry object, passing creation arguments as a dict.
-
-    Equivalent to `registry_create()` but takes creation arguments as an explicit
-    dict, so it is safe when those arguments contain a key that would collide
-    with `registry_create()`'s own positional parameters (e.g. replaying a
-    factory such as `react` that has its own `name` parameter).
-    """
-    # lookup the object
     obj = registry_lookup(type, name)
 
-    # forward registry info to the instantiated object
-    def with_registry_info(o: object) -> object:
-        info = registry_info(obj)
-        # objects created by self-tagging factories (e.g. @agent / @solver) already
-        # carry their own (richer) metadata — preserve it rather than overwriting
-        # with the factory's. The factory's name (identity) is still used.
-        if is_registry_object(o) and registry_info(o).metadata:
-            info = info.model_copy(update={"metadata": registry_info(o).metadata})
-        return set_registry_info(o, info)
-
-    # instantiate registry and model objects
-    args = registry_kwargs(**args)
-
     if isclass(obj):
-        return with_registry_info(obj(**args))
+        return _instantiate_registry_object(obj, kwargs)
     elif callable(obj):
         return_type = get_annotations(obj, eval_str=True).get("return")
         # Until we remove the MetricDeprecated symbol we need this extra
@@ -382,11 +434,41 @@ def create_registry_object(
         else:
             return_type = getattr(return_type, "__name__", None)
         if return_type and return_type.lower() == type:
-            return with_registry_info(obj(**args))
+            return _instantiate_registry_object(obj, kwargs)
         else:
             return obj
     else:
         raise LookupError(f"{name} was not found in the registry")
+
+
+def create_registry_object(
+    type: RegistryType, name: str, args: dict[str, Any]
+) -> object:
+    """Restore a registry object, passing creation arguments as a dict.
+
+    Serialized registry arguments describe an instance, so registered classes
+    and factories are always instantiated. The explicit arguments dictionary
+    also avoids collisions with `registry_create()`'s positional parameters
+    (e.g. replaying a factory such as `react` that has its own `name` parameter).
+    """
+    obj = registry_lookup(type, name)
+
+    if isclass(obj) or callable(obj):
+        return _instantiate_registry_object(obj, args)
+    else:
+        raise LookupError(f"{name} was not found in the registry")
+
+
+def _instantiate_registry_object(
+    obj: Callable[..., object], args: dict[str, Any]
+) -> object:
+    instance = obj(**registry_kwargs(**args))
+    info = registry_info(obj)
+    # Objects created by self-tagging factories (e.g. @agent / @solver) already
+    # carry richer metadata. Preserve it while retaining the factory identity.
+    if is_registry_object(instance) and registry_info(instance).metadata:
+        info = info.model_copy(update={"metadata": registry_info(instance).metadata})
+    return set_registry_info(instance, info)
 
 
 def registry_info(o: object) -> RegistryInfo:
@@ -555,7 +637,16 @@ class RegistryDict(TypedDict):
 
 
 def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
-    return isinstance(o, dict) and "type" in o and "name" in o and "params" in o
+    if not isinstance(o, dict):
+        return False
+    registry_type = o.get("type")
+    if not isinstance(registry_type, str) or registry_type not in _REGISTRY_TYPE_VALUES:
+        return False
+    if not isinstance(o.get("name"), str):
+        return False
+    if not isinstance(o.get("params"), dict):
+        return False
+    return True
 
 
 def registry_value(o: object) -> Any:

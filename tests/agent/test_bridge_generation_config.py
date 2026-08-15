@@ -34,6 +34,7 @@ GENERATION_FIELDS = {
     "top_logprobs",
     "prompt_logprobs",
     "logit_bias",
+    "effort",
     "reasoning_effort",
     "reasoning_tokens",
     "reasoning_summary",
@@ -145,6 +146,7 @@ def test_anthropic_forward_then_clear():
         "top_k": 2,
         "top_p": 0.9,
         "thinking": {"type": "enabled", "budget_tokens": 2048},
+        "output_config": {"effort": "high"},
         # structural
         "system": "You are a dope model.",
         "stop_sequences": ["foo"],
@@ -157,14 +159,35 @@ def test_anthropic_forward_then_clear():
     assert config.top_k == 2
     # anthropic thinking budget maps to reasoning_tokens
     assert config.reasoning_tokens == 2048
+    # output_config.effort (adaptive-thinking depth) maps to effort
+    assert config.effort == "high"
 
     clear_generation_params(config)
     _assert_cleared(config)
-    # reasoning_tokens specifically must be among the cleared fields
+    # reasoning_tokens and effort specifically must be among the cleared fields
     assert config.reasoning_tokens is None
+    assert config.effort is None
     assert config.system_message == "You are a dope model."
     assert config.stop_seqs == ["foo"]
     assert config.parallel_tool_calls is False
+
+
+def test_anthropic_adaptive_thinking_effort_forwarded():
+    # `thinking: {"type": "adaptive"}` carries no budget_tokens; the reasoning
+    # depth arrives via `output_config.effort`. It must be forwarded rather than
+    # silently dropped (regression test for the bridge ignoring adaptive mode).
+    json_data = {
+        "model": "inspect",
+        "max_tokens": 32000,
+        "thinking": {"type": "adaptive"},
+        "output_config": {"effort": "high"},
+    }
+
+    config = generate_config_from_anthropic(json_data)
+    # adaptive mode has no explicit token budget
+    assert config.reasoning_tokens is None
+    # but the effort knob is preserved
+    assert config.effort == "high"
 
 
 def test_google_forward_then_clear():
@@ -175,6 +198,16 @@ def test_google_forward_then_clear():
         "topK": 2,
         # structural
         "stopSequences": ["foo"],
+        # structured output (Gemini OpenAPI-style schema, uppercase type names)
+        "responseMimeType": "application/json",
+        "responseSchema": {
+            "type": "OBJECT",
+            "properties": {
+                "reasoning": {"type": "STRING"},
+                "confidence": {"type": "NUMBER"},
+            },
+            "required": ["reasoning", "confidence"],
+        },
     }
 
     config = generate_config_from_google(generation_config)
@@ -183,6 +216,38 @@ def test_google_forward_then_clear():
     assert config.top_p == 0.9
     assert config.top_k == 2
 
+    # responseSchema is mapped, with types normalized to lowercase JSON Schema
+    assert config.response_schema is not None
+    json_schema = config.response_schema.json_schema
+    assert json_schema.type == "object"
+    assert json_schema.properties is not None
+    assert json_schema.properties["confidence"].type == "number"
+    assert json_schema.required == ["reasoning", "confidence"]
+
     clear_generation_params(config)
     _assert_cleared(config)
     assert config.stop_seqs == ["foo"]
+    # structured output survives clearing (it's functional, not a tuning knob)
+    assert config.response_schema is not None
+
+
+def test_google_response_json_schema_used_directly():
+    # `responseJsonSchema` is already standard JSON Schema (lowercase types)
+    generation_config = {
+        "responseMimeType": "application/json",
+        "responseJsonSchema": {
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+            "required": ["answer"],
+        },
+    }
+
+    config = generate_config_from_google(generation_config)
+    assert config.response_schema is not None
+    assert config.response_schema.json_schema.type == "object"
+    assert config.response_schema.json_schema.properties is not None
+
+
+def test_google_no_schema_leaves_response_schema_unset():
+    config = generate_config_from_google({"temperature": 0.5})
+    assert config.response_schema is None

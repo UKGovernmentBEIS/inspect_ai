@@ -39,7 +39,15 @@ class TaskSpec:
     agent: str | None
 
 
-CancelType = Literal["abort", "retry"] | None
+CancelType = Literal["abort", "retry", "score", "error"] | None
+"""How a task cancel resolves.
+
+``abort`` and ``retry`` tear the task's cancel scope down (the classic
+user-cancel paths). ``score`` and ``error`` are graceful sample resolutions:
+the scope is left alone — in-flight samples are interrupted with the matching
+``ActiveSample.interrupt`` action, queued samples are abandoned, and the task
+runs to natural completion (see ``inspect_ai._control.cancel.cancel_task``).
+"""
 
 
 @dataclass
@@ -172,3 +180,12 @@ class Display(Protocol):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
 
     def display_counter(self, caption: str, value: str) -> None: ...
+
+    def update_task_count(self, n: int) -> None:
+        """Add ``n`` to the displayed total task count.
+
+        Called when tasks are injected into a live (TaskSource-driven) run so
+        the "completed / total" denominator reflects the growing set. No-op by
+        default; displays that show a total override this.
+        """
+        return None

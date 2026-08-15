@@ -8,10 +8,12 @@ files written into a local staging dir, host egress ships them to
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.util._checkpoint._host_egress import MANIFEST_FILENAME, host_egress
+from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 
 S3_BUCKET = "s3://test-bucket"
 
@@ -19,6 +21,27 @@ S3_BUCKET = "s3://test-bucket"
 def _write(p: Path, content: bytes = b"x") -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(content)
+
+
+def _checkpoint_bytes(checkpoint_id: int) -> bytes:
+    return (
+        Checkpoint(
+            checkpoint_id=checkpoint_id,
+            trigger="turn",
+            turn=checkpoint_id,
+            created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+            duration_ms=10,
+            size_bytes=100 + checkpoint_id,
+            host=SnapshotDetails(
+                snapshot_id=f"snap-{checkpoint_id}",
+                size_bytes=100 + checkpoint_id,
+                duration_ms=10,
+            ),
+            sandboxes={},
+        )
+        .model_dump_json()
+        .encode()
+    )
 
 
 async def test_host_egress_roundtrip_to_s3(tmp_path: Path, mock_s3: None) -> None:
@@ -37,7 +60,7 @@ async def test_host_egress_roundtrip_to_s3(tmp_path: Path, mock_s3: None) -> Non
         b"sb-pack",
     )
     _write(staging / "restic" / "restic-config.json", b'{"restic_password":"pwd"}')
-    _write(staging / "ckpt-00001.json", b'{"checkpoint_id":1}')
+    _write(staging / "ckpt-00001.json", _checkpoint_bytes(1))
     # Should be excluded:
     _write(staging / "context" / "events.json", b"events")
 
@@ -63,7 +86,7 @@ async def test_host_egress_roundtrip_to_s3(tmp_path: Path, mock_s3: None) -> Non
             await fs.read_file(f"{dest}/restic/restic-config.json")
             == b'{"restic_password":"pwd"}'
         )
-        assert await fs.read_file(f"{dest}/ckpt-00001.json") == b'{"checkpoint_id":1}'
+        assert await fs.read_file(f"{dest}/ckpt-00001.json") == _checkpoint_bytes(1)
 
         # Context subdir must not have been shipped.
         assert not await fs.exists(f"{dest}/context/events.json")
@@ -82,7 +105,7 @@ async def test_host_egress_second_cycle_only_ships_new(
     staging.mkdir()
     (staging / "context").mkdir()
     _write(staging / "restic" / "host" / "config", b"v1")
-    _write(staging / "ckpt-00001.json", b"side1")
+    _write(staging / "ckpt-00001.json", _checkpoint_bytes(1))
     dest = f"{S3_BUCKET}/egress-second/eval.checkpoints/s__0"
 
     async with AsyncFilesystem() as fs:
@@ -93,7 +116,7 @@ async def test_host_egress_second_cycle_only_ships_new(
         await fs.write_file(f"{dest}/restic/host/config", b"untouched-after-egress")
 
         _write(staging / "restic" / "host" / "data" / "ab" / "cd", b"pack")
-        _write(staging / "ckpt-00002.json", b"side2")
+        _write(staging / "ckpt-00002.json", _checkpoint_bytes(2))
         await host_egress(staging_dir=str(staging), destination_dir=dest)
 
         assert (
@@ -101,4 +124,4 @@ async def test_host_egress_second_cycle_only_ships_new(
             == b"untouched-after-egress"
         )
         assert await fs.read_file(f"{dest}/restic/host/data/ab/cd") == b"pack"
-        assert await fs.read_file(f"{dest}/ckpt-00002.json") == b"side2"
+        assert await fs.read_file(f"{dest}/ckpt-00002.json") == _checkpoint_bytes(2)

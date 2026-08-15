@@ -66,8 +66,9 @@ class FakeTranscriptHistoryProvider:
             return []
         return list(self._events[-n:])
 
-    def events_from(self, start: int) -> Sequence[Event]:
-        return list(self._events[start:])
+    def events_from(self, start: int, limit: int | None = None) -> Sequence[Event]:
+        events = self._events[max(0, start) :]
+        return list(events[:limit] if limit is not None else events)
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]:
         events = list(self._events)

@@ -75,6 +75,7 @@ from .._model_output import (
 )
 from .mistral_conversation import (
     mistral_conversation_generate,
+    mistral_reasoning_effort,
 )
 from .util import (
     environment_prerequisite_error,
@@ -193,8 +194,13 @@ class MistralAPI(ModelAPI):
                 tool_choice=(
                     mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+                | (config.extra_headers or {}),
             )
+            if config.reasoning_effort is not None:
+                request["reasoning_effort"] = mistral_reasoning_effort(
+                    config.reasoning_effort
+                )
             if config.temperature is not None:
                 request["temperature"] = config.temperature
             if config.top_p is not None:
@@ -290,7 +296,7 @@ class MistralAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -608,6 +614,8 @@ def completion_choices_from_response(
         ]
 
 
+# Note: Mistral chat completions carry no response-level refusal category or
+# explanation, so there is no ChatCompletionChoice.stop_details to populate here.
 def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
     match choice.finish_reason:
         case "stop":

@@ -58,6 +58,26 @@ class ToolInfo(BaseModel):
     """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
 
 
+INTERNAL_TOOL_TYPE = "__internal_tool_type__"
+"""Well-known ``ToolInfo.options`` key carrying the
+:class:`~inspect_ai._util.content.ContentToolUse` ``tool_type`` literal
+(``"web_search"`` / ``"code_execution"`` / ``"mcp_call"``) for tools that a
+model provider may execute server-side within a single API call."""
+
+
+def internal_tool_type(tool: ToolInfo) -> str | None:
+    """Return the server-side tool type if ``tool`` is an internal tool.
+
+    Internal tools (:func:`~inspect_ai.tool.web_search`,
+    :func:`~inspect_ai.tool.code_execution`, hosted MCP) set
+    :data:`INTERNAL_TOOL_TYPE` in their ``options``; this returns that value
+    so callers (e.g. agent-bridge filters) can distinguish them from
+    ordinary function tools without name-matching. Returns ``None`` for
+    function tools.
+    """
+    return (tool.options or {}).get(INTERNAL_TOOL_TYPE)
+
+
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
     return _parse_tool_info_shared(func).model_copy(deep=True)
 

@@ -4,9 +4,12 @@ from logging import getLogger
 from typing import Sequence
 
 import anyio
+from pydantic import BaseModel, Field
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
+from inspect_ai.util._checkpoint import Checkpointer
+from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 
 from .._call_tools import get_tools_info, resolve_tools
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
@@ -23,12 +26,42 @@ from .types import Compact, CompactionStrategy
 
 logger = getLogger(__name__)
 
+# stateless no-op session used when the caller has no checkpointer; its
+# track() returns initial_value and never registers, so the compaction
+# handler needs no special-casing
+_NOOP_CHECKPOINTER: Checkpointer = _NoopCheckpointer()
+
+
+class _CompactionState(BaseModel):
+    """Checkpointable state held by a `compaction()` handler.
+
+    Captured at each checkpoint fire and restored on resume so a resumed
+    session continues from the prior compacted view rather than re-deriving
+    (and, for summary strategies, re-invoking the model) from scratch.
+    """
+
+    compacted_input: list[ChatMessage] = Field(default_factory=list)
+    """Reduced input actually sent to the model."""
+
+    processed_message_ids: set[str] = Field(default_factory=set)
+    """IDs of messages already folded into the input."""
+
+    baseline_tokens: int | None = None
+    """Token baseline from the last `record_output` call."""
+
+    baseline_message_ids: set[str] = Field(default_factory=set)
+    """IDs of messages that produced `baseline_tokens`."""
+
+    memory_warning_issued: bool = False
+    """Whether a pre-compaction memory warning was issued for the window."""
+
 
 def compaction(
     strategy: CompactionStrategy,
     prefix: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource | None = None,
     model: str | Model | None = None,
+    checkpointer: Checkpointer = _NOOP_CHECKPOINTER,
 ) -> Compact:
     """Create a conversation compaction handler.
 
@@ -44,28 +77,26 @@ def compaction(
         prefix: Chat messages to always preserve in compacted conversations.
         tools: Tool definitions (included in token count as they consume context).
         model: Target model for compacted input (defaults to active model).
+        checkpointer: Session checkpointer. The handler's internal state is
+            captured at each checkpoint fire and restored on resume so the
+            resumed session continues from the prior compacted view rather
+            than re-deriving from scratch. Defaults to a no-op session.
 
     Returns:
         `Compact` handler with `compact_input()` and `record_output()` methods.
     """
     from inspect_ai.log._transcript import transcript
 
-    # state: compacted input to send to the model
-    compacted_input: list[ChatMessage] = []
-
-    # state: whether we've issued a memory warning for the current window
-    memory_warning_issued: bool = False
-
-    # state: IDs of messages we've already processed (added to input)
-    processed_message_ids: set[str] = set()
-
-    # state: baseline token count from the last generate call
-    # This is the most accurate count since it comes directly from the API
-    # and includes all overhead (tools, system messages, thinking config, etc.)
-    baseline_tokens: int | None = None
-
-    # state: IDs of messages that were included in the baseline count
-    baseline_message_ids: set[str] = set()
+    # mutable per-session state (see _CompactionState for field docs). The
+    # closure mutates `state` in place; it is the single source of truth.
+    #
+    # `track` registers the state for checkpointing and returns either the
+    # fresh instance passed as initial_value (no checkpointer / fresh run) or
+    # the value captured at the last fire (resume). The `lambda: state`
+    # callback hands the live instance to each fire; track never invokes it
+    # during registration, so closing over `state` before this assignment
+    # completes is safe.
+    state = checkpointer.track("compaction", lambda: state, _CompactionState())
 
     # snapshot the prefix in case it changes
     prefix = prefix.copy()
@@ -94,8 +125,6 @@ def compaction(
 
     async def record_output_fn(input: list[ChatMessage], output: ModelOutput) -> None:
         """Record output from generate call to calibrate token baseline."""
-        nonlocal baseline_tokens, baseline_message_ids
-
         if output.usage is None:
             return
 
@@ -108,10 +137,10 @@ def compaction(
                 input_tokens += output.usage.input_tokens_cache_write
 
             # `input` is the messages that produced output.usage; under
-            # concurrent bridge use the closure's `compacted_input` may
-            # already reflect a later call
-            baseline_tokens = input_tokens
-            baseline_message_ids = {message_id(m) for m in input}
+            # concurrent bridge use `state.compacted_input` may already
+            # reflect a later call
+            state.baseline_tokens = input_tokens
+            state.baseline_message_ids = {message_id(m) for m in input}
 
     async def compact_fn(
         messages: list[ChatMessage],
@@ -119,9 +148,8 @@ def compaction(
     ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
         from inspect_ai.event._compaction import CompactionEvent
 
-        # state variables we modify
-        nonlocal tool_tokens, tools_info, prefix_tokens, memory_warning_issued
-        nonlocal baseline_tokens, baseline_message_ids
+        # derived caches we lazily resolve (not part of checkpointed state)
+        nonlocal tool_tokens, tools_info, prefix_tokens
 
         async with _lock:
             # one time resolution of tool_tokens and prefix_tokens
@@ -136,11 +164,11 @@ def compaction(
             # we allow unprocessed messages to accumulate in the input until
             # the compaction 'threshold' is reached.
             unprocessed: list[ChatMessage] = [
-                m for m in messages if message_id(m) not in processed_message_ids
+                m for m in messages if message_id(m) not in state.processed_message_ids
             ]
 
             # estimate total tokens using the most accurate method available
-            target_messages = compacted_input + unprocessed
+            target_messages = state.compacted_input + unprocessed
             target_message_ids = {message_id(m) for m in target_messages}
 
             # On providers whose usage.input_tokens omits redacted reasoning
@@ -153,8 +181,9 @@ def compaction(
                 target_messages, target_model
             )
 
-            if baseline_tokens is not None and baseline_message_ids.issubset(
-                target_message_ids
+            if (
+                state.baseline_tokens is not None
+                and state.baseline_message_ids.issubset(target_message_ids)
             ):
                 # Use the baseline from the last generate call (most accurate).
                 # The baseline already includes tool definitions, system messages,
@@ -163,14 +192,16 @@ def compaction(
                 new_since_baseline = [
                     m
                     for m in target_messages
-                    if message_id(m) not in baseline_message_ids
+                    if message_id(m) not in state.baseline_message_ids
                 ]
                 new_tokens = (
                     await target_model.count_tokens(new_since_baseline)
                     if new_since_baseline
                     else 0
                 )
-                total_tokens = baseline_tokens + new_tokens + hidden_reasoning_tokens
+                total_tokens = (
+                    state.baseline_tokens + new_tokens + hidden_reasoning_tokens
+                )
             else:
                 # No baseline yet (first call). Fall back to per-message counting.
                 message_tokens = await target_model.count_tokens(target_messages)
@@ -189,13 +220,13 @@ def compaction(
                 )
 
                 # track all messages that were processed in this compaction pass
-                for m in compacted_input + unprocessed:
-                    processed_message_ids.add(message_id(m))
+                for m in state.compacted_input + unprocessed:
+                    state.processed_message_ids.add(message_id(m))
 
                 # c_message is a compaction side effect to append to the history
                 # (e.g. a summary). track it as processed as well
                 if c_message is not None:
-                    processed_message_ids.add(message_id(c_message))
+                    state.processed_message_ids.add(message_id(c_message))
 
                 # Preserve prefix messages based on strategy type
                 if strategy.preserve_prefix:
@@ -219,35 +250,38 @@ def compaction(
                     c_message = None
 
                 # update input
-                compacted_input.clear()
-                compacted_input.extend(c_input)
+                state.compacted_input.clear()
+                state.compacted_input.extend(c_input)
 
                 # log compaction
-                compacted_tokens = await target_model.count_tokens(compacted_input)
+                compacted_tokens = await target_model.count_tokens(
+                    state.compacted_input
+                )
                 compacted_hidden = _redacted_reasoning_tokens_total(
-                    compacted_input, target_model
+                    state.compacted_input, target_model
                 )
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,
+                        role=target_model.role,
                         source="inspect",
                         tokens_before=total_tokens,
                         tokens_after=compacted_tokens + compacted_hidden,
                         metadata={
                             "strategy": strategy.__class__.__name__,
                             "messages_before": len(target_messages),
-                            "messages_after": len(compacted_input),
+                            "messages_after": len(state.compacted_input),
                             "trigger": "forced" if force else "threshold",
                         },
                     )
                 )
 
                 # clear memory warning state
-                memory_warning_issued = False
+                state.memory_warning_issued = False
 
                 # invalidate baseline (compaction changed the messages)
-                baseline_tokens = None
-                baseline_message_ids = set()
+                state.baseline_tokens = None
+                state.baseline_message_ids = set()
 
                 # return input and any extra message to append
                 return list(c_input), c_message
@@ -255,25 +289,25 @@ def compaction(
             else:
                 # track unprocessed messages as now processed
                 for m in unprocessed:
-                    processed_message_ids.add(message_id(m))
+                    state.processed_message_ids.add(message_id(m))
 
                 # extend input with unprocessed messages
-                compacted_input.extend(unprocessed)
+                state.compacted_input.extend(unprocessed)
 
                 # check if we need to do a memory warning
                 if (
                     strategy.memory is True
                     and MEMORY_TOOL in [t.name for t in tools_info]
                     and total_tokens > memory_warning_threshold
-                    and not memory_warning_issued
+                    and not state.memory_warning_issued
                 ):
                     memory_message = memory_warning_message()
-                    compacted_input.append(memory_message)
-                    processed_message_ids.add(message_id(memory_message))
-                    memory_warning_issued = True
+                    state.compacted_input.append(memory_message)
+                    state.processed_message_ids.add(message_id(memory_message))
+                    state.memory_warning_issued = True
 
                 # return
-                return list(compacted_input), None
+                return list(state.compacted_input), None
 
     class _CompactHandler:
         async def compact_input(

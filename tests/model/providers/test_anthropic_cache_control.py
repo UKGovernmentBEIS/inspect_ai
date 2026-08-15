@@ -9,11 +9,16 @@ API rejects with `'thinking.cache_control: Extra inputs are not permitted'`).
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import pytest
-from anthropic.types import MessageParam
+from anthropic.types import MessageParam, TextBlockParam
 
+from inspect_ai.model._providers.anthropic import (
+    AnthropicAPI,
+    add_cache_control,
+    cache_control_param,
+)
 from inspect_ai.model._providers.anthropic import (
     add_lookback_cache_control as _add_lookback_cache_control,
 )
@@ -21,8 +26,10 @@ from inspect_ai.model._providers.anthropic import (
 CACHE = {"type": "ephemeral"}
 
 
-def add_lookback_cache_control(msgs: list[dict[str, Any]]) -> None:
-    _add_lookback_cache_control(cast(list[MessageParam], msgs))
+def add_lookback_cache_control(
+    msgs: list[dict[str, Any]], ttl: Literal["5m", "1h"] | None = None
+) -> None:
+    _add_lookback_cache_control(cast(list[MessageParam], msgs), ttl)
 
 
 def text(s: str) -> dict[str, Any]:
@@ -193,6 +200,55 @@ def test_only_thinking_blocks_no_tag() -> None:
     ]
     add_lookback_cache_control(msgs)
     assert tagged(msgs) == []
+
+
+# ---------------------------------------------------------------------------
+# (f) cache ttl
+# ---------------------------------------------------------------------------
+
+
+def test_cache_control_param_default_omits_ttl() -> None:
+    assert cache_control_param(None) == {"type": "ephemeral"}
+
+
+@pytest.mark.parametrize("ttl", ["5m", "1h"])
+def test_cache_control_param_includes_ttl(ttl: Literal["5m", "1h"]) -> None:
+    assert cache_control_param(ttl) == {"type": "ephemeral", "ttl": ttl}
+
+
+def test_add_cache_control_default_omits_ttl() -> None:
+    block = TextBlockParam(type="text", text="hello")
+    add_cache_control(block)
+    assert block["cache_control"] == {"type": "ephemeral"}
+
+
+def test_add_cache_control_with_ttl() -> None:
+    block = TextBlockParam(type="text", text="hello")
+    add_cache_control(block, "1h")
+    assert block["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+
+
+def test_lookback_threads_ttl() -> None:
+    msgs: list[dict[str, Any]] = [{"role": "user", "content": [text("a"), text("b")]}]
+    add_lookback_cache_control(msgs, "1h")
+    assert msgs[0]["content"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+
+
+@pytest.mark.parametrize("ttl", ["5m", "1h"])
+def test_anthropic_api_accepts_valid_cache_ttl(ttl: Literal["5m", "1h"]) -> None:
+    api = AnthropicAPI(
+        model_name="claude-sonnet-4-6", api_key="test-key", cache_ttl=ttl
+    )
+    assert api.cache_ttl == ttl
+
+
+def test_anthropic_api_rejects_invalid_cache_ttl() -> None:
+    with pytest.raises(ValueError, match="cache_ttl"):
+        AnthropicAPI(
+            model_name="claude-sonnet-4-6",
+            api_key="test-key",
+            cache_ttl=cast(Any, "2h"),
+        )
 
 
 @pytest.mark.parametrize("block_type", ["thinking", "redacted_thinking"])

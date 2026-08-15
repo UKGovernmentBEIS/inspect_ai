@@ -39,6 +39,7 @@ def download(
     dest: Path,
     *,
     headers: dict[str, str] | None = None,
+    timeout: float = 5.0,
 ) -> Path:
     """Download a file and verify its SHA256 checksum.
 
@@ -57,6 +58,9 @@ def download(
         sha256: Expected SHA256 hex digest of the file contents.
         dest: Destination path. Parent directory is created if missing.
         headers: Optional HTTP headers to include with the request.
+        timeout: Per-operation socket timeout in seconds (connect/read/write),
+            forwarded to the HTTP client. Defaults to 5s; raise it for large
+            artifacts fetched over slow links.
 
     Returns:
         The destination path.
@@ -81,7 +85,7 @@ def download(
     def _stream_to_tmp() -> str:
         hasher = hashlib.sha256()
         with httpx.stream(
-            "GET", url, headers=headers, follow_redirects=True
+            "GET", url, headers=headers, follow_redirects=True, timeout=timeout
         ) as response:
             response.raise_for_status()
             with open(tmp, "wb") as f:

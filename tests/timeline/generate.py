@@ -32,6 +32,7 @@ from inspect_ai.event._timeline import TimelineSpan
 from inspect_ai.log import EvalLog
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message
 from inspect_ai.tool import tool
 from inspect_ai.util import collect
 
@@ -111,6 +112,23 @@ def scenario_simple_agent() -> tuple[str, Task, Any]:
         scorer=includes(),
     )
     return "simple_agent", task, model
+
+
+def scenario_primitive_solvers() -> tuple[str, Task, Any]:
+    """Plain solver plan (system_message + generate) with no agents.
+
+    Primitive solver spans should be unrolled into the 'main' lane rather than
+    each occupying their own swimlane.
+    """
+    outputs = [ModelOutput.from_content(MODEL, "2")]
+    model = get_model(MODEL, custom_outputs=outputs)
+    task = Task(
+        name="primitive_solvers",
+        dataset=DATASET,
+        solver=[system_message("You are a helpful assistant."), generate()],
+        scorer=includes(),
+    )
+    return "primitive_solvers", task, model
 
 
 def scenario_multi_turn_agent() -> tuple[str, Task, Any]:
@@ -783,6 +801,26 @@ def validate_simple_agent(timeline: Timeline) -> None:
         f"root should have no agent sub-spans: {agent_children}"
     )
     assert_repr_labels(timeline, "main")
+
+
+def validate_primitive_solvers(timeline: Timeline) -> None:
+    root = timeline.root
+    children = child_span_names(root)
+    # Primitive solvers (system_message, generate) must not become sub-lanes;
+    # only init/scoring remain as child spans.
+    agent_children = [s for s in children if s not in ("init", "scoring")]
+    assert agent_children == [], (
+        f"primitive solvers should not be sub-spans: {agent_children}"
+    )
+    # The generate solver's model event must be unrolled directly into 'main'.
+    model_events = [
+        item
+        for item in root.content
+        if not isinstance(item, TimelineSpan) and item.event.event == "model"
+    ]
+    assert model_events, "expected generate's model event unrolled into 'main'"
+    assert_repr_labels(timeline, "main")
+    assert_repr_not_contains(timeline, "system_message", "generate")
 
 
 def validate_multi_turn_agent(timeline: Timeline) -> None:

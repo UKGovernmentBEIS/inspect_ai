@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TypeAlias
 
 from pydantic import JsonValue, TypeAdapter
@@ -23,20 +23,51 @@ or inspect discriminator fields before validating a subset.
 
 @dataclass
 class SampleHistory:
-    """Latest logical sample history with .eval positional pool refs."""
+    """Latest logical sample history with .eval positional pool refs.
+
+    Pools are keyed by .eval positional index: full-history reads carry every
+    entry (contiguous positions from 0), while page-scoped reads carry only
+    the positions referenced by the page's events.
+    """
 
     raw_event_rows: list[EventData]
-    message_pool: list[ChatMessage]
-    call_pool: list[JsonValue]
+    message_pool: dict[int, ChatMessage]
+    call_pool: dict[int, JsonValue]
     attachments: dict[str, str]
-    events_data: EventsData = field(init=False)
+    page_scoped: bool = False
+    """True when pools/attachments carry only the entries referenced by this
+    page's events (which may still form a contiguous prefix, so completeness
+    can't be inferred from the keys)."""
 
     def __post_init__(self) -> None:
-        self.message_pool = validate_chat_messages(
-            self.message_pool, context={"deserializing": True}
+        validated_messages = validate_chat_messages(
+            list(self.message_pool.values()), context={"deserializing": True}
         )
-        self.call_pool = _json_value_list_adapter.validate_python(self.call_pool)
-        self.events_data = EventsData(messages=self.message_pool, calls=self.call_pool)
+        self.message_pool = dict(
+            zip(self.message_pool, validated_messages, strict=True)
+        )
+        validated_calls = _json_value_list_adapter.validate_python(
+            list(self.call_pool.values())
+        )
+        self.call_pool = dict(zip(self.call_pool, validated_calls, strict=True))
+
+    @property
+    def events_data(self) -> EventsData:
+        """Dense pools for embedding in an ``EvalSample`` / .eval log.
+
+        Positional refs index into the dense lists, so this requires a
+        full-history read (complete pools with contiguous positions from 0);
+        page-scoped histories raise rather than silently misalign refs.
+        """
+        if self.page_scoped:
+            raise RuntimeError(
+                "events_data requires a full sample history; this history "
+                "is page-scoped and carries only referenced pool entries"
+            )
+        return EventsData(
+            messages=[self.message_pool[i] for i in range(len(self.message_pool))],
+            calls=[self.call_pool[i] for i in range(len(self.call_pool))],
+        )
 
     @property
     def event_count(self) -> int:

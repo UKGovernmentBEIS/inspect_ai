@@ -1,5 +1,7 @@
 import os
+from functools import partial
 from json import dumps
+from logging import getLogger
 from typing import Any, cast
 
 import httpx
@@ -10,13 +12,13 @@ from openai.types.chat import (
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai.model._retry import model_retry_config
+from inspect_ai.model._retry import batch_admin_retry_config
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, RetryDecision, log_model_retry
+from .._model import ModelAPI, RetryDecision
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -25,8 +27,9 @@ from .._model_output import (
     ModelUsage,
     StopReason,
     as_stop_reason,
+    collect_stop_details,
 )
-from .._openai import chat_message_assistant_from_openai
+from .._openai import chat_message_assistant_from_openai, openai_stop_details
 from ._together_batch import TogetherBatcher
 from .openai_compatible import OpenAICompatibleAPI
 from .util import (
@@ -35,6 +38,8 @@ from .util import (
     model_base_url,
 )
 from .util.chatapi import ChatAPIHandler, classify_chat_api_error
+
+logger = getLogger(__name__)
 
 
 def chat_choices_from_response_together(
@@ -75,6 +80,9 @@ def chat_choices_from_response_together(
                 response.model, choice.message, tools
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
+            stop_details=collect_stop_details(
+                "together", logger, partial(openai_stop_details, choice)
+            ),
             logprobs=logprobs,
         )
         for choice, logprobs in zip(choices, logprobs_models)
@@ -136,6 +144,9 @@ class TogetherAIAPI(OpenAICompatibleAPI):
         else:
             return ex
 
+    def is_gpt_oss(self) -> bool:
+        return "gpt-oss" in self.model_family().lower()
+
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params = super().completion_params(config, tools)
@@ -143,6 +154,21 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             params["logprobs"] = 1
         if "top_logprobs" in params:
             del params["top_logprobs"]
+
+        # Together accepts `low`/`medium`/`high` for all reasoning models, plus
+        # `xhigh`/`max` on some (e.g. DeepSeek V4 Pro). `minimal` is never accepted
+        # (-> `low`). `none` isn't a supported effort value, so it's omitted and the
+        # provider/model default applies -- reasoning is not disabled (hybrid models
+        # are disabled via reasoning={"enabled": false}, not an effort value). Only
+        # gpt-oss rejects `xhigh`/`max` (-> `high`); other models pass them through.
+        if "reasoning_effort" in params:
+            effort = params["reasoning_effort"]
+            if effort == "minimal":
+                params["reasoning_effort"] = "low"
+            elif effort == "none":
+                del params["reasoning_effort"]
+            elif effort in ("xhigh", "max") and self.is_gpt_oss():
+                params["reasoning_effort"] = "high"
 
         # together requires temperature with num_choices
         if config.num_choices is not None and config.temperature is None:
@@ -189,14 +215,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             batch_config,
             # TODO: In the future, we could pass max_retries and timeout
             # from batch_config falling back to config
-            model_retry_config(
-                self.model_name,
-                config.max_retries,
-                config.timeout,
-                self.should_retry,
-                lambda ex: None,
-                log_model_retry,
-            ),
+            batch_admin_retry_config(self.model_name, config, self.should_retry),
         )
 
 
@@ -319,7 +338,7 @@ class TogetherRESTAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.initial_api_key}:{self.model_name}"
 
     # Together uses a default of 512 so we bump it up
     @override

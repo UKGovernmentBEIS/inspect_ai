@@ -72,6 +72,19 @@ def test_openai_responses_no_store():
     assert log.status == "success"
 
 
+@skip_if_no_openai
+async def test_openai_responses_metadata_round_trip():
+    """Request metadata sent via extra_body is echoed back as ModelOutput.metadata."""
+    model = get_responses_model(
+        config=GenerateConfig(
+            max_tokens=50,
+            extra_body={"metadata": {"foo": "bar"}},
+        )
+    )
+    output = await model.generate("This is a test string. What are you?")
+    assert output.metadata == {"foo": "bar"}
+
+
 def test_image_generation_call_output():
     """Test that ImageGenerationCall produces ContentImage."""
     from openai.types.responses.response_output_item import ImageGenerationCall
@@ -113,6 +126,109 @@ def test_image_generation_call_incomplete():
         outputs, []
     )
     assert len(content) == 0
+
+
+def test_oversized_tool_call_arguments_truncated_for_replay():
+    """Oversized arguments are truncated in the verbatim replay cache.
+
+    OpenAI rejects input `arguments` strings longer than 1,048,576 chars
+    (it imposes no such limit on output), so caching an oversized string
+    verbatim would 400 every subsequent request.
+    """
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _MAX_FUNCTION_CALL_ARGUMENTS,
+        _process_response_output_items,
+        _tool_call_items_from_assistant_message,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+
+    raw_arguments = '{"command":"' + ("x" * 2_000_000) + '","}malformed'
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id="fc_1",
+            call_id="call_1",
+            name="bash",
+            arguments=raw_arguments,
+        )
+    ]
+    _content, tool_calls, _logprobs, has_tool_calls = _process_response_output_items(
+        outputs, []
+    )
+
+    assert has_tool_calls
+    assert tool_calls[0].parse_error is not None
+    assert tool_calls[0].arguments == {}
+    cached = assistant_internal().tool_calls["call_1"]
+    assert len(cached["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+    items = _tool_call_items_from_assistant_message(
+        ChatMessageAssistant(content="", tool_calls=tool_calls)
+    )
+    assert len(items[0]["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
+
+
+def test_tool_call_arguments_within_limit_cached_verbatim():
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        assistant_internal,
+    )
+
+    init_sample_assistant_internal()
+
+    raw_arguments = '{"command": "ls"}'
+    outputs = [
+        ResponseFunctionToolCall(
+            type="function_call",
+            id="fc_1",
+            call_id="call_1",
+            name="bash",
+            arguments=raw_arguments,
+        )
+    ]
+    _process_response_output_items(outputs, [])
+
+    assert assistant_internal().tool_calls["call_1"]["arguments"] == raw_arguments
+
+
+def test_oversized_tool_call_arguments_truncated_on_cache_miss():
+    """Valid-but-oversized arguments are truncated in the cache-miss fallback.
+
+    When a tool call isn't in the assistant_internal replay cache (e.g. a
+    message history constructed outside this sample), its arguments are
+    re-serialized from the parsed dict — which for valid oversized JSON
+    regenerates the oversized string.
+    """
+    from inspect_ai.model._assistant_internal import init_sample_assistant_internal
+    from inspect_ai.model._openai_responses import (
+        _MAX_FUNCTION_CALL_ARGUMENTS,
+        _tool_call_items_from_assistant_message,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_assistant_internal()
+
+    message = ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(
+                id="call_1",
+                function="bash",
+                arguments={"command": "x" * 2_000_000},
+            )
+        ],
+    )
+    items = _tool_call_items_from_assistant_message(message)
+
+    assert len(items[0]["arguments"]) <= _MAX_FUNCTION_CALL_ARGUMENTS
 
 
 def test_non_consecutive_reasoning_blocks_filtering():
@@ -224,6 +340,136 @@ async def test_responses_api_invalid_prompt_content_filter():
     assert "blocked by content filter" in output.completion
 
 
+async def _generate_responses_with_mock(
+    mock_response,
+    config: GenerateConfig = GenerateConfig(),
+    background: bool | None = None,
+    capture_request: dict | None = None,
+):
+    """Run generate_responses() against a mocked client returning mock_response."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import generate_responses
+    from inspect_ai.model._providers.util.hooks import HttpxHooks
+
+    client = MagicMock()
+    client.responses = MagicMock()
+    client.responses.create = AsyncMock(return_value=mock_response)
+
+    http_hooks = MagicMock(spec=HttpxHooks)
+    http_hooks.start_request = MagicMock(return_value="req_1")
+    http_hooks.end_request = MagicMock(return_value=None)
+
+    model_info = MagicMock()
+    model_info.is_o_series.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = False
+
+    result = await generate_responses(
+        client=client,
+        http_hooks=http_hooks,
+        model_name="gpt-4o",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=config,
+        background=background,
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        synthesize_phase=False,
+        model_info=model_info,
+        batcher=None,
+    )
+    if capture_request is not None:
+        capture_request.update(client.responses.create.call_args.kwargs)
+    return result
+
+
+async def test_responses_api_metadata_surfaced():
+    """Response-level metadata is surfaced as ModelOutput.metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        metadata={"safeguards": "flagged"},
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata == {"safeguards": "flagged"}
+
+
+async def test_responses_api_no_metadata():
+    """ModelOutput.metadata is None when the response carries no metadata."""
+    from openai.types.responses import Response
+
+    mock_response = Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-4o",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+    output, _ = await _generate_responses_with_mock(mock_response)
+    assert isinstance(output, ModelOutput)
+    assert output.metadata is None
+
+
+def _completed_mock_response():
+    from openai.types.responses import Response
+
+    return Response.model_construct(
+        id="resp_test",
+        created_at=0.0,
+        model="gpt-5.6-sol",
+        object="response",
+        output=[],
+        tools=[],
+        status="completed",
+    )
+
+
+async def test_responses_api_pro_mode_defaults_to_background() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(),
+        config=GenerateConfig(reasoning_mode="pro"),
+        capture_request=request,
+    )
+    assert request["background"] is True
+
+
+async def test_responses_api_pro_mode_respects_explicit_background() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(),
+        config=GenerateConfig(reasoning_mode="pro"),
+        background=False,
+        capture_request=request,
+    )
+    assert request["background"] is False
+
+
+async def test_responses_api_no_background_by_default() -> None:
+    request: dict = {}
+    await _generate_responses_with_mock(
+        _completed_mock_response(), capture_request=request
+    )
+    assert "background" not in request
+
+
 def test_fix_function_tool_parameters_string_to_dict():
     """Test that string parameters in FunctionTool are parsed to dicts."""
     from openai.types.responses import FunctionTool, Response
@@ -284,7 +530,9 @@ def test_chat_messages_from_compact_response():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -329,7 +577,9 @@ def test_chat_messages_from_compact_response_no_compaction_item():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -364,7 +614,9 @@ def test_model_usage_from_compact_response():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -467,7 +719,9 @@ def test_chat_messages_from_compact_response_mixed_items():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -561,7 +815,9 @@ def test_chat_messages_from_compact_response_developer_and_user_messages():
             input_tokens=100,
             output_tokens=50,
             total_tokens=150,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -659,7 +915,9 @@ def test_chat_messages_from_compact_response_mixed_roles():
             input_tokens=200,
             output_tokens=100,
             total_tokens=300,
-            input_tokens_details=InputTokensDetails(cached_tokens=0),
+            input_tokens_details=InputTokensDetails(
+                cached_tokens=0, cache_write_tokens=0
+            ),
             output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
         ),
     )
@@ -1107,6 +1365,47 @@ def test_openai_responses_tools_image_modality():
     config = GenerateConfig()
     tools = openai_responses_tools([], "gpt-4o", config)
     assert len(tools) == 0
+
+
+def test_openai_responses_tools_regroups_namespace():
+    """ToolInfos carrying RESPONSES_NAMESPACE are re-grouped into a NamespaceToolParam."""
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._openai_responses import (
+        RESPONSES_NAMESPACE,
+        openai_responses_tools,
+    )
+    from inspect_ai.tool._tool_info import ToolInfo
+
+    ns = ("multi_agent_v1", "Multi-agent orchestration tools")
+    tools = openai_responses_tools(
+        [
+            ToolInfo(name="exec_command", description="exec"),
+            ToolInfo(
+                name="spawn_agent",
+                description="spawn",
+                options={RESPONSES_NAMESPACE: ns},
+            ),
+            ToolInfo(
+                name="wait_agent",
+                description="wait",
+                options={RESPONSES_NAMESPACE: ns},
+            ),
+        ],
+        "gpt-5",
+        GenerateConfig(),
+    )
+
+    flat = [t for t in tools if t["type"] == "function"]
+    assert len(flat) == 1
+    assert flat[0]["name"] == "exec_command"
+
+    namespaces = [t for t in tools if t["type"] == "namespace"]
+    assert len(namespaces) == 1
+    assert namespaces[0]["name"] == "multi_agent_v1"
+    assert namespaces[0]["description"] == "Multi-agent orchestration tools"
+    inner = list(namespaces[0]["tools"])
+    assert [t["name"] for t in inner] == ["spawn_agent", "wait_agent"]
+    assert all(t["type"] == "function" for t in inner)
 
 
 def test_reasoning_only_fallback_enabled():

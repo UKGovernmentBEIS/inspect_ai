@@ -331,6 +331,7 @@ class SampleInfo(Vertical):
         super().__init__()
         self._sample: ActiveSample | None = None
         self._sandbox_count: int | None = None
+        self._fallback_models: list[str] | None = None
 
     def compose(self) -> ComposeResult:
         with Horizontal():
@@ -385,17 +386,25 @@ class SampleInfo(Vertical):
             await limits.sync_sample(sample)
 
             new_sandbox_count = len(sample.sandboxes)
-            # bail if we've already processed this sample
-            if self._sample == sample and self._sandbox_count == new_sandbox_count:
+            # bail if we've already processed this sample (fallbacks can
+            # arrive mid-sample, so they participate in the change check)
+            if (
+                self._sample == sample
+                and self._sandbox_count == new_sandbox_count
+                and self._fallback_models == sample.fallback_models
+            ):
                 return
 
             # set sample
             self._sample = sample
             self._sandbox_count = new_sandbox_count
+            self._fallback_models = sample.fallback_models
 
             # update UI
             self.display = True
             title = f"{task_display_name(sample.task)} (id: {sample.sample.id}, epoch {sample.epoch}): {sample.model}"
+            if sample.fallback_models:
+                title = f"{title} [italic](fallback → {', '.join(sample.fallback_models)})[/italic]"
             self.query_one(Collapsible).title = title
             sandboxes = self.query_one(SandboxesView)
             await sandboxes.sync_sample(sample)

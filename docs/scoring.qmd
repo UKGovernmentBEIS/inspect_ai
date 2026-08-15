@@ -1,0 +1,19 @@
+---
+title: Scoring
+llms-description: Index of the Inspect scoring documentation covering standard scorers, custom scorers, model grading, metrics, multiple scorers, the scoring workflow, and perplexity.
+---
+
+Scoring turns the raw `output` a model produces for each sample into a `Score`, and aggregates those scores into the metrics that summarise an evaluation. The scoring system is documented across the following articles:
+
+| Article | Description |
+|---|---|
+| [Standard Scorers](standard-scorers.qmd) | The built-in scorers (text matching, multiple choice, math, model grading, perplexity) and how to choose among them. |
+| [Custom Scorers](custom-scorers.qmd) | Write your own scorers using the `Score`, `Value`, and `Target` types, including scorers that call models or inspect a sandbox. |
+| [Model Grading](model-graded.qmd) | Use another model to grade open-ended answers; customise templates, instructions, grader models, and chat history. |
+| [Scoring Metrics](metrics.qmd) | Built-in metrics, grouping, clustered standard errors, custom metrics, and reducing epochs. |
+| [Multiple Scorers](multiple-scorers.qmd) | Use several scorers together, emit multiple scores from one scorer, and reduce multiple scores into one. |
+| [Scoring Workflow](scoring-workflow.qmd) | Defer scoring with `--no-score`, re-score logs with `inspect score`, and edit scores. |
+| [Perplexity](perplexity.qmd) | Score how well a model predicts text using prompt log probabilities. |
+: {tbl-colwidths=[35,65]}
+
+To review transcripts for issues that could undermine results (refusals, evaluation awareness, environment misconfiguration) rather than grading task success, see [Scanners](scanners.qmd). To customise how scores render in the log viewer, see [Task Views](task-views.qmd).

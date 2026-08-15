@@ -14,6 +14,9 @@ class CompactionEvent(BaseEvent):
     type: Literal["summary", "edit", "trim"] = Field(default="summary")
     """Compaction type."""
 
+    role: str | None = Field(default=None)
+    """Model role whose conversation was compacted."""
+
     tokens_before: int | None = Field(default=None)
     """Tokens before compaction."""
 

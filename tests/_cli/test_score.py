@@ -6,13 +6,13 @@ from test_helpers.utils import skip_if_no_openai
 from inspect_ai._cli import score as score_cli
 from inspect_ai._cli.score import score
 from inspect_ai._eval.score import ScoreAction
+from inspect_ai.log import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._edit import (
     MetadataEdit,
     ProvenanceData,
     TagsEdit,
     edit_eval_log,
 )
-from inspect_ai.log._file import read_eval_log, read_eval_log_async, write_eval_log
 from inspect_ai.log._recorders import create_recorder_for_location
 
 LOGS_DIR = pathlib.Path(__file__).parents[1] / "scorer/logs"
@@ -124,7 +124,7 @@ async def test_score_stream_preserves_log_updates(
     input_file = tmp_path / LOG_SCORED.name
     output_file = tmp_path / "rescored.eval"
 
-    log = read_eval_log(str(LOG_SCORED))
+    log = await read_eval_log_async(str(LOG_SCORED))
     log = edit_eval_log(
         log,
         [
@@ -133,7 +133,7 @@ async def test_score_stream_preserves_log_updates(
         ],
         ProvenanceData(author="alice", reason="qa"),
     )
-    write_eval_log(log, str(input_file))
+    await write_eval_log_async(log, str(input_file))
 
     monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
     monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
@@ -141,7 +141,9 @@ async def test_score_stream_preserves_log_updates(
         score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
     )
 
-    async def fake_score_async(*, log, scorers, metrics, action, copy, samples):
+    async def fake_score_async(
+        *, log, scorers, metrics, model, model_roles, action, copy, samples
+    ):
         assert samples is not None
         return log
 
@@ -201,7 +203,9 @@ async def test_score_stream_flushes_periodically(
         score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
     )
 
-    async def fake_score_async(*, log, scorers, metrics, action, copy, samples):
+    async def fake_score_async(
+        *, log, scorers, metrics, model, model_roles, action, copy, samples
+    ):
         assert samples is not None
         for idx in range(10):
             async with samples(idx):

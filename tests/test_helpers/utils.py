@@ -14,7 +14,7 @@ from typing import Awaitable, Callable, Generator, ParamSpec, Sequence, TypeVar
 
 import anyio
 import pytest
-from _pytest.outcomes import OutcomeException
+from _pytest.outcomes import OutcomeException, Skipped, XFailed
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.entrypoints import clear_entry_points_state, ensure_entry_points
@@ -22,6 +22,11 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessage, ModelName, ModelOutput
 from inspect_ai.scorer import match
 from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.util._concurrency import (
+    AdaptiveConcurrency,
+    AdaptiveConcurrencyController,
+    get_or_create_semaphore,
+)
 
 F = TypeVar("F", bound=Callable)
 P = ParamSpec("P")
@@ -68,6 +73,9 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
     """
     Decorator to retry flaky tests up to max_retries times.
 
+    Deliberate test outcomes -- ``pytest.skip()`` and ``pytest.xfail()`` --
+    are re-raised immediately rather than retried.
+
     **Use with discretion and as a last resort.** This decorator should only be used
     for tests that require specific model behavior to trigger the code under test,
     where the flakiness is due to inherent non-determinism in model responses
@@ -94,6 +102,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
                 for attempt in range(max_retries + 1):
                     try:
                         return await func(*args, **kwargs)
+                    except (Skipped, XFailed):
+                        # pytest.skip()/xfail() are deliberate outcomes, not
+                        # flakiness -- honor them without retrying
+                        raise
                     except (Exception, OutcomeException) as e:
                         last_exception = e
                         if attempt < max_retries:
@@ -110,6 +122,10 @@ def flaky_retry(max_retries: int) -> Callable[[F], F]:
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
+                except (Skipped, XFailed):
+                    # pytest.skip()/xfail() are deliberate outcomes, not
+                    # flakiness -- honor them without retrying
+                    raise
                 except (Exception, OutcomeException) as e:
                     last_exception = e
                     if attempt < max_retries:
@@ -255,14 +271,22 @@ def skip_if_no_anthropic(func):
     return pytest.mark.api(skip_if_env_var("ANTHROPIC_API_KEY", exists=False)(func))
 
 
+def skip_if_no_anthropic_package(func):
+    return skip_if_no_package("anthropic")(func)
+
+
 def skip_if_no_google(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("GOOGLE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_mistral(func):
+    # the mistralai SDK uses asyncio.to_thread internally, so always skip
+    # live Mistral tests under trio
     func._needs_flaky_retry = True
-    return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
+    return pytest.mark.api(
+        skip_if_env_var("MISTRAL_API_KEY", exists=False)(skip_if_trio(func))
+    )
 
 
 def skip_if_no_mistral_package(func):
@@ -300,6 +324,16 @@ def skip_if_no_together_base_url(func):
 def skip_if_no_fireworks(func):
     func._needs_flaky_retry = True
     return pytest.mark.api(skip_if_env_var("FIREWORKS_API_KEY", exists=False)(func))
+
+
+def skip_if_no_moonshot(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("MOONSHOT_API_KEY", exists=False)(func))
+
+
+def skip_if_no_deepseek(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(skip_if_env_var("DEEPSEEK_API_KEY", exists=False)(func))
 
 
 def skip_if_no_sambanova(func):
@@ -558,3 +592,19 @@ def keyboard_interrupt(seconds: int) -> Generator[None, None, None]:
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, original_handler)
+
+
+async def register_adaptive_controller(
+    name: str = "openai/gpt-4", max: int = 100, start: int = 50
+) -> AdaptiveConcurrencyController:
+    """Register an adaptive connection controller in the concurrency registry.
+
+    Mirrors what a model's first generate does, so control-channel and
+    adaptive-connections tests can exercise controller-backed paths without a
+    real model. Caller is responsible for registry reset (init_concurrency).
+    """
+    ctrl = await get_or_create_semaphore(
+        name, 10, None, True, AdaptiveConcurrency(min=1, max=max, start=start)
+    )
+    assert isinstance(ctrl, AdaptiveConcurrencyController)
+    return ctrl

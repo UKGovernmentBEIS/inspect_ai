@@ -13,6 +13,7 @@ from inspect_ai.scorer._score import score
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.util._limit import TokenLimit, resolve_token_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
 
 from ._prompt import system_message
@@ -55,7 +56,7 @@ def basic_agent(
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
     message_limit: int | None = None,
-    token_limit: int | None = None,
+    token_limit: int | str | TokenLimit | None = None,
     max_tool_output: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str
@@ -91,6 +92,9 @@ def basic_agent(
           If not specified, will use limit_messages defined for the task. If there is none
           defined for the task and there is no `token_limit`, 50 will be used as a default.
        token_limit: Limit on tokens used in sample before terminating agent.
+          An `int` limits total tokens; a `TokenLimit` with a `type` limits by
+          output tokens or an arithmetic formula. Also accepts strings like
+          "500k", "1m", "output:1m", or "(input*0.1)+output:1m".
        max_tool_output: Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig.
        score_value: Function used to extract float from scores (defaults
@@ -116,6 +120,9 @@ def basic_agent(
         if arg == "max_messages":
             # deprecated, don't warn yet
             message_limit = int(cast(int, value))
+
+    # normalize at construction so invalid strings fail fast
+    token_limit = resolve_token_limit(token_limit)
 
     # resolve init
     if init is None:

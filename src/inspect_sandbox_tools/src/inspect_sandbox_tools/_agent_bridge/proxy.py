@@ -207,7 +207,7 @@ class AsyncHTTPServer:
     def _build_headers_block(
         self, status: int, headers: dict[str, str], reason: Optional[str] = None
     ) -> bytes:
-        phrase = reason or HTTPStatus(status).phrase
+        phrase = reason or _http_reason_phrase(status)
         status_line = f"HTTP/1.1 {status} {phrase}\r\n"
         base = {
             "Date": _http_date(),
@@ -309,7 +309,7 @@ class AsyncHTTPServer:
 
         # Compose headers (preserve original case), then add CORS
         cors = self._cors_headers()
-        status_line = f"HTTP/1.1 {status} {reason or HTTPStatus(status).phrase}\r\n"
+        status_line = f"HTTP/1.1 {status} {reason or _http_reason_phrase(status)}\r\n"
         writer.write(status_line.encode("ascii"))
         for k, v in headers_list:
             writer.write(f"{k}: {v}\r\n".encode("latin-1", "strict"))
@@ -515,6 +515,105 @@ def _http_date() -> str:
     return formatdate(timeval=None, usegmt=True)
 
 
+def _http_reason_phrase(status: int) -> str:
+    """Reason phrase for a status line, tolerant of non-standard codes.
+
+    `HTTPStatus(status)` raises `ValueError` for codes outside the standard
+    registry (e.g. Anthropic's 529 "overloaded", Cloudflare's 520-527). Those
+    are legitimate statuses to forward faithfully, so fall back to a generic
+    class phrase instead of letting the lookup raise — an unguarded raise here
+    is caught by the request handler and downgraded to a 500, defeating status
+    forwarding.
+    """
+    try:
+        return HTTPStatus(status).phrase
+    except ValueError:
+        if 500 <= status <= 599:
+            return "Server Error"
+        if 400 <= status <= 499:
+            return "Client Error"
+        return ""
+
+
+# ---------- Forwarded provider errors ----------
+# Mirror of inspect_ai.agent._bridge._errors.PROVIDER_ERROR_KEY. The proxy is a
+# separate shipped binary that cannot import inspect_ai, so the constant is
+# duplicated here — keep the two in sync.
+PROVIDER_ERROR_KEY = "__inspect_provider_error__"
+
+# Status used when the host could not recover a provider HTTP status (e.g. an
+# error raised by our own request translation rather than by the provider). 400
+# fails fast without inviting client retry loops on a deterministic error.
+_DEFAULT_ERROR_STATUS = 400
+
+
+def _provider_error(result: Any) -> Optional[dict[str, Any]]:
+    """Return the forwarded provider-error payload if present in a service result."""
+    if isinstance(result, dict):
+        payload = result.get(PROVIDER_ERROR_KEY)
+        if isinstance(payload, dict):
+            return payload
+    return None
+
+
+def _openai_error_body(status: int, message: str) -> dict[str, Any]:
+    """OpenAI-dialect error body (Chat Completions and Responses)."""
+    return {
+        "error": {
+            "message": message,
+            "type": "invalid_request_error" if 400 <= status < 500 else "api_error",
+            "param": None,
+            "code": None,
+        }
+    }
+
+
+_ANTHROPIC_ERROR_TYPES = {
+    400: "invalid_request_error",
+    401: "authentication_error",
+    403: "permission_error",
+    404: "not_found_error",
+    413: "request_too_large",
+    429: "rate_limit_error",
+    500: "api_error",
+    529: "overloaded_error",
+}
+
+
+def _anthropic_error_body(status: int, message: str) -> dict[str, Any]:
+    """Anthropic-dialect error body."""
+    return {
+        "type": "error",
+        "error": {
+            "type": _ANTHROPIC_ERROR_TYPES.get(status, "api_error"),
+            "message": message,
+        },
+    }
+
+
+_GOOGLE_ERROR_STATUS = {
+    400: "INVALID_ARGUMENT",
+    401: "UNAUTHENTICATED",
+    403: "PERMISSION_DENIED",
+    404: "NOT_FOUND",
+    429: "RESOURCE_EXHAUSTED",
+    500: "INTERNAL",
+    503: "UNAVAILABLE",
+    504: "DEADLINE_EXCEEDED",
+}
+
+
+def _google_error_body(status: int, message: str) -> dict[str, Any]:
+    """Google-dialect error body."""
+    return {
+        "error": {
+            "code": status,
+            "message": message,
+            "status": _GOOGLE_ERROR_STATUS.get(status, "UNKNOWN"),
+        }
+    }
+
+
 async def model_proxy_server(
     port: int, call_bridge_model_service_async: Any = None
 ) -> AsyncHTTPServer:
@@ -546,15 +645,72 @@ async def model_proxy_server(
         for i in range(0, len(text), max_len):
             yield text[i : i + max_len]
 
+    def _json_body(request: dict[str, Any]) -> dict[str, Any]:
+        body = request.get("json")
+        return body if isinstance(body, dict) else {}
+
+    def _has_model(json_body: dict[str, Any]) -> bool:
+        model = json_body.get("model")
+        return isinstance(model, str) and bool(model.strip())
+
+    def _openai_missing_param(param: str) -> dict[str, Any]:
+        return {
+            "status": 400,
+            "body": {
+                "error": {
+                    "message": f"Missing required parameter: '{param}'.",
+                    "type": "invalid_request_error",
+                    "param": param,
+                    "code": "missing_required_parameter",
+                }
+            },
+        }
+
+    def _anthropic_missing_param(param: str) -> dict[str, Any]:
+        return {
+            "status": 400,
+            "body": {
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": f"Missing required parameter: '{param}'.",
+                },
+            },
+        }
+
+    def _google_missing_model() -> dict[str, Any]:
+        return {
+            "status": 400,
+            "body": {
+                "error": {
+                    "code": 400,
+                    "message": "Missing required model in request path.",
+                    "status": "INVALID_ARGUMENT",
+                }
+            },
+        }
+
     @server.route("/v1/responses", method="POST")
     async def responses(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
+            if not _has_model(json_body):
+                return _openai_missing_param("model")
+            if json_body.get("input") is None:
+                return _openai_missing_param("input")
             stream = json_body.get("stream", False)
 
             completion = await call_bridge_model_service_async(
                 "generate_responses", json_data=json_body
             )
+
+            error = _provider_error(completion)
+            if error is not None:
+                status = error.get("status") or _DEFAULT_ERROR_STATUS
+                return {
+                    "status": status,
+                    "body": _openai_error_body(status, error.get("message") or ""),
+                }
 
             if stream:
 
@@ -1263,7 +1419,11 @@ async def model_proxy_server(
     @server.route("/v1/chat/completions", method="POST")
     async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
+            if not _has_model(json_body):
+                return _openai_missing_param("model")
+            if json_body.get("messages") is None:
+                return _openai_missing_param("messages")
             stream = json_body.get("stream", False)
 
             # the openai codex cli seems to have a bug that causes
@@ -1276,6 +1436,14 @@ async def model_proxy_server(
             completion = await call_bridge_model_service_async(
                 "generate_completions", json_data=json_body
             )
+
+            error = _provider_error(completion)
+            if error is not None:
+                status = error.get("status") or _DEFAULT_ERROR_STATUS
+                return {
+                    "status": status,
+                    "body": _openai_error_body(status, error.get("message") or ""),
+                }
 
             if stream:
 
@@ -1473,7 +1641,11 @@ async def model_proxy_server(
     @server.route("/v1/messages", method="POST")
     async def anthropic(request: dict[str, Any]) -> dict[str, Any]:
         try:
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
+            if not _has_model(json_body):
+                return _anthropic_missing_param("model")
+            if json_body.get("messages") is None:
+                return _anthropic_missing_param("messages")
             stream = json_body.get("stream", False)
 
             if stream:
@@ -1531,6 +1703,17 @@ async def model_proxy_server(
                             except asyncio.CancelledError:
                                 pass
                         raise
+
+                    # A forwarded provider error arrives after message_start has
+                    # already been sent, so surface it as an SSE error event.
+                    error = _provider_error(completion)
+                    if error is not None:
+                        status = error.get("status") or _DEFAULT_ERROR_STATUS
+                        yield _sse_anthropic(
+                            "error",
+                            _anthropic_error_body(status, error.get("message") or ""),
+                        )
+                        return
 
                     try:
                         # Parse the completion as a dict
@@ -1706,6 +1889,66 @@ async def model_proxy_server(
                                 {"type": "content_block_stop", "index": index},
                             )
 
+                        elif block_type == "compaction":
+                            # Compaction blocks stream differently - a single delta
+                            # with the complete content (no intermediate streaming)
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": {
+                                        "type": "compaction",
+                                        "content": "",
+                                    },
+                                },
+                            )
+
+                            # Single delta with complete content
+                            content_value = block.get("content", "")
+                            yield _sse_anthropic(
+                                "content_block_delta",
+                                {
+                                    "type": "content_block_delta",
+                                    "index": index,
+                                    "delta": {
+                                        "type": "compaction_delta",
+                                        "content": content_value,
+                                    },
+                                },
+                            )
+
+                            # content_block_stop
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
+                        elif block_type == "fallback":
+                            # server-side refusal fallback handoff marker. a
+                            # plain start/stop pair with no deltas. emit the
+                            # `from`/`to` wire shape (the message was dumped
+                            # without by_alias, so `from` may arrive as `from_`)
+                            fallback_block: dict[str, Any] = {
+                                "type": "fallback",
+                                "to": block.get("to"),
+                            }
+                            fallback_from = block.get("from", block.get("from_"))
+                            if fallback_from is not None:
+                                fallback_block["from"] = fallback_from
+                            yield _sse_anthropic(
+                                "content_block_start",
+                                {
+                                    "type": "content_block_start",
+                                    "index": index,
+                                    "content_block": fallback_block,
+                                },
+                            )
+                            yield _sse_anthropic(
+                                "content_block_stop",
+                                {"type": "content_block_stop", "index": index},
+                            )
+
                     # 3. message_delta event with cumulative usage
                     usage = message.get("usage", {})
                     message_delta_data: dict[str, Any] = {
@@ -1757,6 +2000,15 @@ async def model_proxy_server(
                 completion = await call_bridge_model_service_async(
                     "generate_anthropic", json_data=json_body
                 )
+                error = _provider_error(completion)
+                if error is not None:
+                    status = error.get("status") or _DEFAULT_ERROR_STATUS
+                    return {
+                        "status": status,
+                        "body": _anthropic_error_body(
+                            status, error.get("message") or ""
+                        ),
+                    }
                 return {"status": 200, "body": completion}
         except Exception as ex:
             _handle_model_proxy_error(ex)
@@ -1766,7 +2018,7 @@ async def model_proxy_server(
     # Route patterns for Google's Gemini API using wildcard matching
     # Supports: /v1beta/models/{model}:generateContent and /models/{model}:generateContent
 
-    def _extract_model_from_google_path(path: str) -> str:
+    def _extract_model_from_google_path(path: str) -> str | None:
         """Extract model name from Google API path.
 
         Examples:
@@ -1774,23 +2026,33 @@ async def model_proxy_server(
             /models/gemini-2.5-flash:streamGenerateContent -> gemini-2.5-flash
         """
         match = re.search(r"models/([^/:]+)", path)
-        return match.group(1) if match else "inspect"
+        return match.group(1) if match else None
 
     @server.route("/v1beta/models/*", method="POST")
     @server.route("/models/*", method="POST")
     async def google_generate_content(request: dict[str, Any]) -> dict[str, Any]:
         try:
             path = request.get("path", "")
-            json_body = request.get("json", {}) or {}
+            json_body = _json_body(request)
 
             is_streaming = ":streamGenerateContent" in path
 
             model_name = _extract_model_from_google_path(path)
+            if model_name is None:
+                return _google_missing_model()
             json_body["model"] = model_name
 
             completion = await call_bridge_model_service_async(
                 "generate_google", json_data=json_body
             )
+
+            error = _provider_error(completion)
+            if error is not None:
+                status = error.get("status") or _DEFAULT_ERROR_STATUS
+                return {
+                    "status": status,
+                    "body": _google_error_body(status, error.get("message") or ""),
+                }
 
             resp = (
                 completion if isinstance(completion, dict) else json.loads(completion)

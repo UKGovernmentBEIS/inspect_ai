@@ -1,17 +1,33 @@
+import hashlib
+import math
 import tempfile
 from pathlib import Path
+from typing import cast
 
 import pytest
 
+from inspect_ai.event import ScoreEvent
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._validate import validate_events
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._recorders.buffer import filestore as filestore_module
+from inspect_ai.log._recorders.buffer import types as buffer_types_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
     sync_to_filestore,
 )
-from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
-from inspect_ai.log._recorders.buffer.types import Samples
+from inspect_ai.log._recorders.buffer.filestore import (
+    SAMPLE_METADATA_IN_SUMMARY,
+    Manifest,
+    SampleBufferFilestore,
+    SampleManifest,
+    SampleSegment,
+    Segment,
+    sample_segment_id,
+)
+from inspect_ai.log._recorders.buffer.types import SampleData, Samples
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.scorer import Score
 
 
 @pytest.fixture
@@ -101,6 +117,192 @@ def test_sync_one_sample(
     assert msgs == ["first event", "second event"]
 
 
+def test_sync_sample_metadata_outside_manifest_summary(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+    initial = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+    final = {"world": {**initial["world"], "solver-added": {"active": False}}}
+    summary = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input="Hello",
+        target="World",
+        metadata=initial,
+    )
+
+    db.start_sample(summary)
+    db.complete_sample(summary, sample_metadata=final)
+    sync_to_filestore(db, filestore)
+    final_manifest = filestore.read_manifest()
+    assert final_manifest is not None
+    assert final_manifest.samples[0].metadata_hash is not None
+    assert final_manifest.samples[0].summary.metadata["world"] == (
+        "Key removed from summary (> 1k)"
+    )
+    assert filestore.get_sample_metadata("s1", 1) == final
+
+
+def test_sync_uses_exact_summary_metadata_without_sidecar(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, filestore = db_and_filestore
+    metadata = {"source": "dataset"}
+    summary = EvalSampleSummary(
+        id="s1",
+        epoch=1,
+        input="Hello",
+        target="World",
+        metadata=metadata,
+    )
+
+    def fail_sidecar_write(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("exact summary metadata should not create a sidecar")
+
+    monkeypatch.setattr(filestore, "write_sample_metadata", fail_sidecar_write)
+    db.start_sample(summary)
+    db.complete_sample(summary, sample_metadata=metadata)
+    sync_to_filestore(db, filestore)
+    sync_to_filestore(db, filestore)
+
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert manifest.samples[0].metadata_hash == SAMPLE_METADATA_IN_SUMMARY
+    assert filestore.get_sample_metadata("s1", 1) == metadata
+
+
+def test_sync_in_progress_sample_does_not_read_metadata(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+    summary = EvalSampleSummary(id="s1", epoch=1, input="Hello", target="World")
+    db.start_sample(summary)
+
+    queries: list[str] = []
+    with db._get_connection() as conn:
+        conn.set_trace_callback(queries.append)
+    try:
+        sync_to_filestore(db, filestore)
+    finally:
+        with db._get_connection() as conn:
+            conn.set_trace_callback(None)
+
+    normalized = [" ".join(query.lower().split()) for query in queries]
+    assert any(
+        query.startswith("select sample_metadata_hash from samples")
+        for query in normalized
+    )
+    assert not any(
+        query.startswith("select sample_metadata from samples") for query in normalized
+    )
+
+
+def test_repeated_sync_reads_metadata_hash_without_loading_metadata(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+    metadata = {"payload": "x" * 10_000}
+    summary = EvalSampleSummary(id="s1", epoch=1, input="Hello", target="World")
+
+    db.start_sample(summary)
+    db.complete_sample(summary, sample_metadata=metadata)
+    sync_to_filestore(db, filestore)
+
+    queries: list[str] = []
+    with db._get_connection() as conn:
+        conn.set_trace_callback(queries.append)
+    try:
+        sync_to_filestore(db, filestore)
+    finally:
+        with db._get_connection() as conn:
+            conn.set_trace_callback(None)
+
+    normalized = [" ".join(query.lower().split()) for query in queries]
+    assert any(
+        query.startswith("select sample_metadata_hash from samples")
+        for query in normalized
+    )
+    assert not any(
+        query.startswith("select sample_metadata from samples") for query in normalized
+    )
+
+
+def test_sync_hashes_metadata_json_that_is_written(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, filestore = db_and_filestore
+    summary = EvalSampleSummary(id="s1", epoch=1, input="Hello", target="World")
+    updated_json = '{"version":"new"}'
+    updated_hash = hashlib.sha256(updated_json.encode("utf-8")).hexdigest()
+
+    db.start_sample(summary)
+    db.complete_sample(summary, sample_metadata={"version": "old"})
+    monkeypatch.setattr(db, "_get_sample_metadata_json", lambda *_: updated_json)
+
+    sync_to_filestore(db, filestore)
+
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert manifest.samples[0].metadata_hash == updated_hash
+    assert filestore.read_sample_metadata("s1", 1, manifest) == {"version": "new"}
+
+
+def test_sample_metadata_file_normalizes_sample_id(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    _, filestore = db_and_filestore
+
+    assert filestore._sample_metadata_file(1, 1, "digest") == (
+        filestore._sample_metadata_file("1", 1, "digest")
+    )
+
+
+@pytest.mark.parametrize("failure", ["hash_mismatch", "invalid_json"])
+def test_read_sample_metadata_falls_back_on_invalid_sidecar(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    failure: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    warnings: list[str] = []
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(filestore_module.logger, "warning", capture_warning)
+    monkeypatch.setattr(buffer_types_module.logger, "warning", capture_warning)
+    db, filestore = db_and_filestore
+    metadata = {"world": {f"cell-{i}": {"active": True} for i in range(80)}}
+    summary = EvalSampleSummary(
+        id="s1", epoch=1, input="Hello", target="World", metadata=metadata
+    )
+
+    db.start_sample(summary)
+    db.complete_sample(summary, sample_metadata=metadata)
+    sync_to_filestore(db, filestore)
+
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    metadata_hash = manifest.samples[0].metadata_hash
+    assert metadata_hash is not None
+    if failure == "hash_mismatch":
+        metadata_path = filestore._sample_metadata_file("s1", 1, metadata_hash)
+        Path(metadata_path).write_bytes(b"{}")
+    else:
+        invalid_json = b"{"
+        metadata_hash = hashlib.sha256(invalid_json).hexdigest()
+        filestore.write_sample_metadata("s1", 1, metadata_hash, invalid_json)
+        manifest.samples[0].metadata_hash = metadata_hash
+        filestore.write_manifest(manifest)
+
+    assert filestore.get_sample_metadata("s1", 1) is None
+    assert any(
+        "Unable to read sample metadata for id=s1 epoch=1" in warning
+        for warning in warnings
+    )
+
+
 def test_sync_multiple_samples(
     db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
 ) -> None:
@@ -129,7 +331,7 @@ def test_sync_multiple_samples(
     # Each sample references that single segment
     seg_id = manifest.segments[0].id
     for sm in manifest.samples:
-        assert seg_id in sm.segments
+        assert seg_id in {sample_segment_id(segment) for segment in sm.segments}
 
     # Filestore get_sample_data => each sample has its event
     data_a = filestore.get_sample_data("A", 1)
@@ -137,6 +339,77 @@ def test_sync_multiple_samples(
     assert data_a and data_b
     assert len(data_a.events) == 1
     assert len(data_b.events) == 1
+
+
+def test_pending_segments_use_per_sample_maxima(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+
+    db.start_sample(EvalSampleSummary(id="a", epoch=1, input="in", target="out"))
+    db.start_sample(EvalSampleSummary(id="b", epoch=1, input="in", target="out"))
+    db.log_events(
+        [
+            SampleEvent(id="a", epoch=1, event=InfoEvent(data="a-one")),
+            SampleEvent(id="b", epoch=1, event=InfoEvent(data="b-one")),
+            SampleEvent(id="b", epoch=1, event=InfoEvent(data="b-two")),
+        ]
+    )
+
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+
+    assert manifest is not None
+    assert len(manifest.segments) == 1
+    assert manifest.segments[0].last_event_id == 3
+
+    sample_a = next(s for s in manifest.samples if s.summary.id == "a")
+    sample_b = next(s for s in manifest.samples if s.summary.id == "b")
+    assert sample_a.segments == [
+        SampleSegment(id=1, last_event_id=1, last_attachment_id=0)
+    ]
+    assert sample_b.segments == [
+        SampleSegment(id=1, last_event_id=3, last_attachment_id=0)
+    ]
+
+    pending = filestore.get_pending_segments("a", 1, after_event_id=1)
+
+    assert pending is not None
+    assert pending.segments == []
+
+
+def test_sync_continues_from_legacy_integer_segments(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+
+    db.start_sample(EvalSampleSummary(id="a", epoch=1, input="in", target="out"))
+    db.log_events([SampleEvent(id="a", epoch=1, event=InfoEvent(data="old"))])
+
+    legacy_manifest = Manifest(
+        samples=[
+            SampleManifest(
+                summary=EvalSampleSummary(id="a", epoch=1, input="in", target="out"),
+                segments=[1],
+            )
+        ],
+        segments=[Segment(id=1, last_event_id=1, last_attachment_id=0)],
+    )
+    filestore.write_manifest(legacy_manifest)
+
+    db.log_events([SampleEvent(id="a", epoch=1, event=InfoEvent(data="new"))])
+    sync_to_filestore(db, filestore)
+    manifest = filestore.read_manifest()
+
+    assert manifest is not None
+    sample = manifest.samples[0]
+    assert sample.segments == [
+        1,
+        SampleSegment(id=2, last_event_id=2, last_attachment_id=0),
+    ]
+    assert [
+        event.event["data"] for event in filestore.read_segment_data(2, "a", 1).events
+    ] == ["new"]
 
 
 def test_sync_removed_sample(
@@ -217,3 +490,54 @@ def test_sync_incremental(
     # Confirm filestore returns all 4 events
     sample_data = filestore.get_sample_data("inc", 1)
     assert sample_data is not None
+
+
+def test_sync_preserves_non_finite_score_values(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+) -> None:
+    db, filestore = db_and_filestore
+    score = Score(value=[float("nan"), 1.0])
+    db.start_sample(
+        EvalSampleSummary(
+            id="s1",
+            epoch=1,
+            input="Hello",
+            target="World",
+            scores={"listy": score},
+        )
+    )
+    db.log_events(
+        [
+            SampleEvent(
+                id="s1",
+                epoch=1,
+                event=ScoreEvent(score=score, scorer="listy"),
+            )
+        ]
+    )
+
+    sync_to_filestore(db, filestore)
+
+    manifest = filestore.read_manifest()
+    assert manifest is not None
+    assert manifest.samples[0].summary.scores is not None
+    manifest_value = manifest.samples[0].summary.scores["listy"].value
+    assert isinstance(manifest_value, list)
+    assert math.isnan(cast(float, manifest_value[0]))
+
+    samples = filestore.get_samples()
+    assert isinstance(samples, Samples)
+    restored_samples = Samples.model_validate_json(samples.model_dump_json())
+    assert restored_samples.samples[0].scores is not None
+    sample_value = restored_samples.samples[0].scores["listy"].value
+    assert isinstance(sample_value, list)
+    assert math.isnan(cast(float, sample_value[0]))
+
+    sample_data = filestore.get_sample_data("s1", 1)
+    assert sample_data is not None
+    restored_data = SampleData.model_validate_json(sample_data.model_dump_json())
+    restored_events = validate_events([event.event for event in restored_data.events])
+    assert isinstance(restored_events[0], ScoreEvent)
+    event_value = restored_events[0].score.value
+    assert isinstance(event_value, list)
+    assert math.isnan(cast(float, event_value[0]))

@@ -1,4 +1,5 @@
 import json
+import math
 import shutil
 import tempfile
 import threading
@@ -6,10 +7,11 @@ import time
 import zipfile
 from copy import deepcopy
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 from unittest.mock import patch
 
 import pytest
+from test_helpers.buffer import simulate_crashed_buffer_db
 from test_helpers.utils import (
     failing_solver,
     failing_task,
@@ -20,8 +22,9 @@ from test_helpers.utils import (
     sleep_for_solver,
 )
 
-from inspect_ai import Task, task
+from inspect_ai import Task, eval, task
 from inspect_ai._eval.evalset import (
+    _GENERATE_CONFIG_FIELDS_TO_EXCLUDE,
     EvalSetArgsInTaskIdentifier,
     _embed_viewer,
     epochs_changed,
@@ -36,7 +39,9 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, local_path, size_in_mb
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.dataset import Sample
+from inspect_ai.event import SampleInitEvent
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
     EvalLogInfo,
@@ -44,13 +49,26 @@ from inspect_ai.log._file import (
     read_eval_log,
     write_eval_log,
 )
-from inspect_ai.log._log import EvalConfig, EvalLog
-from inspect_ai.log._recorders.eval import ZipLogFile
-from inspect_ai.model import get_model
+from inspect_ai.log._log import EvalConfig, EvalLog, EvalSampleSummary
+from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.model import CachePolicy, Model, get_model
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.scorer import exact
+from inspect_ai.scorer import (
+    Metric,
+    SampleScore,
+    Score,
+    Scorer,
+    Target,
+    exact,
+    mean,
+    metric,
+    scorer,
+)
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
+from inspect_ai.util._limit import TokenLimit
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
@@ -535,6 +553,160 @@ def test_eval_set_preserves_token_usage():
     assert retried_tokens > baseline_tokens
 
 
+def test_eval_set_retry_nan_dict_score_leaves() -> None:
+    """eval_set retry of a task whose dict scores contain NaN leaves.
+
+    NaN dict-score leaves must be serialized to the eval log as JSON NaN
+    constants so that a retry reloading completed samples from the failed
+    log sees NaN (excluded from metrics, counted as unscored). Serialized
+    as null they reload as None, which slips past NaN filtering: metrics
+    silently count the leaf as 0.0 via value_to_float() and custom scalar
+    metrics crash in Score.as_float().
+    """
+
+    @metric
+    def solved_rate() -> Metric:
+        # mirrors user metrics that read each leaf as a scalar
+        def compute(scores: list[SampleScore]) -> float:
+            if len(scores) == 0:
+                return 0.0
+            return sum(s.score.as_float() >= 1.0 for s in scores) / len(scores)
+
+        return compute
+
+    @scorer(metrics={"a": [mean(), solved_rate()], "b": [mean()]})
+    def nan_leaf_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value={"a": float("nan"), "b": 1.0})
+            return Score(value={"a": 0.5, "b": 0.0})
+
+        return score
+
+    # fail sample 2 on the first attempt only, so the first eval fails after
+    # sample 1 (the NaN-leaf sample) has completed and been written to the
+    # log, and the retry reloads sample 1 from disk
+    attempts = {"value": 0}
+
+    @solver
+    def fail_second_sample_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                attempts["value"] += 1
+                if attempts["value"] == 1:
+                    raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(id=1, input="one"), Sample(id=2, input="two")],
+                solver=fail_second_sample_first_attempt(),
+                scorer=nan_leaf_scorer(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            max_samples=1,
+            model="mockllm/model",
+        )
+        assert success
+
+        log = read_eval_log(logs[0].location)
+        assert log.results is not None
+        scores_by_key = {score.name: score for score in log.results.scores}
+
+        # sample 1's NaN leaf for "a" is unscored: excluded from mean (not
+        # counted as 0.0) and never passed to solved_rate as a scalar
+        assert scores_by_key["a"].scored_samples == 1
+        assert scores_by_key["a"].unscored_samples == 1
+        assert scores_by_key["a"].metrics["mean"].value == 0.5
+        assert scores_by_key["a"].metrics["solved_rate"].value == 0.0
+
+        # both samples scored for "b"
+        assert scores_by_key["b"].scored_samples == 2
+        assert scores_by_key["b"].unscored_samples == 0
+        assert scores_by_key["b"].metrics["mean"].value == 0.5
+
+
+def test_eval_set_retry_nan_scalar_and_list_scores() -> None:
+    """eval_set retry of a task with scalar-NaN and list-NaN scores.
+
+    Companion to test_eval_set_retry_nan_dict_score_leaves for the other two
+    Value shapes. A scalar NaN marks the whole sample unscored; a NaN list
+    element must survive the reload (serialized as null it fails Value
+    validation, since the list variant rejects None, and the retry cannot
+    read the completed sample at all).
+    """
+
+    @scorer(metrics=[mean()])
+    def scalar_nan_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value=float("nan"))
+            return Score(value=0.5)
+
+        return score
+
+    @scorer(metrics=[mean()])
+    def list_nan_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            if state.sample_id == 1:
+                return Score(value=[float("nan"), 1.0])
+            return Score(value=[0.5, 0.0])
+
+        return score
+
+    attempts = {"value": 0}
+
+    @solver
+    def fail_second_sample_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                attempts["value"] += 1
+                if attempts["value"] == 1:
+                    raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[Sample(id=1, input="one"), Sample(id=2, input="two")],
+                solver=fail_second_sample_first_attempt(),
+                scorer=[scalar_nan_scorer(), list_nan_scorer()],
+            ),
+            log_dir=log_dir,
+            retry_attempts=1,
+            retry_wait=0.1,
+            max_samples=1,
+            model="mockllm/model",
+        )
+        assert success
+
+        log = read_eval_log(logs[0].location)
+        assert log.samples is not None
+        sample_1 = next(s for s in log.samples if s.id == 1)
+        assert sample_1.scores is not None
+
+        # sample 1's NaN survived the retry reload in both shapes
+        scalar_value = sample_1.scores["scalar_nan_scorer"].value
+        assert isinstance(scalar_value, float) and math.isnan(scalar_value)
+        list_value = sample_1.scores["list_nan_scorer"].value
+        assert isinstance(list_value, list)
+        assert math.isnan(cast(float, list_value[0]))
+
+        # scalar NaN counts as unscored, not as 0.0 (mean over sample 2 only)
+        assert log.results is not None
+        scores_by_key = {score.name: score for score in log.results.scores}
+        assert scores_by_key["scalar_nan_scorer"].scored_samples == 1
+        assert scores_by_key["scalar_nan_scorer"].unscored_samples == 1
+        assert scores_by_key["scalar_nan_scorer"].metrics["mean"].value == 0.5
+
+
 def test_eval_set_header_only() -> None:
     dataset: list[Sample] = []
     for _ in range(0, 10):
@@ -666,6 +838,32 @@ def test_task_identifier_with_model_configs():
     run_eval_set(create_resolved_tasks)
 
 
+def test_task_identifier_with_token_limit_type():
+    model = get_model("mockllm/model")
+    resolved = resolve_tasks([hello_world()], {}, model, None, None, None)[0]
+
+    def identifier(token_limit: int | TokenLimit | None) -> str:
+        return task_identifier(
+            resolved,
+            EvalSetArgsInTaskIdentifier(
+                config=GenerateConfig(), token_limit=token_limit
+            ),
+        )
+
+    # an all-tokens TokenLimit hashes identically to the plain int encoding
+    # (existing eval-set identifiers are unchanged)
+    assert identifier(1000) == identifier(TokenLimit(tokens=1000, type="all"))
+    # output-metered limits hash distinctly
+    assert identifier(1000) != identifier(TokenLimit(tokens=1000, type="output"))
+    # formula-metered limits hash distinctly, and equal formulas are stable
+    formula = TokenLimit(tokens=1000, type="input + output")
+    assert identifier(1000) != identifier(formula)
+    assert identifier(TokenLimit(tokens=1000, type="output")) != identifier(formula)
+    assert identifier(formula) == identifier(
+        TokenLimit(tokens=1000, type="input + output")
+    )
+
+
 def test_task_identifier_with_redacted_model_args():
     model1 = get_model(
         "mockllm/model", api_key="secret", aws_key="secret2", other_arg="value1"
@@ -713,6 +911,150 @@ def test_task_identifier_with_model_roles_model_configs():
         resolved_tasks[1], EvalSetArgsInTaskIdentifier(config=GenerateConfig())
     )
     run_eval_set(create_resolved_tasks)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("max_connections", 48),
+        ("adaptive_connections", False),
+        ("max_retries", 20),
+        ("timeout", 600),
+        ("attempt_timeout", 60),
+        ("batch", True),
+        ("cache", CachePolicy(expiry="1M")),
+        ("cache_prompt", True),
+    ],
+)
+def test_task_identifier_ignores_runtime_config(field: str, value: object):
+    # runtime concurrency / caching knobs don't affect outputs and shouldn't
+    # break eval_set resume — for any of the three GenerateConfig sites that
+    # feed task_identifier: the primary model's config, the eval_set-level
+    # config (which becomes eval_plan.config), and each role model's config.
+    tuned = GenerateConfig.model_validate({field: value})
+
+    def ident(
+        primary_cfg: GenerateConfig = GenerateConfig(),
+        plan_cfg: GenerateConfig = GenerateConfig(),
+        role_cfg: GenerateConfig = GenerateConfig(),
+    ) -> str:
+        p = get_model("mockllm/model", config=primary_cfg)
+        r = get_model("mockllm/scorer", config=role_cfg)
+        t = hello_world()
+        task_with(t, model=p, model_roles={"scorer": r})
+        (resolved,) = resolve_tasks([t], {}, p, None, None, None)
+        return task_identifier(resolved, EvalSetArgsInTaskIdentifier(config=plan_cfg))
+
+    baseline = ident()
+    assert ident(primary_cfg=tuned) == baseline, f"primary model config: {field}"
+    assert ident(plan_cfg=tuned) == baseline, f"eval_plan.config: {field}"
+    assert ident(role_cfg=tuned) == baseline, f"role model config: {field}"
+
+    # sanity: a field that DOES affect identity still changes the hash on
+    # every path, so the test isn't trivially passing.
+    semantic = GenerateConfig(temperature=0.123)
+    assert ident(primary_cfg=semantic) != baseline
+    assert ident(plan_cfg=semantic) != baseline
+    assert ident(role_cfg=semantic) != baseline
+
+
+def test_task_identifier_ignores_role_base_url():
+    # base_url is not part of the primary model's identifier, and several
+    # providers populate it from env vars during init — so it must not be
+    # part of a role model's identifier either.
+    primary = get_model("mockllm/model")
+
+    def ident(role: Model) -> str:
+        t = hello_world()
+        task_with(t, model=primary, model_roles={"scorer": role})
+        (resolved,) = resolve_tasks([t], {}, primary, None, None, None)
+        return task_identifier(
+            resolved, EvalSetArgsInTaskIdentifier(config=GenerateConfig())
+        )
+
+    assert ident(get_model("mockllm/scorer")) == ident(
+        get_model("mockllm/scorer", base_url="http://localhost:8000")
+    )
+
+
+# GenerateConfig fields whose value can change model/tool outputs, and which
+# therefore form part of task identity (i.e. are hashed into task_identifier).
+# Every GenerateConfig field MUST appear either here or in
+# _GENERATE_CONFIG_FIELDS_TO_EXCLUDE — see test_generate_config_fields_classified.
+_GENERATE_CONFIG_IDENTITY_FIELDS = {
+    "system_message",
+    "max_tokens",
+    "top_p",
+    "temperature",
+    "stop_seqs",
+    "best_of",
+    "frequency_penalty",
+    "presence_penalty",
+    "logit_bias",
+    "seed",
+    "top_k",
+    "num_choices",
+    "logprobs",
+    "top_logprobs",
+    "prompt_logprobs",
+    "parallel_tool_calls",
+    "internal_tools",
+    "max_tool_output",
+    "fallback_models",
+    "verbosity",
+    "effort",
+    "reasoning_effort",
+    "reasoning_mode",
+    "reasoning_tokens",
+    "reasoning_summary",
+    "reasoning_history",
+    "response_schema",
+    "extra_headers",
+    "extra_body",
+    "modalities",
+}
+
+
+def test_generate_config_fields_classified():
+    """Force every GenerateConfig field to be explicitly classified.
+
+    eval_set resume matches live tasks to existing logs by hashing
+    GenerateConfig minus _GENERATE_CONFIG_FIELDS_TO_EXCLUDE. A new field that
+    isn't classified is hashed by default, so tuning it between runs silently
+    breaks resume — which is exactly how `adaptive_connections` slipped
+    through after it was added.
+    """
+    fields = set(GenerateConfig.model_fields)
+    excluded = _GENERATE_CONFIG_FIELDS_TO_EXCLUDE
+    identity = _GENERATE_CONFIG_IDENTITY_FIELDS
+
+    unclassified = fields - excluded - identity
+    assert not unclassified, (
+        f"GenerateConfig field(s) {sorted(unclassified)} are not classified "
+        f"for task_identifier hashing.\n"
+        f"  → If the field is a runtime/transport knob (concurrency, retries, "
+        f"timeouts, caching, batching) that does NOT change model outputs: "
+        f"add it to _GENERATE_CONFIG_FIELDS_TO_EXCLUDE in "
+        f"src/inspect_ai/_eval/evalset.py and bump TASK_IDENTIFIER_VERSION.\n"
+        f"  → If the field CAN change model outputs (sampling params, "
+        f"reasoning config, tool behaviour, etc.): add it to "
+        f"_GENERATE_CONFIG_IDENTITY_FIELDS in this test file. No version bump "
+        f"needed."
+    )
+
+    overlap = excluded & identity
+    assert not overlap, (
+        f"GenerateConfig field(s) {sorted(overlap)} appear in both "
+        f"_GENERATE_CONFIG_FIELDS_TO_EXCLUDE and "
+        f"_GENERATE_CONFIG_IDENTITY_FIELDS — pick one."
+    )
+
+    stale = (excluded | identity) - fields
+    assert not stale, (
+        f"GenerateConfig field(s) {sorted(stale)} no longer exist on "
+        f"GenerateConfig — remove from _GENERATE_CONFIG_FIELDS_TO_EXCLUDE "
+        f"(evalset.py) or _GENERATE_CONFIG_IDENTITY_FIELDS (this file)."
+    )
 
 
 def test_task_identifier_with_task_generate_configs():
@@ -1345,6 +1687,41 @@ def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
         )
 
 
+def test_eval_set_bundle_after_retries_once(tmp_path: Path) -> None:
+    @solver
+    def fail_first_attempt() -> Solver:
+        attempts = {"count": 0}
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    bundle_dir = tmp_path / "bundle"
+    success, logs = eval_set(
+        tasks=Task(
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[generate(), fail_first_attempt()],
+            scorer=exact(),
+        ),
+        log_dir=str(tmp_path / "logs"),
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=False,
+        model="mockllm/model",
+        bundle_dir=str(bundle_dir),
+    )
+
+    assert success
+    assert logs[0].status == "success"
+    assert (bundle_dir / "index.html").exists()
+    assert (bundle_dir / "logs" / "listing.json").exists()
+    assert len(list((bundle_dir / "logs").glob("*.eval"))) == 1
+
+
 def test_invalidation(tmp_path: Path):
     @task
     def task_for_invalidation():
@@ -1571,56 +1948,65 @@ def test_eval_set_embed_viewer(tmp_path: Path) -> None:
 
 
 def test_eval_set_single_flush_error() -> None:
-    """run_single must propagate task exceptions (baseline — should already pass)."""
+    """A broken log write fails the run as a task error (never silent success)."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
     with tempfile.TemporaryDirectory() as log_dir:
         with patch.object(ZipLogFile, "flush", broken_flush):
-            with pytest.raises(Exception):
-                eval_set(
-                    tasks=[
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_a",
-                        ),
-                    ],
-                    log_dir=log_dir,
-                    model="mockllm/model",
-                    retry_attempts=0,
-                )
+            success, logs = eval_set(
+                tasks=[
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_a",
+                    ),
+                ],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+            )
+
+    assert not success
+    assert [log.status for log in logs] == ["error"]
+    assert logs[0].error is not None
+    assert "Simulated S3 write failure" in logs[0].error.message
 
 
 @pytest.mark.parametrize("retry_immediate", [False, True])
 def test_eval_set_parallel_flush_error(retry_immediate: bool) -> None:
-    """run_parallel must not swallow task exceptions and return success=True."""
+    """run_parallel must not swallow task errors and return success=True."""
 
-    async def broken_flush(self: ZipLogFile) -> None:
+    async def broken_flush(self: ZipLogFile, *, fsync: bool = True) -> None:
         raise OSError("Simulated S3 write failure")
 
-    # With 2 tasks run_parallel is used. The bug was that the worker caught the
-    # exception, left result as None, and eval_set got an empty list where
-    # all([]) == True, silently reporting success.
+    # With 2 tasks run_parallel is used. The original bug was that the worker
+    # caught the exception, left result as None, and eval_set got an empty list
+    # where all([]) == True, silently reporting success. A failed log write now
+    # surfaces as an errored EvalLog per task (rather than tearing down the
+    # whole run), so the run must report failure with both tasks errored.
     with tempfile.TemporaryDirectory() as log_dir:
         with patch.object(ZipLogFile, "flush", broken_flush):
-            with pytest.raises(Exception):
-                eval_set(
-                    tasks=[
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_a",
-                        ),
-                        Task(
-                            dataset=[Sample(input="x", target="y")],
-                            name="task_b",
-                        ),
-                    ],
-                    log_dir=log_dir,
-                    model="mockllm/model",
-                    retry_attempts=0,
-                    retry_immediate=retry_immediate,
-                )
+            success, logs = eval_set(
+                tasks=[
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_a",
+                    ),
+                    Task(
+                        dataset=[Sample(input="x", target="y")],
+                        name="task_b",
+                    ),
+                ],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                retry_immediate=retry_immediate,
+            )
+
+    assert not success
+    assert len(logs) == 2
+    assert all(log.status == "error" for log in logs)
 
 
 @pytest.mark.parametrize("retry_immediate", [True, None])
@@ -1779,3 +2165,84 @@ def test_carried_forward_samples_remain_condensed() -> None:
                     f"{member} in {latest.name} was written decondensed; "
                     f"carry-forward path must run condense_sample()"
                 )
+
+
+def test_eval_set_resume_preserves_buffered_sample_metadata() -> None:
+    """Crash recovery must not persist summary-thinned sample metadata."""
+    ground_truth = {f"cell-{index}": {"active": True} for index in range(80)}
+    sample = Sample(
+        id=1,
+        input="Say hello",
+        target="hello",
+        metadata={"world": ground_truth},
+    )
+    resume_task = Task(
+        dataset=[sample],
+        solver=[identity_solver()],
+        name="resume_metadata",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # Create a log with the exact task identity eval_set expects, then
+        # rewrite it as a hard-crash artifact (start journal, no header).
+        started_log = eval(
+            resume_task,
+            model="mockllm/model",
+            log_dir=log_dir,
+            run_samples=False,
+        )[0]
+        with zipfile.ZipFile(local_path(started_log.location), "w") as zf:
+            zf.writestr(
+                "_journal/start.json",
+                to_json_str_safe(
+                    LogStart(
+                        version=started_log.version,
+                        eval=started_log.eval,
+                        plan=started_log.plan,
+                    )
+                ),
+            )
+
+        # The realtime buffer stores summaries for completed samples. The
+        # summary is intentionally thinned, while SampleInitEvent still has
+        # the authoritative dataset metadata available for crash recovery.
+        buffer = SampleBufferDatabase(started_log.location)
+        try:
+            summary = EvalSampleSummary(
+                id=1,
+                epoch=1,
+                input=sample.input,
+                target=sample.target,
+                metadata=sample.metadata or {},
+                completed_at="2026-01-01T00:00:00+00:00",
+            )
+            assert summary.metadata["world"] == "Key removed from summary (> 1k)"
+            buffer.start_sample(summary)
+            buffer.log_events(
+                [
+                    SampleEvent(
+                        id=1,
+                        epoch=1,
+                        event=SampleInitEvent(sample=sample, state={}),
+                    )
+                ]
+            )
+            buffer.complete_sample(summary, sample_metadata=sample.metadata)
+            simulate_crashed_buffer_db(buffer)
+
+            success, logs = eval_set(
+                tasks=resume_task,
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_immediate=True,
+                retry_cleanup=False,
+            )
+
+            assert success
+            successful_log = next(log for log in logs if log.status == "success")
+            resumed = read_eval_log(successful_log.location)
+            assert resumed.samples is not None
+            assert resumed.samples[0].metadata["world"] == ground_truth
+        finally:
+            buffer.cleanup()

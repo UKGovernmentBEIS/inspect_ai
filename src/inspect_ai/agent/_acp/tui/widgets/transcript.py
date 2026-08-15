@@ -60,22 +60,24 @@ pullaway.
 
 def _message_fingerprint(
     group: MessageGroup,
-) -> tuple[int, int, str, bool, int]:
+) -> tuple[int, int, str, str, bool, int]:
     """Detect message content changes cheaply.
 
     Captures all the streaming mutations Phase 2 cares about: chunks
     extending the last segment (len changes), a new segment starting
     (count changes), a later chunk supplying ``_meta["inspect.model"]``
-    for the first time (model changes), the pending → completed flip
-    (so the chip's spinner-or-dot indicator can re-render even when no
-    content arrived), AND the retry counter (so a collapsed retry on
-    an existing group triggers a chip re-render).
+    or ``_meta["inspect.model_fallback"]`` for the first time (model /
+    fallback chip changes), the pending → completed flip (so the chip's
+    spinner-or-dot indicator can re-render even when no content
+    arrived), AND the retry counter (so a collapsed retry on an
+    existing group triggers a chip re-render).
     """
     last_len = len(group.segments[-1].text) if group.segments else 0
     return (
         len(group.segments),
         last_len,
         group.model or "",
+        group.fallback_model or "",
         group.pending,
         group.retries,
     )

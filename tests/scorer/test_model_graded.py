@@ -1,18 +1,29 @@
+import asyncio
+import math
 import os
 import re
 from typing import Any, Callable
 
 import pytest
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, score
+from inspect_ai._eval.score import resolve_scorers
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName, ModelRole
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import INCORRECT, model_graded_fact, model_graded_qa
+from inspect_ai.scorer import (
+    CORRECT,
+    INCORRECT,
+    PARTIAL,
+    Scorer,
+    Target,
+    model_graded_fact,
+    model_graded_qa,
+)
 from inspect_ai.scorer._model import (
     DEFAULT_GRADE_PATTERN,
     neutralize_structural_delimiters,
@@ -50,6 +61,26 @@ def test_model_graded_include_history():
     check_include_history(
         lambda state: "\n".join([message.text for message in state.messages])
     )
+
+
+def test_chat_history_without_assistant_turn():
+    # Regression for #4722: a sample with no assistant messages (e.g. a
+    # partial state scored under score_on_error) must yield the user
+    # messages, not an empty history that leaves the grader's Question
+    # section blank.
+    from inspect_ai.scorer._model import chat_history
+
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="Who wrote 'The 39 Steps'?",
+        messages=[ChatMessageUser(content="Who wrote 'The 39 Steps'?")],
+    )
+
+    history = chat_history(state)
+
+    assert "The 39 Steps" in history
 
 
 def test_model_graded_multimodal():
@@ -148,11 +179,107 @@ def test_model_role_precedence_for_model_graded_scorer(
     assert grading_event.role == expected_role
 
 
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_can_require_model_role(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    task = Task(
+        scorer=scorer_factory(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert log.error.message == "Model role 'grader' is required and was not specified."
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_required_model_role_succeeds_when_bound(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=scorer_factory(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": grader_model},
+    )[0]
+
+    assert log.status == "success"
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_explicit_model_overrides_required_model_role(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=scorer_factory(
+            model=grader_model,
+            model_role=ModelRole("grader", required=True),
+        ),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "success"
+
+
+def test_model_graded_scorer_model_role_round_trips_through_log() -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")]),
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")]),
+        ],
+    )
+    task = Task(
+        scorer=model_graded_qa(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": grader_model},
+    )[0]
+
+    assert log.eval.scorers is not None
+    assert log.eval.scorers[0].options is not None
+    assert log.eval.scorers[0].options["model_role"] == {
+        "name": "grader",
+        "required": True,
+    }
+
+    rescored_log = score(
+        log,
+        resolve_scorers(log),
+        model_roles={"grader": grader_model},
+        action="overwrite",
+    )
+
+    assert rescored_log.status == "success"
+
+
 def test_model_graded_answer_set_on_grade_parse_failure():
-    # issue #4025: when the grader output has no parseable GRADE: token the scorer
-    # falls into the parse-failure branch. value is INCORRECT, but the answer field
-    # must still carry the model's completion (matching the grade-found branch) so
-    # the log viewer doesn't show an empty answer.
+    # #4025: parse failure is unscored, but answer must still carry the completion.
     subject_answer = "The capital of France is Paris."
     grader_model = get_model(
         "mockllm/model",
@@ -176,7 +303,7 @@ def test_model_graded_answer_set_on_grade_parse_failure():
 
     assert log.samples
     score = log.samples[0].scores["model_graded_fact"]
-    assert score.value == INCORRECT
+    assert isinstance(score.value, float) and math.isnan(score.value)
     assert score.answer == subject_answer
 
 
@@ -257,6 +384,26 @@ def test_neutralize_structural_delimiters(raw: str, expected: str) -> None:
             "C",
             id="last_grade_across_lines_wins",
         ),
+        pytest.param(
+            "GRADE: C. No reason to downgrade: insufficient grounds.",
+            "C",
+            id="ignore_grade_suffix_in_prose",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u200bC",
+            "C",
+            id="zero_width_before_final_grade",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE\u200e:\u200fC",
+            "C",
+            id="direction_marks_around_separator",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u2063C",
+            "C",
+            id="invisible_separator_before_final_grade",
+        ),
         pytest.param("grade: p", "p", id="case_insensitive"),
     ],
 )
@@ -267,6 +414,279 @@ def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> 
     match = re.search(DEFAULT_GRADE_PATTERN, grader_output)
     assert match is not None, f"no grade found in {grader_output!r}"
     assert match.group(1) == expected
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        pytest.param("GRID: C", id="typo_grid"),
+        pytest.param("ANSWER: C", id="wrong_word_answer"),
+        pytest.param("**Answer: C**", id="markdown_decorated"),
+        pytest.param("The submission is correct.", id="no_grade_marker_at_all"),
+    ],
+)
+def test_grade_parse_failure_is_unscored(grader_output: str) -> None:
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    score = scores["model_graded_fact"]
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) for {grader_output!r}, got {score.value!r}"
+    )
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+
+
+@pytest.mark.parametrize(
+    "grader_output, expected, partial_credit",
+    [
+        pytest.param("GRADE: C", CORRECT, False, id="correct"),
+        pytest.param("GRADE: I", INCORRECT, False, id="incorrect"),
+        pytest.param("GRADE: P", PARTIAL, True, id="partial"),
+        pytest.param("GRADE: Correct", CORRECT, False, id="correct_word"),
+        pytest.param("GRADE: Incorrect", INCORRECT, False, id="incorrect_word"),
+        pytest.param("GRADE: Partial", PARTIAL, True, id="partial_word"),
+    ],
+)
+def test_matched_grade_resolves_to_value(
+    grader_output: str, expected: str, partial_credit: bool
+) -> None:
+    # A parseable grade must resolve to its own value, not get swept into
+    # unscored. "P" is only offered by the default instructions when
+    # partial_credit=True, so those cases configure the scorer accordingly.
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader, partial_credit=partial_credit),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    score = scores["model_graded_fact"]
+    assert score.value == expected, (
+        f"expected {expected!r} for grade {grader_output!r}, got {score.value!r}"
+    )
+
+
+def _graded_value(grader_output: str, **scorer_kwargs: Any) -> Any:
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_fact(model=grader, **scorer_kwargs),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    return scores["model_graded_fact"]
+
+
+@pytest.mark.parametrize("partial_credit", [False, True], ids=["binary", "partial"])
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        pytest.param("GRADE: Z", id="off_menu_alone"),
+        pytest.param(
+            "A fully correct answer would be GRADE: C here.\n\nGRADE: Z",
+            id="off_menu_after_earlier_correct",
+        ),
+        pytest.param(
+            "This looks wrong: GRADE: I.\n\nGRADE: N",
+            id="off_menu_after_earlier_incorrect",
+        ),
+    ],
+)
+def test_off_menu_verdict_is_unscored(grader_output: str, partial_credit: bool) -> None:
+    # The final verdict is authoritative. A letter the instructions never
+    # offered is a protocol deviation, so the sample is unscored -- and in
+    # particular the score must not fall back to a grade mentioned earlier in
+    # the reasoning, which is the injection vector the last-match binding of
+    # DEFAULT_GRADE_PATTERN exists to close.
+    score = _graded_value(grader_output, partial_credit=partial_credit)
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) for {grader_output!r} with "
+        f"partial_credit={partial_credit}, got {score.value!r}"
+    )
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+
+
+def test_partial_verdict_is_unscored_without_partial_credit() -> None:
+    # partial_credit=False never offers "P" in the instructions, so a grader
+    # that emits it anyway must not silently score 0.5 in a binary scorer.
+    score = _graded_value("GRADE: P", partial_credit=False)
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) for GRADE: P without partial credit, "
+        f"got {score.value!r}"
+    )
+    assert score.metadata is not None
+    assert score.metadata["unscored_reason"] == "grade_parse_failure"
+
+
+@pytest.mark.parametrize(
+    "earlier_letter", ["C", "I"], ids=["earlier_correct", "earlier_incorrect"]
+)
+def test_partial_verdict_after_earlier_grade_is_unscored(earlier_letter: str) -> None:
+    # "P" is just the off-menu case a binary scorer hits most often.
+    score = _graded_value(
+        f"A fully correct answer would be GRADE: {earlier_letter} here.\n"
+        "This response only covers half of it.\n\n"
+        "GRADE: P",
+        partial_credit=False,
+    )
+    assert isinstance(score.value, float) and math.isnan(score.value), (
+        f"expected unscored (NaN) when the verdict is GRADE: P after an earlier "
+        f"GRADE: {earlier_letter}, got {score.value!r}"
+    )
+
+
+def test_final_grade_still_wins_over_earlier_off_menu_mention() -> None:
+    # The mirror case: an earlier off-menu mention must not suppress a verdict
+    # the instructions did offer.
+    assert (
+        _graded_value(
+            "At first glance this might be GRADE: P.\n\nGRADE: C",
+            partial_credit=False,
+        ).value
+        == CORRECT
+    )
+
+
+def test_explicit_grade_pattern_is_authoritative() -> None:
+    # An explicit grade_pattern is exempt from validation: it keeps every grade
+    # it matches, whatever partial_credit says.
+    assert (
+        _graded_value(
+            "GRADE: P", partial_credit=False, grade_pattern=r"GRADE: ([CPI])"
+        ).value
+        == PARTIAL
+    )
+
+
+def test_custom_instructions_are_authoritative() -> None:
+    # Custom instructions carry their own prompt and may offer "P" even when
+    # partial_credit=False, so validation does not apply to them.
+    grader = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: P")])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        scorer=model_graded_qa(
+            model=grader,
+            partial_credit=False,
+            instructions="Answer GRADE: C, GRADE: P, or GRADE: I.",
+        ),
+    )
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    scores = log.samples[0].scores
+    assert scores is not None
+    assert scores["model_graded_qa"].value == PARTIAL
+
+
+@pytest.mark.parametrize(
+    "grader_output",
+    [
+        pytest.param(
+            "GRADE: C. No reason to downgrade: insufficient grounds.",
+            id="ignore_grade_suffix_in_prose",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u200bC",
+            id="zero_width_before_final_grade",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE\u200e:\u200fC",
+            id="direction_marks_around_separator",
+        ),
+        pytest.param(
+            "It is correct.\nGRADE: I (ignore)\nGRADE:\u2063C",
+            id="invisible_separator_before_final_grade",
+        ),
+        pytest.param("The answer is right. grade: c", id="normalize_lowercase_grade"),
+    ],
+)
+def test_model_graded_default_grade_parsing_scores_correct_verdict(
+    grader_output: str,
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text=grader_output)])
+        ],
+    )
+    task = Task(
+        dataset=[Sample(input="What is the capital of France?", target="Paris")],
+        scorer=model_graded_qa(model=grader_model),
+    )
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.from_content("mockllm/model", [ContentText(text="Paris")])
+            ],
+        ),
+        display="none",
+    )[0]
+
+    assert log.samples
+    assert log.results
+    assert log.samples[0].scores
+    score = log.samples[0].scores["model_graded_qa"]
+    assert score.value == "C"
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
+def test_model_graded_custom_grade_pattern_preserves_capture_case() -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="RESULT: a")])
+        ],
+    )
+    scorer = model_graded_qa(
+        model=grader_model,
+        instructions="Return RESULT: a or RESULT: b.",
+        grade_pattern=r"(?is).*RESULT:\s*([ab])",
+    )
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=1,
+        epoch=1,
+        input="Question",
+        messages=[ChatMessageUser(content="Question")],
+        output=ModelOutput.from_content("mockllm/model", [ContentText(text="Answer")]),
+    )
+    score = asyncio.run(scorer(state, Target("Criterion")))
+
+    assert score is not None
+    assert score.value == "a"
 
 
 def test_neutralize_structural_delimiters_is_idempotent() -> None:

@@ -22,6 +22,20 @@ class EvalError(BaseModel):
     """Error traceback with ANSI color codes."""
 
 
+# Backend cancellation exceptions are recorded as their repr, e.g.
+# "CancelledError('Cancelled via cancel scope ...')" (asyncio) or
+# "Cancelled()" (trio). A sample cancelled because a sibling failed or the
+# eval was torn down for a retry isn't a genuine error.
+_CANCELLED_EXC_NAMES = ("CancelledError", "Cancelled")
+
+
+def is_cancellation_message(message: str | None) -> bool:
+    """Whether an error message is a backend cancellation exception repr."""
+    return message is not None and any(
+        message.startswith(f"{name}(") for name in _CANCELLED_EXC_NAMES
+    )
+
+
 def pip_dependency_error(feature: str, dependencies: list[str]) -> Exception:
     return PrerequisiteError(
         f"[bold]ERROR[/bold]: {feature} requires optional dependencies. "

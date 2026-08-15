@@ -95,11 +95,15 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
+    RESPONSES_NAMESPACE,
+    RESPONSES_VERBATIM,
     TOOL_SEARCH_NAME,
     TOOL_SEARCH_OPTIONS_MARKER,
     assistant_internal,
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
+    is_additional_tools,
+    is_agent_message,
     is_assistant_message_param,
     is_code_interpreter_tool_param,
     is_computer_call_output,
@@ -154,7 +158,7 @@ from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
-from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_info import INTERNAL_TOOL_TYPE, ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_util import tool_to_tool_info
 from inspect_ai.tool._tools._code_execution import (
@@ -172,8 +176,11 @@ from .util import (
     apply_message_ids,
     bridge_generate,
     clear_generation_params,
+    relax_tool_choice_for_withheld,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
+    withheld_bridge_tool,
 )
 
 logger = getLogger(__name__)
@@ -199,8 +206,8 @@ def _is_openai_responses_provider(model: Model) -> bool:
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     headers: dict[str, str] | None,
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: AgentBridge,
 ) -> Response:
     # resolve model
@@ -213,7 +220,26 @@ async def inspect_responses_api_request_impl(
     parallel_tool_calls = json_data.get("parallel_tool_calls", True)
 
     # validate computer use compatibility
-    responses_tools: list[ToolParam] = json_data.get("tools", [])
+    responses_tools: list[ToolParam] = list(json_data.get("tools", []))
+
+    # some CLI agents (e.g. codex >= 0.144) declare their tools via
+    # `additional_tools` input items rather than (or in addition to) the
+    # request's top-level `tools` array. Merge those declarations into the
+    # tool list so the generate() call carries real tools -- otherwise the
+    # model receives no tools at all and cannot emit structured tool calls.
+    input: str | list[ResponseInputItemParam] = json_data["input"]
+    declared_tool_keys = {
+        (tool.get("type"), tool.get("name")) for tool in responses_tools
+    }
+    if isinstance(input, list):
+        for item in input:
+            if isinstance(item, dict) and is_additional_tools(item):
+                for declared in item.get("tools", []) or []:
+                    key = (declared.get("type"), declared.get("name"))
+                    if key not in declared_tool_keys:
+                        declared_tool_keys.add(key)
+                        responses_tools.append(declared)
+
     has_computer_use = any(is_computer_tool_param(tool) for tool in responses_tools)
     if has_computer_use and not is_openai:
         raise RuntimeError(
@@ -236,15 +262,20 @@ async def inspect_responses_api_request_impl(
             continue
         if is_namespace_tool_param(tool):
             _harvest_tool_namespaces(tool, tool_namespaces)
-        tools.extend(tools_from_responses_tool(tool, web_search, code_execution))
+        tools.extend(
+            tools_from_responses_tool(
+                tool, web_search, code_execution, bridge.allow_remote_mcp
+            )
+        )
     tools = [tool for tool in tools if tool]
     responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
         "tool_choice", None
     )
-    tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
+    tool_choice = relax_tool_choice_for_withheld(
+        tool_choice_from_responses_tool_choice(responses_tool_choice), tools
+    )
 
-    # convert to inspect messages (input may be a plain string or a list of items)
-    input: str | list[ResponseInputItemParam] = json_data["input"]
+    # convert inspect messages (input was read above, before tool merging)
 
     # deferred namespace tools (e.g. codex multi_agent) are not declared in the
     # top-level `tools` array; they are discovered via tool_search and appear as
@@ -260,6 +291,7 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD INPUT", input)
 
     messages = messages_from_responses_input(input, tools, model_name)
+    validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)
@@ -287,7 +319,7 @@ async def inspect_responses_api_request_impl(
     debug_log("INSPECT OUTPUT", output.message)
 
     # update state if we have more messages than the last generation
-    bridge._track_state(messages, output)
+    await bridge._track_state(messages, output)
 
     # return response
     response = Response(
@@ -423,14 +455,20 @@ def responses_tool_choice_param_to_tool_choice(
 
 def tool_from_responses_tool(
     tool_param: ToolParam,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
 ) -> ToolInfo | Tool | None:
     if is_function_tool_param(tool_param):
+        # stash the original param so the OpenAI Responses provider can re-emit
+        # it verbatim: ToolParams validation is lossy (drops schema extensions
+        # like `encrypted: true`, normalizes `required`) and models with
+        # reserved tool schemas (e.g. codex collaboration tools) reject drift.
         return ToolInfo(
             name=tool_param["name"],
             description=tool_param["description"] or tool_param["name"],
             parameters=ToolParams.model_validate(tool_param["parameters"]),
+            options={RESPONSES_VERBATIM: dict(tool_param)},
         )
     elif is_custom_tool_param(tool_param):
         return ToolInfo(
@@ -440,13 +478,22 @@ def tool_from_responses_tool(
                 properties={"input": JSONSchema(type="string", description="Input.")},
                 required=["input"],
             ),
-            options={"custom_format": tool_param["format"]},
+            options={
+                "custom_format": tool_param["format"],
+                RESPONSES_VERBATIM: dict(tool_param),
+            },
         )
     elif is_web_search_tool_param(tool_param):
+        if web_search_providers is None:
+            withheld_bridge_tool("web_search")
+            return None
         return web_search(
             resolve_web_search_providers(tool_param, web_search_providers)
         )
     elif is_code_interpreter_tool_param(tool_param):
+        if code_execution_providers is None:
+            withheld_bridge_tool("code_interpreter")
+            return None
         return code_execution(
             providers=resolve_code_interpreter_providers(
                 tool_param, code_execution_providers
@@ -455,6 +502,9 @@ def tool_from_responses_tool(
     elif is_computer_tool_param(tool_param):
         return computer()
     elif is_mcp_tool_param(tool_param):
+        if not allow_remote_mcp:
+            withheld_bridge_tool("mcp")
+            return None
         allowed_tools = tool_param["allowed_tools"]
         if isinstance(allowed_tools, dict):
             raise RuntimeError(
@@ -470,7 +520,7 @@ def tool_from_responses_tool(
         return ToolInfo(
             name=f"mcp_server_{config.name}",
             description=f"mcp_server_{config.name}",
-            options=config.model_dump(),
+            options={INTERNAL_TOOL_TYPE: "mcp_call", **config.model_dump()},
         )
     elif is_tool_search_tool_param(tool_param):
         # client-resolved tool discovery (e.g. codex-cli). Preserve the native
@@ -499,8 +549,9 @@ def tool_from_responses_tool(
 
 def tools_from_responses_tool(
     tool_param: ToolParam,
-    web_search_providers: WebSearchProviders,
-    code_execution_providers: CodeExecutionProviders,
+    web_search_providers: WebSearchProviders | None,
+    code_execution_providers: CodeExecutionProviders | None,
+    allow_remote_mcp: bool,
 ) -> list[ToolInfo | Tool]:
     """Convert a responses ToolParam into zero or more inspect tools.
 
@@ -512,17 +563,32 @@ def tools_from_responses_tool(
     locate the tool on the return trip.
     """
     if is_namespace_tool_param(tool_param):
+        ns_name = tool_param.get("name")
+        ns_desc = tool_param.get("description") or ns_name
         flattened: list[ToolInfo | Tool] = []
         for inner in tool_param.get("tools", []):
             inner_param = cast(ToolParam, inner)
             inner_tool = tool_from_responses_tool(
-                inner_param, web_search_providers, code_execution_providers
+                inner_param,
+                web_search_providers,
+                code_execution_providers,
+                allow_remote_mcp,
             )
             if inner_tool is not None:
+                # Stash the namespace so openai_responses_tools can re-group
+                # into a NamespaceToolParam on the outgoing request. Without
+                # this the tool reaches the API flat as functions.<name>,
+                # which OpenAI rejects on models that reserve those names for
+                # encrypted tool use (e.g. codex's multi_agent_v1.spawn_agent).
+                if isinstance(inner_tool, ToolInfo) and ns_name:
+                    inner_tool.options = {
+                        **(inner_tool.options or {}),
+                        RESPONSES_NAMESPACE: (ns_name, ns_desc),
+                    }
                 flattened.append(inner_tool)
         return flattened
     tool = tool_from_responses_tool(
-        tool_param, web_search_providers, code_execution_providers
+        tool_param, web_search_providers, code_execution_providers, allow_remote_mcp
     )
     return [tool] if tool is not None else []
 
@@ -882,7 +948,58 @@ def messages_from_responses_input(
         # see if we need to collect a pending assistant message
         collect_pending_assistant_message()
 
-        if is_response_input_message(item):
+        if is_agent_message(item):
+            # Codex Multi-Agent V2 delivers inter-agent messages as input items.
+            # Render an author-attributed user message (Codex's own downgrade
+            # convention, so the recipient never mistakes another agent's words
+            # for the user's) and stash the original item on ContentText.internal
+            # so the OpenAI Responses provider can replay it natively --
+            # encrypted_content parts are undecryptable here but decryptable
+            # by OpenAI server-side. Checked before is_response_input_message
+            # (an exact type match vs. a loose keys-based one) so a future
+            # Codex adding a "role" key to agent_message items can't silently
+            # reroute them into the plain-message branch.
+            agent_message = cast(dict[str, Any], item)
+            author = str(agent_message.get("author") or "agent")
+            agent_message_parts = agent_message.get("content", []) or []
+            text_parts = [
+                part["text"]
+                for part in agent_message_parts
+                if isinstance(part, dict)
+                and part.get("type") == "input_text"
+                and isinstance(part.get("text"), str)
+            ]
+            if not text_parts:
+                if any(
+                    isinstance(part, dict) and part.get("type") == "encrypted_content"
+                    for part in agent_message_parts
+                ):
+                    warn_once(
+                        logger,
+                        "agent_message item carries only encrypted content: it "
+                        "replays natively to OpenAI Responses targets, but other "
+                        "targets see only a placeholder.",
+                    )
+                    text_parts = ["[encrypted content: readable only by OpenAI]"]
+                else:
+                    warn_once(
+                        logger,
+                        "agent_message item carries no readable content: "
+                        "rendering a placeholder.",
+                    )
+                    text_parts = ["[no readable content]"]
+            messages.append(
+                ChatMessageUser(
+                    content=[
+                        ContentText(
+                            text=f"Agent message from {author}:\n"
+                            + "\n".join(text_parts),
+                            internal={"agent_message": agent_message},
+                        )
+                    ]
+                )
+            )
+        elif is_response_input_message(item):
             # normalize item content
             item_content: list[ResponseInputContentParam] = (
                 [ResponseInputTextParam(type="input_text", text=item["content"])]
@@ -944,6 +1061,16 @@ def messages_from_responses_input(
                     content=to_json_str_safe(item.get("tools", [])),
                 )
             )
+        elif is_additional_tools(item):
+            # developer-declared tool availability (e.g. codex CLI declaring
+            # its tools via input items for newer OpenAI models, see
+            # https://github.com/UKGovernmentBEIS/inspect_ai/issues/4490).
+            # These declarations are merged into the generate() call's real
+            # tool list by inspect_responses_api_request_impl, so nothing is
+            # added to message history. (Rendering them as text is actively
+            # harmful: some model backends fail on tool-declaration text and
+            # the model cannot call text-declared tools anyway.)
+            pass
         else:
             # ImageGenerationCall
             # ResponseCodeInterpreterToolCallParam

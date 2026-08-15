@@ -6,6 +6,7 @@ import pytest
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
+    ModelAPI,
     ModelInfo,
     ModelOutput,
     set_model_info,
@@ -70,8 +71,7 @@ def test_grok_service_model_name_controls_wire_identity() -> None:
             return "grok-4-1-fast-reasoning"
 
     api = _AliasedGrokAPI.__new__(_AliasedGrokAPI)
-    api.model_name = "custom-alias"
-    api.api_key = "test-key"
+    ModelAPI.__init__(api, model_name="custom-alias", api_key="test-key")
 
     assert api.canonical_name() == "grok/grok-4-1-fast-reasoning"
     assert api.connection_key() == "test-key:grok-4-1-fast-reasoning"
@@ -181,8 +181,21 @@ def test_bedrock_alias_uses_family_for_capabilities() -> None:
 
     assert api.is_claude()
     assert api.is_claude_4_7_or_later()
+    assert api.is_claude_4_6_or_later()
+    assert api.is_thinking_model()
     assert not api.is_nova()
     assert api.model_name == "custom-alias"
+
+
+def test_bedrock_alias_uses_family_for_thinking_detection() -> None:
+    set_model_info("custom-alias", ModelInfo(family="claude-3-5-sonnet-20241022"))
+    api = BedrockAPI.__new__(BedrockAPI)
+    api.model_name = "custom-alias"
+
+    assert api.is_claude()
+    assert api.is_claude_3_5()
+    assert not api.is_thinking_model()
+    assert not api.is_claude_4_6_or_later()
 
 
 def test_bedrock_alias_uses_family_for_default_max_tokens() -> None:

@@ -49,6 +49,56 @@ Or from Python:
 eval("arc.py", model=None)
 ```
 
+#### Multiple Models {#multiple-models}
+
+To evaluate several models with the same options, pass a comma-separated list:
+
+``` bash
+inspect eval arc.py --model openai/gpt-4o,anthropic/claude-sonnet-4-0
+```
+
+To give each model its own options, use `--model-spec`. Each option holds one inline YAML or JSON mapping. A mapping takes the same fields as a [model role](#model-roles) — a required `model`, any generation config field, and `model_args` — plus a `base_url`:
+
+``` bash
+inspect eval arc.py \
+    --model-spec '{model: openai/gpt-4o, temperature: 0}' \
+    --model-spec '{model: openai/gpt-4o, temperature: 1}'
+```
+
+This runs the same model twice, once at each temperature. `--model` cannot do that, because it applies one shared parameter set to every model it names.
+
+Or:
+
+``` python
+eval("arc.py", model=[
+    get_model("openai/gpt-4o", config=GenerateConfig(temperature=0)),
+    get_model("openai/gpt-4o", config=GenerateConfig(temperature=1)),
+])
+```
+
+A spec supplies the whole model, so you cannot combine `--model-spec` with `--model`, `--model-base-url`, `--model-config`, `-M`, or the `model` field of a `--run-config` file. Put those values in each spec instead.
+
+An option you type beats an ambient environment value, so `--model-spec` and `INSPECT_EVAL_MODEL` never fail together. A spec you type replaces an `INSPECT_EVAL_MODEL`, and an `INSPECT_EVAL_MODEL_SPEC` yields to a `--model` you type.
+
+A generation config option on the command line still applies to every model, and it overrides the same field in every spec. For example, `--temperature 0.9` added to the command above runs both models at 0.9. Set the temperature only in the specs to keep the two values apart.
+
+`INSPECT_EVAL_MODEL_SPEC` holds one spec per model, separated by a space, in the same way as `INSPECT_EVAL_MODEL_ARGS`. A comma cannot separate the specs, because a spec uses commas between its own fields. Write each spec as JSON without spaces:
+
+``` bash
+export INSPECT_EVAL_MODEL_SPEC='{"model":"openai/gpt-4o","temperature":0} {"model":"openai/gpt-4o","temperature":1}'
+```
+
+`--model-spec` combines with `--model-role`, because a spec fills the main model and a role fills a named one. A role applies to every spec, and it does not override a spec. A role you leave unset inherits the spec that is running, so each model grades its own samples:
+
+``` bash
+inspect eval arc.py \
+    --model-spec '{model: openai/gpt-4o, temperature: 0}' \
+    --model-spec '{model: openai/gpt-4o, temperature: 1}' \
+    --model-role grader=anthropic/claude-sonnet-4-0
+```
+
+`inspect eval-set` accepts `--model-spec` as well. Task identity includes the model's generation config, so two specs for one model stay two units of work. Task identity does not include `base_url` or credential model args such as `api_key`, so an eval set rejects two specs that differ only in those as not distinct; give each spec a distinct generation config, or run them with `inspect eval` instead. See [Eval Sets](eval-sets.qmd).
+
 ## Generation Config
 
 There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (`temperature`, `top_p`, etc.) as well as the connection to model providers (`timeout`, `max_retries`, etc.)
@@ -68,6 +118,14 @@ eval("arc.py", model="google/gemini-2.5-pro", max_connections=20)
 ```
 
 Use `inspect eval --help` to learn about all of the available generation config options.
+
+::: {.callout-note appearance="simple"}
+#### Temperature is not random assignment {#temperature-random-assignment}
+
+Do not use model sampling as the source of random assignment in an eval. Increasing `temperature` can make outputs more variable, but it does not make equivalent labels, choices, or orderings equally likely.
+
+If the eval needs randomness, randomize in the dataset, solver, or setup code (for example, with [sample shuffling](datasets.qmd#shuffling) or [choice shuffling](datasets.qmd#choice-shuffling)). If the task intentionally asks the model to make a stochastic choice, run repeated [epochs](metrics.qmd#reducing-epochs) first and report the observed label distribution, for example with a categorical scorer and [`frequency()`](metrics.qmd#built-in-metrics).
+:::
 
 ## Model Args
 
@@ -208,11 +266,11 @@ inspect eval math.py \
     --model-role 'grader={model: openai/gpt-4o, temperature: 0.5}'
 ```
 
-Note that the built-in [model-graded scorers](scorers.qmd#model-graded) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
+Note that the built-in [model-graded scorers](model-graded.qmd) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
 
-Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](task-configuration.qmd#run-config).
+Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](tasks.qmd#run-config).
 
-For how model roles fit into the broader override and precedence model, see [Task Configuration](task-configuration.qmd#model-roles).
+For how model roles fit into the broader override and precedence model, see [Configuration](tasks.qmd#model-roles).
 
 ### Role Resolution
 

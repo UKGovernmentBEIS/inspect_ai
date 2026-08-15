@@ -98,11 +98,13 @@ async def compose_cp(
     project: ComposeProject,
     cwd: str | Path | None = None,
     output_limit: int | None = None,
+    timeout_retry: bool = True,
 ) -> None:
     result = await compose_command(
         ["cp", "-L", "--", src, dest],
         project=project,
         timeout=600,  # 10-minute timeout for file copies
+        timeout_retry=timeout_retry,
         cwd=cwd,
         output_limit=output_limit,
     )

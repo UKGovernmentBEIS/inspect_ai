@@ -5,7 +5,7 @@ from typing import Callable, cast
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
-from .registry import REDUCER_NAME, score_reducer
+from .registry import score_reducer
 from .types import ScoreReducer
 
 
@@ -113,7 +113,6 @@ def at_least(
         else:
             return _count_scalar(scores, gte_n)
 
-    setattr(reduce, REDUCER_NAME, f"at_least_{k}")
     return reduce
 
 
@@ -159,7 +158,6 @@ def pass_at(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_at_k)
 
-    setattr(reduce, REDUCER_NAME, f"pass_at_{k}")
     return reduce
 
 
@@ -199,7 +197,6 @@ def pass_k(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_k_k)
 
-    setattr(reduce, REDUCER_NAME, f"pass_k_{k}")
     return reduce
 
 
@@ -256,6 +253,34 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
                 scalar_scores, key=lambda score: value_to_float(score.value)
             )
             return _reduced_score(max_score.value, scores)
+
+    return reduce
+
+
+@score_reducer(name="collect")
+def collect_score() -> ScoreReducer:
+    r"""Collect each score's value into a list, preserving every value.
+
+    Keeps the individual values intact instead of aggregating them into one.
+    Score values must be scalar; unscored (NaN) scores are dropped.
+    """
+
+    def reduce(scores: list[Score]) -> Score:
+        values: list[str | int | float | bool] = []
+        for score in scores:
+            try:
+                value = score._as_scalar()
+            except ValueError:
+                raise ValueError(
+                    "collect reducer requires scalar score values, but got "
+                    f"{type(score.value).__name__}. It preserves each scorer's "
+                    "scalar value as a list and cannot collect dict/list values."
+                ) from None
+            if _is_reducible(value):
+                values.append(value)
+        if not values:
+            return _nan_score(scores)
+        return _reduced_score(values, scores)
 
     return reduce
 
@@ -373,7 +398,7 @@ def _compute_dict_stat(
         for score in dict_scores:
             key_value = value_to_float(score.value[key])  # type: ignore
             if _is_reducible(key_value):
-                values.append(value_to_float(key_value))
+                values.append(key_value)
 
         if len(values) == 0:
             dict_result[key] = float("nan")
@@ -457,7 +482,8 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
     r"""Return the subset of scores whose value is a dict.
 
     Skips scores with NaN-at-root (treated as unscored). Raises ValueError
-    if any score has a value that is neither a dict nor a NaN scalar.
+    if any score has a value that is neither a dict nor a NaN scalar, or if the
+    dict-shaped scores don't all share the same keys.
     """
     result: list[Score] = []
     for score in scores:
@@ -469,6 +495,21 @@ def _partition_dict_scores(scores: list[Score]) -> list[Score]:
             raise ValueError(
                 "Attempting to reduce a dictionary score for a non-dictionary value"
             )
+
+    # Reducers walk the keys of the first dict and look them up in every other
+    # dict, so differing keys across epochs either crash with a KeyError or
+    # silently drop the extra keys. Reject the inconsistency up front.
+    if result:
+        keys = set(result[0].as_dict().keys())
+        for score in result[1:]:
+            score_keys = set(score.as_dict().keys())
+            if score_keys != keys:
+                raise ValueError(
+                    "Cannot reduce dictionary scores with mismatched keys: "
+                    f"{sorted(keys)} vs {sorted(score_keys)}. "
+                    "Every epoch must score the same keys; return a NaN score to "
+                    "mark an individual epoch as unscored."
+                )
     return result
 
 
@@ -476,7 +517,8 @@ def _partition_list_scores(scores: list[Score]) -> list[Score]:
     r"""Return the subset of scores whose value is a list.
 
     Skips scores with NaN-at-root (treated as unscored). Raises ValueError
-    if any score has a value that is neither a list nor a NaN scalar.
+    if any score has a value that is neither a list nor a NaN scalar, or if the
+    list-shaped scores don't all share the same length.
     """
     result: list[Score] = []
     for score in scores:
@@ -486,6 +528,21 @@ def _partition_list_scores(scores: list[Score]) -> list[Score]:
             continue
         else:
             raise ValueError("Attempting to reduce a list score for a non-list value")
+
+    # Reducers walk the indices of the first list and read them from every other
+    # list, so differing lengths across epochs either crash with an IndexError
+    # or silently drop the trailing values. Reject the inconsistency up front.
+    if result:
+        length = len(result[0].as_list())
+        for score in result[1:]:
+            score_length = len(score.as_list())
+            if score_length != length:
+                raise ValueError(
+                    "Cannot reduce list scores with mismatched lengths: "
+                    f"{length} vs {score_length}. "
+                    "Every epoch must produce the same number of values; return a "
+                    "NaN score to mark an individual epoch as unscored."
+                )
     return result
 
 
@@ -516,6 +573,11 @@ def _nan_score(scores: list[Score]) -> Score:
         value: the reduced Value
         scores: ths list of scores being reduced
     """
+    # An empty list still routes here via `_first_scored` returning None; there
+    # are no fields to carry over, so return a bare NaN score rather than
+    # indexing `scores[0]`.
+    if not scores:
+        return Score(value=float("nan"))
     return Score(
         value=float("nan"),
         # retain remaining fields only if equal across all Scores

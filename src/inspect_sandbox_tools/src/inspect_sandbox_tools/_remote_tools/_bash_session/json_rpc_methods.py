@@ -35,9 +35,14 @@ async def bash_session(
             input=input_text,
             wait_for_output=wait_for_output,
             idle_timeout=idle_timeout,
+            max_output_bytes=max_output_bytes,
         ):
             return await controller.interact(
-                session_name, input_text, wait_for_output, idle_timeout
+                session_name,
+                input_text,
+                wait_for_output,
+                idle_timeout,
+                max_output_bytes,
             )
         case RestartParams(session_name=session_name):
             return await controller.restart(session_name)

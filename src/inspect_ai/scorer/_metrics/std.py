@@ -1,5 +1,5 @@
+import math
 from logging import getLogger
-from statistics import NormalDist
 from typing import Literal, cast
 
 from .._metric import (
@@ -12,70 +12,6 @@ from .._metric import (
 )
 
 logger = getLogger(__name__)
-
-
-def _clt_stderr(values: list[float]) -> float:
-    """Central Limit Theorem standard error of the mean of ``values``."""
-    import numpy as np
-
-    n = len(values)
-    # standard deviation divides by n - ddof, so guard against n < 2
-    if (n - 1) < 1:
-        return 0.0
-    sample_std = np.std(values, ddof=1)
-    return cast(float, sample_std / np.sqrt(n))
-
-
-def _clustered_stderr(
-    scores: list[SampleScore], cluster: str, to_float: ValueToFloat
-) -> float:
-    """Clustered standard error of the mean.
-
-    For details, see Appendix A of https://arxiv.org/pdf/2411.00640. The version
-    here uses a finite cluster correction (unlike the paper).
-    """
-    import numpy as np
-
-    cluster_list = []
-    value_list = []
-    for sample_score in scores:
-        if (
-            sample_score.sample_metadata is None
-            or cluster not in sample_score.sample_metadata
-        ):
-            raise ValueError(
-                f"Sample {sample_score.sample_id} has no cluster metadata. To compute clustered standard errors, each sample metadata must have a value for '{cluster}'"
-            )
-        cluster_list.append(sample_score.sample_metadata[cluster])
-        value_list.append(to_float(sample_score.score.value))
-    clusters = np.array(cluster_list)
-    values = np.array(value_list)
-    mean = float(np.mean(values))
-
-    # Convert to numpy arrays and get unique clusters
-    unique_clusters = np.unique(clusters)
-    cluster_count = len(unique_clusters)
-
-    # The finite-cluster correction divides by (cluster_count - 1), so mirror the
-    # non-clustered path's n < 2 guard and return 0 rather than NaN/inf when there
-    # is only a single cluster.
-    if cluster_count < 2:
-        return 0.0
-
-    # Compute clustered variance using NumPy operations
-    clustered_variance = 0.0
-    for cluster_id in unique_clusters:
-        # get a data vector for this cluster
-        cluster_data = values[clusters == cluster_id]
-        # this computes X' \Omega X = \sum_i \sum_j (s_{i,c} - mean) * (s_{j,c} - mean)
-        clustered_variance += np.outer(cluster_data - mean, cluster_data - mean).sum()
-
-    # Multiply by C / (C - 1) to unbias the variance estimate
-    standard_error = np.sqrt(
-        clustered_variance * cluster_count / (cluster_count - 1)
-    ) / len(scores)
-
-    return cast(float, standard_error)
 
 
 @metric
@@ -102,6 +38,11 @@ def bootstrap_stderr(
         import numpy as np
 
         values = [to_float(score.score.value) for score in scores]
+        if not values:
+            # No scores to resample; return 0 rather than nan (and avoid the
+            # numpy empty-slice warnings from the resampling loop), mirroring
+            # the insufficient-data guards in stderr()/std()/var().
+            return 0.0
         std = np.std(
             [
                 np.mean(np.random.choice(values, len(values), replace=True))
@@ -111,6 +52,59 @@ def bootstrap_stderr(
         return cast(float, std.item())
 
     return metric
+
+
+def _clustered_stderr(
+    scores: list[SampleScore], cluster: str, to_float: ValueToFloat, metric_name: str
+) -> float:
+    """Clustered standard error of the mean.
+
+    For details, see Appendix A of https://arxiv.org/pdf/2411.00640.
+    The version here uses a finite cluster correction (unlike the paper)
+    """
+    import numpy as np
+
+    cluster_list = []
+    value_list = []
+    for sample_score in scores:
+        if (
+            sample_score.sample_metadata is None
+            or cluster not in sample_score.sample_metadata
+        ):
+            raise ValueError(
+                f"Sample {sample_score.sample_id} has no cluster metadata. To compute `{metric_name}` with clustering, each sample metadata must have a value for '{cluster}'"
+            )
+        cluster_list.append(sample_score.sample_metadata[cluster])
+        value_list.append(to_float(sample_score.score.value))
+    clusters = np.array(cluster_list)
+    values = np.array(value_list)
+
+    # Convert to numpy arrays and get unique clusters
+    unique_clusters = np.unique(clusters)
+    cluster_count = len(unique_clusters)
+
+    # The finite-cluster correction divides by (cluster_count - 1), so
+    # mirror the non-clustered path's n < 2 guard and return 0 rather
+    # than NaN/inf when there is only a single cluster.
+    if cluster_count < 2:
+        return 0.0
+
+    mean = float(np.mean(values))
+
+    # sum_i sum_j (s_i - mean)(s_j - mean) over a cluster is the square
+    # of that cluster's deviation sum. Computing the identity directly
+    # avoids materialising a k-by-k outer product for every cluster.
+    clustered_variance = 0.0
+    for cluster_id in unique_clusters:
+        cluster_data = values[clusters == cluster_id]
+        clustered_variance += ((cluster_data - mean).sum()) ** 2
+
+    # Multiply by C / (C - 1) to unbias the variance estimate
+    standard_error = np.sqrt(
+        clustered_variance * cluster_count / (cluster_count - 1)
+    ) / len(scores)
+
+    return cast(float, standard_error)
 
 
 @metric
@@ -135,11 +129,26 @@ def stderr(
 
     def clustered_metric(scores: list[SampleScore]) -> float:
         assert cluster is not None
-        return _clustered_stderr(scores, cluster, to_float)
+        return _clustered_stderr(scores, cluster, to_float, "stderr")
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
-        return _clt_stderr(values)
+        n = len(values)
+
+        # standard deviation is calculated by dividing by n-ddof so ensure
+        # that we won't divide by zero
+        if (n - 1) < 1:
+            return 0
+
+        # Calculate the sample standard deviation
+        sample_std = np.std(values, ddof=1)
+
+        # Calculate the standard error of the mean
+        standard_error = sample_std / np.sqrt(n)
+
+        return cast(float, standard_error)
 
     if cluster is not None:
         return clustered_metric
@@ -150,7 +159,7 @@ def stderr(
 @metric
 def ci(
     level: float = 0.95,
-    method: Literal["normal", "bootstrap"] = "normal",
+    method: Literal["t", "bootstrap"] = "t",
     num_samples: int = 1000,
     to_float: ValueToFloat = value_to_float(),
     cluster: str | None = None,
@@ -165,11 +174,12 @@ def ci(
     Args:
        level: Confidence level for the interval (e.g. `0.95` for a 95%
           interval). Must be in the open interval (0, 1).
-       method: Interval method. `"normal"` uses a normal approximation
-          (`mean ± z * stderr`, where `z` is the standard-normal quantile for
-          `level`); this is appropriate for means of finitely-variance scores by
-          the Central Limit Theorem. `"bootstrap"` uses a percentile bootstrap of
-          the mean, which is useful for small samples or skewed score
+       method: Interval method. `"t"` (the default) computes
+          `mean ± t · stderr` where `t` is the Student-t critical value with
+          `n - 1` degrees of freedom (`clusters - 1` for clustered intervals);
+          this converges to the normal-approximation interval for large
+          samples while remaining honest for small ones. `"bootstrap"` uses a
+          percentile bootstrap of the mean, which is useful for skewed score
           distributions.
        num_samples: Number of bootstrap resamples (only used when
           `method="bootstrap"`).
@@ -178,12 +188,13 @@ def ci(
           0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0, casts numeric values to
           float directly, and prints a warning and returns 0 if the `Value` is a
           complex object (list or dict).
-       cluster (str | None): The key from the Sample metadata corresponding to a
-          cluster identifier for computing
+       cluster (str | None): The key from the Sample metadata corresponding to
+          a cluster identifier for computing
           [clustered](https://en.wikipedia.org/wiki/Clustered_standard_errors)
-          intervals. When set, `method="normal"` uses the clustered standard
-          error and `method="bootstrap"` resamples whole clusters (cluster
-          bootstrap), so the interval accounts for within-cluster correlation.
+          intervals. When set, `method="t"` uses the clustered standard error
+          with `clusters - 1` degrees of freedom and `method="bootstrap"`
+          resamples whole clusters (cluster bootstrap), so the interval
+          accounts for within-cluster correlation.
 
     Returns:
        ci metric returning a mapping `{"lower": ..., "upper": ...}`.
@@ -193,7 +204,7 @@ def ci(
 
     tail = (1.0 - level) / 2.0
 
-    def metric(scores: list[SampleScore]) -> Value:
+    def metric_fn(scores: list[SampleScore]) -> Value:
         import numpy as np
 
         values = [to_float(score.score.value) for score in scores]
@@ -202,14 +213,23 @@ def ci(
             point = float(values[0]) if values else 0.0
             return {"lower": point, "upper": point}
 
-        if method == "normal":
+        if method == "t":
             mean = float(np.mean(values))
-            z = NormalDist().inv_cdf(1.0 - tail)
             if cluster is not None:
-                se = _clustered_stderr(scores, cluster, to_float)
+                se = _clustered_stderr(scores, cluster, to_float, "ci")
+                # _clustered_stderr validated that every sample has the key
+                cluster_count = len(
+                    {
+                        cast("dict[str, object]", sample_score.sample_metadata)[cluster]
+                        for sample_score in scores
+                    }
+                )
+                df = max(cluster_count - 1, 1)
             else:
                 se = _clt_stderr(values)
-            return {"lower": mean - z * se, "upper": mean + z * se}
+                df = len(values) - 1
+            t = _t_inv_cdf(1.0 - tail, df)
+            return {"lower": mean - t * se, "upper": mean + t * se}
         elif method == "bootstrap":
             boot_means = _bootstrap_means(
                 scores, values, to_float, cluster, num_samples
@@ -219,10 +239,22 @@ def ci(
             return {"lower": lower, "upper": upper}
         else:
             raise ValueError(
-                f"Unknown ci method '{method}' (expected 'normal' or 'bootstrap')"
+                f"Unknown ci method '{method}' (expected 't' or 'bootstrap')"
             )
 
-    return metric
+    return metric_fn
+
+
+def _clt_stderr(values: list[float]) -> float:
+    """Central Limit Theorem standard error of the mean of `values`."""
+    import numpy as np
+
+    n = len(values)
+    # standard deviation divides by n - ddof, so guard against n < 2
+    if (n - 1) < 1:
+        return 0.0
+    sample_std = np.std(values, ddof=1)
+    return cast(float, sample_std / np.sqrt(n))
 
 
 def _bootstrap_means(
@@ -234,9 +266,9 @@ def _bootstrap_means(
 ) -> list[float]:
     """Bootstrap distribution of the mean.
 
-    Resamples individual scores i.i.d. when `cluster` is None, otherwise resamples
-    whole clusters with replacement (cluster bootstrap) so within-cluster
-    correlation is preserved.
+    Resamples individual scores i.i.d. when `cluster` is None, otherwise
+    resamples whole clusters with replacement (cluster bootstrap) so
+    within-cluster correlation is preserved.
     """
     import numpy as np
 
@@ -248,7 +280,6 @@ def _bootstrap_means(
             for _ in range(num_samples)
         ]
 
-    # group values by cluster
     groups: dict[object, list[float]] = {}
     for sample_score in scores:
         if (
@@ -256,7 +287,7 @@ def _bootstrap_means(
             or cluster not in sample_score.sample_metadata
         ):
             raise ValueError(
-                f"Sample {sample_score.sample_id} has no cluster metadata. To compute clustered intervals, each sample metadata must have a value for '{cluster}'"
+                f"Sample {sample_score.sample_id} has no cluster metadata. To compute `ci` with clustering, each sample metadata must have a value for '{cluster}'"
             )
         key = sample_score.sample_metadata[cluster]
         groups.setdefault(key, []).append(to_float(sample_score.score.value))
@@ -269,6 +300,107 @@ def _bootstrap_means(
         resampled = np.concatenate([cluster_arrays[i] for i in picks])
         means.append(float(np.mean(resampled)))
     return means
+
+
+def _t_inv_cdf(p: float, df: int) -> float:
+    """Student-t inverse CDF, dependency-free.
+
+    Exact to bisection precision via the regularized incomplete beta
+    function (for t >= 0, `F(t) = 1 - I_x(df/2, 1/2) / 2` with
+    `x = df / (df + t^2)`), rather than a Cornish-Fisher-style series —
+    the series is least accurate at exactly the small `df` this exists
+    to serve. Called once per metric evaluation, so speed is irrelevant.
+    """
+    if not 0.0 < p < 1.0:
+        raise ValueError(f"t quantile requires 0 < p < 1, got {p}")
+    if df < 1:
+        raise ValueError(f"t quantile requires df >= 1, got {df}")
+    if p == 0.5:
+        return 0.0
+    if p < 0.5:
+        return -_t_inv_cdf(1.0 - p, df)
+
+    def cdf(t: float) -> float:
+        x = df / (df + t * t)
+        return 1.0 - 0.5 * _reg_inc_beta(df / 2.0, 0.5, x)
+
+    # bracket the quantile, then bisect
+    hi = 1.0
+    while cdf(hi) < p:
+        hi *= 2.0
+    lo = 0.0
+    for _ in range(100):
+        mid = (lo + hi) / 2.0
+        if cdf(mid) < p:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+def _reg_inc_beta(a: float, b: float, x: float) -> float:
+    """Regularized incomplete beta function I_x(a, b) (Numerical Recipes 6.4)."""
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    ln_front = (
+        math.lgamma(a + b)
+        - math.lgamma(a)
+        - math.lgamma(b)
+        + a * math.log(x)
+        + b * math.log1p(-x)
+    )
+    front = math.exp(ln_front)
+    # continued fraction converges fast for x < (a + 1) / (a + b + 2);
+    # otherwise use the symmetry I_x(a, b) = 1 - I_(1-x)(b, a)
+    if x < (a + 1.0) / (a + b + 2.0):
+        return front * _beta_continued_fraction(a, b, x) / a
+    else:
+        return 1.0 - front * _beta_continued_fraction(b, a, 1.0 - x) / b
+
+
+def _beta_continued_fraction(a: float, b: float, x: float) -> float:
+    """Lentz's continued fraction for the incomplete beta function."""
+    max_iterations = 200
+    epsilon = 3e-16
+    tiny = 1e-300
+
+    qab = a + b
+    qap = a + 1.0
+    qam = a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    if abs(d) < tiny:
+        d = tiny
+    d = 1.0 / d
+    h = d
+    for m in range(1, max_iterations + 1):
+        m2 = 2 * m
+        # even step
+        aa = m * (b - m) * x / ((qam + m2) * (a + m2))
+        d = 1.0 + aa * d
+        if abs(d) < tiny:
+            d = tiny
+        c = 1.0 + aa / c
+        if abs(c) < tiny:
+            c = tiny
+        d = 1.0 / d
+        h *= d * c
+        # odd step
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2))
+        d = 1.0 + aa * d
+        if abs(d) < tiny:
+            d = tiny
+        c = 1.0 + aa / c
+        if abs(c) < tiny:
+            c = tiny
+        d = 1.0 / d
+        delta = d * c
+        h *= delta
+        if abs(delta - 1.0) < epsilon:
+            break
+    return h
 
 
 @metric

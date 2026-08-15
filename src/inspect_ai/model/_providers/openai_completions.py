@@ -78,7 +78,8 @@ async def generate_completions(
         tool_choice=openai_chat_tool_choice(tool_choice)
         if len(tools) > 0
         else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
         **completion_params_completions(openai_api, config, len(tools) > 0),
     )
     if isinstance(prompt_cache_key, str):
@@ -150,5 +151,11 @@ def completion_params_completions(
         openai_api.is_gpt() and not openai_api.is_gpt_5()
     ):
         del params["reasoning_effort"]
+
+    if config.reasoning_mode is not None:
+        warn_once(
+            logger,
+            "The 'reasoning_mode' option is not supported by the chat completions API (use the responses API instead).",
+        )
 
     return params

@@ -246,6 +246,10 @@ class MessageWidget(Widget):
         # to the session's current model when the chunk had no
         # `_meta["inspect.model"]` (e.g. an old server).
         model = self._group.model or self._current_model or "—"
+        if self._group.fallback_model:
+            model = (
+                f"{model} [italic](fallback → {self._group.fallback_model})[/italic]"
+            )
         base = f"[bold {fg}]assistant[/] [dim]· {model}[/dim]"
         # Glyph prefix on every assistant chip — animated braille
         # spinner while the model event is in flight, then a small

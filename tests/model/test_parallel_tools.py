@@ -10,11 +10,31 @@ import anyio
 import pytest
 
 from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool import ToolError, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
+
+# -- fixtures ---------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _fresh_transcript():
+    """Give each test its own transcript.
+
+    These tests call `execute_tools` directly (outside an eval) and then read
+    back the `ToolEvent`s it records. Tool events are written to the active
+    transcript, which `transcript()` lazily creates per task context. Without
+    an explicit transcript installed in the test's own task, each spawned tool
+    task creates a throwaway transcript the test never sees — so the assertions
+    would silently depend on a prior test in the same xdist worker having
+    initialized the contextvar. Installing one here makes the tests
+    order-independent (and thus `-n auto` safe).
+    """
+    init_transcript(Transcript())
+
 
 # -- helpers ----------------------------------------------------------------
 

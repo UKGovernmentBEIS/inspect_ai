@@ -15,5 +15,10 @@ class SampleInitEvent(BaseEvent):
     sample: Sample
     """Sample."""
 
-    state: JsonValue
-    """Initial state."""
+    state: JsonValue = None
+    """Initial state.
+
+    Defaults to None so events round-trip through log serialization,
+    which writes with exclude_none=True (a None state is omitted from
+    the written JSON and must not fail validation on read).
+    """

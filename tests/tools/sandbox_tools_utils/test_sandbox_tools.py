@@ -21,6 +21,8 @@ from inspect_ai.solver import (
 from inspect_ai.tool import ToolCallError, bash_session, text_editor
 
 
+# The Alpine variant exercises the musl injectable: detection routes musl sandboxes
+# to the -musl onedir bundle. See design/plans/sandbox-tools-onedir.md.
 @pytest.mark.parametrize(
     "sandbox",
     [

@@ -1,20 +1,33 @@
 | Model | Default effort |
 |---|---|
+| anthropic/claude-fable-5 | high |
+| anthropic/claude-mythos-5 | high |
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
 | anthropic/claude-opus-4-8 | high |
+| anthropic/claude-opus-5 | high |
 | anthropic/claude-sonnet-4-6 | adaptive |
+| anthropic/claude-sonnet-5 | high |
 | deepseek/deepseek-reasoner | no effort scale |
+| deepseek/deepseek-v4-flash | high |
+| deepseek/deepseek-v4-pro | high |
 | google/gemini-3-flash-preview | medium |
 | google/gemini-3-pro | high |
 | google/gemini-3.1-flash-lite-preview | medium |
 | google/gemini-3.1-pro | high |
 | google/gemini-3.5-flash | medium |
+| google/gemini-3.5-flash-lite | minimal |
+| google/gemini-3.6-flash | medium |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
 | grok/grok-4.3 | low |
+| grok/grok-4.5 | high |
+| grok/grok-4.6 | high |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
+| mistral/mistral-medium-2604 | none |
+| mistral/mistral-small-2603 | none |
+| moonshotai/kimi-k3 | max |
 | openai/gpt-5 | medium |
 | openai/gpt-5-mini | medium |
 | openai/gpt-5-nano | medium |

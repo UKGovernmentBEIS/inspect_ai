@@ -1,7 +1,7 @@
 """On-disk schema for the host context written at each checkpoint fire.
 
-A sample working dir holds five JSON files that restic snapshots each
-cycle (see ``design/plans/checkpointing-working.md`` §5):
+A sample working dir holds six JSON files that restic snapshots each
+cycle:
 
 - ``events.json`` — condensed transcript events.
 - ``events_data.json`` — ``EventsData`` (messages, calls dedup pools).
@@ -9,6 +9,9 @@ cycle (see ``design/plans/checkpointing-working.md`` §5):
 - ``store.json`` — Store key/value.
 - ``agent_state.json`` — agent-defined property bag (optional; written
   only when the agent has registered at least one ``track()`` callback).
+- ``assistant_internal.json`` — provider-smuggled wire content (optional;
+  written only when a provider has recorded something — see
+  ``inspect_ai.model._assistant_internal``).
 
 This module owns the on-disk schema: filename constants, the
 serialization format, and the read shape. Keeping the schema centralized
@@ -33,6 +36,7 @@ EVENTS_DATA = "events_data.json"
 ATTACHMENTS = "attachments.json"
 STORE = "store.json"
 AGENT_STATE = "agent_state.json"
+ASSISTANT_INTERNAL = "assistant_internal.json"
 
 
 @dataclass
@@ -48,6 +52,13 @@ class HostContext:
     """``None`` skips writing ``agent_state.json`` entirely; absence on
     disk signals "the agent never opted in via ``track()``." On read,
     ``None`` is returned when the file is absent."""
+
+    assistant_internal: JsonValue | None = None
+    """Dump of provider-smuggled wire content (thinking blocks, tool call
+    params) from ``dump_sample_assistant_internal()``. ``None`` skips
+    writing ``assistant_internal.json``; on read, ``None`` is returned
+    when the file is absent (no provider recorded anything, or the
+    checkpoint predates this file)."""
 
 
 def read(working_dir: str) -> HostContext:
@@ -66,6 +77,12 @@ def read(working_dir: str) -> HostContext:
     agent_state: dict[str, Any] | None = (
         json.loads(agent_state_path.read_text()) if agent_state_path.is_file() else None
     )
+    assistant_internal_path = p / ASSISTANT_INTERNAL
+    assistant_internal: JsonValue | None = (
+        json.loads(assistant_internal_path.read_text())
+        if assistant_internal_path.is_file()
+        else None
+    )
     return HostContext(
         condensed_events=condensed_events,
         msg_pool=msg_pool,
@@ -73,4 +90,5 @@ def read(working_dir: str) -> HostContext:
         attachments=attachments,
         store=store_data,
         agent_state=agent_state,
+        assistant_internal=assistant_internal,
     )
