@@ -104,9 +104,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         # can be hidden from the agent; fall back to the default user for rootless
         # sandboxes (where user-switching will be disabled, auto-detected by the
         # server).
-        if (
-            await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
-        ).success:
+        if await _create_tools_dir_as_root(sandbox):
             sandbox._tools_user = "root"
         else:
             result = await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR])
@@ -141,6 +139,20 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e
         ) from e
+
+
+async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
+    try:
+        return (
+            await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
+        ).success
+    except Exception as ex:
+        trace_message(
+            logger,
+            TRACE_SANDBOX_TOOLS,
+            f"root sandbox tools dir probe failed; falling back to default user: {ex}",
+        )
+        return False
 
 
 async def _extract_tools_tree(
