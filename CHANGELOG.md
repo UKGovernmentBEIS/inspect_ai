@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Bugfix: `Task(approval=...)` policies are now recorded in `EvalSpec.config.approval`. (#4881)
 - Anthropic: models returning omitted (empty) thinking summaries no longer misreport `usage.reasoning_tokens` and log a token-counting warning on every generate.
 - Grok: Support for Grok 4.6, including its new `xhigh` reasoning effort and a `service_tier` model argument for Priority Processing.
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
