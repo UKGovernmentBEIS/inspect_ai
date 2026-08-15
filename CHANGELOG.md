@@ -10,6 +10,7 @@
 - Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
 - OpenAI: the OpenAI providers and agent bridge now require openai >= 3.0.0, which verifies TLS against the OS trust store instead of certifi's bundle.
 - Scoring: Model-graded scorers can require their grader model role, preventing unintended fallback to the model being evaluated. (#4695)
+- Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
 
 ## 0.3.258 (11 August 2026)
 
