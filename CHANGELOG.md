@@ -7,6 +7,7 @@
 - Control Channel: `inspect ctl` mutations with piped or captured output now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
 - Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
 - OpenAI: the OpenAI providers and agent bridge now require openai >= 3.0.0, which verifies TLS against the OS trust store instead of certifi's bundle.
+- Scoring: Model-graded scorers can require their grader model role, preventing unintended fallback to the model being evaluated. (#4695)
 
 ## 0.3.258 (11 August 2026)
 
@@ -38,6 +39,7 @@
 
 - Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
 - Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
+- Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
 
 ## 0.3.255 (09 August 2026)
 
