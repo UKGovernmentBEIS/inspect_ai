@@ -1166,3 +1166,53 @@ def test_ci_clustered_missing_metadata_raises():
         ci(cluster="c")(
             [SampleScore(score=Score(value=1)), SampleScore(score=Score(value=0))]
         )
+
+
+def test_t_inv_cdf_extreme_tails():
+    # closed forms give implementation-independent references that stress the
+    # continued fraction where it matters most (heavy tails, small df):
+    # df=1 (Cauchy): t_p = tan(pi * (p - 1/2))
+    # df=2: t_p = a * sqrt(2 / (1 - a^2)) with a = 2p - 1
+    for p_val in (0.999, 0.9995, 0.9999):
+        assert _t_inv_cdf(p_val, 1) == pytest.approx(
+            math.tan(math.pi * (p_val - 0.5)), rel=1e-9
+        )
+        a = 2.0 * p_val - 1.0
+        assert _t_inv_cdf(p_val, 2) == pytest.approx(
+            a * math.sqrt(2.0 / (1.0 - a * a)), rel=1e-9
+        )
+    # deep lower tail directly (not via the symmetry shortcut's own path)
+    assert _t_inv_cdf(0.0005, 1) == pytest.approx(
+        math.tan(math.pi * (0.0005 - 0.5)), rel=1e-9
+    )
+
+
+def test_ci_metric_end_to_end():
+    # ci() returns a Mapping, the road-less-traveled for metrics: verify the
+    # dict value flattens into per-key EvalMetric entries in a real eval log
+    from inspect_ai.scorer import scorer
+
+    @scorer(metrics=[ci()])
+    def input_value_scorer():
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value=float(state.input_text))
+
+        return score
+
+    task = Task(
+        dataset=[Sample(input=str(v), target="-") for v in (0, 0, 1, 1)],
+        scorer=input_value_scorer(),
+    )
+    log = eval(task, model="mockllm/model", display="none")[0]
+
+    assert log.results is not None
+    metrics = log.results.scores[0].metrics
+    assert set(metrics) >= {"lower", "upper"}
+    assert metrics["lower"].group == "ci"
+    assert metrics["upper"].group == "ci"
+
+    # values [0, 0, 1, 1]: mean 0.5, se = std(ddof=1)/sqrt(4), df = 3
+    se = 0.5773502691896258 / 2.0
+    half_width = _t_inv_cdf(0.975, 3) * se
+    assert metrics["lower"].value == pytest.approx(0.5 - half_width, rel=1e-9)
+    assert metrics["upper"].value == pytest.approx(0.5 + half_width, rel=1e-9)
