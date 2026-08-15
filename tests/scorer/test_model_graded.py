@@ -6,18 +6,20 @@ from typing import Any, Callable
 
 import pytest
 
-from inspect_ai import Task, eval
+from inspect_ai import Task, eval, score
+from inspect_ai._eval.score import resolve_scorers
 from inspect_ai._util.content import ContentImage, ContentText
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._sources.json import json_dataset
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName
+from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelName, ModelRole
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
     PARTIAL,
+    Scorer,
     Target,
     model_graded_fact,
     model_graded_qa,
@@ -175,6 +177,105 @@ def test_model_role_precedence_for_model_graded_scorer(
     )
 
     assert grading_event.role == expected_role
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_can_require_model_role(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    task = Task(
+        scorer=scorer_factory(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "error"
+    assert log.error is not None
+    assert log.error.message == "Model role 'grader' is required and was not specified."
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_required_model_role_succeeds_when_bound(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=scorer_factory(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": grader_model},
+    )[0]
+
+    assert log.status == "success"
+
+
+@pytest.mark.parametrize("scorer_factory", [model_graded_fact, model_graded_qa])
+def test_model_graded_scorer_explicit_model_overrides_required_model_role(
+    scorer_factory: Callable[..., Scorer],
+) -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")])
+        ],
+    )
+    task = Task(
+        scorer=scorer_factory(
+            model=grader_model,
+            model_role=ModelRole("grader", required=True),
+        ),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.status == "success"
+
+
+def test_model_graded_scorer_model_role_round_trips_through_log() -> None:
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")]),
+            ModelOutput.from_content("mockllm/model", [ContentText(text="GRADE: C")]),
+        ],
+    )
+    task = Task(
+        scorer=model_graded_qa(model_role=ModelRole("grader", required=True)),
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+    )
+
+    log = eval(
+        task,
+        model="mockllm/model",
+        model_roles={"grader": grader_model},
+    )[0]
+
+    assert log.eval.scorers is not None
+    assert log.eval.scorers[0].options is not None
+    assert log.eval.scorers[0].options["model_role"] == {
+        "name": "grader",
+        "required": True,
+    }
+
+    rescored_log = score(
+        log,
+        resolve_scorers(log),
+        model_roles={"grader": grader_model},
+        action="overwrite",
+    )
+
+    assert rescored_log.status == "success"
 
 
 def test_model_graded_answer_set_on_grade_parse_failure():
