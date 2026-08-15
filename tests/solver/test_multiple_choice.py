@@ -492,7 +492,6 @@ async def test_multiple_correct_comma_and():
     }
 
 
-# Added Unit Test1 added to verifiy fix in _multiple_choice.py
 @pytest.mark.anyio
 async def test_multiple_correct_oxford_comma():
     # "A, B, and C" uses an Oxford comma
@@ -512,7 +511,6 @@ async def test_multiple_correct_oxford_comma():
     }
 
 
-# Added Unit Test2 added to verifiy fix in _multiple_choice.py
 @pytest.mark.anyio
 async def test_multiple_correct_trailing_comma():
     generate = generate_for_multiple_correct(answers="ANSWER: A, C,")
