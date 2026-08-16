@@ -181,7 +181,9 @@ class TestPollRetryExhaustion:
             with pytest.raises(RuntimeError, match="exit code 137"):
                 await proc._poll()
 
-        assert sandbox.exec.call_count >= 5
+        # stop_after_attempt(5) pins the attempt count; keep the assertion
+        # exact so a stop-config regression is caught
+        assert sandbox.exec.call_count == 5
 
 
 class TestKill:
