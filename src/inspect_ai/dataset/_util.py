@@ -192,7 +192,9 @@ def read_choices(obj: Any | None) -> list[str] | None:
             choices = obj.split(",")
             if len(choices) == 1:
                 choices = obj.split()
-            return [choice.strip() for choice in choices]
+            # drop empty entries so a trailing or doubled comma does not
+            # produce an empty-string choice
+            return [choice.strip() for choice in choices if choice.strip()]
         else:
             return [str(obj)]
     else:
