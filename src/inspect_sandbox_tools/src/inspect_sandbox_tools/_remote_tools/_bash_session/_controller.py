@@ -1,3 +1,4 @@
+import asyncio
 import pwd
 
 from ..._util.common_types import ToolException
@@ -36,10 +37,25 @@ class Controller(SessionController[Session]):
         input_text: str | None,
         wait_for_output: int,
         idle_timeout: float,
+        max_output_bytes: int | None,
     ) -> InteractResult:
         return await self.session_for_name(session_name).interact(
-            input_text, wait_for_output, idle_timeout
+            input_text, wait_for_output, idle_timeout, max_output_bytes
         )
 
     async def restart(self, session_name: str, timeout: int = 30) -> BashRestartResult:
         return await self.session_for_name(session_name).restart(timeout)
+
+    async def shutdown(self) -> None:
+        """Terminate every bash session owned by this server."""
+        with self._lock:
+            sessions = list(self._sessions.values())
+            self._sessions.clear()
+
+        results = await asyncio.gather(
+            *(session.shutdown(timeout=30) for session in sessions),
+            return_exceptions=True,
+        )
+        errors = [result for result in results if isinstance(result, Exception)]
+        if errors:
+            raise RuntimeError("; ".join(str(error) for error in errors))

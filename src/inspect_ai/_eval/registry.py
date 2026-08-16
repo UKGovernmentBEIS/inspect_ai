@@ -8,13 +8,14 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.package import get_installed_package_name
 from inspect_ai._util.registry import (
     RegistryInfo,
+    create_registry_object,
     extract_named_params,
     registry_add,
-    registry_create,
     registry_info,
     registry_lookup,
     registry_name,
     registry_tag,
+    set_return_annotation,
 )
 
 from .task import Task
@@ -54,7 +55,22 @@ def task_register(
     return task
 
 
-def task_create(name: str, **kwargs: Any) -> Task:
+def _has_var_keyword(factory: object) -> bool:
+    """Whether a registered factory declares a variadic keyword parameter.
+
+    A factory may name its variadic keyword parameter anything (`**extra`,
+    `**config`), so pass-through checks cannot key on the literal name
+    "kwargs" — ask the signature whether it takes one at all.
+    """
+    return any(
+        param.kind == inspect.Parameter.VAR_KEYWORD
+        for param in inspect.signature(
+            cast(Callable[..., Any], factory)
+        ).parameters.values()
+    )
+
+
+def task_create(name: str, /, **kwargs: Any) -> Task:
     r"""Create a Task based on its registered name.
 
     Tasks can be a function that returns a Task or a
@@ -75,14 +91,18 @@ def task_create(name: str, **kwargs: Any) -> Task:
         raise PrerequisiteError(f"Task named '{name}' not found.")
     task_info = registry_info(task)
     task_params: list[str] = task_info.metadata["params"]
+    has_var_keyword = _has_var_keyword(task)
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
-        if param in task_params or "kwargs" in task_params:
+        if param in task_params or has_var_keyword:
             task_args[param] = kwargs[param]
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    return registry_create("task", name, **task_args)
+    # create_registry_object takes creation args as a dict, so a task arg
+    # named `name`/`type` cannot collide with registry_create's own
+    # leading parameters on replay.
+    return cast(Task, create_registry_object("task", name, task_args))
 
 
 @overload
@@ -151,9 +171,7 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
             # Return the task instance
             return task_instance
 
-        # functools.wraps overrides the return type annotation of the inner function, so
-        # we explicitly set it again
-        wrapper.__annotations__["return"] = Task
+        set_return_annotation(wrapper, Task)
 
         # Register the task and return the wrapper
         return task_register(
@@ -193,7 +211,7 @@ def task_source_register(
     return task_source
 
 
-def task_source_create(name: str, **kwargs: Any) -> TaskSource:
+def task_source_create(name: str, /, **kwargs: Any) -> TaskSource:
     r"""Create a `TaskSource` based on its registered name.
 
     Args:
@@ -209,16 +227,14 @@ def task_source_create(name: str, **kwargs: Any) -> TaskSource:
         raise PrerequisiteError(f"Task source named '{name}' not found.")
     info = registry_info(source)
     params: list[str] = info.metadata["params"]
+    has_var_keyword = _has_var_keyword(source)
     args: dict[str, Any] = {}
     for param in kwargs.keys():
-        if param in params or "kwargs" in params:
+        if param in params or has_var_keyword:
             args[param] = kwargs[param]
         else:
             logger.warning(f"param '{param}' not used by task source '{name}'")
-    # call the registered wrapper directly (it tags the instance with registry
-    # info); registry_create only invokes factories whose return-type name
-    # matches the registry type, which "task_source" / TaskSource does not
-    return cast(Callable[..., TaskSource], source)(**args)
+    return cast(TaskSource, create_registry_object("task_source", name, args))
 
 
 @overload
@@ -285,8 +301,7 @@ def task_source(*args: Any, name: str | None = None, **attribs: Any) -> Any:
 
             return source_instance
 
-        # functools.wraps overrides the return annotation, so set it again
-        wrapper.__annotations__["return"] = TaskSource
+        set_return_annotation(wrapper, TaskSource)
 
         return task_source_register(
             task_source=cast(TaskSourceType, wrapper),

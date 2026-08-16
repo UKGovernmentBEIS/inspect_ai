@@ -9,10 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
 
-import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
     APIConnectionError,
     APIStatusError,
     APITimeoutError,
@@ -49,7 +46,7 @@ from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
 from pydantic import JsonValue
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -126,6 +123,17 @@ def is_o_series_model(model_name: str) -> bool:
     if bool(re.match(r"^o\d+", name)):
         return True
     return "gpt" not in name and bool(re.search(r"o\d+", name))
+
+
+_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
+
+
+def supports_native_max_reasoning_effort(model_name: str) -> bool:
+    """`max` reasoning effort shipped with gpt-5.6; earlier gpt-5.x top out at `xhigh`."""
+    match = _GPT_VERSION_RE.match(model_name.lower())
+    if match is None:
+        return False
+    return (int(match.group(1)), int(match.group(2) or 0)) >= (5, 6)
 
 
 def needs_max_completion_tokens(model_name: str) -> bool:
@@ -303,6 +311,20 @@ async def messages_to_openai(
        system_role: Role to use for system messages (newer OpenAI models use "developer" rather than "system").
     """
     return [await openai_chat_message(message, system_role) for message in messages]
+
+
+def fill_empty_assistant_content(
+    messages: list[ChatCompletionMessageParam],
+) -> list[ChatCompletionMessageParam]:
+    """Replace empty assistant message content with NO_CONTENT.
+
+    Some services (e.g. Moonshot, and CloudFlare gateway-hosted models)
+    reject requests that replay an assistant message with empty content.
+    """
+    for message in messages:
+        if message["role"] == "assistant" and not message.get("content"):
+            message["content"] = NO_CONTENT
+    return messages
 
 
 def openai_completion_params(
@@ -1197,22 +1219,3 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that uses OpenAI's default settings.
-
-    This ensures proper proxy support and follows OpenAI's recommended configuration.
-    OpenAI has already incorporated timeout improvements for reasoning models in their
-    default transport, so we don't need custom socket options.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # Use OpenAI's default settings which handle proxies correctly
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        super().__init__(**kwargs)

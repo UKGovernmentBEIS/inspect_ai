@@ -15,6 +15,7 @@ from inspect_ai.util._limit import (
     check_turn_limit,
     record_turn,
     suspend_turn_limit,
+    turn_count,
     turn_limit,
 )
 
@@ -197,6 +198,25 @@ def test_can_get_usage_after_context_manager_closed() -> None:
         _consume_turns(5)
 
     assert limit.usage == 5
+
+
+def test_turn_count_none_when_no_active_limit() -> None:
+    assert turn_count() is None
+
+
+def test_turn_count_reports_turns() -> None:
+    with turn_limit(10):
+        _consume_turns(3)
+        assert turn_count() == 3
+
+
+def test_turn_count_reports_root_when_nested() -> None:
+    # turn count reflects the outermost (sample-level) limit, not the inner scope
+    with turn_limit(10):
+        _consume_turns(2)
+        with turn_limit(10):
+            _consume_turns(1)
+            assert turn_count() == 3
 
 
 def test_can_get_usage_nested() -> None:

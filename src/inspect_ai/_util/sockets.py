@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import socket
 import stat
+import struct
 import sys
 from pathlib import Path
 
@@ -52,6 +54,53 @@ def lock_socket_file(path: Path) -> None:
         path.chmod(SOCKET_FILE_MODE)
     except OSError:
         pass
+
+
+# struct xucred fields read for LOCAL_PEERCRED on macOS / FreeBSD:
+# { u_int cr_version; uid_t cr_uid; short cr_ngroups; gid_t cr_groups[16]; }.
+# Only the leading (version, uid) pair is unpacked; the buffer size requests
+# the full struct (the kernel truncates to the actual length regardless).
+_SOL_LOCAL = 0
+_LOCAL_PEERCRED = 0x0001
+_XUCRED_VERSION = 0
+_XUCRED_SIZE = 4 + 4 + 2 + 2 + 16 * 4
+
+
+def peer_uid(sock: socket.socket) -> int | None:
+    """Effective UID of the peer on a connected AF_UNIX stream socket.
+
+    Linux reads ``SO_PEERCRED`` (``struct ucred``: pid / uid / gid, captured
+    at connect time); macOS and FreeBSD read ``LOCAL_PEERCRED`` (``struct
+    xucred``). Returns ``None`` when the credential cannot be determined —
+    a non-AF_UNIX socket, a platform without a peer-credential API (eg.
+    Windows), or a failed ``getsockopt``. Callers own the policy for
+    ``None``: the control server fails open (the credential check there is
+    defence-in-depth on top of the 0700/0600 filesystem permissions, and
+    failing closed would brick the surface on platforms without the API).
+    """
+    if not hasattr(socket, "AF_UNIX") or sock.family != socket.AF_UNIX:
+        return None
+    try:
+        if sys.platform == "linux":
+            # struct ucred { pid_t pid; uid_t uid; gid_t gid; } — pid_t is
+            # signed but uid_t/gid_t are unsigned; unpacking uid as signed
+            # would mangle uids >= 2**31 (eg. nfsnobody 4294967294) and
+            # wrongly reject that user's own connection.
+            data = sock.getsockopt(
+                socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("iII")
+            )
+            _pid, uid, _gid = struct.unpack("iII", data)
+            return int(uid)
+        elif sys.platform == "darwin" or sys.platform.startswith("freebsd"):
+            data = sock.getsockopt(_SOL_LOCAL, _LOCAL_PEERCRED, _XUCRED_SIZE)
+            version, uid = struct.unpack_from("2I", data)
+            if version != _XUCRED_VERSION:
+                return None
+            return int(uid)
+        else:
+            return None
+    except OSError:
+        return None
 
 
 def has_unix_sockets() -> bool:

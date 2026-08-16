@@ -238,7 +238,17 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             content: ContentReasoning,
         ) -> dict[str, JsonValue] | str:
             if _strip_reasoning_details:
-                return reasoning_to_think_tag(content)
+                # Gemini can't use reasoning_details on replay — emit only the
+                # readable text so the model sees clean CoT without the
+                # HTML-escaped JSON signature or encrypted blob.
+                text = (
+                    content.summary if content.redacted else content.reasoning
+                ) or ""
+                if not text.strip():
+                    # no readable text (e.g. redacted reasoning with no
+                    # summary) — skip the tag rather than emit an empty one
+                    return {}
+                return f"<think>\n{text}\n</think>"
             details = reasoning_to_openrouter_reasoning_details(content)
             if _replay_reasoning_content:
                 reasoning_content: dict[str, JsonValue] = {

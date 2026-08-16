@@ -2,10 +2,11 @@
 
 Mostly against a moto-backed S3: ``_fs_copy_cross_cutting`` and
 ``_fs_copy_repo`` downloading a remote sample dir's contents into a
-local staging dir, plus the ``seed_manifest`` step that marks them as
-already-shipped so the next host_egress doesn't re-upload the resume
-payload. Also covers ``_fs_copy_repo`` against a local relative source
-(the path form eval-retry actually supplies).
+local staging dir, plus the hydrate-time ``host_egress`` that ships the
+resume payload to the new attempt's destination (and records it so the
+next fire's egress doesn't re-upload it). Also covers ``_fs_copy_repo``
+against a local relative source (the path form eval-retry actually
+supplies).
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai.util._checkpoint._host_egress import (
     MANIFEST_FILENAME,
     host_egress,
-    seed_manifest,
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 from inspect_ai.util._checkpoint.hydrate import (
@@ -182,37 +182,52 @@ async def test_fs_copy_repo_raises_when_source_missing(
             raise AssertionError("expected RuntimeError when source missing")
 
 
-async def test_seed_manifest_after_remote_resume_blocks_reupload(
+async def test_remote_resume_ships_payload_to_new_destination(
     tmp_path: Path, mock_s3: None
 ) -> None:
-    """Seeding the manifest blocks the first post-resume host_egress.
+    """Hydrate-time host_egress makes the new attempt's dir resumable.
 
-    After resume populates staging from the destination and we
-    seed_manifest, a subsequent host_egress with no new files should be
-    a no-op — the destination is unchanged (no re-upload).
+    Each retry attempt writes to its own remote sample dir (derived from
+    its log location), so the payload downloaded from the *prior*
+    attempt's dir must ship to the *new* destination at hydrate time —
+    before any agent work runs. Otherwise a crash before the first
+    post-resume fire leaves the new dir empty and the next retry (which
+    looks only there) restarts the sample from scratch.
     """
-    src_root = f"{S3_BUCKET}/seed-manifest.checkpoints/s__0"
+    old_root = f"{S3_BUCKET}/old.checkpoints/s__0"
+    new_root = f"{S3_BUCKET}/new.checkpoints/s__0"
     staging = tmp_path / "staging"
     staging.mkdir()
     (staging / "context").mkdir()
 
     async with AsyncFilesystem() as fs:
-        # Set up the destination with a complete sample subtree.
+        # The prior attempt's sample dir holds a complete subtree.
         await _put(
-            fs, f"{src_root}/restic/restic-config.json", b'{"restic_password":"p"}'
+            fs, f"{old_root}/restic/restic-config.json", b'{"restic_password":"p"}'
         )
-        await _put(fs, f"{src_root}/restic/host/config", b"cfg")
-        await _put(fs, f"{src_root}/restic/host/data/ab/cd", b"pack")
-        await _put(fs, f"{src_root}/ckpt-00001.json", _checkpoint_bytes(1))
+        await _put(fs, f"{old_root}/restic/host/config", b"cfg")
+        await _put(fs, f"{old_root}/restic/host/data/ab/cd", b"pack")
+        await _put(fs, f"{old_root}/ckpt-00001.json", _checkpoint_bytes(1))
 
-        # Resume: download into a fresh local staging dir.
-        await _fs_copy_cross_cutting(src_root, str(staging))
+        # Resume: download into a fresh local staging dir, then ship the
+        # payload to the new attempt's destination (as hydrate does).
+        await _fs_copy_cross_cutting(old_root, str(staging))
         await _fs_copy_repo(
-            src_root, "restic/host", str(staging / "restic" / "host"), label="host"
+            old_root, "restic/host", str(staging / "restic" / "host"), label="host"
         )
-        seed_manifest(str(staging))
+        await host_egress(staging_dir=str(staging), destination_dir=new_root)
 
-        # Manifest should list everything we just downloaded.
+        # The new destination holds the full payload — resumable even if
+        # this attempt never fires another checkpoint.
+        assert await fs.read_file(f"{new_root}/ckpt-00001.json") == _checkpoint_bytes(1)
+        assert await fs.read_file(f"{new_root}/restic/host/config") == b"cfg"
+        assert await fs.read_file(f"{new_root}/restic/host/data/ab/cd") == b"pack"
+        assert (
+            await fs.read_file(f"{new_root}/restic/restic-config.json")
+            == b'{"restic_password":"p"}'
+        )
+
+        # Manifest records the shipment.
         manifest_lines = (staging / MANIFEST_FILENAME).read_text().splitlines()
         assert set(manifest_lines) == {
             "restic/restic-config.json",
@@ -222,10 +237,9 @@ async def test_seed_manifest_after_remote_resume_blocks_reupload(
         }
 
         # Tamper with the destination to prove the next host_egress doesn't
-        # touch already-manifested files.
-        await fs.write_file(f"{src_root}/restic/host/config", b"untouched")
+        # re-ship already-manifested files.
+        await fs.write_file(f"{new_root}/restic/host/config", b"untouched")
 
-        # Run host_egress with no new staging files — should be a no-op.
-        await host_egress(staging_dir=str(staging), destination_dir=src_root)
+        await host_egress(staging_dir=str(staging), destination_dir=new_root)
 
-        assert await fs.read_file(f"{src_root}/restic/host/config") == b"untouched"
+        assert await fs.read_file(f"{new_root}/restic/host/config") == b"untouched"

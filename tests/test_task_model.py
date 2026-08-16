@@ -93,12 +93,13 @@ def test_dispatch_survives_model_name_mutation(task_retry_attempts: int) -> None
     """Balancing dispatch must survive a provider rewriting its name mid-run.
 
     The vLLM provider resolves a ``base:adapter`` LoRA spec down to ``base`` on
-    the first ``generate()``. The dispatchers in ``_eval/run.py`` track in-flight
-    tasks per model, incrementing at dispatch and decrementing at completion.
-    Keying that count by ``str(model)`` meant the decrement targeted a different
-    key than the increment once the name changed, raising ``KeyError`` at
-    finalisation (e.g. ``"namemut/base"``). ``task_retry_attempts==0`` routes
-    through ``run_multiple``, ``>0`` through ``run_task_retry_attempts``.
+    the first ``generate()``. The ``run_task_retry_attempts`` dispatcher in
+    ``_eval/run.py`` tracks in-flight tasks per model, incrementing at dispatch
+    and decrementing at completion. Keying that count by ``str(model)`` meant
+    the decrement targeted a different key than the increment once the name
+    changed, raising ``KeyError`` at finalisation (e.g. ``"namemut/base"``).
+    Parametrized over ``task_retry_attempts`` to cover the no-retry and
+    retry-granting dispatch configurations.
     """
     with tempfile.TemporaryDirectory() as log_dir:
         logs = eval(

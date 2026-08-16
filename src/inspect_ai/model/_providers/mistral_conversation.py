@@ -130,10 +130,28 @@ async def mistral_conversation_generate(
     ), model_call
 
 
+def mistral_reasoning_effort(
+    effort: str,
+) -> Literal["none", "high"]:
+    """Map Inspect reasoning_effort onto Mistral's two-level scale.
+
+    Mistral reasoning models (Mistral Medium 3.5+ and Mistral Small 4+) accept
+    only "high" (emit a thinking chunk before the answer) and "none" (no
+    thinking); thinking is off when the parameter is omitted. The retired
+    Magistral models' prompt_mode control is gone from the API.
+    https://docs.mistral.ai/capabilities/reasoning/
+    """
+    return "none" if effort == "none" else "high"
+
+
 def mistral_conversation_completion_args(
     config: GenerateConfig, tool_choice: ToolChoice | None
 ) -> CompletionArgs:
     completion_args = CompletionArgs()
+    if config.reasoning_effort is not None:
+        completion_args.reasoning_effort = mistral_reasoning_effort(
+            config.reasoning_effort
+        )
     if config.stop_seqs is not None:
         completion_args.stop = config.stop_seqs
     if config.presence_penalty is not None:

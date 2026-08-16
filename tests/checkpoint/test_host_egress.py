@@ -17,7 +17,6 @@ from inspect_ai.util._checkpoint._host_egress import (
     MANIFEST_FILENAME,
     _safe_order,
     host_egress,
-    seed_manifest,
 )
 from inspect_ai.util._checkpoint._layout.schemas import Checkpoint, SnapshotDetails
 
@@ -145,17 +144,6 @@ async def test_sandbox_repos_shipped(staging: Path, dest: Path) -> None:
     assert (dest / "restic" / "sandboxes" / "default" / "data" / "ab" / "cd").is_file()
 
 
-def test_seed_manifest_skips_torn_checkpoint_files(staging: Path) -> None:
-    _write(staging / "restic" / "host" / "config", "host-config")
-    _write(staging / "ckpt-00001.json", _checkpoint_json(1))
-    _write(staging / "ckpt-00002.json", "{")
-
-    assert seed_manifest(str(staging)) == 2
-
-    manifest = (staging / MANIFEST_FILENAME).read_text().splitlines()
-    assert set(manifest) == {"restic/host/config", "ckpt-00001.json"}
-
-
 async def test_host_egress_does_not_manifest_torn_future_checkpoint(
     staging: Path, dest: Path
 ) -> None:
@@ -165,7 +153,12 @@ async def test_host_egress_does_not_manifest_torn_future_checkpoint(
     _write(staging / "ckpt-00003.json", "{")
     _write(staging / "ckpt-00004.json", "{")
 
-    seed_manifest(str(staging))
+    await host_egress(staging_dir=str(staging), destination_dir=str(dest))
+
+    manifest = (staging / MANIFEST_FILENAME).read_text().splitlines()
+    assert "ckpt-00002.json" in manifest
+    assert "ckpt-00003.json" not in manifest
+    assert not (dest / "ckpt-00003.json").exists()
 
     _write(staging / "ckpt-00003.json", _checkpoint_json(3))
     await host_egress(staging_dir=str(staging), destination_dir=str(dest))

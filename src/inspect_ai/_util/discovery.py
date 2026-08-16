@@ -55,7 +55,7 @@ def prepare_discovery_dir(
 
     1. Create the directory if missing.
     2. Lock it to 0700 (defence-in-depth — see "Security model" in
-       design/control-channel.md).
+       design/ctl/control-channel.md).
     3. Sweep any stale ``<pid>.json`` entries left behind by processes
        that crashed without cleaning up, plus their orphan socket
        nodes.
@@ -92,7 +92,7 @@ def write_discovery_file(dir_path: Path, pid: int, payload: dict[str, Any]) -> P
       file can only ever be *less* permissive, never more.
     - **Atomic publish.** Written to a same-PID temp in ``dir_path`` (so the
       ``replace`` is a same-filesystem rename) and renamed over the final
-      path, so a concurrent enumerator (``inspect ctl tasks``) sees the complete
+      path, so a concurrent enumerator (``inspect ctl task list``) sees the complete
       file or no file — never a torn / partial-JSON read.
 
     Caller is responsible for the payload schema. Returns the path written.

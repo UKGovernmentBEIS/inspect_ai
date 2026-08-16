@@ -152,4 +152,10 @@ def completion_params_completions(
     ):
         del params["reasoning_effort"]
 
+    if config.reasoning_mode is not None:
+        warn_once(
+            logger,
+            "The 'reasoning_mode' option is not supported by the chat completions API (use the responses API instead).",
+        )
+
     return params

@@ -1,3 +1,29 @@
+"""Process-wide registry of running samples (and in-flight model events).
+
+Despite living in the ``log`` package, this module is not about log
+persistence — it's the runtime observability hub for samples currently
+executing in this process. Each running sample has an :class:`ActiveSample`
+in the module-global registry (:func:`active_samples`): the executing side
+(task runner, model layer, limits, solvers) *pushes* live state onto it via
+the ``set_active_sample_*`` functions, and cross-task observers (the TUI,
+the control channel, ACP) read it. The pushes exist because most sample
+state is context-bound (ContextVars, limit trees) and therefore unreachable
+from an observer's task — the registry mirrors it outward. Most such
+mirrors are copied scalars (token/turn totals, limits);
+:attr:`ActiveSample.live_state` is the exception, a *handle* to the
+sample's live ``TaskState`` (copying a conversation per append would be
+prohibitive), and the one upward-pointing object edge here.
+
+That role makes this module a cross-layer hub: it's imported from every
+layer of the stack, and its own references to higher-layer types
+(``TaskState``, ACP transport, hooks) are ``TYPE_CHECKING``-only or
+function-local to keep the module import graph acyclic.
+
+The ``_active_model_event`` half of the file is a sibling concern — tracking
+the in-flight ``ModelEvent`` so providers can attach call payloads and retry
+counts — cohabiting here rather than part of the sample registry.
+"""
+
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -10,6 +36,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    NamedTuple,
 )
 
 if TYPE_CHECKING:
@@ -20,6 +47,7 @@ if TYPE_CHECKING:
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.log._log import EvalRetryError
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
+    from inspect_ai.solver._task_state import TaskState
 
 import anyio
 from anyio.abc import TaskGroup
@@ -39,6 +67,37 @@ from ._transcript import Transcript
 logger = getLogger(__name__)
 
 
+SampleCancelAction = Literal["score", "error", "cancel"]
+"""How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
+
+
+class ActiveSampleRetryWait(NamedTuple):
+    """A model call's retry backoff, mirrored onto the running sample.
+
+    During the backoff between retry attempts there is no pending
+    ``ModelEvent`` to observe (the failed attempt's event completed in
+    place), so without this record the control channel would read the
+    sample as silently idle for the whole wait — precisely the
+    "looks hung but is healthy" misreading the activity indicator exists
+    to fix (design/ctl/generate-progress.md). Stamped by
+    :func:`report_active_sample_retry_wait` from the model retry loop's
+    before-sleep callback; cleared by :func:`clear_active_sample_retry_wait`
+    when the retried call resolves.
+    """
+
+    model: str
+    """Model whose call is waiting to retry."""
+
+    attempt: int
+    """Number of the attempt that just failed (1-based)."""
+
+    started_at: float
+    """When the backoff started (unix ts)."""
+
+    deadline: float
+    """When the wait elapses and the next attempt begins (unix ts)."""
+
+
 class ActiveSample:
     def __init__(
         self,
@@ -50,6 +109,7 @@ class ActiveSample:
         epoch: int,
         message_limit: int | None,
         token_limit: int | None,
+        token_limit_type: str | None = None,
         cost_limit: float | None,
         time_limit: int | None,
         working_limit: int | None,
@@ -81,12 +141,33 @@ class ActiveSample:
         self.epoch = epoch
         self.message_limit = message_limit
         self.token_limit = token_limit
+        # None when no ceiling is configured (metering type is only meaningful
+        # alongside a configured limit)
+        self.token_limit_type: str | None = token_limit_type
         self.cost_limit = cost_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
         self.fails_on_error = fails_on_error
         self.total_messages = 0
         self.total_tokens = 0
+        self.total_turns = 0
+        # Counts of events reported from deep inside the model layer, where the
+        # only handle on "which sample is this?" is `sample_active()`. Both are
+        # also tallied in process-global counters that the TUI footer reads
+        # (`log._refusal`, `_util.retry`); these attribute them to a sample so
+        # the control channel can report them per eval, which a process-global
+        # cannot do — one process runs many evals concurrently.
+        self.refusals = 0
+        self.http_retries = 0
+        # The sample's live `TaskState` — the handle observers read the
+        # current conversation from (see the module docstring). Refreshed via
+        # `set_sample_state` (sample start, `Chain`/`Plan` step boundaries,
+        # pre-scoring) so it survives a solver replacing the state object;
+        # step-boundary refreshes are compare-and-swap guarded against
+        # capture by `fork()` branches (see `set_active_sample_state`).
+        # `None` only in the brief window before the first state is set.
+        self.live_state: "TaskState | None" = None
+        self.token_limit_usage: int | None = None
         self.total_cost: float | None = None
         self.fallback_models: list[str] = []
         self.transcript = transcript
@@ -101,7 +182,14 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
-        self._interrupt_action: Literal["score", "error"] | None = None
+        # In-flight model retry backoff, if any (see ActiveSampleRetryWait).
+        # A single slot: concurrent generates within one sample overwrite it
+        # last-writer-wins (the control channel shows one activity per row,
+        # and pending events always take precedence over this record), and
+        # the ownership guard in clear_active_sample_retry_wait keeps a
+        # sibling's clear from dropping a live wait.
+        self.retry_wait: ActiveSampleRetryWait | None = None
+        self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
@@ -195,7 +283,14 @@ class ActiveSample:
         else:
             return 0
 
-    def interrupt(self, action: Literal["score", "error"]) -> None:
+    def interrupt(self, action: SampleCancelAction) -> None:
+        """Terminate this running sample.
+
+        ``action`` selects the outcome: ``"score"`` completes the sample and
+        runs the scorer on the work done so far; ``"error"`` marks it errored;
+        ``"cancel"`` records it as cancelled (transcript preserved, no
+        scoring, not counted as an error).
+        """
         self._interrupt_action = action
         if self.tg is None:
             raise RuntimeError(
@@ -238,7 +333,7 @@ class ActiveSample:
             )
 
     @property
-    def interrupt_action(self) -> Literal["score", "error"] | None:
+    def interrupt_action(self) -> SampleCancelAction | None:
         return self._interrupt_action
 
     @property
@@ -260,6 +355,7 @@ async def active_sample(
     epoch: int,
     message_limit: int | None,
     token_limit: int | None,
+    token_limit_type: str | None = None,
     cost_limit: float | None,
     time_limit: int | None,
     working_limit: int | None,
@@ -285,6 +381,7 @@ async def active_sample(
         epoch=epoch,
         message_limit=message_limit,
         token_limit=token_limit,
+        token_limit_type=token_limit_type,
         cost_limit=cost_limit,
         time_limit=time_limit,
         working_limit=working_limit,
@@ -308,6 +405,13 @@ async def active_sample(
 
     _active_samples.append(active)
     _sample_active.set(active)
+    # Capture the state the runner set before entering this context (via
+    # `set_sample_state`, which precedes `active_sample`); subsequent solver
+    # reassignments refresh it through the `set_sample_state` calls at
+    # `Chain` / `Plan` step boundaries.
+    from inspect_ai.solver._task_state import sample_state
+
+    active.live_state = sample_state()
     # Open the ACP session for this sample's lifetime. The session is the
     # ACP-specific transport layer (pub/sub, approver registry, transcript
     # snapshot, etc.); it produces into whatever agent_channel() is bound to
@@ -336,6 +440,21 @@ async def active_sample(
                     )
         active.checkpointer.close()
         active.complete()
+        # Roll this attempt's refusal / HTTP-retry counts onto the eval as the
+        # sample leaves the live list, so the control channel's "so far" total
+        # survives it. Adjacent to the `remove` and with no await between them:
+        # the endpoint reports `eval total + sum(in-flight)`, so a suspension
+        # point here would let a poll see the sample in neither term (or, the
+        # other way round, in both). Local import because `_control.eval_state`
+        # is loaded during eval bootstrap, before this package finishes
+        # initializing.
+        from inspect_ai._control.eval_state import record_sample_event_counts
+
+        record_sample_event_counts(
+            active.eval_id,
+            refusals=active.refusals,
+            http_retries=active.http_retries,
+        )
         _active_samples.remove(active)
         _sample_active.set(None)
 
@@ -350,10 +469,46 @@ def set_active_sample_token_limit(token_limit: int | None) -> None:
         active.token_limit = token_limit
 
 
+def set_active_sample_token_limit_type(token_limit_type: str | None) -> None:
+    """Surface the sample token limit's metering type on the active sample.
+
+    `None` when no ceiling is configured. Pushed when a solver changes the
+    limit dynamically (`TaskState.token_limit` setter) so the control channel
+    reports the type consistently with the ceiling.
+    """
+    active = sample_active()
+    if active:
+        active.token_limit_type = token_limit_type
+
+
 def set_active_sample_total_tokens(total_tokens: int) -> None:
     active = sample_active()
     if active:
         active.total_tokens = total_tokens
+
+
+def set_active_sample_token_limit_usage(token_limit_usage: int | None) -> None:
+    """Surface the sample token limit's metered usage on the active sample.
+
+    Pushed on every usage record so the control channel can report live usage
+    against the configured ceiling (the limit trees are context-bound and not
+    readable from the control channel's task).
+    """
+    active = sample_active()
+    if active:
+        active.token_limit_usage = token_limit_usage
+
+
+def set_active_sample_total_turns(total_turns: int) -> None:
+    """Surface the running turn count on the active sample.
+
+    Pushed after each top-level generation so the control channel can report
+    turns alongside message count (the limit trees are context-bound and not
+    readable from the control channel's task).
+    """
+    active = sample_active()
+    if active:
+        active.total_turns = total_turns
 
 
 def set_active_sample_cost_limit(cost_limit: float | None) -> None:
@@ -386,6 +541,31 @@ def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:
         active.total_messages = total_messages
+
+
+def set_active_sample_state(
+    state: "TaskState", *, replacing: "TaskState | None" = None
+) -> None:
+    """Refresh the active sample's live `TaskState` handle.
+
+    Called from `set_sample_state` so the control channel's view of the
+    conversation survives a solver replacing the `TaskState` object outright
+    (`Chain` / `Plan` call `set_sample_state` after each solver step for
+    exactly this reason). In-place mutation between replacements needs no
+    hook — the handle already points at the object whose `messages` list is
+    being appended to.
+
+    When ``replacing`` is given, the refresh is a compare-and-swap: it lands
+    only if the handle currently points at ``replacing``. The handle lives on
+    the shared `ActiveSample`, which a `fork()` subtask's copied context still
+    reaches through `sample_active()` (the ContextVar isolation protecting
+    `sample_state()` doesn't extend to it) — the guard keeps a branch
+    `Chain` / `Plan`, threading a deepcopy lineage the handle never pointed
+    at, from serving its branch conversation as the sample's main thread.
+    """
+    active = sample_active()
+    if active and (replacing is None or active.live_state is replacing):
+        active.live_state = state
 
 
 def set_active_sample_fallback_models(fallback_models: list[str]) -> None:
@@ -436,6 +616,94 @@ def report_active_sample_retry() -> None:
         if model_event.retries is None:
             model_event.retries = 0
         model_event.retries = model_event.retries + 1
+
+    # Also tally on the sample itself. The model event's count is per-generation
+    # and lands in the transcript; this one is what the control channel can read
+    # while the sample is still running, and what rolls up to the eval.
+    active = sample_active()
+    if active is not None:
+        active.http_retries += 1
+
+
+def report_active_sample_refusal() -> None:
+    """Count a model refusal against the active sample, if there is one.
+
+    Called alongside the process-global tally in :mod:`inspect_ai.log._refusal`.
+    A refusal reported outside a sample (nothing in ``sample_active()``) is
+    counted globally only — it belongs to no eval.
+    """
+    active = sample_active()
+    if active is not None:
+        active.refusals += 1
+
+
+# The retry-wait record stamped by *this* coroutine's model retry loop.
+# `ActiveSample.retry_wait` is a single shared slot; this per-context handle
+# lets `clear_active_sample_retry_wait` clear only a record its own call
+# stamped, so a generate resolving in one task can't drop a concurrent
+# sibling's still-live wait.
+_active_retry_wait: ContextVar["ActiveSampleRetryWait | None"] = ContextVar(
+    "_active_retry_wait", default=None
+)
+
+
+def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) -> None:
+    """Record that the active sample's model call is waiting to retry.
+
+    Called from the model retry loop's before-sleep callback (once per
+    backoff). Between attempts there is no pending ``ModelEvent`` to
+    observe, so this record is the only per-sample signal that the sample
+    is healthy-but-waiting rather than stalled; the control channel reads
+    it as the ``retry_wait`` activity type
+    (design/ctl/generate-progress.md).
+
+    Args:
+        model: Model whose call is waiting to retry.
+        attempt: Number of the attempt that just failed (1-based).
+        wait_time: Seconds until the next attempt begins.
+    """
+    active = sample_active()
+    if active is not None:
+        now = datetime.now(timezone.utc).timestamp()
+        record = ActiveSampleRetryWait(
+            model=model, attempt=attempt, started_at=now, deadline=now + wait_time
+        )
+        _active_retry_wait.set(record)
+        active.retry_wait = record
+
+
+def clear_active_sample_retry_wait() -> None:
+    """Clear the retry-wait record stamped by this coroutine's model call.
+
+    Called when the retried call resolves (success or final failure) so a
+    record can't outlive its call and misreport a healthy sample as
+    waiting. No-ops when a concurrent sibling call has since overwritten
+    the sample's slot — its wait is still live.
+    """
+    record = _active_retry_wait.get()
+    if record is None:
+        return
+    _active_retry_wait.set(None)
+    active = sample_active()
+    if active is not None and active.retry_wait is record:
+        active.retry_wait = None
+
+
+@contextlib.contextmanager
+def cleared_retry_wait() -> Iterator[None]:
+    """Clear this coroutine's retry-wait record when the enclosed call resolves.
+
+    Wrap the await of a tenacity-decorated model call built with
+    ``report_retry_wait=True`` (the retry loop's before-sleep callback
+    stamps the record; see :func:`report_active_sample_retry_wait`). The
+    backoff record must not outlive the call it describes — success, final
+    failure, or cancellation during the backoff sleep itself; nothing later
+    clears it.
+    """
+    try:
+        yield
+    finally:
+        clear_active_sample_retry_wait()
 
 
 _sample_active: ContextVar[ActiveSample | None] = ContextVar(

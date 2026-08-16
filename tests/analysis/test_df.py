@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
@@ -20,6 +21,7 @@ from inspect_ai.analysis import (
 )
 from inspect_ai.analysis._dataframe.evals.columns import EvalTask
 from inspect_ai.analysis._dataframe.samples.columns import SampleScores
+from inspect_ai.analysis._dataframe.util import resolve_logs
 from inspect_ai.log import (
     EvalLog,
     MetadataEdit,
@@ -315,6 +317,20 @@ def test_samples_df_columns():
     assert "log" in df.columns
 
 
+def test_samples_df_includes_turn_and_token_limit_usage_columns():
+    df = samples_df(LOGS_DIR, columns=SampleSummary)
+    assert "turn_count" in df.columns
+    assert "token_limit_usage" in df.columns
+
+
+def test_evals_df_includes_token_limit_type_column():
+    from inspect_ai.analysis._dataframe.evals.columns import EvalConfiguration
+
+    df = evals_df(LOGS_DIR, columns=EvalConfiguration)
+    assert "token_limit" in df.columns
+    assert "token_limit_type" in df.columns
+
+
 def test_messages_df():
     df = messages_df(LOGS_DIR)
     assert len(df) == 34
@@ -462,3 +478,23 @@ def test_evals_df_reflects_edited_tags_and_metadata(tmp_path: Path):
     df = evals_df(log_dir)
     assert df["tags"].to_list() == ["added"]
     assert df["metadata"].to_list() == ['{"key": "edited"}']
+
+
+def test_dataframe_functions_empty_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    log_dir = str(tmp_path)
+    eval(
+        Task(),
+        model="mockllm/model",
+        log_dir=log_dir,
+    )
+    monkeypatch.setenv("INSPECT_LOG_DIR", log_dir)
+    assert len(list_eval_logs()) > 0
+
+    assert resolve_logs([]) == []
+    assert resolve_logs(()) == []
+    assert len(evals_df([])) == 0
+    assert len(samples_df([])) == 0
+    assert len(messages_df([])) == 0
+    assert len(events_df([])) == 0

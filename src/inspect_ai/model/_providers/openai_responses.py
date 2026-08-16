@@ -100,6 +100,11 @@ async def generate_responses(
     if background is None and config.extra_body:
         background = config.extra_body.get("background", None)
 
+    # pro mode requests can run for several minutes — default to background
+    # processing like the gpt-5-pro model line
+    if background is None and config.reasoning_mode == "pro":
+        background = True
+
     # batch mode and background are incompatible
     if batcher:
         background = None
@@ -206,11 +211,17 @@ async def generate_responses(
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)
 
+        # surface response-level `metadata` (echoed request metadata, which
+        # some models augment with additional fields) so callers can read it
+        # without parsing the raw model call
+        response_metadata = getattr(model_response, "metadata", None)
+
         # return output and call
         return ModelOutput(
             model=model_response.model,
             choices=choices,
             usage=model_usage_from_response(model_response),
+            metadata=dict(response_metadata) if response_metadata else None,
         ), model_call
     except BadRequestError as e:
         model_call.set_error(
@@ -343,7 +354,11 @@ def completion_params_responses(
         model_info.is_o_series()
         or (model_info.is_gpt_5() and not model_info.is_gpt_5_plus())
         or (
-            model_info.is_gpt_5_plus() and config.reasoning_effort not in [None, "none"]
+            model_info.is_gpt_5_plus()
+            and (
+                config.reasoning_effort not in [None, "none"]
+                or config.reasoning_mode == "pro"
+            )
         )
     )
 
@@ -390,14 +405,22 @@ def completion_params_responses(
 
     reasoning: dict[str, str] = {}
     if config.reasoning_effort is not None:
-        # OpenAI's highest published effort is `xhigh`; map `max` to it so the
-        # request isn't rejected. Mirrors the mapping in
+        # models that predate `max` effort top out at `xhigh`; map `max` to it
+        # so the request isn't rejected. Mirrors the mapping in
         # `OpenAIAPI._get_reasoning_params_for_config`.
         reasoning["effort"] = (
             "xhigh"
-            if (config.reasoning_effort == "max" and not model_info.is_latest())
+            if (
+                config.reasoning_effort == "max"
+                and not model_info.supports_max_reasoning_effort()
+            )
             else config.reasoning_effort
         )
+    if config.reasoning_mode is not None:
+        # passed through for all models: the API accepts "pro" wherever it can
+        # be honored (gpt-5.6+ and legacy -pro models) and rejects it with a
+        # clear param-naming error otherwise.
+        reasoning["mode"] = config.reasoning_mode
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
     if len(reasoning) > 0:

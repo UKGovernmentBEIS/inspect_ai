@@ -1,12 +1,17 @@
-"""End-to-end checkpoint resume test: hard-kill an attempt, then retry — twice.
+"""End-to-end checkpoint resume test: interrupt an attempt, then retry — twice.
 
 Drives a ``react()`` agent through tool-calling turns with
 ``TurnInterval(every=1)``, so a checkpoint fires at the start of each turn
-after the first. Instead of cooperatively cancelling, the agent calls a
-``crash`` tool that ``SIGKILL``s its own process mid-run — an *unanticipated*
-death (power loss / OOM / preemption) with no graceful unwind, no log
-finalize, and an orphaned sandbox container. Recovering from exactly that is
-the point of checkpointing.
+after the first. The agent calls a ``crash`` tool that signals its own
+process mid-run, parametrized over both ways a run really ends:
+
+- ``SIGKILL`` — an *unanticipated* death (power loss / OOM / preemption)
+  with no graceful unwind, no log finalize, and an orphaned sandbox
+  container. Recovering from exactly that is the point of checkpointing.
+- ``SIGINT`` — what Ctrl-C delivers. The opposite hazard: a lot of cleanup
+  *does* run (sandbox teardown, log finalize, the sample logged with a
+  cancellation error), any of which could plausibly leave the run
+  unresumable.
 
 Because a real ``SIGKILL`` can't kill the pytest process and let it continue,
 each killed attempt runs in a **child process** (the harness in
@@ -43,6 +48,7 @@ from test_helpers.utils import flaky_retry, skip_if_no_anthropic, skip_if_no_doc
 from checkpoint.resume_kill_harness import (
     CANCEL_FILE_ENV,
     LAYER1_CONTENT,
+    SIGNAL_ENV,
     TARGET_ENV,
     generates,
     reset_generates,
@@ -59,6 +65,7 @@ from inspect_ai.scorer import CORRECT
 from inspect_ai.util._checkpoint._layout.eval_checkpoints_dir import (
     eval_checkpoints_dir,
 )
+from inspect_ai.util._checkpoint._sandbox_restic.repo import _SANDBOX_RESTIC_DIR
 
 
 def assert_spans_balanced(events: list[Event]) -> None:
@@ -93,21 +100,26 @@ def _latest_log(log_dir: str) -> str:
     return max(logs, key=lambda info: info.name).name
 
 
-def _run_killed_attempt(
+def _run_interrupted_attempt(
     log_dir: str,
     retry_from: str | None,
     tests_dir: Path,
+    interrupt: str = "SIGKILL",
     harness_name: str = "resume_kill_harness.py",
 ) -> None:
-    """Run an eval in a child process that ``SIGKILL``s itself mid-run.
+    """Run an eval in a child process that signals itself mid-run.
 
-    Asserts the child died by signal rather than exiting normally.
+    ``SIGKILL`` is an unanticipated death (no unwind, no log finalize);
+    ``SIGINT`` is what Ctrl-C delivers (graceful cancel, finalized log,
+    sandboxes torn down). Asserts the attempt ended the way the signal
+    implies, so a mode that silently stopped taking effect can't pass.
     """
     env = {
         **os.environ,
         "PYTHONPATH": os.pathsep.join(
             p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
         ),
+        SIGNAL_ENV: interrupt,
     }
     harness = str(tests_dir / "checkpoint" / harness_name)
     proc = subprocess.run(
@@ -115,10 +127,23 @@ def _run_killed_attempt(
         env=env,
         timeout=600,
     )
-    assert proc.returncode == -signal.SIGKILL, (
-        f"expected the child to die by SIGKILL (-{signal.SIGKILL}); "
-        f"got returncode {proc.returncode}"
-    )
+    if interrupt == "SIGKILL":
+        assert proc.returncode == -signal.SIGKILL, (
+            f"expected the child to die by SIGKILL (-{signal.SIGKILL}); "
+            f"got returncode {proc.returncode}"
+        )
+    else:
+        # The child's exit code is not a useful signal here: inspect absorbs
+        # the interrupt rather than re-raising KeyboardInterrupt, so a
+        # SIGINTed eval() exits 0 and a SIGINTed eval_retry() exits 1 on an
+        # IndexError. What matters is that the run wound down gracefully —
+        # a *finalized* log with status "cancelled" (a hard kill never
+        # finalizes one).
+        assert proc.returncode != -signal.SIGKILL, "child was hard-killed, not SIGINTed"
+        status = read_eval_log(_latest_log(log_dir), header_only=True).status
+        assert status == "cancelled", (
+            f"expected the SIGINTed attempt to finalize a cancelled log; got '{status}'"
+        )
 
 
 def _inspect_projects() -> set[str]:
@@ -139,15 +164,66 @@ def _inspect_projects() -> set[str]:
     }
 
 
-def _force_remove_project(name: str) -> None:
-    """Best-effort force-remove the containers of a leaked compose project."""
-    ids = subprocess.run(
+def _project_container_ids(name: str) -> list[str]:
+    """Container ids belonging to a compose project."""
+    return subprocess.run(
         ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={name}"],
         capture_output=True,
         text=True,
     ).stdout.split()
+
+
+def _force_remove_project(name: str) -> None:
+    """Best-effort force-remove the containers of a leaked compose project."""
+    ids = _project_container_ids(name)
     if ids:
         subprocess.run(["docker", "rm", "-f", *ids], capture_output=True)
+
+
+def _assert_restic_dir_hidden(container_id: str) -> None:
+    """The injected restic dir is inside ``.cache`` and root-only.
+
+    Probes the live sandbox container of a killed attempt (checkpoints
+    committed → binary + repo injected):
+
+    - the path sits under ``/root/.cache/`` — inside the always-on backup
+      exclude (``**/.cache``, so the repo never backs itself up) and under
+      a parent whose dirent is invisible to non-root; and
+    - the dir is mode 0700 owned by root with the repo present, and a
+      non-root uid cannot list it.
+    """
+    assert _SANDBOX_RESTIC_DIR.startswith("/root/.cache/")
+
+    stat = subprocess.run(
+        ["docker", "exec", container_id, "stat", "-c", "%a %u", _SANDBOX_RESTIC_DIR],
+        capture_output=True,
+        text=True,
+    )
+    assert stat.returncode == 0, f"restic dir missing in sandbox: {stat.stderr}"
+    assert stat.stdout.split() == ["700", "0"]
+
+    repo = subprocess.run(
+        ["docker", "exec", container_id, "test", "-d", f"{_SANDBOX_RESTIC_DIR}/repo"],
+        capture_output=True,
+    )
+    assert repo.returncode == 0, "restic repo missing in sandbox"
+
+    denied = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "-u",
+            "65534:65534",
+            container_id,
+            "ls",
+            _SANDBOX_RESTIC_DIR,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert denied.returncode != 0, (
+        f"restic dir is listable by a non-root user: {denied.stdout}"
+    )
 
 
 def _thinking_signatures(log_location: str) -> set[str]:
@@ -201,7 +277,7 @@ def test_checkpoint_resume_restores_assistant_internal(
 
     projects_before = _inspect_projects()
     try:
-        _run_killed_attempt(
+        _run_interrupted_attempt(
             log_dir, None, tests_dir, harness_name="resume_kill_thinking_harness.py"
         )
         killed_log = _latest_log(log_dir)
@@ -232,9 +308,17 @@ def test_checkpoint_resume_restores_assistant_internal(
 
 @skip_if_no_docker
 @pytest.mark.slow
+@pytest.mark.parametrize("interrupt", ["SIGKILL", "SIGINT"])
 def test_checkpoint_resume_rehydrated_event_layout(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, interrupt: str
 ) -> None:
+    """Resume works whether the eval was hard-killed or Ctrl-C'd.
+
+    Ctrl-C (SIGINT) runs a lot of graceful cleanup a hard kill skips —
+    sandbox teardown, log finalize, a sample logged with a cancellation
+    error — so it reaches checkpoint resume down a different path than
+    the SIGKILL case, and gets the same result.
+    """
     # Crash count (host file) + target are inherited by the child processes.
     cancel_file = tmp_path / "cancels.txt"
     monkeypatch.setenv(CANCEL_FILE_ENV, str(cancel_file))
@@ -254,11 +338,24 @@ def test_checkpoint_resume_rehydrated_event_layout(
     # the ones this test leaks (the final resume cleans up its own).
     projects_before = _inspect_projects()
     try:
-        # --- attempt #0: fresh eval, hard-killed at turn 2 (after ck1/ck2) --
-        _run_killed_attempt(log_dir, None, tests_dir)
+        # --- attempt #0: fresh eval, interrupted at turn 2 (after ck1/ck2) --
+        _run_interrupted_attempt(log_dir, None, tests_dir, interrupt)
 
-        # --- attempt #1: resume, work one turn (ck3), hard-kill at turn 3 ---
-        _run_killed_attempt(log_dir, _latest_log(log_dir), tests_dir)
+        leaked = [
+            cid
+            for name in _inspect_projects() - projects_before
+            for cid in _project_container_ids(name)
+        ]
+        if interrupt == "SIGKILL":
+            # The hard kill leaves the attempt's sandbox container running —
+            # probe it for the restic dir's location and permissions.
+            assert leaked, "expected the killed attempt to leak its sandbox container"
+            _assert_restic_dir_hidden(leaked[0])
+        else:
+            assert not leaked, f"Ctrl-C should tear down the sandbox; leaked {leaked}"
+
+        # --- attempt #1: resume, work one turn (ck3), interrupt at turn 3 ---
+        _run_interrupted_attempt(log_dir, _latest_log(log_dir), tests_dir, interrupt)
 
         # --- final resume: runs in this process, to completion --------------
         reset_generates()

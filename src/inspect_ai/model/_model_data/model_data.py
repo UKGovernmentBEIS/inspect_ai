@@ -17,7 +17,14 @@ class ModelCost(BaseModel):
     """Price per million output tokens."""
 
     input_cache_write: float
-    """Price per million input tokens written to cache."""
+    """Price per million input tokens written to cache.
+
+    Record the provider's default-TTL rate here (for Anthropic, the 5-minute
+    rate). Providers that bill longer cache TTLs at a higher rate (e.g.
+    Anthropic's 1-hour writes at 2x base input) are adjusted at cost
+    computation time based on the configured TTL — do not pre-bake a
+    longer-TTL rate into this field or it will be double-applied.
+    """
 
     input_cache_read: float
     """Price per million input tokens read from cache."""

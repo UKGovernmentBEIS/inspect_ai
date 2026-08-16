@@ -18,6 +18,7 @@ from typing import Any, Literal, Protocol, cast
 import anyio
 import numpy as np
 import torch  # type: ignore
+import transformers  # type: ignore
 from torch import Tensor  # type: ignore
 from transformers import (  # type: ignore
     AutoModelForCausalLM,
@@ -43,6 +44,7 @@ from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
+from .._model_info import MODEL_INFO_LOOKUP_API_KEY
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -57,6 +59,17 @@ logger = getLogger(__name__)
 
 
 HF_TOKEN = "HF_TOKEN"
+
+
+def hub_token(api_key: str | None) -> str | None:
+    """Token to pass to the Hub, or `None` to let `huggingface_hub` resolve one.
+
+    Resolves `MODEL_INFO_LOOKUP_API_KEY` to `None`. Sending the placeholder as a
+    token makes the Hub treat the request as unauthenticated (and rate limit it
+    as such), and passing any token at all stops `huggingface_hub` falling back
+    to `HF_TOKEN` or the token cached by `huggingface-cli login`.
+    """
+    return None if api_key == MODEL_INFO_LOOKUP_API_KEY else api_key
 
 
 class HuggingFaceAPI(ModelAPI):
@@ -108,6 +121,23 @@ class HuggingFaceAPI(ModelAPI):
         if not isinstance(trust_remote_code, bool):
             raise ValueError("trust_remote_code must be a bool")
 
+        # select the transformers auto-class used to load the model. Some
+        # architectures (e.g. the Mistral 3 series and other image-text-to-text
+        # models) are not registered with AutoModelForCausalLM and must be
+        # loaded with a different class such as AutoModelForImageTextToText.
+        auto_model_class = collect_model_arg("auto_model_class")
+        if auto_model_class is not None:
+            if not isinstance(auto_model_class, str):
+                raise ValueError("auto_model_class must be a str")
+            model_loader = getattr(transformers, auto_model_class, None)
+            if model_loader is None:
+                raise ValueError(
+                    f"auto_model_class '{auto_model_class}' is not a valid "
+                    "transformers class"
+                )
+        else:
+            model_loader = AutoModelForCausalLM
+
         # device
         if device:
             self.device = device
@@ -120,18 +150,18 @@ class HuggingFaceAPI(ModelAPI):
 
         # model
         if model_path:
-            self.model: Any = AutoModelForCausalLM.from_pretrained(
+            self.model: Any = model_loader.from_pretrained(
                 model_path,
                 device_map=self.device,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
                 **model_args,
             )
         else:
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model = model_loader.from_pretrained(
                 model_name,
                 device_map=self.device,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
                 **model_args,
             )
@@ -140,26 +170,26 @@ class HuggingFaceAPI(ModelAPI):
         if tokenizer:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                 tokenizer,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
             )
         elif model_path:
             if tokenizer_path:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                     tokenizer_path,
-                    token=self.api_key,
+                    token=hub_token(self.api_key),
                     trust_remote_code=trust_remote_code,
                 )
             else:
                 self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                     model_path,
-                    token=self.api_key,
+                    token=hub_token(self.api_key),
                     trust_remote_code=trust_remote_code,
                 )
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(  # type: ignore[no-untyped-call]
                 model_name,
-                token=self.api_key,
+                token=hub_token(self.api_key),
                 trust_remote_code=trust_remote_code,
             )
         # LLMs generally don't have a pad token and we need one for batching

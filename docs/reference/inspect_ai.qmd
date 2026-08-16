@@ -18,7 +18,9 @@ description: Tasks, evaluation, and scoring.
 ### TaskInfo
 ### Tasks
 ### TaskSource
+### SampleSource
 ### enqueue_task
+### enqueue_sample
 
 ## Scanning
 

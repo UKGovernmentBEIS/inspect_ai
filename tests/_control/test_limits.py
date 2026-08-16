@@ -6,6 +6,7 @@ sandbox-limiter registry), the server routes that wrap it, and the CLI rendering
 """
 
 import asyncio
+from typing import Any, cast
 
 import httpx
 import pytest
@@ -16,23 +17,37 @@ from inspect_ai._control.eval_state import (
     register_eval,
 )
 from inspect_ai._control.limits import task_limits
+from inspect_ai._eval.task.log import TaskLogger
+from inspect_ai.model._generate_overrides import (
+    MAX_GENERATE_CONFIG_OVERRIDE,
+    generate_config_override,
+    reset_generate_config_overrides,
+    set_generate_config_override,
+)
 from inspect_ai.util._concurrency import (
     AdaptiveConcurrencyController,
     ResizableLimiter,
     ResizableSemaphore,
     init_concurrency,
     register_sandbox_limiter,
+    register_subprocess_limiter,
     register_task_sample_semaphore,
 )
 
 
 @pytest.fixture(autouse=True)
 def _clear_states():
+    from inspect_ai._control.config_record import reset_process_config_updates
+
     clear_all_eval_states()
-    init_concurrency()  # resets the sandbox-limiter registry
+    init_concurrency()  # resets the sandbox and subprocess limiter registries
+    reset_generate_config_overrides()
+    reset_process_config_updates()
     yield
     clear_all_eval_states()
     init_concurrency()
+    reset_generate_config_overrides()
+    reset_process_config_updates()
 
 
 # ---------------------------------------------------------------------------
@@ -164,21 +179,59 @@ async def test_limits_max_sandboxes_adjustable_before_first_acquire() -> None:
     assert read["max_sandboxes"][0]["limit"] == 2
 
 
+async def test_limits_set_max_subprocesses() -> None:
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", max_subprocesses=4)
+    assert result is not None
+    assert subprocs.concurrency == 4
+    assert result["max_subprocesses"] == {"limit": 4, "in_use": 0}
+    assert result["requested"] == {"max_subprocesses": 4}
+
+
+async def test_limits_max_subprocesses_not_adjustable_warns() -> None:
+    register_eval("e1", 5, task_id="t1")  # no subprocess has run in this process
+
+    result = await task_limits("t1", max_subprocesses=4)
+    assert result is not None
+    assert result["max_subprocesses"] is None
+    assert any("max_subprocesses is not adjustable" in w for w in result["warnings"])
+
+
+async def test_limits_max_subprocesses_dry_run_does_not_apply() -> None:
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", max_subprocesses=2, dry_run=True)
+    assert result is not None
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_subprocesses": 2}
+    # view reflects the current (unchanged) value, and nothing was applied
+    assert result["max_subprocesses"] == {"limit": 8, "in_use": 0}
+    assert subprocs.concurrency == 8
+
+
 async def test_limits_all_knobs() -> None:
-    """All three knobs land in one request (per-task and process-global)."""
+    """All concurrency knobs land in one request (per-task and process-global)."""
     limiter = ResizableLimiter(10)
     docker = ResizableSemaphore("docker", 4, True)
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
     register_eval("e1", 5, task_id="t1")
     register_task_sample_semaphore("t1", limiter)
     register_sandbox_limiter("docker", docker)
+    register_subprocess_limiter(subprocs)
     ctrl = await _register_controller(max=100, start=50)
 
     result = await task_limits(
-        "t1", max_samples=15, max_sandboxes=6, max_connections=30
+        "t1", max_samples=15, max_sandboxes=6, max_subprocesses=12, max_connections=30
     )
     assert result is not None
     assert limiter.limit == 15
     assert docker.concurrency == 6
+    assert subprocs.concurrency == 12
     # ceiling lowered and live limit clamped down to it
     assert (ctrl.max, ctrl.concurrency) == (30, 30)
     a = result["adaptive"][0]
@@ -186,6 +239,7 @@ async def test_limits_all_knobs() -> None:
     assert result["requested"] == {
         "max_samples": 15,
         "max_sandboxes": 6,
+        "max_subprocesses": 12,
         "max_connections": 30,
     }
 
@@ -293,6 +347,25 @@ async def test_process_limits_set_max_sandboxes() -> None:
     assert result["max_sandboxes"][0]["limit"] == 8
 
 
+async def test_process_limits_set_max_subprocesses() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    result = await process_limits(max_subprocesses=16)
+    assert subprocs.concurrency == 16
+    assert result["requested"] == {"max_subprocesses": 16}
+    assert result["max_subprocesses"] == {"limit": 16, "in_use": 0}
+
+
+async def test_process_limits_max_subprocesses_not_adjustable_warns() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits(max_subprocesses=16)  # no subprocess has run
+    assert result["max_subprocesses"] is None
+    assert any("max_subprocesses is not adjustable" in w for w in result["warnings"])
+
+
 async def test_process_limits_dry_run_does_not_apply() -> None:
     from inspect_ai._control.limits import process_limits
 
@@ -349,6 +422,341 @@ async def test_process_limits_model_no_match_warns() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Retry-loop overrides (timeout / attempt_timeout / max_retries)
+# ---------------------------------------------------------------------------
+
+
+async def test_retry_overrides_default_view() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits()
+    assert result["retry"] == {
+        "timeout": None,
+        "attempt_timeout": None,
+        "max_retries": None,
+    }
+
+
+async def test_retry_overrides_set_and_clear() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits(timeout=120, attempt_timeout=30, max_retries=5)
+    assert result["requested"] == {
+        "timeout": 120,
+        "attempt_timeout": 30,
+        "max_retries": 5,
+    }
+    assert result["retry"] == {"timeout": 120, "attempt_timeout": 30, "max_retries": 5}
+    # always adjustable — the override layer exists regardless of launch config
+    assert result["warnings"] == []
+    assert generate_config_override("timeout") == 120
+
+    # "clear" removes an override (restoring launch config); the others stand
+    result = await process_limits(timeout="clear")
+    assert result["requested"] == {"timeout": "clear"}
+    assert result["retry"] == {"timeout": None, "attempt_timeout": 30, "max_retries": 5}
+    assert generate_config_override("timeout") is None
+
+    # 0 is a real value, not a clear — max_retries 0 = no retries (fail fast)
+    result = await process_limits(max_retries=0)
+    assert result["requested"] == {"max_retries": 0}
+    assert result["retry"]["max_retries"] == 0
+    assert generate_config_override("max_retries") == 0
+
+
+async def test_retry_overrides_dry_run_does_not_apply() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    result = await process_limits(max_retries=2, dry_run=True)
+    assert result["dry_run"] is True
+    assert result["requested"] == {"max_retries": 2}
+    assert result["retry"]["max_retries"] is None
+    assert generate_config_override("max_retries") is None
+
+
+async def test_retry_overrides_via_task_limits() -> None:
+    register_eval("e1", 5, task_id="t1")
+
+    result = await task_limits("t1", max_retries=3)
+    assert result is not None
+    assert result["retry"]["max_retries"] == 3
+    assert result["requested"] == {"max_retries": 3}
+    assert generate_config_override("max_retries") == 3
+
+
+def test_retry_override_reaches_live_retry_stop() -> None:
+    """The tenacity stop reads the overrides on every post-attempt check.
+
+    This is the mid-flight contract: a retune reaches generate calls already
+    inside their retry loop (whose stop was built before the override was
+    set), not just calls started afterwards.
+    """
+    from tenacity import RetryCallState
+
+    from inspect_ai.model._retry import model_retry_config
+
+    retry_config = model_retry_config(
+        "m",
+        None,  # max_retries: launch config says retry forever
+        None,  # timeout
+        lambda ex: True,
+        lambda ex: None,
+        lambda name, rs: None,
+    )
+    stop = retry_config["stop"]
+    assert callable(stop)
+
+    state = RetryCallState(cast(Any, None), None, (), {})
+    state.attempt_number = 5
+    assert stop(state) is False  # no override → retry forever
+
+    # max_retries counts retries: N allows N+1 attempts, so after attempt 5
+    # an override of 4 (4 retries = 5 attempts) stops and 5 keeps going
+    set_generate_config_override("max_retries", 4)
+    assert stop(state) is True  # the same stop now fails fast
+    set_generate_config_override("max_retries", 5)
+    assert stop(state) is False
+    set_generate_config_override("max_retries", None)
+    assert stop(state) is False
+
+    # 0 = no retries: stop right after the first attempt
+    set_generate_config_override("max_retries", 0)
+    state.attempt_number = 1
+    assert stop(state) is True
+    set_generate_config_override("max_retries", None)
+    state.attempt_number = 5
+
+    # total-budget override (timeout) keys on seconds_since_start
+    state.outcome_timestamp = state.start_time + 100
+    set_generate_config_override("timeout", 50)
+    assert stop(state) is True
+    set_generate_config_override("timeout", 200)
+    assert stop(state) is False
+
+
+def test_retry_override_defers_to_base_config_when_unset() -> None:
+    """Without an override the per-call config's own values stand."""
+    from tenacity import RetryCallState
+
+    from inspect_ai.model._retry import model_retry_config
+
+    retry_config = model_retry_config(
+        "m",
+        2,  # max_retries from the call's GenerateConfig
+        300,  # timeout
+        lambda ex: True,
+        lambda ex: None,
+        lambda name, rs: None,
+    )
+    stop = retry_config["stop"]
+    assert callable(stop)
+
+    state = RetryCallState(cast(Any, None), None, (), {})
+    state.attempt_number = 2
+    assert stop(state) is False  # 2 retries = 3 attempts; attempt 2 continues
+    state.attempt_number = 3
+    assert stop(state) is True  # base max_retries exhausted after attempt 3
+
+    # raising the override rides out what the base config would stop
+    set_generate_config_override("max_retries", 10)
+    assert stop(state) is False
+    state.outcome_timestamp = state.start_time + 400
+    assert stop(state) is True  # base timeout still stands (not overridden)
+
+
+def test_retry_override_opted_out_for_batch_admin_ops() -> None:
+    """`live_overrides=False` (batcher admin ops) pins the launch config.
+
+    A fail-fast retune must not reach batch create/poll retry loops — an
+    exhausted admin-op retry fails every request riding the batch.
+    """
+    from tenacity import RetryCallState
+
+    from inspect_ai.model._retry import model_retry_config
+
+    retry_config = model_retry_config(
+        "m",
+        None,  # launch config: retry forever
+        None,
+        lambda ex: True,
+        lambda ex: None,
+        lambda name, rs: None,
+        live_overrides=False,
+    )
+    stop = retry_config["stop"]
+    assert callable(stop)
+
+    state = RetryCallState(cast(Any, None), None, (), {})
+    state.attempt_number = 5
+    set_generate_config_override("max_retries", 0)
+    set_generate_config_override("timeout", 1)
+    state.outcome_timestamp = state.start_time + 100
+    assert stop(state) is False  # the fail-fast retune is ignored
+
+
+def test_set_generate_config_override_rejects_out_of_range() -> None:
+    """A programmatic sign or magnitude bug errors loudly, not becomes an override.
+
+    An unbounded value would poison the point of use rather than the caller
+    (a huge attempt_timeout raises OverflowError inside every subsequent
+    generate call's `anyio.move_on_after`), so the store rejects it here.
+    """
+    with pytest.raises(ValueError, match="max_retries"):
+        set_generate_config_override("max_retries", -1)
+    with pytest.raises(ValueError, match="attempt_timeout"):
+        set_generate_config_override(
+            "attempt_timeout", MAX_GENERATE_CONFIG_OVERRIDE + 1
+        )
+    assert generate_config_override("max_retries") is None
+    assert generate_config_override("attempt_timeout") is None
+    # the bound itself is a legal value
+    set_generate_config_override("timeout", MAX_GENERATE_CONFIG_OVERRIDE)
+    assert generate_config_override("timeout") == MAX_GENERATE_CONFIG_OVERRIDE
+
+
+# ---------------------------------------------------------------------------
+# Named concurrency keys (--key)
+# ---------------------------------------------------------------------------
+
+
+async def test_process_limits_key_retune() -> None:
+    """A named concurrency() registry entry is retunable by exact name."""
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    sem = await get_or_create_semaphore("google_web_search", 10, None, True)
+    result = await process_limits(key="google_web_search", key_limit=3)
+    assert sem.concurrency == 3
+    row = next(r for r in result["concurrency"] if r["name"] == "google_web_search")
+    assert row == {
+        "name": "google_web_search",
+        "limit": 3,
+        "in_use": 0,
+        "adjustable": True,
+    }
+    assert result["requested"] == {"concurrency:google_web_search": 3}
+    assert result["warnings"] == []
+
+
+async def test_process_limits_key_retune_reaches_all_entries_sharing_a_name() -> None:
+    """A name backing several entries (distinct storage keys) retunes them all.
+
+    E.g. one model on two accounts — matching by exact name fans out like
+    max_connections' name matching does.
+    """
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    account1 = await get_or_create_semaphore("model", 10, "model#account1", True)
+    account2 = await get_or_create_semaphore("model", 10, "model#account2", True)
+    result = await process_limits(key="model", key_limit=3)
+    assert account1.concurrency == 3
+    assert account2.concurrency == 3
+    # both entries appear in the view, under the shared display name
+    rows = [r for r in result["concurrency"] if r["name"] == "model"]
+    assert [r["limit"] for r in rows] == [3, 3]
+    assert result["warnings"] == []
+
+
+async def test_task_limits_key_retune() -> None:
+    """The key knob rides the per-task route too (the registry is process-global)."""
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    sem = await get_or_create_semaphore("hidden-injection", 1, None, False)
+    result = await task_limits("t1", key="hidden-injection", key_limit=2)
+    assert result is not None
+    assert sem.concurrency == 2
+    # visible=False entries are still listed and retunable — visibility
+    # governs the status bar, not the control channel
+    assert any(r["name"] == "hidden-injection" for r in result["concurrency"])
+
+
+async def test_limits_key_dry_run_does_not_apply() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    sem = await get_or_create_semaphore("google_web_search", 10, None, True)
+    result = await process_limits(key="google_web_search", key_limit=3, dry_run=True)
+    assert sem.concurrency == 10
+    assert result["dry_run"] is True
+    assert result["requested"] == {"concurrency:google_web_search": 3}
+    row = next(r for r in result["concurrency"] if r["name"] == "google_web_search")
+    assert row["limit"] == 10  # view reflects the current (unchanged) value
+
+
+async def test_limits_unknown_key_errors_before_other_knobs_apply() -> None:
+    """An unknown key fails the whole request — nothing else is applied."""
+    from inspect_ai._control.limits import UnknownConcurrencyKeyError
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    limiter = ResizableLimiter(20)
+    register_task_sample_semaphore("t1", limiter)
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    with pytest.raises(UnknownConcurrencyKeyError) as exc_info:
+        await task_limits("t1", max_samples=5, key="nope", key_limit=3)
+    # the error lists the keys that do exist and explains the lazy creation
+    assert "google_web_search" in str(exc_info.value)
+    assert "lazily" in str(exc_info.value)
+    # the co-requested max_samples did NOT land
+    assert limiter.limit == 20
+
+
+async def test_limits_unknown_key_with_empty_registry() -> None:
+    from inspect_ai._control.limits import UnknownConcurrencyKeyError, process_limits
+
+    with pytest.raises(UnknownConcurrencyKeyError, match="no concurrency keys"):
+        await process_limits(key="nope", key_limit=3)
+
+
+async def test_limits_key_adaptive_controller_warns() -> None:
+    """A key naming an adaptive controller warns and points at max_connections."""
+    from inspect_ai._control.limits import process_limits
+
+    ctrl = await _register_controller(name="openai/gpt-4", max=100, start=50)
+    result = await process_limits(key="openai/gpt-4", key_limit=3)
+    assert (ctrl.max, ctrl.concurrency) == (100, 50)  # untouched
+    assert any(
+        "managed by adaptive connections" in w and "max_connections" in w
+        for w in result["warnings"]
+    )
+    # adaptive controllers are not listed among the static keys
+    assert result["concurrency"] == []
+
+
+async def test_limits_key_non_resizable_warns() -> None:
+    """A key whose semaphore can't resize warns instead of erroring."""
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import (
+        _concurrency_registry,
+        _create_anyio_semaphore,
+    )
+
+    # a fixed semaphore, the shape a custom registry could still hand out
+    # (the default registry no longer creates these for limits >= 1)
+    _concurrency_registry._semaphores["fixed#static"] = _create_anyio_semaphore(  # type: ignore[attr-defined]
+        "fixed", 4, True
+    )
+    result = await process_limits(key="fixed", key_limit=2)
+    assert any("'fixed' is not adjustable" in w for w in result["warnings"])
+    row = next(r for r in result["concurrency"] if r["name"] == "fixed")
+    assert row == {"name": "fixed", "limit": 4, "in_use": 0, "adjustable": False}
+
+
+async def test_limits_key_view_on_pure_read() -> None:
+    """The concurrency view is part of every read, not just a key set."""
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+    result = await task_limits("t1")
+    assert result is not None
+    assert [r["name"] for r in result["concurrency"]] == ["google_web_search"]
+
+
+# ---------------------------------------------------------------------------
 # Server routes
 # ---------------------------------------------------------------------------
 
@@ -368,16 +776,16 @@ async def test_limits_route_get_and_patch() -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        got = await client.get("/tasks/t1/limits")
+        got = await client.get("/tasks/t1/config")
         assert got.status_code == 200, got.text
         assert got.json()["max_samples"]["limit"] == 20
 
-        patched = await client.patch("/tasks/t1/limits", params={"max_samples": 40})
+        patched = await client.patch("/tasks/t1/config", params={"max_samples": 40})
         assert patched.status_code == 200, patched.text
         assert patched.json()["max_samples"]["limit"] == 40
         assert limiter.limit == 40
 
-        missing = await client.get("/tasks/missing/limits")
+        missing = await client.get("/tasks/missing/config")
         assert missing.status_code == 404
 
 
@@ -389,9 +797,123 @@ async def test_limits_route_rejects_below_one() -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        bad = await client.patch("/tasks/t1/limits", params={"max_samples": 0})
+        bad = await client.patch("/tasks/t1/config", params={"max_samples": 0})
         assert bad.status_code == 400
         assert "max_samples" in bad.json()["error"]
+
+
+async def test_limits_route_rejects_unknown_param_atomically() -> None:
+    """PATCH with an unknown knob 400s before applying anything (fail closed)."""
+    limiter = ResizableLimiter(20)
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", limiter)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        bad = await client.patch(
+            "/tasks/t1/config", params={"max_samples": 40, "max_gizmos": 3}
+        )
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): max_gizmos" in bad.json()["error"]
+        assert "does not support" in bad.json()["error"]
+        # atomic: the recognized knob in the same request was NOT applied
+        assert limiter.limit == 20
+
+        # multiple unknown params are all named (sorted)
+        bad = await client.patch("/tasks/t1/config", params={"zeta": 1, "alpha": 2})
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): alpha, zeta" in bad.json()["error"]
+
+
+async def test_process_limits_route_rejects_unknown_param() -> None:
+    ctrl = await _register_controller(max=100, start=50)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        bad = await client.patch(
+            "/config", params={"max_connections": 30, "max_gizmos": 3}
+        )
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): max_gizmos" in bad.json()["error"]
+        assert ctrl.max == 100  # nothing applied
+
+
+async def test_post_mutation_routes_reject_unknown_param() -> None:
+    """POST mutation routes are strict too, so any future param is born strict."""
+    from inspect_ai._control.server import keep_alive_intent, reset_keep_alive
+
+    reset_keep_alive()
+    transport = httpx.ASGITransport(app=_app())
+    try:
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            for path in ("/keep", "/release", "/tasks/t1/log-flush"):
+                bad = await client.post(path, params={"bogus": 1})
+                assert bad.status_code == 400, bad.text
+                assert "unknown query parameter(s): bogus" in bad.json()["error"]
+            # the rejected /keep and /release never reached their handlers
+            assert keep_alive_intent() is False
+    finally:
+        reset_keep_alive()
+
+
+async def test_limits_route_get_tolerates_unknown_param() -> None:
+    """GET config routes stay tolerant — an ignored read param can't corrupt."""
+    register_eval("e1", 5, task_id="t1")
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/config", params={"max_gizmos": 3})
+        assert got.status_code == 200, got.text
+        got = await client.get("/tasks/t1/config", params={"max_gizmos": 3})
+        assert got.status_code == 200, got.text
+
+
+async def test_strict_params_allow_sub_dependency_query_params() -> None:
+    """A query param declared by a sub-dependency is allowed, not falsely 400'd."""
+    from fastapi import Depends, FastAPI, Request
+    from fastapi.responses import JSONResponse
+
+    from inspect_ai._control.strict import (
+        UnknownQueryParamsError,
+        reject_unknown_query_params,
+    )
+
+    def sub_dep(extra: int = 0) -> int:
+        return extra
+
+    # attached app-wide, mirroring how the control server wires it
+    app = FastAPI(dependencies=[Depends(reject_unknown_query_params)])
+
+    @app.exception_handler(UnknownQueryParamsError)
+    async def _unknown_params(
+        request: Request, exc: UnknownQueryParamsError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    @app.patch("/thing")
+    async def patch_thing(base: int = 1, extra: int = Depends(sub_dep)) -> dict:
+        return {"base": base, "extra": extra}
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.patch("/thing", params={"base": 2, "extra": 3})
+        assert ok.status_code == 200, ok.text
+        assert ok.json() == {"base": 2, "extra": 3}
+
+        bad = await client.patch("/thing", params={"base": 2, "bogus": 1})
+        assert bad.status_code == 400
+        assert "unknown query parameter(s): bogus" in bad.json()["error"]
 
 
 async def test_limits_route_patch_max_connections() -> None:
@@ -402,41 +924,80 @@ async def test_limits_route_patch_max_connections() -> None:
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        patched = await client.patch("/tasks/t1/limits", params={"max_connections": 25})
+        patched = await client.patch("/tasks/t1/config", params={"max_connections": 25})
         assert patched.status_code == 200, patched.text
         assert patched.json()["adaptive"][0]["max"] == 25
         assert ctrl.max == 25
 
-        bad = await client.patch("/tasks/t1/limits", params={"max_connections": 0})
+        bad = await client.patch("/tasks/t1/config", params={"max_connections": 0})
         assert bad.status_code == 400
         assert "max_connections" in bad.json()["error"]
 
 
 async def test_process_limits_route_get_and_patch() -> None:
-    """The process-level /limits route reads and retunes without an eval id."""
+    """The process-level /config route reads and retunes without an eval id."""
     ctrl = await _register_controller(max=100, start=50)
 
     transport = httpx.ASGITransport(app=_app())
     async with httpx.AsyncClient(
         transport=transport, base_url="http://localhost"
     ) as client:
-        got = await client.get("/limits")
+        got = await client.get("/config")
         assert got.status_code == 200, got.text
         assert got.json()["adaptive"][0]["max"] == 100
         assert "max_samples" not in got.json()  # process view, no per-eval knob
 
-        patched = await client.patch("/limits", params={"max_connections": 25})
+        patched = await client.patch("/config", params={"max_connections": 25})
         assert patched.status_code == 200, patched.text
         assert patched.json()["adaptive"][0]["max"] == 25
         assert ctrl.max == 25
 
-        bad = await client.patch("/limits", params={"max_connections": 0})
+        bad = await client.patch("/config", params={"max_connections": 0})
         assert bad.status_code == 400
         assert "max_connections" in bad.json()["error"]
 
 
+async def test_process_limits_route_patch_max_subprocesses() -> None:
+    """max_subprocesses rides the process /config route like the other knobs."""
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["max_subprocesses"] == {"limit": 8, "in_use": 0}
+
+        patched = await client.patch("/config", params={"max_subprocesses": 3})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["max_subprocesses"] == {"limit": 3, "in_use": 0}
+        assert subprocs.concurrency == 3
+
+        bad = await client.patch("/config", params={"max_subprocesses": 0})
+        assert bad.status_code == 400
+        assert "max_subprocesses" in bad.json()["error"]
+
+
+async def test_limits_route_patch_max_subprocesses_task_keyed() -> None:
+    """max_subprocesses also rides the task config route (process-scoped knob)."""
+    subprocs = ResizableSemaphore("subprocesses", 8, True)
+    register_subprocess_limiter(subprocs)
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch("/tasks/t1/config", params={"max_subprocesses": 5})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["max_subprocesses"] == {"limit": 5, "in_use": 0}
+        assert subprocs.concurrency == 5
+
+
 async def test_process_limits_route_model_filter() -> None:
-    """`model` on the /limits route scopes the retune to matching controllers."""
+    """`model` on the /config route scopes the retune to matching controllers."""
     gpt = await _register_controller(name="openai/gpt-4", max=100, start=50)
     claude = await _register_controller(name="anthropic/claude", max=100, start=50)
 
@@ -445,12 +1006,59 @@ async def test_process_limits_route_model_filter() -> None:
         transport=transport, base_url="http://localhost"
     ) as client:
         patched = await client.patch(
-            "/limits", params={"max_connections": 20, "model": "gpt-4"}
+            "/config", params={"max_connections": 20, "model": "gpt-4"}
         )
         assert patched.status_code == 200, patched.text
         assert [a["name"] for a in patched.json()["adaptive"]] == ["openai/gpt-4"]
         assert gpt.max == 20
         assert claude.max == 100  # unmatched, untouched
+
+
+async def test_retry_overrides_route_patch_and_clear() -> None:
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch("/config", params={"timeout": 90})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["retry"]["timeout"] == 90
+        assert generate_config_override("timeout") == 90
+
+        # the task-keyed route carries the same knobs (process-scoped)
+        patched = await client.patch("/tasks/t1/config", params={"max_retries": 4})
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["retry"] == {
+            "timeout": 90,
+            "attempt_timeout": None,
+            "max_retries": 4,
+        }
+
+        # "clear" removes an override; 0 is a real value (no retries)
+        cleared = await client.patch("/config", params={"timeout": "clear"})
+        assert cleared.status_code == 200, cleared.text
+        assert cleared.json()["retry"]["timeout"] is None
+        zeroed = await client.patch("/config", params={"max_retries": 0})
+        assert zeroed.status_code == 200, zeroed.text
+        assert zeroed.json()["retry"]["max_retries"] == 0
+        assert generate_config_override("max_retries") == 0
+        restored = await client.patch("/config", params={"max_retries": 4})
+        assert restored.status_code == 200, restored.text
+
+        # negative, non-integer and over-bound values are rejected on both
+        # routes (an over-bound attempt_timeout would otherwise surface as
+        # an OverflowError inside every subsequent generate call)
+        for path in ("/config", "/tasks/t1/config"):
+            for bad_value in ("-1", "unset", str(MAX_GENERATE_CONFIG_OVERRIDE + 1)):
+                bad = await client.patch(path, params={"attempt_timeout": bad_value})
+                assert bad.status_code == 400
+                assert "attempt_timeout" in bad.json()["error"]
+
+        # GET reports the active overrides too
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert got.json()["retry"]["max_retries"] == 4
 
 
 async def test_limits_route_dry_run() -> None:
@@ -463,7 +1071,7 @@ async def test_limits_route_dry_run() -> None:
         transport=transport, base_url="http://localhost"
     ) as client:
         resp = await client.patch(
-            "/tasks/t1/limits", params={"max_samples": 40, "dry_run": True}
+            "/tasks/t1/config", params={"max_samples": 40, "dry_run": True}
         )
         assert resp.status_code == 200, resp.text
         assert resp.json()["dry_run"] is True
@@ -471,152 +1079,776 @@ async def test_limits_route_dry_run() -> None:
         assert limiter.limit == 20
 
 
+async def test_limits_route_key_patch() -> None:
+    """PATCH with key/key_limit retunes the named registry entry."""
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    sem = await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch(
+            "/config", params={"key": "google_web_search", "key_limit": 3}
+        )
+        assert patched.status_code == 200, patched.text
+        assert sem.concurrency == 3
+        row = next(
+            r for r in patched.json()["concurrency"] if r["name"] == "google_web_search"
+        )
+        assert (row["limit"], row["adjustable"]) == (3, True)
+
+        # GET carries the concurrency view too
+        got = await client.get("/config")
+        assert got.status_code == 200, got.text
+        assert [r["name"] for r in got.json()["concurrency"]] == ["google_web_search"]
+
+
+async def test_limits_route_key_unknown_is_400() -> None:
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    register_eval("e1", 5, task_id="t1")
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        for path in ("/config", "/tasks/t1/config"):
+            bad = await client.patch(path, params={"key": "nope", "key_limit": 3})
+            assert bad.status_code == 400, bad.text
+            error = bad.json()["error"]
+            assert "no concurrency key named 'nope'" in error
+            assert "google_web_search" in error  # lists the available keys
+
+
+async def test_limits_route_key_requires_pair() -> None:
+    """A bare key (or bare key_limit) is a malformed request, not a read."""
+    register_eval("e1", 5, task_id="t1")
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        for path in ("/config", "/tasks/t1/config"):
+            bad = await client.patch(path, params={"key": "google_web_search"})
+            assert bad.status_code == 400
+            assert "provided together" in bad.json()["error"]
+
+            bad = await client.patch(path, params={"key_limit": 3})
+            assert bad.status_code == 400
+            assert "provided together" in bad.json()["error"]
+
+        # key_limit rides the shared below-one validation
+        bad = await client.patch(
+            "/config", params={"key": "google_web_search", "key_limit": 0}
+        )
+        assert bad.status_code == 400
+        assert "key_limit" in bad.json()["error"]
+
+
+# ---------------------------------------------------------------------------
+# Config-update recording (EvalLog.config_updates)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingLive:
+    """A fake live logger that collects recorded config updates."""
+
+    def __init__(self, fail: bool = False, finished: bool = False) -> None:
+        self.updates: list[Any] = []
+        self.fail = fail
+        self.finished = finished
+        self.log_buffer = 10
+
+    async def log_config_update(self, update: Any) -> bool:
+        if self.fail:
+            raise RuntimeError("boom")
+        if self.finished:
+            # mirrors TaskLogger: a finished log declines the record
+            return False
+        self.updates.append(update)
+        return True
+
+    def buffer_config(
+        self, log_buffer: int | None = None, log_shared: int | None = None
+    ) -> Any:
+        from inspect_ai._control.eval_state import BufferConfig
+
+        if log_buffer is not None:
+            self.log_buffer = max(1, log_buffer)
+        return BufferConfig(log_buffer=self.log_buffer, pending=0, log_shared=None)
+
+
+def _register_with_live(eval_id: str, task_id: str, live: _RecordingLive) -> None:
+    # the fake implements only the recording slice of LiveEvalData
+    register_eval(eval_id, 5, task_id=task_id, live=cast(Any, live))
+
+
+async def test_config_update_recorded_for_task_scoped_knob() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    result = await task_limits("t1", max_samples=30, author="alice", reason="ramp up")
+    assert result is not None
+    assert result["persisted"] == {"max_samples": True}
+    assert len(live.updates) == 1
+    update = live.updates[0]
+    assert update.scope == "task"
+    assert update.provenance.author == "alice"
+    assert update.provenance.reason == "ramp up"
+    change = update.changes[0]
+    assert (change.config, change.name) == ("eval", "max_samples")
+    assert (change.value, change.previous, change.cleared) == (30, 20, False)
+
+
+async def test_config_update_recorded_for_log_buffer() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+
+    result = await task_limits("t1", log_buffer=20)
+    assert result is not None
+    assert result["persisted"] == {"log_buffer": True}
+    change = live.updates[0].changes[0]
+    assert (change.config, change.name) == ("eval", "log_buffer")
+    assert (change.value, change.previous) == (20, 10)
+    # a rejected log_shared set (no shared sync active) records nothing
+    live.updates.clear()
+    result = await task_limits("t1", log_shared=30)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+
+async def test_config_update_idempotent_resend_records_nothing() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    result = await task_limits("t1", max_samples=20)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+
+async def test_config_update_dry_run_records_nothing() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    result = await task_limits("t1", max_samples=30, dry_run=True)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+
+async def test_config_update_unadjustable_knob_records_nothing() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)  # no sample semaphore
+
+    result = await task_limits("t1", max_samples=30)
+    assert result is not None
+    assert result["persisted"] is None
+    assert live.updates == []
+
+
+async def test_config_update_process_scope_fans_out_to_all_live_logs() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    live1 = _RecordingLive()
+    live2 = _RecordingLive()
+    _register_with_live("e1", "t1", live1)
+    _register_with_live("e2", "t2", live2)
+
+    result = await process_limits(timeout=120, author="alice")
+    assert result["persisted"] == {"timeout": True}
+    for live in (live1, live2):
+        assert len(live.updates) == 1
+        update = live.updates[0]
+        assert update.scope == "process"
+        change = update.changes[0]
+        assert (change.config, change.name, change.value) == (
+            "generate",
+            "timeout",
+            120,
+        )
+        # no prior override: previous is filled per-log from launch config
+        # (by TaskLogger), so the applier-level record leaves it None
+        assert change.previous is None
+
+
+async def test_config_update_process_scope_skips_finished_logs() -> None:
+    """A finished log declines the record without reading as a failure."""
+    from inspect_ai._control.limits import process_limits
+
+    done = _RecordingLive(finished=True)
+    running = _RecordingLive()
+    _register_with_live("e1", "t1", done)
+    _register_with_live("e2", "t2", running)
+
+    result = await process_limits(timeout=120)
+    # the running task's log recorded the change — the earlier-finished
+    # sibling's decline must not flip persisted to False
+    assert result["persisted"] == {"timeout": True}
+    assert done.updates == []
+    assert len(running.updates) == 1
+
+
+async def test_config_update_process_scope_all_finished_reports_unpersisted() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    done = _RecordingLive(finished=True)
+    _register_with_live("e1", "t1", done)
+
+    result = await process_limits(timeout=120)
+    # applied, but no live log carries the record
+    assert result["persisted"] == {"timeout": False}
+    assert done.updates == []
+
+
+async def test_config_update_partial_fanout_failure_reports_unpersisted() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    ok = _RecordingLive()
+    bad = _RecordingLive(fail=True)
+    _register_with_live("e1", "t1", ok)
+    _register_with_live("e2", "t2", bad)
+
+    result = await process_limits(timeout=120)
+    assert result["persisted"] == {"timeout": False}
+    # the record still landed where it could
+    assert len(ok.updates) == 1
+
+
+async def test_config_update_model_filter_stamped_in_provenance() -> None:
+    """A --model-filtered max_connections retune records the filter."""
+    from inspect_ai._control.limits import process_limits
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await _register_controller(name="openai/gpt-4", max=100, start=50)
+    await _register_controller(name="anthropic/claude", max=100, start=50)
+
+    result = await process_limits(max_connections=30, model="claude")
+    assert result["persisted"] == {"max_connections": True}
+    assert live.updates[0].provenance.metadata == {"max_connections_model": "claude"}
+
+    # an unfiltered retune carries no filter metadata
+    live.updates.clear()
+    await process_limits(max_connections=40)
+    assert live.updates[0].provenance.metadata == {}
+
+
+async def test_config_update_mixed_scopes_split_by_scope() -> None:
+    """One PATCH carrying task and process knobs writes one update per scope."""
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    result = await task_limits("t1", max_samples=30, max_retries=3)
+    assert result is not None
+    assert result["persisted"] == {"max_samples": True, "max_retries": True}
+    assert [u.scope for u in live.updates] == ["task", "process"]
+    # both updates from the one PATCH share provenance
+    assert live.updates[0].provenance == live.updates[1].provenance
+
+
+async def test_config_update_clear_with_no_override_records_nothing() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+
+    result = await process_limits(timeout="clear")
+    assert result["persisted"] is None
+    assert live.updates == []
+
+
+async def test_config_update_clear_records_cleared_change() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    set_generate_config_override("timeout", 120)
+
+    result = await process_limits(timeout="clear")
+    assert result["persisted"] == {"timeout": True}
+    change = live.updates[0].changes[0]
+    assert (change.cleared, change.value, change.previous) == (True, None, 120)
+
+
+async def test_config_update_recording_failure_degrades_to_persisted_false() -> None:
+    live = _RecordingLive(fail=True)
+    _register_with_live("e1", "t1", live)
+    limiter = ResizableLimiter(20)
+    register_task_sample_semaphore("t1", limiter)
+
+    result = await task_limits("t1", max_samples=30)
+    assert result is not None
+    # the retune still applied — recording is bookkeeping, never control
+    assert limiter.limit == 30
+    assert result["persisted"] == {"max_samples": False}
+
+
+async def test_config_update_process_scope_with_no_live_logs() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    register_eval("e1", 5, task_id="t1")  # no live logger
+
+    result = await process_limits(max_retries=3)
+    # applied, but recorded in no log
+    assert result["persisted"] == {"max_retries": False}
+
+
+async def test_config_update_records_key_change() -> None:
+    """A --key retune is recorded as an audit-only "concurrency" change."""
+    from inspect_ai._control.config_record import inherited_config_updates
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    result = await process_limits(
+        key="google_web_search", key_limit=3, reason="provider incident"
+    )
+    assert result["persisted"] == {"google_web_search": True}
+    update = live.updates[0]
+    assert update.scope == "process"
+    assert update.provenance.reason == "provider incident"
+    change = update.changes[0]
+    assert (change.config, change.name) == ("concurrency", "google_web_search")
+    assert (change.value, change.previous) == (3, 10)
+    # process-scoped like the other process knobs: it joins the run's
+    # inheritance snapshot for logs that start later
+    assert len(inherited_config_updates()) == 1
+
+
+async def test_config_update_key_retune_to_current_value_records_nothing() -> None:
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await get_or_create_semaphore("google_web_search", 10, None, True)
+
+    result = await process_limits(key="google_web_search", key_limit=10)
+    assert result["persisted"] is None
+    assert live.updates == []
+
+
+async def test_config_update_key_mixed_previous_records_none() -> None:
+    """Entries sharing a name with disagreeing old limits get previous=None."""
+    from inspect_ai._control.limits import process_limits
+    from inspect_ai.util._concurrency import get_or_create_semaphore
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    await get_or_create_semaphore("model", 10, "model#account1", True)
+    await get_or_create_semaphore("model", 5, "model#account2", True)
+
+    await process_limits(key="model", key_limit=3)
+    change = live.updates[0].changes[0]
+    assert (change.config, change.name, change.value) == ("concurrency", "model", 3)
+    assert change.previous is None
+
+
+async def test_config_update_inheritance_snapshot() -> None:
+    from inspect_ai._control.config_record import inherited_config_updates
+    from inspect_ai._control.eval_state import reset_run_registries
+    from inspect_ai._control.limits import process_limits
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+
+    await process_limits(timeout=120, author="alice")
+    inherited = inherited_config_updates()
+    assert len(inherited) == 1
+    copy = inherited[0]
+    assert copy.provenance.metadata == {"inherited": True}
+    assert copy.provenance.author == "alice"
+    # the original accumulated update is not mutated by the snapshot
+    assert live.updates[0].provenance.metadata == {}
+    # task-scoped changes are not accumulated
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+    await task_limits("t1", max_samples=30)
+    assert len(inherited_config_updates()) == 1
+
+    # run-boundary reset clears the accumulator
+    reset_run_registries()
+    assert inherited_config_updates() == []
+
+
+class _QueuedTaskLogger(TaskLogger):
+    """Just the recording slice of TaskLogger (bypasses its heavy __init__)."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.updates: list[Any] = []
+        self.fail = fail
+        self._location = "mock://log"
+        self._process_updates_recorded = 0
+
+    async def log_config_update(self, update: Any) -> bool:
+        if self.fail:
+            raise RuntimeError("boom")
+        self.updates.append(update)
+        return True
+
+
+async def test_config_update_catch_up_for_task_queued_at_retune_time() -> None:
+    """A logger inited before a process retune catches up at task start.
+
+    A run's initial loggers are all init()ed up front while retunes fan out
+    only to registered evals, so a task queued behind --max-tasks records a
+    retune applied while it waited via the watermark catch-up that task_run
+    invokes just before register_eval.
+    """
+    from inspect_ai._control.limits import process_limits
+
+    queued = _QueuedTaskLogger()
+    # init-time snapshot: no retunes yet
+    await queued.record_inherited_config_updates()
+    assert queued.updates == []
+
+    # a retune lands while the task waits: it fans out to the running
+    # task's registered log, but `queued` is not yet a fan-out target
+    running = _RecordingLive()
+    _register_with_live("e1", "t1", running)
+    result = await process_limits(timeout=120)
+    assert result["persisted"] == {"timeout": True}
+    assert len(running.updates) == 1
+    assert queued.updates == []
+
+    # at task start (immediately before register_eval) the queued logger
+    # catches up; the copy is marked inherited with original provenance
+    await queued.record_inherited_config_updates()
+    assert len(queued.updates) == 1
+    assert queued.updates[0].scope == "process"
+    assert queued.updates[0].provenance.metadata == {"inherited": True}
+
+    # the watermark makes the catch-up idempotent
+    await queued.record_inherited_config_updates()
+    assert len(queued.updates) == 1
+
+
+async def test_config_update_catch_up_failure_degrades_to_warning() -> None:
+    from inspect_ai._control.limits import process_limits
+
+    await process_limits(timeout=120)
+
+    failing = _QueuedTaskLogger(fail=True)
+    # recording is bookkeeping, never control: the failure must not raise
+    await failing.record_inherited_config_updates()
+    assert failing.updates == []
+
+    # the watermark advanced past the failed update — no retry loop
+    failing.fail = False
+    await failing.record_inherited_config_updates()
+    assert failing.updates == []
+
+
+async def test_config_update_default_author_falls_back_to_os_user() -> None:
+    import getpass
+
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    await task_limits("t1", max_samples=30)
+    assert live.updates[0].provenance.author == getpass.getuser()
+
+
+async def test_config_update_route_carries_provenance_params() -> None:
+    live = _RecordingLive()
+    _register_with_live("e1", "t1", live)
+    register_task_sample_semaphore("t1", ResizableLimiter(20))
+
+    transport = httpx.ASGITransport(app=_app())
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        patched = await client.patch(
+            "/tasks/t1/config",
+            params={
+                "max_samples": 40,
+                "author": "alice <a@example.org>",
+                "reason": "provider incident",
+            },
+        )
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["persisted"] == {"max_samples": True}
+        update = live.updates[0]
+        assert update.provenance.author == "alice <a@example.org>"
+        assert update.provenance.reason == "provider incident"
+
+        # process route too
+        patched = await client.patch(
+            "/config", params={"max_retries": 2, "reason": "fail fast"}
+        )
+        assert patched.status_code == 200, patched.text
+        assert patched.json()["persisted"] == {"max_retries": True}
+
+
 # ---------------------------------------------------------------------------
 # CLI rendering
 # ---------------------------------------------------------------------------
 
 
-def test_print_limits(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_limits
+def test_print_config(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": False,
-            "max_samples": {"limit": 20, "in_use": 5, "adjustable": True},
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "limit": 20,
+                    "in_use": 5,
+                    "adjustable": True,
+                },
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
             "requested": None,
             "warnings": [],
+            "notes": [],
         },
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "limits:" in out
-    assert "max samples:   20 (5 in use)" in out
-    assert "docker 8 (3 in use)" in out
+    assert "config:" in out
+    # every knob line is labeled with its scope
+    assert "max samples [task]:         20 (5 in use)" in out
+    assert "max sandboxes [process]:    docker 8 (3 in use)" in out
 
 
-def test_print_limits_updated_with_warning(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    from inspect_ai._cli.ctl import _print_limits
+def test_print_config_max_subprocesses(capsys: pytest.CaptureFixture[str]) -> None:
+    """An active subprocess limiter renders its limit; a dry-run set an arrow."""
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
-            "dry_run": False,
-            "max_samples": {"adjustable": False},
-            "max_sandboxes": [],
-            "requested": {"max_samples": 30},
-            "warnings": ["max_samples is not adjustable for this eval."],
+            "dry_run": True,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_subprocesses": {"scope": "process", "limit": 16, "in_use": 9},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": {"max_subprocesses": 4},
+            "warnings": [],
+            "notes": [],
         },
         changed=True,
     )
     out = capsys.readouterr().out
-    assert "updated limits:" in out
+    assert "max subprocesses [process]: 16 → 4 (9 in use)" in out
+
+
+def test_print_config_max_subprocesses_inactive(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A run with no subprocess limiter yet renders the knob as inactive."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_subprocesses": {"scope": "process"},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert (
+        "max subprocesses [process]: inactive (no adjustable subprocess limiter yet)"
+        in out
+    )
+
+
+def test_print_config_updated_with_warning(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": {"max_samples": 30},
+            "warnings": ["max_samples is not adjustable for this eval."],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "updated config:" in out
     assert "not adjustable" in out
-    assert "max sandboxes: none in effect" in out
+    assert "max sandboxes [process]:    none in effect" in out
     assert "! max_samples is not adjustable" in out
 
 
-def test_print_limits_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None:
-    from inspect_ai._cli.ctl import _print_limits
+def test_print_config_dry_run_header(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": True,
-            "max_samples": {"limit": 20, "in_use": 0, "adjustable": True},
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "limit": 20,
+                    "in_use": 0,
+                    "adjustable": True,
+                },
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
             "requested": {"max_samples": 40, "max_sandboxes": 16},
             "warnings": [],
+            "notes": [],
         },
         changed=True,
     )
     out = capsys.readouterr().out
-    assert "would-be limits (dry run):" in out
+    assert "would-be config (dry run):" in out
     # would-be values render as `current → requested`, not the bare current value
-    assert "max samples:   20 → 40 (0 in use)" in out
+    assert "max samples [task]:         20 → 40 (0 in use)" in out
     assert "docker 8 → 16 (3 in use)" in out
 
 
-def test_print_limits_dry_run_unchanged_knob_has_no_arrow(
+def test_print_config_dry_run_unchanged_knob_has_no_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run knob whose requested value equals the current one shows no arrow."""
-    from inspect_ai._cli.ctl import _print_limits
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": True,
-            "max_samples": {"limit": 20, "in_use": 0, "adjustable": True},
-            # max_sandboxes not in `requested` (only max_samples was set), and
-            # max_samples requested == current, so neither line gets an arrow.
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "limit": 20,
+                    "in_use": 0,
+                    "adjustable": True,
+                },
+                # max_sandboxes not in `requested` (only max_samples was set),
+                # and max_samples requested == current, so no line gets an arrow.
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
             "requested": {"max_samples": 20},
             "warnings": [],
+            "notes": [],
         },
         changed=True,
     )
     out = capsys.readouterr().out
     assert "→" not in out
-    assert "max samples:   20 (0 in use)" in out
+    assert "max samples [task]:         20 (0 in use)" in out
     assert "docker 8 (3 in use)" in out
 
 
-def test_print_limits_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
+def test_print_config_adaptive_section(capsys: pytest.CaptureFixture[str]) -> None:
     """The adaptive path renders live controller state instead of a bare label."""
-    from inspect_ai._cli.ctl import _print_limits
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": False,
-            "max_samples": {"adjustable": False, "tracks_adaptive": True},
-            "max_sandboxes": [],
-            "adaptive": [
-                {
-                    "name": "openai/gpt-4",
-                    "limit": 45,
-                    "in_use": 40,
-                    "min": 1,
-                    "max": 100,
-                    "recent_changes": [
-                        {"at": 1.0, "from": 50, "to": 45, "reason": "rate_limit"},
+            "knobs": {
+                "max_samples": {
+                    "scope": "task",
+                    "adjustable": False,
+                    "tracks_adaptive": True,
+                },
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {
+                    "scope": "process",
+                    "adaptive": [
+                        {
+                            "name": "openai/gpt-4",
+                            "limit": 45,
+                            "in_use": 40,
+                            "min": 1,
+                            "max": 100,
+                            "recent_changes": [
+                                {
+                                    "at": 1.0,
+                                    "from": 50,
+                                    "to": 45,
+                                    "reason": "rate_limit",
+                                },
+                            ],
+                        }
                     ],
-                }
-            ],
+                },
+            },
             "requested": None,
             "warnings": [],
+            "notes": [],
         },
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "max samples:   tracks adaptive connections (see below)" in out
-    assert "adaptive connections:" in out
+    assert "max samples [task]:         tracks adaptive connections (see below)" in out
+    assert "adaptive connections [process]:" in out
     assert "openai/gpt-4: 45 (40 in use), range 1–100" in out
     assert "last: 50→45 rate_limit" in out
 
 
-def test_print_limits_adaptive_dry_run_shows_ceiling_arrow(
+def test_print_config_adaptive_dry_run_shows_ceiling_arrow(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A dry-run max_connections renders the ceiling as `max → requested`."""
-    from inspect_ai._cli.ctl import _print_limits
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": True,
-            "max_samples": {"adjustable": False},
-            "max_sandboxes": [],
-            "adaptive": [
-                {
-                    "name": "openai/gpt-4",
-                    "limit": 50,
-                    "in_use": 10,
-                    "min": 1,
-                    "max": 100,
-                    "recent_changes": [],
-                }
-            ],
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {
+                    "scope": "process",
+                    "adaptive": [
+                        {
+                            "name": "openai/gpt-4",
+                            "limit": 50,
+                            "in_use": 10,
+                            "min": 1,
+                            "max": 100,
+                            "recent_changes": [],
+                        }
+                    ],
+                },
+            },
             "requested": {"max_connections": 30},
             "warnings": [],
+            "notes": [],
         },
         changed=True,
     )
@@ -624,33 +1856,265 @@ def test_print_limits_adaptive_dry_run_shows_ceiling_arrow(
     assert "range 1–100 → 30" in out
 
 
-def test_print_limits_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
-    """The process-level view (no max_samples key) shows max samples as per-task."""
-    from inspect_ai._cli.ctl import _print_limits
+def test_print_config_process_scope(capsys: pytest.CaptureFixture[str]) -> None:
+    """The process-level view (no max_samples knob) shows max samples as per-task."""
+    from inspect_ai._cli.ctl import _print_config
 
-    _print_limits(
+    _print_config(
         {
             "dry_run": False,
-            "max_sandboxes": [{"type": "docker", "limit": 8, "in_use": 3}],
-            "adaptive": [
-                {
-                    "name": "openai/gpt-4",
-                    "limit": 45,
-                    "in_use": 40,
-                    "min": 1,
-                    "max": 100,
-                    "recent_changes": [],
-                }
-            ],
+            "knobs": {
+                # note: no "max_samples" knob → process scope
+                "max_sandboxes": {
+                    "scope": "process",
+                    "providers": [{"type": "docker", "limit": 8, "in_use": 3}],
+                },
+                "max_connections": {
+                    "scope": "process",
+                    "adaptive": [
+                        {
+                            "name": "openai/gpt-4",
+                            "limit": 45,
+                            "in_use": 40,
+                            "min": 1,
+                            "max": 100,
+                            "recent_changes": [],
+                        }
+                    ],
+                },
+            },
             "requested": None,
             "warnings": [],
-        },  # note: no "max_samples" key → process scope
+            "notes": [],
+        },
         changed=False,
     )
     out = capsys.readouterr().out
-    assert "max samples:   per task (pass a task to view/set)" in out
+    assert "max samples [task]:         per task (pass a task to view/set)" in out
     assert "docker 8 (3 in use)" in out
-    assert "adaptive connections:" in out
+    assert "adaptive connections [process]:" in out
+
+
+def test_print_config_buffer_knobs_and_notes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The absorbed buffer knobs render with their task scope; notes print last."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "log_buffer": {"scope": "task", "value": 10, "pending": 2},
+                "log_shared": {"scope": "task", "value": None},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": ["--max-connections applies process-wide."],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "log buffer [task]:          10 samples (2 pending)" in out
+    assert "shared sync [task]:         off" in out
+    assert "note: --max-connections applies process-wide." in out
+
+
+def test_print_config_retry_overrides(capsys: pytest.CaptureFixture[str]) -> None:
+    """Retry knobs render the live override, or 'launch config' when unset."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "timeout": {"scope": "process", "override": None},
+                "attempt_timeout": {"scope": "process", "override": 30},
+                "max_retries": {"scope": "process", "override": None},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "  timeout [process]:          launch config" in out
+    assert "  attempt timeout [process]:  30s (override)" in out
+    assert "  max retries [process]:      launch config" in out
+
+
+def test_print_config_retry_overrides_dry_run_arrows(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run renders `current → requested`, with `clear` shown as its meaning."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": True,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "timeout": {"scope": "process", "override": None},
+                "attempt_timeout": {"scope": "process", "override": 30},
+                "max_retries": {"scope": "process", "override": None},
+            },
+            "requested": {"timeout": 300, "attempt_timeout": "clear", "max_retries": 0},
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "launch config → 300s" in out
+    assert "30s (override) → launch config" in out
+    # 0 is a real requested value (no retries), not a clear
+    assert "  max retries [process]:      launch config → 0\n" in out
+
+
+def test_print_config_omits_retry_knobs_for_older_server(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An older server's view has no retry knobs — no line, no value claim."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "timeout" not in out
+    assert "max retries" not in out
+
+
+def test_print_config_concurrency_keys_section(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The named-key section lists registry entries with their scope label."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": False,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "concurrency": {
+                    "scope": "process",
+                    "keys": [
+                        {
+                            "name": "fixed",
+                            "limit": 4,
+                            "in_use": 0,
+                            "adjustable": False,
+                        },
+                        {
+                            "name": "google_web_search",
+                            "limit": 10,
+                            "in_use": 3,
+                            "adjustable": True,
+                        },
+                    ],
+                },
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        },
+        changed=False,
+    )
+    out = capsys.readouterr().out
+    assert "concurrency keys [process]:" in out
+    assert "google_web_search: 10 (3 in use)" in out
+    assert "fixed: 4 (0 in use) — not adjustable" in out
+
+
+def test_print_config_concurrency_keys_empty_states(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty registry renders a placeholder, distinct from an old server.
+
+    Named limits are created lazily on first use, so an eval can genuinely
+    have zero entries early on — the placeholder keeps the `--key` knob
+    discoverable and tells that state apart from a server whose view predates
+    the section (`keys` is None).
+    """
+    from inspect_ai._cli.ctl import _print_config
+
+    def view(keys: list[dict[str, Any]] | None) -> dict[str, Any]:
+        return {
+            "dry_run": False,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "concurrency": {"scope": "process", "keys": keys},
+            },
+            "requested": None,
+            "warnings": [],
+            "notes": [],
+        }
+
+    _print_config(view([]), changed=False)
+    out = capsys.readouterr().out
+    assert (
+        "concurrency keys [process]: none registered yet "
+        "(named limits appear on first use)" in out
+    )
+
+    _print_config(view(None), changed=False)
+    out = capsys.readouterr().out
+    assert "concurrency keys [process]: not reported (older server)" in out
+
+
+def test_print_config_concurrency_keys_dry_run_arrow(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry-run key set renders the targeted key as `current → requested`."""
+    from inspect_ai._cli.ctl import _print_config
+
+    _print_config(
+        {
+            "dry_run": True,
+            "knobs": {
+                "max_samples": {"scope": "task", "adjustable": False},
+                "max_sandboxes": {"scope": "process", "providers": []},
+                "max_connections": {"scope": "process", "adaptive": []},
+                "concurrency": {
+                    "scope": "process",
+                    "keys": [
+                        {
+                            "name": "google_web_search",
+                            "limit": 10,
+                            "in_use": 3,
+                            "adjustable": True,
+                        },
+                    ],
+                },
+            },
+            "requested": {"concurrency:google_web_search": 4},
+            "warnings": [],
+            "notes": [],
+        },
+        changed=True,
+    )
+    out = capsys.readouterr().out
+    assert "google_web_search: 10 → 4 (3 in use)" in out
 
 
 def test_process_scope_note() -> None:
@@ -663,15 +2127,15 @@ def test_process_scope_note() -> None:
     assert _process_scope_note(["--max-connections"], 1) is None
     # single global knob across a multi-eval process → singular "applies"
     note = _process_scope_note(["--max-connections"], 3)
-    assert (
-        note
-        == "note: --max-connections applies across all 3 tasks sharing this process."
+    assert note == (
+        "--max-connections applies process-wide — every active task in "
+        "this process is affected."
     )
     # both global knobs → plural "apply", joined
     note = _process_scope_note(["--max-connections", "--max-sandboxes"], 2)
     assert (
         note
-        == "note: --max-connections and --max-sandboxes apply across all 2 tasks sharing this process."
+        == "--max-connections and --max-sandboxes apply process-wide — every active task in this process is affected."
     )
 
 
@@ -698,7 +2162,7 @@ def test_limits_route_error_becomes_500() -> None:
         async with httpx.AsyncClient(
             transport=transport, base_url="http://localhost"
         ) as client:
-            return await client.patch("/tasks/t1/limits", params={"max_samples": 9})
+            return await client.patch("/tasks/t1/config", params={"max_samples": 9})
 
     response = asyncio.run(scenario())
     assert response.status_code == 500

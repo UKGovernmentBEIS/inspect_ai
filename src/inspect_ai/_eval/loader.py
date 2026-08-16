@@ -21,7 +21,6 @@ from inspect_ai._util.registry import (
     RegistryInfo,
     create_registry_object,
     is_registry_object,
-    registry_create,
     registry_info,
     registry_lookup,
     registry_params,
@@ -416,15 +415,23 @@ def resolve_task_sandbox(
             # if we found an override without a config then we may still
             # want to forward the task config if it's docker config ->
             # docker compatible sandbox
-            if (
-                resolved_sandbox.config is None
-                and task.sandbox is not None
-                and is_docker_compatible_config(task.sandbox.config)
-                and is_docker_compatible_sandbox_type(resolved_sandbox.type)
-            ):
-                resolved_sandbox = SandboxEnvironmentSpec(
-                    resolved_sandbox.type, task.sandbox.config
-                )
+            if resolved_sandbox.config is None and task.sandbox is not None:
+                if is_docker_compatible_config(
+                    task.sandbox.config
+                ) and is_docker_compatible_sandbox_type(resolved_sandbox.type):
+                    resolved_sandbox = SandboxEnvironmentSpec(
+                        resolved_sandbox.type, task.sandbox.config
+                    )
+                elif is_docker_compatible_config(task.sandbox.config):
+                    warn_once(
+                        logger,
+                        f"Task '{task.name}' declares sandbox '{task.sandbox.type}' "
+                        "with a Dockerfile/compose.yaml configuration, but the "
+                        f"'{resolved_sandbox.type}' sandbox specified for the eval "
+                        "does not support that configuration. The task's compose "
+                        "services, packages, and tools will not be available in "
+                        f"the '{resolved_sandbox.type}' sandbox.",
+                    )
 
         # resolve relative paths
         if isinstance(resolved_sandbox.config, str):
@@ -634,7 +641,13 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
             elif registry_lookup("solver", solver_name) is not None:
-                return registry_create("solver", solver_name, **spec.args_passed)
+                # create via create_registry_object (args as a dict) so a solver
+                # factory with its own `name` parameter doesn't collide with
+                # registry_create's positional `name` argument on replay.
+                return cast(
+                    Solver,
+                    create_registry_object("solver", solver_name, spec.args_passed),
+                )
             elif registry_lookup("agent", solver_name) is not None:
                 # create via create_registry_object (args as a dict) so an agent
                 # factory with its own `name` parameter doesn't collide with
@@ -701,7 +714,13 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
             # create decorator based solvers using the registry
             if any(solver[0] == solver_name for solver in solver_decorators):
-                return registry_create("solver", solver_name, **spec.args_passed)
+                # create via create_registry_object (args as a dict) so a solver
+                # factory with its own `name` parameter doesn't collide with
+                # registry_create's positional `name` argument on replay.
+                return cast(
+                    Solver,
+                    create_registry_object("solver", solver_name, spec.args_passed),
+                )
 
             # create decorator based agents using the registry
             elif any(agent[0] == solver_name for agent in agent_decorators):
@@ -773,7 +792,7 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
         elif registry_lookup("scanner", scorer_name) is not None:
             from inspect_scout import Scanner, Transcript, as_scorer
 
-            scanner = registry_create("scanner", scorer_name, **kwargs)
+            scanner = create_registry_object("scanner", scorer_name, kwargs)
             return as_scorer(cast(Scanner[Transcript], scanner))
         else:
             raise ValueError(

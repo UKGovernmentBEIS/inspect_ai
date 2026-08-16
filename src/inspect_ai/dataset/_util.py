@@ -74,7 +74,9 @@ def record_to_sample_fn(
                         )
             elif "metadata" in record:
                 metadata_field = record.get("metadata")
-                if isinstance(metadata_field, str):
+                if is_none_or_nan(metadata_field):
+                    metadata = None
+                elif isinstance(metadata_field, str):
                     metadata = json.loads(metadata_field)
                 elif isinstance(metadata_field, dict):
                     metadata = metadata_field
@@ -123,8 +125,12 @@ def as_sample_list(samples: Sample | list[Sample]) -> list[Sample]:
         return [samples]
 
 
+def is_none_or_nan(obj: Any) -> bool:
+    return obj is None or (isinstance(obj, float) and math.isnan(obj))
+
+
 def read_input(input: Any | None) -> str | list[ChatMessage]:
-    if not input:
+    if is_none_or_nan(input) or not input:
         raise ValueError("No input in dataset")
     if not isinstance(input, str):
         return read_messages(input)
@@ -173,13 +179,13 @@ def read_messages(messages: list[dict[str, Any]]) -> list[ChatMessage]:
 def read_target(obj: Any | None) -> str | list[str]:
     # treat float NaN (commonly produced by HuggingFace / pandas for missing
     # string values) the same as None rather than stringifying it to "nan"
-    if obj is None or (isinstance(obj, float) and math.isnan(obj)):
+    if is_none_or_nan(obj):
         return ""
     return [str(item) for item in obj] if isinstance(obj, list) else str(obj)
 
 
 def read_choices(obj: Any | None) -> list[str] | None:
-    if obj is not None:
+    if not is_none_or_nan(obj):
         if isinstance(obj, list):
             return [str(choice) for choice in obj]
         elif isinstance(obj, str):
@@ -194,14 +200,14 @@ def read_choices(obj: Any | None) -> list[str] | None:
 
 
 def read_setup(setup: Any | None) -> str | None:
-    if setup is not None:
+    if not is_none_or_nan(setup):
         return str(setup)
     else:
         return None
 
 
 def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
-    if sandbox is not None:
+    if not is_none_or_nan(sandbox):
         if isinstance(sandbox, str):
             if sandbox.strip().startswith("["):
                 sandbox = json.loads(sandbox)
@@ -223,7 +229,7 @@ def read_sandbox(sandbox: Any | None) -> SandboxEnvironmentSpec | None:
 
 
 def read_files(files: Any | None) -> dict[str, str] | None:
-    if files is not None:
+    if not is_none_or_nan(files):
         if isinstance(files, str):
             files = json.loads(files)
         if isinstance(files, dict):

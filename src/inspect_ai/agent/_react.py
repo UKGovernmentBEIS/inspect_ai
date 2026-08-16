@@ -20,7 +20,7 @@ from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
 from inspect_ai.model._model import Model, get_model
-from inspect_ai.model._trim import trim_messages
+from inspect_ai.model._trim import partition_messages, trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
@@ -626,16 +626,22 @@ async def _handle_overflow(
 
 def _agent_compact(
     compaction: CompactionStrategy | None,
-    prefix: list[ChatMessage],
+    messages: list[ChatMessage],
     tools: Sequence[Tool | ToolDef | ToolSource] | None,
     model: str | Model | Agent | None,
     checkpointer: Checkpointer,
 ) -> Compact | None:
     # create compact function
     if compaction is not None:
+        # derive the always-preserve prefix (system messages + sample input)
+        # rather than using `messages` wholesale: on a checkpoint resume
+        # `messages` is the full restored conversation, and treating it all
+        # as prefix would make every subsequent compaction re-prepend the
+        # entire pre-crash history to its output.
+        partitioned = partition_messages(messages)
         return create_compaction(
             strategy=compaction,
-            prefix=prefix,
+            prefix=partitioned.system + partitioned.input,
             tools=tools,
             model=model if isinstance(model, str | Model | None) else None,
             checkpointer=checkpointer,

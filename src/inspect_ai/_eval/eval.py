@@ -11,7 +11,8 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.eval_state import reset_run_registries
+from inspect_ai._control.pause import dispatch_model_name, note_dispatch_models
 from inspect_ai._control.server import (
     control_server,
     keep_alive_intent,
@@ -19,6 +20,11 @@ from inspect_ai._control.server import (
     reset_keep_alive,
     resolve_ctl_server,
     wait_for_shutdown_async,
+)
+from inspect_ai._eval.handoff import (
+    LaunchHandoff,
+    emit_launch_handoff,
+    print_ctl_pointer,
 )
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
@@ -190,7 +196,10 @@ def eval(
         checkpoint: Checkpoint configuration for this eval, or `True` to
             enable checkpointing with the default trigger (every 500k
             tokens) — equivalent to the bare `--checkpoint` CLI flag.
-            Overrides any task- or sample-level `checkpoint` when set.
+            Overrides any task- or sample-level `checkpoint` that enables
+            checkpointing when set. A task can opt out with
+            `Task(checkpoint=False)`, which overrides this enable for that
+            task only.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
@@ -199,7 +208,7 @@ def eval(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
@@ -249,8 +258,9 @@ def eval(
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on tokens used for each sample. An `int` (or a
             `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
-            with type "output" limits only output tokens. Also accepts strings
-            like "500k", "1m", or "output:1m".
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -475,7 +485,7 @@ async def eval_async(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
@@ -516,8 +526,9 @@ async def eval_async(
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on tokens used for each sample. An `int` (or a
             `TokenLimit` with type "all") limits total tokens; a `TokenLimit`
-            with type "output" limits only output tokens. Also accepts strings
-            like "500k", "1m", or "output:1m".
+            with a `type` limits by output tokens or an arithmetic formula over
+            `input`/`output`. Also accepts strings like "500k", "1m",
+            "output:1m", or "(input*0.1)+output:1m".
         turn_limit: Limit on total turns (model generations) used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
@@ -796,6 +807,14 @@ async def _eval_async_inner(
 
         resolve_model_costs(resolved_tasks, cost_limit)
 
+        # make every resolved task's model addressable by the model pause
+        # directives up-front: with parallel == 1 the run loop below hands
+        # the dispatcher one sequence group at a time, so the dispatcher's
+        # own registration would lag behind the run. This is also the first
+        # dispatch_model_name call, so the latch's name snapshots are taken
+        # here — before any generate can rewrite a provider's model name
+        note_dispatch_models([dispatch_model_name(t.model) for t in resolved_tasks])
+
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
             model_count = len(resolved_model_names(resolved_tasks))
@@ -954,7 +973,7 @@ async def _eval_async_inner(
         # live-eval read / direct / event-subscription operations to
         # `inspect ctl` CLI clients, TUIs, and agents. Bind failures are
         # logged and swallowed — eval correctness never depends on the
-        # control channel coming up. See design/control-channel.md
+        # control channel coming up. See design/ctl/control-channel.md
         # "Implementation notes".
         #
         ctl = resolve_ctl_server(ctl_server)
@@ -988,6 +1007,24 @@ async def _eval_async_inner(
             control_server(run_id=run_id, enabled=ctl.enabled) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
+            # emitted here — after the control-server bind, before any task
+            # work — so a listener that has seen the handoff can rely on the
+            # control surface existing (or being definitively absent)
+            control_socket = (
+                str(_ctl_server.socket_path)
+                if _ctl_server is not None and _ctl_server.socket_path is not None
+                else None
+            )
+            emit_launch_handoff(
+                LaunchHandoff(
+                    run_id=run_id,
+                    pid=os.getpid(),
+                    log_dir=log_dir,
+                    control_socket=control_socket,
+                    eval_set_id=eval_set_id,
+                )
+            )
+            print_ctl_pointer(control_socket)
             with scan_cm:
                 # The one place eval_run is invoked for a batch of tasks. The
                 # initial tasks run as the first loop iteration below; tasks
@@ -1111,14 +1148,14 @@ async def _eval_async_inner(
 
                 rich.get_console().print(
                     "Eval finished. Keeping process alive — press Ctrl+C "
-                    "or run `inspect ctl release` to let it exit.",
+                    "or run `inspect ctl process release` to let it exit.",
                     markup=False,
                     highlight=False,
                 )
                 await wait_for_shutdown_async(_ctl_server)
 
         # cleanup sample buffers if required
-        cleanup_sample_buffers(log_dir)
+        await cleanup_sample_buffers(log_dir)
 
         try:
             await emit_run_end(eval_set_id, run_id, logs)
@@ -1135,12 +1172,13 @@ async def _eval_async_inner(
         # Stop accepting task additions for this run.
         if enqueuer_token is not None:
             clear_task_enqueuer(enqueuer_token)
-        # Clear the process-level EvalState registry at the run boundary
-        # (after any keep-alive park) — but only for a standalone eval.
-        # When nested in an eval-set (eval_set_id set) the eval-set owns
-        # this, clearing after its own park.
+        # Clear the process-level EvalState registry and the retry-loop
+        # config overrides at the run boundary (after any keep-alive park) —
+        # but only for a standalone eval. When nested in an eval-set
+        # (eval_set_id set) the eval-set owns this, clearing after its own
+        # park.
         if eval_set_id is None:
-            clear_all_eval_states()
+            reset_run_registries()
 
     # return logs
     return logs
@@ -1283,7 +1321,7 @@ def eval_retry(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
@@ -1461,7 +1499,7 @@ async def eval_retry_async(
             `True` or `None` (default) binds the default AF_UNIX socket;
             `False` disables the control endpoint; `"keep"` additionally
             keeps the process running after the eval finishes so external
-            clients can still query its state — exit via `inspect ctl release`
+            clients can still query its state — exit via `inspect ctl process release`
             (or `POST /release`).
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
@@ -1601,10 +1639,12 @@ async def eval_retry_async(
         notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         config_token_limit = eval_log.eval.config.token_limit
+        config_token_limit_type = eval_log.eval.config.token_limit_type
         token_limit: int | TokenLimit | None = (
-            TokenLimit(tokens=config_token_limit, type="output")
+            TokenLimit(tokens=config_token_limit, type=config_token_limit_type)
             if config_token_limit is not None
-            and eval_log.eval.config.token_limit_type == "output"
+            and config_token_limit_type is not None
+            and config_token_limit_type != "all"
             else config_token_limit
         )
         turn_limit = eval_log.eval.config.turn_limit

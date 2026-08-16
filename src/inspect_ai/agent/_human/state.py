@@ -1,12 +1,16 @@
 import time as python_time
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from inspect_ai.scorer._metric import Score
 from inspect_ai.util._store_model import StoreModel
 
 
 class IntermediateScoring(BaseModel):
+    # store_jsonable() serializes this model directly (a dump root), so NaN
+    # scores need the constants config here (see design/nan-serialization.md)
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     time: float
     scores: list[Score]
 

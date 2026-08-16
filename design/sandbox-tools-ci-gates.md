@@ -9,7 +9,7 @@ The sandbox-tools binary (`inspect-sandbox-tools`) is injected into user contain
 - **Published `-v{N}`**: built by maintainers and uploaded to S3. The PyPI publish flow downloads the S3 artifact and bundles it into the wheel (under `src/inspect_ai/binaries/`), so PyPI users resolve it via the local-file path with no runtime S3 access. Editable installs whose sandbox-tools source matches `main` fall through to an S3 download at first use and cache the result locally.
 - **`-v{N}-dev`**: built locally via Docker. Used by contributors iterating on the injectable source; never published to S3.
 
-Selection happens in `sandbox.py::_get_install_state()`, which classifies an editable install as `clean` or `edited` by diffing `src/inspect_sandbox_tools/` and `sandbox_tools_version.txt` against `main`. `edited` forces the `-dev` name; `clean` uses the published name. PyPI installs are classified `pypi` and always use the bundled non-dev binary.
+Selection happens in `sandbox.py::_get_install_state()`, which classifies an editable install as `clean` or `edited` by diffing `src/inspect_sandbox_tools/` and `sandbox_tools_version.txt` against `main`. The diff excludes paths that don't ship in the built binary (`*.md`, `design/`, `tests/` under the injectable tree) — the same exclusions as the CI `injectable_src` filter, and the two must stay in sync: CI skips the `-dev` build for excluded-only changes, so classifying them `edited` would resolve a `-dev` binary that was never built. `edited` forces the `-dev` name; `clean` uses the published name. PyPI installs are classified `pypi` and always use the bundled non-dev binary.
 
 The CI gates exist to prevent two failure modes:
 
@@ -28,7 +28,7 @@ Three jobs run in sequence on PRs:
 check-tool-paths ──► check-version-bump ──► slow-tool-tests-dev ──► slow-tool-tests-release
 ```
 
-- **`check-tool-paths`** — detects whether the PR touches tool-related paths relative to the PR base branch. Emits `tools_changed` and `injectable_src_changed`.
+- **`check-tool-paths`** — detects whether the PR touches tool-related paths relative to the PR base branch. Emits `tools_changed` and `injectable_src_changed`. Documentation under the injectable tree (`*.md`, `design/`) doesn't ship in the built binary, so it counts toward `tools_changed` but not `injectable_src_changed`.
 - **`check-version-bump`** — fast, cheap. Reads `sandbox_tools_version.txt` on the PR and on the base branch. Enforces the invariant "injectable source and version move together": fails when the injectable source changed without a correct `N+1` bump, and also when the version was bumped without an injectable change.
 - **`slow-tool-tests-dev`** — runs `pytest --runslow -m slow tests/tools/`. Green = "your code works from a developer perspective." Conditionally builds a `-dev` binary in CI when the PR changed the injected code; otherwise uses the published `v{N}` via the runtime's normal S3 download path.
 - **`slow-tool-tests-release`** — runs only when a version bump is present. Prechecks S3 for the new `v{N+1}`; on 404 fails fast with a message telling the maintainer to run `upload_to_s3.py`. On success, downloads the published artifact and re-runs the slow tests against it. Maintainer reruns this job manually from the Actions UI after publishing.

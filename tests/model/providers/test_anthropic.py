@@ -1,12 +1,17 @@
 import types
-from typing import Any, cast
+from typing import Any, Literal, cast
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
 from test_helpers.utils import skip_if_no_anthropic
 
 from inspect_ai import Task, eval
-from inspect_ai._util.content import Content, ContentText, ContentToolUse
+from inspect_ai._util.content import (
+    Content,
+    ContentReasoning,
+    ContentText,
+    ContentToolUse,
+)
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
@@ -112,6 +117,54 @@ def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
         }
 
 
+@pytest.mark.anyio
+async def test_anthropic_count_tokens_passes_extra_headers() -> None:
+    """count_tokens must honor config.extra_headers like generate does.
+
+    Proxies/gateways rely on per-request headers for attribution; before this,
+    count_tokens calls silently dropped them (and any anthropic-beta values
+    they carried).
+    """
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    mock_count = AsyncMock(return_value=types.SimpleNamespace(input_tokens=7))
+    api.client.messages.count_tokens = mock_count  # type: ignore[method-assign]
+
+    config = GenerateConfig(
+        extra_headers={
+            "anthropic_beta": "context-1m-2025-08-07",
+            "x-test-header": "value",
+        }
+    )
+    count = await api.count_tokens([ChatMessageUser(content="hello")], config)
+    assert count == 7
+
+    kwargs = mock_count.call_args.kwargs
+    assert kwargs["extra_headers"] == {
+        "x-test-header": "value",
+        "anthropic-beta": "context-1m-2025-08-07",
+    }
+    # config must not be mutated
+    assert config.extra_headers == {
+        "anthropic_beta": "context-1m-2025-08-07",
+        "x-test-header": "value",
+    }
+
+    # no config -> no extra_headers kwarg at all
+    mock_count.reset_mock()
+    await api.count_tokens([ChatMessageUser(content="hello")])
+    assert "extra_headers" not in mock_count.call_args.kwargs
+
+    # client default betas (e.g. oauth-2025-04-20 via ANTHROPIC_AUTH_TOKEN)
+    # must be folded into a per-request anthropic-beta header, since a
+    # per-request header overrides the client default rather than merging
+    mock_count.reset_mock()
+    api.client._custom_headers = {"anthropic-beta": "oauth-2025-04-20"}
+    await api.count_tokens([ChatMessageUser(content="hello")], config)
+    assert mock_count.call_args.kwargs["extra_headers"]["anthropic-beta"] == (
+        "oauth-2025-04-20,context-1m-2025-08-07"
+    )
+
+
 _FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
 
 
@@ -162,6 +215,7 @@ def test_anthropic_thinking_keeps_display_without_full_thinking_beta() -> None:
     "model_name,disabled",
     [
         # 4.7+ run adaptive thinking by default and accept `disabled`
+        ("claude-opus-5", True),
         ("claude-sonnet-5", True),
         ("claude-opus-4-8", True),
         ("claude-opus-4-7", True),
@@ -198,6 +252,42 @@ def test_anthropic_reasoning_effort_high_still_adaptive_on_sonnet_5() -> None:
         GenerateConfig(max_tokens=64, reasoning_effort="high")
     )
     assert params["thinking"]["type"] == "adaptive"
+
+
+@pytest.mark.parametrize("effort", ["xhigh", "max"])
+def test_anthropic_opus_5_disabled_thinking_clamps_effort(
+    effort: Literal["xhigh", "max"],
+) -> None:
+    """Opus 5 rejects disabled thinking with effort above `high`; clamp to `high`."""
+    api = AnthropicAPI(model_name="claude-opus-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort=effort)
+    )
+    assert params["thinking"] == {"type": "disabled"}
+    assert params["output_config"]["effort"] == "high"
+
+
+@pytest.mark.parametrize("model_name", ["claude-opus-4-8", "claude-sonnet-5"])
+def test_anthropic_disabled_thinking_keeps_high_effort_elsewhere(
+    model_name: str,
+) -> None:
+    """Opus 4.8 / Sonnet 5 accept disabled thinking with effort above `high`."""
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort="xhigh")
+    )
+    assert params["thinking"] == {"type": "disabled"}
+    assert params["output_config"]["effort"] == "xhigh"
+
+
+def test_anthropic_opus_5_disabled_thinking_keeps_high_effort() -> None:
+    """Effort at or below `high` passes through unclamped on Opus 5."""
+    api = AnthropicAPI(model_name="claude-opus-5", api_key="test-key")
+    params, _e, _h, _b = api.completion_config(
+        GenerateConfig(max_tokens=64, reasoning_effort="none", effort="high")
+    )
+    assert params["thinking"] == {"type": "disabled"}
+    assert params["output_config"]["effort"] == "high"
 
 
 @pytest.mark.parametrize(
@@ -471,6 +561,200 @@ async def test_anthropic_count_tokens_single_tool_result() -> None:
     # This should not raise - we're testing token counting for individual messages
     token_count = await model.api.count_tokens([tool_msg])
     assert token_count > 0
+
+
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_multiple_reasoning_blocks() -> None:
+    """count_tokens must not 400 on an assistant turn with multiple reasoning blocks.
+
+    Reproduces the production compaction failure: when an assistant message
+    carries more than one reasoning block, Anthropic's count_tokens rejects the
+    second+ block with a 400 ("`thinking` or `redacted_thinking` blocks in the
+    latest assistant message cannot be modified"). Compaction counts message
+    subsets, so such a turn reaches count_tokens as the "latest assistant
+    message" and trips the check. Verified end-to-end: without thinking
+    neutralization this call 400s against the live API; with it, it succeeds.
+
+    Real signatures only come from the API, so we generate first, then build the
+    multi-reasoning-block message from the real reasoning content.
+    """
+    model = get_model(
+        "anthropic/claude-opus-4-8",
+        config=GenerateConfig(max_tokens=2048, reasoning_effort="medium"),
+    )
+
+    output = await model.generate("What is 17 * 23? Reason it through.")
+    reasoning = (
+        [c for c in output.message.content if isinstance(c, ContentReasoning)]
+        if isinstance(output.message.content, list)
+        else []
+    )
+    if not reasoning:
+        pytest.skip("model did not emit a reasoning block for this prompt")
+
+    # an assistant turn with two reasoning blocks — the shape that 400'd in
+    # production; count it as a subset the way compaction does
+    message = ChatMessageAssistant(
+        content=[
+            reasoning[0],
+            reasoning[0].model_copy(deep=True),
+            ContentText(text="The answer is 391."),
+        ]
+    )
+    token_count = await model.api.count_tokens([message])
+    assert token_count > 0
+
+
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_empty_reasoning_block() -> None:
+    """count_tokens must not 400 on a reasoning block with empty text + signature.
+
+    The other production error: a `ContentReasoning` with an empty summary and an
+    empty signature reconstructs to a `thinking` block with empty `thinking` and
+    empty `signature`, which the API rejects with "each thinking block must
+    contain thinking". (An empty summary with a *valid* signature is accepted —
+    it's the empty signature that triggers it.) This needs no real signature, so
+    the input is deterministic. Verified end-to-end: without thinking
+    neutralization this 400s against the live API; with it, it succeeds.
+    """
+    model = get_model("anthropic/claude-opus-4-8")
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(summary="", reasoning=""),
+            ContentText(text="done"),
+        ]
+    )
+    token_count = await model.api.count_tokens([message])
+    assert token_count > 0
+
+
+@skip_if_no_anthropic
+async def test_anthropic_count_tokens_nonempty_thinking_empty_signature() -> None:
+    """count_tokens must not 400 on a reasoning block with text but no signature.
+
+    A third production shape (reported alongside the other two): a thinking block
+    with *non-empty* summary text but an empty signature reconstructs to a
+    `thinking` block with real `thinking` and empty `signature`, which the API
+    rejects with "Invalid signature in thinking block" — distinct from the
+    empty-text case's "each thinking block must contain thinking". Both stem from
+    the same root cause (an empty signature), which is why neutralization strips
+    every thinking block regardless of its signature. This needs no real
+    signature, so the input is deterministic. Verified end-to-end: without
+    neutralization this 400s against the live API; with it, it succeeds.
+    """
+    model = get_model("anthropic/claude-opus-4-8")
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                summary="I'm working through the relativePathTo test cases.",
+                reasoning="",
+            ),
+            ContentText(text="done"),
+        ]
+    )
+    token_count = await model.api.count_tokens([message])
+    assert token_count > 0
+
+
+def test_neutralize_thinking_for_token_counting() -> None:
+    """Thinking/redacted blocks are replaced with text before count_tokens.
+
+    Reproduces the two count_tokens 400s that compaction hit: an empty-summary
+    thinking block ("each thinking block must contain thinking", from Claude
+    4.7+ `display: "omitted"`) and a signature-bearing thinking block in a
+    subset's latest assistant message ("blocks ... cannot be modified"). Both
+    are dropped from the payload for a robust token estimate.
+    """
+    from inspect_ai.model._providers.anthropic import (
+        neutralize_thinking_for_token_counting,
+    )
+
+    messages = [
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "thinking", "thinking": "", "signature": "sig-empty"},
+                {"type": "text", "text": "hello"},
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "answer"},
+                {"type": "thinking", "thinking": "some summary", "signature": "sig-2"},
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": [{"type": "redacted_thinking", "data": "opaque"}],
+        },
+        {"role": "user", "content": "unchanged"},
+    ]
+
+    result = neutralize_thinking_for_token_counting(messages)  # type: ignore[arg-type]
+
+    def blocks(index: int) -> list[dict[str, Any]]:
+        content = result[index]["content"]
+        assert isinstance(content, list)
+        return cast(list[dict[str, Any]], content)
+
+    for msg in result:
+        content = msg["content"]
+        if isinstance(content, list):
+            assert all(
+                b.get("type") not in ("thinking", "redacted_thinking") for b in content
+            )
+
+    # empty-summary thinking dropped, sibling text preserved verbatim
+    assert blocks(0) == [{"type": "text", "text": "hello"}]
+    # non-empty summary converted to text (approximate token weight preserved)
+    assert {"type": "text", "text": "some summary"} in blocks(1)
+    # a message that was only redacted_thinking never becomes empty
+    assert len(blocks(2)) == 1
+    assert blocks(2)[0]["type"] == "text"
+    # non-assistant messages are untouched
+    assert result[3] == {"role": "user", "content": "unchanged"}
+
+
+async def test_anthropic_count_tokens_strips_thinking_from_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """count_tokens never sends thinking blocks (or a `thinking` param) upstream.
+
+    On a fresh process the thinking-block replay cache is empty, so
+    ContentReasoning is reconstructed into a ThinkingBlockParam — exactly the
+    cache-miss path that a deployed/resumed run hits. The reconstructed block
+    must be neutralized before reaching the API.
+    """
+    from inspect_ai.model._providers.anthropic import AnthropicAPI
+
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    async def fake_count_tokens(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return types.SimpleNamespace(input_tokens=123)
+
+    monkeypatch.setattr(api.client.messages, "count_tokens", fake_count_tokens)
+
+    assistant = ChatMessageAssistant(
+        content=[
+            ContentReasoning(summary="a thinking summary", reasoning="fake-signature"),
+            ContentText(text="the answer"),
+        ]
+    )
+
+    count = await api.count_tokens([assistant])
+    assert count == 123
+
+    for msg in captured["messages"]:
+        content = msg["content"]
+        if isinstance(content, list):
+            assert all(
+                b.get("type") not in ("thinking", "redacted_thinking") for b in content
+            )
+    assert "thinking" not in captured
 
 
 async def test_anthropic_continuation_preserves_server_tool_pairing() -> None:
@@ -1011,6 +1295,33 @@ async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none
     assert len(response.completion) >= 1
 
 
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_5_reasoning_effort_none_live() -> None:
+    """Opus 5 runs adaptive thinking by default; reasoning_effort='none' must disable it."""
+    model = get_model(
+        "anthropic/claude-opus-5",
+        config=GenerateConfig(reasoning_effort="none", max_tokens=64),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+    content = response.choices[0].message.content
+    if isinstance(content, list):
+        assert not any(c.type == "reasoning" for c in content)
+
+
+@pytest.mark.anyio
+@skip_if_no_anthropic
+async def test_anthropic_opus_5_disabled_thinking_effort_clamp_live() -> None:
+    """reasoning_effort='none' + effort='xhigh' must not 400 on Opus 5 (clamped to high)."""
+    model = get_model(
+        "anthropic/claude-opus-5",
+        config=GenerateConfig(reasoning_effort="none", effort="xhigh", max_tokens=64),
+    )
+    response = await model.generate(input="Say hello in one short sentence.")
+    assert len(response.completion) >= 1
+
+
 # ---------------------------------------------------------------------------
 # max_tokens caps across model versions (incl. forward-compat routing)
 # ---------------------------------------------------------------------------
@@ -1024,7 +1335,8 @@ async def test_anthropic_opus_4_7_accepts_temperature_with_reasoning_effort_none
         ("claude-opus-4-7", 128000),
         # Hypothetical future minor opus version: 128k via frontier+opus
         ("claude-opus-4-8", 128000),
-        # Claude 5 (GA fable + hypothetical tier-named): 128k via "claude 5+" branch
+        # Claude 5 (GA opus/fable + hypothetical tier-named): 128k via "claude 5+" branch
+        ("claude-opus-5", 128000),
         ("claude-fable-5", 128000),
         ("claude-opus-5-0", 128000),
         ("claude-sonnet-5-0", 128000),
@@ -1053,6 +1365,7 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
     "model_name",
     [
         # GA / limited-release names
+        "claude-opus-5",
         "claude-fable-5",
         "claude-mythos-5",
         # forward-compat variants: point release, tier-named, new codename
@@ -1063,7 +1376,10 @@ def test_anthropic_max_tokens_caps(model_name: str, expected_cap: int) -> None:
 )
 def test_anthropic_claude_5_is_known_frontier(model_name: str) -> None:
     """Any claude-*-5 is a known frontier version, not 'latest'/unknown."""
-    from inspect_ai.model._providers.anthropic import _supports_memory
+    from inspect_ai.model._providers.anthropic import (
+        _supports_code_interpreter,
+        _supports_memory,
+    )
 
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     assert api.is_claude_5() is True
@@ -1071,8 +1387,10 @@ def test_anthropic_claude_5_is_known_frontier(model_name: str) -> None:
     assert api.is_claude_frontier() is True
     assert api.is_claude_4_7_or_later() is True
     assert api.is_claude_4_8_or_later() is True
-    # native memory tool is enabled for all Claude 5 variants (per the launch docs)
+    # native memory and code-execution tools are enabled for all Claude 5
+    # variants (per the launch docs)
     assert _supports_memory(api.model_family()) is True
+    assert _supports_code_interpreter(api.model_family()) is True
 
 
 # ---------------------------------------------------------------------------
@@ -1095,13 +1413,13 @@ def _computer_tool_info() -> ToolInfo:
 
 
 @pytest.mark.parametrize(
-    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-opus-5-0"]
+    "model_name", ["claude-fable-5", "claude-mythos-5", "claude-saga-5"]
 )
 def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
     """Undocumented Claude 5 models error on computer use rather than degrade.
 
-    Covers Fable/Mythos and forward-compat non-Sonnet variants (e.g. Opus 5).
-    Sonnet 5 is supported and covered by test_anthropic_computer_use_tool_version.
+    Covers Fable/Mythos and forward-compat codename variants. Sonnet 5 and
+    Opus 5 are supported and covered by test_anthropic_computer_use_tool_version.
     """
     from inspect_ai._util.error import PrerequisiteError
 
@@ -1123,8 +1441,9 @@ def test_anthropic_claude_5_computer_use_errors(model_name: str) -> None:
         ("claude-opus-4-6", "computer_20251124"),
         ("claude-opus-4-5", "computer_20251124"),
         ("claude-sonnet-4-6", "computer_20251124"),
-        # Sonnet 5: the one Claude 5 model Anthropic documents for computer use
+        # Sonnet 5 / Opus 5: the Claude 5 models Anthropic documents for computer use
         ("claude-sonnet-5", "computer_20251124"),
+        ("claude-opus-5", "computer_20251124"),
         # Older 4.x → computer_20250124
         ("claude-sonnet-4-5", "computer_20250124"),
         ("claude-haiku-4-5", "computer_20250124"),
@@ -1173,3 +1492,490 @@ def test_anthropic_max_tokens_xhigh_max_floor(
     api = AnthropicAPI(model_name=model_name, api_key="test-key")
     config = GenerateConfig(**config_kwargs)
     assert api.max_tokens_for_config(config) == expected
+
+
+async def test_anthropic_container_replayed_after_client_tool_call() -> None:
+    """Pending code execution must survive the round trip after a client tool call.
+
+    When a turn mixes code-execution-backed server tool use with a client
+    tool call, the turn ends with stop_reason "tool_use" while the code
+    execution is still pending, and the response carries the container id.
+    The follow-up request (which returns the client tool result) must:
+
+    1. replay the pending server_tool_use block in the assistant message
+       (the API can't resume work it isn't shown), and
+    2. include the container id as the `container` param -- otherwise the
+       API rejects the request with "container_id is required when there
+       are pending tool uses generated by code execution with tools."
+
+    Both currently fail: the pending block is dropped from the replay, and
+    the container id is never sent (it is only threaded through same-turn
+    pause_turn continuations).
+    """
+    from anthropic._models import construct_type
+    from anthropic.types import Message
+
+    from inspect_ai._util.content import ContentToolUse
+    from inspect_ai.model import ModelOutput
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    init_sample_anthropic_assistant_internal()
+    container_id = "container_0123456789"
+
+    def message(
+        content: list[dict[str, Any]], stop_reason: str, container: bool
+    ) -> Message:
+        data: dict[str, Any] = {
+            "id": "msg_x",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-opus-4-8",
+            "content": content,
+            "stop_reason": stop_reason,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+        if container:
+            data["container"] = {
+                "id": container_id,
+                "expires_at": "2026-07-23T00:00:00Z",
+            }
+        return cast(Message, construct_type(value=data, type_=Message))
+
+    head = message(
+        [
+            {
+                "type": "server_tool_use",
+                "id": "srvtoolu_ce1",
+                "name": "code_execution",
+                "input": {"code": "print('hi')"},
+                "caller": {"type": "direct"},
+            },
+            # no result block for the code execution above -- the client tool
+            # call below ended the turn while it was still running
+            {
+                "type": "tool_use",
+                "id": "toolu_client1",
+                "name": "lookup_constant",
+                "input": {"name": "alpha"},
+            },
+        ],
+        stop_reason="tool_use",
+        container=True,
+    )
+    # the follow-up response opens with the RESULT of the prior turn's pending
+    # code execution (its use block lives in the prior assistant message)
+    tail = message(
+        [
+            {
+                "type": "code_execution_tool_result",
+                "tool_use_id": "srvtoolu_ce1",
+                "content": {
+                    "type": "code_execution_result",
+                    "stdout": "hi\n",
+                    "stderr": "",
+                    "return_code": 0,
+                    "content": [],
+                },
+            },
+            {"type": "text", "text": "done"},
+        ],
+        "end_turn",
+        container=False,
+    )
+
+    final = message([{"type": "text", "text": "np"}], "end_turn", container=False)
+
+    api = AnthropicAPI(model_name="claude-opus-4-8", api_key="test-key")
+    create_mock = AsyncMock(side_effect=[head, tail, final])
+    api.client.messages.create = create_mock  # type: ignore[method-assign]
+
+    tools = [
+        ToolInfo(
+            name="lookup_constant",
+            description="Look up a named constant.",
+            parameters=ToolParams(
+                properties={"name": ToolParam(type="string")}, required=["name"]
+            ),
+        )
+    ]
+    config = GenerateConfig()
+    user = ChatMessageUser(content="go")
+
+    output, _ = await api.generate([user], tools, "auto", config)
+    assert isinstance(output, ModelOutput)
+    assistant = output.message
+    assert assistant.tool_calls, "client tool call should surface from the response"
+
+    tool_result = ChatMessageTool(
+        content="42",
+        tool_call_id=assistant.tool_calls[0].id,
+        function="lookup_constant",
+    )
+    output2, _ = await api.generate(
+        [user, assistant, tool_result], tools, "auto", config
+    )
+    assert isinstance(output2, ModelOutput)
+
+    # the orphaned result parsed (use block resolved from the prior turn)...
+    assert isinstance(output2.message.content, list)
+    assert any(
+        isinstance(c, ContentToolUse) and c.tool_type == "code_execution"
+        for c in output2.message.content
+    )
+    # ...and replays without duplicating the prior turn's use block
+    replayed_tail = await assistant_message_block_params(output2.message)
+    assert [b["type"] for b in replayed_tail] == ["code_execution_tool_result", "text"]
+
+    follow_up_request = create_mock.call_args_list[1].kwargs
+
+    # the pending code execution block must be replayed
+    replayed_assistant = follow_up_request["messages"][1]
+    replayed_blocks = [(b["type"], b.get("id")) for b in replayed_assistant["content"]]
+    assert ("server_tool_use", "srvtoolu_ce1") in replayed_blocks
+
+    # and the container id must accompany the request
+    assert follow_up_request.get("container") == container_id
+
+    # a later turn (the pending work now resolved) replays a stable shape:
+    # the use block still with its own message, the result with its, and no
+    # container param (the work is no longer pending -- see
+    # _pending_container_for_input)
+    output3, _ = await api.generate(
+        [user, assistant, tool_result, output2.message, ChatMessageUser(content="ty")],
+        tools,
+        "auto",
+        config,
+    )
+    assert isinstance(output3, ModelOutput)
+    third_request = create_mock.call_args_list[2].kwargs
+    assert "container" not in third_request
+    third_blocks = [
+        (b["type"], b.get("id"))
+        for m in third_request["messages"]
+        if m["role"] == "assistant"
+        for b in m["content"]
+    ]
+    assert ("server_tool_use", "srvtoolu_ce1") in third_blocks
+    assert "code_execution_tool_result" in [t for t, _ in third_blocks]
+
+
+async def test_anthropic_stream_capture_restores_container() -> None:
+    """The container must survive streaming despite the SDK dropping it.
+
+    The SDK's non-beta stream accumulator drops `message_delta.container`, so
+    the final snapshot reports `container=None` even though the wire carried
+    the id (anthropics/anthropic-sdk-python#1776). Inspect's stream capture
+    must restore it from the raw message_delta event.
+    """
+    from datetime import datetime, timezone
+
+    from anthropic._models import construct_type
+    from anthropic.types import Container, Message
+
+    from inspect_ai.model._providers.anthropic import (
+        _capture_compaction_from_stream,
+    )
+
+    # snapshot as the SDK produces it today: container missing
+    snapshot = cast(
+        Message,
+        construct_type(
+            value={
+                "id": "msg_x",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-opus-4-8",
+                "content": [{"type": "text", "text": "hi"}],
+                "stop_reason": "tool_use",
+                "usage": {"input_tokens": 1, "output_tokens": 1},
+            },
+            type_=Message,
+        ),
+    )
+    container = Container(
+        id="container_from_delta",
+        expires_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+    class FakeStream:
+        current_message_snapshot = snapshot
+
+        def __aiter__(self) -> Any:
+            async def events() -> Any:
+                yield types.SimpleNamespace(type="message_start")
+                yield types.SimpleNamespace(
+                    type="message_delta",
+                    delta=types.SimpleNamespace(type=None, container=container),
+                )
+
+            return events()
+
+    message, _ = await _capture_compaction_from_stream(cast(Any, FakeStream()))
+    assert message.container is not None
+    assert message.container.id == "container_from_delta"
+
+
+@skip_if_no_anthropic
+@pytest.mark.slow
+async def test_anthropic_container_continuation_live() -> None:
+    """Live check that a mixed server/client tool turn resumes its container.
+
+    Exercises the shape behind the "container_id is required" 400 (see
+    test_anthropic_container_replayed_after_client_tool_call): a client
+    tool call ends the turn while native code execution is still running
+    (a `sleep` makes that reliable), so the turn's response carries a
+    pending server tool use. The tool-result follow-up must resume that
+    work in the SAME container.
+
+    The test observes only the public surface, using container state to
+    tell true resumption apart from silent loss: the warmup step plants a
+    random seed file and prints the seed, and the pending command echoes
+    the seed back. If the pending call is dropped from the replay (the
+    pre-fix behavior), the model -- whose replayed history then shows the
+    call as never made -- re-runs it, in a fresh container where the seed
+    file doesn't exist (or, if it re-runs the warmup too, holds a different
+    seed), so the expected `marker-<seed>` never appears and the test
+    FAILS. It skips only when the model didn't produce the mixed-turn shape
+    at all (the prompt urges parallel tool calls but can't force them).
+    """
+    import re
+
+    from inspect_ai.tool import ToolDef, ToolResult
+
+    # the warmup plants a random seed AND prints it, so the test learns the
+    # expected value. only the same container can echo `marker-<that seed>`
+    # back: after a silent loss, a re-run prints a bare "marker-" (fresh
+    # container, no seed file), and even re-running the warmup first yields a
+    # DIFFERENT seed -- both loss modes are detected.
+    warmup_cmd = (
+        'head -c 9 /dev/urandom | base64 > /tmp/seed && echo "seed-$(cat /tmp/seed)"'
+    )
+    pending_cmd = 'sleep 5 && echo "marker-$(cat /tmp/seed)"'
+    seed_re = re.compile(r"seed-([A-Za-z0-9+/]{10,})")
+
+    async def code_execution_execute(code: str) -> ToolResult:
+        """Execute code.
+
+        Args:
+            code: The code to execute.
+        """
+        # never called -- the anthropic option enables native code execution
+        return f"executed {code}"
+
+    async def lookup_constant(name: str) -> ToolResult:
+        """Look up a named constant stored on the client machine.
+
+        Args:
+            name: Name of the constant.
+        """
+        return "42"
+
+    tools = [
+        ToolDef(
+            code_execution_execute,
+            name="code_execution",
+            options={"providers": {"anthropic": {}}},
+        ).as_tool(),
+        ToolDef(lookup_constant, name="lookup_constant").as_tool(),
+    ]
+
+    # opus produces the parallel server+client tool call this test needs far
+    # more reliably than sonnet
+    model = get_model(
+        "anthropic/claude-opus-4-8", config=GenerateConfig(max_tokens=4096)
+    )
+    # the warmup step matters twice over: it creates the container (so the
+    # parallel step leaves pending work in an EXISTING container, the shape
+    # that requires the follow-up request to name it), and it plants the seed
+    # that only true resumption can read back
+    prompt = (
+        f"Step 1: use code execution to run the bash command `{warmup_cmd}` "
+        "and wait for its result. Step 2: after you see that result, issue "
+        "these two tool calls TOGETHER IN PARALLEL in your next step, before "
+        f"seeing any results from either: (a) code execution running "
+        f"`{pending_cmd}`; (b) lookup_constant with name='alpha'. They are "
+        "independent -- do not wait for one before calling the other."
+    )
+
+    def exec_results(message: ChatMessage) -> str:
+        if not isinstance(message, ChatMessageAssistant) or not isinstance(
+            message.content, list
+        ):
+            return ""
+        return " ".join(
+            c.result
+            for c in message.content
+            if isinstance(c, ContentToolUse) and c.tool_type == "code_execution"
+        )
+
+    # drive the tool loop; the generate that follows a mixed pending turn is
+    # the request that 400'd before the fix. whether the model leaves server
+    # work pending when it makes the client tool call is up to the model, so
+    # try a few fresh conversations before giving up.
+    async def attempt() -> bool | None:
+        """True: resumed; False: mixed turn but work lost; None: no mixed turn."""
+        messages: list[ChatMessage] = [ChatMessageUser(content=prompt)]
+        for _ in range(4):
+            output = await model.generate(input=messages, tools=tools)
+            messages.append(output.message)
+            if not output.message.tool_calls:
+                break
+            for call in output.message.tool_calls:
+                messages.append(
+                    ChatMessageTool(
+                        content="42", tool_call_id=call.id, function=call.function
+                    )
+                )
+        # learn the planted seed from the warmup output
+        seed_match = next(
+            (m for msg in messages if (m := seed_re.search(exec_results(msg)))), None
+        )
+        if seed_match is None:
+            return None
+        marker = f"marker-{seed_match.group(1)}"
+        # the mixed turn made a client tool call while the seeded command was
+        # still running (its output absent from that message)
+        mixed_turns = [
+            i
+            for i, m in enumerate(messages)
+            if isinstance(m, ChatMessageAssistant)
+            and m.tool_calls
+            and marker not in exec_results(m)
+        ]
+        if not mixed_turns:
+            return None
+        # true resumption surfaced the EXACT planted seed in a later message
+        resumed = any(
+            marker in exec_results(later)
+            for i in mixed_turns
+            for later in messages[i + 1 :]
+        )
+        if resumed:
+            # the resolved history must also replay cleanly on a later turn
+            # (use block with its prior message, result with its own, no
+            # container param) -- a 400 here would mean the replay still
+            # presents the resolved work as pending
+            messages.append(ChatMessageUser(content="Reply with just 'ok'."))
+            await model.generate(input=messages, tools=tools)
+        return resumed
+
+    for _ in range(3):
+        resumed = await attempt()
+        if resumed is None:
+            continue
+        assert resumed, (
+            "the mixed turn's pending code execution was not resumed: the "
+            "seeded marker never surfaced, meaning the pending call was "
+            "dropped from the replay and/or the container id was not sent"
+        )
+        break
+    else:
+        pytest.skip("model did not produce the mixed server/client tool turn")
+
+
+# ---------------------------------------------------------------------------
+# reasoning token counting (model_output_from_message)
+# ---------------------------------------------------------------------------
+
+
+class _CountTokensStub:
+    """Duck-typed stand-in for AsyncAnthropic that records count_tokens calls.
+
+    Mirrors the live API's validation: a user message with empty content is
+    rejected (400 "user messages must have non-empty content").
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.messages = types.SimpleNamespace(count_tokens=self._count_tokens)
+
+    async def _count_tokens(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        content = kwargs["messages"][0]["content"]
+        if not content:
+            raise RuntimeError(
+                "Error code: 400 - messages.0: user messages must have "
+                "non-empty content"
+            )
+        return types.SimpleNamespace(input_tokens=42)
+
+
+def _thinking_response_message(thinking: str) -> Any:
+    from anthropic.types.message import Message
+
+    return Message.model_validate(
+        {
+            "id": "msg_01",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-5",
+            "content": [
+                {"type": "thinking", "thinking": thinking, "signature": "sig"},
+                {"type": "text", "text": "The answer is 4."},
+            ],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_anthropic_empty_thinking_skips_reasoning_token_count() -> None:
+    """Empty thinking text must not be sent to the count_tokens API.
+
+    On models where adaptive thinking runs by default (Sonnet 5, Fable 5) and
+    no reasoning_effort is configured, the API's default display="omitted"
+    returns thinking blocks whose text is "". Sending "" to count_tokens gets
+    a 400 ("user messages must have non-empty content") on every generate —
+    swallowed by the estimate fallback, which then reports reasoning_tokens=1.
+    An empty block should be counted as 0 without touching the API.
+    """
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+        model_output_from_message,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    client = _CountTokensStub()
+
+    output, _ = await model_output_from_message(
+        client,  # type: ignore[arg-type]
+        "claude-sonnet-5",
+        _thinking_response_message(thinking=""),
+        [],
+    )
+
+    assert client.calls == [], (
+        "count_tokens API must not be called for empty thinking text "
+        f"(got {len(client.calls)} call(s): {client.calls})"
+    )
+    assert output.usage is not None
+    # follows the existing "reasoning_tokens if > 0 else None" convention
+    assert output.usage.reasoning_tokens is None
+
+
+@pytest.mark.anyio
+async def test_anthropic_nonempty_thinking_counts_reasoning_tokens() -> None:
+    """Non-empty thinking text is still counted via the count_tokens API."""
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+        model_output_from_message,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    client = _CountTokensStub()
+
+    output, _ = await model_output_from_message(
+        client,  # type: ignore[arg-type]
+        "claude-sonnet-5",
+        _thinking_response_message(thinking="Let me reason this through."),
+        [],
+    )
+
+    assert len(client.calls) == 1
+    assert output.usage is not None
+    assert output.usage.reasoning_tokens == 42

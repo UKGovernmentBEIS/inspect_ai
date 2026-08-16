@@ -10,7 +10,9 @@ from inspect_ai.model import (
 @skip_if_no_fireworks
 async def test_fireworks_compatible() -> None:
     model = get_model(
-        "fireworks/accounts/fireworks/models/deepseek-r1-0528",
+        # Fireworks retires models from serverless over time; this must be one
+        # of the ids listed by GET /inference/v1/models
+        "fireworks/accounts/fireworks/models/kimi-k3",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,

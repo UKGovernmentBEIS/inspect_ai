@@ -1128,15 +1128,21 @@ def _get_system_prompt_for_event(event: ModelEvent) -> str | None:
         event: The ModelEvent to inspect.
 
     Returns:
-        The normalized system prompt text, or None if no system message found.
+        The normalized system prompt text, or None if no system message is
+        found or the prompt is empty after normalization (e.g. it consisted
+        only of the billing header). Returning None rather than "" keeps
+        empty prompts out of primary-trajectory comparisons and prompt
+        inheritance.
     """
     for msg in event.input:
         if isinstance(msg, ChatMessageSystem):
             if isinstance(msg.content, str):
-                return _normalize_system_prompt(msg.content)
-            parts = [c.text for c in msg.content if hasattr(c, "text")]
-            raw = "\n".join(parts) if parts else None
-            return _normalize_system_prompt(raw) if raw else None
+                raw = msg.content
+            else:
+                parts = [c.text for c in msg.content if hasattr(c, "text")]
+                raw = "\n".join(parts)
+            normalized = _normalize_system_prompt(raw)
+            return normalized if normalized else None
     return None
 
 
@@ -1157,84 +1163,67 @@ def _wrap_utility_events(agent: TimelineSpan) -> None:
     This function detects them and wraps each one in a ``TimelineSpan``
     with ``utility=True`` so downstream code treats them as utility agents.
 
+    The primary trajectory is identified by the system prompt of the first
+    tool-calling ModelEvent. When a span contains no tool-calling model
+    events there is no agentic loop to distinguish helpers from — plain
+    workflows of ``generate()`` calls routinely mix system prompts — so
+    foreign-prompt wrapping is skipped entirely (warmup calls are still
+    wrapped; they are identified independently of prompts).
+
     Operates recursively on the entire span tree.
 
     Args:
         agent: The span node to process (mutated in place).
     """
-    # --- Determine the primary system prompt for this span ---
+    # The primary prompt comes only from a tool-calling ModelEvent: without
+    # an agentic loop there is no primary trajectory (see docstring).
     primary_prompt: str | None = None
-
-    # Prefer the prompt of the first ModelEvent that has tool calls
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
             if _has_tool_calls(item.event):
                 primary_prompt = _get_system_prompt_for_event(item.event)
                 break
 
-    # Fall back to the first ModelEvent's prompt
-    if primary_prompt is None:
-        for item in agent.content:
-            if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-                primary_prompt = _get_system_prompt_for_event(item.event)
-                break
-
-    # No ModelEvents at all → nothing to wrap
-    if primary_prompt is None:
-        # Still recurse into child spans
-        for item in agent.content:
-            if isinstance(item, TimelineSpan):
-                _wrap_utility_events(item)
-        for branch in agent.branches:
-            for item in branch.content:
-                if isinstance(item, TimelineSpan):
-                    _wrap_utility_events(item)
-        return
+    def utility_wrapper(item: TimelineEvent, index: int) -> TimelineSpan:
+        # Fall back to a position-derived id for uuid-less (legacy) events so
+        # ids stay unique and deterministic across rebuilds.
+        wrapper = TimelineSpan(
+            id=f"utility-{item.event.uuid or f'{agent.id}-{index}'}",
+            name="utility",
+            span_type="agent",
+            content=[item],
+        )
+        wrapper.utility = True
+        return wrapper
 
     # --- Scan and wrap utility candidates ---
+    original_spans = [item for item in agent.content if isinstance(item, TimelineSpan)]
     new_content: list[TimelineEvent | TimelineSpan] = []
-    for item in agent.content:
+    for index, item in enumerate(agent.content):
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
             # Warmup/cache-priming call (max_tokens=1)
             if _is_warmup_call(item.event):
-                wrapper = TimelineSpan(
-                    id=f"utility-{item.event.uuid or id(item)}",
-                    name="utility",
-                    span_type="agent",
-                    content=[item],
-                )
-                wrapper.utility = True
-                new_content.append(wrapper)
+                new_content.append(utility_wrapper(item, index))
                 continue
 
-            evt_prompt = _get_system_prompt_for_event(item.event)
-            if (
-                evt_prompt is not None
-                and evt_prompt != primary_prompt
-                and not _has_tool_calls(item.event)
-            ):
-                # Wrap in a synthetic utility span
-                wrapper = TimelineSpan(
-                    id=f"utility-{item.event.uuid or id(item)}",
-                    name="utility",
-                    span_type="agent",
-                    content=[item],
-                )
-                wrapper.utility = True
-                new_content.append(wrapper)
-                continue
+            if primary_prompt is not None and not _has_tool_calls(item.event):
+                evt_prompt = _get_system_prompt_for_event(item.event)
+                if evt_prompt is not None and evt_prompt != primary_prompt:
+                    new_content.append(utility_wrapper(item, index))
+                    continue
         new_content.append(item)
 
     agent.content = new_content
 
-    # --- Recurse into child spans and branches ---
-    for item in agent.content:
-        if isinstance(item, TimelineSpan):
-            _wrap_utility_events(item)
+    # Recurse into the span's original children only — not the synthetic
+    # wrappers created above: a wrapper holds a single already-processed
+    # event, and re-entering it would wrap a warmup call again, forever.
+    # Branches are trajectories like any span: process their own direct
+    # events too (mirrors the TS port), which also covers their children.
+    for item in original_spans:
+        _wrap_utility_events(item)
     for branch in agent.branches:
-        for item in branch.content:
-            if isinstance(item, TimelineSpan):
-                _wrap_utility_events(item)
+        _wrap_utility_events(branch)
 
 
 def _is_warmup_call(event: ModelEvent) -> bool:
@@ -1256,24 +1245,18 @@ def _is_warmup_call(event: ModelEvent) -> bool:
 
 
 def _get_system_prompt(agent: TimelineSpan) -> str | None:
-    """Extract system prompt from the first ModelEvent in agent's direct content.
+    """Extract the system prompt from the first ModelEvent in agent's direct content.
 
     Args:
         agent: The span node to extract the system prompt from.
 
     Returns:
-        The system prompt text, or None if no system message found.
+        The normalized system prompt text (see ``_get_system_prompt_for_event``),
+        or None if the span has no ModelEvent or it carries no system message.
     """
     for item in agent.content:
         if isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent):
-            for msg in item.event.input:
-                if isinstance(msg, ChatMessageSystem):
-                    if isinstance(msg.content, str):
-                        return msg.content
-                    # Content is list of Content objects
-                    parts = [c.text for c in msg.content if hasattr(c, "text")]
-                    return "\n".join(parts) if parts else None
-            return None  # ModelEvent found but no system message
+            return _get_system_prompt_for_event(item.event)
     return None  # No ModelEvent found
 
 
@@ -1316,17 +1299,34 @@ def _is_single_turn(agent: TimelineSpan) -> bool:
     return False
 
 
+def _has_agentic_loop(span: TimelineSpan) -> bool:
+    """Check whether span's direct content contains a tool-calling ModelEvent."""
+    return any(
+        isinstance(item, TimelineEvent)
+        and isinstance(item.event, ModelEvent)
+        and _has_tool_calls(item.event)
+        for item in span.content
+    )
+
+
 def _classify_utility_agents(
-    node: TimelineSpan, parent_system_prompt: str | None = None
+    node: TimelineSpan,
+    parent_system_prompt: str | None = None,
+    parent_has_loop: bool = False,
 ) -> None:
     """Classify utility agents in the tree via post-processing.
 
     An agent is utility if it has a single turn (or single tool-calling turn)
-    and a different system prompt than its parent.
+    and a different system prompt than its parent. Classification only applies
+    when the parent runs an agentic (tool-calling) loop: absent a loop there
+    is no main trajectory for a helper to be subordinate to — plain workflows
+    of ``generate()`` calls routinely mix system prompts.
 
     Args:
         node: The span node to classify (and recurse into).
         parent_system_prompt: The system prompt of the parent agent.
+        parent_has_loop: Whether the parent has a tool-calling ModelEvent
+            in its direct content.
     """
     agent_system_prompt = _get_system_prompt(node)
 
@@ -1336,17 +1336,26 @@ def _classify_utility_agents(
     # helper model calls are handled separately by _wrap_utility_events.
     if (
         parent_system_prompt is not None
+        and parent_has_loop
         and agent_system_prompt is not None
         and not node.tool_invoked
     ):
         if agent_system_prompt != parent_system_prompt and _is_single_turn(node):
             node.utility = True
 
-    # Recurse into child spans
+    # Recurse into child spans. Pure grouping spans (no direct model events)
+    # inherit from the parent, mirroring the prompt inheritance.
     effective_prompt = agent_system_prompt or parent_system_prompt
+    has_model_events = any(
+        isinstance(item, TimelineEvent) and isinstance(item.event, ModelEvent)
+        for item in node.content
+    )
+    effective_has_loop = (
+        _has_agentic_loop(node) if has_model_events else parent_has_loop
+    )
     for item in node.content:
         if isinstance(item, TimelineSpan):
-            _classify_utility_agents(item, effective_prompt)
+            _classify_utility_agents(item, effective_prompt, effective_has_loop)
 
 
 # =============================================================================

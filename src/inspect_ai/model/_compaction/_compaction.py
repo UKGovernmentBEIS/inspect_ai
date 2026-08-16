@@ -263,6 +263,7 @@ def compaction(
                 transcript()._event(
                     CompactionEvent(
                         type=strategy.type,
+                        role=target_model.role,
                         source="inspect",
                         tokens_before=total_tokens,
                         tokens_after=compacted_tokens + compacted_hidden,

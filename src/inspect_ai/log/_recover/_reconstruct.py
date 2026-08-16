@@ -18,6 +18,8 @@ from inspect_ai.event._pool import (
     resolve_model_event_calls,
     resolve_model_event_inputs,
 )
+from inspect_ai.event._sample_init import SampleInitEvent
+from inspect_ai.event._validate import validate_events
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import (
     CallPoolData,
@@ -56,6 +58,7 @@ def reconstruct_eval_sample(
     summary: EvalSampleSummary,
     sample_data: SampleData,
     *,
+    sample_metadata: dict[str, Any] | None = None,
     cancelled: bool = False,
     include_events: bool = True,
 ) -> EvalSample:
@@ -64,6 +67,7 @@ def reconstruct_eval_sample(
     Args:
         summary: Sample summary from the buffer DB samples table.
         sample_data: Events and attachments from buffer.get_sample_data().
+        sample_metadata: Full metadata stored separately from the thinned summary.
         cancelled: If True, synthesize a cancellation EvalError
             (for in-progress samples interrupted by a crash).
         include_events: If False, return an empty events list and no
@@ -78,9 +82,14 @@ def reconstruct_eval_sample(
 
     deduped_event_data = collapse_event_versions(sample_data.events)
 
-    events = _deserialize_events(
-        [event_data.event for event_data in deduped_event_data]
-    )
+    events = validate_events([event_data.event for event_data in deduped_event_data])
+
+    if sample_metadata is None:
+        sample_init = next(
+            (event for event in events if isinstance(event, SampleInitEvent)), None
+        )
+        if sample_init is not None:
+            sample_metadata = sample_init.sample.metadata
 
     # Buffer-DB rows store events condensed; without resolving here,
     # _extract_messages_from_events sees empty ModelEvent.input and drops
@@ -120,7 +129,7 @@ def reconstruct_eval_sample(
         input=summary.input,
         choices=summary.choices,
         target=summary.target,
-        metadata=summary.metadata,
+        metadata=sample_metadata if sample_metadata is not None else summary.metadata,
         messages=messages,
         output=output,
         scores=summary.scores,
@@ -130,6 +139,10 @@ def reconstruct_eval_sample(
         model_usage=summary.model_usage,
         role_usage=summary.role_usage,
         model_fallbacks=summary.model_fallbacks,
+        turn_count=summary.turn_count,
+        token_limit=summary.token_limit,
+        token_limit_type=summary.token_limit_type,
+        token_limit_usage=summary.token_limit_usage,
         started_at=summary.started_at,
         completed_at=summary.completed_at,
         total_time=summary.total_time,
@@ -137,9 +150,6 @@ def reconstruct_eval_sample(
         uuid=summary.uuid,
         error=error,
     )
-
-
-_LIST_EVENT_ADAPTER: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
 
 
 def _deserialize_message_pool(
@@ -157,15 +167,6 @@ def _deserialize_call_pool(entries: list[CallPoolData]) -> list[JsonValue]:
     if not entries:
         return []
     return [json.loads(entry.data) for entry in sorted(entries, key=lambda e: e.id)]
-
-
-def _deserialize_events(event_dicts: list[dict[str, Any]]) -> list[Event]:
-    """Deserialize event JSON dicts into typed Event objects."""
-    if not event_dicts:
-        return []
-    return _LIST_EVENT_ADAPTER.validate_python(
-        event_dicts, context=get_deserializing_context()
-    )
 
 
 class EventVersionCollapser:
@@ -214,6 +215,17 @@ class MessageAccumulator:
 
     Extracted from _extract_messages_from_events so that segments can be
     processed one at a time with bounded memory.
+
+    When a solver runs multiple agents concurrently (e.g. an auditor
+    driving a target), their ModelEvents interleave in the stream, each
+    carrying its own conversation. Accumulation follows the primary role
+    only (the role of the first ModelEvent, matching the conversation the
+    solver started with) so the reconstructed messages are deterministic
+    rather than whichever agent's event happened to fire last.
+
+    CompactionEvent carries its own role since it was added; a compaction
+    from an older log without the field falls back to the most recent
+    ModelEvent's role.
     """
 
     def __init__(self) -> None:
@@ -221,11 +233,21 @@ class MessageAccumulator:
         self._last_model_event: ModelEvent | None = None
         self._pending_trim_pre_input: list[ChatMessage] | None = None
         self._output: ModelOutput = ModelOutput()
+        self._primary_role: str | None = None
+        self._primary_role_set = False
+        self._last_event_role: str | None = None
 
     def process_events(self, events: list[Event]) -> None:
         """Feed a batch of deserialized events (typically one segment)."""
         for event in events:
             if isinstance(event, ModelEvent):
+                if not self._primary_role_set:
+                    self._primary_role = event.role
+                    self._primary_role_set = True
+                self._last_event_role = event.role
+                if event.role != self._primary_role:
+                    continue
+
                 if self._pending_trim_pre_input is not None:
                     prefix = _trim_prefix(
                         self._pending_trim_pre_input, list(event.input)
@@ -237,6 +259,14 @@ class MessageAccumulator:
                 self._output = event.output
 
             elif isinstance(event, CompactionEvent):
+                # older logs predate CompactionEvent.role; fall back to the
+                # most recent ModelEvent's role for those.
+                event_role = (
+                    event.role if event.role is not None else self._last_event_role
+                )
+                if event_role != self._primary_role:
+                    continue
+
                 if event.type == "summary":
                     if self._last_model_event is not None:
                         self._merged.extend(_segment_messages(self._last_model_event))

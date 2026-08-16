@@ -7,6 +7,7 @@ dependencies = { file = ["requirements.txt"] }
 optional-dependencies.dev = { file = ["requirements-dev.txt"] }
 optional-dependencies.doc = { file = ["requirements-doc.txt"] }
 optional-dependencies.dist = { file = ["requirements-dist.txt"] }
+optional-dependencies.math = { file = ["requirements-math.txt"] }
 
 [tool.setuptools_scm]
 git_describe_command = [
@@ -23,6 +24,14 @@ git_describe_command = [
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["inspect_ai*"]
+
+# Keep the ts-mono TS source out of the wheel: the git-tracked files are
+# pruned in MANIFEST.in (include-package-data pulls the manifest into the
+# wheel), while this exclude stops the package-data globs below (e.g.
+# **/*.yml) from picking up untracked files inside ts-mono such as
+# node_modules. The viewer ships prebuilt as _view/dist.
+[tool.setuptools.exclude-package-data]
+inspect_ai = ["_view/ts-mono*"]
 
 [tool.setuptools.package-data]
 inspect_ai = [
@@ -171,8 +180,10 @@ inspect = "inspect_ai._cli.main:main"
 
 [tool.typos.default.extend-words]
 ba = "ba"
+ser = "ser"
 lsat = "lsat"
 aimd = "aimd"
+retuned = "retuned"
 
 [dependency-groups]
 dev = ["inspect_ai[dev]"]

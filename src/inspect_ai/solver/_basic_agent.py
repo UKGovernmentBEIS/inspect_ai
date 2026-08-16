@@ -92,9 +92,9 @@ def basic_agent(
           If not specified, will use limit_messages defined for the task. If there is none
           defined for the task and there is no `token_limit`, 50 will be used as a default.
        token_limit: Limit on tokens used in sample before terminating agent.
-          An `int` limits total tokens; a `TokenLimit` with type "output"
-          limits only output tokens. Also accepts strings like "500k", "1m",
-          or "output:1m".
+          An `int` limits total tokens; a `TokenLimit` with a `type` limits by
+          output tokens or an arithmetic formula. Also accepts strings like
+          "500k", "1m", "output:1m", or "(input*0.1)+output:1m".
        max_tool_output: Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig.
        score_value: Function used to extract float from scores (defaults

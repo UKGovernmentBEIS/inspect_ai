@@ -1,9 +1,16 @@
-from inspect_ai import Task, eval, task
+from typing import cast
+
+from inspect_ai import Task, TaskSource, eval, task, task_source
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
+    RegistryInfo,
+    _registry,
     extract_named_params,
+    registry_add,
+    registry_create,
     registry_create_from_dict,
     registry_info,
+    registry_key,
     registry_kwargs,
     registry_lookup,
     registry_value,
@@ -15,8 +22,10 @@ from inspect_ai.model._compaction.native import CompactionNative
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.scorer import Metric, metric
+from inspect_ai.scorer import Metric, ScoreReducer, at_least, metric, pass_at, pass_k
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._reducer.reducer import mean_score
+from inspect_ai.scorer._reducer.registry import reducer_log_name
 from inspect_ai.solver import Solver, solver, use_tools
 from inspect_ai.tool import Tool, bash
 
@@ -36,6 +45,19 @@ def test_registry_namespaces() -> None:
     info = registry_info(registry_lookup("metric", f"{PKG_NAME}/accuracy"))
     assert info
     assert info.name == f"{PKG_NAME}/accuracy"
+
+
+def test_validation_predicate_registry_type() -> None:
+    async def predicate() -> None:
+        pass
+
+    info = RegistryInfo(type="validation_predicate", name="test_predicate")
+    registry_add(predicate, info)
+    try:
+        assert registry_lookup("validation_predicate", "test_predicate") is predicate
+        assert registry_info(predicate) == info
+    finally:
+        _registry.pop(registry_key("validation_predicate", "test_predicate"), None)
 
 
 def test_registry_dict() -> None:
@@ -128,6 +150,79 @@ def test_registry_arg_preserves_ordinary_registry_shaped_dict() -> None:
     assert not is_registry_dict(ordinary)
     assert registry_arg(ordinary) == ordinary
     assert registry_arg({"config": ordinary}) == {"config": ordinary}
+
+
+def test_registry_arg_instantiates_nested_score_reducer() -> None:
+    """Snake-case registry types should restore the registered instance."""
+    from inspect_ai._util.registry import registry_arg
+
+    restored = registry_arg(registry_value(mean_score()))
+
+    assert restored is not mean_score
+    assert isinstance(restored, ScoreReducer)
+
+
+def test_registry_arg_round_trips_parameterized_score_reducers() -> None:
+    """Reducer display suffixes must not replace their registered factory names."""
+    from inspect_ai._util.registry import registry_arg
+
+    for name, factory in (
+        ("at_least", at_least),
+        ("pass_at", pass_at),
+        ("pass_k", pass_k),
+    ):
+        encoded = registry_value(factory(2))
+
+        assert encoded == {
+            "type": "score_reducer",
+            "name": name,
+            "params": {"k": 2},
+        }
+
+        restored = registry_arg(encoded)
+        assert isinstance(restored, ScoreReducer)
+        assert reducer_log_name(restored) == f"{name}_2"
+
+
+def test_registry_arg_instantiates_nested_task_source() -> None:
+    """Generic nested restoration should not require a type-specific workaround."""
+    from inspect_ai._util.registry import registry_arg
+
+    @task_source(name="registry_roundtrip_task_source")
+    def roundtrip_task_source() -> TaskSource:
+        return TaskSource()
+
+    restored = registry_arg(registry_value(roundtrip_task_source()))
+
+    assert isinstance(restored, TaskSource)
+
+
+def test_registry_create_from_dict_instantiates_without_type_name_heuristic() -> None:
+    def score_reducer_factory() -> ScoreReducer:
+        return mean_score()
+
+    registry_add(
+        score_reducer_factory,
+        RegistryInfo(type="score_reducer", name="non_matching_return_annotation"),
+    )
+
+    assert (
+        cast(
+            object,
+            registry_create("score_reducer", "non_matching_return_annotation"),
+        )
+        is score_reducer_factory
+    )
+
+    restored = registry_create_from_dict(
+        {
+            "type": "score_reducer",
+            "name": "non_matching_return_annotation",
+            "params": {},
+        }
+    )
+
+    assert isinstance(restored, ScoreReducer)
 
 
 def _extract(fn, *args, **kwargs):

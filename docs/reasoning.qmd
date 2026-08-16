@@ -27,11 +27,13 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 #### OpenAI
 
-| Inspect input                                   | API value         |
-|-------------------------------------------------|-------------------|
-| `none`                                          | reasoning omitted |
-| `minimal` / `low` / `medium` / `high` / `xhigh` | identical         |
-| `max`                                           | `xhigh`           |
+| Inspect input                                   | API value                                    |
+|-------------------------------------------------|----------------------------------------------|
+| `none`                                          | reasoning omitted                            |
+| `minimal` / `low` / `medium` / `high` / `xhigh` | identical                                    |
+| `max`                                           | `max` on GPT-5.6+; `xhigh` on earlier models |
+
+Note that GPT-5.6 models treat `reasoning_effort` as a ceiling rather than a floor: on prompts the model judges easy it may perform no reasoning at all (producing zero reasoning tokens), even at higher effort levels.
 
 #### Anthropic Claude 4.6+ and Claude 5
 
@@ -92,14 +94,41 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 and Grok 4.6 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input     | API value         |
+|-------------------|-------------------|
+| `none`            | reasoning omitted |
+| `minimal` / `low` | `low`             |
+| `medium`          | `medium`          |
+| `high`            | `high`            |
+| `xhigh` / `max`   | `xhigh`           |
+
+`xhigh` is a real effort level from `grok-4.6` (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` >= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
+
+#### DeepSeek
+
+DeepSeek V4 models (`deepseek-v4-pro` and `deepseek-v4-flash`) think by default (at `high` effort) and document a [three-level effort scale](https://api-docs.deepseek.com/guides/thinking_mode) of `low` / `high` / `max`. Inspect maps `reasoning_effort` as follows:
+
+| Inspect input     | API value         |
+|-------------------|-------------------|
+| `none`            | thinking disabled |
+| `minimal` / `low` | `low`             |
+| `medium` / `high` | `high`            |
+| `xhigh` / `max`   | `max`             |
+
+Note that `deepseek-v4-pro` currently runs `low` effort requests at `high` effort server-side (DeepSeek has indicated this will change in a future update).
+
+#### Mistral
+
+Mistral reasoning models (Mistral Medium 3.5+ and Mistral Small 4+) accept a [two-level scale](https://docs.mistral.ai/capabilities/reasoning/): `high` (emit a thinking chunk before the answer) and `none`. Thinking is **off by default** — set `reasoning_effort` to turn it on. Inspect maps `reasoning_effort` as follows:
+
+| Inspect input                                   | API value |
+|-------------------------------------------------|-----------|
+| `none`                                          | `none`    |
+| `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | `high` |
+
+Non-reasoning Mistral models reject the parameter, and Inspect omits it when `reasoning_effort` is not set. (The earlier Magistral models, which thought unconditionally, were retired from the API in 2026 — requests for them are redirected to Mistral Medium 3.5 / Mistral Small 4.)
 
 #### OpenRouter
 
@@ -117,16 +146,50 @@ Passes through to the underlying model; OpenRouter itself maps `effort` to `budg
 
 
 
-#### Groq / Ollama / SageMaker
+#### Groq / Ollama / SageMaker / SambaNova
 
-Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values:
+Upstream APIs accept only `low` / `medium` / `high`. Inspect clamps the extended values. `none` is not a supported value, so it is omitted and the provider/model default applies — this does not disable reasoning (always-on models keep reasoning):
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal` / `low`        | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Together
+
+Together accepts `low` / `medium` / `high` for all reasoning models, and additionally `xhigh` / `max` on some (e.g. DeepSeek V4 Pro); only gpt-oss rejects the top-end values. `minimal` is never accepted. `none` is not a supported effort value, so it is omitted and the provider/model default applies — to turn reasoning off on hybrid models, pass `reasoning={"enabled": false}` rather than an effort value.
+
+| Inspect input             | API value (gpt-oss)              | API value (other models)         |
+|---------------------------|----------------------------------|----------------------------------|
+| `none`                    | omitted (provider/model default) | omitted (provider/model default) |
+| `minimal`                 | `low`                            | `low`                            |
+| `low` / `medium` / `high` | identical                        | identical                        |
+| `xhigh` / `max`           | `high`                           | identical                        |
+
+#### Perplexity
+
+Accepts `minimal` in addition to `low` / `medium` / `high`, so Inspect keeps `minimal` and clamps only the top-end values. `none` is not a supported value, so it is omitted and the provider/model default applies (reasoning is not disabled):
+
+| Inspect input            | API value                        |
+|--------------------------|----------------------------------|
+| `none`                   | omitted (provider/model default) |
+| `minimal`                | `minimal`                        |
+| `low`                    | `low`                            |
+| `medium`                 | `medium`                         |
+| `high` / `xhigh` / `max` | `high`                           |
+
+#### Fireworks
+
+Effort validity is model-dependent. No Fireworks model accepts `minimal` (→ `low`). gpt-oss and MiniMax M2 accept only `low` / `medium` / `high`: they reject `none` (omitted, so the provider/model default applies) and `xhigh` / `max` (→ `high`). Other reasoning models — DeepSeek, GLM, Kimi, and MiniMax M3 — accept `none` and `xhigh` / `max`, so those pass through:
+
+| Inspect input             | API value (gpt-oss / MiniMax M2) | API value (other models) |
+|---------------------------|----------------------------------|--------------------------|
+| `none`                    | omitted (provider/model default) | `none`                   |
+| `minimal`                 | `low`                            | `low`                    |
+| `low` / `medium` / `high` | identical                        | identical                |
+| `xhigh` / `max`           | `high`                           | identical                |
 
 #### Bedrock
 
@@ -137,6 +200,26 @@ Varies by hosted model family. Claude on Bedrock accepts only `reasoning_tokens`
 When Inspect does not pass `reasoning_effort`, each provider applies its own default. The table below records the documented provider default per model. Models with no entry have either no documented default or no effort scale at all.
 
 {{< include _reasoning-defaults.md >}}
+
+## Reasoning Mode {#reasoning-mode}
+
+OpenAI GPT-5.6+ models support [pro mode](https://developers.openai.com/api/docs/guides/reasoning), which performs more model work for greater reliability on difficult tasks, at higher latency and token usage (billed at standard token rates). Enable it with the `reasoning_mode` option:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.6 --reasoning-mode pro
+```
+
+Or from Python:
+
+```python
+eval("math.py", model="openai/gpt-5.6", reasoning_mode="pro")
+```
+
+Reasoning mode is independent of `reasoning_effort` — effort controls how much reasoning occurs within the selected mode.
+
+Since pro mode requests can run for several minutes, Inspect enables [background processing](providers.qmd#openai) by default when `reasoning_mode="pro"` (as it does for the `gpt-5-pro` model line); pass `-M background=false` to override.
+
+Inspect passes `reasoning_mode` through to the API for any OpenAI model: models that can't honor it (those prior to GPT-5.6, other than the `-pro` model line which accepts the redundant `"pro"`) reject the request with an error naming the parameter.
 
 
 
@@ -155,6 +238,7 @@ The following reasoning options are available from the CLI and within `GenerateC
 | Option | Description |
 |--------|-------------|
 | `reasoning_effort` | Constrains effort on reasoning. Accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. See [Reasoning Effort](#reasoning-effort) for per-provider mapping. Supported by all reasoning models — Inspect automatically bridges effort to a token budget for legacy Claude (3.7–4.5) and Gemini 2.5. Default is provider-defined. |
+| `reasoning_mode` | **OpenAI GPT-5.6+ only.** Accepts `standard`, `pro`. Pro mode performs more model work for greater reliability at higher latency and token usage, and enables background processing by default. See [Reasoning Mode](#reasoning-mode). |
 | `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning. On Anthropic Claude 4.7+ and Claude 5 it is unsupported (those models removed the token-budget control) and raises an error — use `reasoning_effort` instead, which works across all Claude versions.|
 | `reasoning_summary` | **OpenAI only.** Provide a summary of reasoning steps. Accepts `none`, `concise`, `detailed`, `auto`. Use `auto` to access the most detailed summarizer available. Some OpenAI accounts require [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification). |
 | `reasoning_history` | How much prior reasoning to replay in conversation history. Accepts `none`, `all`, `last`, `auto`. Use `last` to keep reasoning from dominating the context window. Defaults to `auto`. |
