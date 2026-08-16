@@ -572,8 +572,10 @@ def anthropic_stop_reason(stop_reason: StopReason) -> AnthropicStopReason:
 
 
 def anthropic_usage(usage: ModelUsage, beta: bool = False) -> Usage | BetaUsage:
-    """
-    convert inspect-level usage to the Anthropic usage type matching the endpoint.
+    """Convert inspect-level usage to the Anthropic usage type matching the endpoint.
+
+    Beta requests must carry `BetaUsage`: clients reading beta-only fields
+    (e.g. pydantic-ai reads `usage.iterations`) fail on a plain `Usage`.
     """
     usage_class = BetaUsage if beta else Usage
     return usage_class(
