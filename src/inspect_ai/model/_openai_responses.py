@@ -1234,7 +1234,10 @@ def mcp_error_to_str(error: McpToolCallError | None) -> str | None:
                 else to_json_str_safe(error.content)
             )
         case _:
-            return error.message
+            # protocol and HTTP errors both carry a code worth surfacing (a
+            # JSON-RPC code or an HTTP status) -- the message alone often
+            # isn't enough to triage the failure from a transcript
+            return f"{error.message} ({error.code})"
 
 
 def mcp_error_from_str(error: str | None) -> McpToolCallErrorParam | None:

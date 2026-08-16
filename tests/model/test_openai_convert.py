@@ -789,11 +789,11 @@ def test_mcp_call_error_round_trip() -> None:
             McpProtocolError(
                 type="mcp_protocol_error", code=-32000, message="tool not found"
             ),
-            "tool not found",
+            "tool not found (-32000)",
         ),
         (
             HTTPError(type="http_error", code=503, message="upstream unavailable"),
-            "upstream unavailable",
+            "upstream unavailable (503)",
         ),
         (
             McpToolExecutionError(
