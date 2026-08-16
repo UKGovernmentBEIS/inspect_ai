@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: `web_search("exa")` no longer fails with a validation error, and Exa citations now include page text by default.
+
 ## 0.3.259 (16 August 2026)
 
 - Inspect View: The Messages tab now paginates chunked evals, loading further pages as you scroll instead of the entire sample up front, so huge samples open quickly (non-chunked evals still load in full). (#498)
@@ -9,7 +13,6 @@
 - Inspect View: Tool calls whose arguments are too long for the header line now show them in an expandable input zone instead of a single truncated line. (#531)
 - Scoring: New `precomputed_scores()` scorer applies scores computed outside of Inspect (e.g. human ratings) from a JSON or JSON Lines file, matched to samples by id and epoch.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
-- Bugfix: `web_search("exa")` no longer fails with a validation error, and Exa citations now include page text by default.
 - Scoring: `model_graded_qa`/`model_graded_fact` now leave a sample unscored when the default grader's final `GRADE:` verdict is a letter the instructions never offered, instead of scoring a grade mentioned earlier in its reasoning. Note: re-scoring existing logs may shift metrics and sample counts — samples whose grader verdict was off-menu (including `P` grades when `partial_credit` is disabled) were previously scored from an earlier on-menu mention and are now unscored with `grade_parse_failure` recorded.
 - Anthropic: models returning omitted (empty) thinking summaries no longer misreport `usage.reasoning_tokens` and log a token-counting warning on every generate.
 - Grok: Support for Grok 4.6, including its new `xhigh` reasoning effort and a `service_tier` model argument for Priority Processing.
