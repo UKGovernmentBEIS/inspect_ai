@@ -3998,10 +3998,8 @@
                   "invalid_response_format",
                   "refusal",
                   "no_response",
-                  "grader_parse_failure",
-                  "grader_refusal",
-                  "grader_no_tool_call",
-                  "grader_schema_mismatch"
+                  "grader_failed",
+                  "scoring_failed"
                 ],
                 "type": "string"
               },
@@ -8718,10 +8716,8 @@
                   "invalid_response_format",
                   "refusal",
                   "no_response",
-                  "grader_parse_failure",
-                  "grader_refusal",
-                  "grader_no_tool_call",
-                  "grader_schema_mismatch"
+                  "grader_failed",
+                  "scoring_failed"
                 ],
                 "type": "string"
               },
@@ -8908,10 +8904,8 @@
                   "invalid_response_format",
                   "refusal",
                   "no_response",
-                  "grader_parse_failure",
-                  "grader_refusal",
-                  "grader_no_tool_call",
-                  "grader_schema_mismatch"
+                  "grader_failed",
+                  "scoring_failed"
                 ],
                 "type": "string"
               },
