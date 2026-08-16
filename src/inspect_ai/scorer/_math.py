@@ -1252,15 +1252,24 @@ def math(*, timeout: float = _DEFAULT_TIMEOUT_SECONDS) -> Scorer:
                 explanation=state.output.completion,
                 metadata=_status_metadata(result.status),
             )
+        # Extraction/parse failures are a format violation by the model under
+        # test: keep INCORRECT (the sample stays in the metric denominator) but
+        # tag the machine-readable reason so analysis can separate "wrong
+        # answer" from "couldn't parse an answer" (#4091 / #4567 convention).
+        # The completion is surfaced as the answer when no candidate was
+        # extracted, per the custom-scorers guidance for extraction scorers.
         return Score(
             value=INCORRECT,
-            answer=result.answer,
+            answer=result.answer
+            if result.answer is not None
+            else state.output.completion,
             explanation=(
                 f"Could not parse mathematical answer: {result.reason}."
                 if result.status == "answer_parse_error"
                 else f"Mathematical answer exceeded a complexity limit: {result.reason}."
             ),
-            metadata=_status_metadata(result.status),
+            metadata=_status_metadata(result.status)
+            | {"reason": "invalid_response_format"},
         )
 
     return score
