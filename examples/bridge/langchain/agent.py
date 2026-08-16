@@ -29,9 +29,7 @@ def web_research_agent(*, max_results: int = 5) -> Agent:
             executor = create_agent(
                 model=model,
                 tools=tools,
-                system_prompt=(
-                    "You help users find information by searching the web."
-                ),
+                system_prompt=("You help users find information by searching the web."),
                 checkpointer=MemorySaver(),
             )
 
