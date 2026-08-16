@@ -71678,6 +71678,9 @@ var ClientToolCall = ({ id, tool, title, functionCall, input, description, conte
 		children: customView
 	});
 	const hasInput = input !== void 0 && input !== null && input !== "" || !!view?.content;
+	const argsBody = hasInput ? void 0 : fullArgs(functionCall, title || tool);
+	const argsSummary = argsBody?.replace(/\s+/g, " ").trim();
+	const argsInInputZone = !!argsSummary && argsSummary.length > kMaxSummaryArgs;
 	const showError = !!error;
 	const showAnnotation = !!selfAnnotation && !!inputScreenshot;
 	const showOutput = !showError && (hasOutputContent(output) || showAnnotation);
@@ -71685,18 +71688,18 @@ var ClientToolCall = ({ id, tool, title, functionCall, input, description, conte
 		id,
 		icon: iconForTool(tool),
 		title: title || tool,
-		summary: description ?? inlineArgs(functionCall, title || tool),
+		summary: description ?? (argsInInputZone ? void 0 : argsSummary),
 		className,
-		children: [hasInput ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolBlockInput, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
+		children: [hasInput || argsInInputZone ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolBlockInput, { children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ExpandablePanel, {
 			id: `${id}-tool-input`,
 			collapse: true,
 			border: false,
 			lines: 20,
 			className: clsx("text-size-small"),
 			children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolInput, {
-				contentType,
-				contents: input,
-				toolCallView: view
+				contentType: hasInput ? contentType : void 0,
+				contents: hasInput ? input : argsBody,
+				toolCallView: hasInput ? view : void 0
 			})
 		}) }) : null, showError ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(ToolBlockOutput, { children: [/* @__PURE__ */ (0, import_jsx_runtime.jsx)(ToolCallErrorView, { error }), selfAnnotation && inputScreenshot ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(AnnotatedScreenshotOutput, {
 			contents: inputScreenshot,
@@ -71708,11 +71711,14 @@ var ClientToolCall = ({ id, tool, title, functionCall, input, description, conte
 		}) }) : null]
 	});
 };
-/** The args portion of the rendered function call (the text inside the
-* parens), as a single-line header summary. */
-var inlineArgs = (functionCall, tool) => {
+/** Args longer than this can't meaningfully summarize on the single header
+* line; they render in the input zone instead. */
+var kMaxSummaryArgs = 120;
+/** The args portion of the rendered function call with formatting preserved;
+* collapse whitespace for the single-line header summary. */
+var fullArgs = (functionCall, tool) => {
 	if (functionCall.startsWith(`${tool}(`) && functionCall.endsWith(")")) {
-		const inner = functionCall.slice(tool.length + 1, -1).replace(/\s+/g, " ").trim();
+		const inner = functionCall.slice(tool.length + 1, -1).trim();
 		return inner.length > 0 ? inner : void 0;
 	}
 	return functionCall !== tool ? functionCall : void 0;
