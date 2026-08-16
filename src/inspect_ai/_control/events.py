@@ -142,6 +142,7 @@ async def sample_events(
     since: str | None = None,
     tail: int | None = None,
     types: frozenset[str] | None = None,
+    content: bool = False,
     full: bool = False,
     since_time: float | None = None,
     until: float | None = None,
@@ -166,6 +167,9 @@ async def sample_events(
             containing ``"all"`` or ``"*"`` means everything (safe magic
             values — no event type carries either name). Applied after the
             cursor slice.
+        content: Include (truncated) free-text content — completions, tool
+            arguments/results, error messages — in the compact projection.
+            The default is metadata only (see :func:`_project`).
         full: Raw serialized events instead of the compact projection.
         since_time: Optional lower bound (unix ts) — a wall-clock filter applied
             after the cursor slice, never a cursor.
@@ -240,7 +244,7 @@ async def sample_events(
         # end") while `next` still advances past everything scanned.
         matched = matched[-tail_count:] if tail_count > 0 else []
     return {
-        "events": [_project(e, full) for e in matched],
+        "events": [_project(e, content=content, full=full) for e in matched],
         "next": encode_cursor(nonce, next_offset),
         "done": done and next_offset >= total,
     }
@@ -461,12 +465,19 @@ def _filter(
     return out
 
 
-def _project(event: "Event", full: bool) -> dict[str, Any]:
+def _project(event: "Event", *, content: bool, full: bool) -> dict[str, Any]:
     """Raw serialized event (``full``) or a compact, context-cheap summary.
 
     The compact form always carries the common header (type, ids, time); a few
-    high-signal types add a small, truncated summary. Everything else is
-    header-only — ``--full`` is there when the detail is needed.
+    high-signal types add a small summary. That summary is tiered: by default
+    it is **metadata only** — structural fields (model name, token counts,
+    stop reason, tool function names, error *presence*) with none of the
+    free-text content the evaluated agent controls (completions, tool
+    arguments/results, error messages). ``content`` opts into the truncated
+    free-text fields; ``full`` returns the raw event. The metadata default
+    exists so a monitor that never reads agent-controlled text — and so can't
+    be prompt-injected by it — is the effortless default consumer (see
+    "Trust boundary for readers" in design/ctl/control-channel.md).
     """
     if full:
         return event.model_dump(mode="json")
@@ -486,20 +497,30 @@ def _project(event: "Event", full: bool) -> dict[str, Any]:
             usage = getattr(output, "usage", None)
             out["tokens"] = getattr(usage, "total_tokens", None) if usage else None
             out["stop_reason"] = getattr(output, "stop_reason", None)
-            out["completion"] = _truncate(getattr(output, "completion", "") or "")
-        out["error"] = getattr(event, "error", None)
+            if content:
+                out["completion"] = _truncate(getattr(output, "completion", "") or "")
+        error = getattr(event, "error", None)
+        out["has_error"] = error is not None
+        if content:
+            out["error"] = error
     elif et == "tool":
         out["function"] = getattr(event, "function", None)
-        out["arguments"] = _truncate(_to_text(getattr(event, "arguments", None)))
-        out["result"] = _truncate(_to_text(getattr(event, "result", None)))
         tool_error = getattr(event, "error", None)
-        out["error"] = getattr(tool_error, "message", None) if tool_error else None
+        out["has_error"] = tool_error is not None
+        if content:
+            out["arguments"] = _truncate(_to_text(getattr(event, "arguments", None)))
+            out["result"] = _truncate(_to_text(getattr(event, "result", None)))
+            out["error"] = getattr(tool_error, "message", None) if tool_error else None
     elif et == "error":
-        err = getattr(event, "error", None)
-        out["error"] = getattr(err, "message", None) if err else None
+        # the event type itself is the metadata-tier signal; only the
+        # message is content
+        if content:
+            err = getattr(event, "error", None)
+            out["error"] = getattr(err, "message", None) if err else None
     elif et == "info":
         out["source"] = getattr(event, "source", None)
-        out["data"] = _truncate(_to_text(getattr(event, "data", None)))
+        if content:
+            out["data"] = _truncate(_to_text(getattr(event, "data", None)))
     return out
 
 
