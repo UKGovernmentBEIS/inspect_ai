@@ -1,6 +1,9 @@
+from typing import Any
+
 from typing_extensions import override
 
 from .._generate_config import GenerateConfig
+from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 from .openai_compatible import OpenAICompatibleAPI
 
 
@@ -57,6 +60,38 @@ class FireworksAIAPI(OpenAICompatibleAPI):
         if name.startswith(prefix):
             name = name[len(prefix) :]
         return name
+
+    def is_gpt_oss(self) -> bool:
+        return "gpt-oss" in self.model_family().lower()
+
+    def is_minimax_m2(self) -> bool:
+        # Only the MiniMax M2 line (e.g. minimax-m2p7) is restrictive; MiniMax M3
+        # accepts `none`/`xhigh`/`max`, so match `minimax-m2*` and not `minimax-m3`.
+        return "minimax-m2" in self.model_family().lower()
+
+    @override
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        params = super().completion_params(config, tools)
+
+        # Fireworks' effort schema is a superset and validity is model-dependent.
+        # No model accepts `minimal` (-> `low`). gpt-oss and MiniMax M2 accept only
+        # `low`/`medium`/`high` (same constraint as SambaNova): extended values clamp
+        # down and `none` is omitted (provider/model default applies -- reasoning is
+        # not disabled). Other models -- DeepSeek, GLM, Kimi, and MiniMax M3 -- accept
+        # `none` and `xhigh`/`max`, so those pass through unchanged.
+        if "reasoning_effort" in params:
+            if self.is_gpt_oss() or self.is_minimax_m2():
+                clamped = clamp_reasoning_effort_to_low_medium_high(
+                    params["reasoning_effort"]
+                )
+                if clamped is not None:
+                    params["reasoning_effort"] = clamped
+                else:
+                    del params["reasoning_effort"]
+            elif params["reasoning_effort"] == "minimal":
+                params["reasoning_effort"] = "low"
+
+        return params
 
     @override
     def should_stream(self, config: GenerateConfig) -> bool:
