@@ -1,5 +1,12 @@
 ## Unreleased
 
+- Inspect View: The Messages tab now paginates chunked evals, loading further pages as you scroll instead of the entire sample up front, so huge samples open quickly (non-chunked evals still load in full). (#498)
+- Inspect View: Image-heavy info events now show their "more…" toggle — previously the clipped content was unexpandable. (#529)
+- Inspect View: A sample's restored scroll position no longer drifts when rows finish measuring after the restore. (#523)
+- Inspect View: Human baseline Terminal Session thumbnails now open only their own lightbox instead of stacking a player in every Store Updated panel. (#520)
+- Inspect View: Re-activating the same log directory no longer trips the live-update engine's supersede fence, and a store write during render was eliminated. (#508)
+- Inspect View: Single-file sessions (e.g. VS Code) start without spurious "No database initialized" console errors. (#521)
+- Inspect View: Tool calls whose arguments are too long for the header line now show them in an expandable input zone instead of a single truncated line. (#531)
 - Scoring: New `precomputed_scores()` scorer applies scores computed outside of Inspect (e.g. human ratings) from a JSON or JSON Lines file, matched to samples by id and epoch.
 - Bugfix: `file_dataset()` now recognizes JSON and CSV URLs with query parameters while preserving the complete URL passed to the selected dataset reader.
 - Scoring: `model_graded_qa`/`model_graded_fact` now leave a sample unscored when the default grader's final `GRADE:` verdict is a letter the instructions never offered, instead of scoring a grade mentioned earlier in its reasoning. Note: re-scoring existing logs may shift metrics and sample counts — samples whose grader verdict was off-menu (including `P` grades when `partial_credit` is disabled) were previously scored from an earlier on-menu mention and are now unscored with `grade_parse_failure` recorded.
