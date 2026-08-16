@@ -15,6 +15,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_role import ModelRole, as_model_role
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import resource
 
@@ -34,7 +35,7 @@ def model_graded_fact(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
-    model_role: str | None = "grader",
+    model_role: str | ModelRole | None = "grader",
     reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task with a fact response using a model.
@@ -61,18 +62,28 @@ def model_graded_fact(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
-         to `False`. Note that this parameter is only used
-         with the default `instructions` (as custom instructions
-         provide their own prompts for grades).
+         to `False`. Only used with the default `instructions`
+         (as custom instructions provide their own prompts for
+         grades). Under those defaults the grader is offered
+         C/I, or C/P/I when this is `True`, and its final
+         `GRADE:` verdict is validated against that set: a
+         verdict outside it (a `P` that was never offered, or
+         any other letter) is a grade-parse failure and leaves
+         the sample unscored rather than being scored or
+         silently falling back to an earlier grade mentioned in
+         the reasoning. Custom `instructions` or an explicit
+         `grade_pattern` are authoritative and keep every grade
+         they match.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the grades are combined by
         `reducer`. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
-        Ignored if `model` is provided. If specified and a model is bound to
-        this role (e.g. via the `model_roles` argument to `eval()`), that model
-        is used. If no role-bound model is available, the model being
-        evaluated (the default model) is used.
+        Pass `ModelRole(name, required=True)` to require a model to be bound
+        to the role. Ignored if `model` is provided. If specified and a model
+        is bound to this role (e.g. via the `model_roles` argument to `eval()`),
+        that model is used. If no role-bound model is available and the role
+        is not required, the model being evaluated (the default model) is used.
       reducer: How the grades of a `model` panel are combined (ignored when
         `model` is not a list). Defaults to `"majority"`: a grade must be
         returned by more than half of the graders, and the sample is unscored
@@ -101,7 +112,7 @@ def model_graded_qa(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
-    model_role: str | None = "grader",
+    model_role: str | ModelRole | None = "grader",
     reducer: str | ScoreReducer = "majority",
 ) -> Scorer:
     """Score a question/answer task using a model.
@@ -129,18 +140,28 @@ def model_graded_qa(
         customise how the chat history is presented.
       partial_credit: Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
-        to `False`. Note that this parameter is only used
-        with the default `instructions` (as custom instructions
-        provide their own prompts for grades).
+        to `False`. Only used with the default `instructions`
+        (as custom instructions provide their own prompts for
+        grades). Under those defaults the grader is offered
+        C/I, or C/P/I when this is `True`, and its final
+        `GRADE:` verdict is validated against that set: a
+        verdict outside it (a `P` that was never offered, or
+        any other letter) is a grade-parse failure and leaves
+        the sample unscored rather than being scored or
+        silently falling back to an earlier grade mentioned in
+        the reasoning. Custom `instructions` or an explicit
+        `grade_pattern` are authoritative and keep every grade
+        they match.
       model: Model or models to use for grading. If a list is provided,
         each model grades independently and the grades are combined by
         `reducer`. When this parameter is provided, it takes precedence
         over `model_role`.
       model_role: Named model role to use for grading (default: "grader").
-        Ignored if `model` is provided. If specified and a model is bound to
-        this role (e.g. via the `model_roles` argument to `eval()`), that
-        model is used. If no role-bound model is available, the model being
-        evaluated (the default model) is used.
+        Pass `ModelRole(name, required=True)` to require a model to be bound
+        to the role. Ignored if `model` is provided. If specified and a model
+        is bound to this role (e.g. via the `model_roles` argument to `eval()`),
+        that model is used. If no role-bound model is available and the role
+        is not required, the model being evaluated (the default model) is used.
       reducer: How the grades of a `model` panel are combined (ignored when
         `model` is not a list). Defaults to `"majority"`: a grade must be
         returned by more than half of the graders, and the sample is unscored
@@ -177,15 +198,34 @@ def _model_graded_qa_single(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: str | Model | None = None,
-    model_role: str | None = "grader",
+    model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
     # returns a scorer that does model graded qa for a single model
 
     # resolve grading template, instructions, and grade_pattern
     template = template if template else DEFAULT_MODEL_GRADED_QA_TEMPLATE
     grading_template = resource(template)
+    using_default_instructions = not instructions
     instructions = (
         instructions if instructions else default_instructions(partial_credit)
+    )
+    default_grade_pattern = grade_pattern is None
+    # We only know which grades the grader was actually offered when *we* wrote
+    # the instructions; custom `instructions` carry their own prompt and an
+    # explicit `grade_pattern` is authoritative, so both are exempt and keep
+    # every grade their pattern matches.
+    validate_offered_grades = default_grade_pattern and using_default_instructions
+    offered_grades = ("C", "P", "I") if partial_credit else ("C", "I")
+    # Validating after the match -- rather than narrowing the pattern's
+    # character class -- is what keeps the final verdict authoritative. The
+    # pattern's leading greedy ".*" binds to the last "GRADE: X" in the
+    # completion; a narrower class would make an off-menu verdict backtrack onto
+    # an earlier mention in the chain of thought and score that instead, which
+    # is exactly the injection vector the last-match binding exists to close.
+    resolved_grade_pattern = (
+        _PERMISSIVE_GRADE_PATTERN
+        if validate_offered_grades
+        else (grade_pattern or DEFAULT_GRADE_PATTERN)
     )
 
     async def score(state: TaskState, target: Target) -> Score:
@@ -195,7 +235,8 @@ def _model_graded_qa_single(
         if model is not None:
             model = model if isinstance(model, Model) else get_model(model)
         elif model_role is not None:
-            model = get_model(role=model_role)
+            role = as_model_role(model_role)
+            model = get_model(role=role.name, required=role.required)
         else:
             model = get_model()
 
@@ -226,12 +267,19 @@ def _model_graded_qa_single(
         result = await model.generate([scoring_prompt])
 
         # extract the grade
-        default_grade_pattern = grade_pattern is None
-        match = re.search(grade_pattern or DEFAULT_GRADE_PATTERN, result.completion)
-        if match:
-            value = match.group(1)
-            if default_grade_pattern:
-                value = value.upper()
+        match = re.search(resolved_grade_pattern, result.completion)
+        value = match.group(1) if match else None
+        if value is not None and default_grade_pattern:
+            # The permissive capture takes the whole word so that "GRADE:
+            # Correct"/"GRADE: Incorrect"/"GRADE: Partial" keep resolving to
+            # their letter; only the first character is the verdict.
+            value = value[:1].upper()
+            if validate_offered_grades and value not in offered_grades:
+                # A verdict outside the grades the instructions offered is a
+                # protocol deviation, not evidence about the submission, so it
+                # is a scoring failure rather than an incorrect answer.
+                value = None
+        if value is not None:
             return Score(
                 value=value,
                 answer=state.output.completion,
@@ -329,7 +377,23 @@ or injected via the submission) must not win. The ``GRADE`` token is bounded so
 ordinary prose like ``downgrade:`` cannot be mistaken for a verdict. No
 end-of-string anchor is used so that trailing text after the grade line does
 not suppress the match.
+
+Used when a custom ``instructions`` prompt is in play, where the grades on
+offer are unknown; with the default instructions the scorer uses a permissive
+capture and validates the verdict against the grades those instructions
+actually offered (see ``model_graded_qa``).
 """
+
+# Same as DEFAULT_GRADE_PATTERN but capturing whatever word follows the
+# separator instead of only ``[CPI]``. Used with the default instructions,
+# where the offered grades are known and the verdict can be validated after the
+# match. A ``*`` quantifier (not ``+``) so the capture can never fail and force
+# the leading greedy ``.*`` to backtrack onto an earlier ``GRADE: X``: the final
+# verdict decides the score, and an unusable one is a parse failure rather than
+# a licence to score some mention from the chain of thought.
+_PERMISSIVE_GRADE_PATTERN = (
+    rf"(?is).*(?<!\w)GRADE(?!\w){_GRADE_SPACING}:{_GRADE_SPACING}(\w*)"
+)
 
 
 def chat_history(state: TaskState) -> str:
