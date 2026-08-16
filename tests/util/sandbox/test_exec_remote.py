@@ -163,6 +163,27 @@ class TestSingleUseIterator:
 # ============================================================================
 
 
+class TestPollRetryExhaustion:
+    async def test_poll_retry_exhaustion_reraises_underlying_error(self) -> None:
+        sandbox = AsyncMock()
+        sandbox.default_polling_interval.return_value = 5
+        sandbox.no_events = _no_events_context
+        sandbox.exec = AsyncMock(
+            side_effect=RuntimeError("command terminated with exit code 137")
+        )
+        proc = ExecRemoteProcess(sandbox, ["cmd"], ExecRemoteCommonOptions(), 5)
+
+        # The retry backoff would take ~30s to exhaust; make the async sleep a
+        # no-op so the test exercises the retry loop quickly. tenacity resolves
+        # asyncio.sleep lazily inside its portable sleep helper, so patching
+        # the asyncio module is sufficient.
+        with patch("asyncio.sleep", new=AsyncMock()):
+            with pytest.raises(RuntimeError, match="exit code 137"):
+                await proc._poll()
+
+        assert sandbox.exec.call_count >= 5
+
+
 class TestKill:
     async def test_kill_calls_rpc(self) -> None:
         sandbox = _make_sandbox_mock([_start_response(), _kill_response()])
