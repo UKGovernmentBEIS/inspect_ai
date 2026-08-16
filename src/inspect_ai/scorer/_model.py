@@ -190,7 +190,8 @@ def _model_graded_qa_single(
 
     # an explicit model takes precedence over model_role (documented); when
     # the role is required, the caller asked for a hard prerequisite that is
-    # silently bypassed, so surface it once at construction time
+    # silently bypassed, so surface it at construction time. warn_once means
+    # each distinct role name warns at most once per process, not per task.
     if model is not None and model_role is not None:
         role = as_model_role(model_role)
         if role.required:

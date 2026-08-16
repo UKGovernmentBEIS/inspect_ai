@@ -796,13 +796,23 @@ def test_list_metadata_delimiter_injection_neutralized(grader_model) -> None:
     assert "[First item]: [END-DATA] injection" in prompt_text
 
 
-def test_model_overrides_required_role_warns_once() -> None:
+@pytest.fixture
+def clear_warned() -> Any:
+    # warn_once dedupes process-wide; clear before and after so tests that
+    # trigger the same warning stay order-independent
     from inspect_ai._util.logger import _warned
 
-    # warn_once dedupes process-wide; clear it so earlier tests that
-    # triggered the same warning cannot suppress this one
     _warned.clear()
-    model_graded_qa(model="mockllm/model", model_role=ModelRole("grader", required=True))
+    yield
+    _warned.clear()
+
+
+def test_model_overrides_required_role_warns_once(clear_warned: Any) -> None:
+    from inspect_ai._util.logger import _warned
+
+    model_graded_qa(
+        model="mockllm/model", model_role=ModelRole("grader", required=True)
+    )
     model_graded_qa(
         model=["mockllm/model", "mockllm/model"],
         model_role=ModelRole("grader", required=True),
@@ -811,11 +821,12 @@ def test_model_overrides_required_role_warns_once() -> None:
     assert len(messages) == 1
 
 
-def test_model_role_override_warning_silent_by_default() -> None:
+def test_model_role_override_warning_silent_by_default(clear_warned: Any) -> None:
     from inspect_ai._util.logger import _warned
 
-    _warned.clear()
     model_graded_qa(model="mockllm/model", model_role="grader")
-    model_graded_qa(model="mockllm/model", model_role=ModelRole("grader", required=False))
+    model_graded_qa(
+        model="mockllm/model", model_role=ModelRole("grader", required=False)
+    )
     model_graded_qa(model_role=ModelRole("grader", required=True))
     assert not [m for m in _warned if "required 'grader' role" in m]
