@@ -4,8 +4,17 @@ import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Type,
+    cast,
+)
 
+import httpx
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
@@ -36,8 +45,15 @@ from .responses import inspect_responses_api_request
 from .util import (
     default_code_execution_providers,
     internal_web_search_providers,
-    resolve_web_search_providers,
+    resolve_bridge_code_execution,
+    resolve_bridge_web_search,
 )
+
+if TYPE_CHECKING:
+    # deferred: importing `inspect_ai.approval` at module scope here cycles
+    # through approval -> event -> scorer while `inspect_ai.agent` is still
+    # initializing. Same reason `model/_call_tools.py` defers it.
+    from inspect_ai.approval._policy import ApprovalPolicy
 
 # Headers blocked from bridge clients (exact match, case-insensitive)
 _BLOCKED_BRIDGE_HEADERS = frozenset(
@@ -88,10 +104,12 @@ async def agent_bridge(
     filter: GenerateFilter | None = None,
     retry_refusals: int | None = None,
     compaction: CompactionStrategy | None = None,
-    web_search: WebSearchProviders | None = None,
-    code_execution: CodeExecutionProviders | None = None,
+    web_search: WebSearchProviders | bool | None = None,
+    code_execution: CodeExecutionProviders | bool | None = None,
+    client_mcp_servers: bool | None = None,
     model_event_sink: ModelEventSink | None = None,
     forward_generation_config: bool = False,
+    approval: list["ApprovalPolicy"] | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -112,17 +130,22 @@ async def agent_bridge(
        compaction: Compact the conversation when it it is close to overflowing
           the model's context window. See [Compaction](https://inspect.aisi.org.uk/compaction.html) for details on compaction strategies.
        web_search: Configuration for mapping model internal
-          web_search tools to Inspect. By default, will map to the
-          internal provider of the target model (supported for OpenAI,
+          web_search tools to Inspect. By default (in-process bridges), will map
+          to the internal provider of the target model (supported for OpenAI,
           Anthropic, Gemini, Grok, and Perplexity). Pass an alternate
           configuration to use to use an external provider like
-          Tavili or Exa for models that don't support internal search.
+          Tavili or Exa for models that don't support internal search, or
+          `False` to withhold web search from the bridged agent entirely.
        code_execution: Configuration for mapping model internal
           code_execution tools to Inspect. By default, will map to the
           internal provider of the target model (supported for OpenAI,
           Anthropic, Google, and Grok). If the provider does not support
           native code execution then the bash() tool will be provided
           (note that this requires a sandbox by declared for the task).
+          Pass `False` to withhold code execution from the bridged agent.
+       client_mcp_servers: Honor MCP servers declared by the bridged client
+          (defaults to `True` for in-process bridges). When enabled, a client
+          may name any server URL and the model provider will connect to it.
        model_event_sink: Optional sink that takes ownership of `ModelEvent`
           emission for calls routed through the bridge. When set, the bridge
           installs it around `model.generate()` so the sink decides when and
@@ -134,13 +157,22 @@ async def agent_bridge(
           parameters like the system prompt, tools, and response format are always
           forwarded). Set `True` for faithful-proxy behavior where the client's
           generation parameters are authoritative.
+       approval: Approval policies for tool calls made by the bridged agent.
+          Temporarily replaces any active approval policies for the duration of
+          each approval. Eval-level and task-level policies already apply without
+          this. A rejected tool call is never handed to the agent: the model is
+          told it was rejected and generation is retried.
     """
     # ensure one time init
     init_bridge_request_patch()
 
-    # resolve web search config
-    web_search = resolve_web_search_providers(web_search)
-    code_execution = code_execution or default_code_execution_providers()
+    # resolve granted capabilities (in-process bridges grant by default: the
+    # scaffold already shares the host's network, so withholding buys nothing)
+    web_search_grant = resolve_bridge_web_search(web_search, default_grant=True)
+    code_execution_grant = resolve_bridge_code_execution(
+        code_execution, default_grant=True
+    )
+    allow_remote_mcp = True if client_mcp_servers is None else client_mcp_servers
 
     # create a state value that will be used to track mesages going over the bridge
     state = state or AgentState(messages=[])
@@ -153,14 +185,16 @@ async def agent_bridge(
         compaction,
         model_event_sink=model_event_sink,
         forward_generation_config=forward_generation_config,
+        approval=approval,
+        allow_remote_mcp=allow_remote_mcp,
     )
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(
         PatchConfig(
             enabled=True,
-            web_search=web_search,
-            code_execution=code_execution,
+            web_search=web_search_grant,
+            code_execution=code_execution_grant,
             bridge=bridge,
         )
     )
@@ -176,10 +210,10 @@ _patch_initialised: bool = False
 @dataclass
 class PatchConfig:
     enabled: bool = field(default=False)
-    web_search: WebSearchProviders = field(
+    web_search: WebSearchProviders | None = field(
         default_factory=internal_web_search_providers
     )
-    code_execution: CodeExecutionProviders = field(
+    code_execution: CodeExecutionProviders | None = field(
         default_factory=default_code_execution_providers
     )
     bridge: AgentBridge = field(
@@ -210,7 +244,12 @@ def init_openai_request_patch() -> None:
         return
     validate_openai_client("agent bridge")
 
+    # deferred with the openai imports below: httpx2 is not a dependency of
+    # inspect_ai (we only get it transitively via openai >= 3), and this
+    # module must import without openai installed
+    import httpx2
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
+    from openai._constants import RAW_RESPONSE_HEADER
     from openai._models import FinalRequestOptions
     from openai._types import Omit, ResponseT
 
@@ -224,6 +263,54 @@ def init_openai_request_patch() -> None:
             return headers
 
         return None
+
+    async def finalize_bridge_response(
+        client: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        stream: bool,
+        stream_cls: type[_AsyncStreamT] | None,
+        result: BaseModel,
+    ) -> Any:
+        """Return the bridge result in the shape the OpenAI SDK caller expects.
+
+        The bridge intercepts `AsyncAPIClient.request()` and hands back an
+        already-parsed model (e.g. `ChatCompletion`). That matches a plain
+        `.create()` call, but callers using `.with_raw_response` /
+        `.with_streaming_response` (e.g. langchain-openai, which reads response
+        headers) expect `request()` to return a response *wrapper* whose
+        `.parse()` yields the model — otherwise they crash with
+        `'ChatCompletion' object has no attribute 'parse'`. Building that
+        wrapper is delegated to `_process_response()` so it comes out exactly as
+        it would for a real HTTP response.
+
+        `_process_response()` would serve plain `.create()` callers too (it ends
+        in `api_response.parse()` when the SDK's `X-Stainless-Raw-Response`
+        header is absent), so the check below is not needed to make them work.
+        It is there to leave that path exactly as it was before this fix: those
+        callers keep receiving the model instance the bridge built, rather than
+        an equivalent one revalidated from its own JSON.
+
+        Note this pins the bridge to the SDK's private `_process_response()`
+        keyword signature.
+        """
+        raw_response = (request_headers(options) or {}).get(RAW_RESPONSE_HEADER)
+        if not raw_response:
+            return result
+
+        response = httpx2.Response(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            content=result.model_dump_json().encode(),
+            request=client._build_request(options),
+        )
+        return await client._process_response(
+            cast_to=cast_to,
+            options=options,
+            response=response,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -256,18 +343,22 @@ def init_openai_request_patch() -> None:
 
                 headers = filter_bridge_headers(request_headers(options))
 
+                result: BaseModel
                 if options.url == "/chat/completions":
-                    return await inspect_completions_api_request(
+                    result = await inspect_completions_api_request(
                         json_data, headers, config.bridge
                     )
                 else:
-                    return await inspect_responses_api_request(
+                    result = await inspect_responses_api_request(
                         json_data,
                         headers,
                         config.web_search,
                         config.code_execution,
                         config.bridge,
                     )
+                return await finalize_bridge_response(
+                    self, cast_to, options, stream, stream_cls, result
+                )
 
         # otherwise just delegate
         return await original_request(
@@ -289,6 +380,7 @@ def init_anthropic_request_patch() -> None:
     validate_anthropic_client("agent bridge")
 
     from anthropic._base_client import AsyncAPIClient, _AsyncStreamT
+    from anthropic._constants import RAW_RESPONSE_HEADER
     from anthropic._models import FinalRequestOptions
     from anthropic._types import Omit, ResponseT
 
@@ -302,6 +394,46 @@ def init_anthropic_request_patch() -> None:
             return headers
 
         return None
+
+    async def finalize_bridge_response(
+        client: AsyncAPIClient,
+        cast_to: Type[ResponseT],
+        options: FinalRequestOptions,
+        stream: bool,
+        stream_cls: type[_AsyncStreamT] | None,
+        result: BaseModel,
+    ) -> Any:
+        """Return the bridge result in the shape the Anthropic SDK caller expects.
+
+        Structural twin of `finalize_bridge_response()` in
+        `init_openai_request_patch()` above — see its docstring for the full
+        rationale. The Anthropic SDK uses the same generated client core, so the
+        failure mode is identical: callers using `.with_raw_response` /
+        `.with_streaming_response` expect `request()` to return a response
+        *wrapper* whose `.parse()` yields the `Message`, and crash with
+        `'Message' object has no attribute 'parse'` when handed the parsed
+        model directly.
+
+        Note this pins the bridge to the SDK's private `_process_response()`
+        keyword signature.
+        """
+        raw_response = (request_headers(options) or {}).get(RAW_RESPONSE_HEADER)
+        if not raw_response:
+            return result
+
+        response = httpx.Response(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            content=result.model_dump_json().encode(),
+            request=client._build_request(options),
+        )
+        return await client._process_response(
+            cast_to=cast_to,
+            options=options,
+            response=response,
+            stream=stream,
+            stream_cls=stream_cls,
+        )
 
     # get reference to original method
     original_request = getattr(AsyncAPIClient, "request")
@@ -333,13 +465,16 @@ def init_anthropic_request_patch() -> None:
                     raise_stream_error()
 
                 is_beta = "beta" in options.url
-                return await inspect_anthropic_api_request(
+                result = await inspect_anthropic_api_request(
                     json_data,
                     filter_bridge_headers(request_headers(options)),
                     config.web_search,
                     config.code_execution,
                     config.bridge,
                     beta=is_beta,
+                )
+                return await finalize_bridge_response(
+                    self, cast_to, options, stream, stream_cls, result
                 )
 
         # otherwise just delegate
@@ -381,9 +516,6 @@ def init_google_request_patch() -> None:
         if config.enabled and ":generateContent" in path:
             model_name = _google_api_model_name(path)
             if model_name and targets_inspect_model({"model": model_name}):
-                if ":streamGenerateContent" in path:
-                    raise_stream_error()
-
                 response = await inspect_google_api_request(
                     cast(dict[str, Any], request_dict),
                     config.web_search,
@@ -401,6 +533,36 @@ def init_google_request_patch() -> None:
         return result
 
     setattr(BaseApiClient, "async_request", patched_async_request)
+
+    # streaming requests use a separate entry point (`async_request_streamed`),
+    # so patch it as well to reject streaming for inspect models (parity with
+    # the OpenAI/Anthropic patches, which see streaming on the same method as
+    # non-streaming via their `stream` argument)
+    original_async_request_streamed = getattr(BaseApiClient, "async_request_streamed")
+    if original_async_request_streamed is None:
+        raise RuntimeError(
+            "Couldn't find 'async_request_streamed' method on BaseApiClient"
+        )
+
+    @wraps(original_async_request_streamed)
+    async def patched_async_request_streamed(
+        self: BaseApiClient,
+        http_method: str,
+        path: str,
+        request_dict: dict[str, object],
+        http_options: Any = None,
+    ) -> Any:
+        config = _patch_config.get()
+        if config.enabled and ":streamGenerateContent" in path:
+            model_name = _google_api_model_name(path)
+            if model_name and targets_inspect_model({"model": model_name}):
+                raise_stream_error()
+
+        return await original_async_request_streamed(
+            self, http_method, path, request_dict, http_options
+        )
+
+    setattr(BaseApiClient, "async_request_streamed", patched_async_request_streamed)
 
 
 def _google_api_model_name(path: str) -> str | None:

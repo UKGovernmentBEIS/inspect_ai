@@ -10,18 +10,23 @@ eval-set`` (the latter via its single ``eval()`` call under
 Default-on with graceful degradation: bind failures (read-only
 filesystem, restricted sandbox, etc.) log a warning and continue
 without the surface — eval correctness never depends on the control
-channel coming up. See ``design/control-channel.md`` "Implementation
+channel coming up. See ``design/ctl/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 Current scope is the phase 1-2 read surface — ``GET /tasks`` (per-task
 summaries), ``GET /evals/{id}/samples`` (capped sample listing with a
 status histogram and an ``active_since`` recency delta), ``GET
-/evals/{id}/sample`` (summary + error detail), and ``GET
-/evals/{id}/sample/events`` (cursored transcript
-pull) — plus ``POST /release`` / ``POST /keep`` for keep-alive control
-and the first phase-3 directives: the config/log-flush mutations and
-``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``.
-The remaining directives (drain / requeue / add-task) and SSE push land
+/evals/{id}/sample`` (summary + error detail), ``GET
+/evals/{id}/sample/events`` (cursored transcript pull), and
+``GET /evals/{id}/sample/messages`` (conversation snapshot) —
+plus ``POST /release`` / ``POST /keep`` for keep-alive control
+and the first phase-3 directives: the config/log-flush mutations,
+``POST /tasks/{id}/cancel`` / ``POST /evals/{id}/sample/cancel``,
+``POST /evals/{id}/sample/requeue``, and
+the pause/resume latches (``POST /tasks/{id}/pause`` / ``…/resume``,
+process-scoped ``POST /pause`` / ``POST /resume``, and model-scoped
+``POST /models/pause`` / ``…/resume``).
+The remaining directives (drain / add-task) and SSE push land
 with the rest of phases 3-4.
 """
 
@@ -59,6 +64,17 @@ from inspect_ai._control.limits import (
     process_limits,
     task_limits,
 )
+from inspect_ai._control.messages import sample_messages
+from inspect_ai._control.pause import (
+    pause_model,
+    pause_process,
+    pause_task,
+    paused_models,
+    process_paused,
+    resume_model,
+    resume_process,
+    resume_task,
+)
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_listing,
@@ -71,7 +87,11 @@ from inspect_ai._util.discovery import (
     write_discovery_file,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
+from inspect_ai._util.sockets import (
+    lock_socket_file,
+    peer_uid,
+    prepare_socket_path,
+)
 
 if TYPE_CHECKING:
     from fastapi.responses import JSONResponse
@@ -194,6 +214,83 @@ def reset_keep_alive() -> None:
     """Clear the keep-alive intent (called at the outermost run boundary)."""
     global _keep_alive
     _keep_alive = False
+
+
+# ---------------------------------------------------------------------------
+# Peer credential check
+# ---------------------------------------------------------------------------
+
+
+def _peer_checked_http_protocol() -> "type[asyncio.Protocol] | None":
+    """Uvicorn HTTP protocol class enforcing a peer-UID check on AF_UNIX.
+
+    The SO_PEERCRED / LOCAL_PEERCRED hardening from the security model
+    (design/control-channel.md): a connection whose peer UID differs from
+    this process's effective UID is dropped before a byte of HTTP is parsed.
+    Connection-level rather than per-request because the credential is a
+    property of the connection, and app-wide rather than write-only because
+    the read endpoints share the same trust model as the mutations.
+
+    The check needs the accepted socket, which the ASGI scope doesn't carry
+    for AF_UNIX — hence a protocol subclass (asyncio hands the accepted
+    transport to ``connection_made``) rather than a FastAPI dependency.
+
+    Fails open: when the peer credential cannot be determined (a platform
+    without the API — eg. Windows AF_UNIX — or a failed ``getsockopt``) the
+    connection is allowed. The check is defence-in-depth on top of the
+    0700/0600 filesystem permissions; failing closed would brick the whole
+    control surface on platforms without the API. Returns ``None`` (use
+    uvicorn's stock protocol) when the process has no UID at all (Windows).
+    """
+    if not hasattr(os, "geteuid"):
+        return None
+    own_uid = os.geteuid()
+
+    # Lazy like the other uvicorn imports — only start() pays the cost.
+    from uvicorn.protocols.http.auto import AutoHTTPProtocol
+
+    class PeerCheckedHTTPProtocol(AutoHTTPProtocol):  # type: ignore[misc,valid-type]
+        """AutoHTTPProtocol that drops connections from other UIDs.
+
+        A rejected connection never reaches the base protocol:
+        ``connection_made`` isn't chained (so it never enters uvicorn's
+        connection set) and the remaining callbacks no-op, since the
+        event loop may still deliver buffered data / EOF / close events
+        between the abort and the actual close.
+        """
+
+        _peer_rejected = False
+
+        def connection_made(self, transport: asyncio.BaseTransport) -> None:
+            sock = transport.get_extra_info("socket")
+            uid = peer_uid(sock) if sock is not None else None
+            if uid is not None and uid != own_uid:
+                self._peer_rejected = True
+                logger.warning(
+                    "Control connection rejected: peer uid %d does not "
+                    "match server uid %d",
+                    uid,
+                    own_uid,
+                )
+                cast(asyncio.WriteTransport, transport).abort()
+                return
+            super().connection_made(transport)
+
+        def data_received(self, data: bytes) -> None:
+            if not self._peer_rejected:
+                super().data_received(data)
+
+        def eof_received(self) -> bool | None:
+            if self._peer_rejected:
+                return False
+            result: bool | None = super().eof_received()
+            return result
+
+        def connection_lost(self, exc: Exception | None) -> None:
+            if not self._peer_rejected:
+                super().connection_lost(exc)
+
+    return PeerCheckedHTTPProtocol
 
 
 # ---------------------------------------------------------------------------
@@ -384,8 +481,16 @@ class ControlServer:
             # (which reflects a runtime `POST /keep` or `/release`, not just
             # the launch flag) so `inspect ctl task list` can report it.
             keep_alive = keep_alive_intent()
+            # the process pause latch is likewise process-level (each row also
+            # carries a per-task `paused` source list — see _build_summary),
+            # as is the set of latched models — stamped even when none of a
+            # latched model's tasks has registered yet
+            paused = process_paused()
+            models_paused = paused_models()
             for summary in summaries:
                 summary["keep_alive"] = keep_alive
+                summary["process_paused"] = paused
+                summary["paused_models"] = models_paused
                 # Advertise the control-API version so HTTP consumers can
                 # gate version-dependent requests (the CLI reads it from the
                 # discovery file, which also covers the pre-registration
@@ -401,6 +506,7 @@ class ControlServer:
             limit: int | None = None,
             all: bool = False,
             filter: Literal["errors"] | None = None,
+            content: bool = False,
         ) -> Any:
             # `active_since` (unix ts) is the recency delta: only samples that
             # started or updated since then. A filter, not a cursor. `status`
@@ -411,7 +517,10 @@ class ControlServer:
             # triage read); typed as a Literal so an unrecognized value is
             # rejected (422) rather than silently answered with the full
             # listing — the CLI trusts the filter was applied and keeps no
-            # client-side fallback. The response is an `{as_of, counts,
+            # client-side fallback. `content=true` opts into each row's
+            # error message (agent-influenced free text — withheld by
+            # default; see current_sample_listing). The response is an
+            # `{as_of, counts,
             # samples, truncated}` envelope — `as_of` is stamped BEFORE the
             # listing is built, so a client feeding it back as the next
             # `active_since` can't miss changes that land mid-read; `counts`
@@ -436,6 +545,7 @@ class ControlServer:
                 statuses=statuses,
                 limit=effective_sample_limit(limit, all),
                 sample_filter=filter,
+                content=content,
             )
             return {
                 "as_of": as_of,
@@ -448,11 +558,14 @@ class ControlServer:
         # `/sample/events`: sample ids are arbitrary strings and may contain
         # `/`, `?`, `#`, etc., which a path segment can't carry. A query param
         # is URL-encoded end to end.
+        # `content=true` opts into the error free text (message / tracebacks
+        # — agent-influenced strings, withheld by default; see
+        # sample_error_detail).
         @app.get("/evals/{eval_id}/sample")
         async def get_sample_errors(
-            eval_id: str, sample_id: str, epoch: int = 1
+            eval_id: str, sample_id: str, epoch: int = 1, content: bool = False
         ) -> Any:
-            detail = await sample_error_detail(eval_id, sample_id, epoch)
+            detail = await sample_error_detail(eval_id, sample_id, epoch, content)
             if detail is None:
                 return JSONResponse(
                     status_code=404,
@@ -463,8 +576,11 @@ class ControlServer:
         # Per-sample transcript events, cursored pull (phase 2). `type` is a
         # comma-separated event-type filter (`all` or `*` = everything;
         # omitted = high-signal tier); `since` is an opaque cursor, `tail` an
-        # int, `full` a bool, `since_time`/`until` a wall-clock window,
-        # `limit` the page size (max events scanned per page).
+        # int (the last N *matching* events), `content` opts into truncated
+        # free-text fields (metadata only by default — the projected content
+        # is agent-controlled; see events._project), `full` returns raw
+        # events, `since_time`/`until` a wall-clock window, `limit` the page
+        # size (max events scanned per page).
         @app.get("/evals/{eval_id}/sample/events")
         async def get_sample_events(
             eval_id: str,
@@ -473,6 +589,7 @@ class ControlServer:
             since: str | None = None,
             tail: int | None = None,
             type: str | None = None,
+            content: bool = False,
             full: bool = False,
             since_time: float | None = None,
             until: float | None = None,
@@ -500,10 +617,38 @@ class ControlServer:
                 since=since,
                 tail=tail,
                 types=types,
+                content=content,
                 full=full,
                 since_time=since_time,
                 until=until,
                 limit=limit,
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
+
+        # Per-sample conversation snapshot (`TaskState.messages`). Like the
+        # other per-sample routes, `sample_id` is a query param (ids may carry
+        # URL-reserved characters). Deliberately not cursored — the message
+        # list is rewritable (compaction / solver edits), so each call returns
+        # the current conversation (or a `tail`), enveloped with `as_of` /
+        # `status` / `count`. `content` opts into truncated message text
+        # (metadata only by default — the text is agent-controlled; see
+        # messages._project); `full` returns raw ChatMessage JSON.
+        @app.get("/evals/{eval_id}/sample/messages")
+        async def get_sample_messages(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            tail: int | None = None,
+            content: bool = False,
+            full: bool = False,
+        ) -> Any:
+            page = await sample_messages(
+                eval_id, sample_id, epoch, tail=tail, content=content, full=full
             )
             if page is None:
                 return JSONResponse(
@@ -566,13 +711,40 @@ class ControlServer:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
+        # Pause / resume a running task (phase 3 — see design/ctl/pause-resume.md).
+        # Task-keyed like `config` / `log-flush` / `cancel` (a pause handle
+        # must not dangle across a retry). Quiesce semantics: pause stops new
+        # samples (and a queued in-run retry attempt) from starting while
+        # in-flight samples finish naturally; resume re-opens the gate.
+        # Idempotent (`changed: false` on a repeat or a finished task),
+        # last-write-wins, `dry_run=true` reports without acting.
+        @app.post("/tasks/{task_id}/pause")
+        async def task_pause(task_id: str, dry_run: bool = False) -> Any:
+            result = await pause_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            return result
+
+        @app.post("/tasks/{task_id}/resume")
+        async def task_resume(task_id: str, dry_run: bool = False) -> Any:
+            result = await resume_task(task_id, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"task {task_id} not found"},
+                )
+            return result
+
         # Cancel one running sample (phase 3). `sample_id` is a query param
         # like the other per-sample routes (ids may contain URL-reserved
         # characters). `epoch` is required — this is a mutation, and a
         # defaulted epoch would silently target the epoch-1 attempt on a
         # multi-epoch task (the read routes keep their harmless `= 1`
         # default; see the selector conventions in
-        # design/control-channel.md). `action` selects the outcome: "score"
+        # design/ctl/control-channel.md). `action` selects the outcome: "score"
         # completes the sample and scores the work done so far; "error"
         # marks it errored (rejected for fail-on-error samples); "cancel"
         # records it as cancelled (transcript preserved, no scoring, not
@@ -629,6 +801,46 @@ class ControlServer:
                 return JSONResponse(status_code=409, content={"error": result["error"]})
             return result
 
+        # Requeue one errored/cancelled sample (phase 3): re-add it to the
+        # live run — it goes to the back of the sample queue and re-runs
+        # under the task's normal machinery, and the final log and counters
+        # reflect the fresh outcome (design/ctl/sample-requeue.md). `sample_id`
+        # is a query param like the other per-sample routes; `epoch` is
+        # required (mutation — a defaulted epoch would silently target a
+        # different sample). Idempotent — a repeat while the re-run is
+        # pending/queued/running reports `changed: false`; a completed
+        # sample is a 409 (re-scoring is out of scope); `dry_run=true`
+        # reports without acting.
+        @app.post("/evals/{eval_id}/sample/requeue")
+        async def sample_requeue(
+            eval_id: str,
+            sample_id: str,
+            epoch: int | None = None,
+            dry_run: bool = False,
+        ) -> Any:
+            from inspect_ai._control.requeue import requeue_sample
+
+            if epoch is None:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": (
+                            "epoch is required — a defaulted epoch would "
+                            "silently requeue the epoch-1 attempt on a "
+                            "multi-epoch task"
+                        )
+                    },
+                )
+            result = await requeue_sample(eval_id, sample_id, epoch, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            if result["ok"] is False:
+                return JSONResponse(status_code=409, content={"error": result["error"]})
+            return result
+
         # Read the process-global concurrency limits (max_sandboxes /
         # max_subprocesses / max_connections) without naming an eval — the
         # common case for viewing or throttling a whole process. No max_samples
@@ -643,8 +855,12 @@ class ControlServer:
         # entry by exact name (400 for a name with no entry — named limits are
         # created lazily on first use). The retry knobs (timeout /
         # attempt_timeout / max_retries) set live overrides; the keyword
-        # `clear` removes one. `dry_run=true` reports the intended change
-        # without applying it. Never 404s — a process always exists.
+        # `clear` removes one. `author`/`reason` are provenance for the eval-log
+        # record of any applied change (see EvalLog.config_updates); the
+        # response's `persisted` reports per applied knob whether that record
+        # was written. `dry_run=true` reports the intended change
+        # without applying it (and records nothing). Never 404s — a process
+        # always exists.
         # Unknown query params 400 (fail closed) rather than partially applying.
         @app.patch("/config")
         async def patch_process_limits(
@@ -657,6 +873,8 @@ class ControlServer:
             timeout: str | None = None,
             attempt_timeout: str | None = None,
             max_retries: str | None = None,
+            author: str | None = None,
+            reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -686,6 +904,8 @@ class ControlServer:
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
                     max_retries=retry_knobs["max_retries"],
+                    author=author,
+                    reason=reason,
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:
@@ -713,7 +933,10 @@ class ControlServer:
         # omitting all makes this a read, like GET. `dry_run=true` validates
         # and reports the intended change without applying it (the phase-3
         # agent-shape constraint). Idempotent: re-applying the same value is a
-        # no-op. Returns the resulting config view (with any warnings for a
+        # no-op. `author`/`reason` are provenance for the eval-log record of
+        # any applied change (see EvalLog.config_updates); `persisted` in the
+        # response reports whether that record was written. Returns the
+        # resulting config view (with any warnings for a
         # knob that isn't adjustable for this task). Unknown query params 400
         # (fail closed) rather than partially applying.
         @app.patch("/tasks/{task_id}/config")
@@ -731,6 +954,8 @@ class ControlServer:
             timeout: str | None = None,
             attempt_timeout: str | None = None,
             max_retries: str | None = None,
+            author: str | None = None,
+            reason: str | None = None,
             dry_run: bool = False,
         ) -> Any:
             if error := _limits_below_one(
@@ -767,6 +992,8 @@ class ControlServer:
                     timeout=retry_knobs["timeout"],
                     attempt_timeout=retry_knobs["attempt_timeout"],
                     max_retries=retry_knobs["max_retries"],
+                    author=author,
+                    reason=reason,
                     dry_run=dry_run,
                 )
             except UnknownConcurrencyKeyError as exc:
@@ -805,6 +1032,61 @@ class ControlServer:
             changed = not keep_alive_intent()
             request_keep_alive()
             return {"ok": True, "keep_alive": True, "changed": changed}
+
+        # Pause / resume the whole run (the eval-set spelling — one
+        # process-scoped latch every dispatch point checks, like keep-alive,
+        # NOT a fan-out over task pauses): under pause no new eval-set tasks
+        # dispatch, no task retry attempts start, and no samples dispatch in
+        # any task; in-flight samples finish naturally. `process resume` does
+        # not clear task-level pauses (independent latches). Never 404s — a
+        # process always exists. Note the state distinction with /release:
+        # resume re-opens a *paused* run; release ends a keep-alive *park*.
+        @app.post("/pause")
+        async def process_pause(dry_run: bool = False) -> Any:
+            return await pause_process(dry_run=dry_run)
+
+        @app.post("/resume")
+        async def process_resume(dry_run: bool = False) -> Any:
+            return await resume_process(dry_run=dry_run)
+
+        # Pause / resume dispatch for one model (the third latch — see
+        # design/ctl/pause-resume.md "Model-scoped latch"): samples, queued
+        # retry attempts, and not-yet-started eval-set tasks of tasks whose
+        # *primary* model matches all hold, while other models' work
+        # continues. `model` is a query param (not a path segment): model
+        # names contain `/`. Exact-name match against the models this
+        # process could dispatch — an unknown name 404s (a typo'd incident
+        # lever must fail loudly, not latch nothing). Idempotent,
+        # last-write-wins, `dry_run=true` reports without acting.
+        @app.post("/models/pause")
+        async def model_pause(model: str | None = None, dry_run: bool = False) -> Any:
+            if not model:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "model is required"},
+                )
+            result = await pause_model(model, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"model {model} not found in this process"},
+                )
+            return result
+
+        @app.post("/models/resume")
+        async def model_resume(model: str | None = None, dry_run: bool = False) -> Any:
+            if not model:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "model is required"},
+                )
+            result = await resume_model(model, dry_run=dry_run)
+            if result is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"model {model} not found in this process"},
+                )
+            return result
 
         return app
 
@@ -848,12 +1130,14 @@ class ControlServer:
         lock_socket_file(socket_path)
 
         app = self._build_app()
+        http_protocol = _peer_checked_http_protocol()
         config = uvicorn.Config(
             app,
             log_config=None,
             log_level="warning",
             access_log=False,
             timeout_keep_alive=5,
+            http=http_protocol if http_protocol is not None else "auto",
         )
         server = uvicorn.Server(config)
         # Suppress uvicorn's signal handler installation — we're an

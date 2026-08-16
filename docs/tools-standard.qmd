@@ -388,9 +388,13 @@ services:
   default:
     image: aisiuk/inspect-computer-tool
     ports:
-      - "5900"
-      - "6080"
+      - "127.0.0.1::5900"
+      - "127.0.0.1::6080"
 ```
+
+::: {.callout-warning}
+The bundled VNC server does not require a password, and VNC/noVNC traffic is not encrypted. Keep these ports bound to loopback (127.0.0.1).
+:::
 
 To connect to the container for a given sample, locate the sample in the **Running Samples** UI and expand the sample info panel at the top:
 
@@ -398,7 +402,7 @@ To connect to the container for a given sample, locate the sample in the **Runni
 
 Click on the link for the noVNC browser client, or use a native VNC client to connect to the VNC port. Note that the VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
 
-The browser based client provides a view-only interface. If you use a native VNC client you should also set it to "view only" so as to not interfere with the model's use of the computer. For example, for Real VNC Viewer:
+The browser link opens noVNC in view-only mode. This is a client-side setting, not access control: any client that can reach the VNC server can enable keyboard and mouse input. If you use a native VNC client, you should also set it to "view only" so as to not interfere with the model's use of the computer. For example, for Real VNC Viewer:
 
 ![](images/vnc-view-only.png){width="549"}
 
@@ -801,6 +805,22 @@ memory(
     readonly=True,
 )
 ```
+
+### Separate Stores
+
+By default, all `memory()` tools within a sample share a single `/memories` store — every agent and subagent reads and writes the same files. This is usually what you want: a subagent can build on what the parent recorded, and vice versa.
+
+To run independent memory stores within one sample, pass an `instance` name. Each instance has its own files and is seeded independently:
+
+``` python
+# two independent memory stores in the same sample
+notes = memory(instance="notes")
+scratch = memory(instance="scratch")
+```
+
+This mirrors `skill(instance=...)`. Use it when two memory tools must not collide — for example, to give a subagent a private scratchpad, or to compare shared vs. separate memory as conditions in a study.
+
+Note that `instance` namespaces the data within the sample's in-memory store; it is **not** a security boundary, since everything still lives in the same process. For a hard boundary between agents, isolate them with a [Sandbox Environment](sandboxing.qmd) instead.
 
 ### Tool Binding
 

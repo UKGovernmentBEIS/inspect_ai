@@ -17,9 +17,6 @@ from inspect_ai._util.registry import (
 
 from .types import ScoreReducer, ScoreReducers
 
-REDUCER_NAME = "__REDUCER_NAME__"
-
-
 ScoreReducerType = TypeVar("ScoreReducerType", bound=Callable[..., ScoreReducer])
 
 
@@ -61,15 +58,13 @@ def score_reducer(
         def wrapper(*w_args: Any, **w_kwargs: Any) -> ScoreReducer:
             # create the task
             score_reducer = reducer_type(*w_args, **w_kwargs)
-            # If a name has been explicitly set, use that
-            reducer_nm = getattr(score_reducer, REDUCER_NAME, reducer_name)
             # tag it
             registry_tag(
                 reducer_type,
                 score_reducer,
                 RegistryInfo(
                     type="score_reducer",
-                    name=reducer_nm,
+                    name=reducer_name,
                 ),
                 *w_args,
                 **w_kwargs,

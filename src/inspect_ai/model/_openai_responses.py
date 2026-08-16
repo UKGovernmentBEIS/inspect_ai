@@ -48,6 +48,16 @@ from openai.types.responses import (
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
+from openai.types.responses.mcp_tool_call_error import (
+    McpToolCallError,
+    McpToolExecutionError,
+)
+from openai.types.responses.mcp_tool_call_error_param import (
+    McpToolCallErrorParam,
+)
+from openai.types.responses.mcp_tool_call_error_param import (
+    McpToolExecutionError as McpToolExecutionErrorParam,
+)
 from openai.types.responses.namespace_tool_param import (
     NamespaceToolParam,
 )
@@ -78,6 +88,7 @@ from openai.types.responses.response_input_image_content_param import (
     ResponseInputImageContentParam,
 )
 from openai.types.responses.response_input_item_param import (
+    AdditionalTools,
     ComputerCallOutput,
     FunctionCallOutput,
     Message,
@@ -144,6 +155,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
+from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -190,6 +202,24 @@ logger = getLogger(__name__)
 MESSAGE_ID = "message_id"
 MESSAGE_PHASE = "message_phase"
 REASONING_ENCRYPTED_CONTENT = "reasoning_encrypted_content"
+
+# maximum length the OpenAI Responses API accepts for a function_call
+# `arguments` string on input (it imposes no such limit on output). the API
+# limit is denominated in characters; we truncate by UTF-8 bytes, which is
+# never fewer than characters, so the result always satisfies the limit
+_MAX_FUNCTION_CALL_ARGUMENTS = 1_048_576
+
+
+def _limit_function_call_arguments(arguments: str) -> str:
+    """Middle-truncate `arguments` to fit the Responses API input limit.
+
+    OpenAI rejects input `arguments` strings longer than
+    _MAX_FUNCTION_CALL_ARGUMENTS, so sending an oversized string verbatim
+    would 400 every subsequent request. Strings within the limit are
+    returned unchanged.
+    """
+    truncated = truncate_string_to_bytes(arguments, _MAX_FUNCTION_CALL_ARGUMENTS)
+    return truncated.output if truncated is not None else arguments
 
 
 class ResponsesModelInfo(Protocol):
@@ -239,6 +269,29 @@ def _extract_compaction_from_content_data(
     return None
 
 
+def _extract_agent_message_from_internal(
+    content: str | list[Content],
+) -> ResponseInputItemParam | None:
+    """Recover a verbatim Codex `agent_message` item stashed by the agent bridge.
+
+    The bridge renders agent_message items as author-attributed user text (which
+    non-OpenAI targets consume) and stashes the original item on
+    ContentText.internal; OpenAI Responses targets replay the item natively so
+    `encrypted_content` parts (decryptable only by OpenAI server-side) survive.
+    """
+    if not isinstance(content, list):
+        return None
+    for item in content:
+        if isinstance(item, ContentText) and isinstance(item.internal, dict):
+            agent_message = item.internal.get("agent_message")
+            if (
+                isinstance(agent_message, dict)
+                and agent_message.get("type") == "agent_message"
+            ):
+                return cast(ResponseInputItemParam, agent_message)
+    return None
+
+
 async def openai_responses_inputs(
     messages: list[ChatMessage],
     model_info: ResponsesModelInfo | None = None,
@@ -269,6 +322,11 @@ async def _openai_input_item_from_chat_message(
         if compaction_param:
             # This is a compaction marker - return compaction item
             return [compaction_param]
+
+        # Check for a verbatim Codex agent_message stashed by the agent bridge
+        agent_message_param = _extract_agent_message_from_internal(message.content)
+        if agent_message_param is not None:
+            return [agent_message_param]
 
         # Regular user message handling
         return [
@@ -510,6 +568,18 @@ request. Without this, namespaced tools (e.g. codex's
 which OpenAI's reserved-name validation rejects on models configured for
 encrypted tool use."""
 
+RESPONSES_VERBATIM = "__responses_verbatim__"
+"""``ToolInfo.options`` key under which the agent bridge stashes the ORIGINAL
+responses ``ToolParam`` dict a tool was converted from, so that
+:func:`openai_responses_tools` can re-emit it verbatim on the outgoing request.
+Reconstructing the param from ``ToolInfo`` is lossy: ``ToolParams`` validation
+drops JSON-schema extensions it doesn't model (e.g. the ``encrypted: true``
+property markers on codex's reserved ``collaboration.*`` tools) and normalizes
+fields (e.g. adds ``required: []``). Models that reserve those tool names
+validate the declared schema byte-for-byte and reject the request (400
+\"reserved for use by this model and must match the configured schema\") if it
+drifted."""
+
 
 def openai_responses_tools(
     tools: list[ToolInfo],
@@ -520,12 +590,18 @@ def openai_responses_tools(
     result: list[ToolParam] = []
     namespaces: dict[tuple[str, str], list[FunctionToolParam | CustomToolParam]] = {}
     for tool in tools:
-        param = _tool_param_for_tool_info(tool, model_name, config, is_latest)
+        verbatim = (tool.options or {}).get(RESPONSES_VERBATIM)
+        if isinstance(verbatim, dict):
+            param = cast(ToolParam, verbatim)
+        else:
+            param = _tool_param_for_tool_info(tool, model_name, config, is_latest)
         ns = (tool.options or {}).get(RESPONSES_NAMESPACE)
-        if isinstance(ns, tuple) and len(ns) == 2:
+        # tolerate list (a tuple stashed in options becomes a list after any
+        # JSON round-trip, e.g. eval-log replay)
+        if isinstance(ns, (tuple, list)) and len(ns) == 2:
             # Only function/custom tools may live inside a NamespaceToolParam;
             # the bridge only stashes RESPONSES_NAMESPACE on those, so cast.
-            namespaces.setdefault(ns, []).append(
+            namespaces.setdefault((str(ns[0]), str(ns[1])), []).append(
                 cast(FunctionToolParam | CustomToolParam, param)
             )
         else:
@@ -835,10 +911,14 @@ def _process_response_output_items(
             case ResponseFunctionToolCall():
                 has_tool_calls = True
                 if output.id is not None:
-                    assistant_internal().tool_calls[output.call_id] = cast(
+                    param = cast(
                         ResponseFunctionToolCallParam,
                         output.model_dump(exclude_none=True),
                     )
+                    param["arguments"] = _limit_function_call_arguments(
+                        output.arguments
+                    )
+                    assistant_internal().tool_calls[output.call_id] = param
 
                 call_name, call_arguments = _responses_call_to_inspect(
                     output.name, output.arguments, tools
@@ -1136,6 +1216,42 @@ def mcp_list_tools_to_tool_use(output: McpListTools) -> ContentToolUse:
     )
 
 
+def mcp_error_to_str(error: McpToolCallError | None) -> str | None:
+    """Render a structured MCP tool call error as a display string.
+
+    openai 3.1.0 changed `McpCall.error` from `str | None` to a discriminated
+    union of error objects; `ContentToolUse.error` remains a display string.
+    """
+    match error:
+        case None:
+            return None
+        case McpToolExecutionError():
+            # pass string content through unchanged so the conversion is
+            # idempotent across replay round trips (no compounding JSON quoting)
+            return (
+                error.content
+                if isinstance(error.content, str)
+                else to_json_str_safe(error.content)
+            )
+        case _:
+            # protocol and HTTP errors both carry a code worth surfacing (a
+            # JSON-RPC code or an HTTP status) -- the message alone often
+            # isn't enough to triage the failure from a transcript
+            return f"{error.message} ({error.code})"
+
+
+def mcp_error_from_str(error: str | None) -> McpToolCallErrorParam | None:
+    """Rebuild a structured MCP error from its display string.
+
+    The original variant isn't recoverable from the string, so surface it as a
+    tool execution error. Only reached when no verbatim cached `server_tool_uses`
+    item is available for the call.
+    """
+    if error is None:
+        return None
+    return McpToolExecutionErrorParam(type="mcp_tool_execution_error", content=error)
+
+
 def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
     return ContentToolUse(
         tool_type="mcp_call",
@@ -1144,7 +1260,7 @@ def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
         context=output.server_label,
         arguments=output.arguments,
         result=output.output or "",
-        error=output.error,
+        error=mcp_error_to_str(output.error),
     )
 
 
@@ -1175,7 +1291,7 @@ def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
         arguments=content.arguments,
         server_label=content.context or "",
         output=content.result,
-        error=content.error,
+        error=mcp_error_from_str(content.error),
     )
 
 
@@ -1195,8 +1311,9 @@ def _is_valid_openai_web_search_action(action: dict[str, Any]) -> bool:
         # ActionOpenPage requires 'url'
         return "url" in action
     elif action_type in ("find", "find_in_page"):
-        # ActionFind / ActionFindInPage require 'pattern' and 'url'
-        return "pattern" in action or "url" in action
+        # ActionFind requires both 'pattern' and 'url' ('find' is the legacy
+        # spelling of its type, renamed in parse_web_search_action)
+        return "pattern" in action and "url" in action
 
     return False
 
@@ -1229,6 +1346,11 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
             if filtered.get("type") == "search" and "query" not in filtered:
                 queries = filtered.get("queries") or []
                 filtered["query"] = queries[0] if queries else ""
+            # `ActionFind`'s type discriminator is 'find_in_page' (older SDK
+            # serializations spelled it 'find'), so rename to keep strict
+            # construction happy.
+            if filtered.get("type") == "find":
+                filtered["type"] = "find_in_page"
             return filtered
 
         # Not an OpenAI-formatted action - create a conforming search action
@@ -1572,7 +1694,7 @@ def _tool_call_items_from_assistant_message(
                 type="function_call",
                 call_id=call.id,
                 name=name,
-                arguments=arguments,
+                arguments=_limit_function_call_arguments(arguments),
             )
 
             # append the param
@@ -2071,6 +2193,22 @@ def is_tool_search_output(
     # tolerate items without a "type" key (e.g. simple user messages) since this
     # is scanned over raw input items, some of which omit "type"
     return param.get("type") == "tool_search_output"
+
+
+def is_additional_tools(
+    param: ResponseInputItemParam,
+) -> TypeGuard[AdditionalTools]:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type"
+    return param.get("type") == "additional_tools"
+
+
+def is_agent_message(param: ResponseInputItemParam) -> bool:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type". The OpenAI SDK
+    # has not yet added agent_message to ResponseInputItemParam, so the cast
+    # sidesteps a comparison-overlap error against the SDK's literal union.
+    return cast(dict[str, Any], param).get("type") == "agent_message"
 
 
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:

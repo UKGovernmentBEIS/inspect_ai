@@ -12,6 +12,7 @@ from test_helpers.utils import (
     skip_if_no_grok,
     skip_if_no_groq,
     skip_if_no_mistral,
+    skip_if_no_moonshot,
     skip_if_no_openai,
     skip_if_no_together,
 )
@@ -198,4 +199,21 @@ async def test_together_extended_response_schema():
 async def test_bedrock_extended_tool_schema():
     model = get_model("bedrock/amazon.nova-lite-v1:0")
     result = await model.generate(input=INPUT_TOOL, tools=[CONSTRAINED_TOOL])
+    assert result.completion is not None
+
+
+# -- Moonshot -----------------------------------------------------------------
+
+
+@skip_if_no_moonshot
+async def test_moonshot_extended_tool_schema():
+    model = get_model("moonshot/kimi-k3")
+    result = await model.generate(input=INPUT_TOOL, tools=[CONSTRAINED_TOOL])
+    assert result.completion is not None
+
+
+@skip_if_no_moonshot
+async def test_moonshot_extended_response_schema():
+    model = get_model("moonshot/kimi-k3")
+    result = await model.generate(input=INPUT_SCHEMA, config=_response_config())
     assert result.completion is not None

@@ -3,6 +3,7 @@ import os
 import sys
 import traceback
 import unicodedata
+from collections import OrderedDict
 from types import TracebackType
 from typing import Any, Tuple, Type
 
@@ -15,6 +16,10 @@ from rich.traceback import Traceback
 
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
 from inspect_ai._util.text import truncate_lines
+
+# LRU cache of rendered tracebacks (keyed by plain-text traceback)
+_traceback_cache: OrderedDict[str, tuple[str, str]] = OrderedDict()
+_TRACEBACK_CACHE_MAX_SIZE = 32
 
 
 def tool_result_display(
@@ -118,6 +123,16 @@ def format_traceback(
     """Format exception traceback as plain text and ANSI-colored."""
     traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
+    # with INSPECT_TRACEBACK_LOCALS the ANSI render includes local variables,
+    # which the plain-text cache key does not capture, so don't cache
+    use_cache = os.environ.get("INSPECT_TRACEBACK_LOCALS", None) != "1"
+
+    if use_cache:
+        cached = _traceback_cache.get(traceback_text)
+        if cached is not None:
+            _traceback_cache.move_to_end(traceback_text)
+            return cached
+
     if not truncated:
         with open(os.devnull, "w") as f:
             console = Console(record=True, file=f, legacy_windows=True)
@@ -126,4 +141,9 @@ def format_traceback(
     else:
         traceback_ansi = traceback_text
 
-    return traceback_text, traceback_ansi
+    result = traceback_text, traceback_ansi
+    if use_cache:
+        _traceback_cache[traceback_text] = result
+        while len(_traceback_cache) > _TRACEBACK_CACHE_MAX_SIZE:
+            _traceback_cache.popitem(last=False)
+    return result

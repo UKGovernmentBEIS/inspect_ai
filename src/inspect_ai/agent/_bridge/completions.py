@@ -25,6 +25,7 @@ from .util import (
     clear_generation_params,
     resolve_generate_config,
     resolve_inspect_model,
+    validate_bridge_media,
 )
 
 if TYPE_CHECKING:
@@ -62,6 +63,7 @@ async def inspect_completions_api_request(
     # convert openai messages to inspect messages
     openai_messages: list[ChatCompletionMessageParam] = json_data["messages"]
     messages = await messages_from_openai(openai_messages, model_name)
+    validate_bridge_media(bridge, messages)
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_completions(json_data)

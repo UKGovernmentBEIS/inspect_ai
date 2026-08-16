@@ -196,6 +196,11 @@ def responses_web_search_agent() -> Agent:
                             "search_context_size": "low",
                         }
                     ],
+                    # forced: the question is answerable from parametric
+                    # knowledge, and under auto choice models sometimes skip
+                    # the search (the test verifies bridge translation, not
+                    # whether the model elects to search)
+                    tool_choice="required",
                     input=user_prompt(state.messages).text,
                 )
 
@@ -593,12 +598,10 @@ def google_agent(tools: bool) -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=tools_param(),
                     tool_config=tool_config,  # type: ignore[arg-type]
@@ -619,12 +622,10 @@ def google_web_search_agent() -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=[{"google_search": {}}],  # type: ignore[list-item]
                 ),
@@ -643,12 +644,10 @@ def google_code_execution_agent() -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=[{"code_execution": {}}],  # type: ignore[list-item]
                 ),
@@ -667,16 +666,35 @@ def google_computer_agent() -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=[{"computerUse": {}}],  # type: ignore[list-item]
                 ),
             )
+
+            return bridge.state
+
+    return execute
+
+
+@agent
+def google_streaming_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            client = genai.Client(api_key="inspect")
+
+            stream = await client.aio.models.generate_content_stream(
+                model="inspect",
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
+            )
+            async for _ in stream:
+                pass
 
             return bridge.state
 
@@ -1076,6 +1094,16 @@ def test_google_bridge_computer_use_incompatible_model():
     assert log.status == "error"
     assert log.error
     assert "computer use with the Google agent bridge" in log.error.message
+
+
+def test_google_bridge_streaming_not_supported():
+    log = eval(
+        bridged_task(google_streaming_agent()),
+        model="mockllm/model",
+    )[0]
+    assert log.status == "error"
+    assert log.error
+    assert "Streaming not currently supported for agent_bridge()" in log.error.message
 
 
 @skip_if_no_anthropic

@@ -38,6 +38,7 @@ from inspect_ai._cli.ctl import (
 from inspect_ai._control.discovery import list_discovered_servers
 from inspect_ai._control.eval_state import get_eval_states
 from inspect_ai._control.events import decode_cursor, sample_events
+from inspect_ai._control.messages import sample_messages
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_listing,
@@ -49,8 +50,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._samples import active_samples
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
-# `_isolate_active_model` (autouse) and `short_data_dir` come from
-# tests/_control/conftest.py.
+# `isolate_active_model` (autouse) comes from tests/conftest.py, and
+# `short_data_dir` from tests/_control/conftest.py.
 
 # --- ls / GET /evals: per-eval listing -------------------------------------
 
@@ -725,7 +726,7 @@ def test_keep_alive_park_entered_with_completed_state(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -785,7 +786,7 @@ def test_keep_alive_works_when_all_logs_reused(
 
     captured: dict[str, list[dict]] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["evals"] = await current_eval_summaries(0.0)
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -836,7 +837,7 @@ def test_runtime_keep_parks_eval_set_launched_without_flag(
 
     captured: dict[str, bool] = {}
 
-    async def spy(eval_set_id: str) -> None:
+    async def spy(eval_set_id: str, log_dir: str) -> None:
         captured["parked"] = True
 
     monkeypatch.setattr("inspect_ai._eval.evalset._keep_alive_park", spy)
@@ -1541,7 +1542,7 @@ def test_ctl_samples_shows_retries_on_running_reattempt(short_data_dir: Path) ->
     async def capture() -> dict:
         entry = (await current_eval_summaries(0.0))[0]
         rows = await current_sample_summaries(entry["eval_id"])
-        detail = await sample_error_detail(entry["eval_id"], "1", 1)
+        detail = await sample_error_detail(entry["eval_id"], "1", 1, content=True)
         return {"rows": rows, "detail": detail}
 
     with probe(ready, capture) as p:
@@ -1813,6 +1814,171 @@ def test_ctl_eval_usage_persists_after_samples_complete(short_data_dir: Path) ->
     assert entry["total_tokens"] > 0, entry
 
 
+def test_ctl_eval_reports_refusals_after_samples_complete(
+    short_data_dir: Path,
+) -> None:
+    """A refusal is attributed to its eval and survives the sample finishing.
+
+    The end-to-end proof of the whole chain, because every link is invisible from
+    the outside: the model layer reports a `content_filter` stop to a
+    process-global counter, `sample_active()` attributes it, and the count rolls
+    onto the eval as the sample leaves ``active_samples``. Observed at run end,
+    when no sample is left in flight — so a summary that only summed live samples
+    would read 0 here.
+    """
+    from inspect_ai.model import ModelOutput, get_model
+
+    @task
+    def refuses() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="hi", target="ok") for i in (1, 2)],
+            solver=[generate()],
+            name="refuses",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[refuses()],
+            log_dir=log_dir,
+            model=get_model(
+                "mockllm/model",
+                custom_outputs=[
+                    ModelOutput.from_content(
+                        model="mockllm/model",
+                        content="I cannot help with that.",
+                        stop_reason="content_filter",
+                    )
+                    for _ in range(2)
+                ],
+            ),
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    entry = cap.eval("refuses")
+    assert entry is not None
+    assert entry["samples"]["in_flight"] == 0, entry
+    assert entry["refusals"] == 2, entry
+    # nothing produced an HTTP retry, so the other counter stays honest at 0
+    assert entry["http_retries"] == 0, entry
+
+
+def test_ctl_eval_reports_http_retries_per_eval(short_data_dir: Path) -> None:
+    """HTTP retries are attributed to the eval that incurred them, not the process.
+
+    Reported directly rather than by provoking a provider failure: the providers'
+    21 call sites all funnel through ``report_http_retry``, and what needs covering
+    is the attribution below it. TWO tasks in one ``eval_set`` — that is the whole
+    point of the change, since the process-global counter the TUI footer reads
+    cannot tell these two rows apart.
+    """
+    from inspect_ai._util.retry import http_retries_count, report_http_retry
+
+    def _retrying(n: int) -> Solver:
+        @solver
+        def s() -> Solver:
+            async def solve(state: TaskState, generate: Generate) -> TaskState:
+                for _ in range(n):
+                    report_http_retry()
+                return await generate(state)
+
+            return solve
+
+        return s()
+
+    @task
+    def noisy() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hi", target="ok")],
+            solver=[_retrying(3)],
+            name="noisy",
+        )
+
+    @task
+    def quiet() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hi", target="ok")],
+            solver=[_retrying(0)],
+            name="quiet",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    before = http_retries_count()
+    with capturing() as cap:
+        eval_set(
+            tasks=[noisy(), quiet()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=2,
+        )
+
+    noisy_entry = cap.eval("noisy")
+    quiet_entry = cap.eval("quiet")
+    assert noisy_entry is not None and quiet_entry is not None
+    assert noisy_entry["http_retries"] == 3, noisy_entry
+    # the discrimination the process-global counter cannot make
+    assert quiet_entry["http_retries"] == 0, quiet_entry
+    # and the global still counts every one, so the footer is unchanged
+    assert http_retries_count() - before == 3
+
+
+def test_ctl_eval_event_counts_survive_a_task_retry(short_data_dir: Path) -> None:
+    """The folded row keeps both attempts' event counts, not just the retry's.
+
+    Retries fold onto one row reporting the LATEST attempt's state counters; event
+    counts must not follow that rule, or the attempt whose failure caused the retry
+    contributes nothing. Emits on both sides of a real task-level retry: attempt 1
+    reports 4 then fails, attempt 2 reports 3 and succeeds, so the row must read 7.
+    """
+    from inspect_ai._util.retry import report_http_retry
+
+    calls = {"n": 0}
+
+    @solver
+    def report_then_maybe_fail() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["n"] += 1
+            first = calls["n"] == 1
+            for _ in range(4 if first else 3):
+                report_http_retry()
+            if first:
+                raise RuntimeError("synthetic first-attempt failure")
+            return state
+
+        return solve
+
+    @task
+    def flaky() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=[report_then_maybe_fail()],
+            name="flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[flaky()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=2,
+            retry_immediate=True,
+        )
+
+    entry = cap.eval("flaky")
+    assert entry is not None
+    assert entry["attempts"] == 2, entry
+    assert entry["http_retries"] == 7, entry
+
+
 def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
     short_data_dir: Path,
 ) -> None:
@@ -2058,6 +2224,90 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
     # running sample shows up for active_since=0
     assert res["active_future"] == []
     assert any(r["sample_id"] == 1 for r in res["active_all"])
+
+
+# --- messages / GET /evals/<id>/sample/messages ----------------------------
+
+
+def test_ctl_messages_snapshots_running_sample_conversation(
+    short_data_dir: Path,
+) -> None:
+    """A running sample's live ``TaskState.messages`` are readable as a snapshot.
+
+    A solver runs ``generate()`` (appending the assistant reply to the
+    conversation) then parks in flight; the messages read must surface the live
+    conversation from ``ActiveSample.live_state`` — no log involved — with the
+    running ``status`` and the total ``count``, ``--tail`` must window from the
+    end, and the compact projection must carry role + content per message.
+    """
+
+    @solver
+    def gen_then_park() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            await park_now()  # hold the sample in flight after a model call
+            return state
+
+        return solve
+
+    @task
+    def task_one() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hello", target="ok")],
+            solver=[gen_then_park()],
+            name="task_one",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = await current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 1
+
+    async def capture() -> dict:
+        eid = (await current_eval_summaries(0.0))[0]["eval_id"]
+        return {
+            "page": await sample_messages(eid, "1", 1, content=True),
+            "tail": await sample_messages(eid, "1", 1, tail=1),
+            "metadata": await sample_messages(eid, "1", 1),
+        }
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[task_one()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+        )
+
+    res = p.result
+    assert res is not None, "sample never reached in-flight after generate()"
+
+    page = res["page"]
+    assert page is not None
+    assert set(page) >= {"as_of", "status", "count", "messages"}
+    # served live from TaskState.messages while the sample is parked in flight
+    assert page["status"] == "running"
+    # user prompt + assistant reply from generate()
+    assert page["count"] >= 2
+    roles = [m["role"] for m in page["messages"]]
+    assert "user" in roles and "assistant" in roles
+    assert all("content" in m and "index" in m for m in page["messages"])
+
+    # the metadata-only default withholds the message text but keeps the
+    # structural fields
+    metadata = res["metadata"]
+    assert metadata is not None
+    assert metadata["count"] == page["count"]
+    assert all("content" not in m and "index" in m for m in metadata["messages"])
+
+    # --tail windows from the end: one message, count unchanged, absolute index
+    tail = res["tail"]
+    assert tail is not None
+    assert len(tail["messages"]) == 1
+    assert tail["count"] == page["count"]
+    assert tail["messages"][0]["index"] == page["count"] - 1
 
 
 # Cross-sample channel for the transition test below: the subject sample (id 1)

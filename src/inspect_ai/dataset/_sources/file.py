@@ -1,5 +1,6 @@
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 from .._dataset import (
     Dataset,
@@ -58,7 +59,9 @@ def file_dataset(
     Returns:
         Dataset read from JSON or CSV file.
     """
-    ext = os.path.splitext(file)[1].lower()
+    parsed_file = urlparse(file)
+    file_path = parsed_file.path if parsed_file.scheme else file
+    ext = os.path.splitext(file_path)[1].lower()
 
     match ext:
         case ".json" | ".jsonl":

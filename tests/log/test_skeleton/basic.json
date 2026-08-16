@@ -1,0 +1,49 @@
+{
+  "description": "Nested spans: agent span containing an included tool span (has a model event). Pins the full field set, extent/t/working, descendant counts, gap_models layout and children counts.",
+  "events": [
+    {"event": "span_begin", "id": "S1", "name": "agent1", "type": "agent", "timestamp": "2026-01-01T00:00:00+00:00", "working_start": 0.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:01+00:00", "working_start": 1.0},
+    {"event": "info", "span_id": "S1", "data": "note", "timestamp": "2026-01-01T00:00:02+00:00", "working_start": 2.0},
+    {"event": "span_begin", "id": "S2", "parent_id": "S1", "span_id": "S1", "name": "bash", "type": "tool", "timestamp": "2026-01-01T00:00:03+00:00", "working_start": 3.0},
+    {"event": "tool", "span_id": "S2", "id": "c1", "function": "bash", "arguments": {}, "timestamp": "2026-01-01T00:00:04+00:00", "working_start": 4.0},
+    {"event": "model", "span_id": "S2", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:05+00:00", "working_start": 5.0},
+    {"event": "span_end", "id": "S2", "span_id": "S1", "timestamp": "2026-01-01T00:00:06+00:00", "working_start": 6.0},
+    {"event": "model", "span_id": "S1", "model": "mockllm/model", "input": [], "tools": [], "tool_choice": "auto", "config": {}, "output": {}, "timestamp": "2026-01-01T00:00:07+00:00", "working_start": 7.0},
+    {"event": "span_end", "id": "S1", "timestamp": "2026-01-01T00:00:08+00:00", "working_start": 8.0}
+  ],
+  "expected": {
+    "version": 1,
+    "counts": {"events": 9, "models": 3},
+    "spans": [
+      {
+        "id": "S1",
+        "name": "agent1",
+        "type": "agent",
+        "begin": 0,
+        "extent": [0, 8],
+        "t": ["2026-01-01T00:00:00+00:00", "2026-01-01T00:00:08+00:00"],
+        "working": [0.0, 8.0],
+        "events": 9,
+        "models": 3,
+        "gap_models": [1, 1],
+        "children": {"model": 2, "info": 1}
+      },
+      {
+        "id": "S2",
+        "parent": 0,
+        "name": "bash",
+        "type": "tool",
+        "begin": 3,
+        "extent": [3, 6],
+        "t": ["2026-01-01T00:00:03+00:00", "2026-01-01T00:00:06+00:00"],
+        "working": [3.0, 6.0],
+        "events": 4,
+        "models": 1,
+        "gap_models": [1],
+        "children": {"tool": 1, "model": 1}
+      }
+    ],
+    "notables": [],
+    "overflow": {}
+  }
+}

@@ -8,6 +8,7 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
 from inspect_ai.tool._tools._web_search._web_search import WebSearchProviders
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_service
 
 from .._errors import PROVIDER_ERROR_KEY, provider_error_payload
@@ -31,6 +32,9 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     `PROVIDER_ERROR_KEY` so the sandbox service RPC delivers it via the `result`
     channel. This lets the model proxy emit a provider-dialect error response
     and stay up, instead of the RPC `error` channel triggering a fatal exit.
+
+    `LimitExceededError` is deliberately excluded so message/token/cost limit
+    hit during generation properly end the sample.
     """
 
     async def generate_forwarding_errors(
@@ -38,6 +42,8 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
     ) -> dict[str, JsonValue]:
         try:
             return await generate(json_data)
+        except LimitExceededError:
+            raise
         except Exception as ex:
             payload = provider_error_payload(ex)
             # A payload with no recoverable HTTP status almost always means the
@@ -59,8 +65,8 @@ def _forward_provider_errors(generate: GenerateMethod) -> GenerateMethod:
 
 async def run_model_service(
     sandbox: SandboxEnvironment,
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
     instance: str,
     started: anyio.Event,
@@ -103,8 +109,8 @@ def generate_completions(
 
 
 def generate_responses(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -117,8 +123,8 @@ def generate_responses(
 
 
 def generate_anthropic(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -131,8 +137,8 @@ def generate_anthropic(
 
 
 def generate_google(
-    web_search: WebSearchProviders,
-    code_execution: CodeExecutionProviders,
+    web_search: WebSearchProviders | None,
+    code_execution: CodeExecutionProviders | None,
     bridge: SandboxAgentBridge,
 ) -> Callable[[dict[str, JsonValue]], Awaitable[dict[str, JsonValue]]]:
     async def generate(json_data: dict[str, JsonValue]) -> dict[str, JsonValue]:

@@ -10,7 +10,7 @@ from pydantic_core import to_jsonable_python
 
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log import read_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -70,7 +70,12 @@ def _make_crashed_log(
     )
 
 
-def _make_sample(id: int, epoch: int = 1, scored: bool = True) -> EvalSample:
+def _make_sample(
+    id: int,
+    epoch: int = 1,
+    scored: bool = True,
+    usage: ModelUsage | None = None,
+) -> EvalSample:
     return EvalSample(
         id=id,
         epoch=epoch,
@@ -80,10 +85,10 @@ def _make_sample(id: int, epoch: int = 1, scored: bool = True) -> EvalSample:
         messages=[],
         scores={"accuracy": Score(value="C", answer="C")} if scored else None,
         model_usage={
-            "mockllm/model": ModelUsage(
-                input_tokens=10, output_tokens=5, total_tokens=15
-            )
+            "mockllm/model": usage
+            or ModelUsage(input_tokens=10, output_tokens=5, total_tokens=15)
         },
+        role_usage={"grader": usage} if usage else {},
         started_at=datetime.now(timezone.utc).isoformat(),
         completed_at=datetime.now(timezone.utc).isoformat() if scored else None,
     )
@@ -103,7 +108,7 @@ async def test_write_recovered_eval_log_basic() -> None:
             assert log.status == "error"
             assert log.error is not None
 
-            read_log = read_eval_log(output)
+            read_log = await read_eval_log_async(output)
             assert read_log.status == "error"
             assert read_log.samples is not None
             assert len(read_log.samples) == 3  # 2 flushed + 1 buffer
@@ -129,6 +134,39 @@ async def test_write_recovered_eval_log_stats() -> None:
             assert usage.output_tokens == 10
 
 
+async def test_write_recovered_eval_log_stats_all_usage_fields() -> None:
+    """Test that every ModelUsage field is carried into the model and role rollups."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output = os.path.join(temp_dir, "recovered.eval")
+            usage = ModelUsage(
+                input_tokens=10,
+                output_tokens=5,
+                total_tokens=15,
+                input_tokens_cache_write=2,
+                input_tokens_cache_read=1,
+                reasoning_tokens=3,
+                total_cost=0.125,
+            )
+            samples = [_make_sample(1, usage=usage), _make_sample(2, usage=usage)]
+            crashed = _make_crashed_log(temp_dir, samples=samples)
+
+            log = await write_recovered_eval_log(crashed, iter([]), output)
+
+            assert log.stats is not None
+            for rollup in (
+                log.stats.model_usage["mockllm/model"],
+                log.stats.role_usage["grader"],
+            ):
+                assert rollup.input_tokens == 20
+                assert rollup.output_tokens == 10
+                assert rollup.total_tokens == 30
+                assert rollup.input_tokens_cache_write == 4
+                assert rollup.input_tokens_cache_read == 2
+                assert rollup.reasoning_tokens == 6
+                assert rollup.total_cost == 0.25
+
+
 async def test_write_recovered_eval_log_mixed_scored() -> None:
     """Test recovery with mix of scored and unscored samples."""
     async with AsyncFilesystem():
@@ -141,7 +179,7 @@ async def test_write_recovered_eval_log_mixed_scored() -> None:
             unscored = [_make_sample(2, scored=False)]
             await write_recovered_eval_log(crashed, iter(unscored), output)
 
-            read_log = read_eval_log(output)
+            read_log = await read_eval_log_async(output)
             assert read_log.samples is not None
             scored_samples = [s for s in read_log.samples if s.scores]
             unscored_samples = [s for s in read_log.samples if not s.scores]
@@ -165,5 +203,5 @@ async def test_write_recovered_eval_log_empty() -> None:
             log = await write_recovered_eval_log(crashed, iter([]), output)
 
             assert log.status == "error"
-            read_log = read_eval_log(output)
+            read_log = await read_eval_log_async(output)
             assert read_log.status == "error"

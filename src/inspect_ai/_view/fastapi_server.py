@@ -284,8 +284,13 @@ def view_server_app(
         base_name = Path(file).stem
         filename = f"{base_name}.eval"
 
+        # No explicit Content-Length: the file may change between
+        # get_log_size() and the read (in-progress evals are rewritten
+        # in place), and a stale size makes clients fail the download.
+        # The buffered branch lets the framework set it from the actual
+        # body; the streaming branch uses chunked transfer encoding
+        # (same rationale as /log-bytes above).
         headers = {
-            "Content-Length": str(file_size),
             "Content-Disposition": f'attachment; filename="{filename}"',
         }
 
@@ -384,7 +389,7 @@ def view_server_app(
         await _validate_list(request, eval_set_dir)
 
         # return the eval set info for this directory (async fs, not to_thread —
-        # see the fsspec/to_thread warning in CLAUDE.md)
+        # see the fsspec/to_thread warning in AGENTS.md)
         mapped = await _map_file(request, eval_set_dir)
         if fs_options:
             return read_eval_set_info(mapped, fs_options=fs_options)
@@ -413,7 +418,7 @@ def view_server_app(
         sep = filesystem(mapped_dir).sep
         flow_file = f"{mapped_dir.rstrip('/').rstrip(sep)}{sep}flow.yaml"
 
-        # async fs, not to_thread — see the fsspec/to_thread warning in CLAUDE.md
+        # async fs, not to_thread — see the fsspec/to_thread warning in AGENTS.md
         async with AsyncFilesystem() as afs:
             content = (
                 await afs.read_file(flow_file) if await afs.exists(flow_file) else None
@@ -466,7 +471,7 @@ def view_server_app(
         "/pending-samples", response_model=Samples, response_class=InspectJsonResponse
     )
     async def api_pending_samples(
-        request: Request, response: Response, log: str = Query(...)
+        request: Request, log: str = Query(...)
     ) -> Samples | Response:
         file = urllib.parse.unquote(log)
         await _validate_read(request, file)
@@ -475,7 +480,7 @@ def view_server_app(
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
-        # warning in CLAUDE.md.
+        # warning in AGENTS.md.
         buffer = sample_buffer(await _map_file(request, file))
         samples = buffer.get_samples(client_etag)
         if samples == "NotModified":
@@ -483,8 +488,10 @@ def view_server_app(
         elif samples is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
-            response.headers["ETag"] = samples.etag
-            return samples
+            return InspectJsonResponse(
+                content=samples.model_dump(mode="json", by_alias=True),
+                headers={"ETag": samples.etag},
+            )
 
     @app.post("/log-message")
     async def api_log_message(
@@ -519,7 +526,7 @@ def view_server_app(
 
         # NOTE: sync on the event loop. The sample buffer can be filestore-backed
         # (fsspec) and must not be wrapped in to_thread — see the fsspec/to_thread
-        # warning in CLAUDE.md.
+        # warning in AGENTS.md.
         buffer = sample_buffer(await _map_file(request, file))
         sample_data = buffer.get_sample_data(
             id=id,
@@ -659,9 +666,31 @@ class OnlyDirAccessPolicy(AccessPolicy):
     def __init__(self, dir: str) -> None:
         super().__init__()
         self.dir = dir
+        self._dir_uri = self._canonical_uri(dir)
+
+    def _canonical_uri(self, path: str) -> str:
+        fs = filesystem(path)
+        stripped_path = fs.fs._strip_protocol(path)
+        if fs.is_local():
+            # Case-fold for case-insensitive local filesystems, but keep "/"
+            # separators: on Windows normcase also flips "/" to "\", which
+            # would defeat the "/" directory-boundary check below.
+            stripped_path = os.path.normcase(stripped_path).replace(os.sep, "/")
+        return fs.path_as_uri(stripped_path).rstrip("/")
 
     def _validate_log_dir(self, file: str) -> bool:
-        return file.startswith(self.dir) and ".." not in file
+        # This guard is load-bearing: canonicalization below does not resolve
+        # ".." segments, so a traversal like `dir/../../etc` would otherwise
+        # pass the directory-boundary prefix check.
+        if ".." in file:
+            return False
+
+        try:
+            file_uri = self._canonical_uri(file)
+        except Exception:
+            # Access validation must fail closed for malformed filesystem URIs.
+            return False
+        return file_uri == self._dir_uri or file_uri.startswith(f"{self._dir_uri}/")
 
     async def can_read(self, request: Request, file: str) -> bool:
         return self._validate_log_dir(file)

@@ -64,3 +64,27 @@ def test_parse_single_quotes_in_string_tool_call_without_a_dict():
 
     assert "param1" in tool_call.arguments
     assert tool_call.arguments["param1"] == "'"
+
+
+def test_parse_error_preserves_small_arguments():
+    malformed = '{"param1": "value",}invalid'
+    tool_call = parse_tool_call("id", "testing_tool", malformed, [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+    assert malformed in tool_call.parse_error
+
+
+def test_parse_error_truncates_oversized_arguments():
+    # oversized malformed arguments are middle-truncated in the parse error
+    # (which is echoed back to the model as the tool result)
+    malformed = '{"param1": "' + ("x" * 2_000_000) + '",}invalid'
+    tool_call = parse_tool_call("id", "testing_tool", malformed, [testing_tool])
+
+    assert tool_call.arguments == {}
+    assert tool_call.parse_error is not None
+    assert len(tool_call.parse_error) < 20 * 1024
+    assert "middle-truncated" in tool_call.parse_error
+    # middle truncation preserves the head and tail
+    assert tool_call.parse_error.count('{"param1": "x') == 1
+    assert '",}invalid' in tool_call.parse_error

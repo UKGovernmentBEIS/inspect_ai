@@ -113,7 +113,7 @@ async def sandboxenv_context(
 
     # enforce concurrency if required. `resizable=True` backs it with a
     # ResizableLimiter so the control channel's modify-limits directive can
-    # retune max_sandboxes mid-eval (see design/control-channel.md phase 3).
+    # retune max_sandboxes mid-eval (see design/ctl/control-channel.md phase 3).
     sandboxes_cm = (
         concurrency(
             sandbox.type,
