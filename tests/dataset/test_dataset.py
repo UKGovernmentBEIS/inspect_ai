@@ -467,3 +467,7 @@ def test_read_choices_drops_empty_entries() -> None:
     assert read_choices("Paris,,London") == ["Paris", "London"]
     assert read_choices("Paris, London") == ["Paris", "London"]
     assert read_choices("Paris London") == ["Paris", "London"]
+    assert read_choices(",,") == []
+    assert read_choices(None) is None
+    assert read_choices(["Paris", "", "London"]) == ["Paris", "London"]
+    assert read_choices(["Paris", " ", "London"]) == ["Paris", "London"]
