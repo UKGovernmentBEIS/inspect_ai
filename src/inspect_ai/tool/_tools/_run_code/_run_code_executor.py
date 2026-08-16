@@ -59,16 +59,30 @@ class MontyRunCodeExecutor:
         self.max_tool_calls = max_inner_tool_calls
 
     async def execute(self, code: str) -> RunCodeResult:
+        bridge = RunCodeToolBridge(
+            self.tool_defs,
+            max_inner_tool_calls=self.max_tool_calls,
+        )
+
+        try:
+            result = await self._run(bridge, code)
+        except BaseException:
+            # Monty rebuilds an inner tool's exception from its own type list, so
+            # a terminate reaches this point as a MontyError.
+            bridge.raise_pending_control_flow()
+            raise
+
+        # the generated code can catch a terminate with a bare except, in which
+        # case the run "succeeds" and this is the only place the signal is left
+        bridge.raise_pending_control_flow()
+        return result
+
+    async def _run(self, bridge: RunCodeToolBridge, code: str) -> RunCodeResult:
         try:
             import pydantic_monty
             from pydantic_monty import MontyError
         except ImportError:
             raise pip_dependency_error("run_code", ["pydantic-monty"])
-
-        bridge = RunCodeToolBridge(
-            self.tool_defs,
-            max_inner_tool_calls=self.max_tool_calls,
-        )
 
         try:
             monty = pydantic_monty.Monty(
