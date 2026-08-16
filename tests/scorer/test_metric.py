@@ -1065,12 +1065,12 @@ def test_unscored_with_reason() -> None:
     import math as _math
 
     score = Score.unscored(
-        reason="grader_parse_failure",
+        reason="grader_failed",
         answer="the answer",
         explanation="Grader did not return a parseable verdict.",
     )
     assert isinstance(score.value, float) and _math.isnan(score.value)
-    assert score.reason == "grader_parse_failure"
+    assert score.reason == "grader_failed"
     assert score.answer == "the answer"
 
 
@@ -1094,11 +1094,11 @@ def test_unscored_reason_metadata_lifted_to_reason() -> None:
 def test_explicit_reason_not_overridden_by_metadata() -> None:
     data = {
         "value": float("nan"),
-        "reason": "grader_refusal",
+        "reason": "grader_failed",
         "metadata": {"unscored_reason": "grade_parse_failure"},
     }
     score = Score.model_validate(data)
-    assert score.reason == "grader_refusal"
+    assert score.reason == "grader_failed"
 
 
 def test_author_reason_metadata_not_lifted() -> None:

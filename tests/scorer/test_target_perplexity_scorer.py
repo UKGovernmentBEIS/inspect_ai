@@ -257,7 +257,7 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
     state = _state_with_prompt_logprobs(None)
     result = await scorer(state, Target(["x"]))
     assert result is not None
-    assert result.reason == "no_logprobs"
+    assert result.reason == "scoring_failed"
 
     # fewer logprobs than num_target_tokens
     state = _state_with_prompt_logprobs(
@@ -266,7 +266,7 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
     )
     result = await scorer(state, Target(["x"]))
     assert result is not None
-    assert result.reason == "invalid_target_tokens"
+    assert result.reason == "scoring_failed"
 
     # non-positive num_target_tokens
     state = _state_with_prompt_logprobs(
@@ -275,4 +275,4 @@ async def test_target_perplexity_unscorable_states_carry_reason() -> None:
     )
     result = await scorer(state, Target(["x"]))
     assert result is not None
-    assert result.reason == "invalid_target_tokens"
+    assert result.reason == "scoring_failed"

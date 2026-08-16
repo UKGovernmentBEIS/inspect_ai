@@ -726,7 +726,7 @@ async def test_edit_history_captures_original_reason():
     logs = await eval_async(single_metric_task())
     log = logs[0]
     sample = log.samples[0]
-    sample.scores["single_metric_scorer"].reason = "grader_parse_failure"
+    sample.scores["single_metric_scorer"].reason = "grader_failed"
 
     edit_score(
         log,
@@ -737,7 +737,7 @@ async def test_edit_history_captures_original_reason():
     )
 
     original = sample.scores["single_metric_scorer"].history[0]
-    assert original.reason == "grader_parse_failure"
+    assert original.reason == "grader_failed"
 
 
 @pytest.mark.anyio

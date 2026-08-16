@@ -29,7 +29,10 @@ def edit_score(
             the 'value' field must be provided (cannot be UNCHANGED). A metadata
             dict on the edit replaces `Score.metadata` rather than merging into
             it -- carry over any scorer-recorded keys you want to keep (the
-            pre-edit dict remains available via `Score.history`).
+            pre-edit dict remains available via `Score.history`). When the edit
+            sets `reason` explicitly, the legacy `unscored_reason` key is
+            dropped from the supplied metadata so a log round-trip cannot
+            resurrect the superseded reason.
         recompute_metrics: Whether to recompute aggregate metrics after editing
         epoch: Epoch number of the sample to edit (required when there are multiple epochs)
 

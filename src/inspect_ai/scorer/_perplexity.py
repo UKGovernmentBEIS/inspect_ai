@@ -46,7 +46,7 @@ def perplexity() -> Scorer:
         choice = state.output.choices[0]
         if not choice.prompt_logprobs or choice.prompt_logprobs.content is None:
             return Score.unscored(
-                reason="no_logprobs",
+                reason="scoring_failed",
                 explanation="No prompt logprobs available. Ensure prompt_logprobs is set in GenerateConfig.",
             )
 
@@ -54,7 +54,7 @@ def perplexity() -> Scorer:
         num_tokens = len(log_probs)
         if num_tokens == 0:
             return Score.unscored(
-                reason="no_logprobs",
+                reason="scoring_failed",
                 explanation="prompt_logprobs.content is empty.",
             )
         sum_log_probs = sum(log_probs)

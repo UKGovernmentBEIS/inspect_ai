@@ -76,7 +76,7 @@ def target_perplexity(
         choice = state.output.choices[0]
         if not choice.prompt_logprobs or choice.prompt_logprobs.content is None:
             return Score.unscored(
-                reason="no_logprobs",
+                reason="scoring_failed",
                 explanation=(
                     "No prompt logprobs available. "
                     "Ensure prompt_logprobs is set in GenerateConfig."
@@ -105,14 +105,14 @@ def target_perplexity(
 
         if n <= 0:
             return Score.unscored(
-                reason="invalid_target_tokens",
+                reason="scoring_failed",
                 explanation=f"num_target_tokens must be > 0, got {n}.",
             )
 
         all_lps = choice.prompt_logprobs.content
         if len(all_lps) < n:
             return Score.unscored(
-                reason="invalid_target_tokens",
+                reason="scoring_failed",
                 explanation=(
                     f"prompt_logprobs has {len(all_lps)} entries but "
                     f"num_target_tokens={n}."

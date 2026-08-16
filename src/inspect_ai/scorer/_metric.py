@@ -50,16 +50,17 @@ ScoreReason = Literal[
     "invalid_response_format",  # output unparseable / violates requested format
     "refusal",  # detected refusal to answer
     "no_response",  # empty completion
-    # measurement instrument (grader model, harness)
-    "grader_parse_failure",  # grader verdict unparseable after bounded retry
-    "grader_refusal",  # grader refused to grade
-    "grader_no_tool_call",  # grader made no tool call (schema-based scorers)
-    "grader_schema_mismatch",  # grader payload failed schema validation
+    # measurement instrument
+    "grader_failed",  # grader model failed (unparseable verdict, refusal, schema mismatch)
+    "scoring_failed",  # scorer could not run (missing logprobs, invalid config, no subscores)
 ]
 """Standard machine-readable reasons for abnormal scores.
 
-The `grader_` prefix marks failures of the measurement instrument rather
-than the model under test, so a single query can separate the two.
+The first group attributes the failure to the model under test (kept
+fine-grained — refusal rate is a first-class quantity, distinct from format
+violations); the second to the measurement instrument, split by whether a
+grader model failed or the scorer itself could not run. Any custom string
+is also legal; the detail behind a coarse value belongs in `explanation`.
 """
 
 
