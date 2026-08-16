@@ -5,6 +5,7 @@ import pytest
 from anthropic import NOT_GIVEN as ANTHROPIC_NOT_GIVEN
 from anthropic import AsyncAnthropic
 from anthropic.types import ToolChoiceAnyParam
+from anthropic.types.beta import BetaUsage
 from google import genai
 from openai import NOT_GIVEN, AsyncOpenAI, BaseModel
 from openai.types.chat import ChatCompletion
@@ -541,6 +542,31 @@ def anthropic_code_execution_agent() -> Agent:
 
 
 @agent
+def anthropic_beta_usage_agent() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge(state) as bridge:
+            async with AsyncAnthropic() as client:
+                message = await client.beta.messages.create(
+                    model="inspect",
+                    max_tokens=1024,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_prompt(state.messages).text,
+                        }
+                    ],
+                )
+                # beta endpoints must yield BetaUsage: clients reading beta-only
+                # fields (pydantic-ai reads usage.iterations) fail on plain Usage
+                assert isinstance(message.usage, BetaUsage)
+                assert message.usage.iterations is None
+
+            return bridge.state
+
+    return execute
+
+
+@agent
 def anthropic_computer_agent() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         async with agent_bridge(state) as bridge:
@@ -841,6 +867,11 @@ def test_bridged_agent_completions():
 
 def test_bridged_completions_with_raw_response():
     log = eval(bridged_task(raw_response_completions_agent()), model="mockllm/model")[0]
+    assert log.status == "success"
+
+
+def test_bridged_anthropic_beta_usage():
+    log = eval(bridged_task(anthropic_beta_usage_agent()), model="mockllm/model")[0]
     assert log.status == "success"
 
 
