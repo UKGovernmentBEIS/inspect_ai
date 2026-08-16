@@ -1024,3 +1024,31 @@ async def test_run_code_bridge_raises_custom_error_on_max_tool_calls():
 
     assert exc_info.value.max_tool_calls == 1
     assert "Maximum run_code inner tool calls exceeded: 1" in str(exc_info.value)
+
+
+@pytest.mark.anyio
+async def test_run_code_bridge_finalizes_inner_tool_event():
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import transcript
+
+    before = len(transcript().events)
+
+    bridge = RunCodeToolBridge(_tool_defs([add_numbers_tool()]))
+    external_functions = bridge.external_functions()
+
+    result = await external_functions["add_numbers"](1, 2)
+
+    assert result == 3
+
+    events = [
+        event
+        for event in transcript().events[before:]
+        if isinstance(event, ToolEvent) and event.function == "add_numbers"
+    ]
+
+    assert events
+
+    event = events[-1]
+    assert event.pending is not True
+    assert event.completed is not None
+    assert event.working_time is not None

@@ -8,17 +8,18 @@ from uuid import uuid4
 
 from pydantic_core import to_jsonable_python
 
-from inspect_ai._util.content import (
+from ...._util.content import (
     Content,
     ContentBase,
     ContentText,
 )
-from inspect_ai._util.exception import TerminateSampleError
-from inspect_ai.util import OutputLimitExceededError
-from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._sandbox.events import SandboxTimeoutError
-
-from ..._tool import ToolApprovalError, ToolError, ToolParsingError
+from ...._util.exception import TerminateSampleError
+from ...._util.working import sample_waiting_time
+from ....util import OutputLimitExceededError
+from ....util._limit import LimitExceededError
+from ....util._sandbox.events import SandboxTimeoutError
+from ..._tool import ToolApprovalError, ToolError, ToolParsingError, tool_result_content
+from ..._tool_call import ToolCallError
 from ..._tool_def import ToolDef
 
 
@@ -83,6 +84,49 @@ class RunCodeToolCallError(NamedTuple):
 
 def _format_tool_error(error: RunCodeToolCallError) -> str:
     return f"{error.type}: {error.message}"
+
+
+def _tool_event_result_content(result: Any) -> str | list[Content]:
+    """Convert a raw inner tool result to transcript-friendly content."""
+    if isinstance(result, ContentBase):
+        return tool_result_content([result])
+
+    if isinstance(result, list) and all(
+        isinstance(item, ContentBase) for item in result
+    ):
+        return tool_result_content(result)
+
+    return str(result)
+
+
+def _finalize_tool_event(
+    event: Any,
+    *,
+    result: Any,
+    waiting_start: float,
+    error: ToolCallError | None = None,
+    agent: str | None = None,
+    agent_span_id: str | None = None,
+    failed: bool | None = None,
+) -> None:
+    """Finalize the pending inner tool event recorded by call_tool(...)."""
+    from ....log._transcript import transcript
+
+    event._set_result(
+        result=_tool_event_result_content(result),
+        truncated=None,
+        error=error,
+        waiting_time=sample_waiting_time() - waiting_start,
+        agent=agent,
+        failed=failed,
+        message_id=None,
+        agent_span_id=agent_span_id,
+    )
+
+    if event in transcript().events:
+        transcript()._event_updated(event)
+    else:
+        transcript()._event(event)
 
 
 def _exception_to_tool_error(
@@ -290,16 +334,19 @@ class RunCodeToolBridge:
         tool_def: ToolDef,
         arguments: dict[str, Any],
     ) -> Any:
-        """Run one inner tool call and return its result.
+        """Run one inner tool call and return its raw result.
 
-        Goes through ``call_tool`` for validation, approval and transcript
-        events. Inspect tool errors are returned as text; other exceptions
-        propagate.
+        Goes through ``call_tool`` for validation, approval, transcript events,
+        and span nesting. Because this bridge bypasses ``execute_tools(...)`` to
+        preserve raw return values for the Monty runtime, it also finalizes the
+        pending ``ToolEvent`` recorded by ``call_tool(...)``.
+
+        Known tool errors are returned as text; other exceptions propagate.
         """
-        from inspect_ai.event._tool import ToolEvent
-        from inspect_ai.model._call_tools import call_tool
-        from inspect_ai.model._chat_message import ChatMessageAssistant
-        from inspect_ai.tool._tool_call import ToolCall
+        from ....event._tool import ToolEvent
+        from ....model._call_tools import call_tool
+        from ....model._chat_message import ChatMessageAssistant
+        from ..._tool_call import ToolCall
 
         call = ToolCall(
             id=f"run_code_{uuid4().hex}",
@@ -318,16 +365,47 @@ class RunCodeToolBridge:
             pending=True,
         )
 
+        waiting_start = sample_waiting_time()
+
         try:
-            result, _messages, _output, _agent, _agent_span_id = await call_tool(
+            result, _messages, output, agent, agent_span_id = await call_tool(
                 self.tool_defs, message.text, call, event, [message]
             )
         except TerminateSampleError:
+            _finalize_tool_event(
+                event,
+                result="",
+                waiting_start=waiting_start,
+                failed=True,
+            )
             raise
         except Exception as ex:
             tool_error = _exception_to_tool_error(ex, call.function)
             if tool_error is not None:
-                return _format_tool_error(tool_error)
-            raise
+                formatted_error = _format_tool_error(tool_error)
+                _finalize_tool_event(
+                    event,
+                    result=formatted_error,
+                    waiting_start=waiting_start,
+                    error=ToolCallError(
+                        type=tool_error.type, message=tool_error.message
+                    ),
+                )
+                return formatted_error
 
-        return result
+            _finalize_tool_event(
+                event,
+                result="",
+                waiting_start=waiting_start,
+                failed=True,
+            )
+            raise
+        else:
+            _finalize_tool_event(
+                event,
+                result=output,
+                waiting_start=waiting_start,
+                agent=agent,
+                agent_span_id=agent_span_id,
+            )
+            return result
