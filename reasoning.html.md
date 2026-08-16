@@ -89,16 +89,17 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 defaults to `high` effort and its reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`, `grok-4.5`, `grok-4.6`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Note that Grok 4.5 and Grok 4.6 default to `high` effort and their reasoning cannot be disabled. Inspect maps `reasoning_effort` as follows:
 
-| Inspect input            | API value         |
-|--------------------------|-------------------|
-| `none`                   | reasoning omitted |
-| `minimal` / `low`        | `low`             |
-| `medium`                 | `medium`          |
-| `high` / `xhigh` / `max` | `high`            |
+| Inspect input     | API value         |
+|-------------------|-------------------|
+| `none`            | reasoning omitted |
+| `minimal` / `low` | `low`             |
+| `medium`          | `medium`          |
+| `high`            | `high`            |
+| `xhigh` / `max`   | `xhigh`           |
 
-xAI documents an `xhigh` effort for `grok-4.20-multi-agent` (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above `high`, so `xhigh` and `max` clamp to `high` for that model as well.
+`xhigh` is a real effort level from `grok-4.6` (for `grok-4.20-multi-agent` it controls how many agents collaborate); xAI [documents](https://docs.x.ai/developers/model-capabilities/text/reasoning) that Grok 4.X models without `xhigh` support (e.g. `grok-4.5`) treat it as `high`, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only `low`/`high`, so `xhigh` and `max` clamp to `high` there. Sending `xhigh` requires `xai_sdk` \>= 1.18 — on older SDK versions (whose transport cannot express values above `high`) Inspect clamps `xhigh` and `max` to `high` for all models.
 
 #### DeepSeek
 
@@ -214,6 +215,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 | grok/grok-4                          | no effort scale |
 | grok/grok-4.3                        | low             |
 | grok/grok-4.5                        | high            |
+| grok/grok-4.6                        | high            |
 | mistral/magistral-medium-2506        | no effort scale |
 | mistral/magistral-small-2506         | no effort scale |
 | mistral/mistral-medium-2604          | none            |

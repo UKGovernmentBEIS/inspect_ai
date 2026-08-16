@@ -15,7 +15,7 @@ def model_graded_qa(
     include_history: bool | Callable[[TaskState], str] = False,
     partial_credit: bool = False,
     model: list[str | Model] | str | Model | None = None,
-    model_role: str | None = "grader",
+    model_role: str | ModelRole | None = "grader",
 ) -> Scorer:
     ...
 ```
@@ -26,7 +26,7 @@ Model selection follows this precedence:
 
 1.  If `model` is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).
 
-2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used.
+2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used. Pass `ModelRole("grader", required=True)` (from `inspect_ai.model`) to raise an error when the role is not bound instead of falling back to the model being evaluated.
 
 3.  Else the model currently being evaluated is used.
 
@@ -40,7 +40,7 @@ There are a few ways you can customise the default behaviour:
 
 4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
 
-5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](./models.html.md#model-roles) for details.
+5.  Bind a `model_role` (default: `"grader"`) at eval time. Pass `ModelRole("grader", required=True)` when the scorer must not fall back to the model being evaluated. See [Model Roles](./models.html.md#model-roles) for details.
 
 6.  Specify a different `template`. Templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
 

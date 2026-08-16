@@ -55,7 +55,7 @@ The `openai` provider supports the following custom model args (other model args
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
 | `prompt_cache_key` | Used by OpenAI to cache responses for similar requests. |
 | `prompt_cache_retention` | Retention policy for the prompt cache. |
-| `http_client` | Custom instance of `httpx.AsyncClient` for handling requests. |
+| `http_client` | Custom instance of `httpx2.AsyncClient` (or legacy `httpx.AsyncClient`) for handling requests. |
 
 For example:
 
@@ -563,6 +563,14 @@ inspect eval arc.py --model grok/grok-3-mini -M disable_retry=true
 ```
 
 This might be done if you are attempting to accurately track sample `working_time`—typically HTTP retries are subtracted from working time but the Grok provider uses GRPC which has no hooks available for requests and responses (while other providers do).
+
+The `grok` provider also supports a `service_tier` model argument that selects the xAI processing tier for requests (introduced alongside Grok 4.6; requires `xai_sdk` \>= 1.17). For example, to use [Priority Processing](https://docs.x.ai/developers/grok-4-6) (billed at higher token rates):
+
+``` bash
+inspect eval arc.py --model grok/grok-4.6 -M service_tier=priority
+```
+
+Note that `service_tier` applies to standard requests only — [batch](./models-batch.html.md) requests are processed on xAI’s own batch tier, so the argument is omitted for them.
 
 Additional custom model args (`-M`) are forwarded to the constructor of the `AsynClient` class.
 

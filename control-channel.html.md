@@ -175,6 +175,7 @@ The listing is capped at 100 rows per task by default, keeping the head of the r
 | `--limit N` | Cap the listing at N rows per task instead of 100. |
 | `--all` | List every sample row (no cap). |
 | `--status running,error` | Only samples with these statuses (`running`, `completed`, `error`, `cancelled`, `pending`, `queued`). Filters rows only — `counts` stays whole-task. |
+| `--content` | Include each errored row’s error message in the `--json` rows (agent-influenced free text — withheld by default; see [Agent-controlled content](#agent-controlled-content) below). |
 
 With `--json` the response is an `{as_of, counts, samples, truncated}` envelope. Pass `--active-since <timestamp>` to get only the samples that started or changed since a previous poll — feed it the `as_of` from the prior response (rather than a locally minted timestamp) so nothing that changed mid-read is missed (`counts` remains the whole-task histogram on a delta poll, so progress tracking rides along for free). The row cap applies to delta polls too, and the rows it drops are typically the terminal ones (running rows sort first and survive the cap) — samples that completed or errored in the window and will never produce activity again, so they won’t match a later `--active-since`. If a delta poll comes back `truncated`, re-issue it with the same `--active-since` plus `--all` (or a higher `--limit`) before advancing to the new `as_of`; otherwise the dropped changes leave the feed permanently.
 
@@ -185,14 +186,22 @@ The cap is enforced by the eval process’s control server, so an `inspect` CLI 
 `inspect ctl sample errors` is a triage view of the samples that errored or were retried (across all running tasks when `TASK` is omitted):
 
 ``` bash
-$ inspect ctl sample errors gpqa
+$ inspect ctl sample errors gpqa --content
 sample  epoch  status   retries  error
 ------  -----  -------  -------  ----------------------------------
 9       1      error    2        RuntimeError: tool execution failed
 17      1      running  1
 ```
 
-`inspect ctl sample show` drills into one sample: its status, timing, token usage, in-flight activity, and score, plus its full error history — including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--traceback` for full tracebacks:
+Error messages are withheld unless you pass `--content` — a tool-raised exception can embed the agent’s own output, making the message agent-controlled text (see the callout below). Without the flag the rows still carry status and retry counts, which is enough for most triage.
+
+> **NOTE: NoteAgent-controlled content**
+>
+> Free text that originates from the evaluated agent — model completions, tool arguments and results (a `bash` tool’s stdout is fully agent-controlled), and error messages that embed tool output — is untrusted content: it can carry prompt-injection payloads aimed at whoever reads it, including an LLM monitor polling these commands. The per-sample reads therefore return **metadata only by default** (statuses, timing, token counts, event types, tool function names, error *presence*), and every command that can carry agent text gates it behind an explicit `--content` (or `content=true` on the HTTP API) opt-in.
+>
+> This makes the safe consumer the effortless default: a monitoring agent that never passes `--content` (and has no other route to the content, such as reading the logs directly) never ingests agent-controlled text, so it cannot be prompt-injected by the evaluated agent. A monitor that *does* read content should be treated as injection-exposed and sandboxed / capability-limited accordingly.
+
+`inspect ctl sample show` drills into one sample: its status, timing, token usage, in-flight activity, and score, plus its full error history — including errors from prior attempts (both task-level retries and sample-level `retry_on_error`). Pass `--content` for the error messages, or `--traceback` (which implies `--content`) for full tracebacks:
 
 ``` bash
 $ inspect ctl sample show gpqa 9 --traceback
@@ -203,7 +212,7 @@ $ inspect ctl sample show gpqa 9 --traceback
 `inspect ctl sample events` reads a running sample’s transcript — the sequence of model calls, tool calls, errors, and scores it has produced so far:
 
 ``` bash
-$ inspect ctl sample events gpqa 17
+$ inspect ctl sample events gpqa 17 --content
 time      event  summary
 --------  -----  -------------------------------------------------
 14:09:01  model  openai/gpt-5 · 1840 tok · stop · The compound is...
@@ -213,6 +222,8 @@ time      event  summary
 3 events  ·  more
 next: eyJuIjoiYWJjMTIzOjAiLCJpIjozfQ  (resume with --cursor)
 ```
+
+By default the rows are metadata only — event types, timing, token counts, stop reasons, tool function names, and error presence, with none of the agent-controlled free text (see [Agent-controlled content](#agent-controlled-content) above). `--content` adds truncated completions, tool arguments/results, and error messages; `--full` returns the raw serialized events.
 
 An in-flight operation appears as a pending event at the transcript tail — `generating 2:31` for a model call still awaiting its response, `running 0:41` for an executing tool call — so the tail shows what the sample is doing now, not just what it last finished. The event is completed in place when the call returns: a fresh tail read then shows the finished row, but an incremental `--cursor` poll that already consumed the pending row does not re-serve it (`pending: true` in the `--json` row is the “still in flight when read” marker).
 
@@ -226,6 +237,7 @@ Other options:
 | `--from-start` | Start from the first event and page through the full backlog (cannot be combined with `--cursor`, `--tail`, or `--since-time`). |
 | `--limit N` | Max events per page (default 500); combines with any start point (e.g. `--from-start --limit 15` for the first 15). Counted before the `--type` filter, so a filtered page may return fewer. |
 | `--type model,tool` | Filter by event type (`all` for everything). By default, high-volume structural events are excluded. |
+| `--content` | Include truncated free-text content (completions, tool arguments/results, error messages) in the summaries. |
 | `--full` | Return complete raw events instead of compact one-line summaries. |
 | `--since-time` / `--until` | Filter to a wall-clock window (unix timestamps). |
 
@@ -236,7 +248,7 @@ Note that `--cursor` takes the opaque `next` token, never a timestamp — for a 
 `inspect ctl sample messages` reads one sample’s current conversation — its message list as it stands right now:
 
 ``` bash
-$ inspect ctl sample messages gpqa 17 --tail 3
+$ inspect ctl sample messages gpqa 17 --tail 3 --content
 #   role       content
 --  ---------  --------------------------------------------------
 12  assistant  Let me check the data.  → bash(ls /data)
@@ -248,10 +260,13 @@ $ inspect ctl sample messages gpqa 17 --tail 3
 
 Unlike `sample events`, this is a snapshot, not a stream: solver and agent code can rewrite the message list (for example, compaction replaces a prefix with a summary), so there is no resume cursor. Each call returns the conversation as it looks at that moment — by default a recent tail (the last 20 messages), with each row carrying its absolute index so a tailed view lines up with the full one. To watch a sample incrementally, poll and compare the reported total `count` (the cheap staleness signal), or use `inspect ctl sample events` for event-grain resumable reads.
 
+As with events, the default rows are metadata only — index, role, tool-call function names, and error presence; `--content` adds the truncated message text and tool arguments (see [Agent-controlled content](#agent-controlled-content) above).
+
 | Option | Description |
 |----|----|
 | `--tail N` | Only the last N messages (default 20). Mutually exclusive with `--all`. |
 | `--all` | The whole conversation instead of a recent tail. |
+| `--content` | Include truncated message text and tool-call arguments in the summaries. |
 | `--full` | Return raw [ChatMessage](./reference/inspect_ai.model.html.md#chatmessage) JSON instead of compact one-line summaries. |
 
 With `--json` the response is an `{as_of, status, count, messages}` envelope, prefixed with the resolved `task_id` / `sample_id` / `epoch` (so a defaulted epoch is visible). As with events, `EPOCH` defaults to 1, and conversations of samples that have already completed are also readable — they are served from the eval’s log.
@@ -301,6 +316,20 @@ $ inspect ctl sample requeue gpqa 17 3
 The command is idempotent: requeuing a sample whose re-run is already pending, queued, or running — or one that hasn’t started yet — is a clean no-op reporting the sample’s current status (`changed: false` in the `--json` detail), so a retrying script can re-issue safely without double-queueing. While the re-run waits its turn, `sample list` and `sample show` render the sample as `queued` with its prior error shown as retry history.
 
 Requeuing a sample that completed *successfully* is rejected — re-running or re-scoring a success is out of scope (use score invalidation and `inspect eval-retry` for post-hoc re-runs). Also rejected: a task that has finished or is between attempts (re-run failures with `inspect eval-retry`, or let the queued task retry handle them), and a task with a cancel in flight. `--dry-run` reports what would be re-run — the prior error, the attempt number, and whether a checkpoint resume is available — without changing anything, and reports the rejections above too, so an agent can probe safely.
+
+## Repeated Mutations
+
+Interactively, each mutation prints a full task header above its outcome for context. When stdout is not a TTY — piped or redirected output, a script whose output is captured, an agent’s shell tool — the task-scoped mutation verbs (`sample requeue`, `sample cancel`, `task cancel`, `task pause`/`resume`, `task log-flush`, and `config` when setting a knob) switch to a terse mode instead: one `verb target: outcome` line per call, so N mutations in a loop read as N scannable outcome lines rather than N repeated banners:
+
+``` bash
+$ inspect ctl sample errors gpqa --json | jq -r '.samples[] | "\(.sample_id) \(.epoch)"' |
+    while read -r s e; do inspect ctl sample requeue gpqa "$s" "$e"; done | tee requeue.log
+requeue gpqa/11 (epoch 1): accepted — will re-run from the back of the sample queue
+requeue gpqa/17 (epoch 1): accepted — will resume from its checkpoint
+requeue gpqa/23 (epoch 1): no-op — a re-run is already pending
+```
+
+(The pipe is what selects the terse form here — a loop whose stdout still goes to the terminal keeps the full rendering for each call.) One exception to the strict one-line shape: a qualified `config` set appends `!` warning and `note:` lines after its outcome line (a process-scoped retune’s blast-radius note, a knob that could not be applied), so scripts that count lines should prefer `--json`. Pass `--terse` to force the one-line mode on a terminal, or `--no-terse` to keep the full header rendering in a pipe. For scripts that branch on precise per-call outcomes, prefer `--json`: it takes precedence over both terse flags, and the mutation result envelope (`{target, applied, dry_run, detail}`) distinguishes applied from the idempotent no-op from dry-run structurally for the cancel, requeue, pause, and resume verbs (`task log-flush` reports `applied: true` even when nothing was buffered — its `detail` carries the flushed count).
 
 ## Pause and Resume
 

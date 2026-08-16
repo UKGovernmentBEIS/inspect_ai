@@ -404,9 +404,13 @@ services:
   default:
     image: aisiuk/inspect-computer-tool
     ports:
-      - "5900"
-      - "6080"
+      - "127.0.0.1::5900"
+      - "127.0.0.1::6080"
 ```
+
+> **WARNING: Warning**
+>
+> The bundled VNC server does not require a password, and VNC/noVNC traffic is not encrypted. Keep these ports bound to loopback (127.0.0.1).
 
 To connect to the container for a given sample, locate the sample in the **Running Samples** UI and expand the sample info panel at the top:
 
@@ -414,7 +418,7 @@ To connect to the container for a given sample, locate the sample in the **Runni
 
 Click on the link for the noVNC browser client, or use a native VNC client to connect to the VNC port. Note that the VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
 
-The browser based client provides a view-only interface. If you use a native VNC client you should also set it to “view only” so as to not interfere with the model’s use of the computer. For example, for Real VNC Viewer:
+The browser link opens noVNC in view-only mode. This is a client-side setting, not access control: any client that can reach the VNC server can enable keyboard and mouse input. If you use a native VNC client, you should also set it to “view only” so as to not interfere with the model’s use of the computer. For example, for Real VNC Viewer:
 
 [![](images/vnc-view-only.png)](images/vnc-view-only.png)
 

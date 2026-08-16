@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.9.36">
+<meta name="generator" content="quarto-1.10.18">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -12,10 +12,13 @@
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
 */
-code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
-div.columns{display: flex; gap: min(4vw, 1.5em);}
-div.column{flex: auto; overflow-x: auto;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
 div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
 ul.task-list{list-style: none;}
 ul.task-list li input[type="checkbox"] {
@@ -77,10 +80,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
 <script src="site_libs/quarto-html/anchor.min.js"></script>
 <link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
-<link href="site_libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<link href="site_libs/bootstrap/bootstrap-6be907ae78873760d36834dbe5a66008.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -946,7 +949,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="grok" class="level4">
 <h4 class="anchored" data-anchor-id="grok">Grok</h4>
-<p>Grok 3 Mini and Grok 4.X variants (<code>grok-4-fast-reasoning</code>, <code>grok-4.1-fast-reasoning</code>, <code>grok-4.20</code>, <code>grok-4.3</code>, <code>grok-4.5</code>) accept <code>reasoning_effort</code>. The original <code>grok-4</code> reasons but <a href="https://docs.x.ai/developers/model-capabilities/text/reasoning">does not accept the parameter</a> — Inspect omits effort for that model. Note that Grok 4.5 defaults to <code>high</code> effort and its reasoning cannot be disabled. Inspect maps <code>reasoning_effort</code> as follows:</p>
+<p>Grok 3 Mini and Grok 4.X variants (<code>grok-4-fast-reasoning</code>, <code>grok-4.1-fast-reasoning</code>, <code>grok-4.20</code>, <code>grok-4.3</code>, <code>grok-4.5</code>, <code>grok-4.6</code>) accept <code>reasoning_effort</code>. The original <code>grok-4</code> reasons but <a href="https://docs.x.ai/developers/model-capabilities/text/reasoning">does not accept the parameter</a> — Inspect omits effort for that model. Note that Grok 4.5 and Grok 4.6 default to <code>high</code> effort and their reasoning cannot be disabled. Inspect maps <code>reasoning_effort</code> as follows:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -968,12 +971,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>medium</code></td>
 </tr>
 <tr class="even">
-<td><code>high</code> / <code>xhigh</code> / <code>max</code></td>
 <td><code>high</code></td>
+<td><code>high</code></td>
+</tr>
+<tr class="odd">
+<td><code>xhigh</code> / <code>max</code></td>
+<td><code>xhigh</code></td>
 </tr>
 </tbody>
 </table>
-<p>xAI documents an <code>xhigh</code> effort for <code>grok-4.20-multi-agent</code> (where effort controls how many agents collaborate), but the xAI SDK transport used by the grok provider cannot express values above <code>high</code>, so <code>xhigh</code> and <code>max</code> clamp to <code>high</code> for that model as well.</p>
+<p><code>xhigh</code> is a real effort level from <code>grok-4.6</code> (for <code>grok-4.20-multi-agent</code> it controls how many agents collaborate); xAI <a href="https://docs.x.ai/developers/model-capabilities/text/reasoning">documents</a> that Grok 4.X models without <code>xhigh</code> support (e.g.&nbsp;<code>grok-4.5</code>) treat it as <code>high</code>, so Inspect passes it through and lets the service downgrade. Grok 3 Mini documents only <code>low</code>/<code>high</code>, so <code>xhigh</code> and <code>max</code> clamp to <code>high</code> there. Sending <code>xhigh</code> requires <code>xai_sdk</code> &gt;= 1.18 — on older SDK versions (whose transport cannot express values above <code>high</code>) Inspect clamps <code>xhigh</code> and <code>max</code> to <code>high</code> for all models.</p>
 </section>
 <section id="deepseek" class="level4">
 <h4 class="anchored" data-anchor-id="deepseek">DeepSeek</h4>
@@ -1323,82 +1330,86 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>high</td>
 </tr>
 <tr class="odd">
+<td>grok/grok-4.6</td>
+<td>high</td>
+</tr>
+<tr class="even">
 <td>mistral/magistral-medium-2506</td>
 <td>no effort scale</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>mistral/magistral-small-2506</td>
 <td>no effort scale</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>mistral/mistral-medium-2604</td>
 <td>none</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>mistral/mistral-small-2603</td>
 <td>none</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>moonshotai/kimi-k3</td>
 <td>max</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5-mini</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5-nano</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.1</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.1-codex</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.2</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.2-codex</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.2-pro</td>
 <td>high</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.3-codex</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.4</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.4-mini</td>
 <td>medium</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.4-nano</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.4-pro</td>
 <td>high</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td>openai/gpt-5.5</td>
 <td>medium</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td>openai/gpt-5.5-pro</td>
 <td>high</td>
 </tr>
