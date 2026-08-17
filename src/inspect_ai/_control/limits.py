@@ -47,6 +47,16 @@ a limiter: the generate retry loop reads the overrides at each point of use,
 so a retune reaches calls already inside their retry loop (the keyword
 ``clear`` removes an override, restoring launch config).
 
+The task directive additionally carries the per-sample limit overrides —
+``time_limit`` / ``token_limit`` / ``message_limit``, task-scoped — backed by
+the live override layer in :mod:`inspect_ai.util._limit_overrides` on the
+same model: each sample's root limit nodes resolve their effective limit
+through the store at every check, so a retune reaches in-flight samples (the
+incident case — "these samples are running away") as well as ones not yet
+started; a ``time_limit`` retune also re-derives running samples' cancel-scope
+deadlines, since a deadline is slept on rather than polled. The keyword
+``clear`` removes an override, restoring launch config.
+
 Beyond the named knobs, any ``concurrency()`` registry entry — the public API
 tools and user code register named limits through (web-search providers, model
 compaction, sandbox-tools injection, arbitrary solver code) — can be retuned by
@@ -63,7 +73,7 @@ process-global, so the key knob rides both endpoints.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple
+from typing import TYPE_CHECKING, Any, Callable, Literal, Mapping, NamedTuple, TypeVar
 
 from inspect_ai._util.name_match import match_name_prefix
 
@@ -208,6 +218,9 @@ async def task_limits(
     timeout: int | Literal["clear"] | None = None,
     attempt_timeout: int | Literal["clear"] | None = None,
     max_retries: int | Literal["clear"] | None = None,
+    time_limit: int | Literal["clear"] | None = None,
+    token_limit: int | Literal["clear"] | None = None,
+    message_limit: int | Literal["clear"] | None = None,
     author: str | None = None,
     reason: str | None = None,
     dry_run: bool = False,
@@ -215,8 +228,10 @@ async def task_limits(
     """Read (and optionally retune) a task's retunable config.
 
     A superset of :func:`process_limits`: it adds the per-task knobs — the
-    ``max_samples`` sample concurrency plus the ``log_buffer`` / ``log_shared``
-    sample-buffer params — to the process-global ``max_sandboxes`` /
+    ``max_samples`` sample concurrency, the ``log_buffer`` / ``log_shared``
+    sample-buffer params, and the ``time_limit`` / ``token_limit`` /
+    ``message_limit`` per-sample limit overrides (reported under the
+    ``limits`` view key) — to the process-global ``max_sandboxes`` /
     ``max_subprocesses`` / ``max_connections`` view. Task-scoped state lives in task_id-keyed
     registries: the sample limiter is read straight from the task-semaphore
     registry (shared across the task's retry attempts — see
@@ -261,6 +276,16 @@ async def task_limits(
             semantics as ``timeout``.
         max_retries: New max retries per generate call (``0`` = fail after
             the first attempt) — same override semantics as ``timeout``.
+        time_limit: New per-sample wall-clock limit (seconds) — a live
+            task-scoped override read where the sample limits are resolved,
+            so it reaches in-flight samples too (a time retune re-derives
+            their live cancel-scope deadlines); the keyword ``clear``
+            removes it, restoring launch config.
+        token_limit: New per-sample token limit — same override semantics
+            as ``time_limit`` (applied at each sample's next token check).
+        message_limit: New per-sample message limit — same override
+            semantics as ``time_limit`` (applied at each sample's next
+            message check).
         author: Provenance author for the log record of any applied change
             (``None`` falls back to the server's OS user).
         reason: Provenance reason for the log record of any applied change.
@@ -288,7 +313,7 @@ async def task_limits(
     # max_samples — the task's sample semaphore. Only a ResizableLimiter is a
     # user setpoint; a DynamicSampleLimiter (adaptive path) or a missing entry
     # (reused-log task, or one that ran no samples here) isn't adjustable.
-    sample_requested: dict[str, int] = {}
+    sample_requested: dict[str, int | str] = {}
     sample_warnings: list[str] = []
     task_applied: list[ConfigValueChange] = []
     semaphore = task_sample_semaphore(task_id)
@@ -392,6 +417,42 @@ async def task_limits(
             "--log-shared and requires realtime logging)."
         )
 
+    # time_limit / token_limit / message_limit — the per-sample limit
+    # override layer (task-scoped, read live where each sample's limits are
+    # resolved, so a retune reaches in-flight samples at their next check; a
+    # time retune also re-derives running samples' cancel-scope deadlines).
+    # "clear" removes an override, restoring launch config. Like the retry
+    # overrides these never warn as unadjustable — the layer exists
+    # regardless of the task's launch config (a task with no live samples
+    # simply has nothing reading it yet).
+    from inspect_ai.util._limit_overrides import (
+        SAMPLE_LIMIT_OVERRIDE_FIELDS,
+        SampleLimitOverrideField,
+        sample_limit_override,
+        sample_limit_overrides,
+        set_sample_limit_override,
+    )
+
+    limit_values: dict[SampleLimitOverrideField, int | Literal["clear"] | None] = {
+        "time_limit": time_limit,
+        "token_limit": token_limit,
+        "message_limit": message_limit,
+    }
+    # a field added to the override Literal but missing here would be
+    # settable in the store yet silently not applied by this directive
+    assert set(limit_values) == set(SAMPLE_LIMIT_OVERRIDE_FIELDS)
+    _apply_override_knobs(
+        limit_values,
+        get_override=lambda field: sample_limit_override(task_id, field),
+        set_override=lambda field, value: set_sample_limit_override(
+            task_id, field, value
+        ),
+        config="eval",
+        dry_run=dry_run,
+        requested=sample_requested,
+        applied=task_applied,
+    )
+
     views = _apply_process_knobs(
         max_sandboxes=max_sandboxes,
         max_subprocesses=max_subprocesses,
@@ -441,6 +502,7 @@ async def task_limits(
         "max_subprocesses": views.max_subprocesses,
         "adaptive": views.adaptive,
         "retry": views.retry,
+        "limits": sample_limit_overrides(task_id),
         "concurrency": views.concurrency,
         "buffer": buffer_view,
         "requested": requested or None,
@@ -514,6 +576,60 @@ def _record_retune(
     )
 
 
+_OverrideField = TypeVar("_OverrideField", bound=str)
+
+
+def _apply_override_knobs(
+    values: Mapping[_OverrideField, int | Literal["clear"] | None],
+    *,
+    get_override: Callable[[_OverrideField], int | None],
+    set_override: Callable[[_OverrideField, int | None], None],
+    config: Literal["eval", "generate"],
+    dry_run: bool,
+    requested: dict[str, int | str],
+    applied: list[ConfigValueChange],
+) -> None:
+    """Apply one family of live override knobs and record what changed.
+
+    The apply/record semantics shared by the override-layer knob families
+    (the retry-loop overrides and the per-sample limit overrides) live here
+    so they cannot drift apart: a value sets the field's override, the
+    keyword ``clear`` removes it, and only a change that actually landed is
+    recorded — a set matching the active override and a clear with no
+    override active both record nothing. A record's ``previous`` of ``None``
+    means "no prior override" (the recording layer fills it from the log's
+    launch config). ``None`` values in ``values`` (knob not requested) are
+    skipped; ``requested`` and ``applied`` are updated in place.
+    """
+    from inspect_ai.log._config_update import ConfigValueChange
+
+    for field, value in values.items():
+        if value is not None:
+            requested[field] = value
+            if not dry_run:
+                previous_override = get_override(field)
+                set_override(field, None if value == "clear" else value)
+                if value == "clear":
+                    if previous_override is not None:
+                        applied.append(
+                            ConfigValueChange(
+                                config=config,
+                                name=field,
+                                cleared=True,
+                                previous=previous_override,
+                            )
+                        )
+                elif previous_override != value:
+                    applied.append(
+                        ConfigValueChange(
+                            config=config,
+                            name=field,
+                            value=value,
+                            previous=previous_override,
+                        )
+                    )
+
+
 def _static_semaphores() -> "list[ConcurrencySemaphore]":
     """The non-adaptive concurrency-registry entries (the key knob's targets).
 
@@ -563,7 +679,6 @@ def _apply_process_knobs(
     active overrides (``None`` = no override; each generate call's own
     config applies).
     """
-    from inspect_ai.log._config_update import ConfigValueChange
     from inspect_ai.util._concurrency import (
         ResizableSemaphore,
         adaptive_controllers,
@@ -679,33 +794,15 @@ def _apply_process_knobs(
     # a field added to the override Literal but missing here would be
     # settable in the store yet silently not applied by this directive
     assert set(retry_values) == set(GENERATE_CONFIG_OVERRIDE_FIELDS)
-    for field, value in retry_values.items():
-        if value is not None:
-            requested[field] = value
-            if not dry_run:
-                previous_override = generate_config_override(field)
-                set_generate_config_override(field, None if value == "clear" else value)
-                # a `previous` of None means "no prior override" — the
-                # recording layer fills it from each log's launch config
-                if value == "clear":
-                    if previous_override is not None:
-                        applied.append(
-                            ConfigValueChange(
-                                config="generate",
-                                name=field,
-                                cleared=True,
-                                previous=previous_override,
-                            )
-                        )
-                elif previous_override != value:
-                    applied.append(
-                        ConfigValueChange(
-                            config="generate",
-                            name=field,
-                            value=value,
-                            previous=previous_override,
-                        )
-                    )
+    _apply_override_knobs(
+        retry_values,
+        get_override=generate_config_override,
+        set_override=set_generate_config_override,
+        config="generate",
+        dry_run=dry_run,
+        requested=requested,
+        applied=applied,
+    )
 
     # key — a named concurrency() registry entry, matched by exact name (a
     # name can back several entries — e.g. one model on two accounts — and the
