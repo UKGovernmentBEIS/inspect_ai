@@ -389,10 +389,16 @@ def _resolve_hang_dump_seconds(config: pytest.Config) -> int:
         # mirror pytest-timeout's own resolution order (option -> PYTEST_TIMEOUT
         # env var -> ini key) so the watchdog arms however the timeout is set
         timeout = config.getoption("timeout")
-        if timeout is None:
+        env_timeout = os.environ.get("PYTEST_TIMEOUT")
+        if timeout is None and env_timeout is not None:
+            # a set env var is used verbatim — an explicit 0 disables — and
+            # never falls through to the ini key (pytest-timeout INTERNALERRORs
+            # the session itself on a non-float value, before any test runs;
+            # the suppress just keeps this earlier-running hook from being the
+            # crash site)
             with contextlib.suppress(ValueError):
-                timeout = float(os.environ.get("PYTEST_TIMEOUT", "") or 0) or None
-        if timeout is None:
+                timeout = float(env_timeout)
+        elif timeout is None:
             timeout = float(config.getini("timeout") or 0) or None
     except ValueError:  # pytest-timeout not installed (or garbage ini value)
         timeout = None
@@ -452,10 +458,20 @@ def pytest_runtest_protocol(
     _install_stray_sigalrm_handler()
 
 
-def pytest_runtest_teardown(item: pytest.Item) -> None:
-    # re-arm: pytest's builtin faulthandler plugin cancels the (single,
-    # process-global) dump timer in pytest_exception_interact whenever a test
-    # fails; re-arming here keeps a hanging teardown after a failure covered
+def pytest_exception_interact(
+    node: pytest.Item | pytest.Collector,
+    call: pytest.CallInfo[object],
+    report: pytest.CollectReport | pytest.TestReport,
+) -> None:
+    # pytest's builtin faulthandler plugin cancels the (single, process-global)
+    # dump timer in its tryfirst impl of this hook whenever a test fails; this
+    # plain impl runs after it, so re-arming here sticks and keeps a hanging
+    # teardown after a failure covered.  Re-arming only on failure — not at
+    # every teardown — preserves the setup-armed deadline on the ordinary
+    # path, aligned with pytest-timeout's once-per-item kill clock (a
+    # per-teardown re-arm would reset the dump clock while the kill clock
+    # keeps running, so a teardown hang after a 300s+ call phase would be
+    # killed before it could dump).
     _arm_hang_dump()
 
 
