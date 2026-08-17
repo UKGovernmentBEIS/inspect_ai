@@ -130,7 +130,8 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
 
         matched = matched.replace(" ", "")
 
-        split_comma = set(matched.split(","))
+        # ignore empty tokens (e.g. from a trailing or Oxford comma)
+        split_comma = set(x for x in matched.split(",") if x)
         if split_comma.issubset(allowed_options):
             answers = split_comma
             return answers
