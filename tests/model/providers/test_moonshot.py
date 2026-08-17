@@ -173,16 +173,16 @@ def test_moonshot_legacy_model_preserves_sampling_params(mock_moonshot_env):
 
 def test_moonshot_context_overflow_maps_to_model_length(mock_moonshot_env):
     """Moonshot's token-limit 400 (no error code) must map to stop_reason model_length."""
-    import httpx
+    import httpx2
     from openai import APIStatusError
 
     from inspect_ai.model._model_output import ModelOutput
     from inspect_ai.model._providers.moonshot import MoonshotAPI
 
     api = MoonshotAPI(model_name="kimi-k3")
-    response = httpx.Response(
+    response = httpx2.Response(
         status_code=400,
-        request=httpx.Request("POST", "https://api.moonshot.ai/v1/chat/completions"),
+        request=httpx2.Request("POST", "https://api.moonshot.ai/v1/chat/completions"),
     )
     message = (
         "Invalid request: Your request exceeded model token limit: "
@@ -215,7 +215,7 @@ def test_moonshot_base_url_default(mock_moonshot_env):
 
 def test_moonshot_retries_503_as_rate_limit(mock_moonshot_env) -> None:
     """503 must be retried as a rate limit (scales down adaptive concurrency)."""
-    import httpx
+    import httpx2
     from openai import InternalServerError
 
     from inspect_ai.model._model import RetryDecision
@@ -224,10 +224,10 @@ def test_moonshot_retries_503_as_rate_limit(mock_moonshot_env) -> None:
     api = MoonshotAPI(model_name="kimi-k3")
 
     def sdk_error(status_code: int, headers: dict[str, str] | None = None):
-        response = httpx.Response(
+        response = httpx2.Response(
             status_code=status_code,
             headers=headers,
-            request=httpx.Request(
+            request=httpx2.Request(
                 "POST", "https://api.moonshot.ai/v1/chat/completions"
             ),
         )

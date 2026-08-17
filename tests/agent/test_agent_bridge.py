@@ -598,12 +598,10 @@ def google_agent(tools: bool) -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=tools_param(),
                     tool_config=tool_config,  # type: ignore[arg-type]
@@ -624,12 +622,10 @@ def google_web_search_agent() -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=[{"google_search": {}}],  # type: ignore[list-item]
                 ),
@@ -648,12 +644,10 @@ def google_code_execution_agent() -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=[{"code_execution": {}}],  # type: ignore[list-item]
                 ),
@@ -672,12 +666,10 @@ def google_computer_agent() -> Agent:
 
             await client.aio.models.generate_content(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
                 config=genai.types.GenerateContentConfig(
                     tools=[{"computerUse": {}}],  # type: ignore[list-item]
                 ),
@@ -696,12 +688,10 @@ def google_streaming_agent() -> Agent:
 
             stream = await client.aio.models.generate_content_stream(
                 model="inspect",
-                contents=[  # type: ignore[arg-type]
-                    {
-                        "role": "user",
-                        "parts": [{"text": user_prompt(state.messages).text}],
-                    }
-                ],
+                contents=genai.types.Content(
+                    role="user",
+                    parts=[genai.types.Part(text=user_prompt(state.messages).text)],
+                ),
             )
             async for _ in stream:
                 pass
