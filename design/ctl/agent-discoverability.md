@@ -175,6 +175,12 @@ the item's purpose. Display-mode gating is the suppression mechanism:
 a consumer who wants silence passes `--display none` (or `--json`, whose
 stdout stays clean regardless since the pointer is on stderr).
 
+This stance is about *hint suppression*, not TTY detection per se: `ctl`'s
+terse mutation lines (see "Terse per-mutation lines when repeated" in
+`control-channel.md`) do key their default off TTY-ness, precisely because
+there the non-TTY consumer is who the compact form serves — nothing is
+suppressed that `--no-terse`/`--json` doesn't restore.
+
 **Exact text.** As above — the runnable command first, the help entry point
 second, no styling/markup (plain stderr write, agent- and pipe-safe). The
 line names `task list` rather than the bare `inspect ctl` because a runnable
