@@ -506,6 +506,7 @@ class ControlServer:
             limit: int | None = None,
             all: bool = False,
             filter: Literal["errors"] | None = None,
+            content: bool = False,
         ) -> Any:
             # `active_since` (unix ts) is the recency delta: only samples that
             # started or updated since then. A filter, not a cursor. `status`
@@ -516,7 +517,10 @@ class ControlServer:
             # triage read); typed as a Literal so an unrecognized value is
             # rejected (422) rather than silently answered with the full
             # listing — the CLI trusts the filter was applied and keeps no
-            # client-side fallback. The response is an `{as_of, counts,
+            # client-side fallback. `content=true` opts into each row's
+            # error message (agent-influenced free text — withheld by
+            # default; see current_sample_listing). The response is an
+            # `{as_of, counts,
             # samples, truncated}` envelope — `as_of` is stamped BEFORE the
             # listing is built, so a client feeding it back as the next
             # `active_since` can't miss changes that land mid-read; `counts`
@@ -541,6 +545,7 @@ class ControlServer:
                 statuses=statuses,
                 limit=effective_sample_limit(limit, all),
                 sample_filter=filter,
+                content=content,
             )
             return {
                 "as_of": as_of,
@@ -553,11 +558,14 @@ class ControlServer:
         # `/sample/events`: sample ids are arbitrary strings and may contain
         # `/`, `?`, `#`, etc., which a path segment can't carry. A query param
         # is URL-encoded end to end.
+        # `content=true` opts into the error free text (message / tracebacks
+        # — agent-influenced strings, withheld by default; see
+        # sample_error_detail).
         @app.get("/evals/{eval_id}/sample")
         async def get_sample_errors(
-            eval_id: str, sample_id: str, epoch: int = 1
+            eval_id: str, sample_id: str, epoch: int = 1, content: bool = False
         ) -> Any:
-            detail = await sample_error_detail(eval_id, sample_id, epoch)
+            detail = await sample_error_detail(eval_id, sample_id, epoch, content)
             if detail is None:
                 return JSONResponse(
                     status_code=404,
@@ -568,9 +576,11 @@ class ControlServer:
         # Per-sample transcript events, cursored pull (phase 2). `type` is a
         # comma-separated event-type filter (`all` or `*` = everything;
         # omitted = high-signal tier); `since` is an opaque cursor, `tail` an
-        # int (the last N *matching* events), `full` a bool, `since_time`/
-        # `until` a wall-clock window, `limit` the page size (max events
-        # scanned per page).
+        # int (the last N *matching* events), `content` opts into truncated
+        # free-text fields (metadata only by default — the projected content
+        # is agent-controlled; see events._project), `full` returns raw
+        # events, `since_time`/`until` a wall-clock window, `limit` the page
+        # size (max events scanned per page).
         @app.get("/evals/{eval_id}/sample/events")
         async def get_sample_events(
             eval_id: str,
@@ -579,6 +589,7 @@ class ControlServer:
             since: str | None = None,
             tail: int | None = None,
             type: str | None = None,
+            content: bool = False,
             full: bool = False,
             since_time: float | None = None,
             until: float | None = None,
@@ -606,6 +617,7 @@ class ControlServer:
                 since=since,
                 tail=tail,
                 types=types,
+                content=content,
                 full=full,
                 since_time=since_time,
                 until=until,
@@ -623,17 +635,20 @@ class ControlServer:
         # URL-reserved characters). Deliberately not cursored — the message
         # list is rewritable (compaction / solver edits), so each call returns
         # the current conversation (or a `tail`), enveloped with `as_of` /
-        # `status` / `count`. `full` returns raw ChatMessage JSON.
+        # `status` / `count`. `content` opts into truncated message text
+        # (metadata only by default — the text is agent-controlled; see
+        # messages._project); `full` returns raw ChatMessage JSON.
         @app.get("/evals/{eval_id}/sample/messages")
         async def get_sample_messages(
             eval_id: str,
             sample_id: str,
             epoch: int = 1,
             tail: int | None = None,
+            content: bool = False,
             full: bool = False,
         ) -> Any:
             page = await sample_messages(
-                eval_id, sample_id, epoch, tail=tail, full=full
+                eval_id, sample_id, epoch, tail=tail, content=content, full=full
             )
             if page is None:
                 return JSONResponse(

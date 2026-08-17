@@ -420,12 +420,16 @@ handler checks disconnects; no coalescing):
 
 - **Pile-up guard.** `uvicorn limit_concurrency` rejects (503) rather than
   queues excess connections — a blunt but honest backstop against a
-  pathological poller queueing unbounded identical work. Coalescing identical
+  pathological poller queueing unbounded identical work. Tracked as
+  [meridianlabs-ai/inspect_ai#225](https://github.com/meridianlabs-ai/inspect_ai/issues/225).
+  Coalescing identical
   concurrent listing requests (one in-flight build, late arrivals await its
   result) is the finer-grained version; only worth building if a legitimate
   multi-client pattern emerges.
 - **Disconnect check.** An `await request.is_disconnected()` before
-  nontrivial work skips serving hung-up clients. Only useful if the loop
+  nontrivial work skips serving hung-up clients. Tracked as
+  [meridianlabs-ai/inspect_ai#226](https://github.com/meridianlabs-ai/inspect_ai/issues/226).
+  Only useful if the loop
   yields between queued requests — which cheap handlers guarantee and a
   CPU-bound handler defeats; that ordering (handlers first, guard second) is
   the lesson of the incident.
