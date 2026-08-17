@@ -58,4 +58,17 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 #       against an older server, so the CLI includes it only when the
 #       server advertises >= 5 (an explicit --author/--reason against an
 #       older server hard-errors before sending).
-CONTROL_API_VERSION: int = 5
+#   6 — metadata-only default on the sample content reads: the per-sample
+#       events / messages / error-detail endpoints (and the samples
+#       listing's error message) withhold agent-controlled free text unless
+#       `content=true` (or `full=true`). No CLI gate — GETs are tolerant, so
+#       an older server simply keeps returning content (the CLI's
+#       withheld-content footers key on the returned fields rather than the
+#       request, so that content is not captioned as withheld) — but the
+#       version lets a monitor provisioner verify the server enforces the
+#       metadata-only default before trusting it as an injection boundary.
+#       The reverse skew (pre-6 CLI, v6 server) renders imperfectly: the old
+#       `sample show` truthiness-checked the error dict, so a withheld error
+#       (`{}`) on a zero-retries sample prints "(no errors)" under an `error`
+#       status line. Cosmetic only, and unfixable for already-shipped CLIs.
+CONTROL_API_VERSION: int = 6
