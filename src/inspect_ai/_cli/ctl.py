@@ -33,9 +33,11 @@ import copy
 import functools
 import inspect
 import json as json_lib
+import re
+import sys
 import time
 import traceback
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,12 +49,15 @@ from typing import (
     NoReturn,
     ParamSpec,
     Protocol,
+    TypeVar,
     cast,
 )
 
+import anyio
 import click
 import httpx
 from click.core import ParameterSource
+from rich.markup import escape as escape_markup
 
 from inspect_ai._cli.trace import (
     TraceAnomalies,
@@ -74,9 +79,14 @@ from inspect_ai._control.state import (
     effective_sample_limit,
     parse_status_filter,
 )
+from inspect_ai._util._async import configured_async_backend, tg_collect
 from inspect_ai._util.name_match import match_name_prefix
 from inspect_ai._util.process import pid_alive
-from inspect_ai._util.trace import inspect_trace_dir, read_trace_file
+from inspect_ai._util.trace import (
+    ActionTraceRecord,
+    inspect_trace_dir,
+    read_trace_file,
+)
 
 if TYPE_CHECKING:
     # TYPE_CHECKING to keep the CLI import-light: `inspect_ai.log._samples`
@@ -306,12 +316,21 @@ def _mirror_list_options(group: click.Group, list_command: click.Command) -> Non
     for param in list_command.params:
         if isinstance(param, click.Option):
             mirrored = copy.copy(param)
-            mirrored.help = "Mirrored from `list` for the bare-noun default."
+            # keep the verb's own help (the payload sketch especially — the
+            # bare noun is the spelling scripted consumers reach for first)
+            mirrored.help = (
+                f"{param.help or ''} Mirrored from `list` for the bare-noun default."
+            ).strip()
             group.params.append(mirrored)
 
 
 def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
-    """The ``--json`` flag every command carries, with per-command envelope help."""
+    """The ``--json`` flag every command carries, with per-command envelope help.
+
+    ``what`` sketches the payload's top-level keys so a scripted consumer can
+    orient the first parse from ``--help`` alone, without a discovery
+    round-trip through the command itself.
+    """
     return click.option(
         "--json",
         "as_json",
@@ -319,6 +338,65 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
         default=False,
         help=f"Output as JSON ({what}).",
     )
+
+
+def _terse_option(
+    note: str = "",
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--terse/--no-terse`` flag the task-scoped mutation verbs carry.
+
+    Neither spelling given resolves by TTY (see :func:`_use_terse`).
+    Deliberately not ``--quiet``: that spelling conventionally means *no*
+    output, while this mode still reports each mutation's outcome — one
+    scannable line per call (issue #160). ``note`` appends a per-command
+    qualifier to the shared help text.
+    """
+    return click.option(
+        "--terse/--no-terse",
+        "terse",
+        default=None,
+        help=(
+            "Report the outcome as one `verb target: outcome` line, without "
+            "the task header — the default when stdout is not a TTY (pipes, "
+            "captured output), so N repeated mutations read as N outcome lines. "
+            "--no-terse forces the full rendering; --json takes precedence "
+            "over both." + (f" {note}" if note else "")
+        ),
+    )
+
+
+def _use_terse(terse: bool | None) -> bool:
+    """Resolve the tri-state ``--terse/--no-terse`` flag (``None`` = by TTY).
+
+    Piped or captured stdout — a script, an agent's Bash tool — gets the
+    terse per-mutation line; an interactive terminal keeps the full
+    task-header rendering, where the surrounding context earns its space.
+    """
+    if terse is not None:
+        return terse
+    # a detached/closed stdout (pythonw, a daemonized launcher) must not
+    # crash the rendering path — it is certainly not an interactive terminal
+    try:
+        return not sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return True
+
+
+def _terse_line(verb: str, target: str | None, outcome: str) -> str:
+    """The one-line terse mutation grammar: ``verb target: outcome``.
+
+    One composition site so the separator and shape can't drift per verb —
+    scripts scan these lines (see the `--terse` help and the "Repeated
+    Mutations" section of docs/control-channel.qmd). ``outcome`` starts with
+    a status token (``requested`` / ``accepted`` / ``applied`` / ``dry-run``
+    / ``no-op``), usually followed by `` — detail``.
+    """
+    return f"{verb} {target or '?'}: {outcome}"
+
+
+# The payload sketch every mutation verb's `--json` help shows (pinned to
+# `_mutation_envelope`'s keys by a test).
+_MUTATION_ENVELOPE_HELP = "a `{target, applied, dry_run, detail}` mutation envelope"
 
 
 @click.group("ctl")
@@ -330,7 +408,11 @@ def ctl_command() -> None:
     All commands accept `--json`; a failed `--json` invocation emits an
     `{"error": {kind, exception, message, status}}` envelope on stdout
     (exit code stays non-zero; click usage errors — unknown option,
-    missing argument — still exit 2 without one).
+    missing argument — still exit 2 without one). With no running evals,
+    commands that resolve a single task or sample target (and `config`)
+    print `null`, except the paged reads (`sample events` / `sample
+    messages`), which print an empty page (identifier echo with `task_id`
+    null); list verbs print their usual envelope with empty rows.
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
@@ -350,7 +432,7 @@ def _echo_no_running_evals() -> None:
     when a user is confused that a just-finished eval isn't listed — its
     process has already exited unless it was launched to park.
     """
-    click.echo(
+    _echo(
         f"No running evals found in {discovery_dir()}.\n"
         "Start an eval with `inspect eval <task>` — add `--ctl-server=keep` "
         "to keep the process inspectable after the eval finishes."
@@ -406,7 +488,7 @@ def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
 
 def _deprecation_note(old: str, new: str) -> None:
     """Print (to stderr, keeping ``--json`` stdout parseable) an alias note."""
-    click.echo(
+    _echo(
         f"note: `inspect ctl {old}` is now `inspect ctl {new}` — this hidden "
         "alias will be removed in a future release.",
         err=True,
@@ -464,8 +546,9 @@ _mirror_list_options(task_group, task_list_command)
 
 @task_group.command("log-flush")
 @click.argument("task", required=False)
-@_json_option("the mutation result envelope")
-def task_log_flush_command(task: str | None, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_log_flush_command(task: str | None, as_json: bool, terse: bool | None) -> None:
     """Flush a running task's buffered samples to its log now.
 
     Completed samples are written to the (possibly remote) log only when
@@ -474,7 +557,7 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     / `--log-shared`. TASK (a task-id prefix or name) is required when
     several tasks run.
     """
-    _run_log_flush(task, as_json)
+    _run_log_flush(task, as_json, terse=terse)
 
 
 @task_group.command("cancel")
@@ -497,14 +580,11 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     default=False,
     help="Report what would be cancelled without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
-def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_cancel_command(
+    task: str, action: str, dry_run: bool, as_json: bool, terse: bool | None
+) -> None:
     """Cancel a running task.
 
     In-flight samples are resolved per `--action`; completed samples are
@@ -522,6 +602,7 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
         action=cast(TaskCancelAction, action),
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -533,8 +614,11 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
-def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_pause_command(
+    task: str | None, dry_run: bool, as_json: bool, terse: bool | None
+) -> None:
     """Pause a running task (stop dispatching new work; in-flight finishes).
 
     In-flight samples finish naturally (with scoring and log writes); queued
@@ -545,7 +629,9 @@ def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     dispatch), use `inspect ctl process pause`. TASK (a task-id prefix or
     name) is required when several tasks run.
     """
-    _run_task_pause_resume(task, verb="pause", dry_run=dry_run, as_json=as_json)
+    _run_task_pause_resume(
+        task, verb="pause", dry_run=dry_run, as_json=as_json, terse=terse
+    )
 
 
 @task_group.command("resume")
@@ -556,8 +642,11 @@ def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
-def task_resume_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_resume_command(
+    task: str | None, dry_run: bool, as_json: bool, terse: bool | None
+) -> None:
     """Resume a paused task (the inverse of `inspect ctl task pause`).
 
     Queued samples dispatch again exactly as they would have before the
@@ -566,7 +655,9 @@ def task_resume_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     resume`. Idempotent and last-write-wins. TASK (a task-id prefix or name)
     is required when several tasks run.
     """
-    _run_task_pause_resume(task, verb="resume", dry_run=dry_run, as_json=as_json)
+    _run_task_pause_resume(
+        task, verb="resume", dry_run=dry_run, as_json=as_json, terse=terse
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -642,6 +733,15 @@ sample_group.hint = lambda token: (
         f"{', '.join(SAMPLE_STATUSES)})."
     ),
 )
+@click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include each errored row's error message in the `--json` rows "
+        "(agent-influenced free text — withheld by default)."
+    ),
+)
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
 def sample_list_command(
     task: str | None,
@@ -649,6 +749,7 @@ def sample_list_command(
     limit: int | None,
     all_samples: bool,
     status: str | None,
+    content: bool,
     as_json: bool,
 ) -> None:
     """List the samples (running and completed) of running evals.
@@ -672,6 +773,7 @@ def sample_list_command(
         status=status,
         limit=limit,
         all_samples=all_samples,
+        content=content,
     )
 
 
@@ -680,14 +782,24 @@ _mirror_list_options(sample_group, sample_list_command)
 
 @sample_group.command("errors")
 @click.argument("task", required=False)
+@click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include each row's error message (agent-influenced free text — "
+        "withheld by default)."
+    ),
+)
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
-def sample_errors_command(task: str | None, as_json: bool) -> None:
+def sample_errors_command(task: str | None, content: bool, as_json: bool) -> None:
     """List the samples of running evals that errored or were retried.
 
-    One row per sample with the latest error message; an omitted TASK spans
-    all running tasks. Drill into one sample with `inspect ctl sample show`.
+    One row per sample; pass `--content` for the latest error message. An
+    omitted TASK spans all running tasks. Drill into one sample with
+    `inspect ctl sample show`.
     """
-    _run_sample_errors(task, as_json)
+    _run_sample_errors(task, as_json, content=content)
 
 
 @sample_group.command("show")
@@ -695,25 +807,45 @@ def sample_errors_command(task: str | None, as_json: bool) -> None:
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include the error messages (agent-influenced free text — withheld "
+        "by default; implied by --traceback)."
+    ),
+)
+@click.option(
     "--traceback",
     "-t",
     "show_traceback",
     is_flag=True,
     default=False,
-    help="Show the full traceback for each error (default: message only).",
+    help="Show the full traceback for each error (implies --content).",
 )
-@_json_option("the sample's summary + error detail")
+@_json_option(
+    "the sample's summary + error detail — a flat `{task_id, task, sample_id, "
+    "epoch, status, ..., error, error_retries, scores}` object"
+)
 def sample_show_command(
-    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+    task: str,
+    sample_id: str,
+    epoch: int,
+    content: bool,
+    show_traceback: bool,
+    as_json: bool,
 ) -> None:
     """Show one sample's summary and error history.
 
-    Reports status / timing / token usage / score and the error from the
-    current and each prior attempt; use `inspect ctl sample events` for the
-    transcript. EPOCH defaults to 1 (the response echoes the resolved
-    epoch).
+    Reports status / timing / token usage / score and the error presence
+    from the current and each prior attempt; pass `--content` for the error
+    messages (and `--traceback` for tracebacks). Use `inspect ctl sample
+    events` for the transcript. EPOCH defaults to 1 (the response echoes
+    the resolved epoch).
     """
-    _run_sample_show(task, sample_id, epoch, show_traceback, as_json)
+    _run_sample_show(
+        task, sample_id, epoch, content or show_traceback, show_traceback, as_json
+    )
 
 
 @sample_group.command("events")
@@ -776,6 +908,16 @@ def sample_show_command(
     ),
 )
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include truncated free-text content (completions, tool arguments/"
+        "results, error messages — agent-controlled text, withheld by "
+        "default) in the compact summary."
+    ),
+)
+@click.option(
     "--full",
     is_flag=True,
     default=False,
@@ -793,7 +935,7 @@ def sample_show_command(
     default=None,
     help="Only events at/before this unix timestamp.",
 )
-@_json_option("the `{events, next, done}` envelope")
+@_json_option("the `{task_id, sample_id, epoch, events, next, done}` envelope")
 def sample_events_command(
     task: str,
     sample_id: str,
@@ -804,6 +946,7 @@ def sample_events_command(
     from_start: bool,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -814,7 +957,9 @@ def sample_events_command(
     The first call returns a recent tail (or the beginning, with
     `--from-start`); each page ends with a `next` cursor — pass it back via
     `--cursor` to read only what's new. `done: true` means the sample has
-    terminated and no more events will come.
+    terminated and no more events will come. The default is metadata only
+    (event types, timing, token counts, tool function names); pass
+    `--content` for truncated free-text content or `--full` for raw events.
 
     Example: inspect ctl sample events my-task sample-1 --tail 20
     """
@@ -830,6 +975,7 @@ def sample_events_command(
         from_start=from_start,
         limit=limit,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -858,17 +1004,23 @@ def sample_events_command(
     help="Show the whole conversation instead of a recent tail.",
 )
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include truncated message text (and tool-call arguments / tool "
+        "errors — agent-controlled text, withheld by default) in the "
+        "compact summary."
+    ),
+)
+@click.option(
     "--full",
     is_flag=True,
     default=False,
     help="Return raw ChatMessage JSON instead of the compact summary.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the `{as_of, status, count, messages}` envelope).",
+@_json_option(
+    "the `{task_id, sample_id, epoch, as_of, status, count, messages}` envelope"
 )
 def sample_messages_command(
     task: str,
@@ -876,6 +1028,7 @@ def sample_messages_command(
     epoch: int,
     tail: int | None,
     show_all: bool,
+    content: bool,
     full: bool,
     as_json: bool,
 ) -> None:
@@ -883,11 +1036,13 @@ def sample_messages_command(
 
     Returns the sample's `TaskState.messages` as they look right now — a
     snapshot, not a stream: the message list is rewritable (compaction,
-    solver edits), so there is no resume cursor. The default is a recent tail;
-    pass `--all` for the whole conversation or `--tail N` for a specific
-    window, and `--full` for raw `ChatMessage` JSON. For incremental,
-    event-grain watching use `inspect ctl sample events`. EPOCH defaults to 1
-    (the response echoes the resolved epoch).
+    solver edits), so there is no resume cursor. The default is a recent tail
+    of metadata-only rows (index / role / tool-call function names); pass
+    `--all` for the whole conversation or `--tail N` for a specific window,
+    `--content` for truncated message text, and `--full` for raw
+    `ChatMessage` JSON. For incremental, event-grain watching use `inspect
+    ctl sample events`. EPOCH defaults to 1 (the response echoes the
+    resolved epoch).
     """
     _run_sample_messages(
         task,
@@ -895,6 +1050,7 @@ def sample_messages_command(
         epoch,
         tail=tail,
         show_all=show_all,
+        content=content,
         full=full,
         as_json=as_json,
     )
@@ -921,13 +1077,8 @@ def sample_messages_command(
     default=False,
     help="Report what would be cancelled without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
 def sample_cancel_command(
     task: str,
     sample_id: str,
@@ -935,6 +1086,7 @@ def sample_cancel_command(
     action: str,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Cancel one running sample.
 
@@ -951,6 +1103,7 @@ def sample_cancel_command(
         action=cast("SampleCancelAction", action),
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -964,19 +1117,15 @@ def sample_cancel_command(
     default=False,
     help="Report what would be re-run without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
 def sample_requeue_command(
     task: str,
     sample_id: str,
     epoch: int | None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Re-run one errored/cancelled sample inside the live run.
 
@@ -996,6 +1145,7 @@ def sample_requeue_command(
         epoch,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1133,7 +1283,11 @@ def sample_requeue_command(
     default=False,
     help="Report what would change without applying it (with a set option).",
 )
-@_json_option("the config view, every knob labeled with its scope")
+@_json_option(
+    "a `{target, knobs, warnings, notes, applied, dry_run, persisted, "
+    "requested}` view, every knob labeled with its scope"
+)
+@_terse_option(note="Applies when setting a knob; a pure view always renders in full.")
 def config_command(
     task: str | None,
     max_samples: int | None,
@@ -1151,6 +1305,7 @@ def config_command(
     author: str | None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """View or retune a running eval's launch configuration mid-flight.
 
@@ -1195,6 +1350,7 @@ def config_command(
         author=author,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1247,7 +1403,7 @@ _mirror_list_options(process_group, process_list_command)
 
 @process_group.command("keep")
 @click.argument("pid", required=False, type=int)
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_keep_command(pid: int | None, as_json: bool) -> None:
     """Keep a running inspect process alive after its eval finishes.
 
@@ -1261,7 +1417,7 @@ def process_keep_command(pid: int | None, as_json: bool) -> None:
 
 @process_group.command("release")
 @click.argument("pid", required=False, type=int)
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_release_command(pid: int | None, as_json: bool) -> None:
     """Release a lingering --ctl-server=keep process so it can exit.
 
@@ -1280,7 +1436,7 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
     """Pause a whole running eval or eval-set (stop dispatching new work; in-flight finishes).
 
@@ -1303,7 +1459,7 @@ def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_resume_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
     """Resume a paused eval or eval-set (the inverse of `process pause`).
 
@@ -1380,7 +1536,7 @@ model_group.hint = lambda token: (
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def model_pause_command(
     model: str, pid: int | None, dry_run: bool, as_json: bool
 ) -> None:
@@ -1407,7 +1563,7 @@ def model_pause_command(
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def model_resume_command(
     model: str, pid: int | None, dry_run: bool, as_json: bool
 ) -> None:
@@ -1444,20 +1600,24 @@ def tasks_alias(as_json: bool) -> None:
 @ctl_command.command("samples", hidden=True)
 @click.argument("task", required=False)
 @click.option("--active-since", type=float, default=None)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def samples_alias(task: str | None, active_since: float | None, as_json: bool) -> None:
+def samples_alias(
+    task: str | None, active_since: float | None, content: bool, as_json: bool
+) -> None:
     """Deprecated alias for `inspect ctl sample list`."""
     _deprecation_note("samples", "sample list")
-    _run_sample_list(task, active_since, as_json)
+    _run_sample_list(task, active_since, as_json, content=content)
 
 
 @ctl_command.command("errors", hidden=True)
 @click.argument("task", required=False)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def errors_alias(task: str | None, as_json: bool) -> None:
+def errors_alias(task: str | None, content: bool, as_json: bool) -> None:
     """Deprecated alias for `inspect ctl sample errors`."""
     _deprecation_note("errors", "sample errors")
-    _run_sample_errors(task, as_json)
+    _run_sample_errors(task, as_json, content=content)
 
 
 @ctl_command.command("events", hidden=True)
@@ -1467,6 +1627,7 @@ def errors_alias(task: str | None, as_json: bool) -> None:
 @click.option("--since", "cursor", default=None)
 @click.option("--tail", type=int, default=None)
 @click.option("--type", "types", default=None)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--full", is_flag=True, default=False)
 @click.option("--since-time", type=float, default=None)
 @click.option("--until", type=float, default=None)
@@ -1478,6 +1639,7 @@ def events_alias(
     cursor: str | None,
     tail: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -1494,6 +1656,7 @@ def events_alias(
         from_start=False,
         limit=None,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -1528,10 +1691,11 @@ def release_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
 @ctl_command.command("flush", hidden=True)
 @click.argument("task", required=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def flush_alias(task: str | None, as_json: bool) -> None:
+@click.option("--terse/--no-terse", "terse", default=None)
+def flush_alias(task: str | None, as_json: bool, terse: bool | None) -> None:
     """Deprecated alias for `inspect ctl task log-flush`."""
     _deprecation_note("flush", "task log-flush")
-    _run_log_flush(task, as_json)
+    _run_log_flush(task, as_json, terse=terse)
 
 
 @ctl_command.command("buffer", hidden=True)
@@ -1539,11 +1703,13 @@ def flush_alias(task: str | None, as_json: bool) -> None:
 @click.option("--samples", "log_buffer", type=int, default=None)
 @click.option("--shared", "log_shared", type=int, default=None)
 @click.option("--json", "as_json", is_flag=True, default=False)
+@click.option("--terse/--no-terse", "terse", default=None)
 def buffer_alias(
     task: str | None,
     log_buffer: int | None,
     log_shared: int | None,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Deprecated alias for `inspect ctl config --log-buffer / --log-shared`."""
     _deprecation_note("buffer", "config --log-buffer/--log-shared")
@@ -1559,6 +1725,7 @@ def buffer_alias(
         log_shared=log_shared,
         dry_run=False,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1571,6 +1738,7 @@ def buffer_alias(
 @click.option("--key", "key", type=(str, click.IntRange(min=1)), default=None)
 @click.option("--dry-run", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
+@click.option("--terse/--no-terse", "terse", default=None)
 def limits_alias(
     task: str | None,
     max_samples: int | None,
@@ -1580,6 +1748,7 @@ def limits_alias(
     key: tuple[str, int] | None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Deprecated alias for `inspect ctl config`."""
     _deprecation_note("limits", "config")
@@ -1595,6 +1764,7 @@ def limits_alias(
         log_shared=None,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1675,7 +1845,7 @@ class _CtlFailure(click.exceptions.Exit):
                 "status": self.status,
             }
         }
-        click.echo(json_lib.dumps(envelope, indent=2))
+        _echo_raw(json_lib.dumps(envelope, indent=2))
 
 
 def _fail(
@@ -1694,7 +1864,7 @@ def _fail(
     an exception (``raise ... from exc``) construct :class:`_CtlFailure`
     directly instead.
     """
-    click.echo(message, err=True)
+    _echo(message, err=True)
     raise _CtlFailure(kind, message, exception=exception, status=status)
 
 
@@ -1766,7 +1936,7 @@ def _structured_failures(as_json: bool) -> Iterator[None]:
     except (click.exceptions.Exit, click.ClickException, click.exceptions.Abort):
         raise
     except Exception as exc:
-        click.echo(traceback.format_exc(), err=True, nl=False)
+        _echo(traceback.format_exc(), err=True, nl=False)
         _CtlFailure(
             "internal",
             str(exc) or _exception_name(exc),
@@ -1776,6 +1946,7 @@ def _structured_failures(as_json: bool) -> Iterator[None]:
 
 
 _P = ParamSpec("_P")
+_T = TypeVar("_T")
 
 
 def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
@@ -1837,7 +2008,7 @@ def _run_task_list(as_json: bool) -> None:
     summaries = _fetch_summaries(list_discovered_servers()).summaries
 
     if as_json:
-        click.echo(json_lib.dumps({"as_of": as_of, "tasks": summaries}, indent=2))
+        _echo_raw(json_lib.dumps({"as_of": as_of, "tasks": summaries}, indent=2))
         return
 
     if not summaries:
@@ -1882,6 +2053,7 @@ def _list_sample_rows(
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
 ) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks.
 
@@ -1913,40 +2085,43 @@ def _list_sample_rows(
     else:
         targets = summaries
 
+    reads = _run_async(
+        functools.partial(
+            _read_all_eval_samples,
+            targets,
+            active_since,
+            sample_filter=sample_filter,
+            status=status_param,
+            limit=limit,
+            all_samples=all_samples,
+            content=content,
+            # a scoped read fails the command on busy, so it keeps the
+            # full budget; the unscoped fan-out skips on the default
+            attempts=_REQUEST_ATTEMPTS if task is not None else None,
+        )
+    )
+
     as_of_values: list[float] = []
     read: list[dict[str, Any]] = []
     rows: list[dict[str, Any]] = []
-    for target in targets:
-        # Query by the task's current eval id (resolved fresh each invocation,
-        # so this still works after a retry minted a new one).
-        try:
-            page = _fetch_samples(
-                target["socket_path"],
-                target["eval_id"],
-                active_since,
-                sample_filter=sample_filter,
-                status=status_param,
-                limit=limit,
-                all_samples=all_samples,
-                # a scoped read fails the command on busy, so it keeps the
-                # full budget; the unscoped fan-out skips on the default
-                attempts=_REQUEST_ATTEMPTS if task is not None else None,
-            )
-        except _ServerUnreachable as exc:
+    for target, page in reads:
+        if isinstance(page, _ServerUnreachable):
             if task is not None:
-                _exit_samples_unreachable(target["eval_id"], exc, pid=target.get("pid"))
+                _exit_samples_unreachable(
+                    target["eval_id"], page, pid=target.get("pid")
+                )
             # An unscoped read spans whatever evals happen to be running; one
             # process exiting — or staying busy through the retries — between
             # discovery and this read shouldn't fail the invocation (even if
             # it was the only eval).
             hint = (
                 f"try again shortly, or {_anomalies_pointer(target.get('pid'))}"
-                if isinstance(exc, _ServerBusy)
+                if isinstance(page, _ServerBusy)
                 else "it may have just exited"
             )
-            click.echo(
+            _echo(
                 f"Skipping eval {target['eval_id']}: its samples could not be "
-                f"read ({_unreachable_detail(exc)}) — {hint}.",
+                f"read ({_unreachable_detail(page)}) — {hint}.",
                 err=True,
             )
             continue
@@ -1993,6 +2168,68 @@ def _list_sample_rows(
     )
 
 
+class _EvalSamplesRead(NamedTuple):
+    """One target eval's samples read (see :func:`_read_all_eval_samples`).
+
+    ``page`` is the eval's samples, or the :class:`_ServerUnreachable` that
+    replaced it — captured rather than raised because the reads run
+    concurrently, and an exception escaping into the task group would cancel
+    its siblings where the policy is per-eval warn-and-skip.
+    """
+
+    target: dict[str, Any]
+    page: _SamplesPage | _ServerUnreachable
+
+
+async def _read_all_eval_samples(
+    targets: list[dict[str, Any]],
+    active_since: float | None,
+    *,
+    sample_filter: Literal["errors"] | None,
+    status: str | None,
+    limit: int | None,
+    all_samples: bool,
+    content: bool,
+    attempts: int | None,
+) -> list[_EvalSamplesRead]:
+    """Read each target eval's samples concurrently, in target order.
+
+    The reads go out together because their cost is round-trip and connection
+    setup, not server work: one at a time, an unscoped listing over an eval
+    set with many running tasks paid that round-trip per eval and looked
+    hung, while each server answered in about a millisecond.
+    """
+    # concurrent reads stall in lockstep, so they share one narrator rather
+    # than each reporting the same wedged process's every attempt
+    narrator = (
+        _BusyNarrator(f"Reading samples from {len(targets)} evals")
+        if len(targets) > 1
+        else None
+    )
+
+    async def read(target: dict[str, Any]) -> _EvalSamplesRead:
+        # Query by the task's current eval id (resolved fresh each invocation,
+        # so this still works after a retry minted a new one).
+        try:
+            page = await _fetch_samples_async(
+                target["socket_path"],
+                target["eval_id"],
+                active_since,
+                sample_filter=sample_filter,
+                status=status,
+                limit=limit,
+                all_samples=all_samples,
+                content=content,
+                attempts=attempts,
+                narrator=narrator,
+            )
+        except _ServerUnreachable as exc:
+            return _EvalSamplesRead(target, exc)
+        return _EvalSamplesRead(target, page)
+
+    return await _collect_reads([functools.partial(read, target) for target in targets])
+
+
 class _RowsPrinter(Protocol):
     """Prints a sample-rows table (``show_task`` adds the task column)."""
 
@@ -2009,6 +2246,7 @@ def _run_sample_list(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
 ) -> None:
     if all_samples and limit is not None:
         raise click.UsageError("--all and --limit are mutually exclusive.")
@@ -2021,6 +2259,7 @@ def _run_sample_list(
         statuses=_parse_statuses(status),
         limit=limit,
         all_samples=all_samples,
+        content=content,
         idle_pointer=True,
     )
 
@@ -2038,7 +2277,9 @@ def _parse_statuses(status: str | None) -> frozenset[str] | None:
     return statuses
 
 
-def _run_sample_errors(task: str | None, as_json: bool) -> None:
+def _run_sample_errors(
+    task: str | None, as_json: bool, *, content: bool = False
+) -> None:
     _run_sample_listing(
         task,
         None,
@@ -2050,6 +2291,12 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
         # cap would silently hide errors beyond it (the server's errors
         # filter narrows the rows, but capped-filtered is still capped).
         all_samples=True,
+        content=content,
+        # this is the error-focused view, so an empty error column needs
+        # the pointer to the opt-in
+        content_footer=None
+        if content
+        else "error messages withheld — pass --content to include them",
     )
 
 
@@ -2065,6 +2312,8 @@ def _run_sample_listing(
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
+    content_footer: str | None = None,
     idle_pointer: bool = False,
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
@@ -2078,9 +2327,16 @@ def _run_sample_listing(
     unavailable)" instead, and an empty ``--status``-filtered or
     ``--active-since`` delta listing gets a filter-scoped message (samples
     may exist that simply didn't match). ``statuses`` is the already-parsed
-    ``--status`` member set (``None`` = no filter). ``idle_pointer`` opts the
-    human rendering into the long-idle escalation footer (`sample list` — the
-    listing whose idle column shows a stall; see :func:`_echo_idle_pointer`).
+    ``--status`` member set (``None`` = no filter). ``content`` asks the
+    server to include each row's error message (withheld by default —
+    agent-influenced free text); ``content_footer`` is a human-rendering
+    footer noting the withholding (echoed after a non-empty table, and
+    suppressed when a row carries an error message anyway — a pre-v6 server
+    ignores the ``content`` param, and the footer must not caption text
+    printed right above it as withheld).
+    ``idle_pointer`` opts the human rendering into the long-idle escalation
+    footer (`sample list` — the listing whose idle column shows a stall; see
+    :func:`_echo_idle_pointer`).
     """
     listing = _list_sample_rows(
         task,
@@ -2089,11 +2345,12 @@ def _run_sample_listing(
         statuses=statuses,
         limit=limit,
         all_samples=all_samples,
+        content=content,
     )
     rows = listing.rows
 
     if as_json:
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 {
                     "as_of": listing.as_of,
@@ -2119,17 +2376,22 @@ def _run_sample_listing(
     else:
         empty = empty_read
     if len(listing.targets) == 1:
-        click.echo(_task_header(listing.targets[0]))
+        _echo(_task_header(listing.targets[0]))
         if not rows:
-            click.echo(empty)
+            _echo(empty)
             return
-        click.echo()
+        _echo()
         printer(rows)
     else:
         if not rows:
-            click.echo(empty)
+            _echo(empty)
             return
         printer(rows, show_task=True)
+    if content_footer is not None and not any(
+        row.get("error") is not None for row in rows
+    ):
+        _echo()
+        _echo(content_footer)
     if listing.truncated:
         _echo_truncation_footer(
             len(rows),
@@ -2179,8 +2441,8 @@ def _echo_idle_pointer(rows: list[dict[str, Any]], read: list[dict[str, Any]]) -
         return
     only = next(iter(pids)) if len(pids) == 1 else None
     pid = int(only) if only is not None else None
-    click.echo()
-    click.echo(f"idle {_format_duration(max(idles))} — {_anomalies_pointer(pid)}")
+    _echo()
+    _echo(f"idle {_format_duration(max(idles))} — {_anomalies_pointer(pid)}")
 
 
 def _echo_truncation_footer(
@@ -2218,19 +2480,24 @@ def _echo_truncation_footer(
     hint = "pass --all (or --limit N) for more"
     if statuses is None:
         hint += ", --status to filter"
-    click.echo()
-    click.echo(f"listing capped: {showing} — {hint}")
+    _echo()
+    _echo(f"listing capped: {showing} — {hint}")
 
 
 @_envelope_failures
 def _run_sample_show(
-    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+    task: str,
+    sample_id: str,
+    epoch: int,
+    content: bool,
+    show_traceback: bool,
+    as_json: bool,
 ) -> None:
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
     if not summaries:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2244,6 +2511,7 @@ def _run_sample_show(
         target["eval_id"],
         sample_id,
         epoch,
+        content=content,
         pid=target.get("pid"),
     )
     row = (
@@ -2259,7 +2527,7 @@ def _run_sample_show(
     }
 
     if as_json:
-        click.echo(json_lib.dumps(merged, indent=2))
+        _echo_raw(json_lib.dumps(merged, indent=2))
         return
 
     _print_sample_detail(merged, show_traceback)
@@ -2296,7 +2564,7 @@ def _fetch_sample_row_from_listing(
             if isinstance(exc, _ServerBusy)
             else ""
         )
-        click.echo(
+        _echo(
             f"Could not read the samples listing for eval {target['eval_id']} "
             f"({_unreachable_detail(exc)}); showing the sample without its "
             f"summary fields (timing / tokens / messages){hint}.",
@@ -2325,6 +2593,7 @@ def _run_sample_events(
     from_start: bool,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -2366,7 +2635,7 @@ def _run_sample_events(
                 "next": None,
                 "done": True,
             }
-            click.echo(json_lib.dumps(empty_page, indent=2))
+            _echo_raw(json_lib.dumps(empty_page, indent=2))
             return
         _echo_no_running_evals()
         return
@@ -2381,6 +2650,7 @@ def _run_sample_events(
         tail=tail,
         limit=limit,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -2396,10 +2666,10 @@ def _run_sample_events(
     }
 
     if as_json:
-        click.echo(json_lib.dumps(page, indent=2))
+        _echo_raw(json_lib.dumps(page, indent=2))
         return
 
-    _print_events(page, full=full)
+    _print_events(page, content=content, full=full)
 
 
 @_envelope_failures
@@ -2410,6 +2680,7 @@ def _run_sample_messages(
     *,
     tail: int | None,
     show_all: bool,
+    content: bool,
     full: bool,
     as_json: bool,
 ) -> None:
@@ -2443,7 +2714,7 @@ def _run_sample_messages(
                 "count": 0,
                 "messages": [],
             }
-            click.echo(json_lib.dumps(empty_page, indent=2))
+            _echo_raw(json_lib.dumps(empty_page, indent=2))
             return
         _echo_no_running_evals()
         return
@@ -2455,6 +2726,7 @@ def _run_sample_messages(
         sample_id,
         epoch,
         tail=tail,
+        content=content,
         full=full,
         pid=target.get("pid"),
     )
@@ -2468,12 +2740,12 @@ def _run_sample_messages(
     }
 
     if as_json:
-        click.echo(json_lib.dumps(page, indent=2))
+        _echo_raw(json_lib.dumps(page, indent=2))
         return
 
-    click.echo(_task_header(target))
-    click.echo()
-    _print_messages(page, full=full)
+    _echo(_task_header(target))
+    _echo()
+    _print_messages(page, content=content, full=full)
 
 
 def _looks_like_timestamp(value: str) -> bool:
@@ -2610,18 +2882,18 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
             "dry_run": False,
             "detail": detail,
         }
-        click.echo(json_lib.dumps(result, indent=2))
+        _echo_raw(json_lib.dumps(result, indent=2))
         return
 
     already = detail.get("changed") is False
     if keep:
-        click.echo(
+        _echo(
             f"Keep-alive already on for pid {target.pid}."
             if already
             else f"Keep-alive requested for pid {target.pid}."
         )
     else:
-        click.echo(
+        _echo(
             f"Keep-alive already off for pid {target.pid}."
             if already
             else f"Release requested for pid {target.pid}."
@@ -2629,13 +2901,13 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
 
 
 @_envelope_failures
-def _run_log_flush(task: str | None, as_json: bool) -> None:
+def _run_log_flush(task: str | None, as_json: bool, terse: bool | None = None) -> None:
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
     scope = _resolve_scope(servers, summaries, task, per_task_option="task log-flush")
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2654,17 +2926,23 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
             "dry_run": False,
             "detail": result,
         }
-        click.echo(json_lib.dumps(envelope, indent=2))
+        _echo_raw(json_lib.dumps(envelope, indent=2))
         return
 
     flushed = int(result.get("flushed", 0) or 0)
-    click.echo(scope.header)
-    if flushed:
-        click.echo(
-            f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log."
+    if _use_terse(terse):
+        outcome = (
+            f"applied — flushed {flushed} sample{'' if flushed == 1 else 's'}"
+            if flushed
+            else "no-op — no buffered samples"
         )
+        _echo(_terse_line("log-flush", scope.task or scope.task_id, outcome))
+        return
+    _echo(scope.header)
+    if flushed:
+        _echo(f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log.")
     else:
-        click.echo("\nNo buffered samples to flush.")
+        _echo("\nNo buffered samples to flush.")
 
 
 def _mutation_envelope(
@@ -2698,13 +2976,14 @@ def _run_task_cancel(
     action: TaskCancelAction = "cancel",
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
     scope = _resolve_scope(servers, summaries, task, per_task_option="task cancel")
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2738,15 +3017,18 @@ def _run_task_cancel(
 
     if as_json:
         target = {"task_id": scope.task_id, "task": scope.task}
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(target, result, dry_run=dry_run), indent=2
             )
         )
         return
 
-    click.echo(scope.header)
-    click.echo()
+    terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id
+    if not terse_mode:
+        _echo(scope.header)
+        _echo()
     if result.get("changed"):
         in_flight = int(result.get("in_flight", 0) or 0)
         outcome = {
@@ -2767,13 +3049,23 @@ def _run_task_cancel(
                 else "queued samples are abandoned and the task will complete"
             )
         )
-        if dry_run:
-            click.echo(f"Would cancel — {interrupted}; {suffix}.")
+        if terse_mode:
+            status = "dry-run" if dry_run else "requested"
+            _echo(
+                _terse_line(
+                    "cancel", target_label, f"{status} — {interrupted}; {suffix}"
+                )
+            )
+        elif dry_run:
+            _echo(f"Would cancel — {interrupted}; {suffix}.")
         else:
-            click.echo(f"Cancel requested — {interrupted}; {suffix}.")
+            _echo(f"Cancel requested — {interrupted}; {suffix}.")
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason}.")
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
+        if terse_mode:
+            _echo(_terse_line("cancel", target_label, f"no-op — {reason}"))
+        else:
+            _echo(f"Nothing to do: {reason}.")
 
 
 _PAUSE_ROUTE_MISSING = (
@@ -2812,6 +3104,23 @@ def _still_held_note(held: list[str]) -> str:
     return f"Note: {' and '.join(latches)} — samples stay held until resumed."
 
 
+def _terse_held_suffix(held: list[str]) -> str:
+    """The still-held latches folded into a terse `task resume` line.
+
+    The terse mode's one-line budget can't carry :func:`_still_held_note`'s
+    full prose, but silently dropping the fact would misreport a resume that
+    leaves the task held — so the latch names ride as a parenthetical, with
+    the clearing command kept: the terse default's non-TTY audience (an
+    agent) is exactly who needs the next command spelled out.
+    """
+    latches = [latch for latch in ("process", "model") if latch in held]
+    if not latches:
+        return ""
+    names = " and ".join(f"{latch} pause" for latch in latches)
+    commands = " / ".join(f"`inspect ctl {latch} resume`" for latch in latches)
+    return f" (still held by {names} — {commands})"
+
+
 @_envelope_failures
 def _run_task_pause_resume(
     task: str | None,
@@ -2819,6 +3128,7 @@ def _run_task_pause_resume(
     verb: Literal["pause", "resume"],
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
     """Pause or resume one task (``POST /tasks/<task-id>/pause|resume``).
 
@@ -2833,7 +3143,7 @@ def _run_task_pause_resume(
     scope = _resolve_scope(servers, summaries, task, per_task_option=f"task {verb}")
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -2860,15 +3170,18 @@ def _run_task_pause_resume(
 
     if as_json:
         target = {"task_id": scope.task_id, "task": scope.task}
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(target, result, dry_run=dry_run), indent=2
             )
         )
         return
 
-    click.echo(scope.header)
-    click.echo()
+    terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id
+    if not terse_mode:
+        _echo(scope.header)
+        _echo()
     if result.get("changed"):
         if verb == "pause":
             # `dispatched` counts samples past the gate, including ones still
@@ -2878,34 +3191,62 @@ def _run_task_pause_resume(
                 f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
                 f"{'would' if dry_run else 'will'} finish naturally"
             )
-            if dry_run:
-                click.echo(
+            if terse_mode:
+                _echo(
+                    _terse_line(
+                        "pause",
+                        target_label,
+                        f"{'dry-run' if dry_run else 'requested'} — {finishing}; "
+                        f"no new samples or retry attempts "
+                        f"{'would' if dry_run else 'will'} start",
+                    )
+                )
+            elif dry_run:
+                _echo(
                     f"Would pause — {finishing}; no new samples or retry "
                     "attempts would start."
                 )
             else:
-                click.echo(
+                _echo(
                     f"Pause requested — {finishing}; no new samples or retry "
                     "attempts will start. Resume with `inspect ctl task resume`."
                 )
+        elif terse_mode:
+            # independent latches: a task resume does not clear a process
+            # or model pause, so say when the task is still held
+            held = [] if dry_run else _paused_sources(result.get("paused"))
+            _echo(
+                _terse_line(
+                    "resume",
+                    target_label,
+                    f"{'dry-run' if dry_run else 'requested'} — queued samples "
+                    f"{'would' if dry_run else 'will'} dispatch again"
+                    f"{_terse_held_suffix(held)}",
+                )
+            )
         elif dry_run:
-            click.echo("Would resume — queued samples would dispatch again.")
+            _echo("Would resume — queued samples would dispatch again.")
         else:
-            click.echo("Resume requested — queued samples will dispatch again.")
+            _echo("Resume requested — queued samples will dispatch again.")
             # independent latches: a task resume does not clear a process or
             # model pause, so say when the task is still held
             held = _paused_sources(result.get("paused"))
             if "process" in held or "model" in held:
-                click.echo(_still_held_note(held))
+                _echo(_still_held_note(held))
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason}.")
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         # "task is not paused" is technically right for a task held only by
         # the process or model latch, but the operator wants it moving —
         # point at the latch that actually holds it
         held = _paused_sources(result.get("paused"))
-        if verb == "resume" and ("process" in held or "model" in held):
-            click.echo(_still_held_note(held))
+        note_held = verb == "resume" and ("process" in held or "model" in held)
+        if terse_mode:
+            suffix = _terse_held_suffix(held) if note_held else ""
+            _echo(_terse_line(verb, target_label, f"no-op — {reason}{suffix}"))
+        else:
+            _echo(f"Nothing to do: {reason}.")
+            if note_held:
+                _echo(_still_held_note(held))
 
 
 @_envelope_failures
@@ -2933,7 +3274,7 @@ def _run_process_pause_resume(
     )
 
     if as_json:
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope({"pid": target.pid}, result, dry_run=dry_run),
                 indent=2,
@@ -2944,28 +3285,28 @@ def _run_process_pause_resume(
     if result.get("changed"):
         if verb == "pause":
             if dry_run:
-                click.echo(
+                _echo(
                     f"Would pause pid {target.pid} — in-flight samples would "
                     "finish; no new samples, task retries, or eval-set tasks "
                     "would start."
                 )
             else:
-                click.echo(
+                _echo(
                     f"Pause requested for pid {target.pid} — in-flight samples "
                     "will finish; no new samples, task retries, or eval-set "
                     "tasks will start. Watch `inspect ctl task list` for "
                     "quiesced; resume with `inspect ctl process resume`."
                 )
         elif dry_run:
-            click.echo(f"Would resume pid {target.pid}.")
+            _echo(f"Would resume pid {target.pid}.")
         else:
-            click.echo(
+            _echo(
                 f"Resume requested for pid {target.pid} — dispatch picks up "
                 "where it left off (task-level pauses, if any, stay in place)."
             )
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason} (pid {target.pid}).")
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
+        _echo(f"Nothing to do: {reason} (pid {target.pid}).")
 
 
 @_envelope_failures
@@ -3005,7 +3346,7 @@ def _run_model_pause_resume(
     )
 
     if as_json:
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(
                     {"model": model, "pid": target.pid}, result, dry_run=dry_run
@@ -3028,27 +3369,27 @@ def _run_model_pause_resume(
                 f"{'would' if dry_run else 'will'} finish naturally"
             )
             if dry_run:
-                click.echo(
+                _echo(
                     f"Would pause {model} — {held}; no new samples, retry "
                     "attempts, or eval-set tasks of this model would start."
                 )
             else:
-                click.echo(
+                _echo(
                     f"Pause requested for {model} — {held}; no new samples, "
                     "retry attempts, or eval-set tasks of this model will "
                     "start (other models keep running). Resume with "
                     "`inspect ctl model resume`."
                 )
         elif dry_run:
-            click.echo(f"Would resume {model} — its held work would dispatch again.")
+            _echo(f"Would resume {model} — its held work would dispatch again.")
         else:
-            click.echo(
+            _echo(
                 f"Resume requested for {model} — its held work dispatches "
                 "again (task- and process-level pauses, if any, stay in place)."
             )
     else:
-        reason = str(result.get("reason") or "already in that state")
-        click.echo(f"Nothing to do: {reason} ({model}).")
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
+        _echo(f"Nothing to do: {reason} ({model}).")
 
 
 def _run_sample_mutation(
@@ -3061,24 +3402,30 @@ def _run_sample_mutation(
     route_missing: str,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
     changed_message: Callable[[str, dict[str, Any]], str],
     noop_message: Callable[[str, dict[str, Any]], str],
+    terse_changed: Callable[[dict[str, Any]], str],
+    terse_noop: Callable[[dict[str, Any]], str],
 ) -> None:
     """Shared scaffold for the per-sample mutation verbs (cancel, requeue).
 
     Fetches summaries, resolves the target eval, applies the required-EPOCH
-    gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders either the
-    uniform ``--json`` mutation envelope or the task header plus a message
-    line. Only the verb, extra request params, missing-route text, and the
-    applied/no-op message lines differ per mutation; each message callback
-    receives the rendered ``sample <id> (epoch <n>)`` label and the server's
-    response.
+    gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders the uniform
+    ``--json`` mutation envelope, a terse ``verb task/sample (epoch n):
+    outcome`` line (see :func:`_use_terse`), or the task header plus a
+    message line. Only the verb, extra request params, missing-route text,
+    and the applied/no-op message lines differ per mutation; the full-mode
+    callbacks receive the rendered ``sample <id> (epoch <n>)`` label and the
+    server's response, the terse callbacks just the response (the scaffold
+    prefixes the target itself, so every terse line names it — the full
+    no-op messages don't have to).
     """
     fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
     if not summaries:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -3131,20 +3478,35 @@ def _run_sample_mutation(
             "sample_id": result.get("sample_id", sample_id),
             "epoch": result.get("epoch", epoch),
         }
-        click.echo(
+        _echo_raw(
             json_lib.dumps(
                 _mutation_envelope(envelope_target, result, dry_run=dry_run), indent=2
             )
         )
         return
 
-    click.echo(_task_header(target))
-    click.echo()
-    label = f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
+    # the server echoes the resolved identifiers; fall back to what was sent
+    resolved_id = result.get("sample_id", sample_id)
+    resolved_epoch = result.get("epoch", epoch)
+
+    if _use_terse(terse):
+        target_label = _sanitize_line(
+            f"{target.get('task') or '?'}/{resolved_id} (epoch {resolved_epoch})"
+        )
+        outcome = terse_changed(result) if result.get("changed") else terse_noop(result)
+        _echo(_terse_line(verb, target_label, outcome))
+        return
+
+    _echo(_task_header(target))
+    _echo()
+    # the label is sanitized before the callbacks interpolate it (with other
+    # wire fields — status, reason) so a swallow can't eat the message tail;
+    # `_echo` sanitizes whatever the composed line still carries
+    label = _sanitize_line(f"sample {resolved_id} (epoch {resolved_epoch})")
     if result.get("changed"):
-        click.echo(changed_message(label, result))
+        _echo(changed_message(label, result))
     else:
-        click.echo(noop_message(label, result))
+        _echo(noop_message(label, result))
 
 
 @_envelope_failures
@@ -3156,21 +3518,33 @@ def _run_sample_cancel(
     action: SampleCancelAction,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
+    outcome = {
+        "score": "scored on the work done so far",
+        "error": "marked as errored",
+        "cancel": "recorded as cancelled",
+    }[action]
+
     def changed_message(label: str, result: dict[str, Any]) -> str:
-        outcome = {
-            "score": "scored on the work done so far",
-            "error": "marked as errored",
-            "cancel": "recorded as cancelled",
-        }[action]
         if dry_run:
             return f"Would cancel {label} — it would be {outcome}."
         return f"Cancel requested for {label} — it will be {outcome}."
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         status = result.get("status")
-        suffix = f" (status: {status})" if status else ""
+        suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
         return f"Nothing to do — {label} has already finished{suffix}."
+
+    def terse_changed(result: dict[str, Any]) -> str:
+        if dry_run:
+            return f"dry-run — would be {outcome}"
+        return f"requested — will be {outcome}"
+
+    def terse_noop(result: dict[str, Any]) -> str:
+        status = result.get("status")
+        suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
+        return f"no-op — already finished{suffix}"
 
     _run_sample_mutation(
         task,
@@ -3181,8 +3555,11 @@ def _run_sample_cancel(
         route_missing=_CANCEL_ROUTE_MISSING,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
         changed_message=changed_message,
         noop_message=noop_message,
+        terse_changed=terse_changed,
+        terse_noop=terse_noop,
     )
 
 
@@ -3200,20 +3577,31 @@ def _run_sample_requeue(
     *,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
-    def changed_message(label: str, result: dict[str, Any]) -> str:
-        resume = (
+    def resume_clause(result: dict[str, Any]) -> str:
+        return (
             "resume from its checkpoint"
             if result.get("resume_from_checkpoint")
             else "re-run from the back of the sample queue"
         )
+
+    def changed_message(label: str, result: dict[str, Any]) -> str:
         if dry_run:
-            return f"Would requeue {label} — it would {resume}."
-        return f"Requeue accepted for {label} — it will {resume}."
+            return f"Would requeue {label} — it would {resume_clause(result)}."
+        return f"Requeue accepted for {label} — it will {resume_clause(result)}."
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
-        reason = str(result.get("reason") or "already in that state")
+        reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         return f"Nothing to do — {reason}."
+
+    def terse_changed(result: dict[str, Any]) -> str:
+        if dry_run:
+            return f"dry-run — would {resume_clause(result)}"
+        return f"accepted — will {resume_clause(result)}"
+
+    def terse_noop(result: dict[str, Any]) -> str:
+        return f"no-op — {result.get('reason') or 'already in that state'}"
 
     _run_sample_mutation(
         task,
@@ -3224,8 +3612,11 @@ def _run_sample_requeue(
         route_missing=_REQUEUE_ROUTE_MISSING,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
         changed_message=changed_message,
         noop_message=noop_message,
+        terse_changed=terse_changed,
+        terse_noop=terse_noop,
     )
 
 
@@ -3267,11 +3658,11 @@ def _run_process_list(as_json: bool) -> None:
         )
 
     if as_json:
-        click.echo(json_lib.dumps({"as_of": as_of, "processes": rows}, indent=2))
+        _echo_raw(json_lib.dumps({"as_of": as_of, "processes": rows}, indent=2))
         return
 
     if not rows:
-        click.echo("No running inspect processes found.")
+        _echo("No running inspect processes found.")
         return
 
     table_rows: list[tuple[str, ...]] = []
@@ -3321,6 +3712,42 @@ def _trace_file_for_pid(pid: int) -> Path | None:
     return None
 
 
+def _sanitized_anomalies(anomalies: TraceAnomalies) -> TraceAnomalies:
+    """A copy of ``anomalies`` with its rendered text fields neutralized.
+
+    The anomalies detail column embeds agent-controlled text verbatim — a
+    stalled sandboxed ``bash`` call's shlex-joined command line preserves the
+    agent's script bytes — and :func:`rendered_anomalies` (shared with
+    `inspect trace anomalies`) renders through rich, which keeps escape bytes
+    in ``export_text(styles=True)`` and parses cell strings as console markup
+    (so e.g. ``[link=...]`` in agent text would export an OSC 8 hyperlink).
+    Fields are therefore sanitized per record before they enter the table —
+    not post-export, where one row's unterminated OSC would swallow the rows
+    after it — with newlines flattened like the other table cells and markup
+    escaped to render literally. The ``--json`` envelope keeps the raw bytes.
+    """
+
+    def clean(text: str) -> str:
+        return escape_markup(_sanitize_line(text))
+
+    def clean_record(record: ActionTraceRecord) -> ActionTraceRecord:
+        return record.model_copy(
+            update=dict(
+                action=clean(record.action),
+                message=clean(record.message),
+                detail=clean(record.detail),
+                error=None if record.error is None else clean(record.error),
+            )
+        )
+
+    return TraceAnomalies(
+        running=[clean_record(r) for r in anomalies.running],
+        cancelled=[clean_record(r) for r in anomalies.cancelled],
+        errors=[clean_record(r) for r in anomalies.errors],
+        timeouts=[clean_record(r) for r in anomalies.timeouts],
+    )
+
+
 @_envelope_failures
 def _run_process_anomalies(
     pid: int | None, *, filter: str | None, all: bool, as_json: bool
@@ -3364,7 +3791,7 @@ def _run_process_anomalies(
             # since (an overnight death would otherwise show it "running"
             # for hours).
             post_mortem_as_of = trace_file.stat().st_mtime
-            click.echo(
+            _echo(
                 f"note: pid {pid} is not running — durations are as of the "
                 "trace file's last write.",
                 err=True,
@@ -3378,7 +3805,7 @@ def _run_process_anomalies(
             if server_trace is None:
                 # same warn-and-skip as the unscoped fan-out reads: this
                 # pid's section can't be read, the others' still can
-                click.echo(
+                _echo(
                     f"note: no trace file found for pid {server.pid} — skipped.",
                     err=True,
                 )
@@ -3402,13 +3829,13 @@ def _run_process_anomalies(
                     f"Could not read trace file {target_file} for pid "
                     f"{target_pid}: {ex}"
                 )
-                click.echo(message, err=True)
+                _echo(message, err=True)
                 raise _CtlFailure(
                     "internal", message, exception=_exception_name(ex)
                 ) from ex
             # the widened fan-out warns-and-skips like the missing-trace-file
             # case, keeping the other sections readable
-            click.echo(
+            _echo(
                 f"note: could not read {target_file} for pid {target_pid} "
                 f"({ex}) — skipped.",
                 err=True,
@@ -3441,31 +3868,36 @@ def _run_process_anomalies(
                 for section in sections
             ],
         }
-        click.echo(json_lib.dumps(envelope, indent=2))
+        _echo_raw(json_lib.dumps(envelope, indent=2))
         return
 
     if not sections:
         if servers:
-            click.echo(
+            _echo(
                 "No readable trace files found for the running processes "
                 "(see notes above)."
             )
         else:
-            click.echo(
+            _echo(
                 "No running inspect processes found. Pass a PID to read an "
                 "exited process's trace file post-mortem (`inspect trace "
                 "list` shows the trace files still on disk)."
             )
         return
 
-    click.echo(
+    # _sanitize_keep_sgr as a backstop over the already-sanitized rendering:
+    # rich's own styling exports as SGR (kept), so anything else that ever
+    # leaks into the export is neutralized without trusting its internals.
+    _echo_raw(
         "\n\n".join(
-            rendered_anomalies(
-                section.trace_file,
-                section.anomalies,
-                all,
-                pid=section.pid,
-                as_of=section.as_of,
+            _sanitize_keep_sgr(
+                rendered_anomalies(
+                    section.trace_file,
+                    _sanitized_anomalies(section.anomalies),
+                    all,
+                    pid=section.pid,
+                    as_of=section.as_of,
+                )
             )
             for section in sections
         )
@@ -3554,6 +3986,7 @@ def _run_config(
     author: str | None = None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
     # `set_buffer` gates the no-live-buffer hard error below; whether the
     # request as a whole is a mutation is derived once, in _exec_limits
@@ -3587,7 +4020,7 @@ def _run_config(
     )
     if scope is None:
         if as_json:
-            click.echo("null")
+            _echo_raw("null")
             return
         _echo_no_running_evals()
         return
@@ -3688,11 +4121,11 @@ def _run_config(
                     else ""
                 )
             )
-            click.echo(message, err=True)
+            _echo(message, err=True)
             for warning in limits_view.get("warnings") or []:
                 # the buffer warning restates the headline error; skip it
                 if not warning.startswith("log_buffer"):
-                    click.echo(f"! {warning}", err=True)
+                    _echo(f"! {warning}", err=True)
             raise _CtlFailure("invalid_request", message)
         buffer_warnings.append(
             "log_buffer/log_shared are not adjustable for this task "
@@ -3723,11 +4156,46 @@ def _run_config(
     )
 
     if as_json:
-        click.echo(json_lib.dumps(config, indent=2))
+        _echo_raw(json_lib.dumps(config, indent=2))
         return
 
-    click.echo(scope.header)
-    click.echo()
+    # terse covers only a set — a pure view's requested output *is* the full
+    # config block, so there is no header noise to shed
+    if mutated and _use_terse(terse):
+        target_label = (
+            scope.task
+            or scope.task_id
+            or (f"pid {scope.pid}" if scope.pid is not None else "process")
+        )
+        settings = []
+        for knob, value in knob_values.items():
+            if value is None or knob == "key":
+                continue
+            rendered = f"{knob}={value}"
+            # --model narrows the connections retune to matching controllers —
+            # dropped from the line, a scripted log misrecords the blast radius
+            if knob == "max_connections" and model is not None:
+                rendered += f" (models matching '{model}')"
+            settings.append(rendered)
+        if key is not None:
+            settings.append(f"concurrency:{key[0]}={key[1]}")
+        _echo(
+            _terse_line(
+                "config",
+                target_label,
+                f"{'dry-run' if dry_run else 'applied'} — {', '.join(settings)}",
+            )
+        )
+        # warnings and notes must survive terseness — "applied" above may be
+        # qualified by a not-adjustable knob or a process-wide blast radius
+        for warning in config.get("warnings") or []:
+            _echo(f"! {warning}")
+        for note in config.get("notes") or []:
+            _echo(f"note: {note}")
+        return
+
+    _echo(scope.header)
+    _echo()
     _print_config(config, changed=mutated)
 
 
@@ -4084,6 +4552,17 @@ _REQUEST_ATTEMPTS = 8
 # does the sole-server summaries fetch (one server is no fan-out).
 _DEGRADED_READ_ATTEMPTS = 2
 
+# Ceiling on a fan-out's in-flight reads (see `_collect_reads`). The reads are
+# cheap and their cost is round-trip, so a wave of this size already collapses
+# the wall clock of any realistic eval set to a couple of round-trips; raising
+# it buys no time, because the server answering them shares the eval's single
+# event loop and handles them one at a time whatever the client does. What it
+# would buy is a wider blast radius: a fan-out spans *every* task in the run
+# (completed ones included), so an uncapped one opens a connection per task
+# into the process it is inspecting — and a client-side fd exhaustion is an
+# OSError, which this module reads as "the eval has gone away".
+_MAX_CONCURRENT_READS = 32
+
 # A mutation (flush / buffer set) is issued once — it isn't idempotent, so it
 # must not be retried — but it gets the same total wall-clock budget a retried
 # read would consume (one attempt of `_REQUEST_ATTEMPTS * _REQUEST_TIMEOUT`, ie.
@@ -4126,7 +4605,40 @@ class _ServerBusy(_ServerUnreachable):
         self.last_timeout = last_timeout
 
 
-def _get_response_with_retry(
+class _BusyNarrator:
+    """Narrates a fan-out's busy retries once per attempt, not once per target.
+
+    A single read narrates each of its own timed-out attempts (progress
+    feedback: the eval is busy, we're still trying). Concurrently that
+    multiplies — the targets start together and every attempt costs the same
+    timeout, so a wedged eval set produces one line per target per attempt.
+    Sharing one narrator across a fan-out collapses each round to a single
+    line, named for the fan-out (``what``) rather than for whichever target
+    happened to get there first, which is not stable across backends.
+    """
+
+    def __init__(self, what: str) -> None:
+        self._what = what
+        self._narrated: set[int] = set()
+
+    def narrate(self, attempt: int, attempts: int) -> None:
+        if attempt in self._narrated:
+            return
+        self._narrated.add(attempt)
+        _echo_busy_attempt(self._what, attempt, attempts)
+
+
+def _echo_busy_attempt(what: str, attempt: int, attempts: int) -> None:
+    """Report one timed-out attempt (stderr, so ``--json`` stdout stays clean)."""
+    retrying = "; retrying…" if attempt < attempts else "."
+    _echo(
+        f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
+        f"(attempt {attempt}/{attempts}) — the eval may be busy{retrying}",
+        err=True,
+    )
+
+
+async def _get_response_with_retry_async(
     socket_path: str | Path,
     path: str,
     *,
@@ -4136,6 +4648,7 @@ def _get_response_with_retry(
     raise_on_busy: bool = False,
     attempts: int | None = None,
     pid: int | None = None,
+    narrator: _BusyNarrator | None = None,
 ) -> httpx.Response:
     """Request ``path`` over the UDS, retrying a read timeout.
 
@@ -4164,30 +4677,35 @@ def _get_response_with_retry(
     not be retried and takes the single-shot path in :func:`_request_json`.
 
     Returns the raw response without inspecting its status, so callers that need
-    to handle a meaningful status (eg. a 404) can; :func:`_get_with_retry` is the
-    JSON-decoding wrapper for the common case.
+    to handle a meaningful status (eg. a 404) can;
+    :func:`_get_with_retry_async` is the JSON-decoding wrapper for the common
+    case.
+
+    Async so a fan-out over many evals can issue its reads concurrently (see
+    :func:`_read_all_task_rows` / :func:`_read_all_eval_samples`); single-read
+    call sites use the :func:`_get_response_with_retry` sync facade. A fan-out
+    passes a shared ``narrator`` so the retry narration below reports each
+    attempt once for the invocation rather than once per target (see
+    :class:`_BusyNarrator`).
     """
     if attempts is None:
         attempts = _DEGRADED_READ_ATTEMPTS if raise_on_busy else _REQUEST_ATTEMPTS
-    transport = httpx.HTTPTransport(uds=str(socket_path))
+    transport = httpx.AsyncHTTPTransport(uds=str(socket_path))
     last_timeout: httpx.TimeoutException | None = None
     for attempt in range(1, attempts + 1):
         try:
-            with httpx.Client(
+            async with httpx.AsyncClient(
                 transport=transport,
                 base_url="http://localhost",
                 timeout=_REQUEST_TIMEOUT,
             ) as client:
-                return client.request(method, path, params=params or {})
+                return await client.request(method, path, params=params or {})
         except httpx.TimeoutException as exc:
             last_timeout = exc
-            retrying = "; retrying…" if attempt < attempts else "."
-            click.echo(
-                f"{what}: no response after {_REQUEST_TIMEOUT:.0f}s "
-                f"(attempt {attempt}/{attempts}) — the eval may be busy"
-                f"{retrying}",
-                err=True,
-            )
+            if narrator is not None:
+                narrator.narrate(attempt, attempts)
+            else:
+                _echo_busy_attempt(what, attempt, attempts)
         except (httpx.HTTPError, OSError) as exc:
             raise _ServerUnreachable() from exc
     if raise_on_busy:
@@ -4195,13 +4713,32 @@ def _get_response_with_retry(
             f"no response after {attempts} attempts — the eval's event loop is busy",
             last_timeout=last_timeout,
         )
+    _exit_busy(what, attempts, last_timeout=last_timeout, pid=pid)
+
+
+def _exit_busy(
+    what: str,
+    attempts: int,
+    *,
+    last_timeout: httpx.TimeoutException | None,
+    pid: int | None,
+) -> NoReturn:
+    """Narrate a read that stayed busy through its retries, and fail the command.
+
+    The terminal half of the busy policy, split out so a fan-out can raise it
+    **once** for the whole invocation: its per-target reads take the
+    ``raise_on_busy`` path (which doesn't narrate), so a run where every
+    process is wedged reports one failure naming one pid, rather than one per
+    process — the reads are concurrent, so without this they would all reach
+    their deadline together and each print its own terminal error.
+    """
     message = (
         f"{what}: gave up after {attempts} attempts of "
         f"{_REQUEST_TIMEOUT:.0f}s each — the eval's event loop is busy; "
         "try again shortly."
     )
-    click.echo(message, err=True)
-    click.echo(f"{_anomalies_pointer(pid)}.", err=True)
+    _echo(message, err=True)
+    _echo(f"{_anomalies_pointer(pid)}.", err=True)
     raise _CtlFailure(
         "busy",
         message,
@@ -4209,7 +4746,61 @@ def _get_response_with_retry(
     )
 
 
-def _get_with_retry(
+def _run_async(func: Callable[[], Awaitable[_T]]) -> _T:
+    """Run one control-channel coroutine to completion from sync CLI code.
+
+    The ctl commands are synchronous click callbacks, so every async read
+    bottoms out here. Never call this (or the sync facades built on it) from
+    async code — it starts its own event loop; a fan-out awaits the ``_async``
+    form directly instead.
+    """
+    return anyio.run(func, backend=configured_async_backend())
+
+
+async def _collect_reads(reads: list[Callable[[], Awaitable[_T]]]) -> list[_T]:
+    """Run a fan-out's reads concurrently, in input order, capped in flight.
+
+    The cap (:data:`_MAX_CONCURRENT_READS`) is what keeps "issue the reads
+    together" from meaning "issue all of them at once" — see the constant for
+    why the ceiling costs nothing and the absence of one does.
+    """
+    limiter = anyio.CapacityLimiter(_MAX_CONCURRENT_READS)
+
+    async def limited(read: Callable[[], Awaitable[_T]]) -> _T:
+        async with limiter:
+            return await read()
+
+    return await tg_collect([functools.partial(limited, read) for read in reads])
+
+
+def _get_response_with_retry(
+    socket_path: str | Path,
+    path: str,
+    *,
+    params: dict[str, Any] | None = None,
+    what: str,
+    method: Literal["get", "post", "patch"] = "get",
+    raise_on_busy: bool = False,
+    attempts: int | None = None,
+    pid: int | None = None,
+) -> httpx.Response:
+    """Sync facade over :func:`_get_response_with_retry_async` — see it for policy."""
+    return _run_async(
+        functools.partial(
+            _get_response_with_retry_async,
+            socket_path,
+            path,
+            params=params,
+            what=what,
+            method=method,
+            raise_on_busy=raise_on_busy,
+            attempts=attempts,
+            pid=pid,
+        )
+    )
+
+
+async def _get_with_retry_async(
     socket_path: str | Path,
     path: str,
     *,
@@ -4218,17 +4809,18 @@ def _get_with_retry(
     raise_on_busy: bool = False,
     attempts: int | None = None,
     pid: int | None = None,
+    narrator: _BusyNarrator | None = None,
 ) -> Any:
     """GET ``path`` and return its decoded JSON, retrying a busy eval on timeout.
 
-    Wraps :func:`_get_response_with_retry` (``raise_on_busy``, ``attempts``,
-    and ``pid`` ride through, including the attempts-from-raise_on_busy
-    default); a non-2xx status or undecodable body raises
-    :class:`_ServerUnreachable` (a server-side ``500`` or malformed response
-    is not retryable). For endpoints with a meaningful 4xx, call
-    :func:`_get_response_with_retry` directly and inspect the status.
+    Wraps :func:`_get_response_with_retry_async` (``raise_on_busy``,
+    ``attempts``, ``pid``, and ``narrator`` ride through, including the
+    attempts-from-raise_on_busy default); a non-2xx status or undecodable body
+    raises :class:`_ServerUnreachable` (a server-side ``500`` or malformed
+    response is not retryable). For endpoints with a meaningful 4xx, call
+    :func:`_get_response_with_retry_async` directly and inspect the status.
     """
-    response = _get_response_with_retry(
+    response = await _get_response_with_retry_async(
         socket_path,
         path,
         params=params,
@@ -4236,6 +4828,7 @@ def _get_with_retry(
         raise_on_busy=raise_on_busy,
         attempts=attempts,
         pid=pid,
+        narrator=narrator,
     )
     try:
         response.raise_for_status()
@@ -4291,27 +4884,45 @@ def _fetch_summaries(
     only siblings started before the target are skipped, and the
     duplicate-id corner (an old kept-alive attempt a newer process is
     retrying) resolves to the newest attempt.
+
+    Without ``stop_on_task_id`` the reads run concurrently (see
+    :func:`_read_all_task_rows`); rows, and the skip warnings below, still
+    follow discovery order.
     """
+    # Every read takes the raise_on_busy path so none of them narrates its own
+    # terminal error; when the caller wanted exit-on-busy, the first busy
+    # server in discovery order raises for the whole invocation below.
+    attempts = (
+        _REQUEST_ATTEMPTS
+        # a sole server is no fan-out — there's no wedged sibling to protect
+        # against, so ride out a stall on the full budget
+        if not raise_on_busy or len(servers) == 1
+        else _DEGRADED_READ_ATTEMPTS
+    )
+    reads = _run_async(
+        functools.partial(
+            _read_all_task_rows,
+            servers,
+            attempts=attempts,
+            stop_on_task_id=stop_on_task_id,
+        )
+    )
     summaries: list[dict[str, Any]] = []
     busy_pids: list[int] = []
-    for server in servers:
-        try:
-            rows = _get_with_retry(
-                server.socket_path,
-                "/tasks",
-                what=f"Reading tasks from pid {server.pid}",
-                raise_on_busy=raise_on_busy,
-                # a sole server is no fan-out — there's no wedged sibling to
-                # protect against, so ride out a stall on the full budget
-                attempts=_REQUEST_ATTEMPTS if len(servers) == 1 else None,
-                pid=server.pid,
-            )
-        except _ServerUnreachable as exc:
+    for server, rows in reads:
+        if isinstance(rows, _ServerUnreachable):
             # a 404 means the process is serving a control API without this
             # route — version skew between the CLI and the eval process —
             # where transport errors mean the process is gone
-            cause = exc.__cause__
-            if isinstance(exc, _ServerBusy):
+            cause = rows.__cause__
+            if isinstance(rows, _ServerBusy):
+                if not raise_on_busy:
+                    _exit_busy(
+                        f"Reading tasks from pid {server.pid}",
+                        attempts,
+                        last_timeout=rows.last_timeout,
+                        pid=server.pid,
+                    )
                 busy_pids.append(server.pid)
                 hint = f"try again shortly, or {_anomalies_pointer(server.pid)}"
             elif (
@@ -4321,24 +4932,100 @@ def _fetch_summaries(
                 hint = "it may be running a different inspect version than this CLI"
             else:
                 hint = "it may have just exited"
-            click.echo(
+            _echo(
                 f"Skipping pid {server.pid}: its control endpoint could not be "
-                f"read ({_unreachable_detail(exc)}) — {hint}.",
+                f"read ({_unreachable_detail(rows)}) — {hint}.",
                 err=True,
             )
             continue
-        if isinstance(rows, list):
-            # Decorate each row with discovery-side info the server doesn't
-            # see (pid, socket_path).
-            for row in rows:
-                row["pid"] = server.pid
-                row["socket_path"] = str(server.socket_path)
-            summaries.extend(rows)
-            if stop_on_task_id is not None and any(
-                row.get("task_id") == stop_on_task_id for row in rows
-            ):
-                break
+        # Decorate each row with discovery-side info the server doesn't see
+        # (pid, socket_path).
+        for row in rows:
+            row["pid"] = server.pid
+            row["socket_path"] = str(server.socket_path)
+        summaries.extend(rows)
     return _FetchedSummaries(summaries=summaries, busy_pids=busy_pids)
+
+
+class _ServerRead(NamedTuple):
+    """One server's ``/tasks`` read outcome (see :func:`_read_task_rows`).
+
+    ``rows`` is the decoded payload, or the :class:`_ServerUnreachable` that
+    replaced it — captured rather than raised because the reads run
+    concurrently, and an exception escaping into the task group would cancel
+    its siblings where the policy is per-server warn-and-skip. A payload that
+    isn't a list (a malformed server) is normalized to no rows, which is how
+    it was already treated.
+    """
+
+    server: DiscoveredControlServer
+    rows: list[dict[str, Any]] | _ServerUnreachable
+
+
+async def _read_task_rows(
+    server: DiscoveredControlServer,
+    *,
+    attempts: int,
+    narrator: _BusyNarrator | None,
+) -> _ServerRead:
+    """Read one server's ``/tasks`` rows, capturing an unreachable/busy failure."""
+    try:
+        rows = await _get_with_retry_async(
+            server.socket_path,
+            "/tasks",
+            what=f"Reading tasks from pid {server.pid}",
+            raise_on_busy=True,
+            attempts=attempts,
+            pid=server.pid,
+            narrator=narrator,
+        )
+    except _ServerUnreachable as exc:
+        return _ServerRead(server, exc)
+    return _ServerRead(server, rows if isinstance(rows, list) else [])
+
+
+async def _read_all_task_rows(
+    servers: list[DiscoveredControlServer],
+    *,
+    attempts: int,
+    stop_on_task_id: str | None,
+) -> list[_ServerRead]:
+    """Read every discovered server's ``/tasks`` rows, in discovery order.
+
+    Concurrently by default: the per-read cost is dominated by round-trip and
+    connection setup rather than server work, so a serial loop cost that
+    round-trip once per process and made an unscoped listing over a large
+    eval set look wedged.
+    """
+    read = functools.partial(
+        _read_task_rows,
+        attempts=attempts,
+        # concurrent reads stall in lockstep, so they share one narrator; the
+        # serial branch below narrates per server, as a lone read does
+        narrator=_BusyNarrator(f"Reading tasks from {len(servers)} processes")
+        if stop_on_task_id is None and len(servers) > 1
+        else None,
+    )
+    if stop_on_task_id is None:
+        return await _collect_reads(
+            [functools.partial(read, server) for server in servers]
+        )
+    # The short-circuit decides whether to contact the next server from the
+    # last one's rows, so it stays serial. It runs for any scoped (single-task)
+    # selector — whether a query is the exact id that can actually stop early
+    # is only knowable from the rows — so a name or prefix selector pays the
+    # serial cost for a stop that never comes. Kept because contacting the
+    # servers an exact id skips could make that read *slower*, by waiting out
+    # an unrelated wedged process's retry budget.
+    reads: list[_ServerRead] = []
+    for server in servers:
+        result = await read(server)
+        reads.append(result)
+        if not isinstance(result.rows, _ServerUnreachable) and any(
+            row.get("task_id") == stop_on_task_id for row in result.rows
+        ):
+            break
+    return reads
 
 
 def _fetch_sample_summaries(task_query: str | None = None) -> _FetchedSummaries:
@@ -4397,7 +5084,7 @@ def _resolve_target_eval(
         _fail("not_found", f"No running task matching '{query}'{busy}.")
     if len(matches) > 1:
         if busy_pids:
-            click.echo(
+            _echo(
                 f"note: {_busy_pids_label(busy_pids)} busy-skipped — candidates "
                 "drawn from responsive processes only.",
                 err=True,
@@ -4408,7 +5095,7 @@ def _resolve_target_eval(
     # task-list paste (see the docstring for the caveat rationale)
     provably_unique = bool(exact) or (bool(id_matches) and len(query) >= _SHORT_ID_LEN)
     if busy_pids and not provably_unique:
-        click.echo(
+        _echo(
             f"note: {_busy_pids_label(busy_pids)} busy-skipped — matched "
             f"'{query}' among responsive processes only.",
             err=True,
@@ -4441,7 +5128,7 @@ def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
     one process (the common case is one). The envelope failure folds the
     candidate ids into its message instead — the table is stderr-only.
     """
-    click.echo(f"{prefix} — pass a task id to choose one:\n", err=True)
+    _echo(f"{prefix} — pass a task id to choose one:\n", err=True)
     multi_process = len({s.get("pid") for s in matches}) > 1
     any_solver = any(s.get("solver") for s in matches)
     headers = (
@@ -4490,9 +5177,9 @@ def _exit_samples_unreachable(
     message = (
         f"Failed to read samples for eval {eval_id}: {_unreachable_detail(exc)}{hint}"
     )
-    click.echo(message, err=True)
+    _echo(message, err=True)
     if isinstance(exc, _ServerBusy):
-        click.echo(f"{_anomalies_pointer(pid)}.", err=True)
+        _echo(f"{_anomalies_pointer(pid)}.", err=True)
     raise _unreachable_failure(message, exc) from exc
 
 
@@ -4511,7 +5198,7 @@ class _SamplesPage(NamedTuple):
     truncated: bool = False
 
 
-def _fetch_samples(
+async def _fetch_samples_async(
     socket_path: str,
     eval_id: str,
     active_since: float | None = None,
@@ -4520,7 +5207,9 @@ def _fetch_samples(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
     attempts: int | None = None,
+    narrator: _BusyNarrator | None = None,
 ) -> _SamplesPage:
     """Query one control server for an eval's samples.
 
@@ -4547,7 +5236,7 @@ def _fetch_samples(
     Raises :class:`_ServerUnreachable` on a non-retryable read failure and
     :class:`_ServerBusy` when the eval stays busy through ``attempts``
     retries (defaulting to the degraded budget — see
-    :func:`_get_response_with_retry`); the caller owns the outcome:
+    :func:`_get_response_with_retry_async`); the caller owns the outcome:
     warn-and-skip (an unscoped fan-out over many evals), fail the command
     (a single targeted read, which passes the full budget), or degrade in
     place (``sample show``'s old-server fallback listing read, which keeps
@@ -4565,13 +5254,16 @@ def _fetch_samples(
         params["all"] = True
     elif limit is not None:
         params["limit"] = limit
-    page = _get_with_retry(
+    if content:
+        params["content"] = True
+    page = await _get_with_retry_async(
         socket_path,
         f"/evals/{eval_id}/samples",
         params=params,
         what=f"Reading samples for eval {eval_id}",
         raise_on_busy=True,
         attempts=attempts,
+        narrator=narrator,
     )
     if isinstance(page, dict):
         samples = page.get("samples")
@@ -4588,19 +5280,50 @@ def _fetch_samples(
     )
 
 
+def _fetch_samples(
+    socket_path: str,
+    eval_id: str,
+    active_since: float | None = None,
+    *,
+    sample_filter: Literal["errors"] | None = None,
+    status: str | None = None,
+    limit: int | None = None,
+    all_samples: bool = False,
+    content: bool = False,
+    attempts: int | None = None,
+) -> _SamplesPage:
+    """Sync facade over :func:`_fetch_samples_async` — see it for policy."""
+    return _run_async(
+        functools.partial(
+            _fetch_samples_async,
+            socket_path,
+            eval_id,
+            active_since,
+            sample_filter=sample_filter,
+            status=status,
+            limit=limit,
+            all_samples=all_samples,
+            content=content,
+            attempts=attempts,
+        )
+    )
+
+
 def _fetch_sample_detail(
     socket_path: str,
     eval_id: str,
     sample_id: str,
     epoch: int,
     *,
+    content: bool = False,
     pid: int | None = None,
 ) -> dict[str, Any]:
     """Query one control server for a single sample's summary + error detail.
 
     The one read behind ``sample show`` — the response carries the summary
     fields (timing / tokens / messages) alongside the error history, so no
-    supplemental listing fetch is needed. It rides the full narrated
+    supplemental listing fetch is needed. ``content`` opts into the error
+    free text (withheld by default). It rides the full narrated
     busy-retry policy rather than failing on a momentary event-loop stall;
     ``pid`` scopes that policy's exhaustion pointer to the hosting process.
     """
@@ -4610,7 +5333,7 @@ def _fetch_sample_detail(
     return _request_json(
         socket_path,
         f"/evals/{eval_id}/sample",
-        params={"sample_id": sample_id, "epoch": epoch},
+        params={"sample_id": sample_id, "epoch": epoch, "content": content},
         what=f"sample {sample_id}",
         not_found=(
             f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
@@ -4630,6 +5353,7 @@ def _fetch_sample_events(
     tail: int | None,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -4645,7 +5369,12 @@ def _fetch_sample_events(
     # sample_id (and all params) go in the query string so reserved-char ids
     # address correctly; drop unset options so server defaults apply. The
     # wire parameter for the cursor is `since` (the CLI flag is --cursor).
-    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "content": content,
+        "full": full,
+    }
     if cursor is not None:
         params["since"] = cursor
     if tail is not None:
@@ -4684,6 +5413,7 @@ def _fetch_sample_messages(
     epoch: int,
     *,
     tail: int | None,
+    content: bool,
     full: bool,
     pid: int | None = None,
 ) -> dict[str, Any]:
@@ -4696,7 +5426,12 @@ def _fetch_sample_messages(
     """
     # sample_id (and all params) go in the query string so reserved-char ids
     # address correctly; drop unset options so server defaults apply.
-    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "content": content,
+        "full": full,
+    }
     if tail is not None:
         params["tail"] = tail
     return _request_json(
@@ -4789,11 +5524,11 @@ def _request_json(
         result = response.json()
     except _ServerUnreachable as exc:
         message = f"Failed to {verb} {what}: {_unreachable_detail(exc)}"
-        click.echo(message, err=True)
+        _echo(message, err=True)
         raise _unreachable_failure(message, exc) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
         message = f"Failed to {verb} {what}: {_error_detail(exc)}"
-        click.echo(message, err=True)
+        _echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
 
@@ -4865,7 +5600,7 @@ def _gate_knob_support(
         return
     flags = ", ".join("--" + knob.replace("_", "-") for knob in unsupported)
     target = f"pid {server.pid}" if server is not None else "the target process"
-    click.echo(
+    _echo(
         f"{flags} not supported — {target} is running an older inspect; "
         "restart the eval to pick up the current version. No changes were "
         "applied.",
@@ -4938,7 +5673,7 @@ def _gate_provenance_support(
             if value is not None
         )
         target = f"pid {server.pid}" if server is not None else "the target process"
-        click.echo(
+        _echo(
             f"{flags} not supported — {target} is running an older inspect; "
             "restart the eval to pick up the current version. No changes "
             "were applied.",
@@ -5097,9 +5832,9 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     """
     dry_run = bool(config.get("dry_run"))
     if changed:
-        click.echo("would-be config (dry run):" if dry_run else "updated config:")
+        _echo("would-be config (dry run):" if dry_run else "updated config:")
     else:
-        click.echo("config:")
+        _echo("config:")
 
     knobs = config.get("knobs") or {}
 
@@ -5118,25 +5853,25 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # show it as per-task rather than claiming a value. Distinguish that from
     # a task view that carries an explicit `{"adjustable": false}`.
     if "max_samples" not in knobs:
-        click.echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
+        _echo(_knob_label("max samples", "max_samples") + _PER_TASK_PLACEHOLDER)
     else:
         max_samples = knobs.get("max_samples") or {}
         if max_samples.get("adjustable"):
             limit = _target(max_samples.get("limit"), "max_samples")
             in_use = max_samples.get("in_use")
             label = _knob_label("max samples", "max_samples")
-            click.echo(f"{label}{limit} ({in_use} in use)")
+            _echo(f"{label}{limit} ({in_use} in use)")
         elif max_samples.get("tracks_adaptive"):
             # sample concurrency tracks this task's adaptive controller, so
             # there's no user setpoint to show — point at where the numbers are
-            click.echo(
+            _echo(
                 _knob_label("max samples", "max_samples")
                 + "tracks adaptive connections (see below)"
             )
         else:
             # no live sample limiter for this task (e.g. a reused log) — the
             # adaptive block below, if any, belongs to other tasks' models
-            click.echo(
+            _echo(
                 _knob_label("max samples", "max_samples")
                 + "not adjustable (no live sample limiter)"
             )
@@ -5147,31 +5882,34 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
             f"{s.get('type')} {_target(s.get('limit'), 'max_sandboxes')} ({s.get('in_use')} in use)"
             for s in sandboxes
         )
-        click.echo(f"{_knob_label('max sandboxes', 'max_sandboxes')}{rendered}")
+        _echo(f"{_knob_label('max sandboxes', 'max_sandboxes')}{rendered}")
     else:
-        click.echo(_knob_label("max sandboxes", "max_sandboxes") + "none in effect")
+        _echo(_knob_label("max sandboxes", "max_sandboxes") + "none in effect")
 
     subprocesses = knobs.get("max_subprocesses") or {}
     if subprocesses.get("limit") is not None:
         limit = _target(subprocesses.get("limit"), "max_subprocesses")
-        click.echo(
+        _echo(
             f"{_knob_label('max subprocesses', 'max_subprocesses')}{limit} "
             f"({subprocesses.get('in_use')} in use)"
         )
     else:
-        click.echo(
+        _echo(
             _knob_label("max subprocesses", "max_subprocesses")
             + "inactive (no adjustable subprocess limiter yet)"
         )
 
     adaptive = (knobs.get("max_connections") or {}).get("adaptive") or []
     if adaptive:
-        click.echo(f"  adaptive connections [{_KNOB_SCOPE['max_connections']}]:")
+        _echo(f"  adaptive connections [{_KNOB_SCOPE['max_connections']}]:")
         for a in adaptive:
             # on a dry-run set, `_target` renders the ceiling as `max → requested`
             ceiling = _target(a.get("max"), "max_connections")
+            # sanitize the name before composing so a swallow in it can't
+            # eat the line's data fields (`_echo` handles the rest)
+            name = _sanitize_line(str(a.get("name") or ""))
             line = (
-                f"    {a.get('name')}: {a.get('limit')} ({a.get('in_use')} in use), "
+                f"    {name}: {a.get('limit')} ({a.get('in_use')} in use), "
                 f"range {a.get('min')}–{ceiling}"
             )
             changes = a.get("recent_changes") or []
@@ -5180,7 +5918,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                 line += (
                     f", last: {last.get('from')}→{last.get('to')} {last.get('reason')}"
                 )
-            click.echo(line)
+            _echo(line)
 
     # The retry-override knobs. Absent entirely from an older server's view
     # (which has no override layer) — skipped then rather than shown as a
@@ -5201,7 +5939,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         proposed = requested.get(knob)
         if proposed is not None and fmt(proposed) != fmt(current):
             rendered += f" → {fmt(proposed)}"
-        click.echo(_knob_label(display, knob) + rendered)
+        _echo(_knob_label(display, knob) + rendered)
 
     _render_retry_knob("timeout", "timeout", "s")
     _render_retry_knob("attempt_timeout", "attempt timeout", "s")
@@ -5214,22 +5952,25 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     # omits the section (`keys` is None).
     keys = (knobs.get("concurrency") or {}).get("keys")
     if keys:
-        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]:")
+        _echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]:")
         for row in keys:
             # on a dry-run set, `_target` renders the requested key's limit as
             # `current → requested` (the request rides `concurrency:<name>`)
             limit = _target(row.get("limit"), f"concurrency:{row.get('name')}")
-            line = f"    {row.get('name')}: {limit} ({row.get('in_use')} in use)"
+            # concurrency() names are arbitrary registry strings; sanitize
+            # before composing so a swallow can't eat the line's data fields
+            name = _sanitize_line(str(row.get("name") or ""))
+            line = f"    {name}: {limit} ({row.get('in_use')} in use)"
             if not row.get("adjustable"):
                 line += " — not adjustable"
-            click.echo(line)
+            _echo(line)
     else:
         empty = (
             "none registered yet (named limits appear on first use)"
             if keys is not None
             else "not reported (older server)"
         )
-        click.echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]: {empty}")
+        _echo(f"  concurrency keys [{_KNOB_SCOPE['key']}]: {empty}")
 
     # The process-level view carries no buffer knobs (they're per-task, read
     # off one task's live logger): mirror the max_samples placeholder so the
@@ -5239,38 +5980,58 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
     if "log_buffer" in knobs:
         log_buffer = knobs.get("log_buffer") or {}
         value = _target(log_buffer.get("value"), "log_buffer")
-        click.echo(
+        _echo(
             f"{_knob_label('log buffer', 'log_buffer')}{value} samples "
             f"({log_buffer.get('pending')} pending)"
         )
     elif process_scope:
-        click.echo(_knob_label("log buffer", "log_buffer") + _PER_TASK_PLACEHOLDER)
+        _echo(_knob_label("log buffer", "log_buffer") + _PER_TASK_PLACEHOLDER)
     if "log_shared" in knobs:
         shared = (knobs.get("log_shared") or {}).get("value")
         rendered_shared = _target(shared, "log_shared") if shared is not None else None
-        click.echo(
+        _echo(
             _knob_label("shared sync", "log_shared")
             + f"{f'{rendered_shared}s' if rendered_shared is not None else 'off'}"
         )
     elif process_scope:
-        click.echo(_knob_label("shared sync", "log_shared") + _PER_TASK_PLACEHOLDER)
+        _echo(_knob_label("shared sync", "log_shared") + _PER_TASK_PLACEHOLDER)
 
     for warning in config.get("warnings") or []:
-        click.echo(f"  ! {warning}")
+        _echo(f"  ! {warning}")
     for note in config.get("notes") or []:
-        click.echo(f"  note: {note}")
+        _echo(f"  note: {note}")
 
 
-def _print_events(page: dict[str, Any], *, full: bool) -> None:
-    """Render a page of transcript events (table) plus a cursor footer."""
+def _events_carry_content(events: list[dict[str, Any]]) -> bool:
+    """True when a compact events page came back with free-text fields.
+
+    The withheld-content footers key on the response, not the request: a
+    pre-v6 server ignores the unknown ``content`` query param and returns
+    the old content-bearing projection, and a "metadata only" footer must
+    not contradict text printed right above it. The listed keys are emitted
+    by ``events._project`` only under ``content`` (v6+) and unconditionally
+    on the typed branches before v6, so their presence means content came
+    back; a page of header-only events has no signal, but then the footer
+    claims nothing false either.
+    """
+    fields = ("completion", "arguments", "result", "error", "data")
+    return any(field in event for event in events for field in fields)
+
+
+def _print_events(page: dict[str, Any], *, content: bool, full: bool) -> None:
+    """Render a page of transcript events (table) plus a cursor footer.
+
+    The metadata-only footer is response-keyed (see
+    :func:`_events_carry_content`).
+    """
     events = page.get("events") or []
     if full:
         # Raw mode is for machine consumption; the human rendering is the
         # compact projection (whose flattened fields the table expects), so
         # just pretty-print the raw events.
-        click.echo(json_lib.dumps(events, indent=2))
+        _echo_raw(json_lib.dumps(events, indent=2))
     elif not events:
-        click.echo("(no events)")
+        _echo("(no events)")
     else:
         rows: list[tuple[str, ...]] = []
         for e in events:
@@ -5286,15 +6047,23 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
 
     parts = [f"{len(events)} event" + ("" if len(events) == 1 else "s")]
     parts.append("done" if page.get("done") else "more")
-    click.echo()
-    click.echo("  ·  ".join(parts))
+    if not full and not content and not _events_carry_content(events):
+        parts.append("metadata only (pass --content for text)")
+    _echo()
+    _echo("  ·  ".join(parts))
     nxt = page.get("next")
     if nxt and not page.get("done"):
-        click.echo(f"next: {nxt}  (resume with --cursor)")
+        _echo(f"next: {_sanitize_line(str(nxt))}  (resume with --cursor)")
 
 
-def _print_messages(page: dict[str, Any], *, full: bool) -> None:
-    """Render a conversation snapshot (per-message rows) plus a count footer."""
+def _print_messages(page: dict[str, Any], *, content: bool, full: bool) -> None:
+    """Render a conversation snapshot (per-message rows) plus a count footer.
+
+    The metadata-only footer is response-keyed, like the events one (see
+    :func:`_events_carry_content`): a ``content`` key on any message means a
+    pre-v6 server returned the old always-content projection, so the footer
+    would contradict the table above it.
+    """
     messages = page.get("messages") or []
     count = int(page.get("count") or 0)
     status = page.get("status")
@@ -5302,9 +6071,9 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
     if full:
         # Raw mode is for machine consumption; the human rendering is the
         # compact projection, so just pretty-print the raw messages.
-        click.echo(json_lib.dumps(messages, indent=2))
+        _echo_raw(json_lib.dumps(messages, indent=2))
     elif not messages:
-        click.echo("(no messages)")
+        _echo("(no messages)")
     else:
         rows: list[tuple[str, ...]] = []
         for m in messages:
@@ -5322,20 +6091,39 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
     if shown < count:
         footer += " (use --all for the whole conversation)"
     if status:
-        footer += f"  ·  {status}"
-    click.echo()
-    click.echo(footer)
+        footer += f"  ·  {_sanitize_line(str(status))}"
+    if not full and not content and not any("content" in m for m in messages):
+        footer += "  ·  metadata only (pass --content for text)"
+    _echo()
+    _echo(footer)
 
 
 def _message_summary(m: dict[str, Any]) -> str:
-    """One-line summary for a message row (best-effort over compact fields)."""
-    parts = [str(m.get("content") or "")]
+    """One-line summary for a message row (best-effort over compact fields).
+
+    Tolerates the metadata-only projection (no content / arguments / error
+    text): tool calls render as bare function names, a tool message as its
+    function, and a withheld error as a bare ``error`` marker.
+
+    Every wire field is sanitized at its interpolation site (provenance is
+    irrelevant — see ``_sanitize_control``) so an unterminated string
+    sequence in one (e.g. the message content) can't swallow the parts
+    appended after it — the tool-call list or the ``error:`` tag.
+    """
+    parts = [_sanitize_control(str(m.get("content") or ""))]
+    if m.get("role") == "tool" and "content" not in m and m.get("function"):
+        parts.append(f"[{_sanitize_control(str(m['function']))} output]")
     for call in m.get("tool_calls") or []:
+        arguments = (
+            _truncate(str(call["arguments"]), 30) if call.get("arguments") else ""
+        )
         parts.append(
-            f"→ {call.get('function') or '?'}({_truncate(str(call.get('arguments') or ''), 30)})"
+            f"→ {_sanitize_control(str(call.get('function') or '?'))}({arguments})"
         )
     if m.get("error"):
-        parts.append(f"error: {m['error']}")
+        parts.append(f"error: {_sanitize_control(str(m['error']))}")
+    elif m.get("has_error"):
+        parts.append("error")
     return _truncate("  ".join(p for p in parts if p), 100)
 
 
@@ -5345,36 +6133,53 @@ def _event_summary(e: dict[str, Any]) -> str:
     A pending (in-flight) event renders its live state — ``generating M:SS``
     for a model call, ``running M:SS`` for a tool call — instead of the
     completion fields, whose placeholder values (zero tokens, a default stop
-    reason) would read as "finished with nothing".
+    reason) would read as "finished with nothing". Tolerates the
+    metadata-only projection (no completion / arguments / result / error
+    text): a withheld model/tool error renders as a bare ``error`` marker,
+    while an ``error``-type event renders an empty summary (its type column
+    already reads ``error``, so a marker would only duplicate it).
+
+    Every wire field is sanitized at its interpolation site (provenance is
+    irrelevant — see ``_sanitize_control``) so an unterminated string
+    sequence in one can't swallow the fields appended after it within the
+    summary.
     """
     t = e.get("event")
     if t == "model":
-        bits = [str(e.get("model") or "")]
+        bits = [_sanitize_control(str(e.get("model") or ""))]
         if e.get("pending"):
             bits.append(_format_pending("generating", e.get("timestamp")))
             return _truncate(" · ".join(b for b in bits if b), 80)
         if e.get("tokens") is not None:
             bits.append(f"{e['tokens']} tok")
         if e.get("stop_reason"):
-            bits.append(str(e["stop_reason"]))
+            bits.append(_sanitize_control(str(e["stop_reason"])))
         if e.get("completion"):
-            bits.append(str(e["completion"]))
+            bits.append(_sanitize_control(str(e["completion"])))
         if e.get("error"):
-            bits.append(f"error: {e['error']}")
+            bits.append(f"error: {_sanitize_control(str(e['error']))}")
+        elif e.get("has_error"):
+            bits.append("error")
         return _truncate(" · ".join(b for b in bits if b), 80)
     if t == "tool":
-        s = f"{e.get('function') or '?'}({_truncate(str(e.get('arguments') or ''), 30)})"
+        arguments = _truncate(str(e["arguments"]), 30) if e.get("arguments") else ""
+        s = f"{_sanitize_control(str(e.get('function') or '?'))}({arguments})"
         if e.get("pending"):
             s += f" · {_format_pending('running', e.get('timestamp'))}"
         elif e.get("error"):
-            s += f" → error: {e['error']}"
+            s += f" → error: {_sanitize_control(str(e['error']))}"
+        elif e.get("has_error"):
+            s += " → error"
         elif e.get("result"):
             s += f" → {_truncate(str(e['result']), 40)}"
         return _truncate(s, 80)
     if t == "error":
         return _truncate(str(e.get("error") or ""), 80)
     if t == "info":
-        bits = [str(e.get("source") or ""), str(e.get("data") or "")]
+        bits = [
+            _sanitize_control(str(e.get("source") or "")),
+            _sanitize_control(str(e.get("data") or "")),
+        ]
         return _truncate(" · ".join(b for b in bits if b), 80)
     return ""
 
@@ -5425,34 +6230,63 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         parts.append(f"{detail['retries']} retries")
     scores = detail.get("scores") or {}
     if scores:
+        # sanitize each k=v pair before joining so an unterminated string
+        # sequence in one score value can't swallow the scores after it
         parts.append(
-            "score " + ", ".join(f"{k}={_format_score(v)}" for k, v in scores.items())
+            "score "
+            + ", ".join(
+                _sanitize_control(f"{k}={_format_score(v)}") for k, v in scores.items()
+            )
         )
-    click.echo("  ·  ".join(p for p in parts if p))
+    # sanitize each part separately so an unterminated string sequence in one
+    # can't swallow the fields joined after it, and flatten newlines so one
+    # part can't forge a plausible header line of its own; filter on the
+    # sanitized value so a part that was all control bytes doesn't leave a
+    # dangling separator
+    sanitized_parts = (_sanitize_line(p) for p in parts)
+    _echo("  ·  ".join(p for p in sanitized_parts if p))
 
+    # `is not None`, not truthiness: a metadata-only read (no --content)
+    # carries a present-but-withheld error as an *empty* dict
     error = detail.get("error")
     retries = detail.get("error_retries") or []
-    if not error and not retries:
-        click.echo("\n(no errors)")
+    if error is None and not retries:
+        _echo("\n(no errors)")
         return
 
     if retries:
-        click.echo("\nprior attempts:")
+        _echo("\nprior attempts:")
         for i, retry_error in enumerate(retries, start=1):
             _echo_error(f"attempt {i}:", retry_error, show_traceback)
-    if error:
-        click.echo("\nfinal error:")
+    if error is not None:
+        _echo("\nfinal error:")
         _echo_error("", error, show_traceback)
 
 
 def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None:
-    """Echo one error: ``label  message`` plus an indented traceback if asked."""
-    message = error.get("message") or ""
-    click.echo(f"  {label} {message}".rstrip() if label else f"  {message}")
+    """Echo one error: ``label  message`` plus an indented traceback if asked.
+
+    A metadata-only detail (no ``--content``) carries each error as an empty
+    dict — no ``message`` key at all — rendered as an explicit withheld
+    marker rather than a blank line a reader would take for an empty message.
+    """
+    # flatten newlines so a crafted message can't print continuation lines at
+    # column 0 that mimic surrounding output (full text remains via --json)
+    message = (
+        _sanitize_line(error.get("message") or "")
+        if "message" in error
+        else "(message withheld — pass --content to include it)"
+    )
+    _echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
-        tb = error.get("traceback_ansi") or error.get("traceback") or ""
+        traceback_ansi = error.get("traceback_ansi")
+        if traceback_ansi:
+            tb = _sanitize_keep_sgr(traceback_ansi)
+        else:
+            tb = _sanitize_control(error.get("traceback") or "")
         for line in tb.rstrip("\n").splitlines():
-            click.echo(f"    {line}")
+            # raw: `_echo` would strip the SGR styling `_sanitize_keep_sgr` kept
+            _echo_raw(f"    {line}")
 
 
 def _format_pending(verb: str, timestamp: Any) -> str:
@@ -5465,8 +6299,132 @@ def _format_pending(verb: str, timestamp: Any) -> str:
     return f"{verb} {elapsed}".rstrip()
 
 
+# Well-formed ANSI escape sequences, removed whole so their printable payload
+# (e.g. the `0;title` of an OSC title write) doesn't survive as stray text:
+# CSI (params + intermediates + final byte), the string sequences (OSC and
+# DCS/SOS/PM/APC — BEL-, ST-, or raw-C1-ST-terminated, tolerating an
+# unterminated tail), charset designations, then any other two-byte ESC
+# sequence.
+_ANSI_ESCAPE_RE = re.compile(
+    r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI
+    r"|\x1b[\]PX^_][^\x07\x1b\x9c]*(?:\x07|\x1b\\|\x9c)?"  # OSC/DCS/SOS/PM/APC
+    r"|\x1b[()*+./-][0-~]"  # charset designations
+    r"|\x1b."  # C1 aliases, keypad modes, etc.
+)
+
+# Remaining C0 controls (newline and tab excepted — handled by callers and
+# `_sanitize_control` respectively), DEL, raw 8-bit C1 controls, and Unicode
+# bidi controls (ALM, LRM/RLM, embeddings/overrides, isolates): on
+# BiDi-aware terminals (VTE, mintty) an RLO in one table cell visually
+# reorders the rest of the physical line, trusted columns included (cf.
+# Trojan Source, CVE-2021-42574). Costs explicit direction marks in
+# legitimate RTL output — the right trade for a triage CLI.
+_CONTROL_CHARS_RE = re.compile(
+    r"[\x00-\x08\x0b-\x1f\x7f-\x9f"
+    r"\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]"
+)
+
+
+def _sanitize_control(text: str) -> str:
+    """Neutralize terminal control bytes in display text.
+
+    Tool results and model completions land verbatim in the transcript and
+    flow out through the read commands' human renderings, so a sample under
+    evaluation can emit ESC/CSI/OSC sequences, carriage returns, or
+    backspaces that rewrite what the operator's terminal shows (spoofed
+    results, title/clipboard writes). Rather than classify which fields an
+    agent can influence — a provenance analysis that silently rots as
+    fields are added — the human rendering paths sanitize *every* dynamic
+    string at its formatting boundary (table cells, summary/label
+    interpolations, joined header parts, echoed status lines). The function
+    is a no-op on clean text and idempotent, so blanket application costs
+    nothing; where several fields join into one line, each is sanitized
+    before the join so an unterminated string sequence in one can't swallow
+    the fields after it.
+
+    Well-formed escape sequences are removed whole (payload included), tabs
+    become single spaces (they'd break the tables' width math), and any
+    remaining C0/C1 control byte or Unicode bidi control is dropped —
+    newline excepted: single-line renderings flatten it via
+    ``_sanitize_line``, multi-line ones (tracebacks) keep it. The
+    ``--json`` / ``--full`` machine paths are deliberately not routed
+    through here (``json.dumps`` escapes control bytes);
+    ``traceback_ansi`` goes through ``_sanitize_keep_sgr``, which
+    preserves SGR styling and routes everything else through this
+    function.
+    """
+    text = _ANSI_ESCAPE_RE.sub("", text)
+    return _CONTROL_CHARS_RE.sub("", text.replace("\t", " "))
+
+
+def _sanitize_line(text: str) -> str:
+    """``_sanitize_control`` plus newline flattening, for one-line renderings.
+
+    Any field interpolated into a single-line rendering — a table cell, a
+    joined header part, a status/reason echo — flattens embedded newlines to
+    spaces so the field can't print a forged line of its own at column 0.
+    Multi-line renderings (tracebacks) use ``_sanitize_control`` directly.
+    """
+    return _sanitize_control(text).replace("\n", " ")
+
+
+# SGR (color/style) sequences — the one escape class rich's own tracebacks
+# legitimately contain, and inert on their own (they can restyle, never
+# rewrite or exfiltrate).
+_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _sanitize_keep_sgr(text: str) -> str:
+    """`_sanitize_control`, but preserving SGR color/style sequences.
+
+    For ``traceback_ansi``: usually Inspect's own rich rendering (SGR-only
+    styling worth keeping), but it falls back to raw, un-rendered text for
+    oversized tracebacks and in recovered logs — and a traceback embeds
+    agent-influenced exception text — so everything except SGR is
+    neutralized rather than trusted wholesale. Kept styling is closed with
+    a trailing reset: a raw fallback can end mid-style (even an SGR 8
+    conceal), which would otherwise bleed into subsequent trusted output.
+    """
+    out: list[str] = []
+    last = 0
+    for m in _SGR_RE.finditer(text):
+        out.append(_sanitize_control(text[last : m.start()]))
+        out.append(m.group())
+        last = m.end()
+    out.append(_sanitize_control(text[last:]))
+    result = "".join(out)
+    if last:
+        stripped = result.rstrip("\n")
+        if not stripped.endswith("\x1b[0m"):
+            result = stripped + "\x1b[0m" + result[len(stripped) :]
+    return result
+
+
+def _echo(message: str = "", *, err: bool = False, nl: bool = True) -> None:
+    """``click.echo`` with ``_sanitize_control`` applied — the module default.
+
+    Every echoed line leaves through here so rendering code is sanitized by
+    construction (see ``_sanitize_control`` for the policy) even when a
+    call site misses a per-field wrap; ``_echo_raw`` is the explicit
+    opt-out. A test walks this module's AST to keep direct ``click.echo``
+    calls out of everything but these two wrappers.
+    """
+    click.echo(_sanitize_control(message), err=err, nl=nl)
+
+
+def _echo_raw(message: str = "", *, err: bool = False, nl: bool = True) -> None:
+    """``click.echo`` without sanitization.
+
+    For machine output — the ``--json`` paths, which are bytes-faithful by
+    contract (``json.dumps`` escapes control bytes itself) — and for the
+    keep-SGR renderings (``traceback_ansi``, the anomalies export), whose
+    deliberately kept styling ``_echo`` would strip.
+    """
+    click.echo(message, err=err, nl=nl)
+
+
 def _truncate(text: str, width: int) -> str:
-    text = text.replace("\n", " ")
+    text = _sanitize_line(text)
     return text if len(text) <= width else text[: width - 1] + "…"
 
 
@@ -5579,14 +6537,14 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
     ``inspect ctl process keep``, which turns it on for a running process.
     """
     flags = [bool(s.get("keep_alive")) for s in summaries]
-    click.echo()
+    _echo()
     if all(flags):
-        click.echo("keep-alive: on")
+        _echo("keep-alive: on")
     elif not any(flags):
-        click.echo("keep-alive: off  ·  set with `inspect ctl process keep`")
+        _echo("keep-alive: off  ·  set with `inspect ctl process keep`")
     else:
         on = sum(flags)
-        click.echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
+        _echo(f"keep-alive: mixed ({on}/{len(flags)} on)")
 
     # flag paused work below the table (the per-row cell can scroll away and
     # a paused run must not read as stalled). A paused run never finishes —
@@ -5606,13 +6564,13 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
             for latch in ("task", "model", "process")
             if latch in held
         ]
-        click.echo(
+        _echo(
             f"paused: {len(paused)}/{len(summaries)} task"
             f"{'' if len(summaries) == 1 else 's'}{detail}  ·  resume with "
             f"{' / '.join(resumes)}"
         )
         if any(not s.get("keep_alive") for s in paused):
-            click.echo(
+            _echo(
                 "note: a paused run never finishes — it will not exit until "
                 "resumed (or cancelled), despite keep-alive being off."
             )
@@ -5623,7 +6581,7 @@ def _print_keep_alive_footer(summaries: list[dict[str, Any]]) -> None:
         {m for s in summaries for m in (s.get("paused_models") or [])}
     )
     if paused_models:
-        click.echo(
+        _echo(
             f"paused models: {', '.join(paused_models)}  ·  resume with "
             "`inspect ctl model resume`"
         )
@@ -5643,7 +6601,7 @@ def _print_errored_samples_footer(summaries: list[dict[str, Any]]) -> None:
     errored = sum((s.get("samples") or {}).get("errored", 0) for s in summaries)
     if errored > 0:
         noun = "sample" if errored == 1 else "samples"
-        click.echo(f"{errored} {noun} errored — see `inspect ctl sample errors`")
+        _echo(f"{errored} {noun} errored — see `inspect ctl sample errors`")
 
 
 def _task_header(target: dict[str, Any]) -> str:
@@ -5663,7 +6621,12 @@ def _task_header(target: dict[str, Any]) -> str:
     attempts = int(target.get("attempts", 1) or 1)
     if attempts > 1:
         parts.append(f"{attempts} attempts")
-    return "  ·  ".join(parts)
+    # sanitize each part before the join and flatten newlines so no field
+    # can swallow the parts after it or forge a plausible header line; filter
+    # on the sanitized value so a part that was all control bytes doesn't
+    # leave a dangling separator
+    sanitized_parts = (_sanitize_line(p) for p in parts)
+    return "  ·  ".join(p for p in sanitized_parts if p)
 
 
 def _print_samples_table(
@@ -5769,7 +6732,14 @@ def _render_table(
     *,
     err: bool = False,
 ) -> None:
-    """Print an aligned, dashed-underline table (to stderr when ``err``)."""
+    """Print an aligned, dashed-underline table (to stderr when ``err``).
+
+    Every cell is sanitized here (not only via `_truncate`) so no
+    agent-controlled string reaches the terminal raw, the width math counts
+    printable characters only, and an embedded newline can't forge rows.
+    """
+    headers = tuple(_sanitize_control(h) for h in headers)
+    rows = [tuple(_sanitize_line(cell) for cell in row) for row in rows]
     widths = [
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
@@ -5778,10 +6748,10 @@ def _render_table(
     def _fmt_row(row: tuple[str, ...]) -> str:
         return "  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row))
 
-    click.echo(_fmt_row(headers), err=err)
-    click.echo(_fmt_row(tuple("-" * w for w in widths)), err=err)
+    _echo(_fmt_row(headers), err=err)
+    _echo(_fmt_row(tuple("-" * w for w in widths)), err=err)
     for row in rows:
-        click.echo(_fmt_row(row), err=err)
+        _echo(_fmt_row(row), err=err)
 
 
 def _format_samples(samples: dict[str, Any]) -> str:

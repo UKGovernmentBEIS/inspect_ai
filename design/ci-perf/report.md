@@ -1,121 +1,166 @@
-# CI performance report — 2026-08-05
+# CI performance report — 2026-08-12
 
-Data: 200 PR runs, 2026-08-04 18:32 .. 2026-08-05 12:47 UTC. Snapshot:
-`history/2026-08-05.json`. Previous: 2026-08-04.
+Data: 200 PR runs, 2026-08-11 21:04 .. 2026-08-12 17:40 UTC. Snapshot:
+`history/2026-08-12.json`. Previous: 2026-08-05 (200 runs / 18.3h; this
+window is 200 runs / 20.6h, so throughput is comparable).
 
 ## Summary
 
-Build median wall clock dropped **15.6 → 10.3 min** (p90 23.8 → 21.4).
-Two effects: last run's fixes merged mid-window (#4747 at 11:16 UTC), and
-this window has less batch-push queue contention than yesterday's. In the
-post-merge slice the effect is unambiguous: **test jobs now start ~9 s
-after run start (was 42 s median / 13 min p90 wait)**, and Build wall is
-8.9 min median (n=6 — small sample, confirm next run). With the
-serialization gone and queue quiet, the bottleneck is now **pytest
-execution itself: 8.5 min median**, of which one test contributes 38 s.
+Build median wall clock **10.3 → 7.7 min**, p90 **20.8 → 8.9 min**; Viewer
+**2.8 → 1.4 min**. Queue time has essentially vanished — every job now
+starts ~3 s after run start with a p90 of 9–17 s (previously 18–40 s
+median, 285–520 s p90) — so the earlier queue-contention bottleneck is
+gone in this window and **PR wall clock is now just the `test` job's
+pytest run: 442 s exec, of which 412 s is pytest itself**. Last run's
+fixes all landed and verified. The single largest remaining item in the
+PR-gate suite is one docker test costing 43 s.
 
 ## Queue vs execution
 
-Median execution / median queue / p90 queue, successful runs. (Queue for
-dependent jobs measured from predecessor completion.)
+Median execution / queue, successful runs. Queue for dependent jobs is
+measured from predecessor completion (`needs` map read from the workflow
+files).
 
-| Workflow | Job | n | exec med | queue med | queue p90 |
-|---|---|---|---|---|---|
-| Build | test (per matrix leg) | 100 | 510s | 10s | 461s |
-| Build | docs (when docs change) | 16 | 392s | 210s | 470s |
-| Build | mypy (per matrix leg) | 114 | 114s | 21s | 433s |
-| Build | pre-commit | 57 | 57s | 18s | 519s |
-| Build | package | 57 | 51s | 21s | 451s |
-| Build | ruff | 57 | 34s | 20s | 395s |
-| Viewer | check-schema-and-types | 87 | 78s | 39s | 424s |
-| Viewer | viewer-tests | 87 | 62s | 26s | 305s |
-| Viewer | dist-validation | 87 | 30s | 33s | 285s |
+| Workflow | Job | n | exec med | exec p90 | queue med | queue p90 |
+|---|---|---|---|---|---|---|
+| Build | slow-tool-tests-dev | 2 | 1028s | 1182s | 3s | 3s |
+| Build | slow-tool-tests-release | 2 | 816s | 843s | 2s | 3s |
+| Build | test (per matrix leg) | 102 | 442s | 489s | 3s | 10s |
+| Build | docs (when docs change) | 22 | 369s | 392s | 2s | 9s |
+| Build | mypy (per matrix leg) | 102 | 88s | 95s | 3s | 13s |
+| Viewer | check-schema-and-types | 66 | 74s | 86s | 3s | 14s |
+| Viewer | viewer-tests | 66 | 59s | 68s | 3s | 10s |
+| Build | pre-commit | 51 | 32s | 37s | 3s | 17s |
+| Build | package | 51 | 30s | 34s | 3s | 9s |
+| Viewer | dist-validation | 66 | 28s | 35s | 3s | 11s |
+| Build | ruff | 51 | 10s | 13s | 3s | 11s |
+| Build | detect-slow | 51 | 9s | 10s | 3s | 10s |
+| Build | changes | 51 | 8s | 9s | 3s | 13s |
 
-Queue medians collapsed vs yesterday (10–40s vs 130–200s) — partly less
-contention in this window, partly 2 fewer serialized job-starts per Build.
-p90s remain 5–8 min: batch pushes still saturate the pool.
+Execution also dropped across the board vs 2026-08-05 (test 510→442s,
+mypy 114→88s, pre-commit 57→32s, ruff 34→10s, package 51→30s) — that is
+the `filter: blob:none` checkout change from #4760: checkout is now 4–5 s
+median (max 14 s) in mypy/ruff/pre-commit/docs, where the previous report
+measured 30 s–4 min of erratic full-pack fetching.
 
-## Impact verification (previous run's PRs)
+### Critical path
 
-- **#4747 (un-serialize `changes` → `test`): confirmed.** Post-merge, test
-  jobs wait a median of **8 s** from run start (pre-merge in the same
-  window: 42 s median, 804 s p90; the mechanism — a queue+run cycle of
-  `changes` in front of `test` — is gone). Build wall median post-merge
-  8.9 min vs 11.3 pre (n=6, contention-confounded; predicted −2.5 min
-  median holds directionally).
-- **#4746 (`--durations`): confirmed working** — per-test data captured
-  from all 12 mined test jobs; table below exists because of it.
+- **Ordinary PR:** `test` is the whole story — 3 s queue + 442 s exec, vs
+  7.7 min Build wall. Nothing else comes close, and inside `test`, 412 s
+  is the pytest step (10 s install, 4 s checkout).
+- **Sandbox-tools PR:** a separate, much longer path —
+  `detect-slow` → `check-version-bump` → `slow-tool-tests-dev` (1028 s) →
+  `slow-tool-tests-release` (816 s), serialized by `needs`. Observed Build
+  wall on those PRs: 29.5 and 33.7 min (the two longest runs in the
+  window). See proposal 3.
 
 ## Slowest tests
 
-Median `call` seconds across 12 CI test jobs (2026-08-05). Sum of all 108
-captured slow-test medians: 308 s of the ~510 s job execution (xdist
-spreads these across workers; the longest single test bounds the tail).
+Median seconds across 14 CI test jobs, `call` + `setup` + `teardown`
+combined. 122 tests captured (`--durations-min=1`), 328 s total spread
+across xdist workers.
 
 | Median | Test | Classification |
 |---|---|---|
-| 38.4s | `test_eval.py::test_eval_sandbox_init_when_first_task_has_no_sandbox` | docker container lifecycle for a sandbox-type-agnostic gating check → **fix prepared: spy on `SandboxManager.start` + local sandbox, 38s → ~2s** |
-| 9.7s | `test_asyncfiles.py::test_iter_files_s3_pagination` | 1001+ keys are inherent (S3 default page size), each a real HTTP PUT to the moto server → **fix: writes parallelized and test marked `slow` — leaves the PR gate, runs in the 2-hourly slow suite** |
-| 9.4s | `test_solver_spec.py::test_solver_extension` | not the test: `ensure_test_package_installed()` pip-installs `tests/test_package` mid-run; first caller pays (hence n=6) → **fix: pre-install in the CI install step (#4760)** |
-| 6.6s | `test_eval_set_scanner.py::test_scout_scan_resume_reruns_failed_scans` | not yet examined |
-| 6.4s | `test_launch_handoff.py::test_eval_detach_hands_off_and_leaves_eval_running` | real subprocess + control-server handshake; file totals ~21s over 4 tests — next candidate |
-| 6.3s | `test_launch_handoff.py::test_eval_detach_via_dotenv_detaches_exactly_once` | (as above) |
-| 6.2s | `test_eval_set_scanner.py::test_scanner_resume_...[s3]` | not yet examined |
-| 5.9s | `test_eval_set.py::test_eval_set_previous_task_args` | not yet examined |
-| 5.1s | `test_agent_bridge.py::test_google_bridge_computer_use_incompatible_model` | not yet examined |
-| 4.8s | `test_launch_handoff.py::test_eval_json_redirects_subprocess_stdout_to_stderr` | (launch_handoff) |
-| 4.7s | `test_agent_bridge.py::test_google_bridge_streaming_not_supported` | not yet examined |
-| 4.7s | `test_eval_log_config.py::test_eval_log_run_config_round_trip` | not yet examined |
-| 4.3s | `test_sample_limits.py::test_working_limit` | likely real waits (limit tests) |
-| 4.2s | `test_sample_shuffle.py::test_sample_shuffle` | not yet examined |
-| 3.8s | `test_launch_handoff.py::test_eval_detach_fails_when_control_bind_fails` | (launch_handoff) |
+| 42.9s | `test_docker_read_file.py::test_docker_read_file_contains_untrusted_sources` | **The docker trap**: 40.1 s of it is fixture setup starting a real container; `@skip_if_no_docker` without `@pytest.mark.slow`, so it runs in the PR gate. → **fixed in #4848 (proposal 1)** |
+| 8.8s | `test_eval_set_scanner.py::test_scout_scan_resume_reruns_failed_scans` | genuinely heavy (multi-eval resume flow); grew 6.6→8.8s, see regressions |
+| 6.6s | `test_eval_set_scanner.py::test_scanner_resume_...[s3]` | moto S3 + full eval-set resume |
+| 6.5s | `test_launch_handoff.py::test_eval_detach_hands_off_and_leaves_eval_running` | real CLI subprocess + control-server handshake |
+| 6.4s | `test_launch_handoff.py::test_eval_detach_via_dotenv_detaches_exactly_once` | (as above) |
+| 6.0s | `test_eval_set.py::test_eval_set_previous_task_args` | not yet examined |
+| 4.8s | `test_eval_log_config.py::test_eval_log_run_config_round_trip` | not yet examined |
+| 4.8s | `test_launch_handoff.py::test_eval_json_redirects_subprocess_stdout_to_stderr` | real CLI subprocess (documented: needs real fds) |
+| 4.5s | `test_agent_bridge.py::test_google_bridge_computer_use_incompatible_model` | not yet examined |
+| 4.4s | `test_agent_bridge.py::test_google_bridge_streaming_not_supported` | not yet examined |
+| 4.2s | `test_sample_limits.py::test_working_limit` | real waits inherent to limit tests |
+| 3.9s | `test_launch_handoff.py::test_eval_detach_fails_when_control_bind_fails` | real CLI subprocess |
+| 3.4s | `test_sample_limits.py::test_solver_timeout_not_scored` | real waits |
+| 3.3s | `test_sample_shuffle.py::test_sample_shuffle` | not yet examined |
+| 3.3s | `test_limit_working.py::test_working_limit_interrupts_local_sandbox_exec` | real waits |
+
+The `test_launch_handoff.py` cluster is ~25 s across 5 tests, each running
+the real CLI in a subprocess. That cost is inherent to what they assert
+(fd/stdout behavior, SIGTERM handling, detached-child lifetime) — not
+worth converting, and none is individually large.
+
+## Impact verification (previous run's PRs)
+
+All of #4760 confirmed:
+
+- **38.4 s `test_eval_sandbox_init_when_first_task_has_no_sandbox`** — no
+  longer in the durations data at all (below the 1 s cutoff).
+- **9.7 s `test_iter_files_s3_pagination`** — gone from the PR gate
+  (marked slow).
+- **9.4 s `test_solver_extension`** — gone; pre-installing
+  `tests/test_package` in the CI install step removed the mid-run pip.
+- **`filter: blob:none`** — checkout in the Build jobs is 4–5 s median,
+  max 14 s across 292 samples; the erratic 30 s–4 min fetch is gone. Job
+  exec dropped 10–25 s each accordingly.
+
+Predicted −60 s median on the PR gate; measured −68 s on `test` exec plus
+20–25 s on each of the shorter jobs. Held.
 
 ## Regressions since last report
 
-None — first run with per-test data establishes the baseline.
+- `test_scout_scan_resume_reruns_failed_scans` 6.6 → 8.8 s (+33%). Small
+  in absolute terms; worth a look if it grows again.
+- Nothing else moved more than ~1 s.
 
 ## Waste
 
-- Cancelled superseded runs: 29/200, 417 runner-min burned (yesterday:
-  526). Steady-state cost of rapid push sequences.
-- Compute: Build 1,947 runner-min in the window; Viewer 277.
-- `docs` job: 6.5 min Quarto render, no render caching (proposal 5).
+- Cancelled superseded runs: 4/200, 24 runner-min (previous: 29/200,
+  417 min) — this window had far less rapid-push churn, not a fix.
+- Compute: 1,353 runner-min total (Build 1,141; Viewer 205; Changelog
+  Lint 7), down from 2,226.
+- `check-schema-and-types` checkout: 30 s median, 216 s max — the one
+  remaining unfiltered `fetch-depth: 0` checkout (proposal 2).
+- `docs` job: 309 s Quarto render, still uncached (proposal 6).
 
 ## Proposals (ranked)
 
-1. ~~Add `--durations` to Build pytest~~ — **done, #4746 merged, verified.**
-2. ~~Remove `changes` → `test` serialization~~ — **done, #4747 merged,
-   verified (test-job start wait 42s+ → 8s median).**
-3. **Replace docker with spied local sandbox in the 38s
-   `test_eval_sandbox_init_...` test** — impact: −38s from the longest
-   test (bounds the xdist tail); coverage verified preserved (test fails
-   when the original `next()` bug is reintroduced; a plain local-sandbox
-   swap without the spy does NOT fail and was rejected). Safe fix (trivial
-   test fix). Status: **PR opened #4760**.
-4. **`test_iter_files_s3_pagination`: parallelize writes and mark `slow`** —
-   impact: ~−10s median off the PR-gate suite (moved to the 2-hourly slow
-   run; also ~2x faster there). Safe fix. Status: **PR opened #4760**.
-5. **Merge the 4 Viewer jobs into 1–2** — structural (required-check
-   rename); still the biggest queue-pressure lever for batch pushes
-   (p90 queue 5–8 min). Status: carried, awaiting maintainer decision.
-6. **Runner pool size / larger runners for `test`** — structural/cost.
+1. **Mark the 43 s docker `read_file` test `@pytest.mark.slow`** — it
+   starts a real container in fixture setup (40 s) and runs on every PR
+   because `@skip_if_no_docker` doesn't skip in CI. Coverage moves to the
+   2-hourly slow suite, which is where the policy puts docker tests.
+   Impact: up to −43 s off the critical xdist worker (−15 to −40 s on
+   `test` exec, so on Build wall clock). Safe fix. Status: **PR opened
+   #4848**.
+2. **`filter: blob:none` on the `check-schema-and-types` checkout** — the
+   only `fetch-depth: 0` checkout still fetching the full ~400 MB pack; no
+   step in that job reads historical blobs (the `git diff`/`git status`
+   checks are working-tree only). Impact: −25 s median on the Viewer
+   critical path (74 → ~50 s), and removes the 216 s tail. Safe fix.
+   Status: **PR opened #4848**.
+3. **Un-serialize `slow-tool-tests-release` from `slow-tool-tests-dev`** —
+   release consumes no output from dev (it downloads the published
+   artifact and re-runs the same suite), so the `needs` edge is pure
+   ordering. Dropping it would cut ~13 min of the 29–34 min wall clock on
+   sandbox-tools PRs. Cost: when dev fails, release burns ~14 runner-min
+   instead of being skipped. The sequence is deliberate and documented in
+   `design/sandbox-tools-ci-gates.md`, so this is a maintainer call.
+   Structural. Status: new.
+4. **Merge the 4 Viewer jobs into 1–2** — required-check rename. Much less
+   valuable now that queue time is ~3 s; the argument is compute and
+   batch-push resilience, not current wall clock. Structural. Status:
+   carried, downgraded.
+5. **Runner pool size / larger runners for `test`** — with queue at 3 s the
+   only remaining lever on `test` is more cores for xdist. Structural/cost.
    Status: carried.
-7. **Cache the Quarto render for `docs`** — structural. Status: carried.
-8. **Pre-install `tests/test_package` in the CI install step** — impact:
-   ~−9s off the xdist critical path per test job plus a ~3.5s lock echo;
-   also removes install noise from the durations data. Safe fix. Status:
-   **PR opened #4760** (same change proposed to the meridian scheduled
-   workflow separately).
-9. **`filter: blob:none` on the always-run jobs' checkouts** (ruff,
-   mypy, pre-commit, docs, test, package) — impact: caps the erratic
-   30s–4min full-pack fetch at tens of MB; slow-tool jobs keep full
-   blobs (they `git diff main` over sources). Not applied to the
-   meridian scheduled workflow: its self-hosted runner reuses the
-   workspace (checkouts measured 16–50s incremental). Safe fix. Status:
-   **PR opened #4760**.
-10. **Remaining slow tests** (`test_launch_handoff.py` cluster ~21s,
-   `test_solver_extension` 9.4s, eval-set scanner tests) — examine next
-   run with a second day of durations data. Status: new.
+6. **Cache the Quarto render for `docs`** — 309 s render on docs PRs; below
+   the `test` job's 442 s, so it is not on the critical path today.
+   Structural. Status: carried, low priority.
+7. **Policy consistency: 3 more docker tests lack `@pytest.mark.slow`** —
+   `test_docker_compose_config.py` (3 tests). They only shell out to
+   `docker compose config` and each costs <1 s (below the durations
+   cutoff), so there is no measurable win; flagging only because the
+   convention is what enforces the gate. Status: new, report-only.
+8. **Collector hardening** — the GitHub runs endpoint served a stale page
+   during this run, producing a snapshot whose 200 runs had a 3.5-week
+   hole in the middle and zero `--durations` data (the older clump
+   predated the flag). Fixed in
+   `.claude/skills/ci-perf/scripts/collect_ci_data.py`: dedupe by run id,
+   sort by start time, and warn when the window isn't contiguous. Status:
+   **PR opened #4848**.
 
 ## PRs opened by this skill
 
@@ -124,4 +169,7 @@ None — first run with per-test data establishes the baseline.
 - #4747 — remove `changes` → `test` serialization (2026-08-04, **merged**,
   impact verified)
 - #4748 — the ci-perf skill itself (2026-08-04, **merged**)
-- #4760 — combined: both slow-test fixes + this report/snapshot (2026-08-05, open)
+- #4760 — two slow-test fixes + `blob:none` checkouts + slow-test policy
+  docs (2026-08-05, **merged**, impact verified above)
+- #4848 — mark the 43 s docker test slow, `blob:none` on the Viewer
+  checkout, collector hardening + this report/snapshot (2026-08-12, open)
