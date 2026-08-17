@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import traceback
+import uuid
 import warnings
 from collections.abc import Iterator
 from types import FrameType
@@ -293,6 +294,10 @@ def no_model_copyreg_reducer():
 
 _HANG_DUMP_DIR_ENV = "INSPECT_TEST_HANG_DUMP_DIR"
 _HANG_DUMP_SECONDS_ENV = "INSPECT_TEST_HANG_DUMP_SECONDS"
+# Per-session token baked into dump filenames (controller sets it, workers
+# inherit it): the report matches on it so stale dumps left in a user-supplied
+# (never-cleaned) dump dir by earlier runs are not re-printed.
+_HANG_DUMP_TOKEN_ENV = "INSPECT_TEST_HANG_DUMP_TOKEN"
 
 # Resolved in pytest_configure; 0 disables the watchdog.
 _hang_dump_seconds = 0
@@ -408,9 +413,11 @@ def _arm_hang_dump() -> None:
         return
     try:
         if _hang_dump_file is None:
+            token = os.environ.get(_HANG_DUMP_TOKEN_ENV, "")
             worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
             _hang_dump_file = open(
-                os.path.join(dump_dir, f"hang-{worker}-pid{os.getpid()}.txt"), "w"
+                os.path.join(dump_dir, f"hang-{token}-{worker}-pid{os.getpid()}.txt"),
+                "w",
             )
         faulthandler.dump_traceback_later(
             _hang_dump_seconds, exit=False, file=_hang_dump_file
@@ -455,7 +462,10 @@ def _report_hang_dumps() -> None:
     dump_dir = os.environ.get(_HANG_DUMP_DIR_ENV)
     if not dump_dir or not os.path.isdir(dump_dir):
         return
+    prefix = f"hang-{os.environ.get(_HANG_DUMP_TOKEN_ENV, '')}-"
     for name in sorted(os.listdir(dump_dir)):
+        if not name.startswith(prefix):
+            continue
         try:
             with open(os.path.join(dump_dir, name)) as f:
                 content = f.read().strip()
@@ -472,6 +482,8 @@ def _report_hang_dumps() -> None:
     if _hang_dump_dir_created is not None:
         shutil.rmtree(_hang_dump_dir_created, ignore_errors=True)
         os.environ.pop(_HANG_DUMP_DIR_ENV, None)
+    # drop the token so an in-process follow-up run gets a fresh one
+    os.environ.pop(_HANG_DUMP_TOKEN_ENV, None)
 
 
 def _report_oom_kills(exitstatus: int) -> None:
@@ -540,6 +552,8 @@ def pytest_configure(config):
     if _hang_dump_seconds > 0 and _HANG_DUMP_DIR_ENV not in os.environ:
         _hang_dump_dir_created = tempfile.mkdtemp(prefix="pytest-hang-dumps-")
         os.environ[_HANG_DUMP_DIR_ENV] = _hang_dump_dir_created
+    if _hang_dump_seconds > 0:
+        os.environ.setdefault(_HANG_DUMP_TOKEN_ENV, uuid.uuid4().hex[:8])
 
 
 def pytest_collection_modifyitems(config, items):
