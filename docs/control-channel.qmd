@@ -40,7 +40,7 @@ A bare noun implies `list`: `inspect ctl task` ≡ `inspect ctl task list`, and 
 The endpoint is a Unix domain socket under the current user's Inspect data directory. It is not reachable over the network or by other users on the same machine, and it requires no configuration.
 
 ::: {.callout-note}
-Earlier releases exposed these operations as flat verbs (`inspect ctl tasks`, `samples`, `sample`, `errors`, `events`, `limits`, `flush`, `buffer`, `keep`, `release`). Those spellings still work as hidden, deprecated aliases (each prints a pointer to the new spelling on stderr) and will be removed in a future release — except `sample`, whose name now belongs to the command group: use `inspect ctl sample show` for what `inspect ctl sample` did.
+Earlier releases exposed these operations as flat verbs (`inspect ctl tasks`, `samples`, `sample`, `errors`, `events`, `limits`, `flush`, `buffer`, `keep`, `release`). Those spellings were kept for a transition window as hidden, deprecated aliases and have now been removed — use the noun-group commands in the table above (e.g. `inspect ctl task list` for `inspect ctl tasks`, `inspect ctl sample show` for `inspect ctl sample`, `inspect ctl config` for `inspect ctl limits`).
 :::
 
 ## Launch Handoff

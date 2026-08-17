@@ -19,12 +19,10 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
 - ``process`` — the running Inspect process itself: ``list`` (implied by the
   bare noun), ``anomalies``, ``keep``, ``release``.
 
-The old flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
-``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survive as hidden,
-deprecation-noted aliases for a transition window — thin delegations to the
-new implementations (new behavior and JSON shapes included). The old
-``sample`` command's name is claimed by the group and breaks immediately;
-its error message points at ``sample show``.
+The pre-reorg flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
+``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survived as hidden,
+deprecation-noted aliases for a transition window and have been removed; the
+mapping table in the design doc records each replacement.
 """
 
 from __future__ import annotations
@@ -491,15 +489,6 @@ def _exit_all_busy(busy_pids: list[int]) -> NoReturn:
     and the envelope message stays hint-free.
     """
     _fail("busy", f"No tasks visible: {_busy_note(busy_pids)}.")
-
-
-def _deprecation_note(old: str, new: str) -> None:
-    """Print (to stderr, keeping ``--json`` stdout parseable) an alias note."""
-    _echo(
-        f"note: `inspect ctl {old}` is now `inspect ctl {new}` — this hidden "
-        "alias will be removed in a future release.",
-        err=True,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -1629,197 +1618,6 @@ def model_resume_command(
 
 
 # ---------------------------------------------------------------------------
-# hidden deprecated aliases (the old flat spellings)
-# ---------------------------------------------------------------------------
-#
-# Thin delegations to the new implementations: spellings are preserved,
-# output is NOT (the new `{as_of, ...}` envelopes, unconditional task_id,
-# widened unscoped reads all apply through the alias). Each prints a one-line
-# stderr pointer at the new spelling. The old `sample` command is the one
-# spelling that cannot alias — the name is claimed by the group — and its
-# unknown-command error points at `sample show`.
-
-
-@ctl_command.command("tasks", hidden=True)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def tasks_alias(as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl task list`."""
-    _deprecation_note("tasks", "task list")
-    _run_task_list(as_json)
-
-
-@ctl_command.command("samples", hidden=True)
-@click.argument("task", required=False)
-@click.option("--active-since", type=float, default=None)
-@click.option("--content", is_flag=True, default=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def samples_alias(
-    task: str | None, active_since: float | None, content: bool, as_json: bool
-) -> None:
-    """Deprecated alias for `inspect ctl sample list`."""
-    _deprecation_note("samples", "sample list")
-    _run_sample_list(task, active_since, as_json, content=content)
-
-
-@ctl_command.command("errors", hidden=True)
-@click.argument("task", required=False)
-@click.option("--content", is_flag=True, default=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def errors_alias(task: str | None, content: bool, as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl sample errors`."""
-    _deprecation_note("errors", "sample errors")
-    _run_sample_errors(task, as_json, content=content)
-
-
-@ctl_command.command("events", hidden=True)
-@click.argument("task")
-@click.argument("sample_id")
-@click.argument("epoch", required=False, type=int, default=1)
-@click.option("--since", "cursor", default=None)
-@click.option("--tail", type=int, default=None)
-@click.option("--type", "types", default=None)
-@click.option("--content", is_flag=True, default=False)
-@click.option("--full", is_flag=True, default=False)
-@click.option("--since-time", type=float, default=None)
-@click.option("--until", type=float, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def events_alias(
-    task: str,
-    sample_id: str,
-    epoch: int,
-    cursor: str | None,
-    tail: int | None,
-    types: str | None,
-    content: bool,
-    full: bool,
-    since_time: float | None,
-    until: float | None,
-    as_json: bool,
-) -> None:
-    """Deprecated alias for `inspect ctl sample events` (--since is --cursor)."""
-    _deprecation_note("events", "sample events")
-    _run_sample_events(
-        task,
-        sample_id,
-        epoch,
-        cursor=cursor,
-        tail=tail,
-        from_start=False,
-        limit=None,
-        types=types,
-        content=content,
-        full=full,
-        since_time=since_time,
-        until=until,
-        as_json=as_json,
-    )
-
-
-# The aliases keep the old `--pid` option but also accept the positional PID
-# the new spelling (and the shared ambiguity error) teaches.
-@ctl_command.command("keep", hidden=True)
-@click.argument("pid_arg", required=False, type=int, metavar="[PID]")
-@click.option("--pid", type=int, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def keep_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl process keep`."""
-    _deprecation_note("keep", "process keep")
-    _run_keep_alive(pid_arg if pid_arg is not None else pid, keep=True, as_json=as_json)
-
-
-@ctl_command.command("release", hidden=True)
-@click.argument("pid_arg", required=False, type=int, metavar="[PID]")
-@click.option("--pid", type=int, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-def release_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
-    """Deprecated alias for `inspect ctl process release`."""
-    _deprecation_note("release", "process release")
-    _run_keep_alive(
-        pid_arg if pid_arg is not None else pid, keep=False, as_json=as_json
-    )
-
-
-@ctl_command.command("flush", hidden=True)
-@click.argument("task", required=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-@click.option("--terse/--no-terse", "terse", default=None)
-def flush_alias(task: str | None, as_json: bool, terse: bool | None) -> None:
-    """Deprecated alias for `inspect ctl task log-flush`."""
-    _deprecation_note("flush", "task log-flush")
-    _run_log_flush(task, as_json, terse=terse)
-
-
-@ctl_command.command("buffer", hidden=True)
-@click.argument("task", required=False)
-@click.option("--samples", "log_buffer", type=int, default=None)
-@click.option("--shared", "log_shared", type=int, default=None)
-@click.option("--json", "as_json", is_flag=True, default=False)
-@click.option("--terse/--no-terse", "terse", default=None)
-def buffer_alias(
-    task: str | None,
-    log_buffer: int | None,
-    log_shared: int | None,
-    as_json: bool,
-    terse: bool | None,
-) -> None:
-    """Deprecated alias for `inspect ctl config --log-buffer / --log-shared`."""
-    _deprecation_note("buffer", "config --log-buffer/--log-shared")
-    _run_config(
-        task,
-        max_samples=None,
-        max_sandboxes=None,
-        max_subprocesses=None,
-        max_connections=None,
-        model=None,
-        key=None,
-        log_buffer=log_buffer,
-        log_shared=log_shared,
-        dry_run=False,
-        as_json=as_json,
-        terse=terse,
-    )
-
-
-@ctl_command.command("limits", hidden=True)
-@click.argument("task", required=False)
-@click.option("--max-samples", type=click.IntRange(min=1), default=None)
-@click.option("--max-sandboxes", type=click.IntRange(min=1), default=None)
-@click.option("--max-connections", type=click.IntRange(min=1), default=None)
-@click.option("--model", default=None)
-@click.option("--key", "key", type=(str, click.IntRange(min=1)), default=None)
-@click.option("--dry-run", is_flag=True, default=False)
-@click.option("--json", "as_json", is_flag=True, default=False)
-@click.option("--terse/--no-terse", "terse", default=None)
-def limits_alias(
-    task: str | None,
-    max_samples: int | None,
-    max_sandboxes: int | None,
-    max_connections: int | None,
-    model: str | None,
-    key: tuple[str, int] | None,
-    dry_run: bool,
-    as_json: bool,
-    terse: bool | None,
-) -> None:
-    """Deprecated alias for `inspect ctl config`."""
-    _deprecation_note("limits", "config")
-    _run_config(
-        task,
-        max_samples=max_samples,
-        max_sandboxes=max_sandboxes,
-        max_subprocesses=None,
-        max_connections=max_connections,
-        model=model,
-        key=key,
-        log_buffer=None,
-        log_shared=None,
-        dry_run=dry_run,
-        as_json=as_json,
-        terse=terse,
-    )
-
-
-# ---------------------------------------------------------------------------
 # --json error envelope
 # ---------------------------------------------------------------------------
 #
@@ -2004,8 +1802,8 @@ def _envelope_failures(fn: Callable[_P, None]) -> Callable[_P, None]:
     """Wrap a command runner in :func:`_structured_failures`.
 
     Reads the runner's ``as_json`` argument off the bound call, so the
-    wrapper needs no per-runner plumbing and the aliases are covered through
-    their delegation. Every runner must take an ``as_json`` parameter —
+    wrapper needs no per-runner plumbing. Every runner must take an
+    ``as_json`` parameter —
     enforced at decoration time so a missing/renamed parameter fails at
     import rather than silently reverting that command to unstructured
     failures.
@@ -2047,7 +1845,7 @@ def _unreachable_failure(message: str, exc: "_ServerUnreachable") -> _CtlFailure
 
 
 # ---------------------------------------------------------------------------
-# command runners (shared by the canonical commands and the aliases)
+# command runners
 # ---------------------------------------------------------------------------
 
 
