@@ -48,6 +48,16 @@ from openai.types.responses import (
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
+from openai.types.responses.mcp_tool_call_error import (
+    McpToolCallError,
+    McpToolExecutionError,
+)
+from openai.types.responses.mcp_tool_call_error_param import (
+    McpToolCallErrorParam,
+)
+from openai.types.responses.mcp_tool_call_error_param import (
+    McpToolExecutionError as McpToolExecutionErrorParam,
+)
 from openai.types.responses.namespace_tool_param import (
     NamespaceToolParam,
 )
@@ -1206,6 +1216,42 @@ def mcp_list_tools_to_tool_use(output: McpListTools) -> ContentToolUse:
     )
 
 
+def mcp_error_to_str(error: McpToolCallError | None) -> str | None:
+    """Render a structured MCP tool call error as a display string.
+
+    openai 3.1.0 changed `McpCall.error` from `str | None` to a discriminated
+    union of error objects; `ContentToolUse.error` remains a display string.
+    """
+    match error:
+        case None:
+            return None
+        case McpToolExecutionError():
+            # pass string content through unchanged so the conversion is
+            # idempotent across replay round trips (no compounding JSON quoting)
+            return (
+                error.content
+                if isinstance(error.content, str)
+                else to_json_str_safe(error.content)
+            )
+        case _:
+            # protocol and HTTP errors both carry a code worth surfacing (a
+            # JSON-RPC code or an HTTP status) -- the message alone often
+            # isn't enough to triage the failure from a transcript
+            return f"{error.message} ({error.code})"
+
+
+def mcp_error_from_str(error: str | None) -> McpToolCallErrorParam | None:
+    """Rebuild a structured MCP error from its display string.
+
+    The original variant isn't recoverable from the string, so surface it as a
+    tool execution error. Only reached when no verbatim cached `server_tool_uses`
+    item is available for the call.
+    """
+    if error is None:
+        return None
+    return McpToolExecutionErrorParam(type="mcp_tool_execution_error", content=error)
+
+
 def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
     return ContentToolUse(
         tool_type="mcp_call",
@@ -1214,7 +1260,7 @@ def mcp_call_to_tool_use(output: McpCall) -> ContentToolUse:
         context=output.server_label,
         arguments=output.arguments,
         result=output.output or "",
-        error=output.error,
+        error=mcp_error_to_str(output.error),
     )
 
 
@@ -1245,7 +1291,7 @@ def tool_use_to_mcp_call_param(content: ContentToolUse) -> McpCallParam:
         arguments=content.arguments,
         server_label=content.context or "",
         output=content.result,
-        error=content.error,
+        error=mcp_error_from_str(content.error),
     )
 
 
