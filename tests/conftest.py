@@ -279,93 +279,142 @@ def no_model_copyreg_reducer():
 
 
 # ---------------------------------------------------------------------------
-# Worker-death diagnostics (#232).  xdist workers have died silently in CI
-# ("node down: Not properly terminated") with no traceback and no output.
-# The three unconfirmed suspects are: a stray SIGALRM landing on SIG_DFL
-# (default disposition terminates the process silently), a hang killed by
-# pytest-timeout's thread method (os._exit(1), whose output is swallowed
-# inside an xdist worker), and an OOM SIGKILL.  The hooks below make each
-# cause legible on its next occurrence; none of them changes test behavior.
+# Diagnostics for silent xdist worker deaths in CI ("node down: Not properly
+# terminated" with no traceback or output — issue #232).  Unconfirmed
+# suspects, and the hook that makes each legible on its next occurrence:
+#   - stray SIGALRM landing on SIG_DFL         -> _stray_sigalrm_handler
+#   - hang killed by pytest-timeout's thread
+#     method (os._exit(1), output swallowed
+#     inside a worker)                          -> hang-dump watchdog
+#   - OOM SIGKILL                               -> _report_oom_kills
+# None of these changes test behavior.
 # ---------------------------------------------------------------------------
 
-_HANG_DUMP_SECONDS = int(os.environ.get("INSPECT_TEST_HANG_DUMP_SECONDS", "600"))
 _HANG_DUMP_DIR_ENV = "INSPECT_TEST_HANG_DUMP_DIR"
+_HANG_DUMP_SECONDS_ENV = "INSPECT_TEST_HANG_DUMP_SECONDS"
 
+# Resolved in pytest_configure; 0 disables the watchdog.
+_hang_dump_seconds = 0
 # Keeps the dump file open for the life of the process: faulthandler writes
 # to the raw fd, so the file must stay open until the timer fires.
 _hang_dump_file: TextIO | None = None
+_hang_dump_disabled = False
+# The dump dir this process created (controller only); the only dir we may
+# delete — a pre-existing user-supplied _HANG_DUMP_DIR_ENV is left alone.
+_hang_dump_dir_created: str | None = None
+
+_STRAY_SIGALRM_MESSAGE = (
+    "stray SIGALRM: an alarm()/setitimer() armed by an earlier test "
+    "outlived it (see issue #232)"
+)
 
 
 def _stray_sigalrm_handler(signum: int, frame: FrameType | None) -> None:
     """Turn a stray SIGALRM into a loud failure instead of silent process death.
 
     Several tests install temporary SIGALRM handlers (``keyboard_interrupt()``,
-    test_google, test_grok) and ``_rearm_pytest_timeout()`` arms ``setitimer``
-    with no matching cancel.  If any armed timer outlives its test, the signal
-    is delivered later — on an xdist worker under ``--timeout-method=thread``
-    the handler by then is SIG_DFL, whose default disposition kills the worker
-    with no output at all.  Writing to fd 2 bypasses both pytest capture and
-    execnet's stream redirection, so the stack reaches the CI job log.
+    test_google, test_grok).  If an armed timer outlives its test, the signal
+    is delivered later when the disposition is SIG_DFL — which kills the
+    worker with no output at all.  Writing to fd 2 bypasses both pytest
+    capture and execnet's stream redirection, so the stack reaches the CI
+    job log even if the raised error is swallowed (e.g. by a retry wrapper).
     """
     stack = "".join(traceback.format_stack(frame))
-    message = (
-        "\n*** stray SIGALRM: an alarm()/setitimer() armed by an earlier test "
-        "outlived it (see issue #232). Stack at delivery:\n"
-        f"{stack}\n"
-    )
     with contextlib.suppress(OSError):
-        os.write(2, message.encode(errors="replace"))
-    raise RuntimeError(
-        "stray SIGALRM: an alarm()/setitimer() armed by an earlier test "
-        "outlived it (see issue #232 and the stack on stderr)"
-    )
+        os.write(
+            2,
+            f"\n*** {_STRAY_SIGALRM_MESSAGE}. Stack at delivery:\n{stack}\n".encode(
+                errors="replace"
+            ),
+        )
+    raise RuntimeError(f"{_STRAY_SIGALRM_MESSAGE}; stack on stderr")
 
 
 def _install_stray_sigalrm_handler() -> None:
-    """Replace SIG_DFL for SIGALRM with the loud diagnostic handler.
+    """Replace a SIG_DFL SIGALRM disposition with the loud diagnostic handler.
 
-    Only installs over SIG_DFL so pytest-timeout's ``--timeout-method=signal``
-    handler (installed per-test, after configure) is never clobbered; tests
-    that install their own handler save/restore ours transparently.
+    Installs over SIG_DFL only, so a live pytest-timeout signal-method handler
+    is never replaced.  Called at configure and re-called at every test setup:
+    pytest-timeout's signal-method cancel() restores SIG_DFL rather than the
+    previously saved handler, which would otherwise permanently uninstall this
+    diagnostic after the first timed test.
     """
     if not hasattr(signal, "SIGALRM"):
         return
-    try:
+    # suppress ValueError defensively: signal.signal only works on the main
+    # thread (pytest and xdist 3.x workers always call hooks there)
+    with contextlib.suppress(ValueError):
         if signal.getsignal(signal.SIGALRM) == signal.SIG_DFL:
             signal.signal(signal.SIGALRM, _stray_sigalrm_handler)
-    except ValueError:
-        # not the main thread; signal handlers can't be installed here
-        pass
 
 
-def _hang_dump_path() -> str:
-    worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
-    return os.path.join(
-        os.environ[_HANG_DUMP_DIR_ENV], f"hang-{worker}-pid{os.getpid()}.txt"
-    )
+def _resolve_hang_dump_seconds(config: pytest.Config) -> int:
+    """Resolve the hang-dump watchdog threshold; 0 disables it.
 
-
-def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Arm a faulthandler watchdog before every test.
-
-    If any test (plus its share of fixture work) runs longer than
-    ``_HANG_DUMP_SECONDS`` — i.e. 300s before CI's 900s pytest-timeout kill —
-    all thread stacks are dumped to a per-process file.  faulthandler writes
-    to the raw fd, so the dump survives both the ``os._exit(1)`` that
-    pytest-timeout's thread method uses and execnet's stream redirection.
-    The controller prints any non-empty dumps at session end.
+    Defaults to 300s before pytest-timeout's per-test kill when one is
+    configured (e.g. CI's --timeout=900 -> dump at 600s), since that kill —
+    os._exit(1) from the thread method — is exactly the silent death the dump
+    exists to explain.  Without a --timeout there is nothing bounding slow
+    tests, so a fixed threshold would false-positive on legitimately long
+    docker-based tests; stay off unless _HANG_DUMP_SECONDS_ENV forces a value.
     """
-    global _hang_dump_file
-    if _HANG_DUMP_DIR_ENV not in os.environ:
+    env = os.environ.get(_HANG_DUMP_SECONDS_ENV)
+    if env is not None:
+        try:
+            return max(0, int(env))
+        except ValueError:
+            warnings.warn(f"ignoring non-integer {_HANG_DUMP_SECONDS_ENV}={env!r}")
+            return 0
+    try:
+        timeout = config.getoption("timeout")
+    except ValueError:  # pytest-timeout not installed
+        timeout = None
+    if timeout:
+        return max(60, int(timeout) - 300)
+    return 0
+
+
+def _arm_hang_dump() -> None:
+    """(Re-)arm the faulthandler watchdog.
+
+    If the current test (plus its share of fixture work) runs longer than
+    ``_hang_dump_seconds``, all thread stacks are dumped to a per-process
+    file, which the controller prints at session end.  faulthandler writes to
+    the raw fd, so the dump survives both the ``os._exit(1)`` that
+    pytest-timeout's thread method uses and execnet's stream redirection.
+    """
+    global _hang_dump_file, _hang_dump_disabled
+    if _hang_dump_disabled or _hang_dump_seconds <= 0:
+        return
+    dump_dir = os.environ.get(_HANG_DUMP_DIR_ENV)
+    if dump_dir is None:
         return
     try:
         if _hang_dump_file is None:
-            _hang_dump_file = open(_hang_dump_path(), "w")
+            worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
+            _hang_dump_file = open(
+                os.path.join(dump_dir, f"hang-{worker}-pid{os.getpid()}.txt"), "w"
+            )
         faulthandler.dump_traceback_later(
-            _HANG_DUMP_SECONDS, exit=False, file=_hang_dump_file
+            _hang_dump_seconds, exit=False, file=_hang_dump_file
         )
-    except (OSError, RuntimeError):
-        pass
+    except (OSError, RuntimeError, ValueError) as ex:
+        # disable rather than retry-and-fail on every test, but say so: a
+        # silently inert watchdog is the very failure mode it exists to fix
+        _hang_dump_disabled = True
+        warnings.warn(f"hang-dump watchdog disabled: {ex}")
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    _install_stray_sigalrm_handler()
+    _arm_hang_dump()
+
+
+def pytest_runtest_teardown(item: pytest.Item) -> None:
+    # re-arm: pytest's builtin faulthandler plugin cancels the (single,
+    # process-global) dump timer in pytest_exception_interact whenever a test
+    # fails; re-arming here keeps a hanging teardown after a failure covered
+    _arm_hang_dump()
 
 
 def _report_hang_dumps() -> None:
@@ -381,27 +430,33 @@ def _report_hang_dumps() -> None:
             continue
         if content:
             print(
-                f"\n=== hang dump {name}: a test exceeded {_HANG_DUMP_SECONDS}s "
-                "(#232 diagnostics) ==="
+                f"\n=== hang dump {name}: a test ran longer than "
+                f"{_hang_dump_seconds}s (#232 diagnostics; benign if the run "
+                "passed) ==="
             )
             print(content)
             print("=== end hang dump ===")
-    shutil.rmtree(dump_dir, ignore_errors=True)
+    if _hang_dump_dir_created is not None:
+        shutil.rmtree(_hang_dump_dir_created, ignore_errors=True)
+        os.environ.pop(_HANG_DUMP_DIR_ENV, None)
 
 
-def _report_oom_kills() -> None:
-    """Grep the kernel log for OOM kills after the session (CI only).
+def _report_oom_kills(exitstatus: int) -> None:
+    """Grep the kernel log for OOM kills after a failed session (CI only).
 
     GitHub Actions does not surface OOM events, and an OOM SIGKILL of an
     xdist worker is indistinguishable in pytest output from any other silent
-    worker death.  Runners allow passwordless sudo; fall back to plain dmesg
-    and give up silently where neither works (e.g. locally).
+    worker death (a dead worker always fails the session, hence the
+    exitstatus gate).  Runners allow passwordless sudo; fall back to plain
+    dmesg and give up silently where neither works (e.g. locally).
     """
-    if not os.environ.get("CI"):
+    if not os.environ.get("CI") or exitstatus == 0:
         return
     for cmd in (["sudo", "-n", "dmesg"], ["dmesg"]):
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, errors="replace", timeout=30
+            )
         except (OSError, subprocess.SubprocessError):
             continue
         if result.returncode != 0:
@@ -411,7 +466,11 @@ def _report_oom_kills() -> None:
         )
         matches = [line for line in result.stdout.splitlines() if pattern.search(line)]
         if matches:
-            print("\n=== kernel OOM events during this job (#232 diagnostics) ===")
+            print(
+                "\n=== kernel OOM events during this job (#232 diagnostics; "
+                "'Memory cgroup' lines are container-local kills, e.g. from "
+                "sandbox tests with memory limits, not worker deaths) ==="
+            )
             for line in matches:
                 print(line)
             print("=== end kernel OOM events ===")
@@ -437,10 +496,13 @@ def pytest_configure(config):
     os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
 
     _install_stray_sigalrm_handler()
+    global _hang_dump_seconds, _hang_dump_dir_created
+    _hang_dump_seconds = _resolve_hang_dump_seconds(config)
     # The controller sets the hang-dump dir before xdist spawns workers (they
     # inherit it via the environment); workers see it already set.
-    if _HANG_DUMP_DIR_ENV not in os.environ:
-        os.environ[_HANG_DUMP_DIR_ENV] = tempfile.mkdtemp(prefix="pytest-hang-dumps-")
+    if _hang_dump_seconds > 0 and _HANG_DUMP_DIR_ENV not in os.environ:
+        _hang_dump_dir_created = tempfile.mkdtemp(prefix="pytest-hang-dumps-")
+        os.environ[_HANG_DUMP_DIR_ENV] = _hang_dump_dir_created
 
 
 def pytest_collection_modifyitems(config, items):
@@ -587,7 +649,7 @@ def pytest_sessionfinish(session, exitstatus):
         return
 
     _report_hang_dumps()
-    _report_oom_kills()
+    _report_oom_kills(exitstatus)
 
     if importlib.util.find_spec("inspect_package"):
         try:
