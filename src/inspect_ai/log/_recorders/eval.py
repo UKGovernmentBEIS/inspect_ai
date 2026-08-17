@@ -1106,8 +1106,9 @@ class ZipLogFile:
             # cleared by ``write_buffered_samples``, which the flush callers run
             # first). A skipped write must NOT clear: ``buffered_sample`` falls
             # back to the on-disk log once cleared, which doesn't yet contain
-            # these samples (a skip also implies a reader holds the existing
-            # file open, so destination_written is already True).
+            # these samples. A skipped write likewise leaves
+            # ``_destination_written`` alone — nothing reached the destination,
+            # so the next successful flush is what sets it.
             if written:
                 self._streaming_samples.clear()
                 self._destination_written = True

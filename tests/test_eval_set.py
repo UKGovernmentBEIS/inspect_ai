@@ -2134,7 +2134,7 @@ def test_retry_attempt_killed_mid_sweep_leaves_completed_samples_reusable(
     os.makedirs(log_dir)
     os.makedirs(probe_dir)
     tests_dir = Path(__file__).parent
-    harness = str(tests_dir / "retry_deferred_log_harness.py")
+    harness = str(tests_dir / "test_helpers" / "retry_deferred_log_harness.py")
 
     def run_harness(kill_at_settle: bool) -> subprocess.CompletedProcess[bytes]:
         env = {

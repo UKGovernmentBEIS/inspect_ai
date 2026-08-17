@@ -2,7 +2,7 @@
 
 See ``design/retry-deferred-destination-log.md``. Run as a script::
 
-    python retry_deferred_log_harness.py <log_dir> <probe_dir>
+    python tests/test_helpers/retry_deferred_log_harness.py <log_dir> <probe_dir>
 
 With ``INSPECT_TEST_KILL_AT_SETTLE=1`` the process ``SIGKILL``s itself the
 moment a retry attempt's reuse sweep settles — the window in which the attempt
@@ -41,8 +41,23 @@ def install_settle_kill() -> None:
     TaskLogger._quiet_settle_flush = kill_at_settle  # type: ignore[method-assign]
 
 
+async def _s1_logged_clean(log_dir: str) -> bool:
+    """Whether some log in `log_dir` already holds a clean copy of s1."""
+    from inspect_ai.log import list_eval_logs
+    from inspect_ai.log._file import read_eval_log_sample_async
+
+    for info in list_eval_logs(log_dir):
+        try:
+            sample = await read_eval_log_sample_async(info.name, "s1", 1)
+        except Exception:
+            continue
+        if sample.error is None:
+            return True
+    return False
+
+
 @solver
-def _crash_probe_solver(probe_dir: str):
+def _crash_probe_solver(log_dir: str, probe_dir: str):
     calls_file = os.path.join(probe_dir, "solver_calls.txt")
     failed_marker = os.path.join(probe_dir, "s2_failed")
 
@@ -51,6 +66,12 @@ def _crash_probe_solver(probe_dir: str):
             f.write(f"{state.sample_id}\n")
         if state.sample_id == "s2":
             if not os.path.exists(failed_marker):
+                # fail only once s1 is durable in the log, so the retry
+                # deterministically has a completed sample to reuse (the
+                # error otherwise tears down s1's still-running sample)
+                with anyio.fail_after(60):
+                    while not await _s1_logged_clean(log_dir):
+                        await anyio.sleep(0.1)
                 open(failed_marker, "w").close()
                 raise ValueError("s2 fails on the first attempt")
             if _kill_at_settle():
@@ -65,13 +86,13 @@ def _crash_probe_solver(probe_dir: str):
 
 
 @task
-def crash_probe_task(probe_dir: str) -> Task:
+def crash_probe_task(log_dir: str, probe_dir: str) -> Task:
     return Task(
         dataset=[
             Sample(id="s1", input="Say hello", target="hello"),
             Sample(id="s2", input="Say hello again", target="hello"),
         ],
-        solver=[_crash_probe_solver(probe_dir)],
+        solver=[_crash_probe_solver(log_dir, probe_dir)],
         name="crash_probe_task",
     )
 
@@ -81,7 +102,7 @@ def main() -> None:
     if _kill_at_settle():
         install_settle_kill()
     eval_set(
-        tasks=[crash_probe_task(probe_dir)],
+        tasks=[crash_probe_task(log_dir, probe_dir)],
         log_dir=log_dir,
         model="mockllm/model",
         retry_attempts=1,

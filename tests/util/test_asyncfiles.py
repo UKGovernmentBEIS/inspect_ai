@@ -719,6 +719,21 @@ def test_missing_s3_object_zip_read_raises_file_not_found(mock_s3: None) -> None
     asyncio.run(run())
 
 
+async def test_missing_s3_object_reads_raise_file_not_found_both_backends(
+    mock_s3: None,
+) -> None:
+    """The mapping covers the trio path too (sync boto3 via a worker thread)."""
+    s3_path = f"{S3_BUCKET}/missing_test/absent-backend.eval"
+
+    async with AsyncFilesystem() as fs:
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file(s3_path)
+        with pytest.raises(FileNotFoundError):
+            await fs.info(s3_path)
+        with pytest.raises(FileNotFoundError):
+            await fs.read_file_suffix(s3_path, 100)
+
+
 def test_non_missing_s3_client_error_still_raises(monkeypatch) -> None:
     """Only 404/NoSuchKey map to FileNotFoundError; other errors propagate."""
 

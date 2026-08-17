@@ -294,11 +294,15 @@ per-lookup instead of degrading to no-reuse.
   source): no hold (see above); unchanged.
 - **Dynamic feeds injecting before the seed settles**: a completion-driven
   SampleSource regenerates follow-ups from reused completions *during* the
-  sweep, and each injection raises the countdown (`add()`), so the settle —
-  and therefore the hold — spans the transitive reuse cascade, not just the
-  seed. Still bounded (lookups are throttled reads) and still backstopped
-  by `log_finish`, but "typically seconds" stretches with the cascade for
-  such tasks.
+  sweep, and each injection raises the countdown (`add()`). The hold spans
+  only the cascade already counted when the countdown first reaches zero,
+  not the whole transitive cascade: a reused sample settles its slot in
+  `run_sample`'s `finally` *before* its follow-ups are handed to the feed,
+  so the last seed sample's settle can release the hold while follow-up
+  reuse is still being injected. That's the safe direction — the seed
+  reused set is complete at that point, which is what the invariant needs —
+  and the residual partial window for injected reuse is the pre-existing
+  one below. The hold therefore stays bounded by the seed sweep.
 - **Dynamic feeds adding samples post-settle**: injected reuse re-logs
   flush via later `add()`/settle cycles — unchanged; the residual
   partial-window for injected reuse is pre-existing and much narrower.

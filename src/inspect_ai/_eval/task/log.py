@@ -644,6 +644,12 @@ class TaskLogger:
         ``register_eval`` so ``inspect ctl task log-flush`` can push a long-running
         eval's results out to S3 on demand.
         """
+        # while held this can only no-op, so return before stopping the timer:
+        # stopping it here would disarm the retry for live samples already
+        # pending without the flush that normally replaces it
+        if self._destination_hold:
+            return 0
+
         # an on-demand flush writes everything pending, so quiesce the stale
         # timer first (it would otherwise wake to find nothing left to do)
         await self._stop_stale_flush_timer()
@@ -909,6 +915,13 @@ class TaskLogger:
                         await self._flush_pending_samples(
                             stale_flush_generation=generation
                         )
+                    if self._destination_hold:
+                        # the flush no-oped under the hold, and clearing the
+                        # timer above dropped this fire's arming: re-arm so
+                        # pending samples still have a retry if the sweep never
+                        # settles (a cancelled task group can leave the
+                        # countdown short of its last settle)
+                        await self._arm_stale_flush_timer(generation=generation)
                 except Exception as ex:
                     logger.warning("Stale eval log flush failed: %s", ex, exc_info=ex)
                     await self._arm_stale_flush_timer(generation=generation)

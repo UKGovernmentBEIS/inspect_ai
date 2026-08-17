@@ -987,22 +987,46 @@ async def test_held_log_start_performs_no_destination_write() -> None:
 @pytest.mark.anyio
 async def test_flush_paths_noop_while_destination_held() -> None:
     # while held nothing drains: pending lists and buffer-db rows stay intact
-    # for the settle flush, and the ctl log-flush path reports 0
+    # for the settle flush, and the ctl log-flush path reports 0 — without
+    # disarming the stale timer covering the live pending samples (its flush
+    # would no-op, so there is nothing to replace the retry it stopped)
     recorder = _FlushRecorder()
     buffer_db = _FlushBufferDB()
     logger = _flush_logger(flush_buffer=10, buffer_db=buffer_db, recorder=recorder)
     logger.hold_destination_writes()
+    logger._stale_flush_interval = 60
     logger.flush_pending = [("live", 1)]
     logger.flush_quiet = [("reused", 1)]
 
-    async with _running_stale_flush_timer(logger, start=False):
+    async with _running_stale_flush_timer(logger):
+        assert logger._stale_flush_cancel_scope is not None
         assert await logger._flush_pending_samples() == 0
         assert await logger.flush_samples() == 0
+        assert logger._stale_flush_cancel_scope is not None
 
     assert recorder.flush_count == 0
     assert logger.flush_pending == [("live", 1)]
     assert logger.flush_quiet == [("reused", 1)]
     assert buffer_db.removed == []
+
+
+@pytest.mark.anyio
+async def test_stale_flush_during_hold_rearms_itself() -> None:
+    # a stale-timer fire that no-ops under the hold must leave a timer armed:
+    # its own fire cleared the previous one, and if the sweep never settles
+    # (torn down before the last settle) nothing else would retry the write
+    recorder = _FlushRecorder()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.hold_destination_writes()
+    logger._stale_flush_interval = 0.01
+    logger.flush_pending = [("live", 1)]
+
+    async with _running_stale_flush_timer(logger):
+        await anyio.sleep(0.1)
+        assert recorder.flush_count == 0
+        assert logger._stale_flush_cancel_scope is not None
+
+    assert logger.flush_pending == [("live", 1)]
 
 
 @pytest.mark.anyio
