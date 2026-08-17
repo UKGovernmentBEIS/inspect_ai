@@ -147,6 +147,9 @@ async def _create_tools_dir_as_root(sandbox: SandboxEnvironment) -> bool:
             await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
         ).success
     except Exception as ex:
+        # Broad catch is deliberate: providers signal "cannot exec as root" by
+        # raising provider-specific exception types, so no narrower type is
+        # available. Trade-off: any probe failure selects the rootless install.
         trace_message(
             logger,
             TRACE_SANDBOX_TOOLS,
