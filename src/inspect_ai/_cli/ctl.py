@@ -132,15 +132,24 @@ _KNOB_SCOPE: dict[str, str] = {
     "max_retries": "process",
 }
 
+# Minimum control-API version at which the server enforces strict mutations:
+# a PATCH/POST carrying a query param the route doesn't declare is rejected
+# with a 400, atomically, before anything is applied (`_control/strict.py`).
+# From this version on, individual knobs need no client-side version gate —
+# the server itself fails closed on a knob it doesn't know. Below it the
+# tolerant handlers silently ignore unknown params while applying the rest,
+# so the CLI refuses knob mutations outright. See `_gate_strict_floor`.
+_STRICT_SINCE = 3
+
 # Minimum control-API version for the config provenance params (`author` /
 # `reason`, recorded into `EvalLog.config_updates`). Knobs themselves need no
-# version gate — a strict server 400s a mutation carrying a knob it doesn't
-# know, atomically (see the skew-policy comment in `inspect_ai._control`) —
-# but the CLI sends a *defaulted* author the user never typed, and a strict
-# older server would 400 the whole mutation for it, so the default is
-# included only against servers advertising >= this version (an explicit
-# --author/--reason against an older server hard-errors before sending).
-# See `_gate_provenance_support`.
+# per-knob version gate — a strict server 400s a mutation carrying a knob it
+# doesn't know, atomically (see the skew-policy comment in
+# `inspect_ai._control`) — but the CLI sends a *defaulted* author the user
+# never typed, and a strict older server would 400 the whole mutation for it,
+# so the default is included only against servers advertising >= this version
+# (an explicit --author/--reason against an older server hard-errors before
+# sending). See `_gate_provenance_support`.
 _PROVENANCE_SINCE = 5
 
 
@@ -3901,8 +3910,10 @@ def _applied_knob_names(
     self-exclude: their adjustability check (no ``buffer`` view) is exactly
     the condition that put the caller on the error path. The retry overrides
     are always adjustable: the override layer exists regardless of any
-    task's launch config (a server too old to know them would have 400ed
-    the whole mutation, atomically, before this path is reached).
+    task's launch config (a strict server too old to know them 400s the
+    whole mutation atomically, and a pre-strict server is refused by
+    `_gate_strict_floor` before the PATCH is sent, so neither reaches this
+    path).
     """
     return [
         name
@@ -4026,6 +4037,7 @@ def _run_config(
     # hard-error (like --log-buffer with no buffer) rather than silently
     # dropping the values.
     if requested_knobs:
+        _gate_strict_floor(servers, scope.socket_path, requested_knobs)
         author, reason = _gate_provenance_support(
             servers, scope.socket_path, author=author, reason=reason
         )
@@ -5546,6 +5558,43 @@ def _post_flush(
         mutate="post",
         pid=pid,
     )
+
+
+def _gate_strict_floor(
+    servers: list[DiscoveredControlServer],
+    socket_path: str,
+    requested_knobs: list[str],
+) -> None:
+    """Hard-error a config mutation aimed at a pre-strict server.
+
+    A strict server (control-API version >= :data:`_STRICT_SINCE`) rejects a
+    mutation carrying any query param it doesn't declare with a 400,
+    atomically, so the CLI can rely on the server itself to fail closed on a
+    knob it doesn't know. A pre-strict server's PATCH handler instead
+    silently ignores unknown params while applying the ones it recognizes —
+    a partial apply behind a success-shaped response (dry runs included: the
+    view just omits the unknown knobs). Below the floor, every knob mutation
+    is refused before the PATCH is sent. Deliberately tableless — no
+    per-knob bookkeeping (unlike the retired `_KNOB_SINCE` table) — at the
+    cost of also refusing mutations a pre-strict server could in fact honor;
+    such processes predate strict mutations entirely and are effectively
+    extinct. A process with no advertised version (a discovery file that
+    predates the field) is version 0. The version integer is meaningless to
+    users, so the error names the flags and the remedy, not the number.
+    """
+    server = next((s for s in servers if str(s.socket_path) == socket_path), None)
+    api_version = server.api_version if server is not None else 0
+    if api_version >= _STRICT_SINCE:
+        return
+    flags = ", ".join("--" + knob.replace("_", "-") for knob in requested_knobs)
+    target = f"pid {server.pid}" if server is not None else "the target process"
+    _echo(
+        f"Cannot set {flags} — {target} is running an older inspect that "
+        "may silently ignore unrecognized config settings; restart the eval "
+        "to pick up the current version. No changes were applied.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
 
 
 def _default_provenance_author() -> str:

@@ -1730,13 +1730,22 @@ def test_fetch_summaries_all_busy_narrates_once_per_invocation(
 
 
 class _DiscServer:
-    """Discovery entry double (pid / socket_path / started_at / api_version)."""
+    """Discovery entry double (pid / socket_path / started_at / api_version).
 
-    def __init__(self, pid: int, api_version: int = 0) -> None:
+    Defaults to the current `CONTROL_API_VERSION` — the hermetic tests model
+    a current server unless a test explicitly exercises version skew (the
+    strict floor, the provenance gate) by passing an older `api_version`.
+    """
+
+    def __init__(self, pid: int, api_version: int | None = None) -> None:
+        from inspect_ai._control import CONTROL_API_VERSION
+
         self.pid = pid
         self.socket_path = f"/tmp/{pid}.sock"
         self.started_at = 100.0
-        self.api_version = api_version
+        self.api_version = (
+            api_version if api_version is not None else CONTROL_API_VERSION
+        )
 
 
 def _full_summary(
@@ -3167,16 +3176,18 @@ def test_config_help_scope_tags_derive_from_knob_table() -> None:
         assert f"[{scope}]" in options[start : start + 120], knob
 
 
-def test_provenance_since_does_not_outrun_version_constant() -> None:
-    """The provenance gate's min-version must not exceed the constant.
+def test_client_gate_versions_do_not_outrun_version_constant() -> None:
+    """The client-side gates' min-versions must not exceed the constant.
 
     A `_PROVENANCE_SINCE` of N+1 while `CONTROL_API_VERSION` is still N would
     make the CLI silently drop the defaulted author against every server —
-    including current ones.
+    including current ones; a too-high `_STRICT_SINCE` would refuse every
+    knob mutation the same way.
     """
-    from inspect_ai._cli.ctl import _PROVENANCE_SINCE
+    from inspect_ai._cli.ctl import _PROVENANCE_SINCE, _STRICT_SINCE
     from inspect_ai._control import CONTROL_API_VERSION
 
+    assert _STRICT_SINCE <= CONTROL_API_VERSION
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
 
 
@@ -3607,22 +3618,71 @@ def test_config_provenance_rides_key_only_retune(
     assert isinstance(sent["author"], str) and sent["author"]
 
 
-def test_config_knobs_not_version_gated(
+def test_config_knobs_floored_on_pre_strict_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Knob mutations are sent regardless of the server's advertised version.
+    """Knob mutations gate only on the strict floor, never per knob.
 
     The per-knob pre-flight version gate (`_KNOB_SINCE`) was retired with
-    issue #67: every server in the field is strict (`_control/strict.py`),
-    so an older process rejects a knob it doesn't know with a 400 —
-    atomically, before anything is applied — and the CLI surfaces that
-    error. Pins that even a version-0 process (one predating version
-    reporting entirely) gets the PATCH rather than a client-side refusal.
+    issue #67: a strict process (`_control/strict.py`, version >=
+    `_STRICT_SINCE`) rejects a knob it doesn't know with a 400 — atomically,
+    before anything is applied — and the CLI surfaces that error. A
+    pre-strict process would instead silently partial-apply, so any knob
+    mutation against one is refused outright before the PATCH is sent (dry
+    runs included — a dry-run PATCH on a tolerant server reports a
+    success-shaped view that omits the unknown knobs). Pins both sides of
+    the floor: refusal below `_STRICT_SINCE` (even a knob a tolerant server
+    could honor — the floor is deliberately tableless), the PATCH at exactly
+    `_STRICT_SINCE`.
     """
+    from inspect_ai._cli.ctl import _STRICT_SINCE
+
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_STRICT_SINCE - 1)],
+    )
+
+    def _no_patch(*args: Any, **kwargs: Any) -> _ConfigResult:
+        raise AssertionError("the mutation must not be sent")
+
+    monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", _no_patch)
+
+    # max_samples predates version reporting — a tolerant server would honor
+    # it — but the tableless floor refuses the mutation anyway
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 1
+    assert "--max-samples" in result.stderr
+    assert "pid 7 is running an older inspect" in result.stderr
+    assert "No changes were applied" in result.stderr
+
+    dry = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--dry-run"]
+    )
+    assert dry.exit_code == 1
+    assert "--max-samples" in dry.stderr
+
+    # process-scoped knobs (no task selector) hit the same floor
+    result = cli_runner().invoke(ctl_command, ["config", "--max-subprocesses", "2"])
+    assert result.exit_code == 1
+    assert "--max-subprocesses" in result.stderr
+
+    # a process with no advertised version (pre-version-reporting discovery
+    # file) is version 0 — refused
     _patch_surface(
         monkeypatch,
         [_full_summary("aaa111", "t1")],
         servers=[_DiscServer(7, api_version=0)],
+    )
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 1
+
+    # at exactly the floor the PATCH goes through — the server is strict, so
+    # unknown-knob skew is its job from here on
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        servers=[_DiscServer(7, api_version=_STRICT_SINCE)],
     )
     _stub_limits(
         monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
@@ -3633,7 +3693,6 @@ def test_config_knobs_not_version_gated(
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["applied"] is True
 
-    # process-scoped knobs (no task selector) ride the same ungated path
     result = cli_runner().invoke(
         ctl_command, ["config", "--max-subprocesses", "2", "--json"]
     )

@@ -17,12 +17,14 @@ external clients (the `inspect ctl` CLI, TUIs, agents). See
 # interrogate the actual server rather than a version table:
 #
 # - New MUTATION PARAM (a knob, or an action-style param on a POST route):
-#   every server in the field is strict (version >= 3): it rejects unknown
-#   query params on any non-GET route with a 400 (`_control/strict.py`),
-#   atomically — so a mutation an older server can't honor fails loudly
-#   before anything is applied, instead of silently no-opping. (The
-#   per-knob `_KNOB_SINCE` pre-flight gate that covered pre-strict servers
-#   was retired with issue #67 once those aged out of the field.)
+#   a strict server (version >= 3) rejects unknown query params on any
+#   non-GET route with a 400 (`_control/strict.py`), atomically — so a
+#   mutation an older server can't honor fails loudly before anything is
+#   applied, instead of silently no-opping. Pre-strict (< 3) stragglers get
+#   a single tableless floor instead: the CLI refuses any knob mutation
+#   against a process advertising < 3 (`_STRICT_SINCE` in
+#   `inspect_ai._cli.ctl`), which replaced the retired per-knob
+#   `_KNOB_SINCE` pre-flight gate (issue #67).
 # - New ENDPOINT: an older server answers a missing route with FastAPI's
 #   stock `{"detail": "Not Found"}` 404, which the CLI tells apart from a
 #   handler's `{"error": ...}` entity-not-found 404 — pass
