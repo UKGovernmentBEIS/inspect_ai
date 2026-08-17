@@ -28,6 +28,9 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          # blob:none: all refs/commits for setuptools_scm, no historical
+          # file contents (the full pack is ~400MB and fetch time is erratic)
+          filter: "blob:none"
           submodules: recursive
 
       - name: Set up Python
