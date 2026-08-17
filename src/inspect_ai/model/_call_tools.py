@@ -248,52 +248,7 @@ async def _execute_tools_impl(
             except Exception as ex:
                 tool_exception = ex
 
-            # massage result, leave list[Content] alone, convert all other
-            # types to string as that is what the model APIs accept
-            truncated: tuple[int, int] | None = None
-            if isinstance(
-                result,
-                ContentText
-                | ContentImage
-                | ContentAudio
-                | ContentVideo
-                | ContentDocument,
-            ):
-                content: (
-                    str
-                    | list[
-                        ContentText
-                        | ContentImage
-                        | ContentAudio
-                        | ContentVideo
-                        | ContentDocument
-                    ]
-                ) = [result]
-            elif isinstance(result, list) and all(
-                isinstance(
-                    r,
-                    ContentText
-                    | ContentImage
-                    | ContentAudio
-                    | ContentVideo
-                    | ContentDocument,
-                )
-                for r in result
-            ):
-                content = result
-            else:
-                content = str(result)
-
-                # truncate if necessary
-                truncated_output = truncate_tool_output(
-                    call.function, content, max_output
-                )
-                if truncated_output:
-                    content = truncated_output.output
-                    truncated = (
-                        truncated_output.raw_bytes,
-                        truncated_output.truncated_bytes,
-                    )
+            content, truncated = tool_event_result(call.function, result, max_output)
 
             # create event
             event = ToolEvent(
@@ -1129,6 +1084,50 @@ class TruncatedToolOutput(NamedTuple):
     output: str
     raw_bytes: int
     truncated_bytes: int
+
+
+class ToolEventResult(NamedTuple):
+    content: (
+        str
+        | list[
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument
+        ]
+    )
+    truncated: tuple[int, int] | None
+
+
+def tool_event_result(
+    tool_name: str, result: ToolResult, max_output: int | None
+) -> ToolEventResult:
+    """Convert a raw tool result into the content recorded on a ToolEvent.
+
+    Content is left alone, everything else becomes a string (what the model
+    APIs accept) and is truncated to the active output limit.
+    """
+    if isinstance(
+        result,
+        ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+    ):
+        return ToolEventResult([result], None)
+
+    if isinstance(result, list) and all(
+        isinstance(
+            r,
+            ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument,
+        )
+        for r in result
+    ):
+        return ToolEventResult(result, None)
+
+    content = str(result)
+    truncated_output = truncate_tool_output(tool_name, content, max_output)
+    if truncated_output is None:
+        return ToolEventResult(content, None)
+
+    return ToolEventResult(
+        truncated_output.output,
+        (truncated_output.raw_bytes, truncated_output.truncated_bytes),
+    )
 
 
 def truncate_tool_output(
