@@ -61,7 +61,7 @@ Crucially, the agent controls the carried content **two ways**:
 
 ### How agent-controlled output flows through the channel
 
-Four read endpoints carry attacker-controlled content:
+Four read endpoints can carry attacker-controlled content (since issue #190 shipped, only when the caller opts in with `content=true` / `full=true` — see "Mitigations" below; the fields listed are what an opted-in read carries):
 
 | Endpoint | Source | Agent-controlled fields |
 |---|---|---|
@@ -74,12 +74,12 @@ The compact projections truncate free-text to 256 chars (`_TRUNCATE`/`_truncate`
 
 ### Vector 1 — prompt injection into a monitoring agent (primary; open by design)
 
-A monitor that polls `sample events` / `sample messages` / `sample show` ingests attacker-controlled text on every poll. The payload can arrive via a plain `bash` tool result, so it does not depend on the model under test cooperating. The blast radius is **whatever the monitor can do**, which splits in two:
+A monitor that polls `sample events` / `sample messages` / `sample show` with content opted in (`--content` / `--full`; the default read is metadata-only — see "Mitigations" below) ingests attacker-controlled text on every poll. The payload can arrive via a plain `bash` tool result, so it does not depend on the model under test cooperating. The blast radius is **whatever the monitor can do**, which splits in two:
 
 - **Within the ctl surface:** if the monitor is granted the mutation endpoints (the intended design), injected instructions could drive `POST .../sample/cancel` (kill a sample right before it is flagged), `.../sample/requeue` (discard an incriminating transcript by re-running it), `POST /pause` or `/models/pause` (DoS the run), `PATCH /config` (disable retries, or crank `max_connections`), or `POST /release` (end a keep-alive park → process exit). This corrupts eval integrity but stays inside the process.
 - **Outside it:** monitors typically have *other* tools — web access, a filesystem, their own model, or the ability to shell out (including running the `inspect ctl` CLI, which can act on the host). The ctl channel is the injection conduit; the actual escape happens through the monitor's own capabilities, which Inspect does not and cannot bound. **This is the path that impacts the world outside the sandbox.**
 
-**The trust boundary, stated explicitly:** a monitor reading this channel must be treated as processing untrusted input — exactly like a monitor reading raw model output. A monitor granted mutation endpoints should be sandboxed / capability-limited like any injection-exposed agent, and the read-consumer and mutation-actor roles should be separable (see "Mitigations considered" below for what separable would take).
+**The trust boundary, stated explicitly:** a monitor reading this channel must be treated as processing untrusted input — exactly like a monitor reading raw model output. A monitor granted mutation endpoints should be sandboxed / capability-limited like any injection-exposed agent, and the read-consumer and mutation-actor roles should be separable (see "Mitigations" below for what separable would take).
 
 ### Vector 2 — terminal escape-sequence injection (mitigated)
 
@@ -106,15 +106,17 @@ The per-sample reads run **synchronously on the eval's own event loop** (see `_c
 - The socket is unreachable from a secure sandbox, and peer-UID + filesystem perms defend it from other host users (the access model above).
 - Cursors are opaque and malformed ones safely restart (`decode_cursor` in `_control/events.py`).
 
-## Mitigations considered: metadata-only defaults and the uninjectable monitor
+## Mitigations: the metadata-only default (shipped) and the uninjectable monitor (proposal)
 
-> **Status: proposal / analysis — not implemented.** Nothing in this section is shipped: the read endpoints return content by default, and any client that can reach the socket can call every route, reads and mutations alike. This section records the design thinking for a hardened monitor tier, for when demand for one materializes.
+> **Status: the metadata-only default is shipped (issue #190); the read-only monitor tier is not.** Any client that can reach the socket can still call every route, reads and mutations alike — the read-only sections below record the design thinking for a hardened monitor tier, for when demand for one materializes.
 
-**Proposal:** make the per-sample read endpoints (`sample messages` / `sample events`, and the error `message` on `sample`) return **metadata only by default** — roles, indices, tool `function` names, token counts, event types, timestamps, status — and gate the free-text content (completions, tool arguments, tool results, error messages) behind an explicit opt-in. This yields a three-tier ladder that subsumes today's shape:
+**The shipped shape:** the per-sample read endpoints (`sample messages` / `sample events`, the error detail on `sample`, and the samples listing's error rows) return **metadata only by default** — roles, indices, tool `function` names, token counts, event types, timestamps, status, error *presence* — and gate the free-text content (completions, tool arguments, tool results, error messages) behind an explicit opt-in. A three-tier ladder:
 
-- **default** → metadata only (new floor)
-- `--content` / `--include-output` → truncated content (today's compact default, 256-char cap)
-- `--full` → raw serialized objects (today's `full=true`)
+- **default** → metadata only (the floor)
+- `content=true` (CLI `--content`) → truncated content (the former compact default, 256-char cap)
+- `full=true` (CLI `--full`) → raw serialized objects
+
+The control-channel version history's entry 6 records the wire change; the CLI needs no version gate (GETs are tolerant of unknown params, so an older server pointed at by a newer CLI simply keeps returning content — the CLI is a human surface, where the metadata default is UX, not the security boundary).
 
 **Why this is worth doing — the security property is "never becomes compromised", not "safe once compromised".** The security-relevant moment is the transition from a clean monitor to a compromised one: the first time it ingests raw attacker content. A monitor that *never reads raw agent content is uninjectable by construction* — the payload never reaches it. Metadata-default makes that uninjectable state the effortless default, and content-reading a deliberate, rare exception.
 
@@ -145,7 +147,7 @@ The important dual conclusion: **the ctl content gate is only as strong as the m
 
 **Caveats:**
 
-- *Metadata is not yet a perfectly clean trust boundary.* Some "metadata" is still attacker-influenced free-ish text — tool-call `function` names are model-chosen strings, `info.source`, error class names. Low-bandwidth, but for a *provably* uninjectable tier these should be constrained/escaped too.
+- *Metadata is not yet a perfectly clean trust boundary.* Some "metadata" is still attacker-influenced free-ish text — tool-call `function` names are model-chosen strings, `info.source`, error class names. Low-bandwidth, but for a *provably* uninjectable tier these should be constrained/escaped too. And `scores` reach default readers even though a custom scorer can embed extracted agent text in a score value — scores are the core signal a monitor exists to read, so they stay ungated: a documented caveat rather than a withheld field.
 - *This is least-privilege, not an anti-injection mechanism for content readers.* It does not protect a monitor that opts into content — that monitor still needs the bytes and is still injectable. It shrinks the default attack surface and makes content exposure an explicit, auditable choice.
 - *Not a substitute for the Vector 2 sanitization.* For the human-operator terminal vector, sanitization is the right fix; content-hiding would degrade the primary interactive use ("what did the model actually say") without closing the escape (escape sequences can ride in metadata such as `function` names).
 

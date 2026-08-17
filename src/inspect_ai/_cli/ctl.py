@@ -34,6 +34,7 @@ import functools
 import inspect
 import json as json_lib
 import re
+import sys
 import time
 import traceback
 from collections.abc import Awaitable, Callable, Iterator, Sequence
@@ -315,12 +316,21 @@ def _mirror_list_options(group: click.Group, list_command: click.Command) -> Non
     for param in list_command.params:
         if isinstance(param, click.Option):
             mirrored = copy.copy(param)
-            mirrored.help = "Mirrored from `list` for the bare-noun default."
+            # keep the verb's own help (the payload sketch especially — the
+            # bare noun is the spelling scripted consumers reach for first)
+            mirrored.help = (
+                f"{param.help or ''} Mirrored from `list` for the bare-noun default."
+            ).strip()
             group.params.append(mirrored)
 
 
 def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
-    """The ``--json`` flag every command carries, with per-command envelope help."""
+    """The ``--json`` flag every command carries, with per-command envelope help.
+
+    ``what`` sketches the payload's top-level keys so a scripted consumer can
+    orient the first parse from ``--help`` alone, without a discovery
+    round-trip through the command itself.
+    """
     return click.option(
         "--json",
         "as_json",
@@ -328,6 +338,65 @@ def _json_option(what: str) -> Callable[[Callable[..., None]], Callable[..., Non
         default=False,
         help=f"Output as JSON ({what}).",
     )
+
+
+def _terse_option(
+    note: str = "",
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """The ``--terse/--no-terse`` flag the task-scoped mutation verbs carry.
+
+    Neither spelling given resolves by TTY (see :func:`_use_terse`).
+    Deliberately not ``--quiet``: that spelling conventionally means *no*
+    output, while this mode still reports each mutation's outcome — one
+    scannable line per call (issue #160). ``note`` appends a per-command
+    qualifier to the shared help text.
+    """
+    return click.option(
+        "--terse/--no-terse",
+        "terse",
+        default=None,
+        help=(
+            "Report the outcome as one `verb target: outcome` line, without "
+            "the task header — the default when stdout is not a TTY (pipes, "
+            "captured output), so N repeated mutations read as N outcome lines. "
+            "--no-terse forces the full rendering; --json takes precedence "
+            "over both." + (f" {note}" if note else "")
+        ),
+    )
+
+
+def _use_terse(terse: bool | None) -> bool:
+    """Resolve the tri-state ``--terse/--no-terse`` flag (``None`` = by TTY).
+
+    Piped or captured stdout — a script, an agent's Bash tool — gets the
+    terse per-mutation line; an interactive terminal keeps the full
+    task-header rendering, where the surrounding context earns its space.
+    """
+    if terse is not None:
+        return terse
+    # a detached/closed stdout (pythonw, a daemonized launcher) must not
+    # crash the rendering path — it is certainly not an interactive terminal
+    try:
+        return not sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        return True
+
+
+def _terse_line(verb: str, target: str | None, outcome: str) -> str:
+    """The one-line terse mutation grammar: ``verb target: outcome``.
+
+    One composition site so the separator and shape can't drift per verb —
+    scripts scan these lines (see the `--terse` help and the "Repeated
+    Mutations" section of docs/control-channel.qmd). ``outcome`` starts with
+    a status token (``requested`` / ``accepted`` / ``applied`` / ``dry-run``
+    / ``no-op``), usually followed by `` — detail``.
+    """
+    return f"{verb} {target or '?'}: {outcome}"
+
+
+# The payload sketch every mutation verb's `--json` help shows (pinned to
+# `_mutation_envelope`'s keys by a test).
+_MUTATION_ENVELOPE_HELP = "a `{target, applied, dry_run, detail}` mutation envelope"
 
 
 @click.group("ctl")
@@ -339,7 +408,11 @@ def ctl_command() -> None:
     All commands accept `--json`; a failed `--json` invocation emits an
     `{"error": {kind, exception, message, status}}` envelope on stdout
     (exit code stays non-zero; click usage errors — unknown option,
-    missing argument — still exit 2 without one).
+    missing argument — still exit 2 without one). With no running evals,
+    commands that resolve a single task or sample target (and `config`)
+    print `null`, except the paged reads (`sample events` / `sample
+    messages`), which print an empty page (identifier echo with `task_id`
+    null); list verbs print their usual envelope with empty rows.
 
     A process exits when its eval finishes; launch with `inspect eval
     --ctl-server=keep` to keep it inspectable here until you run
@@ -473,8 +546,9 @@ _mirror_list_options(task_group, task_list_command)
 
 @task_group.command("log-flush")
 @click.argument("task", required=False)
-@_json_option("the mutation result envelope")
-def task_log_flush_command(task: str | None, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_log_flush_command(task: str | None, as_json: bool, terse: bool | None) -> None:
     """Flush a running task's buffered samples to its log now.
 
     Completed samples are written to the (possibly remote) log only when
@@ -483,7 +557,7 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     / `--log-shared`. TASK (a task-id prefix or name) is required when
     several tasks run.
     """
-    _run_log_flush(task, as_json)
+    _run_log_flush(task, as_json, terse=terse)
 
 
 @task_group.command("cancel")
@@ -506,14 +580,11 @@ def task_log_flush_command(task: str | None, as_json: bool) -> None:
     default=False,
     help="Report what would be cancelled without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
-def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_cancel_command(
+    task: str, action: str, dry_run: bool, as_json: bool, terse: bool | None
+) -> None:
     """Cancel a running task.
 
     In-flight samples are resolved per `--action`; completed samples are
@@ -531,6 +602,7 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
         action=cast(TaskCancelAction, action),
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -542,8 +614,11 @@ def task_cancel_command(task: str, action: str, dry_run: bool, as_json: bool) ->
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
-def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_pause_command(
+    task: str | None, dry_run: bool, as_json: bool, terse: bool | None
+) -> None:
     """Pause a running task (stop dispatching new work; in-flight finishes).
 
     In-flight samples finish naturally (with scoring and log writes); queued
@@ -554,7 +629,9 @@ def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     dispatch), use `inspect ctl process pause`. TASK (a task-id prefix or
     name) is required when several tasks run.
     """
-    _run_task_pause_resume(task, verb="pause", dry_run=dry_run, as_json=as_json)
+    _run_task_pause_resume(
+        task, verb="pause", dry_run=dry_run, as_json=as_json, terse=terse
+    )
 
 
 @task_group.command("resume")
@@ -565,8 +642,11 @@ def task_pause_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
-def task_resume_command(task: str | None, dry_run: bool, as_json: bool) -> None:
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
+def task_resume_command(
+    task: str | None, dry_run: bool, as_json: bool, terse: bool | None
+) -> None:
     """Resume a paused task (the inverse of `inspect ctl task pause`).
 
     Queued samples dispatch again exactly as they would have before the
@@ -575,7 +655,9 @@ def task_resume_command(task: str | None, dry_run: bool, as_json: bool) -> None:
     resume`. Idempotent and last-write-wins. TASK (a task-id prefix or name)
     is required when several tasks run.
     """
-    _run_task_pause_resume(task, verb="resume", dry_run=dry_run, as_json=as_json)
+    _run_task_pause_resume(
+        task, verb="resume", dry_run=dry_run, as_json=as_json, terse=terse
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -651,6 +733,15 @@ sample_group.hint = lambda token: (
         f"{', '.join(SAMPLE_STATUSES)})."
     ),
 )
+@click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include each errored row's error message in the `--json` rows "
+        "(agent-influenced free text — withheld by default)."
+    ),
+)
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
 def sample_list_command(
     task: str | None,
@@ -658,6 +749,7 @@ def sample_list_command(
     limit: int | None,
     all_samples: bool,
     status: str | None,
+    content: bool,
     as_json: bool,
 ) -> None:
     """List the samples (running and completed) of running evals.
@@ -681,6 +773,7 @@ def sample_list_command(
         status=status,
         limit=limit,
         all_samples=all_samples,
+        content=content,
     )
 
 
@@ -689,14 +782,24 @@ _mirror_list_options(sample_group, sample_list_command)
 
 @sample_group.command("errors")
 @click.argument("task", required=False)
+@click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include each row's error message (agent-influenced free text — "
+        "withheld by default)."
+    ),
+)
 @_json_option("an `{as_of, counts, samples, truncated}` envelope")
-def sample_errors_command(task: str | None, as_json: bool) -> None:
+def sample_errors_command(task: str | None, content: bool, as_json: bool) -> None:
     """List the samples of running evals that errored or were retried.
 
-    One row per sample with the latest error message; an omitted TASK spans
-    all running tasks. Drill into one sample with `inspect ctl sample show`.
+    One row per sample; pass `--content` for the latest error message. An
+    omitted TASK spans all running tasks. Drill into one sample with
+    `inspect ctl sample show`.
     """
-    _run_sample_errors(task, as_json)
+    _run_sample_errors(task, as_json, content=content)
 
 
 @sample_group.command("show")
@@ -704,25 +807,45 @@ def sample_errors_command(task: str | None, as_json: bool) -> None:
 @click.argument("sample_id")
 @click.argument("epoch", required=False, type=int, default=1)
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include the error messages (agent-influenced free text — withheld "
+        "by default; implied by --traceback)."
+    ),
+)
+@click.option(
     "--traceback",
     "-t",
     "show_traceback",
     is_flag=True,
     default=False,
-    help="Show the full traceback for each error (default: message only).",
+    help="Show the full traceback for each error (implies --content).",
 )
-@_json_option("the sample's summary + error detail")
+@_json_option(
+    "the sample's summary + error detail — a flat `{task_id, task, sample_id, "
+    "epoch, status, ..., error, error_retries, scores}` object"
+)
 def sample_show_command(
-    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+    task: str,
+    sample_id: str,
+    epoch: int,
+    content: bool,
+    show_traceback: bool,
+    as_json: bool,
 ) -> None:
     """Show one sample's summary and error history.
 
-    Reports status / timing / token usage / score and the error from the
-    current and each prior attempt; use `inspect ctl sample events` for the
-    transcript. EPOCH defaults to 1 (the response echoes the resolved
-    epoch).
+    Reports status / timing / token usage / score and the error presence
+    from the current and each prior attempt; pass `--content` for the error
+    messages (and `--traceback` for tracebacks). Use `inspect ctl sample
+    events` for the transcript. EPOCH defaults to 1 (the response echoes
+    the resolved epoch).
     """
-    _run_sample_show(task, sample_id, epoch, show_traceback, as_json)
+    _run_sample_show(
+        task, sample_id, epoch, content or show_traceback, show_traceback, as_json
+    )
 
 
 @sample_group.command("events")
@@ -785,6 +908,16 @@ def sample_show_command(
     ),
 )
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include truncated free-text content (completions, tool arguments/"
+        "results, error messages — agent-controlled text, withheld by "
+        "default) in the compact summary."
+    ),
+)
+@click.option(
     "--full",
     is_flag=True,
     default=False,
@@ -802,7 +935,7 @@ def sample_show_command(
     default=None,
     help="Only events at/before this unix timestamp.",
 )
-@_json_option("the `{events, next, done}` envelope")
+@_json_option("the `{task_id, sample_id, epoch, events, next, done}` envelope")
 def sample_events_command(
     task: str,
     sample_id: str,
@@ -813,6 +946,7 @@ def sample_events_command(
     from_start: bool,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -823,7 +957,9 @@ def sample_events_command(
     The first call returns a recent tail (or the beginning, with
     `--from-start`); each page ends with a `next` cursor — pass it back via
     `--cursor` to read only what's new. `done: true` means the sample has
-    terminated and no more events will come.
+    terminated and no more events will come. The default is metadata only
+    (event types, timing, token counts, tool function names); pass
+    `--content` for truncated free-text content or `--full` for raw events.
 
     Example: inspect ctl sample events my-task sample-1 --tail 20
     """
@@ -839,6 +975,7 @@ def sample_events_command(
         from_start=from_start,
         limit=limit,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -867,17 +1004,23 @@ def sample_events_command(
     help="Show the whole conversation instead of a recent tail.",
 )
 @click.option(
+    "--content",
+    is_flag=True,
+    default=False,
+    help=(
+        "Include truncated message text (and tool-call arguments / tool "
+        "errors — agent-controlled text, withheld by default) in the "
+        "compact summary."
+    ),
+)
+@click.option(
     "--full",
     is_flag=True,
     default=False,
     help="Return raw ChatMessage JSON instead of the compact summary.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the `{as_of, status, count, messages}` envelope).",
+@_json_option(
+    "the `{task_id, sample_id, epoch, as_of, status, count, messages}` envelope"
 )
 def sample_messages_command(
     task: str,
@@ -885,6 +1028,7 @@ def sample_messages_command(
     epoch: int,
     tail: int | None,
     show_all: bool,
+    content: bool,
     full: bool,
     as_json: bool,
 ) -> None:
@@ -892,11 +1036,13 @@ def sample_messages_command(
 
     Returns the sample's `TaskState.messages` as they look right now — a
     snapshot, not a stream: the message list is rewritable (compaction,
-    solver edits), so there is no resume cursor. The default is a recent tail;
-    pass `--all` for the whole conversation or `--tail N` for a specific
-    window, and `--full` for raw `ChatMessage` JSON. For incremental,
-    event-grain watching use `inspect ctl sample events`. EPOCH defaults to 1
-    (the response echoes the resolved epoch).
+    solver edits), so there is no resume cursor. The default is a recent tail
+    of metadata-only rows (index / role / tool-call function names); pass
+    `--all` for the whole conversation or `--tail N` for a specific window,
+    `--content` for truncated message text, and `--full` for raw
+    `ChatMessage` JSON. For incremental, event-grain watching use `inspect
+    ctl sample events`. EPOCH defaults to 1 (the response echoes the
+    resolved epoch).
     """
     _run_sample_messages(
         task,
@@ -904,6 +1050,7 @@ def sample_messages_command(
         epoch,
         tail=tail,
         show_all=show_all,
+        content=content,
         full=full,
         as_json=as_json,
     )
@@ -930,13 +1077,8 @@ def sample_messages_command(
     default=False,
     help="Report what would be cancelled without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
 def sample_cancel_command(
     task: str,
     sample_id: str,
@@ -944,6 +1086,7 @@ def sample_cancel_command(
     action: str,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Cancel one running sample.
 
@@ -960,6 +1103,7 @@ def sample_cancel_command(
         action=cast("SampleCancelAction", action),
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -973,19 +1117,15 @@ def sample_cancel_command(
     default=False,
     help="Report what would be re-run without doing it.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    default=False,
-    help="Output as JSON (the mutation result envelope).",
-)
+@_json_option(_MUTATION_ENVELOPE_HELP)
+@_terse_option()
 def sample_requeue_command(
     task: str,
     sample_id: str,
     epoch: int | None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Re-run one errored/cancelled sample inside the live run.
 
@@ -1005,6 +1145,7 @@ def sample_requeue_command(
         epoch,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1142,7 +1283,11 @@ def sample_requeue_command(
     default=False,
     help="Report what would change without applying it (with a set option).",
 )
-@_json_option("the config view, every knob labeled with its scope")
+@_json_option(
+    "a `{target, knobs, warnings, notes, applied, dry_run, persisted, "
+    "requested}` view, every knob labeled with its scope"
+)
+@_terse_option(note="Applies when setting a knob; a pure view always renders in full.")
 def config_command(
     task: str | None,
     max_samples: int | None,
@@ -1160,6 +1305,7 @@ def config_command(
     author: str | None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """View or retune a running eval's launch configuration mid-flight.
 
@@ -1204,6 +1350,7 @@ def config_command(
         author=author,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1256,7 +1403,7 @@ _mirror_list_options(process_group, process_list_command)
 
 @process_group.command("keep")
 @click.argument("pid", required=False, type=int)
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_keep_command(pid: int | None, as_json: bool) -> None:
     """Keep a running inspect process alive after its eval finishes.
 
@@ -1270,7 +1417,7 @@ def process_keep_command(pid: int | None, as_json: bool) -> None:
 
 @process_group.command("release")
 @click.argument("pid", required=False, type=int)
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_release_command(pid: int | None, as_json: bool) -> None:
     """Release a lingering --ctl-server=keep process so it can exit.
 
@@ -1289,7 +1436,7 @@ def process_release_command(pid: int | None, as_json: bool) -> None:
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
     """Pause a whole running eval or eval-set (stop dispatching new work; in-flight finishes).
 
@@ -1312,7 +1459,7 @@ def process_pause_command(pid: int | None, dry_run: bool, as_json: bool) -> None
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def process_resume_command(pid: int | None, dry_run: bool, as_json: bool) -> None:
     """Resume a paused eval or eval-set (the inverse of `process pause`).
 
@@ -1389,7 +1536,7 @@ model_group.hint = lambda token: (
     default=False,
     help="Report what would be paused without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def model_pause_command(
     model: str, pid: int | None, dry_run: bool, as_json: bool
 ) -> None:
@@ -1416,7 +1563,7 @@ def model_pause_command(
     default=False,
     help="Report what would be resumed without doing it.",
 )
-@_json_option("the mutation result envelope")
+@_json_option(_MUTATION_ENVELOPE_HELP)
 def model_resume_command(
     model: str, pid: int | None, dry_run: bool, as_json: bool
 ) -> None:
@@ -1453,20 +1600,24 @@ def tasks_alias(as_json: bool) -> None:
 @ctl_command.command("samples", hidden=True)
 @click.argument("task", required=False)
 @click.option("--active-since", type=float, default=None)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def samples_alias(task: str | None, active_since: float | None, as_json: bool) -> None:
+def samples_alias(
+    task: str | None, active_since: float | None, content: bool, as_json: bool
+) -> None:
     """Deprecated alias for `inspect ctl sample list`."""
     _deprecation_note("samples", "sample list")
-    _run_sample_list(task, active_since, as_json)
+    _run_sample_list(task, active_since, as_json, content=content)
 
 
 @ctl_command.command("errors", hidden=True)
 @click.argument("task", required=False)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def errors_alias(task: str | None, as_json: bool) -> None:
+def errors_alias(task: str | None, content: bool, as_json: bool) -> None:
     """Deprecated alias for `inspect ctl sample errors`."""
     _deprecation_note("errors", "sample errors")
-    _run_sample_errors(task, as_json)
+    _run_sample_errors(task, as_json, content=content)
 
 
 @ctl_command.command("events", hidden=True)
@@ -1476,6 +1627,7 @@ def errors_alias(task: str | None, as_json: bool) -> None:
 @click.option("--since", "cursor", default=None)
 @click.option("--tail", type=int, default=None)
 @click.option("--type", "types", default=None)
+@click.option("--content", is_flag=True, default=False)
 @click.option("--full", is_flag=True, default=False)
 @click.option("--since-time", type=float, default=None)
 @click.option("--until", type=float, default=None)
@@ -1487,6 +1639,7 @@ def events_alias(
     cursor: str | None,
     tail: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -1503,6 +1656,7 @@ def events_alias(
         from_start=False,
         limit=None,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -1537,10 +1691,11 @@ def release_alias(pid_arg: int | None, pid: int | None, as_json: bool) -> None:
 @ctl_command.command("flush", hidden=True)
 @click.argument("task", required=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
-def flush_alias(task: str | None, as_json: bool) -> None:
+@click.option("--terse/--no-terse", "terse", default=None)
+def flush_alias(task: str | None, as_json: bool, terse: bool | None) -> None:
     """Deprecated alias for `inspect ctl task log-flush`."""
     _deprecation_note("flush", "task log-flush")
-    _run_log_flush(task, as_json)
+    _run_log_flush(task, as_json, terse=terse)
 
 
 @ctl_command.command("buffer", hidden=True)
@@ -1548,11 +1703,13 @@ def flush_alias(task: str | None, as_json: bool) -> None:
 @click.option("--samples", "log_buffer", type=int, default=None)
 @click.option("--shared", "log_shared", type=int, default=None)
 @click.option("--json", "as_json", is_flag=True, default=False)
+@click.option("--terse/--no-terse", "terse", default=None)
 def buffer_alias(
     task: str | None,
     log_buffer: int | None,
     log_shared: int | None,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Deprecated alias for `inspect ctl config --log-buffer / --log-shared`."""
     _deprecation_note("buffer", "config --log-buffer/--log-shared")
@@ -1568,6 +1725,7 @@ def buffer_alias(
         log_shared=log_shared,
         dry_run=False,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1580,6 +1738,7 @@ def buffer_alias(
 @click.option("--key", "key", type=(str, click.IntRange(min=1)), default=None)
 @click.option("--dry-run", is_flag=True, default=False)
 @click.option("--json", "as_json", is_flag=True, default=False)
+@click.option("--terse/--no-terse", "terse", default=None)
 def limits_alias(
     task: str | None,
     max_samples: int | None,
@@ -1589,6 +1748,7 @@ def limits_alias(
     key: tuple[str, int] | None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
 ) -> None:
     """Deprecated alias for `inspect ctl config`."""
     _deprecation_note("limits", "config")
@@ -1604,6 +1764,7 @@ def limits_alias(
         log_shared=None,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
     )
 
 
@@ -1892,6 +2053,7 @@ def _list_sample_rows(
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
 ) -> _SampleRows:
     """Fetch sample rows for one task (``task`` given) or all running tasks.
 
@@ -1932,6 +2094,7 @@ def _list_sample_rows(
             status=status_param,
             limit=limit,
             all_samples=all_samples,
+            content=content,
             # a scoped read fails the command on busy, so it keeps the
             # full budget; the unscoped fan-out skips on the default
             attempts=_REQUEST_ATTEMPTS if task is not None else None,
@@ -2026,6 +2189,7 @@ async def _read_all_eval_samples(
     status: str | None,
     limit: int | None,
     all_samples: bool,
+    content: bool,
     attempts: int | None,
 ) -> list[_EvalSamplesRead]:
     """Read each target eval's samples concurrently, in target order.
@@ -2055,6 +2219,7 @@ async def _read_all_eval_samples(
                 status=status,
                 limit=limit,
                 all_samples=all_samples,
+                content=content,
                 attempts=attempts,
                 narrator=narrator,
             )
@@ -2081,6 +2246,7 @@ def _run_sample_list(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
 ) -> None:
     if all_samples and limit is not None:
         raise click.UsageError("--all and --limit are mutually exclusive.")
@@ -2093,6 +2259,7 @@ def _run_sample_list(
         statuses=_parse_statuses(status),
         limit=limit,
         all_samples=all_samples,
+        content=content,
         idle_pointer=True,
     )
 
@@ -2110,7 +2277,9 @@ def _parse_statuses(status: str | None) -> frozenset[str] | None:
     return statuses
 
 
-def _run_sample_errors(task: str | None, as_json: bool) -> None:
+def _run_sample_errors(
+    task: str | None, as_json: bool, *, content: bool = False
+) -> None:
     _run_sample_listing(
         task,
         None,
@@ -2122,6 +2291,12 @@ def _run_sample_errors(task: str | None, as_json: bool) -> None:
         # cap would silently hide errors beyond it (the server's errors
         # filter narrows the rows, but capped-filtered is still capped).
         all_samples=True,
+        content=content,
+        # this is the error-focused view, so an empty error column needs
+        # the pointer to the opt-in
+        content_footer=None
+        if content
+        else "error messages withheld — pass --content to include them",
     )
 
 
@@ -2137,6 +2312,8 @@ def _run_sample_listing(
     statuses: frozenset[str] | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
+    content_footer: str | None = None,
     idle_pointer: bool = False,
 ) -> None:
     """The shared body of `sample list` / `sample errors`.
@@ -2150,9 +2327,16 @@ def _run_sample_listing(
     unavailable)" instead, and an empty ``--status``-filtered or
     ``--active-since`` delta listing gets a filter-scoped message (samples
     may exist that simply didn't match). ``statuses`` is the already-parsed
-    ``--status`` member set (``None`` = no filter). ``idle_pointer`` opts the
-    human rendering into the long-idle escalation footer (`sample list` — the
-    listing whose idle column shows a stall; see :func:`_echo_idle_pointer`).
+    ``--status`` member set (``None`` = no filter). ``content`` asks the
+    server to include each row's error message (withheld by default —
+    agent-influenced free text); ``content_footer`` is a human-rendering
+    footer noting the withholding (echoed after a non-empty table, and
+    suppressed when a row carries an error message anyway — a pre-v6 server
+    ignores the ``content`` param, and the footer must not caption text
+    printed right above it as withheld).
+    ``idle_pointer`` opts the human rendering into the long-idle escalation
+    footer (`sample list` — the listing whose idle column shows a stall; see
+    :func:`_echo_idle_pointer`).
     """
     listing = _list_sample_rows(
         task,
@@ -2161,6 +2345,7 @@ def _run_sample_listing(
         statuses=statuses,
         limit=limit,
         all_samples=all_samples,
+        content=content,
     )
     rows = listing.rows
 
@@ -2202,6 +2387,11 @@ def _run_sample_listing(
             _echo(empty)
             return
         printer(rows, show_task=True)
+    if content_footer is not None and not any(
+        row.get("error") is not None for row in rows
+    ):
+        _echo()
+        _echo(content_footer)
     if listing.truncated:
         _echo_truncation_footer(
             len(rows),
@@ -2296,7 +2486,12 @@ def _echo_truncation_footer(
 
 @_envelope_failures
 def _run_sample_show(
-    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+    task: str,
+    sample_id: str,
+    epoch: int,
+    content: bool,
+    show_traceback: bool,
+    as_json: bool,
 ) -> None:
     fetched = _fetch_sample_summaries(task)
     summaries = fetched.summaries
@@ -2316,6 +2511,7 @@ def _run_sample_show(
         target["eval_id"],
         sample_id,
         epoch,
+        content=content,
         pid=target.get("pid"),
     )
     row = (
@@ -2397,6 +2593,7 @@ def _run_sample_events(
     from_start: bool,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -2453,6 +2650,7 @@ def _run_sample_events(
         tail=tail,
         limit=limit,
         types=types,
+        content=content,
         full=full,
         since_time=since_time,
         until=until,
@@ -2471,7 +2669,7 @@ def _run_sample_events(
         _echo_raw(json_lib.dumps(page, indent=2))
         return
 
-    _print_events(page, full=full)
+    _print_events(page, content=content, full=full)
 
 
 @_envelope_failures
@@ -2482,6 +2680,7 @@ def _run_sample_messages(
     *,
     tail: int | None,
     show_all: bool,
+    content: bool,
     full: bool,
     as_json: bool,
 ) -> None:
@@ -2527,6 +2726,7 @@ def _run_sample_messages(
         sample_id,
         epoch,
         tail=tail,
+        content=content,
         full=full,
         pid=target.get("pid"),
     )
@@ -2545,7 +2745,7 @@ def _run_sample_messages(
 
     _echo(_task_header(target))
     _echo()
-    _print_messages(page, full=full)
+    _print_messages(page, content=content, full=full)
 
 
 def _looks_like_timestamp(value: str) -> bool:
@@ -2701,7 +2901,7 @@ def _run_keep_alive(pid: int | None, *, keep: bool, as_json: bool) -> None:
 
 
 @_envelope_failures
-def _run_log_flush(task: str | None, as_json: bool) -> None:
+def _run_log_flush(task: str | None, as_json: bool, terse: bool | None = None) -> None:
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
     scope = _resolve_scope(servers, summaries, task, per_task_option="task log-flush")
@@ -2730,6 +2930,14 @@ def _run_log_flush(task: str | None, as_json: bool) -> None:
         return
 
     flushed = int(result.get("flushed", 0) or 0)
+    if _use_terse(terse):
+        outcome = (
+            f"applied — flushed {flushed} sample{'' if flushed == 1 else 's'}"
+            if flushed
+            else "no-op — no buffered samples"
+        )
+        _echo(_terse_line("log-flush", scope.task or scope.task_id, outcome))
+        return
     _echo(scope.header)
     if flushed:
         _echo(f"\nFlushed {flushed} sample{'' if flushed == 1 else 's'} to the log.")
@@ -2768,6 +2976,7 @@ def _run_task_cancel(
     action: TaskCancelAction = "cancel",
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
     servers = list_discovered_servers()
     summaries = _fetch_summaries(servers).summaries
@@ -2815,8 +3024,11 @@ def _run_task_cancel(
         )
         return
 
-    _echo(scope.header)
-    _echo()
+    terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id
+    if not terse_mode:
+        _echo(scope.header)
+        _echo()
     if result.get("changed"):
         in_flight = int(result.get("in_flight", 0) or 0)
         outcome = {
@@ -2837,13 +3049,23 @@ def _run_task_cancel(
                 else "queued samples are abandoned and the task will complete"
             )
         )
-        if dry_run:
+        if terse_mode:
+            status = "dry-run" if dry_run else "requested"
+            _echo(
+                _terse_line(
+                    "cancel", target_label, f"{status} — {interrupted}; {suffix}"
+                )
+            )
+        elif dry_run:
             _echo(f"Would cancel — {interrupted}; {suffix}.")
         else:
             _echo(f"Cancel requested — {interrupted}; {suffix}.")
     else:
         reason = _sanitize_line(str(result.get("reason") or "already in that state"))
-        _echo(f"Nothing to do: {reason}.")
+        if terse_mode:
+            _echo(_terse_line("cancel", target_label, f"no-op — {reason}"))
+        else:
+            _echo(f"Nothing to do: {reason}.")
 
 
 _PAUSE_ROUTE_MISSING = (
@@ -2882,6 +3104,23 @@ def _still_held_note(held: list[str]) -> str:
     return f"Note: {' and '.join(latches)} — samples stay held until resumed."
 
 
+def _terse_held_suffix(held: list[str]) -> str:
+    """The still-held latches folded into a terse `task resume` line.
+
+    The terse mode's one-line budget can't carry :func:`_still_held_note`'s
+    full prose, but silently dropping the fact would misreport a resume that
+    leaves the task held — so the latch names ride as a parenthetical, with
+    the clearing command kept: the terse default's non-TTY audience (an
+    agent) is exactly who needs the next command spelled out.
+    """
+    latches = [latch for latch in ("process", "model") if latch in held]
+    if not latches:
+        return ""
+    names = " and ".join(f"{latch} pause" for latch in latches)
+    commands = " / ".join(f"`inspect ctl {latch} resume`" for latch in latches)
+    return f" (still held by {names} — {commands})"
+
+
 @_envelope_failures
 def _run_task_pause_resume(
     task: str | None,
@@ -2889,6 +3128,7 @@ def _run_task_pause_resume(
     verb: Literal["pause", "resume"],
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
     """Pause or resume one task (``POST /tasks/<task-id>/pause|resume``).
 
@@ -2937,8 +3177,11 @@ def _run_task_pause_resume(
         )
         return
 
-    _echo(scope.header)
-    _echo()
+    terse_mode = _use_terse(terse)
+    target_label = scope.task or scope.task_id
+    if not terse_mode:
+        _echo(scope.header)
+        _echo()
     if result.get("changed"):
         if verb == "pause":
             # `dispatched` counts samples past the gate, including ones still
@@ -2948,7 +3191,17 @@ def _run_task_pause_resume(
                 f"{dispatched} dispatched sample{'' if dispatched == 1 else 's'} "
                 f"{'would' if dry_run else 'will'} finish naturally"
             )
-            if dry_run:
+            if terse_mode:
+                _echo(
+                    _terse_line(
+                        "pause",
+                        target_label,
+                        f"{'dry-run' if dry_run else 'requested'} — {finishing}; "
+                        f"no new samples or retry attempts "
+                        f"{'would' if dry_run else 'will'} start",
+                    )
+                )
+            elif dry_run:
                 _echo(
                     f"Would pause — {finishing}; no new samples or retry "
                     "attempts would start."
@@ -2958,6 +3211,19 @@ def _run_task_pause_resume(
                     f"Pause requested — {finishing}; no new samples or retry "
                     "attempts will start. Resume with `inspect ctl task resume`."
                 )
+        elif terse_mode:
+            # independent latches: a task resume does not clear a process
+            # or model pause, so say when the task is still held
+            held = [] if dry_run else _paused_sources(result.get("paused"))
+            _echo(
+                _terse_line(
+                    "resume",
+                    target_label,
+                    f"{'dry-run' if dry_run else 'requested'} — queued samples "
+                    f"{'would' if dry_run else 'will'} dispatch again"
+                    f"{_terse_held_suffix(held)}",
+                )
+            )
         elif dry_run:
             _echo("Would resume — queued samples would dispatch again.")
         else:
@@ -2969,13 +3235,18 @@ def _run_task_pause_resume(
                 _echo(_still_held_note(held))
     else:
         reason = _sanitize_line(str(result.get("reason") or "already in that state"))
-        _echo(f"Nothing to do: {reason}.")
         # "task is not paused" is technically right for a task held only by
         # the process or model latch, but the operator wants it moving —
         # point at the latch that actually holds it
         held = _paused_sources(result.get("paused"))
-        if verb == "resume" and ("process" in held or "model" in held):
-            _echo(_still_held_note(held))
+        note_held = verb == "resume" and ("process" in held or "model" in held)
+        if terse_mode:
+            suffix = _terse_held_suffix(held) if note_held else ""
+            _echo(_terse_line(verb, target_label, f"no-op — {reason}{suffix}"))
+        else:
+            _echo(f"Nothing to do: {reason}.")
+            if note_held:
+                _echo(_still_held_note(held))
 
 
 @_envelope_failures
@@ -3131,18 +3402,24 @@ def _run_sample_mutation(
     route_missing: str,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None,
     changed_message: Callable[[str, dict[str, Any]], str],
     noop_message: Callable[[str, dict[str, Any]], str],
+    terse_changed: Callable[[dict[str, Any]], str],
+    terse_noop: Callable[[dict[str, Any]], str],
 ) -> None:
     """Shared scaffold for the per-sample mutation verbs (cancel, requeue).
 
     Fetches summaries, resolves the target eval, applies the required-EPOCH
-    gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders either the
-    uniform ``--json`` mutation envelope or the task header plus a message
-    line. Only the verb, extra request params, missing-route text, and the
-    applied/no-op message lines differ per mutation; each message callback
-    receives the rendered ``sample <id> (epoch <n>)`` label and the server's
-    response.
+    gate, posts ``/evals/{eval_id}/sample/{verb}``, and renders the uniform
+    ``--json`` mutation envelope, a terse ``verb task/sample (epoch n):
+    outcome`` line (see :func:`_use_terse`), or the task header plus a
+    message line. Only the verb, extra request params, missing-route text,
+    and the applied/no-op message lines differ per mutation; the full-mode
+    callbacks receive the rendered ``sample <id> (epoch <n>)`` label and the
+    server's response, the terse callbacks just the response (the scaffold
+    prefixes the target itself, so every terse line names it — the full
+    no-op messages don't have to).
     """
     fetched = _fetch_sample_summaries()
     summaries = fetched.summaries
@@ -3208,14 +3485,24 @@ def _run_sample_mutation(
         )
         return
 
+    # the server echoes the resolved identifiers; fall back to what was sent
+    resolved_id = result.get("sample_id", sample_id)
+    resolved_epoch = result.get("epoch", epoch)
+
+    if _use_terse(terse):
+        target_label = _sanitize_line(
+            f"{target.get('task') or '?'}/{resolved_id} (epoch {resolved_epoch})"
+        )
+        outcome = terse_changed(result) if result.get("changed") else terse_noop(result)
+        _echo(_terse_line(verb, target_label, outcome))
+        return
+
     _echo(_task_header(target))
     _echo()
     # the label is sanitized before the callbacks interpolate it (with other
     # wire fields — status, reason) so a swallow can't eat the message tail;
     # `_echo` sanitizes whatever the composed line still carries
-    label = _sanitize_line(
-        f"sample {result.get('sample_id', sample_id)} (epoch {result.get('epoch', epoch)})"
-    )
+    label = _sanitize_line(f"sample {resolved_id} (epoch {resolved_epoch})")
     if result.get("changed"):
         _echo(changed_message(label, result))
     else:
@@ -3231,13 +3518,15 @@ def _run_sample_cancel(
     action: SampleCancelAction,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
+    outcome = {
+        "score": "scored on the work done so far",
+        "error": "marked as errored",
+        "cancel": "recorded as cancelled",
+    }[action]
+
     def changed_message(label: str, result: dict[str, Any]) -> str:
-        outcome = {
-            "score": "scored on the work done so far",
-            "error": "marked as errored",
-            "cancel": "recorded as cancelled",
-        }[action]
         if dry_run:
             return f"Would cancel {label} — it would be {outcome}."
         return f"Cancel requested for {label} — it will be {outcome}."
@@ -3246,6 +3535,16 @@ def _run_sample_cancel(
         status = result.get("status")
         suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
         return f"Nothing to do — {label} has already finished{suffix}."
+
+    def terse_changed(result: dict[str, Any]) -> str:
+        if dry_run:
+            return f"dry-run — would be {outcome}"
+        return f"requested — will be {outcome}"
+
+    def terse_noop(result: dict[str, Any]) -> str:
+        status = result.get("status")
+        suffix = f" (status: {_sanitize_line(str(status))})" if status else ""
+        return f"no-op — already finished{suffix}"
 
     _run_sample_mutation(
         task,
@@ -3256,8 +3555,11 @@ def _run_sample_cancel(
         route_missing=_CANCEL_ROUTE_MISSING,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
         changed_message=changed_message,
         noop_message=noop_message,
+        terse_changed=terse_changed,
+        terse_noop=terse_noop,
     )
 
 
@@ -3275,20 +3577,31 @@ def _run_sample_requeue(
     *,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
-    def changed_message(label: str, result: dict[str, Any]) -> str:
-        resume = (
+    def resume_clause(result: dict[str, Any]) -> str:
+        return (
             "resume from its checkpoint"
             if result.get("resume_from_checkpoint")
             else "re-run from the back of the sample queue"
         )
+
+    def changed_message(label: str, result: dict[str, Any]) -> str:
         if dry_run:
-            return f"Would requeue {label} — it would {resume}."
-        return f"Requeue accepted for {label} — it will {resume}."
+            return f"Would requeue {label} — it would {resume_clause(result)}."
+        return f"Requeue accepted for {label} — it will {resume_clause(result)}."
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         reason = _sanitize_line(str(result.get("reason") or "already in that state"))
         return f"Nothing to do — {reason}."
+
+    def terse_changed(result: dict[str, Any]) -> str:
+        if dry_run:
+            return f"dry-run — would {resume_clause(result)}"
+        return f"accepted — will {resume_clause(result)}"
+
+    def terse_noop(result: dict[str, Any]) -> str:
+        return f"no-op — {result.get('reason') or 'already in that state'}"
 
     _run_sample_mutation(
         task,
@@ -3299,8 +3612,11 @@ def _run_sample_requeue(
         route_missing=_REQUEUE_ROUTE_MISSING,
         dry_run=dry_run,
         as_json=as_json,
+        terse=terse,
         changed_message=changed_message,
         noop_message=noop_message,
+        terse_changed=terse_changed,
+        terse_noop=terse_noop,
     )
 
 
@@ -3670,6 +3986,7 @@ def _run_config(
     author: str | None = None,
     dry_run: bool,
     as_json: bool,
+    terse: bool | None = None,
 ) -> None:
     # `set_buffer` gates the no-live-buffer hard error below; whether the
     # request as a whole is a mutation is derived once, in _exec_limits
@@ -3840,6 +4157,41 @@ def _run_config(
 
     if as_json:
         _echo_raw(json_lib.dumps(config, indent=2))
+        return
+
+    # terse covers only a set — a pure view's requested output *is* the full
+    # config block, so there is no header noise to shed
+    if mutated and _use_terse(terse):
+        target_label = (
+            scope.task
+            or scope.task_id
+            or (f"pid {scope.pid}" if scope.pid is not None else "process")
+        )
+        settings = []
+        for knob, value in knob_values.items():
+            if value is None or knob == "key":
+                continue
+            rendered = f"{knob}={value}"
+            # --model narrows the connections retune to matching controllers —
+            # dropped from the line, a scripted log misrecords the blast radius
+            if knob == "max_connections" and model is not None:
+                rendered += f" (models matching '{model}')"
+            settings.append(rendered)
+        if key is not None:
+            settings.append(f"concurrency:{key[0]}={key[1]}")
+        _echo(
+            _terse_line(
+                "config",
+                target_label,
+                f"{'dry-run' if dry_run else 'applied'} — {', '.join(settings)}",
+            )
+        )
+        # warnings and notes must survive terseness — "applied" above may be
+        # qualified by a not-adjustable knob or a process-wide blast radius
+        for warning in config.get("warnings") or []:
+            _echo(f"! {warning}")
+        for note in config.get("notes") or []:
+            _echo(f"note: {note}")
         return
 
     _echo(scope.header)
@@ -4855,6 +5207,7 @@ async def _fetch_samples_async(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
     attempts: int | None = None,
     narrator: _BusyNarrator | None = None,
 ) -> _SamplesPage:
@@ -4901,6 +5254,8 @@ async def _fetch_samples_async(
         params["all"] = True
     elif limit is not None:
         params["limit"] = limit
+    if content:
+        params["content"] = True
     page = await _get_with_retry_async(
         socket_path,
         f"/evals/{eval_id}/samples",
@@ -4934,6 +5289,7 @@ def _fetch_samples(
     status: str | None = None,
     limit: int | None = None,
     all_samples: bool = False,
+    content: bool = False,
     attempts: int | None = None,
 ) -> _SamplesPage:
     """Sync facade over :func:`_fetch_samples_async` — see it for policy."""
@@ -4947,6 +5303,7 @@ def _fetch_samples(
             status=status,
             limit=limit,
             all_samples=all_samples,
+            content=content,
             attempts=attempts,
         )
     )
@@ -4958,13 +5315,15 @@ def _fetch_sample_detail(
     sample_id: str,
     epoch: int,
     *,
+    content: bool = False,
     pid: int | None = None,
 ) -> dict[str, Any]:
     """Query one control server for a single sample's summary + error detail.
 
     The one read behind ``sample show`` — the response carries the summary
     fields (timing / tokens / messages) alongside the error history, so no
-    supplemental listing fetch is needed. It rides the full narrated
+    supplemental listing fetch is needed. ``content`` opts into the error
+    free text (withheld by default). It rides the full narrated
     busy-retry policy rather than failing on a momentary event-loop stall;
     ``pid`` scopes that policy's exhaustion pointer to the hosting process.
     """
@@ -4974,7 +5333,7 @@ def _fetch_sample_detail(
     return _request_json(
         socket_path,
         f"/evals/{eval_id}/sample",
-        params={"sample_id": sample_id, "epoch": epoch},
+        params={"sample_id": sample_id, "epoch": epoch, "content": content},
         what=f"sample {sample_id}",
         not_found=(
             f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
@@ -4994,6 +5353,7 @@ def _fetch_sample_events(
     tail: int | None,
     limit: int | None,
     types: str | None,
+    content: bool,
     full: bool,
     since_time: float | None,
     until: float | None,
@@ -5009,7 +5369,12 @@ def _fetch_sample_events(
     # sample_id (and all params) go in the query string so reserved-char ids
     # address correctly; drop unset options so server defaults apply. The
     # wire parameter for the cursor is `since` (the CLI flag is --cursor).
-    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "content": content,
+        "full": full,
+    }
     if cursor is not None:
         params["since"] = cursor
     if tail is not None:
@@ -5048,6 +5413,7 @@ def _fetch_sample_messages(
     epoch: int,
     *,
     tail: int | None,
+    content: bool,
     full: bool,
     pid: int | None = None,
 ) -> dict[str, Any]:
@@ -5060,7 +5426,12 @@ def _fetch_sample_messages(
     """
     # sample_id (and all params) go in the query string so reserved-char ids
     # address correctly; drop unset options so server defaults apply.
-    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    params: dict[str, Any] = {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "content": content,
+        "full": full,
+    }
     if tail is not None:
         params["tail"] = tail
     return _request_json(
@@ -5631,8 +6002,28 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         _echo(f"  note: {note}")
 
 
-def _print_events(page: dict[str, Any], *, full: bool) -> None:
-    """Render a page of transcript events (table) plus a cursor footer."""
+def _events_carry_content(events: list[dict[str, Any]]) -> bool:
+    """True when a compact events page came back with free-text fields.
+
+    The withheld-content footers key on the response, not the request: a
+    pre-v6 server ignores the unknown ``content`` query param and returns
+    the old content-bearing projection, and a "metadata only" footer must
+    not contradict text printed right above it. The listed keys are emitted
+    by ``events._project`` only under ``content`` (v6+) and unconditionally
+    on the typed branches before v6, so their presence means content came
+    back; a page of header-only events has no signal, but then the footer
+    claims nothing false either.
+    """
+    fields = ("completion", "arguments", "result", "error", "data")
+    return any(field in event for event in events for field in fields)
+
+
+def _print_events(page: dict[str, Any], *, content: bool, full: bool) -> None:
+    """Render a page of transcript events (table) plus a cursor footer.
+
+    The metadata-only footer is response-keyed (see
+    :func:`_events_carry_content`).
+    """
     events = page.get("events") or []
     if full:
         # Raw mode is for machine consumption; the human rendering is the
@@ -5656,6 +6047,8 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
 
     parts = [f"{len(events)} event" + ("" if len(events) == 1 else "s")]
     parts.append("done" if page.get("done") else "more")
+    if not full and not content and not _events_carry_content(events):
+        parts.append("metadata only (pass --content for text)")
     _echo()
     _echo("  ·  ".join(parts))
     nxt = page.get("next")
@@ -5663,8 +6056,14 @@ def _print_events(page: dict[str, Any], *, full: bool) -> None:
         _echo(f"next: {_sanitize_line(str(nxt))}  (resume with --cursor)")
 
 
-def _print_messages(page: dict[str, Any], *, full: bool) -> None:
-    """Render a conversation snapshot (per-message rows) plus a count footer."""
+def _print_messages(page: dict[str, Any], *, content: bool, full: bool) -> None:
+    """Render a conversation snapshot (per-message rows) plus a count footer.
+
+    The metadata-only footer is response-keyed, like the events one (see
+    :func:`_events_carry_content`): a ``content`` key on any message means a
+    pre-v6 server returned the old always-content projection, so the footer
+    would contradict the table above it.
+    """
     messages = page.get("messages") or []
     count = int(page.get("count") or 0)
     status = page.get("status")
@@ -5693,6 +6092,8 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
         footer += " (use --all for the whole conversation)"
     if status:
         footer += f"  ·  {_sanitize_line(str(status))}"
+    if not full and not content and not any("content" in m for m in messages):
+        footer += "  ·  metadata only (pass --content for text)"
     _echo()
     _echo(footer)
 
@@ -5700,19 +6101,29 @@ def _print_messages(page: dict[str, Any], *, full: bool) -> None:
 def _message_summary(m: dict[str, Any]) -> str:
     """One-line summary for a message row (best-effort over compact fields).
 
+    Tolerates the metadata-only projection (no content / arguments / error
+    text): tool calls render as bare function names, a tool message as its
+    function, and a withheld error as a bare ``error`` marker.
+
     Every wire field is sanitized at its interpolation site (provenance is
     irrelevant — see ``_sanitize_control``) so an unterminated string
     sequence in one (e.g. the message content) can't swallow the parts
     appended after it — the tool-call list or the ``error:`` tag.
     """
     parts = [_sanitize_control(str(m.get("content") or ""))]
+    if m.get("role") == "tool" and "content" not in m and m.get("function"):
+        parts.append(f"[{_sanitize_control(str(m['function']))} output]")
     for call in m.get("tool_calls") or []:
+        arguments = (
+            _truncate(str(call["arguments"]), 30) if call.get("arguments") else ""
+        )
         parts.append(
-            f"→ {_sanitize_control(str(call.get('function') or '?'))}"
-            f"({_truncate(str(call.get('arguments') or ''), 30)})"
+            f"→ {_sanitize_control(str(call.get('function') or '?'))}({arguments})"
         )
     if m.get("error"):
         parts.append(f"error: {_sanitize_control(str(m['error']))}")
+    elif m.get("has_error"):
+        parts.append("error")
     return _truncate("  ".join(p for p in parts if p), 100)
 
 
@@ -5722,7 +6133,11 @@ def _event_summary(e: dict[str, Any]) -> str:
     A pending (in-flight) event renders its live state — ``generating M:SS``
     for a model call, ``running M:SS`` for a tool call — instead of the
     completion fields, whose placeholder values (zero tokens, a default stop
-    reason) would read as "finished with nothing".
+    reason) would read as "finished with nothing". Tolerates the
+    metadata-only projection (no completion / arguments / result / error
+    text): a withheld model/tool error renders as a bare ``error`` marker,
+    while an ``error``-type event renders an empty summary (its type column
+    already reads ``error``, so a marker would only duplicate it).
 
     Every wire field is sanitized at its interpolation site (provenance is
     irrelevant — see ``_sanitize_control``) so an unterminated string
@@ -5743,16 +6158,18 @@ def _event_summary(e: dict[str, Any]) -> str:
             bits.append(_sanitize_control(str(e["completion"])))
         if e.get("error"):
             bits.append(f"error: {_sanitize_control(str(e['error']))}")
+        elif e.get("has_error"):
+            bits.append("error")
         return _truncate(" · ".join(b for b in bits if b), 80)
     if t == "tool":
-        s = (
-            f"{_sanitize_control(str(e.get('function') or '?'))}"
-            f"({_truncate(str(e.get('arguments') or ''), 30)})"
-        )
+        arguments = _truncate(str(e["arguments"]), 30) if e.get("arguments") else ""
+        s = f"{_sanitize_control(str(e.get('function') or '?'))}({arguments})"
         if e.get("pending"):
             s += f" · {_format_pending('running', e.get('timestamp'))}"
         elif e.get("error"):
             s += f" → error: {_sanitize_control(str(e['error']))}"
+        elif e.get("has_error"):
+            s += " → error"
         elif e.get("result"):
             s += f" → {_truncate(str(e['result']), 40)}"
         return _truncate(s, 80)
@@ -5829,9 +6246,11 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
     sanitized_parts = (_sanitize_line(p) for p in parts)
     _echo("  ·  ".join(p for p in sanitized_parts if p))
 
+    # `is not None`, not truthiness: a metadata-only read (no --content)
+    # carries a present-but-withheld error as an *empty* dict
     error = detail.get("error")
     retries = detail.get("error_retries") or []
-    if not error and not retries:
+    if error is None and not retries:
         _echo("\n(no errors)")
         return
 
@@ -5839,16 +6258,25 @@ def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
         _echo("\nprior attempts:")
         for i, retry_error in enumerate(retries, start=1):
             _echo_error(f"attempt {i}:", retry_error, show_traceback)
-    if error:
+    if error is not None:
         _echo("\nfinal error:")
         _echo_error("", error, show_traceback)
 
 
 def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None:
-    """Echo one error: ``label  message`` plus an indented traceback if asked."""
+    """Echo one error: ``label  message`` plus an indented traceback if asked.
+
+    A metadata-only detail (no ``--content``) carries each error as an empty
+    dict — no ``message`` key at all — rendered as an explicit withheld
+    marker rather than a blank line a reader would take for an empty message.
+    """
     # flatten newlines so a crafted message can't print continuation lines at
     # column 0 that mimic surrounding output (full text remains via --json)
-    message = _sanitize_line(error.get("message") or "")
+    message = (
+        _sanitize_line(error.get("message") or "")
+        if "message" in error
+        else "(message withheld — pass --content to include it)"
+    )
     _echo(f"  {label} {message}".rstrip() if label else f"  {message}")
     if show_traceback:
         traceback_ansi = error.get("traceback_ansi")

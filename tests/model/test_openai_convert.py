@@ -15,12 +15,20 @@ from openai.types.responses import (
     ResponseReasoningItem,
     ResponseUsage,
 )
+from openai.types.responses.mcp_tool_call_error import (
+    HTTPError,
+    McpProtocolError,
+    McpToolCallError,
+    McpToolExecutionError,
+)
+from openai.types.responses.response_output_item import McpCall
 from openai.types.responses.response_usage import (
     InputTokensDetails,
     OutputTokensDetails,
 )
 
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.model import (
     model_output_from_openai,
     model_output_from_openai_responses,
@@ -31,8 +39,10 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._openai import chat_message_assistant_from_openai
 from inspect_ai.model._openai_responses import (
+    mcp_call_to_tool_use,
     reasoning_from_responses_reasoning,
     responses_reasoning_from_reasoning,
+    tool_use_to_mcp_call_param,
 )
 
 
@@ -758,3 +768,59 @@ def test_reasoning_round_trip_content_encrypted_and_summary() -> None:
     assert len(replayed_summary) == 1
     assert replayed_summary[0]["text"] == "API summary"
     assert replayed["id"] == "rs_rt_all"
+
+
+def _mcp_call(error: McpToolCallError | None) -> McpCall:
+    return McpCall(
+        id="mcp_1",
+        type="mcp_call",
+        name="get_weather",
+        server_label="weather",
+        arguments='{"city": "Paris"}',
+        output=None,
+        error=error,
+    )
+
+
+def test_mcp_call_error_round_trip() -> None:
+    """In openai 3.1.0, `McpCall.error` changed from a string to a structured union."""
+    cases: list[tuple[McpToolCallError | None, str | None]] = [
+        (
+            McpProtocolError(
+                type="mcp_protocol_error", code=-32000, message="tool not found"
+            ),
+            "tool not found (-32000)",
+        ),
+        (
+            HTTPError(type="http_error", code=503, message="upstream unavailable"),
+            "upstream unavailable (503)",
+        ),
+        (
+            McpToolExecutionError(
+                type="mcp_tool_execution_error",
+                content=[{"type": "text", "text": "boom"}],
+            ),
+            to_json_str_safe([{"type": "text", "text": "boom"}]),
+        ),
+        # string content passes through unquoted so replay round trips are idempotent
+        (
+            McpToolExecutionError(type="mcp_tool_execution_error", content="boom"),
+            "boom",
+        ),
+        (None, None),
+    ]
+    for error, expected in cases:
+        content = mcp_call_to_tool_use(_mcp_call(error))
+        assert content.error == expected
+
+        param = tool_use_to_mcp_call_param(content)
+        revalidated = McpCall.model_validate(param)
+        if expected is None:
+            assert revalidated.error is None
+        else:
+            # the original variant isn't recoverable from the display string
+            assert isinstance(revalidated.error, McpToolExecutionError)
+            assert revalidated.error.content == expected
+
+        # a second conversion pass must not compound quoting
+        assert mcp_call_to_tool_use(revalidated).error == expected
