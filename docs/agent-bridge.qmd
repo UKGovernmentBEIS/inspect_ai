@@ -131,9 +131,17 @@ Pass `True` to use the target model's internal provider, a `WebSearchProviders` 
 
 Ordinary function tools are never withheld — those are executed by the bridged agent inside the sandbox and grant it nothing it does not already have.
 
-For the same reason, image and document content in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
+For the same reason, all media content (images, audio, video, and documents) in a request to a sandbox bridge must be an inline `data:` URI. A remote URL or host path would otherwise be dereferenced outside the sandbox, on the agent's behalf.
 
-None of this applies to the in-process `agent_bridge()`, where the scaffold already runs with the host's network and filesystem and there is no boundary to defend.
+None of this restricts the in-process `agent_bridge()`, where the scaffold
+already runs with the host's network and filesystem and there is no boundary to
+defend. Inspect explicitly materializes its non-inline media before model
+submission, preserving that access without relying on provider-side fetching.
+
+`AgentBridge` itself defaults to rejecting non-inline media so a new bridge
+subclass cannot accidentally grant host access. Code that constructs the class
+directly can opt in with `allow_remote_media=True`; the `agent_bridge()` factory
+makes this grant explicitly.
 
 ## Bridged Tools
 
