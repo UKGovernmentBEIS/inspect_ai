@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: `inspect score --from-scan` imports completed Inspect Scout results into their source eval log without re-running scanners, preserving result context and Scout metrics while rejecting mismatched or error-bearing scans. (#4756)
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 
 ## 0.3.259 (16 August 2026)

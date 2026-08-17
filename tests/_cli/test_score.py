@@ -1,5 +1,7 @@
 import pathlib
+from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
@@ -228,3 +230,107 @@ async def test_score_stream_flushes_periodically(
     )
 
     assert flush_counts == [1, 2, 3]
+
+
+@pytest.mark.anyio
+async def test_score_from_scan_writes_separate_output_without_mutating_source(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_file = tmp_path / LOG_SCORED.name
+    output_file = tmp_path / "scan-imported.eval"
+    original_log = await read_eval_log_async(str(LOG_SCORED))
+    assert original_log.samples is not None
+    original_log.eval.eval_id = "scan-import-eval"
+    for index, sample in enumerate(original_log.samples):
+        sample.uuid = f"scan-import-uuid-{index}"
+    await write_eval_log_async(original_log, str(input_file))
+    transcript_id = original_log.samples[0].uuid
+    assert transcript_id is not None
+
+    scan = SimpleNamespace(
+        complete=True,
+        errors=[],
+        scanners={
+            "scan_risk": pd.DataFrame(
+                [
+                    {
+                        "transcript_id": transcript_id,
+                        "transcript_source_id": original_log.eval.eval_id,
+                        "value": True,
+                        "value_type": "boolean",
+                        "answer": None,
+                        "explanation": "imported without execution",
+                        "metadata": "{}",
+                        "message_references": "[]",
+                        "event_references": "[]",
+                        "scan_error": None,
+                    }
+                ]
+            )
+        },
+        summary=SimpleNamespace(scanners={"scan_risk": SimpleNamespace(metrics=None)}),
+    )
+
+    async def scan_results_df_async(
+        scan_location: str, *, rows: str
+    ) -> SimpleNamespace:
+        assert scan_location == "scan-dir"
+        assert rows == "transcripts"
+        return scan
+
+    monkeypatch.setattr(
+        "inspect_scout.aio.scan_results_df_async", scan_results_df_async
+    )
+    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
+    recorder_locations: list[str] = []
+    create_recorder = create_recorder_for_location
+
+    def tracked_create_recorder(location: str, log_dir: str):
+        recorder_locations.append(location)
+        return create_recorder(location, log_dir)
+
+    monkeypatch.setattr(
+        score_cli, "create_recorder_for_location", tracked_create_recorder
+    )
+
+    await score(
+        log_dir="",
+        log_file=str(input_file),
+        action="append",
+        log_level=None,
+        output_file=str(output_file),
+        overwrite=True,
+        scorer=None,
+        s=None,
+        metric=None,
+        from_scan="scan-dir",
+    )
+
+    source_log = await read_eval_log_async(input_file)
+    imported_log = await read_eval_log_async(output_file)
+    assert source_log.samples is not None
+    assert imported_log.samples is not None
+    assert "scan_risk" not in (source_log.samples[0].scores or {})
+    assert (imported_log.samples[0].scores or {})["scan_risk"].value is True
+    assert recorder_locations == [str(input_file), str(output_file)]
+
+
+@pytest.mark.anyio
+async def test_score_from_scan_rejects_scoring_options_before_reading_log() -> None:
+    with pytest.raises(
+        ValueError,
+        match=r"--from-scan cannot be combined.*--scorer, --model",
+    ):
+        await score(
+            log_dir="",
+            log_file="does-not-exist.eval",
+            action="append",
+            log_level=None,
+            overwrite=True,
+            scorer="match",
+            s=None,
+            metric=None,
+            model="mockllm/model",
+            from_scan="scan-dir",
+        )
