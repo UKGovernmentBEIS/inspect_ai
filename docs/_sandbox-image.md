@@ -6,5 +6,5 @@ services:
   default:
     image: aisiuk/inspect-tool-support
     init: true
-    network_mode: none
 ```
+
