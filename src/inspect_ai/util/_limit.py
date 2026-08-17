@@ -91,6 +91,14 @@ class Limit(abc.ABC):
 
     def __init__(self) -> None:
         self._entered = False
+        # live override source for a sample-root node (attached by
+        # inspect_ai.util._limit_overrides.sample_limit_override_scope and
+        # resolved by the node's `limit` property); None for ordinary nodes
+        self._limit_override: Callable[[], int | None] | None = None
+
+    def _limit_override_value(self) -> int | None:
+        """The live override for this node, or ``None`` when none applies."""
+        return self._limit_override() if self._limit_override is not None else None
 
     @abc.abstractmethod
     def __enter__(self) -> Limit:
@@ -1043,8 +1051,9 @@ class _TokenLimit(Limit, _Node):
 
     @property
     def limit(self) -> int | None:
-        """Get the configured token limit value."""
-        return self._limit
+        """Get the configured token limit value (a live override when one is set)."""
+        override = self._limit_override_value()
+        return override if override is not None else self._limit
 
     @limit.setter
     def limit(self, value: int | None) -> None:
@@ -1297,8 +1306,9 @@ class _MessageLimit(Limit, _Node):
 
     @property
     def limit(self) -> int | None:
-        """Get the configured message limit value."""
-        return self._limit
+        """Get the configured message limit value (a live override when one is set)."""
+        override = self._limit_override_value()
+        return override if override is not None else self._limit
 
     @limit.setter
     def limit(self, value: int | None) -> None:
@@ -1348,13 +1358,21 @@ class _TimeLimit(Limit, _Node):
         super().__init__()
         _validate_time_limit("Time", limit)
         self._limit = limit
+        # the limit the cancel-scope deadline was last derived from (the
+        # effective limit as of __enter__ / the last _refresh_deadline) — the
+        # honest value for the exceeded error even if the override changed
+        # between the deadline firing and __exit__ observing it
+        self._active_limit: float | None = None
         self._start_time: float | None = None
         self._end_time: float | None = None
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
         time_limit_tree.push(self)
-        self._cancel_scope = anyio.move_on_after(self._limit)
+        # `self.limit` (not `self._limit`) so a sample started after a live
+        # override was set opens its scope with the override already applied
+        self._active_limit = self.limit
+        self._cancel_scope = anyio.move_on_after(self._active_limit)
         self._cancel_scope.__enter__()
         self._start_time = anyio.current_time()
         return self
@@ -1371,30 +1389,65 @@ class _TimeLimit(Limit, _Node):
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         self._end_time = anyio.current_time()
         self._pop_and_check_identity(time_limit_tree)
+        # the limit the cancel-scope deadline was last derived from (not a
+        # fresh `self.limit` read, which an override cleared after the
+        # deadline fired would turn None — silently swallowing the
+        # cancellation the deadline already delivered)
+        limit = self._active_limit
         # use cancelled_caught (not cancel_called): if the deadline fired but
         # the body raised a non-Cancelled exception (e.g. cleanup in `finally`
         # crashed), the cancel scope did not catch a Cancelled and we must let
         # the original exception propagate rather than masking it.
-        if self._cancel_scope.cancelled_caught and self._limit is not None:
-            message = f"Time limit exceeded. limit: {self._limit} seconds"
+        if self._cancel_scope.cancelled_caught and limit is not None:
+            message = f"Time limit exceeded. limit: {limit} seconds"
             assert self._start_time is not None
             # Note we've measured the elapsed time independently of anyio's cancel scope
             # so this is an approximation.
             time_elapsed = self._end_time - self._start_time
             transcript()._event(
-                SampleLimitEvent(type="time", message=message, limit=self._limit)
+                SampleLimitEvent(type="time", message=message, limit=limit)
             )
             raise LimitExceededError(
                 "time",
                 value=time_elapsed,
-                limit=self._limit,
+                limit=limit,
                 message=message,
                 source=self,
             ) from exc_val
 
     @property
     def limit(self) -> float | None:
-        return self._limit
+        """Get the configured time limit value (a live override when one is set)."""
+        override = self._limit_override_value()
+        return override if override is not None else self._limit
+
+    def _refresh_deadline(self) -> None:
+        """Re-derive the entered cancel scope's deadline from the effective limit.
+
+        Called when a live ``time_limit`` override is set or cleared — a
+        deadline is slept on, not consulted, so a retune must reschedule the
+        scope directly (anyio applies a deadline change to a running scope on
+        both backends). No-op before enter / after exit: a not-yet-entered
+        node reads the override at ``__enter__``, and lowering a deadline
+        below the elapsed time cancels the scope now (the incident case) —
+        though a scope whose deadline already fired stays cancelled even if
+        the override is raised or cleared.
+        """
+        if self._start_time is None or self._end_time is not None:
+            return
+        # a fired deadline is never rescinded (anyio ignores deadline changes
+        # once the scope has cancelled) — leave _active_limit at the value
+        # that actually governed the cancel, so __exit__ reports it honestly
+        # instead of a later override (or, on a clear back to an unlimited
+        # launch config, swallowing the delivered cancellation entirely)
+        if self._cancel_scope.cancel_called:
+            return
+        self._active_limit = self.limit
+        self._cancel_scope.deadline = (
+            self._start_time + self._active_limit
+            if self._active_limit is not None
+            else math.inf
+        )
 
     @property
     def usage(self) -> float:
