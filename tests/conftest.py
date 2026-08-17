@@ -315,9 +315,12 @@ def _stray_sigalrm_handler(signum: int, frame: FrameType | None) -> None:
     Several tests install temporary SIGALRM handlers (``keyboard_interrupt()``,
     test_google, test_grok).  If an armed timer outlives its test, the signal
     is delivered later when the disposition is SIG_DFL — which kills the
-    worker with no output at all.  Writing to fd 2 bypasses both pytest
-    capture and execnet's stream redirection, so the stack reaches the CI
-    job log even if the raised error is swallowed (e.g. by a retry wrapper).
+    worker with no output at all.  The stack is written to raw fd 2: between
+    tests (capture suspended) it reaches the CI job log directly; mid-test
+    under the default ``--capture=fd`` it lands in captured stderr instead,
+    reaching the log via the failure report — or, when a retry wrapper
+    swallows the raised error, via the ``-rA`` PASSES section (set in both
+    addopts and the CI pytest command; dropping ``-rA`` loses that path).
     """
     stack = "".join(traceback.format_stack(frame))
     with contextlib.suppress(OSError):
@@ -334,10 +337,16 @@ def _install_stray_sigalrm_handler() -> None:
     """Replace a SIG_DFL SIGALRM disposition with the loud diagnostic handler.
 
     Installs over SIG_DFL only, so a live pytest-timeout signal-method handler
-    is never replaced.  Called at configure and re-called at every test setup:
-    pytest-timeout's signal-method cancel() restores SIG_DFL rather than the
-    previously saved handler, which would otherwise permanently uninstall this
-    diagnostic after the first timed test.
+    is never replaced.  Called at configure and re-called after every item's
+    runtest protocol: pytest-timeout's signal-method cancel() restores SIG_DFL
+    rather than the previously saved handler, which would otherwise leave this
+    diagnostic permanently uninstalled after the first timed test.  The
+    reinstall must run post-protocol, not at test setup — pytest-timeout arms
+    in its own pytest_runtest_protocol hookwrapper (before setup) and cancels
+    after teardown, so at setup the disposition is its handler and the SIG_DFL
+    check never matches.  A conftest hookwrapper runs outermost (conftest
+    wrappers register after plugin wrappers), so its post-yield executes after
+    that cancel; it also covers skip-marked items, whose setup hooks never run.
     """
     if not hasattr(signal, "SIGALRM"):
         return
@@ -406,8 +415,19 @@ def _arm_hang_dump() -> None:
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
-    _install_stray_sigalrm_handler()
     _arm_hang_dump()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_protocol(
+    item: pytest.Item, nextitem: pytest.Item | None
+) -> Iterator[None]:
+    """Reinstall the stray-SIGALRM diagnostic after each item's protocol.
+
+    See _install_stray_sigalrm_handler for why this must run post-yield.
+    """
+    yield
+    _install_stray_sigalrm_handler()
 
 
 def pytest_runtest_teardown(item: pytest.Item) -> None:
