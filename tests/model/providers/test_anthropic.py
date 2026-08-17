@@ -1827,3 +1827,68 @@ async def test_anthropic_container_continuation_live() -> None:
         break
     else:
         pytest.skip("model did not produce the mixed server/client tool turn")
+
+
+async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
+    """Interleaved thinking and client tool calls must survive a parse/rebuild.
+
+    A `[thinking, tool_use, thinking, tool_use]` turn must round-trip through
+    parse -> ChatMessageAssistant -> rebuild with its thinking blocks still
+    separated by their client tool calls -- not front-loaded and made adjacent.
+
+    Claude 4+ interleaves thinking with client tool calls in a single turn. Parse
+    routes thinking into `.content` but client tool calls into the separate
+    `.tool_calls` list; rebuilding by appending all tool_use blocks last produces
+    `[thinking, thinking, tool_use, tool_use]`, which the API rejects on replay
+    with "thinking ... blocks in the latest assistant message cannot be modified".
+    This is a pure structural test (constructed blocks, placeholder signatures, no
+    network): the check is on block ORDER, so signature validity is irrelevant.
+    """
+    from anthropic.types import ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        dump_anthropic_assistant_internal,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [
+        ToolInfo(name="tool_a", description="Tool A.", parameters=arg),
+        ToolInfo(name="tool_b", description="Tool B.", parameters=arg),
+    ]
+    interleaved = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
+        ToolUseBlock(type="tool_use", id="b", name="tool_b", input={"x": "2"}),
+    ]
+
+    def thinking_blocks_adjacent(order: list[str]) -> bool:
+        idx = [i for i, t in enumerate(order) if t in ("thinking", "redacted_thinking")]
+        return any(b == a + 1 for a, b in zip(idx, idx[1:]))
+
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        interleaved, tools
+    )
+    message = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    order = [p["type"] for p in await assistant_message_block_params(message)]
+    assert order == ["thinking", "tool_use", "thinking", "tool_use"], order
+    assert not thinking_blocks_adjacent(order)
+
+    # the interleaving must survive a serialize/restore of the assistant internal
+    # (the position record round-trips like the rest of the internal state, e.g.
+    # when a sample is resumed from a log on a later turn)
+    dumped = dump_anthropic_assistant_internal()
+    assert dumped is not None
+    init_sample_anthropic_assistant_internal()  # reset
+    init_sample_anthropic_assistant_internal(dumped)  # restore
+    restored_order = [p["type"] for p in await assistant_message_block_params(message)]
+    assert restored_order == ["thinking", "tool_use", "thinking", "tool_use"], (
+        restored_order
+    )

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Anthropic: A single assistant turn that interleaves thinking with client tool calls now replays in its original order, so subsequent requests no longer fail with "thinking ... blocks in the latest assistant message cannot be modified".
+
 ## 0.3.251 (29 July 2026)
 
 - Hooks: `on_model_retry` now reports the retry cause via `exception_type` and `status_code` on `ModelRetry`, so hooks can distinguish e.g. timeouts from 429s and 5xxs.

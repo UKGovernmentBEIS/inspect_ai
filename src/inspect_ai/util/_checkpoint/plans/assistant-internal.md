@@ -31,6 +31,7 @@ Move from `run.py:2041-2068` (delete there; update import at `run.py:1091`; keep
 {
   "thinking_blocks": {...},
   "tool_call_internal_names": {...},
+  "client_tool_call_positions": {"tool_use_id": content_position},
   "server_mcp_tool_uses": {"id": [use, result]},
   "spans": [{"blocks": [...], "content_ids": [...], "open_use_ids": [...]}],
   "server_tool_spans": {"msg_id": [span_index, ...]},
