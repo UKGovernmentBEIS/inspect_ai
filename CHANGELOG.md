@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Log: Flushing buffered samples to an `.eval` log now yields between samples, so a large flush no longer stalls in-flight samples and control-channel requests for the whole batch.
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
 - Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
@@ -32,6 +33,7 @@
 - Datasets (breaking): A ragged CSV row now raises `ValueError` naming the file and line, instead of `AttributeError` or a silent load. (#4546)
 - Multiple Choice: Answers listing choices with an Oxford or trailing comma (e.g. `ANSWER: A, B, and C`) are now scored correctly instead of as no answer.
 - Bugfix: MCP sandbox sessions are now cached per tool-source instance and cleared on close, so one instance's sessions and tool lists no longer leak into another's.
+- Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
 
 ## 0.3.258 (11 August 2026)
 
@@ -63,7 +65,6 @@
 
 - Security: Parse `math()` scorer answers with a non-evaluating grammar under a bounded worker thread, preventing model output from executing Python on the evaluator host.
 - Hooks: `on_task_start` now receives the resolved solver plan as `data.plan`, including any `Task.setup` solvers.
-- Bugfix: Recovered eval logs now report reasoning tokens and total cost in their top-level usage summary, which previously showed both as null.
 
 ## 0.3.255 (09 August 2026)
 
