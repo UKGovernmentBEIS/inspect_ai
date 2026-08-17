@@ -24,14 +24,23 @@ from inspect_ai._cli.ctl import (
     _KNOB_SINCE,
     _SHORT_ID_LEN,
     _ConfigResult,
+    _echo_error,
     _FetchedSummaries,
     _print_errored_samples_footer,
+    _print_events,
     _print_human_table,
     _print_keep_alive_footer,
+    _print_messages,
+    _print_sample_detail,
     _print_samples_table,
+    _render_table,
     _resolve_target_eval,
     _resolve_target_server,
     _SamplesPage,
+    _sanitize_control,
+    _sanitize_keep_sgr,
+    _sanitize_line,
+    _truncate,
     ctl_command,
 )
 from inspect_ai._control.discovery import DiscoveredControlServer
@@ -6289,3 +6298,618 @@ def test_process_anomalies_accepts_group_level_json(trace_dir: Path) -> None:
     result = cli_runner().invoke(ctl_command, ["process", "--json", "anomalies", "123"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)["processes"][0]["pid"] == 123
+
+
+# ---------------------------------------------------------------------------
+# control-character sanitization (operator-terminal spoofing, issue #195)
+# ---------------------------------------------------------------------------
+#
+# Agent-controlled text (tool stdout, model completions, error messages)
+# flows out through the human renderings; these pin that escape sequences
+# and control bytes are neutralized before they reach the terminal.
+
+
+def test_sanitize_removes_csi_sequences_whole() -> None:
+    assert _sanitize_control("\x1b[2K\rALL SAMPLES PASSED") == "ALL SAMPLES PASSED"
+    assert _sanitize_control("a\x1b[31;1mred\x1b[0mb") == "aredb"
+
+
+def test_sanitize_removes_osc_payload() -> None:
+    # BEL-terminated title write: the payload must not survive as text
+    assert _sanitize_control("\x1b]0;compromised\x07ok") == "ok"
+    # ST-terminated OSC 8 hyperlink
+    assert _sanitize_control("\x1b]8;;http://evil\x1b\\link") == "link"
+    # unterminated OSC at end of string
+    assert _sanitize_control("before\x1b]52;c;payload") == "before"
+    # raw C1 ST terminates too — text after it must survive
+    assert _sanitize_control("\x1b]0;x\x9cafter") == "after"
+
+
+def test_sanitize_removes_string_sequences_and_charset_payload() -> None:
+    # DCS / APC strings drop their payload, not just the introducer
+    assert _sanitize_control("\x1bPq#payload\x1b\\ok") == "ok"
+    assert _sanitize_control("\x1b_hidden\x07ok") == "ok"
+    # charset designation: 3 bytes, no stray final byte left behind
+    assert _sanitize_control("\x1b(Bok") == "ok"
+    assert _sanitize_control("\x1b(0ok") == "ok"
+
+
+def test_sanitize_drops_c0_del_and_c1_bytes() -> None:
+    assert _sanitize_control("pass\x08\x08fail\x07\x7f") == "passfail"
+    assert _sanitize_control("a\rb") == "ab"
+    assert _sanitize_control("a\x9bb\x85c") == "abc"
+    # lone trailing ESC
+    assert _sanitize_control("abc\x1b") == "abc"
+
+
+def test_sanitize_drops_bidi_controls() -> None:
+    # RLO in a cell would visually reverse the rest of the physical line on
+    # BiDi terminals (Trojan Source, CVE-2021-42574) — same cross-field
+    # spoof class as an escape sequence
+    assert _sanitize_control("fail\u202edessap") == "faildessap"
+    # embeddings, isolates, marks, and ALM all dropped; RTL text itself kept
+    assert (
+        _sanitize_control("\u202aa\u202db\u202cc\u2066d\u2067e\u2068f\u2069")
+        == "abcdef"
+    )
+    assert _sanitize_control("\u200ex\u200fy\u061cz") == "xyz"
+    assert _sanitize_control("\u05e9\u05dc\u05d5\u05dd") == "\u05e9\u05dc\u05d5\u05dd"
+
+
+def test_sanitize_keeps_newline_replaces_tab() -> None:
+    assert _sanitize_control("line1\nline2") == "line1\nline2"
+    assert _sanitize_control("a\tb") == "a b"
+
+
+def test_sanitize_line_flattens_newlines() -> None:
+    assert _sanitize_line("line1\nline2") == "line1 line2"
+    assert _sanitize_line("a\x1b[2K\nb") == "a b"
+
+
+def test_sanitize_keep_sgr_trailing_reset_preserves_trailing_newlines() -> None:
+    """The appended reset closes styling without eating trailing newlines."""
+    assert _sanitize_keep_sgr("\x1b[31mred\n\n") == "\x1b[31mred\x1b[0m\n\n"
+    # already-reset text is untouched, newlines included
+    assert _sanitize_keep_sgr("\x1b[31mred\x1b[0m\n") == "\x1b[31mred\x1b[0m\n"
+    # no SGR kept -> no reset appended
+    assert _sanitize_keep_sgr("plain\n") == "plain\n"
+
+
+def test_truncate_sanitizes_before_width_math() -> None:
+    # printable content fits the width once the escape bytes are stripped —
+    # width must be computed on what the operator sees, not raw bytes
+    assert _truncate("\x1b[31m" + "x" * 10 + "\x1b[0m", 10) == "x" * 10
+    assert _truncate("evil\rgood", 80) == "evilgood"
+
+
+def test_render_table_sanitizes_cells_and_widths(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _render_table(
+        ("col_a", "col_b"),
+        [("\x1b]0;t\x07x\ny", "ok"), ("zz", "w")],
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out
+    lines = out.splitlines()
+    # embedded newline becomes a space (no forged row) and widths align
+    assert lines[2].startswith("x y")
+    assert lines[1] == "-----  -----"
+
+
+def test_echo_error_sanitizes_message_and_plain_traceback(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _echo_error(
+        "attempt 1:",
+        {"message": "boom\x1b[2K\rspoof", "traceback": "Trace\x1b[31mback"},
+        True,
+    )
+    out = capsys.readouterr().out
+    assert "boomspoof" in out
+    assert "Traceback" in out
+    assert "\x1b" not in out and "\r" not in out
+
+
+def test_echo_error_flattens_newlines_in_message(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Newlines in an error message can't print forged lines at column 0."""
+    _echo_error("", {"message": "boom\n(no errors)\nsample 2  ·  completed"}, False)
+    out = capsys.readouterr().out
+    assert out == "  boom (no errors) sample 2  ·  completed\n"
+
+
+def test_echo_error_keeps_traceback_ansi_sgr_styling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # capture pre-echo text: click.echo itself strips ANSI on a non-tty
+    # stream, which would mask whether _echo_error sanitized the traceback
+    lines: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.click.echo",
+        lambda message=None, **kwargs: lines.append(str(message)),
+    )
+    _echo_error(
+        "", {"message": "boom", "traceback_ansi": "\x1b[31mTraceback\x1b[0m"}, True
+    )
+    assert any("\x1b[31mTraceback\x1b[0m" in line for line in lines)
+
+
+def test_echo_error_neutralizes_raw_traceback_ansi(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raw traceback_ansi keeps SGR styling but no other control bytes.
+
+    The oversized-traceback / recovered-log fallback sets traceback_ansi to
+    raw un-rendered text, which must not smuggle OSC/CSI/CR/BS through —
+    and any kept styling is closed with a reset so a trailing conceal
+    can't hide the output that follows.
+    """
+    lines: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.click.echo",
+        lambda message=None, **kwargs: lines.append(str(message)),
+    )
+    _echo_error(
+        "",
+        {
+            "message": "boom",
+            "traceback_ansi": (
+                "\x1b[31mTrace\x1b[0m\x1b]0;pwned\x07\x1b[2K\rback\x08\x1b[8m"
+            ),
+        },
+        True,
+    )
+    tb_lines = [line for line in lines if "Trace" in line]
+    assert tb_lines == ["    \x1b[31mTrace\x1b[0mback\x1b[8m\x1b[0m"]
+
+
+def test_sample_detail_header_sanitized(capsys: pytest.CaptureFixture[str]) -> None:
+    _print_sample_detail(
+        {
+            "sample_id": "s\x1b[2K1",
+            "epoch": 1,
+            "status": "completed",
+            "scores": {"grader": "C\x07"},
+        },
+        False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out
+    assert "sample s1" in out
+
+
+def test_sample_detail_unterminated_osc_cannot_swallow_trusted_fields(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unterminated OSC in the sample id must not hide the real status.
+
+    Parts are sanitized individually, so the swallow-to-terminator behavior
+    stops at the part boundary instead of consuming the trusted fields
+    (status, score) joined after it.
+    """
+    _print_sample_detail(
+        {
+            "sample_id": "1 completed score grader=C\x1b]",
+            "epoch": 1,
+            "status": "errored",
+            "scores": {"grader": "I"},
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "errored" in header
+    assert "grader=I" in header
+
+
+def test_sample_detail_header_flattens_newlines(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A newline in the sample id can't forge a complete plausible header line."""
+    _print_sample_detail(
+        {
+            "sample_id": "9\nsample 1  ·  epoch 1  ·  completed  ·  score grader=C",
+            "epoch": 1,
+            "status": "errored",
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "errored" in header
+    assert "completed" in header  # spoof text survives, but on the same line
+
+
+def test_sample_detail_header_drops_separator_for_all_control_part(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A part that sanitizes to empty must not leave a dangling separator."""
+    _print_sample_detail(
+        {"sample_id": "1", "epoch": 1, "status": "\x1b[2K"},
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert header == "sample 1  ·  epoch 1"
+
+
+def test_events_rendering_sanitizes_tool_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An escape-laden bash result never reaches the events table raw."""
+    page = {
+        "events": [
+            {
+                "event": "tool",
+                "timestamp": 1700000000.0,
+                "function": "bash",
+                "arguments": "{}",
+                "result": "\x1b]0;compromised\x07\x1b[2K\rALL SAMPLES PASSED",
+            }
+        ],
+        "next": None,
+        "done": True,
+    }
+    _print_events(page, content=True, full=False)
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out and "\r" not in out
+    assert "ALL SAMPLES PASSED" in out
+
+
+def test_messages_rendering_sanitizes_completion(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An escape-laden assistant completion never reaches the table raw."""
+    page = {
+        "messages": [
+            {
+                "index": 0,
+                "role": "assistant",
+                "content": "\x1b[2K\rall done\x1b]52;c;ZXZpbA==\x07",
+            }
+        ],
+        "count": 1,
+        "status": "running",
+    }
+    _print_messages(page, content=True, full=False)
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out and "\r" not in out
+    assert "all done" in out
+
+
+def test_event_summary_unterminated_osc_cannot_swallow_error_tag() -> None:
+    """An unterminated string sequence in a completion can't hide the error.
+
+    Fields are sanitized before joining, so the swallow-to-terminator
+    behavior stops at the field boundary instead of consuming the error
+    tag appended after the completion within the same summary cell.
+    """
+    from inspect_ai._cli.ctl import _event_summary
+
+    summary = _event_summary(
+        {
+            "event": "model",
+            "model": "gpt-4",
+            "tokens": 512,
+            "stop_reason": "stop",
+            "completion": "all done\x1b]",
+            "error": "rate limit exceeded",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "error: rate limit exceeded" in summary
+
+    summary = _event_summary(
+        {
+            "event": "tool",
+            "function": "bash\x1b]",
+            "arguments": "ls",
+            "error": "exit status 1\x1b]",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "error: exit status 1" in summary
+
+    summary = _event_summary(
+        {"event": "info", "source": "scorer\x1b]", "data": "graded"}
+    )
+    assert "\x1b" not in summary
+    assert "graded" in summary
+
+
+def test_message_summary_unterminated_osc_cannot_swallow_tool_calls() -> None:
+    """A swallow in message content can't hide the tool calls/error after it."""
+    from inspect_ai._cli.ctl import _message_summary
+
+    summary = _message_summary(
+        {
+            "content": "I ran the tests\x1b]",
+            "tool_calls": [{"function": "bash", "arguments": "pytest"}],
+            "error": "tool failed",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "bash(pytest)" in summary
+    assert "error: tool failed" in summary
+
+
+def test_sample_detail_score_cannot_swallow_following_scores(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A swallow in one score value can't hide the scores joined after it."""
+    _print_sample_detail(
+        {
+            "sample_id": "1",
+            "epoch": 1,
+            "status": "completed",
+            "scores": {"a": "x\x1b]", "b": "C"},
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "\x1b" not in header
+    assert "a=x" in header
+    assert "b=C" in header
+
+
+def test_process_anomalies_rendering_sanitizes_agent_command_lines(
+    trace_dir: Path,
+) -> None:
+    """Escape bytes in a stalled subprocess's command line never reach the terminal.
+
+    `process anomalies` renders agent-controlled text — a sandboxed `bash`
+    call's shlex-joined command line lands verbatim in the trace record's
+    detail — through the rich table shared with `inspect trace anomalies`,
+    whose styled export preserves escape bytes.
+    """
+    write_trace_log(
+        trace_dir / "trace-123.log",
+        [
+            action_record(
+                "run1",
+                "Subprocess",
+                "enter",
+                detail="bash -c '\x1b]0;PWNED\x07\x1b[2K\nsleep 1000' \x1b]",
+                start_time=1000.0,
+            ),
+            # a row after the unterminated OSC — must not be swallowed
+            action_record(
+                "run2", "Model", "enter", detail="generate", start_time=1000.0
+            ),
+        ],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "\x1b" not in result.stdout and "\x07" not in result.stdout
+    assert "sleep 1000'" in result.stdout
+    assert "generate" in result.stdout  # sanitized per record, not post-export
+
+    # the JSON envelope keeps the raw bytes (machine path; consumers quote)
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    detail = json.loads(result.stdout)["processes"][0]["running"][0]["detail"]
+    assert "\x1b]0;PWNED" in detail
+
+
+def test_process_anomalies_rendering_escapes_rich_markup(trace_dir: Path) -> None:
+    """Rich markup in agent text renders literally, not as styling or links.
+
+    The rich table parses cell strings as console markup, so un-escaped
+    agent text like ``[link=...]`` would export an OSC 8 hyperlink (and
+    ``[conceal]`` an SGR 8 that hides the error joined after it).
+    """
+    write_trace_log(
+        trace_dir / "trace-123.log",
+        [
+            action_record(
+                "run1",
+                "Subprocess",
+                "enter",
+                detail="[link=http://evil]ok[/link] [conceal]hidden[/conceal]",
+                start_time=1000.0,
+            )
+        ],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "\x1b" not in result.stdout
+    assert "[link=http://evil]ok[/link]" in result.stdout
+    assert "[conceal]hidden[/conceal]" in result.stdout
+
+
+def test_sanitized_anomalies_neutralizes_rendered_fields() -> None:
+    """Field-level pin, unmasked by click's own CSI stripping on a non-tty."""
+    from inspect_ai._cli.ctl import _sanitized_anomalies
+    from inspect_ai._cli.trace import TraceAnomalies
+    from inspect_ai._util.trace import ActionTraceRecord
+
+    record = ActionTraceRecord(
+        timestamp="2024-01-01T00:00:00",
+        level="TRACE",
+        message="msg\x1b[31m",
+        action="Subprocess\x07",
+        event="error",
+        trace_id="t1",
+        detail="run\x1b[2K\nit [bold]now[/bold]",
+        error="fail\x1b]0;x\x07",
+    )
+    anomalies = TraceAnomalies(running=[], cancelled=[], errors=[record], timeouts=[])
+    (clean,) = _sanitized_anomalies(anomalies).errors
+    assert clean.action == "Subprocess"
+    assert clean.message == "msg"
+    assert clean.detail == r"run it \[bold]now\[/bold]"
+    assert clean.error == "fail"
+    # the source records are untouched (the JSON path renders them raw)
+    assert anomalies.errors[0].detail == "run\x1b[2K\nit [bold]now[/bold]"
+
+
+def test_event_summary_sanitizes_every_wire_field() -> None:
+    """Server-shaped fields (model, stop_reason) sanitize like agent ones.
+
+    Sanitization is provenance-blind — every wire field is covered.
+    """
+    from inspect_ai._cli.ctl import _event_summary
+
+    summary = _event_summary(
+        {
+            "event": "model",
+            "model": "gpt-4\x1b]0;evil\x07",
+            "tokens": 512,
+            "stop_reason": "stop\x1b[2K\r",
+            "completion": "done",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "\r" not in summary
+    assert "gpt-4" in summary
+    assert "stop" in summary
+
+
+def test_task_header_sanitizes_and_flattens_all_parts() -> None:
+    from inspect_ai._cli.ctl import _task_header
+
+    header = _task_header(
+        {
+            "task": "my_task\x1b]0;evil\x07\nfake line",
+            "task_id": "abc123",
+            "model": "openai/gpt-5\x1b[31m",
+            "status": "running\r",
+            "samples": {},
+        }
+    )
+    assert "\x1b" not in header
+    assert "\r" not in header
+    assert "\n" not in header
+    # the newline is flattened onto the same line, not left to forge one
+    assert "my_task" in header
+    assert "fake line" in header
+    assert "openai/gpt-5" in header
+    assert "running" in header
+
+
+def test_task_header_drops_separator_for_all_control_part() -> None:
+    """A task name that sanitizes to empty must not leave a leading separator."""
+    from inspect_ai._cli.ctl import _task_header
+
+    header = _task_header(
+        {"task": "\x1b[2K", "task_id": "", "status": "running", "samples": {}}
+    )
+    assert not header.startswith("  ·  ")
+    assert header.split("  ·  ")[0] == "running"
+
+
+def test_events_footer_sanitizes_cursor_token(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_events(
+        {"events": [], "done": False, "next": "tok\x1b]52;c;steal\x07\nen"},
+        content=True,
+        full=False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    # escape removed whole, embedded newline flattened to a space
+    assert "next: tok en" in out
+
+
+def test_messages_footer_sanitizes_status(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_messages(
+        {"messages": [], "count": 0, "status": "run\nning\x1b]0;evil\x07"},
+        content=True,
+        full=False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    # embedded newline flattened so the status can't forge a footer line
+    assert "run ning" in out
+
+
+def test_sample_mutation_messages_sanitize_wire_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The human mutation message sanitizes its label and wire fields.
+
+    Covers sample_id (in the label), status, and reason — applied and
+    no-op paths alike.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "sample_id": "s1\x1b]0;evil\x07",
+            "epoch": 1,
+            # unterminated OSC: per-field sanitization must bound it to the
+            # status field rather than let it swallow the trailing ").";
+            # the newline must flatten so status can't forge a line of its own
+            "status": "comp\nleted\x1b]0;evil",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output
+    assert "s1" in result.output
+    assert "(status: comp leted)." in result.output
+
+    spy = _RequestSpy(
+        {"ok": True, "changed": False, "reason": "held\x1b]0;evil\x07\nelsewhere"}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output
+    assert "held elsewhere" in result.output
+
+
+def test_no_direct_click_echo_outside_the_wrappers() -> None:
+    """Every echo in ctl.py routes through `_echo` / `_echo_raw`.
+
+    The sanitizing default is a structural guarantee only while direct
+    output calls stay out of rendering code — a bare `click.echo`,
+    `click.secho`, `click.echo_via_pager`, or `print` would silently
+    bypass `_sanitize_control`.
+    """
+    import ast
+    import inspect as inspect_module
+
+    import inspect_ai._cli.ctl as ctl_module
+
+    source = inspect_module.getsource(ctl_module)
+    tree = ast.parse(source)
+    offenders: list[str] = []
+
+    class Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.stack: list[str] = []
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.stack.append(node.name)
+            self.generic_visit(node)
+            self.stack.pop()
+
+        visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
+
+        def visit_Call(self, node: ast.Call) -> None:
+            func = node.func
+            in_wrapper = self.stack[-1:] in (["_echo"], ["_echo_raw"])
+            direct_output = (
+                isinstance(func, ast.Attribute)
+                and func.attr in ("echo", "secho", "echo_via_pager")
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "click"
+            ) or (isinstance(func, ast.Name) and func.id == "print")
+            if direct_output and not in_wrapper:
+                offenders.append(
+                    f"line {node.lineno} in {'.'.join(self.stack) or '<module>'}"
+                )
+            self.generic_visit(node)
+
+    Visitor().visit(tree)
+    assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"
