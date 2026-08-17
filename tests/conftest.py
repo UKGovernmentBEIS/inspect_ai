@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 import warnings
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import boto3
@@ -170,6 +171,77 @@ def fresh_concurrency_registry():
 
     init_concurrency()
     yield
+
+
+@pytest.fixture(scope="session")
+def registrations_at_session_start() -> dict[str, object]:
+    """Load extension entry points up front, then snapshot the registry.
+
+    Registration is an import side effect, so it happens at most once per
+    process: `ensure_entry_points()` re-runs `ep.load()`, but the `@hooks` /
+    `@modelapi` / ... decorators inside it do not re-run once the module is in
+    `sys.modules`. Nothing can re-create a registration that a test deletes.
+
+    Loading here — before any test body — is what stops a *first* load from
+    landing inside a test that has temporarily emptied the registry
+    (`registry_find` re-scans entry points whenever a find comes up empty).
+    That is how a registration once got created and then destroyed within a
+    single test, breaking unrelated tests later on the same worker. Note that
+    `ensure_test_package_installed()` calls `clear_entry_points_state()`, so a
+    later full re-scan can still happen; it is harmless, because by then the
+    modules are imported and re-loading them registers nothing new.
+
+    The snapshot is what `protect_registrations` puts back, and is the only
+    way back, for the same reason.
+
+    A regression is not unit-testable — it turns on *when* the load happens
+    during session startup — but it reproduces in about two seconds: restore
+    the pre-45de3f534 `_without_registered_hooks` in
+    tests/model/test_tool_info_lifecycle.py, then run that file's
+    `test_no_hook_model_event_tools_share_raw_tool_parameters` followed by
+    `tests/test_extensions.py::test_hooks`, collecting `tests/_control` first.
+    That last part matters: it registers a hook at import time, so
+    `init_hooks()`'s once-only first `get_all_hooks()` finds one and skips the
+    entry-point load, which defers the load into the fixture.
+    """
+    from inspect_ai._util.entrypoints import ensure_entry_points
+    from inspect_ai._util.registry import _registry
+
+    ensure_entry_points()
+    return dict(_registry)
+
+
+@pytest.fixture(autouse=True)
+def protect_registrations(
+    registrations_at_session_start: dict[str, object],
+) -> Iterator[None]:
+    """Restore any registration a test removed, and error its teardown.
+
+    Restoring stops the damage from spreading: without it a test that drops a
+    registration keeps passing while unrelated later tests on the same worker
+    fail, which is expensive to diagnose. Erroring names the test that did it
+    (it reports as a teardown ERROR, not as a failure of the test itself).
+    """
+    from inspect_ai._util.registry import (
+        _registry,
+        registry_add,
+        registry_info,
+    )
+
+    yield
+
+    missing = registrations_at_session_start.keys() - _registry.keys()
+    for key in missing:
+        registered = registrations_at_session_start[key]
+        registry_add(registered, registry_info(registered))
+    if missing:
+        pytest.fail(
+            f"test removed registration(s) that existed before it ran: "
+            f"{sorted(missing)}. Registration is an import side effect and "
+            f"cannot be redone, so this breaks unrelated later tests on the "
+            f"same worker. Restore exactly what you removed, and leave in "
+            f"place anything registered while you held the registry open."
+        )
 
 
 @pytest.fixture

@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
 if TYPE_CHECKING:
     from inspect_ai.model._model import RetryDecision
 
-import httpx
 from openai import (
     APIConnectionError,
     APIStatusError,
@@ -59,8 +58,7 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import as_data_uri, inline_media_data_uri
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._internal import (
@@ -201,13 +199,8 @@ async def openai_chat_completion_part(
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
     elif content.type == "image":
-        # API takes URL or base64 encoded file. If it's a remote file or
-        # data URL leave it alone, otherwise encode it
-        image_url = content.image
+        image_url = inline_media_data_uri(content.image, "image")
         detail = content.detail
-
-        if not is_http_url(image_url):
-            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
@@ -216,14 +209,20 @@ async def openai_chat_completion_part(
             ),
         )
     elif content.type == "audio":
-        audio_data_uri = await file_as_data_uri(content.audio)
+        audio_data_uri = inline_media_data_uri(
+            content.audio,
+            "audio",
+            mime_type_hint=("audio/mpeg" if content.format == "mp3" else "audio/wav"),
+        )
         audio_data = audio_data_uri.split("base64,")[1]
 
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
         )
     elif content.type == "document":
-        document_data_uri = await file_as_data_uri(content.document)
+        document_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
 
         return File(
             type="file",
@@ -767,10 +766,12 @@ def content_from_openai(
             )
         ]
     elif content["type"] == "input_audio":
+        audio_format = content["input_audio"]["format"]
+        mime_type = "audio/mpeg" if audio_format == "mp3" else "audio/wav"
         return [
             ContentAudio(
-                audio=content["input_audio"]["data"],
-                format=content["input_audio"]["format"],
+                audio=as_data_uri(mime_type, content["input_audio"]["data"]),
+                format=audio_format,
             )
         ]
     elif content["type"] == "refusal":
@@ -1220,32 +1221,3 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
-
-
-# httpx-native equivalents of openai's DEFAULT_TIMEOUT / DEFAULT_CONNECTION_LIMITS
-# (same values). Do NOT import those from `openai`: openai >= 3.0 is built on
-# httpx2, and its httpx2-typed constants silently corrupt the timeout config of
-# our legacy `httpx.AsyncClient`, failing every request with APIConnectionError.
-DEFAULT_TIMEOUT = httpx.Timeout(timeout=600, connect=5.0)
-DEFAULT_CONNECTION_LIMITS = httpx.Limits(
-    max_connections=1000, max_keepalive_connections=100
-)
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that uses OpenAI's default settings.
-
-    This ensures proper proxy support and follows OpenAI's recommended configuration.
-    OpenAI has already incorporated timeout improvements for reasoning models in their
-    default transport, so we don't need custom socket options.
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # Use OpenAI's default settings which handle proxies correctly
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        super().__init__(**kwargs)
