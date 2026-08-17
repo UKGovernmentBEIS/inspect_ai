@@ -221,14 +221,15 @@ per-lookup instead of degrading to no-reuse.
    checkpoints dir. Today the crashed attempt is the retry source, so
    checkpoints written by its live samples resume; under the design the
    attempt leaves no file, the retry chains to the previous attempt, and
-   the crashed attempt's checkpoints are silently unused. Bounded by the
+   the crashed attempt's checkpoints are silently unused — orphaned
+   outright, since log basenames embed `created` to the second
+   (`_log_file_key`) and a post-crash retry is a new invocation with a
+   later `created`, so it never recomputes the crashed attempt's basename
+   (the filename bump only matters for same-second collisions, which
+   cannot follow a hard kill — the process is dead). Bounded by the
    same sweep window as trade-off 2, but checkpoints can represent more
    progress than buffer rows; a follow-up could widen checkpoint lookup to
-   sibling attempt basenames. Relatedly, since a no-file attempt doesn't
-   trigger the filename bump, the next attempt can compute the same
-   basename and thus *inherit* the crashed attempt's `.checkpoints` dir —
-   generally beneficial (its requeue resumes find prior progress), but
-   worth noting as cross-attempt state.
+   sibling attempt basenames.
 4. **`inspect ctl task log-flush` during the hold returns 0** and writes
    nothing. The hold is short and the settle flush is already scheduled;
    document in the `flush_samples()` docstring.
@@ -238,9 +239,22 @@ per-lookup instead of degrading to no-reuse.
    re-raises without `log_finish`, so a held attempt leaves nothing where
    today a start-only log aids post-mortem. Debug-mode only; the buffer db
    (and `.checkpoints` dir, when configured) still carry the state.
-7. **Shared-log filestore debris**: a mid-sweep crash also orphans the
-   `log_shared` buffer filestore directory (named after the location),
-   alongside the buffer db the dead-pid sweep collects.
+7. **Shared-log filestore vs. concurrent sweeps.** A mid-sweep crash's
+   `log_shared` filestore directory is *collected*, not orphaned: the
+   log-dir sweep (`cleanup_sample_buffer_filestores`) removes a buffer dir
+   whose sibling `.eval` is missing, and under the design the crashed
+   attempt leaves no file — an improvement over today, where the crashed
+   attempt's `started` log (never removed, its status never updated)
+   shields the dir indefinitely. The hazard runs the other way: while a
+   live attempt is held, its filestore dir likewise has no sibling
+   `.eval`, so a concurrent process finishing an eval into the same log
+   dir (`cleanup_sample_buffers` at end of run) sees it as debris and
+   deletes it mid-run. That exposure is pre-existing — the filestore is
+   created eagerly when the `TaskLogger` is constructed, so a task queued
+   behind `--max-tasks` already sits in this window arbitrarily long
+   before `log_start`'s flush — but the design extends it to
+   actively-running retry attempts; a mitigation could have the sweep
+   skip filestore dirs with recent write activity.
 
 ## Alternatives considered
 
@@ -288,10 +302,12 @@ per-lookup instead of degrading to no-reuse.
 - **Within-attempt requeues**: skip `settle_one` (existing); a requeued
   completion is a normal `flush=True` completion — while held it queues and
   drains at settle.
-- **Filename reuse**: `_bump_created_past_existing_logs` bumps only past
-  *existing* files, so a crashed no-file attempt lets the next attempt
-  compute the same path — harmless (nothing to collide with; buffer dbs are
-  pid-suffixed).
+- **Filename reuse**: a post-crash retry embeds its own later `created` in
+  the log basename (see trade-off 3), so it computes a different path from
+  the crashed no-file attempt regardless of
+  `_bump_created_past_existing_logs` (which bumps only past *existing*
+  files and only matters for same-second collisions) — nothing to collide
+  with either way; buffer dbs are pid-suffixed.
 - **JSON recorder**: gating lives in `TaskLogger`, so `.json` logs get the
   same deferral; `JSONRecorder.log_config_update` never eager-flushes.
 - **In-process retry / `eval-retry`**: both go through `task_run` with a
