@@ -1920,3 +1920,85 @@ async def test_initial_turn_state_failure_aborts_forwarder_startup() -> None:
     assert forwarders._target is None
     assert session._subscribers == []
     assert not session.has_approver_clients()
+
+
+@skip_if_trio
+async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
+    """Drain doesn't hang forever if the forwarder task exited mid-buffer.
+
+    Covers both ``.done()`` guards in :meth:`Forwarders.drain`: a waiter
+    already parked when the task dies must wake and return (mid-wait
+    guard), and a subsequent drain call must return immediately (entry
+    guard). The gate fails only ``session/update`` so startup — which
+    sends the initial ``inspect/turn_state`` snapshot — completes and
+    the live forwarder task actually starts.
+    """
+    from unittest.mock import AsyncMock
+
+    import anyio
+    from acp.helpers import session_notification, text_block, update_agent_message
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+
+    release = anyio.Event()
+    send_calls: list[tuple[str, dict[str, Any]]] = []
+
+    async def _gated_failing_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        if method == "session/update":
+            await release.wait()
+            raise ConnectionError("peer gone")
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_failing_send
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-dead", target_session_id=session.session_id
+    )
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-dead",
+    )
+    await forwarders.start(session)
+    try:
+        assert forwarders._semantic_task is not None
+        preamble_count = len(send_calls)
+
+        # Two items: the task parks in the gated send on the first;
+        # the second stays buffered so drain snapshots pending work.
+        for content in ("first", "second"):
+            session.publish(
+                session_notification(
+                    session.session_id, update_agent_message(text_block(content))
+                )
+            )
+        deadline = asyncio.get_event_loop().time() + 1.0
+        while len(send_calls) <= preamble_count:
+            if asyncio.get_event_loop().time() > deadline:
+                raise AssertionError("forwarder didn't pull item within 1s")
+            await asyncio.sleep(0)
+
+        drain_task = asyncio.create_task(forwarders.drain())
+        await asyncio.sleep(0)
+        assert not drain_task.done(), "drain returned with items still pending"
+
+        # Release the gate → the send raises → the forwarder task dies
+        # with "second" still buffered. The parked drain must wake and
+        # return rather than wait for a counter target it can never hit.
+        release.set()
+        await asyncio.wait_for(drain_task, timeout=0.5)
+        assert forwarders._semantic_task.done()
+
+        # Entry guard: a fresh drain on the dead forwarder returns
+        # immediately even though the buffer is non-empty.
+        await asyncio.wait_for(forwarders.drain(), timeout=0.5)
+    finally:
+        release.set()
+        await forwarders.stop()
