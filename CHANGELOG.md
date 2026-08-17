@@ -3,6 +3,7 @@
 - ACP: Emit an `inspect/turn_state` extension notification (`started` / `ended` / `cancelled`) from the agent turn boundary so ACP clients have an exact "agent working" signal.
 - Inspect CTL: Terminal escape sequences and control characters in agent-generated text are now sanitized in `inspect ctl` human-readable output, preventing spoofing of the operator's terminal.
 - Fixed sandbox tools (`text_editor`, `bash_session`) failing to install in non-root sandboxes (e.g. Kubernetes pods with `runAsNonRoot`).
+- Control Channel: `inspect ctl config --max-tasks` retunes a running eval's task concurrency mid-flight — raising it starts pending tasks immediately (pass `clear` to restore launch config).
 
 ## 0.3.259 (16 August 2026)
 
@@ -21,7 +22,6 @@
 - Security: Computer Tool bundled examples now bind dynamically assigned VNC and noVNC ports to loopback instead of all host interfaces.
 - Security: Control channel sample reads (`inspect ctl sample events` / `messages` / `show` / `errors`) now return metadata only by default, so monitors that never pass `--content` cannot be prompt-injected by the evaluated agent's output.
 - Sandbox: Local samples now isolate and stop sandbox-tools servers during cleanup, preventing stale working directories and orphaned tool processes across samples.
-- Control Channel: `inspect ctl config --max-tasks` retunes a running eval's task concurrency mid-flight — raising it starts pending tasks immediately (pass `clear` to restore launch config).
 - Control Channel: `inspect ctl` mutations with piped or captured output now print one outcome line each instead of repeating the full task header (`--terse/--no-terse` to override).
 - Control Channel: Every `inspect ctl` command's `--help` now sketches its `--json` payload's top-level keys.
 - OpenAI: the OpenAI providers and agent bridge now require openai >= 3.1.0, which verifies TLS against the OS trust store instead of certifi's bundle.
