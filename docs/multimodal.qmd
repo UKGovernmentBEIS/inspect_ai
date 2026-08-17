@@ -33,12 +33,20 @@ Paths and URLs in the fixed task dataset—including a `SampleSource`'s
 message state. The dataset seed is therefore trusted configuration when it
 contains non-inline media references.
 
+This is an authority decision, not a safety check. Fixed-dataset HTTP references
+follow redirects and are not screened for private destination addresses, ports,
+or response size. A third-party dataset can therefore make the evaluator access
+destinations named by the dataset or its redirects. Review untrusted datasets or
+run them with suitable host network and filesystem isolation. Hardening this
+trusted fetch path is tracked separately from the runtime media policy.
+
 ::: {.callout-warning appearance="simple"}
 ### Runtime Media Must Be Inline
 
 Media introduced later by a tool, solver, dynamically-created task, or
 `SampleSource` (`next_samples()`, `sample_complete()`, or `enqueue_sample()`)
-must already be a data URL. Sandboxed agent bridges enforce the same rule.
+must already be a data URL. The same requirement applies to `generate()`,
+`count_tokens()`, and `compact()`. Sandboxed agent bridges enforce the same rule.
 
 Trusted runtime code can explicitly convert an authorized path or URL with
 `await materialize_media(reference)`. Do not call `materialize_media()` on
@@ -67,6 +75,22 @@ content, or a document's `mime_type`. HTTP materialization follows redirects
 and rejects error responses before their bodies are used. For extensionless
 media, Inspect uses a specific response MIME type, content metadata, or a
 bounded signature check for common image formats.
+
+### Extension Migration
+
+The public `agent_bridge()` context manager continues to materialize non-inline
+media because an in-process scaffold already shares host access. Code that
+constructs `AgentBridge` directly must now pass `allow_remote_media=True` to make
+the same grant explicit.
+
+Task-resolution helpers default to `input_media_policy="inline_only"`. An
+embedder that calls `resolve_tasks()` or `eval_resolve_tasks()` at a genuine
+pre-run boundary can preserve fixed-dataset path and URL handling by passing
+`input_media_policy="trusted_pre_run"`. Do not use that policy for tasks created
+during an eval.
+
+See [Media Reference Authority](../design/media-authority.md) for the full threat
+model, source table, and residual risks.
 
 ## Images {#provider-notes}
 

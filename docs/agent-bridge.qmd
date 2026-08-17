@@ -138,6 +138,11 @@ already runs with the host's network and filesystem and there is no boundary to
 defend. Inspect explicitly materializes its non-inline media before model
 submission, preserving that access without relying on provider-side fetching.
 
+`AgentBridge` itself defaults to rejecting non-inline media so a new bridge
+subclass cannot accidentally grant host access. Code that constructs the class
+directly can opt in with `allow_remote_media=True`; the `agent_bridge()` factory
+makes this grant explicitly.
+
 ## Bridged Tools
 
 Host-side Inspect tools can be exposed as MCP tools to sandboxed agents using the `bridged_tools` parameter. This is useful when you have Inspect tools that need to run on the host (e.g. tools that access host resources, databases, or APIs) but want them available to agents running in a sandbox.
