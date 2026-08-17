@@ -26,7 +26,12 @@ async def test_validate_docker_engine_uses_server_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def subprocess(cmd: list[str]) -> ExecResult[str]:
-        return ExecResult(True, 0, _docker_version(server="23.0.0"), "")
+        return ExecResult(
+            success=True,
+            returncode=0,
+            stdout=_docker_version(server="23.0.0"),
+            stderr="",
+        )
 
     monkeypatch.setattr(prereqs, "subprocess", subprocess)
 
@@ -42,10 +47,10 @@ async def test_validate_docker_engine_accepts_current_server_with_old_client(
 ) -> None:
     async def subprocess(cmd: list[str]) -> ExecResult[str]:
         return ExecResult(
-            True,
-            0,
-            _docker_version(client="23.0.0", server="24.0.6"),
-            "",
+            success=True,
+            returncode=0,
+            stdout=_docker_version(client="23.0.0", server="24.0.6"),
+            stderr="",
         )
 
     monkeypatch.setattr(prereqs, "subprocess", subprocess)
@@ -60,10 +65,10 @@ async def test_validate_docker_engine_explains_missing_server_metadata(
 ) -> None:
     async def subprocess(cmd: list[str]) -> ExecResult[str]:
         return ExecResult(
-            True,
-            0,
-            _docker_version(server=None, include_server=include_server),
-            "",
+            success=True,
+            returncode=0,
+            stdout=_docker_version(server=None, include_server=include_server),
+            stderr="",
         )
 
     monkeypatch.setattr(prereqs, "subprocess", subprocess)
