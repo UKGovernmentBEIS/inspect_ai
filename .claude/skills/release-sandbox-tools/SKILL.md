@@ -19,8 +19,7 @@ binaries to S3, so a maintainer performs this final step.
 `slow-tool-tests-release` — it fails at the "Fetch published non-dev
 sandbox-tools binaries (glibc + musl)" step with a message naming the missing
 S3 object, because the bumped version's artifacts aren't published yet.
-Running earlier
-wastes builds if review rounds change the injectable source.
+Running earlier wastes builds if review rounds change the injectable source.
 
 **Be on the right branch:** run every step below from a checkout of the PR's
 head branch (a git worktree of it is ideal) — the binaries must be built from
