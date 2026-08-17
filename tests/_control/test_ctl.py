@@ -1856,6 +1856,25 @@ def test_task_list_json_carries_no_footer_hints(
     assert payload["tasks"][0]["samples"]["errored"] == 2
 
 
+def test_removed_flat_aliases_fail_as_unknown_commands() -> None:
+    """The pre-reorg flat spellings are gone and must not creep back."""
+    runner = cli_runner()
+    for name in [
+        "tasks",
+        "samples",
+        "errors",
+        "events",
+        "limits",
+        "flush",
+        "buffer",
+        "keep",
+        "release",
+    ]:
+        result = runner.invoke(ctl_command, [name])
+        assert result.exit_code != 0, name
+        assert f"No such command '{name}'" in result.stderr, name
+
+
 def test_sample_selector_in_verb_slot_teaches() -> None:
     """The implied-list default never fires past a positional; the error teaches."""
     result = cli_runner().invoke(ctl_command, ["sample", "my-task"])

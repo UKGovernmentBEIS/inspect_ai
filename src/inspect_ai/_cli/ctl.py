@@ -19,10 +19,13 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
 - ``process`` — the running Inspect process itself: ``list`` (implied by the
   bare noun), ``anomalies``, ``keep``, ``release``.
 
-The pre-reorg flat spellings (``tasks``, ``samples``, ``errors``, ``events``,
-``keep``, ``release``, ``flush``, ``buffer``, ``limits``) survived as hidden,
-deprecation-noted aliases for a transition window and have been removed; the
-mapping table in the design doc records each replacement.
+The pre-reorg flat spellings survived as hidden, deprecation-noted aliases
+for a transition window and have been removed; they now fail as unknown
+commands. Each replacement: ``tasks`` → ``task list``; ``samples`` →
+``sample list``; ``sample`` → ``sample show``; ``errors`` → ``sample
+errors``; ``events`` → ``sample events``; ``flush`` → ``task log-flush``;
+``buffer`` and ``limits`` → ``config``; ``keep`` → ``process keep``;
+``release`` → ``process release``.
 """
 
 from __future__ import annotations
