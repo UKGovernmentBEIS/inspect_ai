@@ -255,6 +255,9 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
             "events_data": events_data,
         }
     )
+    # Rewrites can disagree across fields that share one attachment. Determine
+    # liveness only after every field is condensed so no surviving reference is
+    # orphaned; the full dump is the correctness cost of that final GC pass.
     referenced_attachments = attachment_refs_from_value(
         condensed_sample.model_dump(mode="python", exclude={"attachments"})
     )

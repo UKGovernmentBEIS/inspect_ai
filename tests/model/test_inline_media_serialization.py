@@ -1,3 +1,5 @@
+import ast
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -21,6 +23,7 @@ from inspect_ai.model._openai import openai_chat_completion_part
 from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
     _openai_responses_content_param,
+    content_from_response_input_content_param,
     openai_responses_inputs,
 )
 from inspect_ai.model._providers._openai_computer_use import computer_call_output
@@ -96,9 +99,74 @@ async def test_model_boundary_error_identifies_media_location() -> None:
     error_message = str(error.value)
     assert "message index 1" in error_message
     assert "content index 1" in error_message
-    assert "image reference" in error_message
-    assert reference[:80] in error_message
+    assert "image content" in error_message
+    assert "example.com" not in error_message
     assert "SECRET_TAIL" not in error_message
+
+
+@pytest.mark.parametrize("operation", ["count_tokens", "compact"])
+async def test_all_model_entry_points_reject_non_inline_media(operation: str) -> None:
+    model = get_model("mockllm/model")
+    messages: list[ChatMessage] = [
+        ChatMessageUser(content=[ContentImage(image="/tmp/secret.png")])
+    ]
+
+    with pytest.raises(UnresolvedMediaError, match="message index 0"):
+        if operation == "count_tokens":
+            await model.count_tokens(messages)
+        else:
+            await model.compact(messages, [])
+
+
+def test_responses_bare_file_data_is_normalized_without_io() -> None:
+    content = content_from_response_input_content_param(
+        cast(
+            Any,
+            {
+                "type": "input_file",
+                "file_data": "JVBERi0xLjQ=",
+                "filename": "report.pdf",
+            },
+        )
+    )
+
+    assert isinstance(content, ContentDocument)
+    assert content.document == "data:application/pdf;base64,JVBERi0xLjQ="
+    assert content.mime_type == "application/pdf"
+
+
+def test_responses_typed_file_data_is_preserved() -> None:
+    uri = "data:text/plain;base64,aGVsbG8="
+    content = content_from_response_input_content_param(
+        cast(
+            Any,
+            {"type": "input_file", "file_data": uri, "filename": "note.txt"},
+        )
+    )
+
+    assert isinstance(content, ContentDocument)
+    assert content.document == uri
+
+
+def test_model_provider_modules_do_not_import_media_authority_helpers() -> None:
+    forbidden = {"file_as_data", "file_as_data_uri", "materialize_media"}
+    model_dir = Path(__file__).parents[2] / "src" / "inspect_ai" / "model"
+    violations: list[str] = []
+
+    for path in model_dir.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "inspect_ai._util.images"
+            ):
+                imported = forbidden.intersection(alias.name for alias in node.names)
+                if imported:
+                    violations.append(
+                        f"{path.relative_to(model_dir)}: {sorted(imported)}"
+                    )
+
+    assert violations == []
 
 
 @pytest.mark.parametrize(

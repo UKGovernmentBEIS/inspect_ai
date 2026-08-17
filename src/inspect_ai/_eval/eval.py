@@ -108,6 +108,7 @@ from .task.enqueue import (
     create_task_enqueuer,
     register_task_enqueuer,
 )
+from .task.images import InputMediaPolicy
 from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
 
@@ -798,6 +799,7 @@ async def _eval_async_inner(
             checkpoint,
             notification,
             task_source=task_source,
+            input_media_policy="trusted_pre_run",
         )
 
         # warn and return empty string if we resolved no tasks
@@ -1881,6 +1883,7 @@ def eval_resolve_tasks(
     eval_checkpoint: CheckpointConfig | None = None,
     notification: bool | str | None = None,
     task_source: TaskSource | None = None,
+    input_media_policy: InputMediaPolicy = "inline_only",
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1920,6 +1923,7 @@ def eval_resolve_tasks(
                     # TaskSource already consumed task_args to build its seed
                     # (resolve_task_source), so don't warn for that path.
                     warn_unconsumed_task_args=(i == 0 and task_source is None),
+                    input_media_policy=input_media_policy,
                 )
             )
 

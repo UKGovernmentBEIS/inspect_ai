@@ -3,12 +3,17 @@ from pathlib import Path
 
 import pytest
 
-from inspect_ai import SampleSource, Task, TaskSource, enqueue_sample, eval
+from inspect_ai import SampleSource, Task, TaskSource, enqueue_sample, eval, eval_set
+from inspect_ai._eval.task.images import (
+    capture_task_input_media,
+    materialize_sample_input,
+)
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
     ContentAudio,
     ContentDocument,
     ContentImage,
+    ContentText,
     ContentVideo,
 )
 from inspect_ai.dataset import Sample
@@ -18,10 +23,11 @@ from inspect_ai.log._condense import ATTACHMENT_PROTOCOL, resolve_sample_attachm
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
     ChatMessageUser,
     ModelOutput,
 )
-from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 from inspect_ai.util import materialize_media, media_resolver
 
 
@@ -140,6 +146,41 @@ def test_fixed_input_uses_configured_media_resolver() -> None:
     assert seen == ["data:image/png;base64,dHJ1c3RlZA=="]
 
 
+def test_eval_set_grants_fixed_input_authority(tmp_path: Path) -> None:
+    seen: list[str] = []
+
+    async def resolver(uri: str) -> str:
+        assert uri == "test://bucket/eval-set.png"
+        return "data:image/png;base64,dHJ1c3RlZA=="
+
+    @solver
+    def record_input() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            seen.append(image_reference(state))
+            return state
+
+        return solve
+
+    with media_resolver("test", resolver):
+        success, _ = eval_set(
+            Task(
+                dataset=[
+                    Sample(
+                        id="sample",
+                        input=image_input("test://bucket/eval-set.png"),
+                    )
+                ],
+                solver=record_input(),
+            ),
+            model="mockllm/model",
+            display="none",
+            log_dir=str(tmp_path / "logs"),
+        )
+
+    assert success is True
+    assert seen == ["data:image/png;base64,dHJ1c3RlZA=="]
+
+
 def test_sample_source_seed_uses_fixed_input_authority() -> None:
     seen: list[str] = []
 
@@ -166,6 +207,129 @@ def test_sample_source_seed_uses_fixed_input_authority() -> None:
         )
 
     assert seen == ["data:image/png;base64,dHJ1c3RlZA=="]
+
+
+async def test_captured_media_requires_the_original_message_role() -> None:
+    reference = "test://bucket/input.png"
+    captured = Sample(id="sample", input=image_input(reference))
+    plan = capture_task_input_media([captured])
+    changed = Sample(
+        id="sample",
+        input=[ChatMessageSystem(content=[ContentImage(image=reference)])],
+    )
+    resolver_calls: list[str] = []
+
+    async def resolver(uri: str) -> str:
+        resolver_calls.append(uri)
+        return "data:image/png;base64,dHJ1c3RlZA=="
+
+    with media_resolver("test", resolver):
+        materialized = await materialize_sample_input(changed, plan)
+
+    assert resolver_calls == []
+    assert not isinstance(materialized.input, str)
+    content = materialized.input[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentImage)
+    assert content[0].image == reference
+
+
+async def test_captured_media_requires_the_original_mime_hint() -> None:
+    reference = "test://bucket/input"
+    captured = Sample(id="sample", input=audio_input(reference))
+    plan = capture_task_input_media([captured])
+    changed = Sample(
+        id="sample",
+        input=[ChatMessageUser(content=[ContentAudio(audio=reference, format="wav")])],
+    )
+    resolver_calls: list[str] = []
+
+    async def resolver(uri: str) -> str:
+        resolver_calls.append(uri)
+        return "data:audio/wav;base64,dHJ1c3RlZA=="
+
+    with media_resolver("test", resolver):
+        materialized = await materialize_sample_input(changed, plan)
+
+    assert resolver_calls == []
+    assert not isinstance(materialized.input, str)
+    content = materialized.input[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentAudio)
+    assert content[0].audio == reference
+
+
+async def test_captured_media_allows_unrelated_sibling_changes() -> None:
+    reference = "test://bucket/input.png"
+    captured = Sample(
+        id="sample",
+        input=[
+            ChatMessageUser(
+                content=[
+                    ContentImage(image=reference),
+                    ContentText(text="old"),
+                ]
+            )
+        ],
+    )
+    plan = capture_task_input_media([captured])
+    changed = captured.model_copy(deep=True)
+    assert not isinstance(changed.input, str)
+    changed_content = changed.input[0].content
+    assert isinstance(changed_content, list)
+    changed_content[1] = ContentText(text="new")
+
+    async def resolver(uri: str) -> str:
+        assert uri == reference
+        return "data:image/png;base64,dHJ1c3RlZA=="
+
+    with media_resolver("test", resolver):
+        materialized = await materialize_sample_input(changed, plan)
+
+    assert not isinstance(materialized.input, str)
+    content = materialized.input[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[0], ContentImage)
+    assert content[0].image == "data:image/png;base64,dHJ1c3RlZA=="
+
+
+def test_filtered_out_seed_id_remains_reserved() -> None:
+    reference = "test://bucket/excluded.png"
+    resolver_calls: list[str] = []
+
+    class Source(SampleSource):
+        def __init__(self) -> None:
+            self.produced = False
+
+        def initial_samples(self) -> list[Sample]:
+            return [
+                Sample(id=1, input=image_input(reference)),
+                Sample(id=2, input="selected-2"),
+                Sample(id=3, input="selected-3"),
+            ]
+
+        async def next_samples(self) -> list[Sample] | None:
+            if self.produced:
+                return None
+            self.produced = True
+            return [Sample(id=1, input=image_input(reference))]
+
+    async def resolver(uri: str) -> str:
+        resolver_calls.append(uri)
+        return "data:image/png;base64,dW5leHBlY3RlZA=="
+
+    with media_resolver("test", resolver):
+        logs = eval(
+            Task(dataset=Source(), solver=[generate()]),
+            model="mockllm/model",
+            display="none",
+            sample_id=[2, 3],
+        )
+
+    assert logs[0].status == "error"
+    assert logs[0].error is not None
+    assert "duplicate" in logs[0].error.message
+    assert resolver_calls == []
 
 
 def test_fixed_document_uses_resolved_mime_type() -> None:

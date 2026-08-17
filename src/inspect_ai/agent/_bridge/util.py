@@ -539,10 +539,10 @@ async def validate_bridge_media(
     before the request reaches the model. This keeps provider serialization
     inline-only while preserving the explicitly granted host access.
     """
-    for message in messages:
+    for message_index, message in enumerate(messages):
         if isinstance(message.content, str):
             continue
-        for content in message.content:
+        for content_index, content in enumerate(message.content):
             if isinstance(content, ContentText):
                 if (
                     isinstance(content.internal, dict)
@@ -558,8 +558,10 @@ async def validate_bridge_media(
                 continue
             if not bridge.allow_remote_media:
                 raise BridgePolicyError(
-                    f"Bridged {content.type} content must be an inline 'data:' URI; "
-                    f"the agent bridge will not dereference {uri[:80]!r}."
+                    f"Bridged {content.type} content at message index "
+                    f"{message_index}, content index {content_index} must be an "
+                    "inline 'data:' URI; the agent bridge will not dereference "
+                    "a non-inline reference."
                 )
             _set_bridge_media_uri(
                 content,

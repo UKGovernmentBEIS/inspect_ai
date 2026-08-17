@@ -184,7 +184,7 @@ def test_enqueued_resolved_task_media_is_inline_only(tmp_path) -> None:
         None,
         None,
     )[0]
-    assert resolved_child.input_media_policy == "trusted_pre_run"
+    assert resolved_child.input_media_policy == "inline_only"
 
     @solver
     def enqueue_resolved_child() -> Solver:
@@ -205,7 +205,7 @@ def test_enqueued_resolved_task_media_is_inline_only(tmp_path) -> None:
     )
 
     assert seen == [str(secret)]
-    assert resolved_child.input_media_policy == "trusted_pre_run"
+    assert resolved_child.input_media_policy == "inline_only"
 
 
 def test_enqueue_task_does_not_leak_active_model() -> None:

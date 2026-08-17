@@ -1,4 +1,5 @@
 import json
+import mimetypes
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from functools import reduce
@@ -153,9 +154,10 @@ from inspect_ai._util.content import (
     ContentToolUse,
     ContentVideo,
 )
-from inspect_ai._util.images import inline_media_data_uri
+from inspect_ai._util.images import as_data_uri, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.text import truncate_string_to_bytes
+from inspect_ai._util.url import is_data_uri
 from inspect_ai.model._agent_message import validate_agent_message
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._chat_message import (
@@ -798,7 +800,12 @@ def content_from_response_input_content_param(
             image=input.get("image_url", "") or "", detail=input.get("detail", "auto")
         )
     elif is_input_file(input):
-        return ContentDocument(document=input["file_data"], filename=input["filename"])
+        file_data = input["file_data"]
+        filename = input["filename"]
+        if not is_data_uri(file_data):
+            mime_type, _ = mimetypes.guess_type(filename, strict=False)
+            file_data = as_data_uri(mime_type or "application/octet-stream", file_data)
+        return ContentDocument(document=file_data, filename=filename)
     else:
         raise RuntimeError(f"Unexpected input from responses API: {input}")
 

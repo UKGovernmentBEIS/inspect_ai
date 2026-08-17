@@ -181,11 +181,9 @@ def _validate_inline_media(
     try:
         inline_media_data_uri(reference, kind, mime_type_hint=mime_type_hint)
     except ValueError as ex:
-        reference_preview = reference[:80] + ("..." if len(reference) > 80 else "")
         message = (
             f"{ex} Invalid model input at message index {message_index}, "
-            f"content index {content_index}: {kind} reference "
-            f"{reference_preview!r}."
+            f"content index {content_index}: non-inline or invalid {kind} content."
         )
         if isinstance(ex, UnresolvedMediaError):
             raise UnresolvedMediaError(message) from ex
@@ -997,6 +995,9 @@ class Model:
            config: Optional generation config for provider-specific counting
                (e.g., reasoning parameters that affect token allocation).
         """
+        if not isinstance(input, str):
+            _validate_model_input_media(input)
+
         config = self._resolve_config(config)
 
         # Retry handler for token counting (429/timeouts retried with the
@@ -1118,6 +1119,7 @@ class Model:
         Raises:
             NotImplementedError: For providers without native compaction support.
         """
+        _validate_model_input_media(input)
         config = self._resolve_config(None)
 
         # provide max_tokens from the model api if required (same as generate)
@@ -1279,6 +1281,7 @@ class Model:
                 config=config,
                 cache=cache_mode,
             )
+            _validate_model_input_media(input)
 
             event_tools = (
                 snapshot_tools_for_event(call_tools, base_tools)
