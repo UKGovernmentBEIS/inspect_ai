@@ -821,6 +821,21 @@ def test_model_overrides_required_role_warns_once(clear_warned: Any) -> None:
     assert len(messages) == 1
 
 
+def test_model_overrides_required_role_restored_from_options_warns(
+    clear_warned: Any,
+) -> None:
+    """A role restored from EvalScorer.options (dict form) behaves like ModelRole."""
+    from inspect_ai._util.logger import _warned
+
+    # dict form is what log replay / EvalScorer.options restore produces;
+    # as_model_role() must normalize it before the required check.
+    model_graded_qa(
+        model="mockllm/model", model_role={"name": "grader", "required": True}
+    )
+    messages = [m for m in _warned if "required 'grader' role" in m]
+    assert len(messages) == 1
+
+
 def test_model_role_override_warning_silent_by_default(clear_warned: Any) -> None:
     from inspect_ai._util.logger import _warned
 

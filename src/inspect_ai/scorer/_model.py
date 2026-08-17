@@ -190,15 +190,18 @@ def _model_graded_qa_single(
 
     # an explicit model takes precedence over model_role (documented); when
     # the role is required, the caller asked for a hard prerequisite that is
-    # silently bypassed, so surface it at construction time. warn_once means
-    # each distinct role name warns at most once per process, not per task.
+    # silently bypassed, so surface it at construction time. warn_once dedups
+    # on the message text, so independent bypasses sharing a role name (across
+    # scorers or models) report once per process — one signal is enough for
+    # the caller to change the pattern.
     if model is not None and model_role is not None:
         role = as_model_role(model_role)
         if role.required:
             warn_once(
                 logger,
                 f"model_graded scorer: an explicit 'model' is provided, so the "
-                f"required '{role.name}' role will not be consulted",
+                f"required '{role.name}' role will not be consulted (this warning "
+                f"is deduplicated per role name per process)",
             )
 
     # resolve grading template, instructions, and grade_pattern
