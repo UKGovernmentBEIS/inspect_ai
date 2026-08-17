@@ -2650,8 +2650,15 @@ async def assistant_message_block_params(
     message: ChatMessageAssistant,
 ) -> list[MessageBlockParam]:
     block_params: list[MessageBlockParam] = []
+
+    # build block params per content item ("segments") so that client tool
+    # calls can be spliced back at their original interleaved positions below.
+    segments: list[list[MessageBlockParam]] = []
+    pending_span_params: list[MessageBlockParam] = []
     if isinstance(message.content, str):
-        block_params = [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
+        segments.append(
+            [TextBlockParam(type="text", text=message.content or NO_CONTENT)]
+        )
     else:
         # server tool spans recorded for this message at generate time. server
         # tool blocks are opaque server artifacts (encrypted content, caller
@@ -2665,15 +2672,17 @@ async def assistant_message_block_params(
         )
         emitted: set[int] = set()
         for content in message.content:
+            segment: list[MessageBlockParam] = []
             span = _server_tool_span_for_content(content, record)
             if span is not None:
                 # emit the whole span verbatim at the position of its first
                 # content item (subsequent items of the same span emit nothing)
                 if id(span) not in emitted:
                     emitted.add(id(span))
-                    block_params.extend(_span_block_params(span, message))
+                    segment.extend(_span_block_params(span, message))
             else:
-                block_params.extend(await message_block_params(content))
+                segment.extend(await message_block_params(content))
+            segments.append(segment)
         # a span whose results never arrived (the turn ended first, e.g. a
         # client tool call cut in) has no content item to anchor it, so the
         # loop above never emits it. it must still be replayed: the API
@@ -2682,13 +2691,42 @@ async def assistant_message_block_params(
         # content qualify -- a span whose content items were removed by a
         # scaffold edit was deleted deliberately and stays dropped. with no
         # anchor, the span lands after the content-derived blocks rather than
-        # at its original wire position (which is not recorded); the API does
-        # not require intra-message position fidelity (client tool_use blocks
-        # are likewise always re-appended last, below).
+        # at its original wire position (which is not recorded).
         for span in record or []:
             if not span.content_ids and id(span) not in emitted:
                 emitted.add(id(span))
-                block_params.extend(_span_block_params(span, message))
+                pending_span_params.extend(_span_block_params(span, message))
+
+    # splice client tool_use blocks back at their recorded interleaved
+    # positions. a call recorded at position p (p content items preceded it in
+    # the original wire order) is emitted right after the first p content items,
+    # so a `[thinking, tool_use, thinking, tool_use]` turn round-trips with its
+    # thinking blocks still separated -- front-loading them (the result of
+    # appending all tool_use blocks last) is rejected on replay with "thinking
+    # ... blocks in the latest assistant message cannot be modified". Calls with
+    # no recorded position (str content, an older log, or another system's
+    # message) default to last, preserving the historical append-last behavior.
+    content_len = len(segments)
+    tools_by_position: dict[int, list[MessageBlockParam]] = {}
+    for tool_call in message.tool_calls or []:
+        position = assistant_internal().client_tool_call_positions.get(
+            tool_call.id, content_len
+        )
+        position = min(max(position, 0), content_len)
+        internal_name = _internal_name_from_tool_call(tool_call)
+        tools_by_position.setdefault(position, []).append(
+            ToolUseBlockParam(
+                type="tool_use",
+                id=tool_call.id,
+                name=internal_name or tool_call.function,
+                input=tool_call.arguments,
+            )
+        )
+    for position, segment in enumerate(segments):
+        block_params.extend(tools_by_position.get(position, []))
+        block_params.extend(segment)
+    block_params.extend(pending_span_params)
+    block_params.extend(tools_by_position.get(content_len, []))
 
     # move the first instance of thinking to the front (we only need to do this
     # for claude 3 models as we enable interleaved thinking for claude 4)
@@ -2705,24 +2743,14 @@ async def assistant_message_block_params(
         c for c in block_params if not c["type"] == "text" or len(c["text"]) > 0
     ]
 
-    # now add tools
-    for tool_call in message.tool_calls or []:
-        internal_name = _internal_name_from_tool_call(tool_call)
-        block_params.append(
-            ToolUseBlockParam(
-                type="tool_use",
-                id=tool_call.id,
-                name=internal_name or tool_call.function,
-                input=tool_call.arguments,
-            )
-        )
-
     # Ensure thinking blocks are not the final block in the message.
     # The API rejects messages where the last block is thinking/redacted_thinking.
-    # This can happen when the model uses its entire output budget on thinking
-    # and produces no text or tool calls.
-    if block_params and all(
-        c.get("type") in ("thinking", "redacted_thinking") for c in block_params
+    # This can happen when the model uses its entire output budget on thinking and
+    # produces no text or tool calls, or when a client tool call is spliced earlier
+    # in the turn (above) and leaves an interleaved thinking block as the last one.
+    if block_params and block_params[-1].get("type") in (
+        "thinking",
+        "redacted_thinking",
     ):
         block_params.append(TextBlockParam(type="text", text=NO_CONTENT))
 
@@ -2860,6 +2888,20 @@ class _AssistantInternal:
         default_factory=dict
     )
     tool_call_internal_names: dict[str, str | None] = field(default_factory=dict)
+    client_tool_call_positions: dict[str, int] = field(default_factory=dict)
+    """Client tool call position within its assistant message content, keyed by
+    tool use id.
+
+    The value is the number of content items (text/reasoning/server tool
+    results) that preceded the tool use in the original wire order. Recorded at
+    parse time and used by `assistant_message_block_params` to splice client
+    tool_use blocks back at their interleaved positions rather than appending
+    them last. Front-loading thinking blocks (the result of appending tool uses
+    last) is rejected on replay by the API with "thinking ... blocks in the
+    latest assistant message cannot be modified" (Claude 4+ interleaves thinking
+    with client tool calls in a single turn). Keyed by tool use id (like
+    `tool_call_internal_names`) so it survives the agent bridge and log
+    round-trip."""
     server_mcp_tool_uses: dict[
         str, tuple[BetaMCPToolUseBlockParam, BetaRequestMCPToolResultBlockParam]
     ] = field(default_factory=dict)
@@ -2905,6 +2947,9 @@ def init_sample_anthropic_assistant_internal(value: JsonValue | None = None) -> 
     )
     internal.tool_call_internal_names.update(
         cast("dict[str, str | None]", value.get("tool_call_internal_names", {}))
+    )
+    internal.client_tool_call_positions.update(
+        cast("dict[str, int]", value.get("client_tool_call_positions", {}))
     )
     internal.server_mcp_tool_uses.update(
         {
@@ -2969,6 +3014,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
     if not (
         internal.thinking_blocks
         or internal.tool_call_internal_names
+        or internal.client_tool_call_positions
         or internal.server_mcp_tool_uses
         or span_table
         or internal.containers
@@ -2979,6 +3025,7 @@ def dump_anthropic_assistant_internal() -> JsonValue | None:
         {
             "thinking_blocks": dict(internal.thinking_blocks),
             "tool_call_internal_names": dict(internal.tool_call_internal_names),
+            "client_tool_call_positions": dict(internal.client_tool_call_positions),
             "server_mcp_tool_uses": {
                 tool_use_id: list(use_result)
                 for tool_use_id, use_result in internal.server_mcp_tool_uses.items()
@@ -3699,6 +3746,13 @@ def content_and_tool_calls_from_assistant_content_blocks(
             (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
             assistant_internal().tool_call_internal_names[content_block.id] = (
                 internal_name
+            )
+            # record where this client tool call sits in the content stream so
+            # the rebuild can splice it back at its interleaved position rather
+            # than front-loading the surrounding thinking blocks (see
+            # `_AssistantInternal.client_tool_call_positions`)
+            assistant_internal().client_tool_call_positions[content_block.id] = len(
+                content
             )
             tool_calls.append(
                 ToolCall(
