@@ -309,7 +309,11 @@ async def test_generic_acp_client_full_picker_flow(
        as a standard ``session/update`` with a recognizable
        ``agent_message_chunk``.
 
-    No call in this test uses an ``inspect/*`` method. The recursive
+    No call in this test uses an ``inspect/*`` method. (The client does
+    passively *receive* the one ``inspect/turn_state`` snapshot that
+    forwarder startup sends to every client post-bind — a generic client
+    would simply ignore it — and the test drains and asserts it before
+    step 4.) The recursive
     ``_meta`` audit (:func:`_assert_no_inspect_meta`) catches new
     inspect-namespaced fields landing in places that would surprise
     a generic client.
