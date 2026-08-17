@@ -586,6 +586,7 @@ def eval_set(
             sandbox,
             sample_shuffle,
             notification=notification,
+            input_media_policy="trusted_pre_run",
         )
 
         # fail with a legible error if no tasks were found (matches `eval`)
