@@ -2213,3 +2213,103 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     assert restored_order == ["thinking", "tool_use", "thinking", "tool_use"], (
         restored_order
     )
+
+
+async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
+    """A turn ending in an interleaved thinking block must not end on thinking.
+
+    Splicing a client tool call earlier in the turn can leave a thinking block as
+    the final block (`[thinking, tool_use, thinking]`). The API rejects a message
+    whose last block is thinking, so a placeholder text block must be appended.
+    """
+    from anthropic.types import ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [ToolInfo(name="tool_a", description="A.", parameters=arg)]
+    blocks = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="s2"),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    message = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    order = [p["type"] for p in await assistant_message_block_params(message)]
+    assert order == ["thinking", "tool_use", "thinking", "text"], order
+
+
+async def test_anthropic_interleaved_parallel_tool_calls_grouped() -> None:
+    """Parallel client tool calls at one interleaved position stay grouped in order."""
+    from anthropic.types import ThinkingBlock, ToolUseBlock
+
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        content_and_tool_calls_from_assistant_content_blocks,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_params import ToolParam, ToolParams
+
+    arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
+    tools = [
+        ToolInfo(name="tool_a", description="A.", parameters=arg),
+        ToolInfo(name="tool_b", description="B.", parameters=arg),
+        ToolInfo(name="tool_c", description="C.", parameters=arg),
+    ]
+    blocks = [
+        ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
+        ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
+        ToolUseBlock(type="tool_use", id="b", name="tool_b", input={"x": "2"}),
+        ThinkingBlock(type="thinking", thinking="t2", signature="s2"),
+        ToolUseBlock(type="tool_use", id="c", name="tool_c", input={"x": "3"}),
+    ]
+    init_sample_anthropic_assistant_internal()
+    content, tool_calls = content_and_tool_calls_from_assistant_content_blocks(
+        blocks, tools
+    )
+    message = ChatMessageAssistant(
+        content=content, tool_calls=tool_calls, model="claude-opus-4-8"
+    )
+    params = await assistant_message_block_params(message)
+    assert [p["type"] for p in params] == [
+        "thinking",
+        "tool_use",
+        "tool_use",
+        "thinking",
+        "tool_use",
+    ], [p["type"] for p in params]
+    assert [p["id"] for p in params if p["type"] == "tool_use"] == ["a", "b", "c"]
+
+
+async def test_anthropic_unrecorded_tool_call_appended_last() -> None:
+    """A client tool call with no recorded interleave position falls back to last.
+
+    Messages assembled outside the Anthropic parse (another provider's history, a
+    scaffold-built message) carry no recorded position; those tool calls must land
+    after the content, matching the historical append-last behavior.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._providers.anthropic import (
+        assistant_message_block_params,
+        init_sample_anthropic_assistant_internal,
+    )
+    from inspect_ai.tool._tool_call import ToolCall
+
+    init_sample_anthropic_assistant_internal()  # empty: no positions recorded
+    message = ChatMessageAssistant(
+        content=[ContentReasoning(summary="t1", reasoning="s1", redacted=True)],
+        tool_calls=[ToolCall(id="z", function="tool_a", arguments={"x": "1"})],
+        model="claude-opus-4-8",
+    )
+    order = [p["type"] for p in await assistant_message_block_params(message)]
+    assert order == ["thinking", "tool_use"], order
