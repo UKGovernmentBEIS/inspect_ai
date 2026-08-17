@@ -19,6 +19,7 @@ from inspect_ai.util._console import input_screen
 from ._types import InputRequest, InputResult
 from ._validate import (
     PropertySchema,
+    known_property,
     multiselect_options,
     string_choice_labels,
     string_choices,
@@ -83,7 +84,7 @@ def _ask_schema(
 
     try:
         for name, prop in (schema.properties or {}).items():
-            value = _ask_property(name, prop, name in required, console)
+            value = _ask_property(name, known_property(prop), name in required, console)
             if value is not _OMIT:
                 content[name] = value
     except _Declined:

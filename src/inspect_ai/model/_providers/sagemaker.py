@@ -4,15 +4,20 @@ from logging import getLogger
 from typing import Any
 
 from botocore.config import Config  # type: ignore[import-untyped]
-from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+from botocore.exceptions import (  # type: ignore[import-untyped]
+    ClientError,
+    ConnectionClosedError,
+    ConnectTimeoutError,
+    EndpointConnectionError,
+    ReadTimeoutError,
+)
 from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._openai import chat_choices_from_openai, model_output_from_openai
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -50,6 +55,19 @@ SAGEMAKER_RETRY_ERROR_CODES = {
     504,  # Gateway timeout
     # 507, # Insufficient storage
 }
+
+# botocore transport-layer exceptions raised before a response is received —
+# the connection could not be established, was dropped mid-flight, or timed
+# out. These are transient (a redialed request typically succeeds) and are not
+# ClientErrors, so they must be classified for retry separately. Since the
+# runtime client is configured with botocore retries disabled
+# (total_max_attempts=1), retrying these is left to Inspect's own retry loop.
+SAGEMAKER_RETRY_TRANSPORT_ERRORS = (
+    EndpointConnectionError,
+    ConnectionClosedError,
+    ConnectTimeoutError,
+    ReadTimeoutError,
+)
 
 # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
 
@@ -153,6 +171,11 @@ class SagemakerAPI(ModelAPI):
                 and status_code in SAGEMAKER_RETRY_ERROR_CODES
             ):
                 return RetryDecision.transient()
+        # Transport-layer failures (connection could not be established/was
+        # dropped/timed out) are transient — the request never reached the
+        # model, so a redial typically succeeds.
+        elif isinstance(ex, SAGEMAKER_RETRY_TRANSPORT_ERRORS):
+            return RetryDecision.transient()
         return RetryDecision.no()
 
     @override
@@ -717,9 +740,7 @@ async def process_content(content: list[Content] | str) -> str | list[dict[str, 
         if item.type == "text":
             processed_content.append({"type": "text", "text": item.text})
         elif item.type == "image":
-            image_url = item.image
-            if not is_http_url(image_url):
-                image_url = await file_as_data_uri(image_url)
+            image_url = inline_media_data_uri(item.image, "image")
 
             processed_content.append(
                 {

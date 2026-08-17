@@ -36,6 +36,7 @@ from typing import (
     Callable,
     Iterator,
     Literal,
+    NamedTuple,
 )
 
 if TYPE_CHECKING:
@@ -68,6 +69,33 @@ logger = getLogger(__name__)
 
 SampleCancelAction = Literal["score", "error", "cancel"]
 """How a cancelled sample resolves (see :meth:`ActiveSample.interrupt`)."""
+
+
+class ActiveSampleRetryWait(NamedTuple):
+    """A model call's retry backoff, mirrored onto the running sample.
+
+    During the backoff between retry attempts there is no pending
+    ``ModelEvent`` to observe (the failed attempt's event completed in
+    place), so without this record the control channel would read the
+    sample as silently idle for the whole wait — precisely the
+    "looks hung but is healthy" misreading the activity indicator exists
+    to fix (design/ctl/generate-progress.md). Stamped by
+    :func:`report_active_sample_retry_wait` from the model retry loop's
+    before-sleep callback; cleared by :func:`clear_active_sample_retry_wait`
+    when the retried call resolves.
+    """
+
+    model: str
+    """Model whose call is waiting to retry."""
+
+    attempt: int
+    """Number of the attempt that just failed (1-based)."""
+
+    started_at: float
+    """When the backoff started (unix ts)."""
+
+    deadline: float
+    """When the wait elapses and the next attempt begins (unix ts)."""
 
 
 class ActiveSample:
@@ -123,6 +151,14 @@ class ActiveSample:
         self.total_messages = 0
         self.total_tokens = 0
         self.total_turns = 0
+        # Counts of events reported from deep inside the model layer, where the
+        # only handle on "which sample is this?" is `sample_active()`. Both are
+        # also tallied in process-global counters that the TUI footer reads
+        # (`log._refusal`, `_util.retry`); these attribute them to a sample so
+        # the control channel can report them per eval, which a process-global
+        # cannot do — one process runs many evals concurrently.
+        self.refusals = 0
+        self.http_retries = 0
         # The sample's live `TaskState` — the handle observers read the
         # current conversation from (see the module docstring). Refreshed via
         # `set_sample_state` (sample start, `Chain`/`Plan` step boundaries,
@@ -146,6 +182,13 @@ class ActiveSample:
         # sample source. Empty on the first attempt. The control channel
         # surfaces these as the running sample's error history.
         self.error_retries: list[EvalRetryError] = error_retries or []
+        # In-flight model retry backoff, if any (see ActiveSampleRetryWait).
+        # A single slot: concurrent generates within one sample overwrite it
+        # last-writer-wins (the control channel shows one activity per row,
+        # and pending events always take precedence over this record), and
+        # the ownership guard in clear_active_sample_retry_wait keeps a
+        # sibling's clear from dropping a live wait.
+        self.retry_wait: ActiveSampleRetryWait | None = None
         self._interrupt_action: SampleCancelAction | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
@@ -397,6 +440,21 @@ async def active_sample(
                     )
         active.checkpointer.close()
         active.complete()
+        # Roll this attempt's refusal / HTTP-retry counts onto the eval as the
+        # sample leaves the live list, so the control channel's "so far" total
+        # survives it. Adjacent to the `remove` and with no await between them:
+        # the endpoint reports `eval total + sum(in-flight)`, so a suspension
+        # point here would let a poll see the sample in neither term (or, the
+        # other way round, in both). Local import because `_control.eval_state`
+        # is loaded during eval bootstrap, before this package finishes
+        # initializing.
+        from inspect_ai._control.eval_state import record_sample_event_counts
+
+        record_sample_event_counts(
+            active.eval_id,
+            refusals=active.refusals,
+            http_retries=active.http_retries,
+        )
         _active_samples.remove(active)
         _sample_active.set(None)
 
@@ -558,6 +616,94 @@ def report_active_sample_retry() -> None:
         if model_event.retries is None:
             model_event.retries = 0
         model_event.retries = model_event.retries + 1
+
+    # Also tally on the sample itself. The model event's count is per-generation
+    # and lands in the transcript; this one is what the control channel can read
+    # while the sample is still running, and what rolls up to the eval.
+    active = sample_active()
+    if active is not None:
+        active.http_retries += 1
+
+
+def report_active_sample_refusal() -> None:
+    """Count a model refusal against the active sample, if there is one.
+
+    Called alongside the process-global tally in :mod:`inspect_ai.log._refusal`.
+    A refusal reported outside a sample (nothing in ``sample_active()``) is
+    counted globally only — it belongs to no eval.
+    """
+    active = sample_active()
+    if active is not None:
+        active.refusals += 1
+
+
+# The retry-wait record stamped by *this* coroutine's model retry loop.
+# `ActiveSample.retry_wait` is a single shared slot; this per-context handle
+# lets `clear_active_sample_retry_wait` clear only a record its own call
+# stamped, so a generate resolving in one task can't drop a concurrent
+# sibling's still-live wait.
+_active_retry_wait: ContextVar["ActiveSampleRetryWait | None"] = ContextVar(
+    "_active_retry_wait", default=None
+)
+
+
+def report_active_sample_retry_wait(model: str, attempt: int, wait_time: float) -> None:
+    """Record that the active sample's model call is waiting to retry.
+
+    Called from the model retry loop's before-sleep callback (once per
+    backoff). Between attempts there is no pending ``ModelEvent`` to
+    observe, so this record is the only per-sample signal that the sample
+    is healthy-but-waiting rather than stalled; the control channel reads
+    it as the ``retry_wait`` activity type
+    (design/ctl/generate-progress.md).
+
+    Args:
+        model: Model whose call is waiting to retry.
+        attempt: Number of the attempt that just failed (1-based).
+        wait_time: Seconds until the next attempt begins.
+    """
+    active = sample_active()
+    if active is not None:
+        now = datetime.now(timezone.utc).timestamp()
+        record = ActiveSampleRetryWait(
+            model=model, attempt=attempt, started_at=now, deadline=now + wait_time
+        )
+        _active_retry_wait.set(record)
+        active.retry_wait = record
+
+
+def clear_active_sample_retry_wait() -> None:
+    """Clear the retry-wait record stamped by this coroutine's model call.
+
+    Called when the retried call resolves (success or final failure) so a
+    record can't outlive its call and misreport a healthy sample as
+    waiting. No-ops when a concurrent sibling call has since overwritten
+    the sample's slot — its wait is still live.
+    """
+    record = _active_retry_wait.get()
+    if record is None:
+        return
+    _active_retry_wait.set(None)
+    active = sample_active()
+    if active is not None and active.retry_wait is record:
+        active.retry_wait = None
+
+
+@contextlib.contextmanager
+def cleared_retry_wait() -> Iterator[None]:
+    """Clear this coroutine's retry-wait record when the enclosed call resolves.
+
+    Wrap the await of a tenacity-decorated model call built with
+    ``report_retry_wait=True`` (the retry loop's before-sleep callback
+    stamps the record; see :func:`report_active_sample_retry_wait`). The
+    backoff record must not outlive the call it describes — success, final
+    failure, or cancellation during the backoff sleep itself; nothing later
+    clears it.
+    """
+    try:
+        yield
+    finally:
+        clear_active_sample_retry_wait()
 
 
 _sample_active: ContextVar[ActiveSample | None] = ContextVar(

@@ -5,9 +5,10 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from zipfile import ZipFile
 
+import anyio
 import pytest
 from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
@@ -20,10 +21,11 @@ from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async, write_eval_log_async
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
+    EvalLog,
     EvalPlan,
     EvalSample,
     EvalSampleSummary,
@@ -40,6 +42,7 @@ from inspect_ai.log._recorders.buffer.filestore import (
     SampleBufferFilestore,
     SampleManifest,
     Segment,
+    cleanup_sample_buffer_filestores,
     segment_file_name,
     segment_name,
 )
@@ -391,7 +394,7 @@ async def test_recover_from_filestore_end_to_end() -> None:
             assert sample.id == "sample1"
 
             # Verify it can be read back
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
 
@@ -548,6 +551,50 @@ async def test_recover_filestore_no_cleanup() -> None:
             )
 
             assert os.path.exists(buffer_dir)
+
+
+async def _cleanup_filestores_scenario() -> None:
+    """Run post-eval buffer cleanup against a finished and a running eval."""
+
+    async def write_log(path: str, status: Literal["started", "success"]) -> None:
+        log = EvalLog(
+            eval=EvalSpec(
+                created=datetime.now(timezone.utc).isoformat(),
+                task="test_task",
+                model="mockllm/model",
+                dataset=EvalDataset(name="test", samples=1),
+                config=EvalConfig(),
+            ),
+            status=status,
+        )
+        await write_eval_log_async(log, path)
+
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            await write_log(os.path.join(temp_dir, "finished.eval"), "success")
+            SampleBufferFilestore(os.path.join(temp_dir, "finished.eval"), create=True)
+            await write_log(os.path.join(temp_dir, "running.eval"), "started")
+            SampleBufferFilestore(os.path.join(temp_dir, "running.eval"), create=True)
+
+            await cleanup_sample_buffer_filestores(temp_dir)
+
+            # finished eval's buffer removed, running eval's buffer kept
+            assert not os.path.exists(os.path.join(temp_dir, ".buffer", "finished"))
+            assert os.path.exists(os.path.join(temp_dir, ".buffer", "running"))
+
+
+async def test_cleanup_sample_buffer_filestores() -> None:
+    """Post-eval cleanup removes finished buffers and keeps running ones."""
+    await _cleanup_filestores_scenario()
+
+
+def test_cleanup_sample_buffer_filestores_trio() -> None:
+    """The cleanup header reads work under the trio backend.
+
+    Uses anyio.run(backend="trio") directly so the trio path runs on regular
+    CI (see the NOTE above the trio tests in test_eval_log.py).
+    """
+    anyio.run(_cleanup_filestores_scenario, backend="trio")
 
 
 def _create_multi_sample_fixture(temp_dir: str) -> tuple[str, Manifest]:
@@ -711,7 +758,7 @@ async def test_streaming_recovery_has_events_data() -> None:
                 assert len(summaries_raw) == 1
 
             # Verify the file can be read back and events expand correctly
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             read_model_events = [
@@ -785,7 +832,7 @@ async def test_streaming_recovery_preserves_synced_message_pool() -> None:
             assert model_event["input"] == []
             assert model_event["input_refs"] == [[0, 1]]
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             [read_sample] = read_log.samples
             [read_model_event] = [
@@ -858,7 +905,7 @@ async def test_streaming_recovery_preserves_full_sample_metadata(
                 _db_dir=os.path.join(temp_dir, "empty_db_dir"),
             )
 
-            recovered = read_eval_log(output_path)
+            recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].metadata == final
             assert metric_sample_metadata == [final]
@@ -907,7 +954,7 @@ async def test_streaming_recovery_defaults_missing_init_metadata() -> None:
                 _db_dir=os.path.join(temp_dir, "empty_db_dir"),
             )
 
-            recovered = read_eval_log(output_path)
+            recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].metadata == {}
 
@@ -989,7 +1036,7 @@ async def test_streaming_recovery_falls_back_on_unavailable_metadata_sidecar(
                 _db_dir=os.path.join(temp_dir, "empty_db_dir"),
             )
 
-            recovered = read_eval_log(output_path)
+            recovered = await read_eval_log_async(output_path)
             assert recovered.samples is not None
             assert recovered.samples[0].metadata == initial
             assert any(
@@ -1122,7 +1169,9 @@ async def test_streaming_recovery_handles_many_attachments() -> None:
             for i in range(1, num_segments + 1):
                 assert f"{attachment_chunk}-seg-{i}" in values
 
-            read_log = read_eval_log(output_path, resolve_attachments="full")
+            read_log = await read_eval_log_async(
+                output_path, resolve_attachments="full"
+            )
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             first_model_event = next(
@@ -1173,7 +1222,7 @@ async def test_streaming_recovery_sample_id_with_unsafe_chars() -> None:
 
             # The recovery having completed is itself the key assertion.
             # Verify the recovered log is readable and contains the unsafe id
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             assert len(read_log.samples) == 1
             assert read_log.samples[0].id == unsafe_id  # id preserved in manifest
@@ -1267,7 +1316,9 @@ async def test_streaming_recovery_merges_segment_attachment_pool() -> None:
             )
 
             # End-to-end resolution must work
-            read_log = read_eval_log(output_path, resolve_attachments="full")
+            read_log = await read_eval_log_async(
+                output_path, resolve_attachments="full"
+            )
             assert read_log.samples is not None
             read_sample = read_log.samples[0]
             first_model_event = next(
@@ -1338,7 +1389,7 @@ async def test_streaming_recovery_emits_all_eval_sample_fields() -> None:
             assert raw["limit"] is None
 
             # Read-back round-trip: keyset equals emitted keyset
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             read_keys = set(read_log.samples[0].model_dump(mode="json").keys())
             assert read_keys == set(raw.keys())
@@ -1607,7 +1658,7 @@ async def test_streaming_recovery_dedups_cross_segment_event_ids() -> None:
                 eval_path, output=output_path, cleanup=False, _db_dir=db_dir
             )
 
-            read_log = read_eval_log(output_path)
+            read_log = await read_eval_log_async(output_path)
             assert read_log.samples is not None
             [read_sample] = read_log.samples
 

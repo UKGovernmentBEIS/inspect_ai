@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 from urllib.parse import urlparse
 from zipfile import ZipFile
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
@@ -18,7 +18,7 @@ from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, filesystem, open_file
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import read_eval_log_async
 
 from ..._log import EvalSampleSummary
 from .types import (
@@ -65,6 +65,8 @@ class SampleManifest(BaseModel):
 
 
 class Manifest(BaseModel):
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     metrics: list[TaskDisplayMetric] = Field(default_factory=list)
     samples: list[SampleManifest] = Field(default_factory=list)
     segments: list[Segment] = Field(default_factory=list)
@@ -602,7 +604,7 @@ class SampleBufferFilestore(SampleBuffer):
         return f"{self._dir}metadata.{digest}.{metadata_hash}.json"
 
 
-def cleanup_sample_buffer_filestores(log_dir: str) -> None:
+async def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     # read log buffer dirs (bail if there is no buffer_dir)
     fs = filesystem(log_dir)
     buffer_dir = sample_buffer_dir(log_dir, fs)
@@ -618,7 +620,7 @@ def cleanup_sample_buffer_filestores(log_dir: str) -> None:
     for log_buffer in log_buffers:
         try:
             log_file = f"{log_dir}{fs.sep}{basename(log_buffer.name)}.{EVAL_LOG_FORMAT}"
-            log_header = read_eval_log(log_file, header_only=True)
+            log_header = await read_eval_log_async(log_file, header_only=True)
             if log_header.status != "started":
                 cleanup_sample_buffer_filestore(log_buffer.name, fs)
 

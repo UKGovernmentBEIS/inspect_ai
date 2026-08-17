@@ -395,3 +395,150 @@ def test_content_returning_tool_serializes_correctly() -> None:
     eval_bridged_tools_task(test_solver())
 
     assert call_log == [{"tool": "content_returning_tool", "text": "hello"}]
+
+
+# =============================================================================
+# Tool approval over the sandbox bridge
+# =============================================================================
+
+
+async def post_completions(port: int, body: dict) -> dict:
+    """POST a Completions request to the in-container model proxy."""
+    return await _mcp_http_request_with_retry(
+        f"http://localhost:{port}/v1/chat/completions", json.dumps(body)
+    )
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_rejection_hides_the_call_from_the_agent() -> None:
+    """A rejected call must not reach an agent running inside the sandbox.
+
+    Full round trip: sandbox HTTP -> model proxy -> sandbox service RPC ->
+    completions dialect -> bridge_generate -> approval -> regenerate.
+    """
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+    from inspect_ai.tool._tool_call import ToolCall
+
+    seen: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                approval=[
+                    ApprovalPolicy(auto_approver("reject"), "bash"),
+                    ApprovalPolicy(auto_approver("approve"), "*"),
+                ],
+            ) as bridge:
+                response = await post_completions(
+                    bridge.port,
+                    {
+                        "model": "inspect",
+                        "messages": [{"role": "user", "content": "Tidy up."}],
+                    },
+                )
+                seen.append(response)
+            return state
+
+        return solve
+
+    unsafe = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    outputs = [
+        ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="On it.", tool_calls=[unsafe]),
+                    stop_reason="tool_calls",
+                )
+            ],
+        ),
+        ModelOutput.from_content(model="mockllm/model", content="safer plan"),
+    ]
+
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model("mockllm/model", custom_outputs=outputs),
+    )[0]
+    assert log.status == "success"
+
+    # the agent in the sandbox received the replacement, never the rejected call
+    message = seen[0]["choices"][0]["message"]
+    assert message.get("tool_calls") in (None, [])
+    assert message["content"] == "safer plan"
+
+    # and the rejection is on the record host-side
+    assert log.samples is not None
+    approvals = [e for e in log.samples[0].events if e.event == "approval"]
+    assert [(e.decision, e.call.function) for e in approvals] == [("reject", "bash")]
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_sandbox_bridge_terminate_ends_the_sample() -> None:
+    """`terminate` must reach the sample runner from the sandbox service task.
+
+    The service converts exceptions into RPC error responses, so this exercises
+    the monitor task in the bridge's own task group — the path that actually
+    unwinds the agent.
+    """
+    from inspect_ai.approval import ApprovalPolicy, auto_approver
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+    from inspect_ai.tool._tool_call import ToolCall
+
+    completed: list[bool] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                state,
+                approval=[ApprovalPolicy(auto_approver("terminate"), "*")],
+            ) as bridge:
+                try:
+                    await post_completions(
+                        bridge.port,
+                        {
+                            "model": "inspect",
+                            "messages": [{"role": "user", "content": "Tidy up."}],
+                        },
+                    )
+                except Exception:
+                    pass
+                # must not be reached: termination unwinds the bridge
+                completed.append(True)
+            return state
+
+        return solve
+
+    unsafe = ToolCall(id="1", function="bash", arguments={"cmd": "rm -rf /"})
+    outputs = [
+        ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="On it.", tool_calls=[unsafe]),
+                    stop_reason="tool_calls",
+                )
+            ],
+        )
+    ]
+
+    log = eval(
+        bridged_tools_task(test_solver()),
+        model=get_model("mockllm/model", custom_outputs=outputs),
+    )[0]
+
+    assert log.status == "success"
+    # positive evidence the approver ran and terminated: without it an empty
+    # `completed` could equally mean the bridge never started
+    assert log.samples is not None
+    approvals = [e for e in log.samples[0].events if e.event == "approval"]
+    assert [e.decision for e in approvals] == ["terminate"]
+    # the bridge unwound before the body could finish
+    assert completed == []

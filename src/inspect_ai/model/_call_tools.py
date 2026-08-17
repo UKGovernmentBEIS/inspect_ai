@@ -1159,7 +1159,15 @@ def truncate_tool_output(
 
 
 def tool_parse_error_message(arguments: str | None, ex: Exception) -> str:
-    return f"Error parsing the following tool call arguments:\n\n{arguments or ''}\n\nError details: {ex}"
+    # middle-truncate the raw arguments (they can be arbitrarily large when the
+    # model goes off the rails, and this message is echoed back to the model)
+    truncated = truncate_string_to_bytes(arguments or "", 16 * 1024)
+    shown = (
+        f"{truncated.output}\n\n(arguments middle-truncated from {truncated.original_bytes} bytes)"
+        if truncated
+        else (arguments or "")
+    )
+    return f"Error parsing the following tool call arguments:\n\n{shown}\n\nError details: {ex}"
 
 
 def parse_tool_call(

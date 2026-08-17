@@ -114,8 +114,8 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
     NOTE: This class does not support concurrent calls to receive.
     """
 
-    def __init__(self, filename: str, start: int, end: int):
-        """Initialize with file path and byte range."""
+    def __init__(self, filename: str, start: int, end: int | None):
+        """Initialize with file path and byte range (end=None reads to EOF)."""
         self._filename = filename
         self._start = start
         self._end = end
@@ -128,9 +128,12 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
             self._file = await open_file(self._filename, "rb")
             await self._file.seek(self._start)
 
-        if self._position >= self._end or not (
-            chunk := await self._file.read(min(max_bytes, self._end - self._position))
-        ):
+        limit = (
+            max_bytes
+            if self._end is None
+            else min(max_bytes, self._end - self._position)
+        )
+        if limit <= 0 or not (chunk := await self._file.read(limit)):
             raise EndOfStream
 
         self._position += len(chunk)
@@ -268,13 +271,14 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 return f.read()
 
     async def read_file_bytes(
-        self, filename: str, start: int, end: int
+        self, filename: str, start: int, end: int | None
     ) -> ByteReceiveStream:
+        """Stream the byte range [start, end) of a file (end=None reads to EOF)."""
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
             if current_async_backend() == "asyncio":
                 response = await (await self.s3_client_async()).get_object(
-                    Bucket=bucket, Key=key, Range=f"bytes={start}-{end - 1}"
+                    Bucket=bucket, Key=key, Range=s3_range_header(start, end)
                 )
                 return _StreamingBodyByteReceiveStream(response["Body"])
             return _BytesByteReceiveStream(
@@ -289,14 +293,27 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                 return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
-                return _BytesByteReceiveStream(f.read(end - start))
+                return _BytesByteReceiveStream(
+                    f.read(-1 if end is None else end - start)
+                )
 
-    async def read_file_bytes_fully(self, filename: str, start: int, end: int) -> bytes:
-        """Read a byte range from a file and consume the stream fully into bytes."""
+    async def read_file_bytes_fully(
+        self, filename: str, start: int, end: int | None
+    ) -> bytes:
+        """Read the byte range [start, end) of a file into bytes (end=None reads to EOF)."""
         stream = await self.read_file_bytes(filename, start, end)
-        chunks = []
-        async for chunk in stream:
-            chunks.append(chunk)
+        chunks: list[bytes] = []
+        try:
+            # Pull in large chunks rather than the stream's default
+            # iteration size — one thread/network hop per megabyte instead
+            # of per 64KB matters when reading tens of MB into memory.
+            while True:
+                try:
+                    chunks.append(await stream.receive(_READ_FULLY_CHUNK_SIZE))
+                except EndOfStream:
+                    break
+        finally:
+            await stream.aclose()
         return b"".join(chunks)
 
     async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
@@ -760,9 +777,15 @@ def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
     return cast(bytes, response["Body"].read())
 
 
-def s3_read_file_bytes(s3: Any, bucket: str, key: str, start: int, end: int) -> bytes:
-    range_header = f"bytes={start}-{end - 1}"
-    response = s3.get_object(Bucket=bucket, Key=key, Range=range_header)
+def s3_range_header(start: int, end: int | None) -> str:
+    """Range header for [start, end) — end=None is an open-ended range."""
+    return f"bytes={start}-" if end is None else f"bytes={start}-{end - 1}"
+
+
+def s3_read_file_bytes(
+    s3: Any, bucket: str, key: str, start: int, end: int | None
+) -> bytes:
+    response = s3.get_object(Bucket=bucket, Key=key, Range=s3_range_header(start, end))
     return cast(bytes, response["Body"].read())
 
 
@@ -1006,3 +1029,7 @@ _FSSPEC_WRITE_BLOCK_SIZE = 8 * 1024 * 1024  # 8 MB
 # Size of chunks read from the source stream per iteration when
 # copying to local or fsspec-backed files via shutil.copyfileobj.
 _STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB
+
+# Granularity for `read_file_bytes_fully`: one read hop per chunk while
+# accumulating a range into memory.
+_READ_FULLY_CHUNK_SIZE = 1024 * 1024  # 1 MB

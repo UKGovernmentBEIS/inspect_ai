@@ -2,20 +2,18 @@ import contextlib
 import os
 import sys
 from contextlib import AsyncExitStack
-from datetime import timedelta
 from logging import getLogger
 from pathlib import Path
 from types import TracebackType
 from typing import Any, AsyncIterator, Callable
 
 import anyio
-from mcp import McpError
 from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.client.streamable_http import streamablehttp_client
 from mcp.types import (
     AudioContent,
+    CallToolResult,
     EmbeddedResource,
     ImageContent,
     ResourceLink,
@@ -37,16 +35,20 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util._anyio import inner_exception
 
+from ._compat import (
+    MCP_READ_TIMEOUT_CODES,
+    McpError,
+    read_timeout_arg,
+    result_is_error,
+    streamablehttp_client,
+    tool_input_schema,
+)
 from ._context import MCPServerContext
 from ._sandbox import DEFAULT_SANDBOX_TIMEOUT, sandbox_client
 from ._types import MCPServer
 from .sampling import as_inspect_content_list, sampling_fn
 
 logger = getLogger(__name__)
-
-# `mcp.ClientSession` raises an McpError with this code (httpx.codes.REQUEST_TIMEOUT)
-# when a `read_timeout_seconds` deadline expires while awaiting a tool response.
-_MCP_READ_TIMEOUT_CODE = 408
 
 
 class _McpErrorMapper(JSONRPCErrorMapper):
@@ -98,6 +100,14 @@ class MCPServerLocal(MCPServer):
         self._name = name
         self._events = events
         self._timeout = timeout
+        # Per-instance session table. Keyed on anyio task id, which is
+        # id(asyncio.current_task()) — a memory address that Python recycles
+        # once the task is GC'd. Storing this on the instance (rather than
+        # the class) means task-id collisions across different MCPServerLocal
+        # instances can't leak one sample's cached session — including its
+        # cached tool list — into another sample that happens to run on a
+        # reused task id.
+        self._task_sessions: dict[str, "MCPServerLocalSession"] = {}
 
     @override
     async def __aenter__(self) -> MCPServer:
@@ -116,20 +126,17 @@ class MCPServerLocal(MCPServer):
     async def tools(self) -> list[Tool]:
         return await self._task_session().tools()
 
-    # create a separate MCPServer session per async task / server name
-    _task_sessions: dict[str, "MCPServerLocalSession"] = {}
-
     def _task_session(self) -> "MCPServerLocalSession":
         task_id = anyio.get_current_task().id
         session_key = f"{task_id}_{self._name}"
         if session_key not in self._task_sessions:
-            MCPServerLocal._task_sessions[session_key] = MCPServerLocalSession(
+            self._task_sessions[session_key] = MCPServerLocalSession(
                 self._client,
                 name=self._name,
                 events=self._events,
                 timeout=self._timeout,
             )
-        return MCPServerLocal._task_sessions[session_key]
+        return self._task_sessions[session_key]
 
 
 class MCPServerLocalSession(MCPServer):
@@ -194,6 +201,11 @@ class MCPServerLocalSession(MCPServer):
                 finally:
                     self._session = None
                     self._exit_stack = None
+                    # Drop the cached tool list so a reused session object
+                    # (e.g., if an outer cache hands this instance to a
+                    # different sample) re-fetches tools from the server on
+                    # next __aenter__ rather than returning a stale list.
+                    self._cached_tool_list = None
 
     @override
     async def tools(self) -> list[Tool]:
@@ -232,30 +244,33 @@ class MCPServerLocalSession(MCPServer):
                             # but its JSON-RPC error never wakes this await) deadlocks
                             # the call FOREVER, ignoring the per-RPC timeout entirely.
                             # On expiry `ClientSession` raises an McpError carrying
-                            # an HTTP 408 (REQUEST_TIMEOUT) code, which the handler
-                            # below translates to a TimeoutError so the outer handler
+                            # a request-timeout code, which the handler below
+                            # translates to a TimeoutError so the outer handler
                             # surfaces a ToolError — notifying the model rather than
                             # letting the sample hang until the working-time cap.
-                            read_timeout = (
-                                timedelta(seconds=self._timeout)
-                                if self._timeout is not None
-                                else None
-                            )
                             result = await tool_session.call_tool(
                                 mcp_tool.name,
                                 kwargs,
-                                read_timeout_seconds=read_timeout,
+                                read_timeout_seconds=read_timeout_arg(self._timeout),
                             )
-                            if result.isError:
+                            # mcp 2.x types call_tool as returning a union that
+                            # includes input-required/claimed results, but those
+                            # are raised (not returned) unless explicitly enabled
+                            # via allow_input_required/allow_claimed.
+                            if not isinstance(result, CallToolResult):
+                                raise RuntimeError(
+                                    f"Unexpected MCP call_tool result: {type(result)}"
+                                )
+                            if result_is_error(result):
                                 raise ToolError(tool_result_as_text(result.content))
                         except McpError as e:
                             # A read_timeout_seconds expiry surfaces as an McpError
-                            # carrying HTTP 408 (REQUEST_TIMEOUT). Re-raise it as a
+                            # carrying a request-timeout code. Re-raise it as a
                             # TimeoutError so the outer handler converts it to a
                             # ToolError; exception_for_rpc_response_error would
-                            # otherwise map the unrecognized 408 to a RuntimeError
+                            # otherwise map the unrecognized code to a RuntimeError
                             # that errors the sample instead of reaching the model.
-                            if e.error.code == _MCP_READ_TIMEOUT_CODE:
+                            if e.error.code in MCP_READ_TIMEOUT_CODES:
                                 raise TimeoutError(e.error.message) from e
                             # Some errors that are raised via McpError (e.g. -32603)
                             # need to be converted to ToolError so that they make it
@@ -277,7 +292,7 @@ class MCPServerLocalSession(MCPServer):
                 raise
 
         # get parameters (fill in missing ones)
-        parameters = ToolParams.model_validate(mcp_tool.inputSchema)
+        parameters = ToolParams.model_validate(tool_input_schema(mcp_tool))
         for name, param in parameters.properties.items():
             param.description = param.description or name
 
@@ -353,7 +368,7 @@ def create_server_streamablehttp(
 ) -> MCPServer:
     return MCPServerLocal(
         lambda: streamablehttp_client(url, headers, timeout, sse_read_timeout),
-        name=url,
+        name=name,
         events=True,
     )
 

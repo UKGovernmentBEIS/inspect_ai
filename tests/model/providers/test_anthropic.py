@@ -117,6 +117,54 @@ def test_anthropic_extra_headers_not_mutated_across_calls() -> None:
         }
 
 
+@pytest.mark.anyio
+async def test_anthropic_count_tokens_passes_extra_headers() -> None:
+    """count_tokens must honor config.extra_headers like generate does.
+
+    Proxies/gateways rely on per-request headers for attribution; before this,
+    count_tokens calls silently dropped them (and any anthropic-beta values
+    they carried).
+    """
+    api = AnthropicAPI(model_name="claude-sonnet-4-6", api_key="test-key")
+    mock_count = AsyncMock(return_value=types.SimpleNamespace(input_tokens=7))
+    api.client.messages.count_tokens = mock_count  # type: ignore[method-assign]
+
+    config = GenerateConfig(
+        extra_headers={
+            "anthropic_beta": "context-1m-2025-08-07",
+            "x-test-header": "value",
+        }
+    )
+    count = await api.count_tokens([ChatMessageUser(content="hello")], config)
+    assert count == 7
+
+    kwargs = mock_count.call_args.kwargs
+    assert kwargs["extra_headers"] == {
+        "x-test-header": "value",
+        "anthropic-beta": "context-1m-2025-08-07",
+    }
+    # config must not be mutated
+    assert config.extra_headers == {
+        "anthropic_beta": "context-1m-2025-08-07",
+        "x-test-header": "value",
+    }
+
+    # no config -> no extra_headers kwarg at all
+    mock_count.reset_mock()
+    await api.count_tokens([ChatMessageUser(content="hello")])
+    assert "extra_headers" not in mock_count.call_args.kwargs
+
+    # client default betas (e.g. oauth-2025-04-20 via ANTHROPIC_AUTH_TOKEN)
+    # must be folded into a per-request anthropic-beta header, since a
+    # per-request header overrides the client default rather than merging
+    mock_count.reset_mock()
+    api.client._custom_headers = {"anthropic-beta": "oauth-2025-04-20"}
+    await api.count_tokens([ChatMessageUser(content="hello")], config)
+    assert mock_count.call_args.kwargs["extra_headers"]["anthropic-beta"] == (
+        "oauth-2025-04-20,context-1m-2025-08-07"
+    )
+
+
 _FULL_THINKING_BETA = "dev-full-thinking-2025-05-14"
 
 
@@ -1992,3 +2040,105 @@ async def test_anthropic_unrecorded_tool_call_appended_last() -> None:
     )
     order = [p["type"] for p in await assistant_message_block_params(message)]
     assert order == ["thinking", "tool_use"], order
+# ---------------------------------------------------------------------------
+# reasoning token counting (model_output_from_message)
+# ---------------------------------------------------------------------------
+
+
+class _CountTokensStub:
+    """Duck-typed stand-in for AsyncAnthropic that records count_tokens calls.
+
+    Mirrors the live API's validation: a user message with empty content is
+    rejected (400 "user messages must have non-empty content").
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.messages = types.SimpleNamespace(count_tokens=self._count_tokens)
+
+    async def _count_tokens(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        content = kwargs["messages"][0]["content"]
+        if not content:
+            raise RuntimeError(
+                "Error code: 400 - messages.0: user messages must have "
+                "non-empty content"
+            )
+        return types.SimpleNamespace(input_tokens=42)
+
+
+def _thinking_response_message(thinking: str) -> Any:
+    from anthropic.types.message import Message
+
+    return Message.model_validate(
+        {
+            "id": "msg_01",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-5",
+            "content": [
+                {"type": "thinking", "thinking": thinking, "signature": "sig"},
+                {"type": "text", "text": "The answer is 4."},
+            ],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+        }
+    )
+
+
+@pytest.mark.anyio
+async def test_anthropic_empty_thinking_skips_reasoning_token_count() -> None:
+    """Empty thinking text must not be sent to the count_tokens API.
+
+    On models where adaptive thinking runs by default (Sonnet 5, Fable 5) and
+    no reasoning_effort is configured, the API's default display="omitted"
+    returns thinking blocks whose text is "". Sending "" to count_tokens gets
+    a 400 ("user messages must have non-empty content") on every generate —
+    swallowed by the estimate fallback, which then reports reasoning_tokens=1.
+    An empty block should be counted as 0 without touching the API.
+    """
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+        model_output_from_message,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    client = _CountTokensStub()
+
+    output, _ = await model_output_from_message(
+        client,  # type: ignore[arg-type]
+        "claude-sonnet-5",
+        _thinking_response_message(thinking=""),
+        [],
+    )
+
+    assert client.calls == [], (
+        "count_tokens API must not be called for empty thinking text "
+        f"(got {len(client.calls)} call(s): {client.calls})"
+    )
+    assert output.usage is not None
+    # follows the existing "reasoning_tokens if > 0 else None" convention
+    assert output.usage.reasoning_tokens is None
+
+
+@pytest.mark.anyio
+async def test_anthropic_nonempty_thinking_counts_reasoning_tokens() -> None:
+    """Non-empty thinking text is still counted via the count_tokens API."""
+    from inspect_ai.model._providers.anthropic import (
+        init_sample_anthropic_assistant_internal,
+        model_output_from_message,
+    )
+
+    init_sample_anthropic_assistant_internal()
+    client = _CountTokensStub()
+
+    output, _ = await model_output_from_message(
+        client,  # type: ignore[arg-type]
+        "claude-sonnet-5",
+        _thinking_response_message(thinking="Let me reason this through."),
+        [],
+    )
+
+    assert len(client.calls) == 1
+    assert output.usage is not None
+    assert output.usage.reasoning_tokens == 42
