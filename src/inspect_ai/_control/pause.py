@@ -11,8 +11,8 @@ phase-3 directive conventions.
 Each latch has two strengths. The default (**soft**) pause is pure quiesce.
 The **hard** variant (``pause --now`` — the ``now`` param on the wire)
 additionally holds in-flight samples at their next model call: outstanding
-model calls (and batch waits) complete, but no new generate attempt starts
-until resume (see :func:`wait_generate_dispatch`). ``resume`` clears both
+model calls (and batch waits) complete, but no new generate (or compaction)
+attempt starts until resume (see :func:`wait_generate_dispatch`). ``resume`` clears both
 strengths for its scope; a plain ``pause`` after ``pause --now`` downgrades
 to soft (last-write-wins).
 
@@ -453,8 +453,12 @@ async def wait_task_dispatch(
 # time must be credited incrementally: crediting only at hold end would let a
 # working_limit expire and kill the sample mid-hold, forfeiting exactly the
 # in-sample progress hold semantics exist to preserve. Unlike retry backoff,
-# a hold cannot pre-credit — its duration is unknown at hold start.
-_HELD_CREDIT_INTERVAL: float = 1.0
+# a hold cannot pre-credit — its duration is unknown at hold start. Half the
+# monitor's poll interval: the tick and the poll are unsynchronized, so a
+# full-interval tick could leave ~1s of hold uncredited at a monitor wake —
+# enough to reap a sample that entered the hold with under a second of
+# working budget left.
+_HELD_CREDIT_INTERVAL: float = 0.5
 
 
 def _any_hard_gate() -> bool:
@@ -522,7 +526,11 @@ async def wait_generate_dispatch(
     """Hard-pause gate for one generate attempt (``pause --now``).
 
     Awaited at the top of the tenacity-wrapped attempt in ``Model._generate``
-    so first attempts and retry attempts gate uniformly — an attempt begins
+    and ``Model.compact`` (provider-native compaction rewrites conversation
+    state and can be a long-context sample's single most expensive call;
+    ``Model.count_tokens`` deliberately stays ungated — non-generative,
+    read-only, cheap to free), so first attempts and retry attempts gate
+    uniformly: an attempt begins
     when its backoff has elapsed *and* the gate is open (extending resolved
     question 2 of ``design/ctl/pause-resume.md`` to the hard gate; the two
     waiting spans are disjoint by construction, since backoff pre-credits its
@@ -532,11 +540,13 @@ async def wait_generate_dispatch(
 
     Held time is credited as waiting time incrementally (every
     ``_HELD_CREDIT_INTERVAL`` seconds, and on the way out — including
-    cancellation) through ``report_waiting_time``: the caller's closure feeds
+    cancellation) through ``report_waiting_time``, which must feed
     ``report_sample_waiting_time`` (keeping ``working_limit`` enforcement and
-    the sample's reported working time honest) *and* the generate call's own
-    waiting accumulator, whose post-call reconciliation would otherwise
-    re-report the held span as provider-internal waiting. ``time_limit``
+    the sample's reported working time honest) plus whatever call-local
+    accounting the caller keeps: generate passes a closure that also feeds
+    its own waiting accumulator, whose post-call reconciliation would
+    otherwise re-report the held span as provider-internal waiting; compact
+    has no reconciliation and passes ``report_sample_waiting_time`` directly. ``time_limit``
     deadlines deliberately keep running while held — explicitly the
     operator's risk with ``pause --now``.
 

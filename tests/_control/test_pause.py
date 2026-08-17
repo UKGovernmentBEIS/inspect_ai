@@ -891,6 +891,62 @@ async def test_generate_gate_cancellation_credits_tail(
     assert sum(credits) >= 0.05
 
 
+async def test_compact_gate_holds_under_hard_pause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`Model.compact()` parks at the hard-pause gate; `count_tokens()` does not.
+
+    Provider-native compaction rewrites conversation state (progress a hold
+    must freeze) and can be a long-context sample's most expensive single
+    call, so it gates alongside generate rather than slipping past through
+    its own entry point. Token counting is non-generative and deliberately
+    stays ungated.
+    """
+    from inspect_ai.model import (
+        ChatMessage,
+        ChatMessageUser,
+        GenerateConfig,
+        ModelUsage,
+    )
+    from inspect_ai.tool import ToolInfo
+
+    await pause_process(now=True)
+    model = get_model("mockllm/model", memoize=False)
+
+    async def fake_compact(
+        messages: list[ChatMessage],
+        tools: list[ToolInfo],
+        config: GenerateConfig,
+        instructions: str | None,
+    ) -> tuple[list[ChatMessage], ModelUsage | None]:
+        return messages, None
+
+    async def fake_count_tokens(
+        input: str | list[ChatMessage], config: GenerateConfig | None
+    ) -> int:
+        return 42
+
+    monkeypatch.setattr(model.api, "compact", fake_compact)
+    monkeypatch.setattr(model.api, "count_tokens", fake_count_tokens)
+    passed = anyio.Event()
+
+    async def attempt() -> None:
+        await model.compact([ChatMessageUser(content="hi")], [])
+        passed.set()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(attempt)
+        await anyio.sleep(0.1)
+        assert not passed.is_set()
+        # count_tokens completes while the compact attempt stays parked
+        with anyio.fail_after(5):
+            assert await model.count_tokens("hi") == 42
+        assert not passed.is_set()
+        await resume_process()
+        with anyio.fail_after(5):
+            await passed.wait()
+
+
 # ---------------------------------------------------------------------------
 # quiesce auto-flush
 # ---------------------------------------------------------------------------
@@ -1662,3 +1718,84 @@ def test_eval_hard_pause_holds_generate_until_resume(tmp_path: Any) -> None:
     assert observed["held"] == 1
     # the held span was credited as waiting time (~0.2s hold, loose bound)
     assert observed["waiting"] >= 0.1
+
+
+def test_eval_hard_pause_time_limit_reap_reparks_grader(tmp_path: Any) -> None:
+    """`time_limit` keeps running while held — and the grader re-parks after the reap.
+
+    Pins the documented wall-clock interaction (design/ctl/pause-resume.md):
+    a sample held at the generate gate past its `time_limit` is reaped as an
+    ordinary time-limit outcome, and a model-graded scorer's grader call then
+    re-parks at the still-closed gate, so the sample fully completes only on
+    resume.
+    """
+    from inspect_ai import Task
+    from inspect_ai._control.eval_state import get_eval_states
+    from inspect_ai._eval.evalset import eval_set
+    from inspect_ai.dataset import Sample
+    from inspect_ai.log import read_eval_log
+    from inspect_ai.scorer import Score, Target, mean, scorer
+    from inspect_ai.solver import Generate, TaskState, solver
+
+    observed: dict[str, Any] = {"solver_completed": False, "held_at_grade": 0}
+
+    @solver(name=f"held_past_limit_{id(observed)}")
+    def held_past_limit():
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            task_id = get_eval_states()[0].task_id
+            await pause_task(task_id, now=True)
+            # parks at the generate gate; the time limit reaps it there
+            state = await generate(state)
+            observed["solver_completed"] = True
+            return state
+
+        return solve
+
+    @scorer(metrics=[mean()], name=f"parking_grader_{id(observed)}")
+    def parking_grader():
+        async def score(state: TaskState, target: Target) -> Score:
+            task_id = get_eval_states()[0].task_id
+
+            async def resume_when_held() -> None:
+                with anyio.fail_after(20):
+                    while task_held_count(task_id) == 0:
+                        await anyio.sleep(0.01)
+                    observed["held_at_grade"] = task_held_count(task_id)
+                    await resume_task(task_id)
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(resume_when_held)
+                await get_model().generate("grade this")
+            return Score(value=1.0)
+
+        return score
+
+    log_dir = str(tmp_path / "logs")
+    success, logs = eval_set(
+        tasks=[
+            Task(
+                dataset=[Sample(input="x", target="y")],
+                solver=[held_past_limit()],
+                scorer=parking_grader(),
+                # scoring runs under time_limit / 2, so the grader's
+                # park-detect-resume-generate must fit in that window — 4s
+                # gives it 2s of headroom against slow CI
+                time_limit=4,
+                name="hard_pause_time_limit_e2e",
+            )
+        ],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=0,
+    )
+
+    assert success and logs[0].status == "success"
+    # the solver's generate never completed: the time limit reaped it mid-hold
+    assert not observed["solver_completed"]
+    # the grader call re-parked at the still-closed gate until resumed
+    assert observed["held_at_grade"] == 1
+    # the sample resolved as an ordinary time-limit outcome
+    log = read_eval_log(logs[0].location)
+    assert log.samples is not None
+    assert log.samples[0].limit is not None
+    assert log.samples[0].limit.type == "time"
