@@ -280,8 +280,9 @@ def no_model_copyreg_reducer():
 
 # ---------------------------------------------------------------------------
 # Diagnostics for silent xdist worker deaths in CI ("node down: Not properly
-# terminated" with no traceback or output — issue #232).  Unconfirmed
-# suspects, and the hook that makes each legible on its next occurrence:
+# terminated" with no traceback or output — meridianlabs-ai/inspect_ai#232).
+# Unconfirmed suspects, and the hook that makes each legible on its next
+# occurrence:
 #   - stray SIGALRM landing on SIG_DFL         -> _stray_sigalrm_handler
 #   - hang killed by pytest-timeout's thread
 #     method (os._exit(1), output swallowed
@@ -305,7 +306,7 @@ _hang_dump_dir_created: str | None = None
 
 _STRAY_SIGALRM_MESSAGE = (
     "stray SIGALRM: an alarm()/setitimer() armed by an earlier test "
-    "outlived it (see issue #232)"
+    "outlived it (see meridianlabs-ai/inspect_ai#232)"
 )
 
 
@@ -375,8 +376,15 @@ def _resolve_hang_dump_seconds(config: pytest.Config) -> int:
             warnings.warn(f"ignoring non-integer {_HANG_DUMP_SECONDS_ENV}={env!r}")
             return 0
     try:
+        # mirror pytest-timeout's own resolution order (option -> PYTEST_TIMEOUT
+        # env var -> ini key) so the watchdog arms however the timeout is set
         timeout = config.getoption("timeout")
-    except ValueError:  # pytest-timeout not installed
+        if timeout is None:
+            with contextlib.suppress(ValueError):
+                timeout = float(os.environ.get("PYTEST_TIMEOUT", "") or 0) or None
+        if timeout is None:
+            timeout = float(config.getini("timeout") or 0) or None
+    except ValueError:  # pytest-timeout not installed (or garbage ini value)
         timeout = None
     if timeout:
         return max(60, int(timeout) - 300)
@@ -456,8 +464,8 @@ def _report_hang_dumps() -> None:
         if content:
             print(
                 f"\n=== hang dump {name}: a test ran longer than "
-                f"{_hang_dump_seconds}s (#232 diagnostics; benign if the run "
-                "passed) ==="
+                f"{_hang_dump_seconds}s (meridianlabs-ai/inspect_ai#232 "
+                "diagnostics; benign if the run passed) ==="
             )
             print(content)
             print("=== end hang dump ===")
@@ -492,15 +500,19 @@ def _report_oom_kills(exitstatus: int) -> None:
         matches = [line for line in result.stdout.splitlines() if pattern.search(line)]
         if matches:
             print(
-                "\n=== kernel OOM events during this job (#232 diagnostics; "
-                "'Memory cgroup' lines are container-local kills, e.g. from "
-                "sandbox tests with memory limits, not worker deaths) ==="
+                "\n=== kernel OOM events during this job "
+                "(meridianlabs-ai/inspect_ai#232 diagnostics; 'Memory cgroup' "
+                "lines are container-local kills, e.g. from sandbox tests "
+                "with memory limits, not worker deaths) ==="
             )
             for line in matches:
                 print(line)
             print("=== end kernel OOM events ===")
         else:
-            print("\nno kernel OOM events during this job (#232 diagnostics)")
+            print(
+                "\nno kernel OOM events during this job "
+                "(meridianlabs-ai/inspect_ai#232 diagnostics)"
+            )
         return
 
 
