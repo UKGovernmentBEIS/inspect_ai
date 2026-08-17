@@ -1,12 +1,19 @@
+import contextlib
+import faulthandler
 import importlib.util
 import inspect
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
+import tempfile
+import traceback
 import warnings
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from types import FrameType
+from typing import TYPE_CHECKING, TextIO
 
 import boto3
 import pytest
@@ -271,6 +278,148 @@ def no_model_copyreg_reducer():
             copyreg.dispatch_table[Model] = saved
 
 
+# ---------------------------------------------------------------------------
+# Worker-death diagnostics (#232).  xdist workers have died silently in CI
+# ("node down: Not properly terminated") with no traceback and no output.
+# The three unconfirmed suspects are: a stray SIGALRM landing on SIG_DFL
+# (default disposition terminates the process silently), a hang killed by
+# pytest-timeout's thread method (os._exit(1), whose output is swallowed
+# inside an xdist worker), and an OOM SIGKILL.  The hooks below make each
+# cause legible on its next occurrence; none of them changes test behavior.
+# ---------------------------------------------------------------------------
+
+_HANG_DUMP_SECONDS = int(os.environ.get("INSPECT_TEST_HANG_DUMP_SECONDS", "600"))
+_HANG_DUMP_DIR_ENV = "INSPECT_TEST_HANG_DUMP_DIR"
+
+# Keeps the dump file open for the life of the process: faulthandler writes
+# to the raw fd, so the file must stay open until the timer fires.
+_hang_dump_file: TextIO | None = None
+
+
+def _stray_sigalrm_handler(signum: int, frame: FrameType | None) -> None:
+    """Turn a stray SIGALRM into a loud failure instead of silent process death.
+
+    Several tests install temporary SIGALRM handlers (``keyboard_interrupt()``,
+    test_google, test_grok) and ``_rearm_pytest_timeout()`` arms ``setitimer``
+    with no matching cancel.  If any armed timer outlives its test, the signal
+    is delivered later — on an xdist worker under ``--timeout-method=thread``
+    the handler by then is SIG_DFL, whose default disposition kills the worker
+    with no output at all.  Writing to fd 2 bypasses both pytest capture and
+    execnet's stream redirection, so the stack reaches the CI job log.
+    """
+    stack = "".join(traceback.format_stack(frame))
+    message = (
+        "\n*** stray SIGALRM: an alarm()/setitimer() armed by an earlier test "
+        "outlived it (see issue #232). Stack at delivery:\n"
+        f"{stack}\n"
+    )
+    with contextlib.suppress(OSError):
+        os.write(2, message.encode(errors="replace"))
+    raise RuntimeError(
+        "stray SIGALRM: an alarm()/setitimer() armed by an earlier test "
+        "outlived it (see issue #232 and the stack on stderr)"
+    )
+
+
+def _install_stray_sigalrm_handler() -> None:
+    """Replace SIG_DFL for SIGALRM with the loud diagnostic handler.
+
+    Only installs over SIG_DFL so pytest-timeout's ``--timeout-method=signal``
+    handler (installed per-test, after configure) is never clobbered; tests
+    that install their own handler save/restore ours transparently.
+    """
+    if not hasattr(signal, "SIGALRM"):
+        return
+    try:
+        if signal.getsignal(signal.SIGALRM) == signal.SIG_DFL:
+            signal.signal(signal.SIGALRM, _stray_sigalrm_handler)
+    except ValueError:
+        # not the main thread; signal handlers can't be installed here
+        pass
+
+
+def _hang_dump_path() -> str:
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
+    return os.path.join(
+        os.environ[_HANG_DUMP_DIR_ENV], f"hang-{worker}-pid{os.getpid()}.txt"
+    )
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Arm a faulthandler watchdog before every test.
+
+    If any test (plus its share of fixture work) runs longer than
+    ``_HANG_DUMP_SECONDS`` — i.e. 300s before CI's 900s pytest-timeout kill —
+    all thread stacks are dumped to a per-process file.  faulthandler writes
+    to the raw fd, so the dump survives both the ``os._exit(1)`` that
+    pytest-timeout's thread method uses and execnet's stream redirection.
+    The controller prints any non-empty dumps at session end.
+    """
+    global _hang_dump_file
+    if _HANG_DUMP_DIR_ENV not in os.environ:
+        return
+    try:
+        if _hang_dump_file is None:
+            _hang_dump_file = open(_hang_dump_path(), "w")
+        faulthandler.dump_traceback_later(
+            _HANG_DUMP_SECONDS, exit=False, file=_hang_dump_file
+        )
+    except (OSError, RuntimeError):
+        pass
+
+
+def _report_hang_dumps() -> None:
+    """Print any non-empty faulthandler hang dumps to the terminal (job log)."""
+    dump_dir = os.environ.get(_HANG_DUMP_DIR_ENV)
+    if not dump_dir or not os.path.isdir(dump_dir):
+        return
+    for name in sorted(os.listdir(dump_dir)):
+        try:
+            with open(os.path.join(dump_dir, name)) as f:
+                content = f.read().strip()
+        except OSError:
+            continue
+        if content:
+            print(
+                f"\n=== hang dump {name}: a test exceeded {_HANG_DUMP_SECONDS}s "
+                "(#232 diagnostics) ==="
+            )
+            print(content)
+            print("=== end hang dump ===")
+    shutil.rmtree(dump_dir, ignore_errors=True)
+
+
+def _report_oom_kills() -> None:
+    """Grep the kernel log for OOM kills after the session (CI only).
+
+    GitHub Actions does not surface OOM events, and an OOM SIGKILL of an
+    xdist worker is indistinguishable in pytest output from any other silent
+    worker death.  Runners allow passwordless sudo; fall back to plain dmesg
+    and give up silently where neither works (e.g. locally).
+    """
+    if not os.environ.get("CI"):
+        return
+    for cmd in (["sudo", "-n", "dmesg"], ["dmesg"]):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if result.returncode != 0:
+            continue
+        pattern = re.compile(
+            r"out of memory|oom[-_ ]?kill|killed process", re.IGNORECASE
+        )
+        matches = [line for line in result.stdout.splitlines() if pattern.search(line)]
+        if matches:
+            print("\n=== kernel OOM events during this job (#232 diagnostics) ===")
+            for line in matches:
+                print(line)
+            print("=== end kernel OOM events ===")
+        else:
+            print("\nno kernel OOM events during this job (#232 diagnostics)")
+        return
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
     config.addinivalue_line("markers", "api: mark test as requiring API access")
@@ -286,6 +435,12 @@ def pytest_configure(config):
     # setdefault. api-marked tests are gated behind --runapi and skip when the
     # real key is absent, so a dummy here doesn't enable accidental API calls.
     os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
+
+    _install_stray_sigalrm_handler()
+    # The controller sets the hang-dump dir before xdist spawns workers (they
+    # inherit it via the environment); workers see it already set.
+    if _HANG_DUMP_DIR_ENV not in os.environ:
+        os.environ[_HANG_DUMP_DIR_ENV] = tempfile.mkdtemp(prefix="pytest-hang-dumps-")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -416,12 +571,23 @@ def mock_s3():
 
 
 def pytest_sessionfinish(session, exitstatus):
+    # Cancel the hang-dump watchdog (in every process) so a timer armed by the
+    # last test can't fire during interpreter shutdown and write a bogus dump.
+    global _hang_dump_file
+    faulthandler.cancel_dump_traceback_later()
+    if _hang_dump_file is not None:
+        _hang_dump_file.close()
+        _hang_dump_file = None
+
     # When running under pytest-xdist, this hook fires once per worker as well
     # as on the controller. Letting every worker race to uninstall the test
     # package corrupts the install for sibling workers; only the controller
     # (which has no `workerinput` attribute on its config) should clean up.
     if hasattr(session.config, "workerinput"):
         return
+
+    _report_hang_dumps()
+    _report_oom_kills()
 
     if importlib.util.find_spec("inspect_package"):
         try:
