@@ -2182,7 +2182,7 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
         ToolInfo(name="tool_a", description="Tool A.", parameters=arg),
         ToolInfo(name="tool_b", description="Tool B.", parameters=arg),
     ]
-    interleaved = [
+    interleaved: list[ContentBlock] = [
         ThinkingBlock(type="thinking", thinking="t1", signature="sig1"),
         ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
         ThinkingBlock(type="thinking", thinking="t2", signature="sig2"),
@@ -2200,7 +2200,7 @@ async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     message = ChatMessageAssistant(
         content=content, tool_calls=tool_calls, model="claude-opus-4-8"
     )
-    order = [p["type"] for p in await assistant_message_block_params(message)]
+    order: list[str] = [p["type"] for p in await assistant_message_block_params(message)]
     assert order == ["thinking", "tool_use", "thinking", "tool_use"], order
     assert not thinking_blocks_adjacent(order)
 
@@ -2235,7 +2235,7 @@ async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
 
     arg = ToolParams(properties={"x": ToolParam(type="string")}, required=["x"])
     tools = [ToolInfo(name="tool_a", description="A.", parameters=arg)]
-    blocks = [
+    blocks: list[ContentBlock] = [
         ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
         ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
         ThinkingBlock(type="thinking", thinking="t2", signature="s2"),
@@ -2247,7 +2247,7 @@ async def test_anthropic_interleaved_thinking_last_gets_no_content() -> None:
     message = ChatMessageAssistant(
         content=content, tool_calls=tool_calls, model="claude-opus-4-8"
     )
-    order = [p["type"] for p in await assistant_message_block_params(message)]
+    order: list[str] = [p["type"] for p in await assistant_message_block_params(message)]
     assert order == ["thinking", "tool_use", "thinking", "text"], order
 
 
@@ -2268,7 +2268,7 @@ async def test_anthropic_interleaved_parallel_tool_calls_grouped() -> None:
         ToolInfo(name="tool_b", description="B.", parameters=arg),
         ToolInfo(name="tool_c", description="C.", parameters=arg),
     ]
-    blocks = [
+    blocks: list[ContentBlock] = [
         ThinkingBlock(type="thinking", thinking="t1", signature="s1"),
         ToolUseBlock(type="tool_use", id="a", name="tool_a", input={"x": "1"}),
         ToolUseBlock(type="tool_use", id="b", name="tool_b", input={"x": "2"}),
@@ -2313,5 +2313,5 @@ async def test_anthropic_unrecorded_tool_call_appended_last() -> None:
         tool_calls=[ToolCall(id="z", function="tool_a", arguments={"x": "1"})],
         model="claude-opus-4-8",
     )
-    order = [p["type"] for p in await assistant_message_block_params(message)]
+    order: list[str] = [p["type"] for p in await assistant_message_block_params(message)]
     assert order == ["thinking", "tool_use"], order
