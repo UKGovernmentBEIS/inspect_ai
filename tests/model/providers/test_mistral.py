@@ -116,34 +116,96 @@ async def test_mistral_with_description_parameter(tiktok_tool_with_description_p
 
 
 @skip_if_no_mistral_package
-def test_completion_content_chunks_image_url_string():
+async def test_completion_content_chunks_image_url_string():
     """Test that ImageURLChunk with string URL converts to ContentImage."""
     from mistralai.client.models import ImageURLChunk
 
     from inspect_ai.model._providers.mistral import completion_content_chunks
 
-    chunk = ImageURLChunk(image_url="data:image/png;base64,abc123")
-    result = completion_content_chunks(chunk)
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=image)
+    result = await completion_content_chunks(chunk)
     assert len(result) == 1
     assert isinstance(result[0], ContentImage)
-    assert result[0].image == "data:image/png;base64,abc123"
+    assert result[0].image == image
 
 
 @skip_if_no_mistral_package
-def test_completion_content_chunks_image_url_object():
+async def test_completion_content_chunks_image_url_object():
     """Test that ImageURLChunk with ImageURL object converts to ContentImage with detail."""
+    from unittest.mock import AsyncMock, patch
+
     from mistralai.client.models import ImageURL, ImageURLChunk
 
     from inspect_ai.model._providers.mistral import completion_content_chunks
 
-    chunk = ImageURLChunk(
-        image_url=ImageURL(url="https://example.com/img.png", detail="high")
-    )
-    result = completion_content_chunks(chunk)
+    url = "https://example.com/img.png"
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
+    with patch(
+        "inspect_ai.model._providers.mistral.provider_image_data_uri",
+        new=AsyncMock(return_value=image),
+    ) as materialize:
+        result = await completion_content_chunks(chunk)
+
+    materialize.assert_awaited_once_with(url)
     assert len(result) == 1
     assert isinstance(result[0], ContentImage)
-    assert result[0].image == "https://example.com/img.png"
+    assert result[0].image == image
     assert result[0].detail == "high"
+
+
+@skip_if_no_mistral_package
+async def test_mistral_output_url_is_materialized_before_replay():
+    from unittest.mock import AsyncMock, patch
+
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral import (
+        completion_content_chunks,
+        mistral_content_chunk,
+    )
+
+    url = "https://example.com/img.png"
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="high"))
+    with patch(
+        "inspect_ai.model._providers.mistral.provider_image_data_uri",
+        new=AsyncMock(return_value=image),
+    ) as materialize:
+        content = (await completion_content_chunks(chunk))[0]
+
+    replayed = await mistral_content_chunk(content)
+
+    materialize.assert_awaited_once_with(url)
+    assert isinstance(content, ContentImage)
+    assert content.image == image
+    assert replayed.image_url.url == image
+
+
+@skip_if_no_mistral_package
+async def test_mistral_conversation_output_url_is_materialized():
+    from unittest.mock import AsyncMock, patch
+
+    from mistralai.client.models import ImageURL, ImageURLChunk
+
+    from inspect_ai.model._providers.mistral_conversation import (
+        content_from_mistral_content_chunk,
+    )
+
+    url = "https://example.com/img.png"
+    image = "data:image/png;base64,iVBORw0KGgo="
+    chunk = ImageURLChunk(image_url=ImageURL(url=url, detail="low"))
+    with patch(
+        "inspect_ai.model._providers.mistral_conversation.provider_image_data_uri",
+        new=AsyncMock(return_value=image),
+    ) as materialize:
+        content = await content_from_mistral_content_chunk(chunk)
+
+    materialize.assert_awaited_once_with(url)
+    assert isinstance(content, ContentImage)
+    assert content.image == image
+    assert content.detail == "low"
 
 
 @skip_if_no_mistral_package
