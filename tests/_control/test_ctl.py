@@ -3901,7 +3901,9 @@ def test_config_max_tasks_wiring_and_floor(monkeypatch: pytest.MonkeyPatch) -> N
     }
 
     # the human rendering carries the counters and the launch value
-    human = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "25"])
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
     assert human.exit_code == 0, human.output
     assert "max tasks [process]" in human.output
     assert "25 (10 in flight, 30 pending) (override; launch: 10)" in human.output
@@ -3958,7 +3960,9 @@ def test_config_max_tasks_renders_no_dispatcher_window(
         )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
-    human = cli_runner().invoke(ctl_command, ["config", "--max-tasks", "25"])
+    human = cli_runner().invoke(
+        ctl_command, ["config", "--max-tasks", "25", "--no-terse"]
+    )
     assert human.exit_code == 0, human.output
     assert "25 (override)" in human.output
     assert "no task dispatcher is live" in human.output
@@ -4006,7 +4010,7 @@ def test_config_max_tasks_dry_run_clear_arrow_tracks_override(
     # retry knobs' rendering of the same case)
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", make_fake_limits(None))
     human = cli_runner().invoke(
-        ctl_command, ["config", "--max-tasks", "clear", "--dry-run"]
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
     )
     assert human.exit_code == 0, human.output
     assert "10 (4 in flight, 6 pending)" in human.output
@@ -4015,7 +4019,7 @@ def test_config_max_tasks_dry_run_clear_arrow_tracks_override(
     # override in effect: the arrow shows the reversion to launch config
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", make_fake_limits(25))
     human = cli_runner().invoke(
-        ctl_command, ["config", "--max-tasks", "clear", "--dry-run"]
+        ctl_command, ["config", "--max-tasks", "clear", "--dry-run", "--no-terse"]
     )
     assert human.exit_code == 0, human.output
     assert (

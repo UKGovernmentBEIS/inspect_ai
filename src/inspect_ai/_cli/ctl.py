@@ -5964,7 +5964,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
                 " — no task dispatcher is live; applies to task dispatch "
                 "later in this run"
             )
-        click.echo(_knob_label("max tasks", "max_tasks") + rendered)
+        _echo(_knob_label("max tasks", "max_tasks") + rendered)
 
     sandboxes = (knobs.get("max_sandboxes") or {}).get("providers") or []
     if sandboxes:
