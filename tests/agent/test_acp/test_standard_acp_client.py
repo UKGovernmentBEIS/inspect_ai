@@ -35,6 +35,7 @@ from acp.helpers import session_notification, text_block, update_agent_message
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.inspect_ext import INSPECT_TURN_STATE_METHOD
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.log._transcript import Transcript
@@ -308,7 +309,11 @@ async def test_generic_acp_client_full_picker_flow(
        as a standard ``session/update`` with a recognizable
        ``agent_message_chunk``.
 
-    No call in this test uses an ``inspect/*`` method. The recursive
+    No call in this test uses an ``inspect/*`` method. (The client does
+    passively *receive* the one ``inspect/turn_state`` snapshot that
+    forwarder startup sends to every client post-bind — a generic client
+    would simply ignore it — and the test drains and asserts it before
+    step 4.) The recursive
     ``_meta`` audit (:func:`_assert_no_inspect_meta`) catches new
     inspect-namespaced fields landing in places that would surprise
     a generic client.
@@ -406,6 +411,17 @@ async def test_generic_acp_client_full_picker_flow(
                 title_notif["params"]["update"]["sessionUpdate"]
                 == "session_info_update"
             )
+
+            # Forwarder startup snapshots the turn state once replay is
+            # done, so every client (generic ones included) sees one
+            # inspect/turn_state before live traffic. Drain it here or it
+            # lands ahead of the step-6 read.
+            turn_state_notif = await client.next_notification()
+            assert turn_state_notif["method"] == INSPECT_TURN_STATE_METHOD
+            assert turn_state_notif["params"] == {
+                "sessionId": wire_session_id,
+                "state": "ended",
+            }
 
             # ----- Step 4: real prompt forwards to submit_user_message -
             prompt_resp = await client.request(

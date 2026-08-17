@@ -863,6 +863,19 @@ def get_eval_state(eval_id: str) -> EvalState | None:
         return _eval_states.get(eval_id)
 
 
+def stable_task_id_for_eval(eval_id: str) -> str:
+    """The stable across-retry task id for ``eval_id``.
+
+    The limit-override store is keyed by the *stable* task id
+    (``EvalSpec.task_id`` — the control channel's handle, preserved across
+    retry attempts), while callers typically hold a per-attempt eval id.
+    An unregistered eval (or a pre-``task_id`` record) falls back to the
+    eval id itself, where no directive can write anyway.
+    """
+    state = get_eval_state(eval_id)
+    return (state.task_id if state is not None else "") or eval_id
+
+
 def get_eval_states() -> list[EvalState]:
     """Snapshot of all currently-tracked eval states."""
     with _lock:
@@ -902,9 +915,11 @@ def reset_run_registries() -> None:
     from inspect_ai.model._generate_overrides import (
         reset_generate_config_overrides,
     )
+    from inspect_ai.util._limit_overrides import reset_sample_limit_overrides
 
     clear_all_eval_states()
     reset_generate_config_overrides()
+    reset_sample_limit_overrides()
     reset_process_config_updates()
     reset_task_pause_gates()
     reset_process_pause()

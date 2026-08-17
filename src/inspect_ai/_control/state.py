@@ -972,6 +972,13 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
     listing (:func:`_sample_summaries_from_active`) and the per-sample detail
     (:func:`_running_sample_error_detail`) so the two views can't drift.
     """
+    from inspect_ai._control.eval_state import stable_task_id_for_eval
+    from inspect_ai.util._limit_overrides import sample_limit_override
+
+    # the override store wants the stable task id, while
+    # ActiveSample.eval_id is the per-attempt eval id
+    override_task_id = stable_task_id_for_eval(s.eval_id)
+
     if s.completed is not None:
         status = "completed"
     elif s.started is not None:
@@ -1004,7 +1011,11 @@ def _active_sample_summary(s: "ActiveSample") -> dict[str, Any]:
         "message_count": s.total_messages,
         "turn_count": s.total_turns,
         "token_limit_usage": s.token_limit_usage,
-        "token_limit_total": s.token_limit,
+        # a live `ctl config --token-limit` override supersedes the ceiling
+        # the sample started with
+        "token_limit_total": sample_limit_override(
+            override_task_id, "token_limit", s.token_limit
+        ),
         "token_limit_type": s.token_limit_type,
         "last_activity_at": last_activity_at,
         "activity": _sample_activity(s) if status == "running" else None,
