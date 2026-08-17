@@ -2150,6 +2150,8 @@ async def test_anthropic_nonempty_thinking_counts_reasoning_tokens() -> None:
     assert len(client.calls) == 1
     assert output.usage is not None
     assert output.usage.reasoning_tokens == 42
+
+
 async def test_anthropic_interleaved_thinking_tool_calls_preserved() -> None:
     """Interleaved thinking and client tool calls must survive a parse/rebuild.
 
