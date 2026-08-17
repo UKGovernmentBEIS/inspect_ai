@@ -363,7 +363,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "3.0.0"
+    MIN_VERSION = "3.1.0"
 
     # verify we have the package
     try:
