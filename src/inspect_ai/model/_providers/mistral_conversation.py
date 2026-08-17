@@ -40,8 +40,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentToolUse,
 )
-from inspect_ai._util.images import file_as_data_uri
-from inspect_ai._util.url import is_http_url
+from inspect_ai._util.images import inline_media_data_uri, provider_image_data_uri
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._providers.util.util import split_system_messages
@@ -113,7 +112,9 @@ async def mistral_conversation_generate(
             raise ex
 
     # return model output (w/ tool calls if they exist)
-    choices = completion_choices_from_conversation_response(model, conv_response, tools)
+    choices = await completion_choices_from_conversation_response(
+        model, conv_response, tools
+    )
     return ModelOutput(
         model=model,
         choices=choices,
@@ -343,8 +344,7 @@ async def mistral_content_chunk(
     if isinstance(content, ContentText):
         return TextChunk(text=content.text or NO_CONTENT)
     elif isinstance(content, ContentImage):
-        # resolve image to url
-        image_url = await file_as_data_uri(content.image)
+        image_url = inline_media_data_uri(content.image, "image")
         return ImageURLChunk(
             image_url=ImageURL(
                 url=image_url,
@@ -354,15 +354,12 @@ async def mistral_content_chunk(
     elif isinstance(content, ContentReasoning):
         return ThinkChunk(thinking=[TextChunk(text=content.reasoning)])
     elif isinstance(content, ContentDocument):
-        if is_http_url(content.document):
-            return DocumentURLChunk(
-                document_url=content.document, document_name=content.filename
-            )
-        else:
-            file_data_uri = await file_as_data_uri(content.document)
-            return DocumentURLChunk(
-                document_url=file_data_uri, document_name=content.filename
-            )
+        file_data_uri = inline_media_data_uri(
+            content.document, "document", mime_type_hint=content.mime_type
+        )
+        return DocumentURLChunk(
+            document_url=file_data_uri, document_name=content.filename
+        )
 
     else:
         raise ValueError(
@@ -370,7 +367,7 @@ async def mistral_content_chunk(
         )
 
 
-def completion_choices_from_conversation_response(
+async def completion_choices_from_conversation_response(
     model: str, response: ConversationResponse, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     content: list[Content] = []
@@ -409,14 +406,14 @@ def completion_choices_from_conversation_response(
                                 break
                         # append content
                         content.append(
-                            content_from_mistral_content_chunk(
+                            await content_from_mistral_content_chunk(
                                 c, citations if len(citations) > 0 else None
                             )
                         )
                     elif isinstance(c, ToolReferenceChunk):
                         pass  # already scooped up by lookahead
                     elif isinstance(c, ImageURLChunk | ThinkChunk):
-                        content.append(content_from_mistral_content_chunk(c))
+                        content.append(await content_from_mistral_content_chunk(c))
                     else:
                         raise ValueError(
                             f"Unexpected content type from mistral: {type(c)}"
@@ -467,7 +464,7 @@ def completion_choices_from_conversation_response(
     ]
 
 
-def content_from_mistral_content_chunk(
+async def content_from_mistral_content_chunk(
     chunk: TextChunk | ImageURLChunk | ThinkChunk,
     citations: Sequence[Citation] | None = None,
 ) -> Content:
@@ -476,10 +473,13 @@ def content_from_mistral_content_chunk(
             return ContentText(text=chunk.text, citations=citations)
         case ImageURLChunk():
             if isinstance(chunk.image_url, str):
-                return ContentImage(image=chunk.image_url, detail="auto")
+                return ContentImage(
+                    image=await provider_image_data_uri(chunk.image_url),
+                    detail="auto",
+                )
             else:
                 return ContentImage(
-                    image=chunk.image_url.url,
+                    image=await provider_image_data_uri(chunk.image_url.url),
                     detail=chunk.image_url.detail  # type: ignore[arg-type]
                     if isinstance(chunk.image_url.detail, str)
                     else "auto",
