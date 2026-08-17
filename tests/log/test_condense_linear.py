@@ -20,6 +20,13 @@ Dedup correctness across paths: pool rows are reused on store reopen and
 buffer-to-transcript-store export (hash parity, insertion-order storage
 round-trips), and prefix matching never merges python-equal but
 JSON-distinct wire values (0 vs 0.0, True vs 1).
+
+Transcript-level call walk-cache linearity: counts mm3_hash invocations (the
+attachment-walk path bound in log/_condense) while driving a single growing
+request lineage, several interleaved or forked lineages, and the realistic
+pending/registration/completion/stamping notification shape through
+Transcript and the buffer db. Also covers graceful degradation once
+concurrent lineages exceed CallWalkCache's slot cap.
 """
 
 import json
@@ -39,6 +46,7 @@ from inspect_ai.log._condense import condense_events, condense_sample, expand_ev
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
+from inspect_ai.log._transcript import Transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase, ChatMessageUser
 from inspect_ai.model._generate_config import GenerateConfig
@@ -46,6 +54,7 @@ from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 
 N_EVENTS = 100
+ATTACHABLE = "x" * 150  # > events_attachment_fn's 100-char attachment threshold
 
 
 class HashCounter:
@@ -74,6 +83,28 @@ def hash_counter(monkeypatch: pytest.MonkeyPatch) -> Iterator[HashCounter]:
     monkeypatch.setattr(pool, "_call_hash", counting_call_hash)
     # all condense paths (buffer, transcript store, pool-index helper) access
     # these as _pool module attributes, so patching _pool intercepts them all
+    yield counter
+
+
+class AttachmentHashCounter:
+    hashes: int = 0
+
+
+@pytest.fixture
+def attachment_hash_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[AttachmentHashCounter]:
+    """Count content hashes in the attachment-walk path (log/_condense binding)."""
+    import inspect_ai.log._condense as condense
+    from inspect_ai._util.hash import mm3_hash
+
+    counter = AttachmentHashCounter()
+
+    def counting(text: str) -> str:
+        counter.hashes += 1
+        return mm3_hash(text)
+
+    monkeypatch.setattr(condense, "mm3_hash", counting)
     yield counter
 
 
@@ -620,4 +651,237 @@ def test_batch_call_prefix_breaks_on_json_distinct_values() -> None:
     assert n_val == 0, f"expected n=0 but got {n_val!r}"
     assert isinstance(n_val, int) and not isinstance(n_val, bool), (
         f"expected int 0 but got {type(n_val).__name__} {n_val!r}"
+    )
+
+
+def test_transcript_call_condense_is_linear(
+    attachment_hash_counter: AttachmentHashCounter,
+) -> None:
+    """_process_event's call walk must hash only new content per turn.
+
+    Counts mm3_hash as bound by log/_condense (attachment_fn hashes every
+    >100-char string it attaches); a full re-walk per notification is
+    O(history) hashes per turn = quadratic.
+    """
+    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
+    payload = ATTACHABLE
+    wire: list[dict[str, JsonValue]] = []
+    for i in range(N_EVENTS):
+        wire.append({"role": "user", "content": f"{payload} {i}"})
+        event = _model_event(
+            [ChatMessageUser(content=f"msg {i}")], [dict(m) for m in wire]
+        )
+        event.uuid = f"event-{i}"
+        tr._event(event)
+        # completion: providers re-install the raw call with a response
+        event.call = ModelCall(
+            request={"model": "test", "messages": [dict(m) for m in wire]},
+            response={"id": f"r{i}", "content": payload},
+        )
+        tr._event_updated(event)
+        # timestamp stamping re-notifies with the (now condensed) call
+        tr._event_updated(event)
+
+    budget = 8 * N_EVENTS
+    assert attachment_hash_counter.hashes <= budget, (
+        f"transcript call condense is superlinear: "
+        f"{attachment_hash_counter.hashes} hashes for {N_EVENTS} events"
+    )
+
+
+def test_condense_model_call_interleaved_streams(
+    attachment_hash_counter: AttachmentHashCounter,
+) -> None:
+    """Two interleaved request lineages must both keep prefix-hitting.
+
+    Simulates a fork()/parallel-tools shape. Slot-exhaustion degradation is
+    covered separately by test_buffer_condense_linear_across_slot_cap.
+    """
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "stream content " * 10
+
+    def make_call(stream: str, n: int) -> ModelCall:
+        msgs = [
+            {"role": "user", "content": f"{stream} {payload} {i}"} for i in range(n)
+        ]
+        return ModelCall.create({"model": "m", "messages": msgs}, None)
+
+    # interleave two growing streams; after warm-up each round should hash
+    # only the one new message per stream, not re-walk the shared prefix
+    n_rounds = 10
+    for n in range(1, n_rounds + 1):
+        tr._condense_model_call(make_call("a", n))
+        tr._condense_model_call(make_call("b", n))
+    # linear: ~2 new messages hashed per round; a quadratic re-walk would be
+    # ~2 * (n_rounds*(n_rounds+1)/2) = 110
+    assert attachment_hash_counter.hashes <= 4 * n_rounds, (
+        f"interleaved streams thrash the walk cache: "
+        f"{attachment_hash_counter.hashes} hashes"
+    )
+
+
+def test_condense_model_call_forked_streams_keep_separate_lineages(
+    attachment_hash_counter: AttachmentHashCounter,
+) -> None:
+    """Streams sharing a pre-fork prefix must keep separate walk-cache slots."""
+    tr = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    payload = "fork content " * 10
+    shared = [{"role": "user", "content": f"shared {payload} {i}"} for i in range(3)]
+
+    def make_call(stream: str, n: int) -> ModelCall:
+        msgs = shared + [
+            {"role": "user", "content": f"{stream} {payload} {i}"} for i in range(n)
+        ]
+        return ModelCall.create({"model": "m", "messages": msgs}, None)
+
+    tr._condense_model_call(make_call("a", 1))  # warm the shared prefix
+
+    n_rounds = 8
+    for n in range(2, n_rounds + 2):
+        tr._condense_model_call(make_call("a", n))
+        tr._condense_model_call(make_call("b", n))
+    # separate lineages: ~1-2 new messages hashed per call. Merged lineages
+    # re-walk the divergent tail every call: ~2 * sum(2..n_rounds+1).
+    assert attachment_hash_counter.hashes <= 4 * n_rounds, (
+        f"forked streams thrash the walk cache: {attachment_hash_counter.hashes} hashes"
+    )
+
+
+def _drive_streams(tr: Transcript, n_streams: int, rounds: int) -> None:
+    """Drive `n_streams` interleaved generate streams through `tr`.
+
+    Each round advances every stream by one turn through the realistic
+    pending/registration/completion/stamping notification shape, round-robin
+    across streams -- the access pattern that thrashes an LRU call-pool
+    cache under-capacity (each stream's slot is the next one evicted).
+    """
+    payload = ATTACHABLE
+    histories: list[list[ChatMessage]] = [[] for _ in range(n_streams)]
+    wires: list[list[dict[str, JsonValue]]] = [[] for _ in range(n_streams)]
+    for r in range(rounds):
+        for s in range(n_streams):
+            histories[s].append(ChatMessageUser(content=f"s{s} message {r}"))
+            wires[s].append({"role": "user", "content": f"s{s} {payload} {r}"})
+            event = ModelEvent(
+                model="test",
+                input=list(histories[s]),
+                tools=[],
+                tool_choice="auto",
+                config=GenerateConfig(),
+                output=ModelOutput(),
+                pending=True,
+            )
+            tr._event(event)  # 1: pending
+            event.call = ModelCall(
+                request={"model": "test", "messages": [dict(m) for m in wires[s]]}
+            )
+            tr._event_updated(event)  # 2: call registration (raw)
+            event.output = ModelOutput.from_content("test", "response")
+            event.call = ModelCall(
+                request={"model": "test", "messages": [dict(m) for m in wires[s]]},
+                response={"id": f"r{s}-{r}"},
+            )
+            event.pending = None
+            tr._event_updated(event)  # 3: completion (raw + response)
+            tr._event_updated(event)  # 4: timestamp stamping (condensed form)
+
+
+@pytest.mark.parametrize(
+    ("cap_offset", "budget_per_turn"),
+    [
+        pytest.param(-1, 12, id="within_cap"),
+        pytest.param(1, 18, id="beyond_cap"),
+    ],
+)
+def test_buffer_condense_linear_across_slot_cap(
+    cap_offset: int,
+    budget_per_turn: int,
+    db: SampleBufferDatabase,
+    hash_counter: HashCounter,
+) -> None:
+    """Streams x 2 lineages, within and beyond _CALL_WALK_SLOTS.
+
+    Within cap: round-robin access must keep every stream's lineages
+    prefix-cached. Fails on a 4-slot CallPoolIndex (2-stream capacity),
+    where round-robin access thrashes every lineage back to full-history
+    re-hashing.
+
+    Beyond cap: LRU thrashes 2 lineages' worth of full history re-hashing
+    every turn; random eviction spreads the excess across lineages instead.
+    LRU thrash measures ~26 call-hashes/turn at this shape; random eviction
+    measured ~11. The beyond-cap budget (18/turn) rejects the cliff while
+    tolerating eviction-order variance.
+    """
+    from inspect_ai.log._condense import _CALL_WALK_SLOTS
+
+    db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
+    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+    n_streams = _CALL_WALK_SLOTS // 2 + cap_offset  # 2 lineages/stream
+    rounds = 25
+    _drive_streams(tr, n_streams, rounds)
+
+    turns = rounds * n_streams
+    budget = budget_per_turn * turns
+    assert hash_counter.msg_hashes <= budget, (
+        f"message hashing superlinear across {n_streams} interleaved streams: "
+        f"{hash_counter.msg_hashes} for {turns} turns"
+    )
+    assert hash_counter.call_hashes <= budget, (
+        f"call hashing superlinear across {n_streams} interleaved streams: "
+        f"{hash_counter.call_hashes} for {turns} turns"
+    )
+
+
+def test_buffer_condense_linear_across_notification_shape(
+    db: SampleBufferDatabase, hash_counter: HashCounter
+) -> None:
+    """The realistic per-turn shape: pending, registration, completion, stamping.
+
+    The buffer sees raw and transcript-condensed call forms alternately;
+    prefix reuse must hold for both lineages. This guard fails on a
+    single-slot CallPoolIndex (the 2026-08-11 timeout-storm mechanism)
+    even though per-event condensing is individually linear.
+    """
+    db.start_sample(EvalSampleSummary(id="s1", epoch=1, input="in", target="t"))
+    tr = Transcript(bounded=True, resident_tail=100, log_model_api=True)
+    tr._subscribe(lambda e: db.log_events([SampleEvent(id="s1", epoch=1, event=e)]))
+
+    history: list[ChatMessage] = []
+    wire: list[dict[str, JsonValue]] = []
+    payload = ATTACHABLE
+    for i in range(N_EVENTS):
+        history.append(ChatMessageUser(content=f"message {i}"))
+        wire.append({"role": "user", "content": f"{payload} {i}"})
+        event = ModelEvent(
+            model="test",
+            input=list(history),
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+            pending=True,
+        )
+        tr._event(event)  # 1: pending
+        event.call = ModelCall(
+            request={"model": "test", "messages": [dict(m) for m in wire]}
+        )
+        tr._event_updated(event)  # 2: call registration (raw)
+        event.output = ModelOutput.from_content("test", "response")
+        event.call = ModelCall(
+            request={"model": "test", "messages": [dict(m) for m in wire]},
+            response={"id": f"r{i}"},
+        )
+        event.pending = None
+        tr._event_updated(event)  # 3: completion (raw + response)
+        tr._event_updated(event)  # 4: timestamp stamping (condensed form)
+
+    budget = 12 * N_EVENTS
+    assert hash_counter.msg_hashes <= budget, (
+        f"message hashing superlinear across notification shape: "
+        f"{hash_counter.msg_hashes} for {N_EVENTS} turns"
+    )
+    assert hash_counter.call_hashes <= budget, (
+        f"call hashing superlinear across notification shape: "
+        f"{hash_counter.call_hashes} for {N_EVENTS} turns"
     )

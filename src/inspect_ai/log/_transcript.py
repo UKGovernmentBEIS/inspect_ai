@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import (
     TYPE_CHECKING,
+    Final,
     Literal,
+    NamedTuple,
     Protocol,
     TypeVar,
     overload,
@@ -30,11 +32,12 @@ from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
+    CallWalkCache,
     WalkContext,
-    attachment_refs_from_value,
-    events_attachment_fn,
-    walk_model_call,
+    attachment_refs_from_object,
 )
+from inspect_ai.model._chat_message import ChatMessageBase
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 if TYPE_CHECKING:
@@ -52,6 +55,16 @@ class _TranscriptSubscription:
     callback: Callable[[Event], None]
 
 
+class _EventRefs(NamedTuple):
+    """Result of scanning one event for attachment references."""
+
+    refs: set[str]
+    """Attachment hashes the event references."""
+
+    message_ids: set[str]
+    """`ChatMessage.id`s encountered during the scan (memo lifetime sidecar)."""
+
+
 def transcript_bounded_enabled() -> bool:
     value = os.environ.get("INSPECT_TRANSCRIPT_BOUNDED")
     if value is None:
@@ -59,7 +72,7 @@ def transcript_bounded_enabled() -> bool:
     return value.strip().lower() not in ("0", "false", "no", "off")
 
 
-DEFAULT_RESIDENT_TAIL = 100
+DEFAULT_RESIDENT_TAIL: Final = 100
 """Default number of most-recent events a bounded transcript keeps in memory.
 
 Shared source of truth for the resident window. Consumers that read a
@@ -68,6 +81,60 @@ recent slice of history (e.g. the ACP replay-on-attach in
 this value) can rely on that slice being served from resident,
 attachment-resolved memory rather than re-materialized from the buffer DB.
 """
+
+
+_MESSAGE_REFS_BUCKET_LIMIT: Final = 4
+"""Max cached content variants per message id.
+
+Buckets exist for same-id variants (raw agent-state vs condensed
+restored-event messages after a resume) — legitimately 2. Third-party
+code that rewrites content via model_copy while keeping the id would
+otherwise grow a bucket without bound, pinning every old payload. The
+memo is an accelerator: dropping the oldest variant is always safe (it
+re-scans on next sight).
+"""
+
+
+class _EventKeyedRefCounts:
+    """Refcounts values referenced by resident events; releases on last drop.
+
+    No lock: mutated only from the single event-loop thread, the same
+    invariant the rest of ``Transcript`` relies on.
+    """
+
+    def __init__(self, on_release: Callable[[str], None]) -> None:
+        self.counts: dict[str, int] = {}
+        self._by_event: dict[str, set[str]] = {}
+        self._on_release = on_release
+
+    def update_event(self, event_key: str, current: set[str]) -> None:
+        """Re-point one event's references at ``current``, diffing the change."""
+        previous = self._by_event.get(event_key, set())
+        for value in previous - current:
+            self.release(value)
+        for value in current - previous:
+            self.counts[value] = self.counts.get(value, 0) + 1
+        if current:
+            self._by_event[event_key] = current
+        else:
+            self._by_event.pop(event_key, None)
+
+    def release(self, value: str) -> None:
+        """Drop one reference, invoking ``on_release`` when the last one goes."""
+        count = self.counts.get(value, 0) - 1
+        if count > 0:
+            self.counts[value] = count
+        else:
+            self.counts.pop(value, None)
+            self._on_release(value)
+
+    def drop_events_except(self, keep: set[str]) -> None:
+        """Release everything referenced only by events outside ``keep``."""
+        for event_key in list(self._by_event):
+            if event_key in keep:
+                continue
+            for value in self._by_event.pop(event_key):
+                self.release(value)
 
 
 class TranscriptHistoryUnavailableError(RuntimeError):
@@ -418,13 +485,27 @@ class Transcript:
         self._next_event_logger_id = 0
         self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
+        self._call_walk_cache = CallWalkCache()
         self._events: list[Event] = self._normalize_seeded_events(events or [])
         self._history_provider = history_provider
         self._events_view = _TranscriptEventsView(self)
         self._history = TranscriptHistory(self)
         self._attachments: dict[str, str] = {}
-        self._attachment_refcount: dict[str, int] = {}
-        self._event_attachment_refs: dict[str, set[str]] = {}
+        self._attachment_refs_counter = _EventKeyedRefCounts(
+            on_release=self._release_attachment
+        )
+        # Per-message attachment-ref memo (bounded mode). Buckets are lists
+        # because one msg.id can hold content variants (raw agent-state vs
+        # condensed restored-event message after a resume). Its lifetime rides
+        # the same _EventKeyedRefCounts machinery as attachment refs, so
+        # departed messages age out with their referencing events instead of
+        # pinning evicted memory.
+        self._message_refs_cache: dict[
+            str, list[tuple[ChatMessageBase, frozenset[str]]]
+        ] = {}
+        self._message_refs_counter = _EventKeyedRefCounts(
+            on_release=self._release_message_refs
+        )
         self._timelines: list[Timeline] = []
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[str] = set()
@@ -645,8 +726,10 @@ class Transcript:
             and retain_attachments
             and event.call is not None
         ):
-            event_fn = events_attachment_fn(self.attachments)
-            event.call = walk_model_call(event.call, event_fn, self._context)
+            event.call = self._condense_model_call(event.call)
+
+    def _condense_model_call(self, call: ModelCall) -> ModelCall:
+        return self._call_walk_cache.condense(call, self.attachments, self._context)
 
     def _notify_subscribers(self, event: Event) -> None:
         for event_logger in list(self._event_loggers):
@@ -674,34 +757,59 @@ class Transcript:
             return
 
         event_key = self._event_key(event)
-        previous_refs = self._event_attachment_refs.get(event_key, set())
-        current_refs = self._attachment_refs(event)
-        for ref in previous_refs - current_refs:
-            self._decrement_attachment_ref(ref)
-        for ref in current_refs - previous_refs:
-            self._attachment_refcount[ref] = self._attachment_refcount.get(ref, 0) + 1
-        if current_refs:
-            self._event_attachment_refs[event_key] = current_refs
-        else:
-            self._event_attachment_refs.pop(event_key, None)
+        event_refs = self._attachment_refs(event)
+        self._attachment_refs_counter.update_event(event_key, event_refs.refs)
+        self._message_refs_counter.update_event(event_key, event_refs.message_ids)
 
-    def _attachment_refs(self, event: Event) -> set[str]:
-        return attachment_refs_from_value(event.model_dump(mode="python"))
+    def _attachment_refs(self, event: Event) -> _EventRefs:
+        message_ids: set[str] = set()
 
-    def _decrement_attachment_ref(self, ref: str) -> None:
-        count = self._attachment_refcount.get(ref, 0) - 1
-        if count > 0:
-            self._attachment_refcount[ref] = count
-        else:
-            self._attachment_refcount.pop(ref, None)
-            self._attachments.pop(ref, None)
+        def message_refs(msg: ChatMessageBase) -> frozenset[str] | None:
+            # In-place mutation of a message's content without an id refresh
+            # returns stale refs (identity/equality hit on the pre-mutation
+            # entry) — the same accepted convention as WalkContext.message_cache
+            # and MessagePoolIndex; first-party mutators mint new ids.
+            msg_id = msg.id
+            if msg_id is None:
+                return None
+            message_ids.add(msg_id)
+            bucket = self._message_refs_cache.get(msg_id)
+            if bucket is not None:
+                for cached_msg, cached_refs in bucket:
+                    if cached_msg is msg:
+                        return cached_refs
+                # identity miss: an ==-equal clone reuses the entry WITHOUT
+                # being inserted (per-event model_copy clones would otherwise
+                # grow the bucket unboundedly). == is cheap here: clones share
+                # field objects, so comparisons short-circuit on identity.
+                for cached_msg, cached_refs in bucket:
+                    if cached_msg == msg:
+                        return cached_refs
+            refs = frozenset(attachment_refs_from_object(msg))
+            if bucket is not None:
+                if len(bucket) >= _MESSAGE_REFS_BUCKET_LIMIT:
+                    del bucket[0]
+                bucket.append((msg, refs))
+            else:
+                self._message_refs_cache[msg_id] = [(msg, refs)]
+            return refs
+
+        refs = attachment_refs_from_object(event, message_refs=message_refs)
+        return _EventRefs(refs=refs, message_ids=message_ids)
+
+    def _release_attachment(self, ref: str) -> None:
+        self._attachments.pop(ref, None)
+
+    def _release_message_refs(self, msg_id: str) -> None:
+        self._message_refs_cache.pop(msg_id, None)
 
     def _prune_unreferenced_attachments(self) -> None:
         if not self._bounded:
             return
 
+        counts = self._attachment_refs_counter.counts
         for ref in list(self._attachments):
-            if ref not in self._attachment_refcount:
+            if ref not in counts:
                 self._attachments.pop(ref, None)
 
     def _trailing_window(self, n: int, limit: int | None = None) -> list[Event] | None:
@@ -775,11 +883,8 @@ class Transcript:
             )
 
     def _prune_attachment_refs(self, resident_event_keys: set[str]) -> None:
-        for event_key in list(self._event_attachment_refs):
-            if event_key in resident_event_keys:
-                continue
-            for ref in self._event_attachment_refs.pop(event_key):
-                self._decrement_attachment_ref(ref)
+        self._attachment_refs_counter.drop_events_except(resident_event_keys)
+        self._message_refs_counter.drop_events_except(resident_event_keys)
 
     def _is_resident(self, event: Event) -> bool:
         return event.uuid is not None and event.uuid in self._resident_event_ids

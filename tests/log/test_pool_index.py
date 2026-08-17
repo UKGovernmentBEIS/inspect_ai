@@ -126,6 +126,15 @@ def test_call_pool_index_prefix_breaks_on_mismatch() -> None:
     assert index.match_prefix(short) == [0]
 
 
+def test_call_pool_index_set_prev_clamps_mispaired_prefix() -> None:
+    """prefix_len without a paired match_prefix must not build misaligned state."""
+    index = CallPoolIndex()
+    index.set_prev([{"content": "a"}], [0])
+    # no match_prefix call in between: contract violation, must clamp
+    index.set_prev([{"content": "b"}, {"content": "c"}], [1, 2], prefix_len=1)
+    assert index.match_prefix([{"content": "b"}, {"content": "c"}]) == [1, 2]
+
+
 def test_call_pool_index_mark_restore() -> None:
     index = CallPoolIndex()
     index.add_hash("h-a", 0)
@@ -256,6 +265,111 @@ def test_call_pool_index_carry_forward_only_snapshots_divergent_tail() -> None:
         {"role": "assistant", "content": "b"},
     ]
     assert index.match_prefix(resent) == [0, 1]
+
+
+def test_call_pool_index_multi_slot_alternating_forms() -> None:
+    """Raw and condensed request lineages must both keep prefix-matching.
+
+    The buffer sees each logical request in raw form (call registration,
+    completion) and transcript-condensed form (timestamp update) alternately;
+    a single retained slot thrashes to zero prefix hits.
+    """
+    index = CallPoolIndex()
+    raw: list[JsonValue] = [{"role": "user", "content": "raw long content"}]
+    condensed: list[JsonValue] = [{"role": "user", "content": "attachment://abc"}]
+    index.set_prev(raw, [0])
+    index.set_prev(condensed, [10])
+
+    raw2: list[JsonValue] = raw + [{"role": "assistant", "content": "raw reply"}]
+    assert index.match_prefix(raw2) == [0]
+    index.set_prev(raw2, [0, 1], prefix_len=1)
+
+    condensed2: list[JsonValue] = condensed + [
+        {"role": "assistant", "content": "attachment://def"}
+    ]
+    assert index.match_prefix(condensed2) == [10]
+    index.set_prev(condensed2, [10, 11], prefix_len=1)
+
+    # both lineages continue to extend
+    assert index.match_prefix(raw2) == [0, 1]
+    assert index.match_prefix(condensed2) == [10, 11]
+
+
+def test_call_pool_index_carry_forward_uses_matched_slot() -> None:
+    """Carried snapshots must come from the slot that matched.
+
+    Not the most-recent slot — a wrong-slot carry retains snapshots
+    claiming pool indices for content never pooled at those positions.
+    """
+    index = CallPoolIndex()
+    index.set_prev([{"content": "lineage-a"}], [0])
+    index.set_prev([{"content": "lineage-b"}], [10])
+
+    grown_a: list[JsonValue] = [{"content": "lineage-a"}, {"content": "a-2"}]
+    prefix = index.match_prefix(grown_a)
+    assert prefix == [0]
+    index.set_prev(grown_a, [0, 1], prefix_len=len(prefix))
+
+    assert index.match_prefix([{"content": "lineage-a"}]) == [0]
+    assert index.match_prefix([{"content": "lineage-b"}]) == [10]
+    assert index.match_prefix(grown_a) == [0, 1]
+
+
+def test_call_pool_index_caps_slots_and_keeps_matching_beyond_cap() -> None:
+    """Slot count never exceeds the cap; exactly cap-many lineages stay matchable.
+
+    Eviction policy is random (not LRU), so this pins the cap invariant and
+    the number of surviving matches without pinning which lineages survive.
+    """
+    from inspect_ai.event._pool_index import _CALL_PREV_SLOTS
+
+    index = CallPoolIndex()
+    n = _CALL_PREV_SLOTS + 3
+    for i in range(n):
+        index.set_prev([{"content": f"lineage-{i}"}], [i])
+    assert len(index._prevs) == _CALL_PREV_SLOTS
+    # exactly _CALL_PREV_SLOTS lineages remain matchable; the rest miss (safe)
+    hits = sum(
+        1 for i in range(n) if index.match_prefix([{"content": f"lineage-{i}"}]) == [i]
+    )
+    assert hits == _CALL_PREV_SLOTS
+
+
+def test_call_pool_index_restore_drops_all_slots() -> None:
+    index = CallPoolIndex()
+    index.set_prev([{"content": "a"}], [0])
+    mark = index.mark()
+    index.set_prev([{"content": "b"}], [1])
+    index.restore(mark)
+    # required, not just permitted: any slot may reference rolled-back rows
+    assert index.match_prefix([{"content": "a"}]) == []
+    assert index.match_prefix([{"content": "b"}]) == []
+
+
+def test_call_pool_index_forked_streams_keep_separate_lineages() -> None:
+    """A partial prefix match is a sibling lineage forked from shared history.
+
+    Replacing the matched slot would merge lineages and thrash their tails.
+    """
+    index = CallPoolIndex()
+    shared: list[JsonValue] = [{"content": "shared-0"}, {"content": "shared-1"}]
+    index.set_prev(shared, [0, 1])
+
+    a1: list[JsonValue] = shared + [{"content": "a-0"}]
+    prefix = index.match_prefix(a1)
+    assert prefix == [0, 1]
+    index.set_prev(a1, [0, 1, 2], prefix_len=len(prefix))  # full consumption: replaces
+
+    b1: list[JsonValue] = shared + [{"content": "b-0"}]
+    prefix = index.match_prefix(b1)  # partial match against A's slot
+    assert prefix == [0, 1]
+    index.set_prev(b1, [0, 1, 3], prefix_len=len(prefix))  # partial: appends sibling
+
+    a2: list[JsonValue] = a1 + [{"content": "a-1"}]
+    assert index.match_prefix(a2) == [0, 1, 2]  # [0, 1] if lineages had merged
+    index.set_prev(a2, [0, 1, 2, 4], prefix_len=3)
+    b2: list[JsonValue] = b1 + [{"content": "b-1"}]
+    assert index.match_prefix(b2) == [0, 1, 3]
 
 
 # ---------------------------------------------------------------------------
