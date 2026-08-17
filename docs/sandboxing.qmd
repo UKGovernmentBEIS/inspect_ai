@@ -197,7 +197,7 @@ If there is a Sample `setup` bash script it will be executed within the default 
 
 Before using Docker sandbox environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/). Inspect checks the connected Docker daemon and requires version 24.0.6 or greater.
 
-Docker Compose is checked separately: Inspect requires version 2.21.0 or greater, and version 2.22.0 or greater when pulling an image with `docker compose pull --policy`.
+Docker Compose is checked separately: Inspect requires version 2.21.0 or greater, and version 2.22.0 or greater when Inspect pulls sandbox images from a registry.
 
 If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
 
