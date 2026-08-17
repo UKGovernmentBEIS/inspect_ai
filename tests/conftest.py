@@ -419,6 +419,11 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
 
 def _report_hang_dumps() -> None:
     """Print any non-empty faulthandler hang dumps to the terminal (job log)."""
+    if _hang_dump_seconds <= 0:
+        # watchdog never armed this run (workers resolve the same threshold as
+        # the controller, so no dump can exist from it); a user-supplied dump
+        # dir may still hold stale dumps from earlier runs — don't re-print them
+        return
     dump_dir = os.environ.get(_HANG_DUMP_DIR_ENV)
     if not dump_dir or not os.path.isdir(dump_dir):
         return
