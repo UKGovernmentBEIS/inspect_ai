@@ -1105,8 +1105,19 @@ def sample_cancel_command(
 
 @sample_group.command("requeue")
 @click.argument("task")
-@click.argument("sample_id")
-@click.argument("epoch", required=False, type=int, default=None)
+@click.argument(
+    "targets", nargs=-1, metavar="[SAMPLE_ID [EPOCH] | SAMPLE_ID EPOCH ...]"
+)
+@click.option(
+    "--errored",
+    is_flag=True,
+    default=False,
+    help=(
+        "Requeue every currently-errored sample of the task (resolved from "
+        "the live listing, so each epoch is explicit — never a default). "
+        "Mutually exclusive with SAMPLE_ID arguments."
+    ),
+)
 @click.option(
     "--dry-run",
     is_flag=True,
@@ -1117,32 +1128,94 @@ def sample_cancel_command(
 @_terse_option()
 def sample_requeue_command(
     task: str,
-    sample_id: str,
-    epoch: int | None,
+    targets: tuple[str, ...],
+    errored: bool,
     dry_run: bool,
     as_json: bool,
     terse: bool | None,
 ) -> None:
-    """Re-run one errored/cancelled sample inside the live run.
+    """Re-run errored/cancelled samples inside the live run.
 
-    The sample goes to the back of the sample queue and re-runs under the
+    Each sample goes to the back of the sample queue and re-runs under the
     task's normal machinery (prior errors ride along as retry history, and a
     checkpointed sample resumes from its checkpoint); the run's final log
     and counters reflect the fresh outcome. Idempotent — requeuing a sample
     whose re-run is already pending, queued, or running is a clean no-op.
     Requeuing a completed sample is an error (re-running or re-scoring a
-    success is out of scope). EPOCH defaults to 1 but is required whenever
-    the task runs more than one epoch (a defaulted epoch would silently
-    requeue a different attempt).
+    success is out of scope).
+
+    Target one sample (`SAMPLE_ID [EPOCH]`), several (`SAMPLE_ID EPOCH`
+    pairs), or every currently-errored sample (`--errored`). A single
+    sample's EPOCH defaults to 1 but is required whenever the task runs
+    more than one epoch (a defaulted epoch would silently requeue a
+    different attempt); with several samples every epoch must be explicit.
+    A sweep reports each sample's result individually (requeued / no-op /
+    rejected) and exits zero once every sample was attempted — branch on the
+    results, not the exit code. Note for scripted sweeps: a single sample
+    target keeps the single-sample `--json` envelope; `--errored` always
+    returns the bulk envelope (even for one sample).
+
+    Example: inspect ctl sample requeue my-task --errored
     """
-    _run_sample_requeue(
-        task,
-        sample_id,
-        epoch,
-        dry_run=dry_run,
-        as_json=as_json,
-        terse=terse,
-    )
+    if errored and targets:
+        raise click.UsageError(
+            "--errored and SAMPLE_ID arguments are mutually exclusive."
+        )
+    if errored:
+        _run_sample_requeue_errored(task, dry_run=dry_run, as_json=as_json, terse=terse)
+        return
+    if not targets:
+        raise click.UsageError(
+            "Pass SAMPLE_ID [EPOCH] (or several SAMPLE_ID EPOCH pairs), or "
+            "--errored to requeue every currently-errored sample."
+        )
+    if len(targets) == 1:
+        _run_sample_requeue(
+            task, targets[0], None, dry_run=dry_run, as_json=as_json, terse=terse
+        )
+        return
+    pairs = _parse_requeue_pairs(targets)
+    if len(pairs) == 1:
+        _run_sample_requeue(
+            task,
+            pairs[0][0],
+            pairs[0][1],
+            dry_run=dry_run,
+            as_json=as_json,
+            terse=terse,
+        )
+    else:
+        _run_sample_requeue_bulk(
+            task, pairs, dry_run=dry_run, as_json=as_json, terse=terse
+        )
+
+
+def _parse_requeue_pairs(targets: tuple[str, ...]) -> list[tuple[str, int]]:
+    """Parse two or more requeue tokens as ``SAMPLE_ID EPOCH`` pairs.
+
+    With several samples every epoch must be explicit — the fail-closed
+    epoch rule (a defaulted epoch resolves to a *different sample*) leaves
+    no safe reading of a bare id list — so an odd token count or a
+    non-integer epoch slot is a usage error.
+    """
+    if len(targets) % 2 != 0:
+        raise click.UsageError(
+            "Requeue targets must be SAMPLE_ID EPOCH pairs — with several "
+            "samples every epoch must be explicit (a defaulted epoch would "
+            "silently requeue a different attempt)."
+        )
+    pairs: list[tuple[str, int]] = []
+    for sample_id, epoch_token in zip(targets[::2], targets[1::2]):
+        try:
+            epoch = int(epoch_token)
+        except ValueError:
+            raise click.UsageError(
+                f"'{epoch_token}' is not an integer EPOCH — pass SAMPLE_ID "
+                "EPOCH pairs (with several samples every epoch must be "
+                "explicit)."
+            ) from None
+        pairs.append((sample_id, epoch))
+    return pairs
 
 
 # ---------------------------------------------------------------------------
@@ -1667,12 +1740,18 @@ class _CtlFailure(click.exceptions.Exit):
         *,
         exception: str | None = None,
         status: int | None = None,
+        missing_route: bool = False,
     ) -> None:
         super().__init__(1)
         self.kind = kind
         self.message = message
         self.exception = exception
         self.status = status
+        # a router 404 (endpoint absent — older server) rather than an
+        # entity 404; classification for callers that must tell the two
+        # apart (e.g. the bulk-requeue sweep aborts on it), not an
+        # envelope field
+        self.missing_route = missing_route
         self._emitted = False
 
     @classmethod
@@ -1703,6 +1782,7 @@ def _fail(
     *,
     exception: str | None = None,
     status: int | None = None,
+    missing_route: bool = False,
 ) -> NoReturn:
     """Echo ``message`` to stderr and raise the matching :class:`_CtlFailure`.
 
@@ -1714,7 +1794,9 @@ def _fail(
     directly instead.
     """
     _echo(message, err=True)
-    raise _CtlFailure(kind, message, exception=exception, status=status)
+    raise _CtlFailure(
+        kind, message, exception=exception, status=status, missing_route=missing_route
+    )
 
 
 class _FailureKind(NamedTuple):
@@ -2794,21 +2876,37 @@ def _run_log_flush(task: str | None, as_json: bool, terse: bool | None = None) -
         _echo("\nNo buffered samples to flush.")
 
 
-def _mutation_envelope(
-    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
-) -> dict[str, Any]:
-    """The uniform ``--json`` mutation result envelope for the cancel verbs.
+class _MutationOutcome(NamedTuple):
+    applied: bool
+    detail: dict[str, Any]
+
+
+def _mutation_outcome(result: dict[str, Any], *, dry_run: bool) -> _MutationOutcome:
+    """The ``applied``/``detail`` semantics every mutation result shape shares.
 
     ``applied`` reports whether the mutation actually landed — false on a
     dry run and on the idempotent already-in-that-state no-op (the server's
     ``changed: false``) — so an agent branches on one field. The server's
     response rides along as ``detail`` (minus the transport-level ``ok``).
+    Both the single-sample envelope and the bulk-requeue per-sample results
+    derive these fields here so the rule cannot drift between them.
     """
+    return _MutationOutcome(
+        applied=bool(result.get("changed")) and not dry_run,
+        detail={k: v for k, v in result.items() if k != "ok"},
+    )
+
+
+def _mutation_envelope(
+    target: dict[str, Any], result: dict[str, Any], *, dry_run: bool
+) -> dict[str, Any]:
+    """The uniform ``--json`` mutation result envelope for the cancel verbs."""
+    outcome = _mutation_outcome(result, dry_run=dry_run)
     return {
         "target": target,
-        "applied": bool(result.get("changed")) and not dry_run,
+        "applied": outcome.applied,
         "dry_run": dry_run,
-        "detail": {k: v for k, v in result.items() if k != "ok"},
+        "detail": outcome.detail,
     }
 
 
@@ -3418,6 +3516,25 @@ _REQUEUE_ROUTE_MISSING = (
 )
 
 
+def _requeue_resume_clause(result: dict[str, Any]) -> str:
+    """How the requeued sample will re-run (checkpoint resume vs fresh)."""
+    return (
+        "resume from its checkpoint"
+        if result.get("resume_from_checkpoint")
+        else "re-run from the back of the sample queue"
+    )
+
+
+def _requeue_changed_message(
+    label: str, result: dict[str, Any], *, dry_run: bool
+) -> str:
+    """The human line for an accepted (or would-be-accepted) requeue."""
+    resume = _requeue_resume_clause(result)
+    if dry_run:
+        return f"Would requeue {label} — it would {resume}."
+    return f"Requeue accepted for {label} — it will {resume}."
+
+
 @_envelope_failures
 def _run_sample_requeue(
     task: str,
@@ -3428,17 +3545,8 @@ def _run_sample_requeue(
     as_json: bool,
     terse: bool | None = None,
 ) -> None:
-    def resume_clause(result: dict[str, Any]) -> str:
-        return (
-            "resume from its checkpoint"
-            if result.get("resume_from_checkpoint")
-            else "re-run from the back of the sample queue"
-        )
-
     def changed_message(label: str, result: dict[str, Any]) -> str:
-        if dry_run:
-            return f"Would requeue {label} — it would {resume_clause(result)}."
-        return f"Requeue accepted for {label} — it will {resume_clause(result)}."
+        return _requeue_changed_message(label, result, dry_run=dry_run)
 
     def noop_message(label: str, result: dict[str, Any]) -> str:
         reason = _sanitize_line(str(result.get("reason") or "already in that state"))
@@ -3446,8 +3554,8 @@ def _run_sample_requeue(
 
     def terse_changed(result: dict[str, Any]) -> str:
         if dry_run:
-            return f"dry-run — would {resume_clause(result)}"
-        return f"accepted — will {resume_clause(result)}"
+            return f"dry-run — would {_requeue_resume_clause(result)}"
+        return f"accepted — will {_requeue_resume_clause(result)}"
 
     def terse_noop(result: dict[str, Any]) -> str:
         return f"no-op — {result.get('reason') or 'already in that state'}"
@@ -3466,6 +3574,226 @@ def _run_sample_requeue(
         noop_message=noop_message,
         terse_changed=terse_changed,
         terse_noop=terse_noop,
+    )
+
+
+@_envelope_failures
+def _run_sample_requeue_bulk(
+    task: str,
+    pairs: list[tuple[str, int]],
+    *,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    """Requeue several explicitly-listed ``(sample_id, epoch)`` pairs."""
+    fetched = _fetch_sample_summaries(task)
+    summaries = fetched.summaries
+    if not summaries:
+        if as_json:
+            _echo_raw("null")
+            return
+        _echo_no_running_evals()
+        return
+    target = _resolve_target_eval(summaries, task, busy_pids=fetched.busy_pids)
+    _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json, terse=terse)
+
+
+@_envelope_failures
+def _run_sample_requeue_errored(
+    task: str,
+    *,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    """Requeue every sample of the task whose *current* status is ``error``.
+
+    Resolved from the same live listing `sample errors` reads, filtered to
+    the errored status (a retried-and-now-running sample is not swept), so
+    each requeue's epoch comes from the listing — the fail-closed epoch
+    concern never arises. Racing the scheduler is safe: the endpoint's
+    idempotence turns a sample that recovers between the listing and the
+    post into a per-sample no-op.
+    """
+    listing = _list_sample_rows(
+        task, None, statuses=frozenset({"error"}), all_samples=True
+    )
+    if not listing.targets:
+        if as_json:
+            _echo_raw("null")
+            return
+        _echo_no_running_evals()
+        return
+    target = listing.targets[0]
+    pairs: list[tuple[str, int]] = []
+    for row in listing.rows:
+        # a row without an epoch fails loudly rather than defaulting: the
+        # sweep's whole safety claim is that no epoch is ever a default
+        if row.get("epoch") is None:
+            _fail(
+                "invalid_response",
+                f"Sample listing row for '{row.get('sample_id')}' carries no "
+                "epoch — cannot requeue it fail-closed (requeue it "
+                "individually with an explicit EPOCH).",
+            )
+        pairs.append((str(row["sample_id"]), int(row["epoch"])))
+    _requeue_pairs(target, pairs, dry_run=dry_run, as_json=as_json, terse=terse)
+
+
+def _requeue_pairs(
+    target: dict[str, Any],
+    pairs: list[tuple[str, int]],
+    *,
+    dry_run: bool,
+    as_json: bool,
+    terse: bool | None = None,
+) -> None:
+    """Post one requeue per pair and report each sample's result individually.
+
+    The sweep is a client-side loop over the per-sample endpoint (see
+    design/ctl/sample-requeue.md — bulk is deliberately not an endpoint
+    semantic). A per-sample HTTP rejection (409 completed, entity 404, 400)
+    is recorded in its result and the sweep continues; a failure that would
+    fail every remaining post identically (unreachable/busy process, missing
+    route on an older server) aborts the whole command — safe to re-run, the
+    endpoint is idempotent. The command exits zero once every sample was
+    attempted; per-sample outcomes live in the results. The posts run with
+    ``echo_failures=False`` so a recorded rejection is reported exactly once,
+    in the stdout report — otherwise every rejection would also appear as
+    transport stderr narration, doubling the output. That makes this caller
+    responsible for echoing the failures it re-raises (the abort path), since
+    nothing downstream prints them in human mode.
+    """
+
+    def what(sample_id: str) -> str:
+        return f"requeue of sample {sample_id}"
+
+    results: list[dict[str, Any]] = []
+    for sample_id, epoch in pairs:
+        params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch}
+        if dry_run:
+            params["dry_run"] = True
+        try:
+            result = _request_json(
+                str(target["socket_path"]),
+                f"/evals/{target['eval_id']}/sample/requeue",
+                params=params,
+                what=what(sample_id),
+                not_found=(
+                    f"Sample '{sample_id}' (epoch {epoch}) not found in task "
+                    f"'{target.get('task') or '?'}'."
+                ),
+                not_found_missing_route=_REQUEUE_ROUTE_MISSING,
+                mutate="post",
+                retry_mutation=True,
+                pid=target.get("pid"),
+                echo_failures=False,
+            )
+        except _CtlFailure as exc:
+            if exc.missing_route or exc.kind not in (
+                "not_found",
+                "invalid_request",
+                "http_error",
+            ):
+                _echo(exc.message, err=True)
+                raise
+            results.append(
+                {
+                    "sample_id": sample_id,
+                    "epoch": epoch,
+                    "applied": False,
+                    # the full error-object shape (`{kind, exception, message,
+                    # status}`), matching the top-level error envelope
+                    "error": {
+                        "kind": exc.kind,
+                        "exception": exc.exception,
+                        "message": exc.message,
+                        "status": exc.status,
+                    },
+                }
+            )
+            continue
+        outcome = _mutation_outcome(result, dry_run=dry_run)
+        results.append(
+            {
+                "sample_id": result.get("sample_id", sample_id),
+                "epoch": result.get("epoch", epoch),
+                "applied": outcome.applied,
+                "detail": outcome.detail,
+            }
+        )
+
+    changed = sum(1 for r in results if (r.get("detail") or {}).get("changed"))
+    rejected = sum(1 for r in results if "error" in r)
+    noops = len(results) - changed - rejected
+
+    if as_json:
+        envelope = {
+            "target": {
+                "task_id": target.get("task_id"),
+                "task": target.get("task"),
+            },
+            "dry_run": dry_run,
+            "requested": len(pairs),
+            "applied": sum(1 for r in results if r["applied"]),
+            "results": results,
+        }
+        _echo_raw(json_lib.dumps(envelope, indent=2))
+        return
+
+    use_terse = _use_terse(terse)
+    if not use_terse:
+        _echo(_task_header(target))
+        _echo()
+    if not pairs:
+        # only the errored sweep can arrive with no pairs — the explicit-pairs
+        # caller always passes two or more
+        _echo("(no errored samples to requeue)")
+        return
+    for entry in results:
+        label = f"sample {entry['sample_id']} (epoch {entry['epoch']})"
+        if "error" in entry:
+            # the recorded message stays self-contained, but the transport
+            # prefix restates the label — render just the server detail
+            message = str(entry["error"]["message"])
+            message = message.removeprefix(
+                _failure_prefix("update", what(entry["sample_id"]))
+            )
+            if use_terse:
+                _echo(_terse_line("requeue", label, f"rejected — {message}"))
+            else:
+                _echo(f"Rejected {label} — {message}")
+        elif (entry.get("detail") or {}).get("changed"):
+            if use_terse:
+                terse_outcome = (
+                    f"dry-run — would {_requeue_resume_clause(entry['detail'])}"
+                    if dry_run
+                    else f"accepted — will {_requeue_resume_clause(entry['detail'])}"
+                )
+                _echo(_terse_line("requeue", label, terse_outcome))
+            else:
+                _echo(_requeue_changed_message(label, entry["detail"], dry_run=dry_run))
+        else:
+            reason = str(
+                (entry.get("detail") or {}).get("reason") or "already in that state"
+            )
+            if use_terse:
+                _echo(_terse_line("requeue", label, f"no-op — {reason}"))
+            else:
+                _echo(f"Nothing to do for {label} — {reason}.")
+    if use_terse:
+        return
+    _echo()
+    verb = "Would requeue" if dry_run else "Requeued"
+    notes: list[str] = []
+    if noops:
+        notes.append(f"{noops} no-op{'' if noops == 1 else 's'}")
+    if rejected:
+        notes.append(f"{rejected} rejected")
+    suffix = f" ({', '.join(notes)})" if notes else ""
+    _echo(
+        f"{verb} {changed} of {len(pairs)} sample{'' if len(pairs) == 1 else 's'}{suffix}."
     )
 
 
@@ -5341,6 +5669,7 @@ def _request_json(
     mutate: Literal["post", "patch"] | None = None,
     retry_mutation: bool = False,
     pid: int | None = None,
+    echo_failures: bool = True,
 ) -> dict[str, Any]:
     """GET (retrying a busy process) or mutate ``path``; return its JSON dict.
 
@@ -5365,8 +5694,27 @@ def _request_json(
     ``pid`` scopes the retry-exhaustion escalation pointer to the target
     process (see :func:`_get_response_with_retry`) — pass it when the caller
     has already resolved one.
+
+    ``echo_failures=False`` suppresses the stderr echo that normally precedes
+    each raised :class:`_CtlFailure` — for callers that catch the failure and
+    render it themselves (the bulk-requeue sweep records per-sample
+    rejections in its stdout report; echoing here too would print every
+    rejection twice). Such callers take over the raiser-echoes contract: any
+    failure they re-raise instead of recording must be echoed first.
     """
     verb = "update" if mutate else "read"
+
+    def fail(
+        kind: _ErrorKind,
+        message: str,
+        *,
+        status: int | None = None,
+        missing_route: bool = False,
+    ) -> NoReturn:
+        if echo_failures:
+            _echo(message, err=True)
+        raise _CtlFailure(kind, message, status=status, missing_route=missing_route)
+
     try:
         if mutate is not None and retry_mutation:
             response = _get_response_with_retry(
@@ -5394,10 +5742,15 @@ def _request_json(
             )
         if response.status_code == 404:
             if not_found_missing_route is not None and not _handler_404(response):
-                _fail("not_found", not_found_missing_route, status=404)
-            _fail("not_found", not_found, status=404)
+                fail(
+                    "not_found",
+                    not_found_missing_route,
+                    status=404,
+                    missing_route=True,
+                )
+            fail("not_found", not_found, status=404)
         if response.status_code == 400:
-            _fail(
+            fail(
                 "invalid_request",
                 f"Invalid request: {_error_detail_from_response(response)}",
                 status=400,
@@ -5405,14 +5758,26 @@ def _request_json(
         response.raise_for_status()
         result = response.json()
     except _ServerUnreachable as exc:
-        message = f"Failed to {verb} {what}: {_unreachable_detail(exc)}"
-        _echo(message, err=True)
+        message = f"{_failure_prefix(verb, what)}{_unreachable_detail(exc)}"
+        if echo_failures:
+            _echo(message, err=True)
         raise _unreachable_failure(message, exc) from exc
     except (httpx.HTTPError, OSError, ValueError) as exc:
-        message = f"Failed to {verb} {what}: {_error_detail(exc)}"
-        _echo(message, err=True)
+        message = f"{_failure_prefix(verb, what)}{_error_detail(exc)}"
+        if echo_failures:
+            _echo(message, err=True)
         raise _CtlFailure.from_exception(message, exc) from exc
     return result if isinstance(result, dict) else {}
+
+
+def _failure_prefix(verb: str, what: str) -> str:
+    """The context prefix :func:`_request_json` puts on failure messages.
+
+    The bulk-requeue human rendering strips this prefix from recorded
+    per-sample errors (the label it restates is already on the line), so the
+    format lives here rather than inline to keep the two sides in lockstep.
+    """
+    return f"Failed to {verb} {what}: "
 
 
 def _handler_404(response: httpx.Response) -> bool:
