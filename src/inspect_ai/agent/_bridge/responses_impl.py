@@ -291,7 +291,7 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD INPUT", input)
 
     messages = messages_from_responses_input(input, tools, model_name)
-    validate_bridge_media(bridge, messages)
+    await validate_bridge_media(bridge, messages)
     debug_log("INSPECT MESSAGES", messages)
 
     # extract generate config (hoist instructions into system_message)

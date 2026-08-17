@@ -9,7 +9,7 @@ from google.genai.types import (
 from shortuuid import uuid
 
 from inspect_ai._util.content import ContentImage
-from inspect_ai._util.images import file_as_data
+from inspect_ai._util.images import inline_media_data
 from inspect_ai.model._chat_message import ChatMessageTool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import ToolInfo
@@ -55,7 +55,7 @@ async def computer_tool_result_parts(
     if isinstance(message.content, list):
         for item in message.content:
             if isinstance(item, ContentImage):
-                image_bytes, mime_type = await file_as_data(item.image)
+                image_bytes, mime_type = inline_media_data(item.image, "image")
                 parts.append(
                     FunctionResponsePart(
                         inline_data=FunctionResponseBlob(

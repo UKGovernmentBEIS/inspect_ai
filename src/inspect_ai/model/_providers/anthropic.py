@@ -64,7 +64,6 @@ from anthropic.types import (
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
-    URLPDFSourceParam,
     WebSearchResultBlock,
     WebSearchTool20250305Param,
     WebSearchTool20260209Param,
@@ -137,11 +136,11 @@ from inspect_ai._util.http import (
     is_retryable_http_status,
     parse_retry_after_from_exception,
 )
-from inspect_ai._util.images import file_as_data, file_as_data_uri
+from inspect_ai._util.images import inline_media_data, inline_media_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.trace import trace_message
-from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64, is_http_url
+from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._compaction.edit import (
     TOOL_RESULT_REMOVED,
@@ -3257,11 +3256,12 @@ async def model_output_from_message(
         span_recorder=span_recorder,
     )
 
-    # count reasoning tokens
+    # count reasoning tokens (skip empty thinking text -- omitted summaries
+    # come back as "" and count_tokens rejects empty content with a 400)
     reasoning_tokens = 0
     if client and model:
         for content_block in message.content:
-            if isinstance(content_block, ThinkingBlock):
+            if isinstance(content_block, ThinkingBlock) and content_block.thinking:
                 reasoning_tokens += await count_tokens(
                     client, model, content_block.thinking
                 )
@@ -4347,20 +4347,26 @@ async def message_block_params(
             )
     elif isinstance(content, ContentDocument):
         if content.mime_type == "application/pdf":
-            if is_http_url(content.document):
-                source: Source = URLPDFSourceParam(type="url", url=content.document)
-            else:
-                pdf_data_uri = await file_as_data_uri(content.document)
-                pdf_data = data_uri_to_base64(pdf_data_uri)
-                source = Base64PDFSourceParam(
-                    type="base64", data=pdf_data, media_type="application/pdf"
-                )
+            pdf_data_uri = inline_media_data_uri(
+                content.document, "document", mime_type_hint=content.mime_type
+            )
+            pdf_data = data_uri_to_base64(pdf_data_uri)
+            source: Source = Base64PDFSourceParam(
+                type="base64", data=pdf_data, media_type="application/pdf"
+            )
         elif is_image_type(content.mime_type):
             source = ContentBlockSourceParam(
-                type="content", content=[await image_block_param(content.document)]
+                type="content",
+                content=[
+                    await image_block_param(
+                        content.document, mime_type_hint=content.mime_type
+                    )
+                ],
             )
         else:
-            file_bytes, _ = await file_as_data(content.document)
+            file_bytes, _ = inline_media_data(
+                content.document, "document", mime_type_hint=content.mime_type
+            )
             source = PlainTextSourceParam(
                 type="text", media_type="text/plain", data=file_bytes.decode()
             )
@@ -4607,9 +4613,10 @@ def _content_list(input: str | list[Content]) -> list[Content]:
         return input
 
 
-async def image_block_param(image: str) -> ImageBlockParam:
-    # resolve to url
-    image = await file_as_data_uri(image)
+async def image_block_param(
+    image: str, mime_type_hint: str | None = None
+) -> ImageBlockParam:
+    image = inline_media_data_uri(image, "image", mime_type_hint=mime_type_hint)
 
     # resolve mime type and base64 content
     media_type = data_uri_mime_type(image) or "image/png"
