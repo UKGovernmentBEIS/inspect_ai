@@ -416,6 +416,7 @@ async def current_sample_listing(
     statuses: frozenset[str] | None = None,
     limit: int | None = DEFAULT_SAMPLE_LIST_LIMIT,
     sample_filter: Literal["errors"] | None = None,
+    content: bool = False,
 ) -> SampleListing:
     """The capped samples listing for one eval (histogram + rows).
 
@@ -443,6 +444,13 @@ async def current_sample_listing(
     under it the ``counts`` histogram covers only the filtered samples:
     the whole-eval listing is exactly what the filter exists to avoid
     building.
+
+    ``content`` gates each row's ``error`` message — free text the evaluated
+    agent can influence (tool-raised exceptions embed agent output). The
+    default withholds it, leaving ``status`` / ``retries`` as the metadata
+    signal, so the listing stays readable by a monitor that must never
+    ingest agent-controlled text (see "Trust boundary for readers" in
+    design/ctl/control-channel.md).
     """
     summaries = await current_sample_summaries(eval_id, sample_filter)
 
@@ -456,6 +464,10 @@ async def current_sample_listing(
         rows = _filter_active_since(rows, active_since)
     if statuses is not None:
         rows = [s for s in rows if s["status"] in statuses]
+    if not content:
+        # withhold the error message (row copies — the summaries may be the
+        # memoized log read); `status` still reads "error"
+        rows = [{**s, "error": None} if s.get("error") is not None else s for s in rows]
 
     truncated = limit is not None and len(rows) > limit
     if truncated:
@@ -673,7 +685,7 @@ async def _read_full_sample(
 
 
 async def sample_error_detail(
-    eval_id: str, sample_id: str, epoch: int
+    eval_id: str, sample_id: str, epoch: int, content: bool = False
 ) -> dict[str, Any] | None:
     """Summary + error detail for one sample (``GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>``).
 
@@ -702,12 +714,18 @@ async def sample_error_detail(
     is never ``error`` — it reads as ``pending``/``cancelled`` with the
     cancellation repr suppressed (:func:`_cancellation_status`).
 
+    ``content`` gates the error free text (message / tracebacks) — strings
+    the evaluated agent can influence. The default withholds them: each
+    error renders as an empty dict, so presence (and the ``retries`` count)
+    stays readable by a monitor that must never ingest agent-controlled
+    text (see "Trust boundary for readers" in design/ctl/control-channel.md).
+
     Returns ``None`` when the eval isn't in this process, or the sample isn't
     running and isn't readable yet — the endpoint turns that into a 404.
     """
     # Running sample first: it isn't in the log yet, and active_samples is the
     # only place its in-flight error history lives.
-    running = _running_sample_error_detail(eval_id, sample_id, epoch)
+    running = _running_sample_error_detail(eval_id, sample_id, epoch, content)
     if running is not None:
         return running
 
@@ -754,7 +772,7 @@ async def sample_error_detail(
             "status": "queued",
             "retries": len(seeded),
             "error": None,
-            "error_retries": [_error_dict(e) for e in seeded],
+            "error_retries": [_error_dict(e, content) for e in seeded],
             "scores": {},
         }
 
@@ -769,7 +787,7 @@ async def sample_error_detail(
     elif is_cancellation_message(sample.error.message):
         status, error = _cancellation_status(_eval_will_retry(eval_id)), None
     else:
-        status, error = "error", _error_dict(sample.error)
+        status, error = "error", _error_dict(sample.error, content)
 
     return {
         **(row or {}),
@@ -778,7 +796,9 @@ async def sample_error_detail(
         "status": status,
         "retries": len(sample.error_retries) if sample.error_retries else 0,
         "error": error,
-        "error_retries": [_error_dict(e) for e in (sample.error_retries or [])],
+        "error_retries": [
+            _error_dict(e, content) for e in (sample.error_retries or [])
+        ],
         "scores": {name: score.value for name, score in (sample.scores or {}).items()},
     }
 
@@ -806,7 +826,7 @@ def find_active_sample(
 
 
 def _running_sample_error_detail(
-    eval_id: str, sample_id: str, epoch: int
+    eval_id: str, sample_id: str, epoch: int, content: bool = False
 ) -> dict[str, Any] | None:
     """Summary + error detail for a sample currently running in this process, or None.
 
@@ -825,12 +845,19 @@ def _running_sample_error_detail(
     return {
         **_active_sample_summary(s),
         "retries": s.retries,
-        "error_retries": [_error_dict(e) for e in s.error_retries],
+        "error_retries": [_error_dict(e, content) for e in s.error_retries],
     }
 
 
-def _error_dict(error: Any) -> dict[str, Any]:
-    """Serialize an EvalError / EvalRetryError (message + traceback) to a dict."""
+def _error_dict(error: Any, content: bool) -> dict[str, Any]:
+    """Serialize an EvalError / EvalRetryError (message + traceback) to a dict.
+
+    Without ``content`` the free-text fields are withheld — the dict is empty
+    but non-``None``, so consumers still see that an error occurred (its
+    text is agent-influenced; see :func:`sample_error_detail`).
+    """
+    if not content:
+        return {}
     return {
         "message": error.message,
         "traceback": error.traceback,
