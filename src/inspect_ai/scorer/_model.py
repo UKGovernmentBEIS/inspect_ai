@@ -200,8 +200,7 @@ def _model_graded_qa_single(
             warn_once(
                 logger,
                 f"model_graded scorer: an explicit 'model' is provided, so the "
-                f"required '{role.name}' role will not be consulted (this warning "
-                f"is deduplicated per role name per process)",
+                f"required '{role.name}' role will not be consulted",
             )
 
     # resolve grading template, instructions, and grade_pattern
