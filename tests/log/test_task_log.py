@@ -1024,6 +1024,37 @@ async def test_schedule_quiet_flush_releases_hold_and_drains_quiet() -> None:
 
 
 @pytest.mark.anyio
+async def test_live_completions_during_hold_land_at_settle() -> None:
+    # a live sample completing mid-sweep hits the flush_buffer threshold, which
+    # no-ops under the hold — the settle flush must then drain it along with
+    # the reused samples rather than leaving it stranded
+    recorder = _FlushRecorder()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=1, buffer_db=buffer_db, recorder=recorder)
+    logger.hold_destination_writes()
+
+    async with _running_stale_flush_timer(logger, start=False):
+        await logger.complete_sample(
+            _sample().model_copy(update={"id": "reused"}),
+            flush=False,
+            write_through=True,
+        )
+        await logger.complete_sample(
+            _sample().model_copy(update={"id": "live"}), flush=True
+        )
+        assert recorder.flush_count == 0
+        assert logger.flush_pending == [("live", 1)]
+
+        logger.schedule_quiet_flush()
+        with anyio.fail_after(5):
+            while logger.flush_pending or logger.flush_quiet:
+                await anyio.sleep(0.01)
+
+    assert recorder.flush_count == 1
+    assert buffer_db.removed == [("live", 1)]
+
+
+@pytest.mark.anyio
 async def test_schedule_quiet_flush_creates_destination_when_nothing_reused() -> None:
     # a held attempt that reused nothing (prior log empty or unreadable,
     # log_samples=False) still gets its destination created at settle: the

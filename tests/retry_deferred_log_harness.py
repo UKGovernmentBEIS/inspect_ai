@@ -54,9 +54,11 @@ def _crash_probe_solver(probe_dir: str):
                 open(failed_marker, "w").close()
                 raise ValueError("s2 fails on the first attempt")
             if _kill_at_settle():
-                # the retry attempt must end by the settle kill, never by
-                # finishing this sample (which would write a log)
-                await anyio.sleep_forever()
+                # the retry attempt is expected to end by the settle kill,
+                # never by finishing this sample. Bounded rather than
+                # sleep_forever so a kill that never lands surfaces as the
+                # test's own assertion (an extra log) instead of a timeout.
+                await anyio.sleep(60)
         return state
 
     return solve
