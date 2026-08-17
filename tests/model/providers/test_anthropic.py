@@ -2040,6 +2040,8 @@ async def test_anthropic_unrecorded_tool_call_appended_last() -> None:
     )
     order = [p["type"] for p in await assistant_message_block_params(message)]
     assert order == ["thinking", "tool_use"], order
+
+
 # ---------------------------------------------------------------------------
 # reasoning token counting (model_output_from_message)
 # ---------------------------------------------------------------------------
