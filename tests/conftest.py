@@ -391,7 +391,9 @@ def _resolve_hang_dump_seconds(config: pytest.Config) -> int:
             timeout = float(config.getini("timeout") or 0) or None
     except ValueError:  # pytest-timeout not installed (or garbage ini value)
         timeout = None
-    if timeout:
+    # pytest-timeout treats a non-positive timeout as disabled (a negative
+    # --timeout/PYTEST_TIMEOUT is a way to switch off an ini-set timeout)
+    if timeout and timeout > 0:
         return max(60, int(timeout) - 300)
     return 0
 
@@ -512,17 +514,18 @@ def _report_oom_kills(exitstatus: int) -> None:
         matches = [line for line in result.stdout.splitlines() if pattern.search(line)]
         if matches:
             print(
-                "\n=== kernel OOM events during this job "
-                "(meridianlabs-ai/inspect_ai#232 diagnostics; 'Memory cgroup' "
-                "lines are container-local kills, e.g. from sandbox tests "
-                "with memory limits, not worker deaths) ==="
+                "\n=== kernel OOM events since boot — job-scoped only on "
+                "ephemeral runners (meridianlabs-ai/inspect_ai#232 "
+                "diagnostics; 'Memory cgroup' lines are container-local "
+                "kills, e.g. from sandbox tests with memory limits, not "
+                "worker deaths) ==="
             )
             for line in matches:
                 print(line)
             print("=== end kernel OOM events ===")
         else:
             print(
-                "\nno kernel OOM events during this job "
+                "\nno kernel OOM events since boot "
                 "(meridianlabs-ai/inspect_ai#232 diagnostics)"
             )
         return
