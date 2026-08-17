@@ -2724,10 +2724,12 @@ async def assistant_message_block_params(
 
     # Ensure thinking blocks are not the final block in the message.
     # The API rejects messages where the last block is thinking/redacted_thinking.
-    # This can happen when the model uses its entire output budget on thinking
-    # and produces no text or tool calls.
-    if block_params and all(
-        c.get("type") in ("thinking", "redacted_thinking") for c in block_params
+    # This can happen when the model uses its entire output budget on thinking and
+    # produces no text or tool calls, or when a client tool call is spliced earlier
+    # in the turn (above) and leaves an interleaved thinking block as the last one.
+    if block_params and block_params[-1].get("type") in (
+        "thinking",
+        "redacted_thinking",
     ):
         block_params.append(TextBlockParam(type="text", text=NO_CONTENT))
 
