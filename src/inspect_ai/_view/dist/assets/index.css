@@ -1072,27 +1072,36 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
-._outer_1ml7m_1 {
+._outer_1ylmn_1 {
   /* Positioned so the block-left sticky toggle's containing block is this
      wrapper — keeps sticky behavior scoped to the panel instead of leaking
      to some arbitrary positioned ancestor up the tree. */
   position: relative;
+  /* Fill the row when the panel is a flex item: event-panel tab panes are
+     row flex containers (`.tab-content > .active { display: flex }` in the
+     theme), so without this the panel shrink-wraps to narrow content (e.g. a
+     column of images) and the inline-right "more…" toggle lands on top of
+     that content instead of at the card's right edge. `flex-grow` rather
+     than `width: 100%` because it is inert in block flow — callers that pass
+     horizontal margins via `className` (e.g. RetryAttemptCard's errorPanel)
+     would overflow their container under an explicit 100% width. */
+  flex-grow: 1;
 }
 
-._expandablePanel_1ml7m_8 {
+._expandablePanel_1ylmn_17 {
   position: relative;
 }
 
-._expandableBordered_1ml7m_12 {
+._expandableBordered_1ylmn_21 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
 
-._expandableTogglable_1ml7m_17 {
+._expandableTogglable_1ylmn_26 {
   margin-bottom: 1em;
 }
 
-._expandableContents_1ml7m_21 {
+._expandableContents_1ylmn_30 {
   font-size: var(--inspect-font-size-base);
 }
 
@@ -1108,7 +1117,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
    gradient) so the affordance works on any surface, regardless of the
    panel's bg. The inline-right toggle is a sibling of this wrapper, so it
    stays fully opaque. */
-._expandableTruncated_1ml7m_37 {
+._expandableTruncated_1ylmn_46 {
   -webkit-mask-image: linear-gradient(
     to bottom,
     black calc(100% - 3rem),
@@ -1117,7 +1126,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   mask-image: linear-gradient(to bottom, black calc(100% - 3rem), transparent);
 }
 
-._moreToggle_1ml7m_46 {
+._moreToggle_1ylmn_55 {
   display: flex;
   margin-top: 0;
   height: 20px;
@@ -1127,14 +1136,14 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   color: var(--bs-link-color);
 }
 
-._moreToggle_1ml7m_46._bordered_1ml7m_56 {
+._moreToggle_1ylmn_55._bordered_1ylmn_65 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
 /* Double class beats Bootstrap's `.btn` regardless of stylesheet order —
    in scout, Bootstrap loads after this module and its 6px 12px padding
    overflowed the fixed-height toggle bar. */
-._moreToggle_1ml7m_46 ._moreToggleButton_1ml7m_63 {
+._moreToggle_1ylmn_55 ._moreToggleButton_1ylmn_72 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
@@ -1145,7 +1154,7 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 /* Fills the panel so its sticky child is bounded by the panel's rect.
    pointer-events: none lets clicks pass through to the content behind;
    the sticky child re-enables pointer events on itself. */
-._inlineToggleHolder_1ml7m_74 {
+._inlineToggleHolder_1ylmn_83 {
   position: absolute;
   inset: 0;
   display: flex;
@@ -1157,13 +1166,13 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   z-index: 2;
 }
 
-._inlineToggleSticky_1ml7m_86 {
+._inlineToggleSticky_1ylmn_95 {
   position: sticky;
   bottom: 0.25em;
   pointer-events: auto;
 }
 
-._moreToggle_1ml7m_46._blockLeft_1ml7m_92 {
+._moreToggle_1ylmn_55._blockLeft_1ylmn_101 {
   width: fit-content;
   margin-top: 0.2em;
   margin-bottom: 0.5em;

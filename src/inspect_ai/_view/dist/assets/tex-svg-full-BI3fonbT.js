@@ -49726,7 +49726,6 @@ $2$3`).split(`\r
 						let t = globalThis.MathJax_require;
 						return t(e);
 					}
-					return null;
 				}
 			}
 			exports.default = o, o.windowSupported = !1, o.documentSupported = o.windowSupported && window.document !== void 0, o.xmldom = o.documentSupported ? window : o.extRequire(`xmldom-sre`), o.document = o.documentSupported ? window.document : new o.xmldom.DOMImplementation().createDocument(``, ``, 0), o.xpath = o.documentSupported ? document : function() {
