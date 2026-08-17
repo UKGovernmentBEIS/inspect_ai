@@ -372,6 +372,11 @@ def _resolve_hang_dump_seconds(config: pytest.Config) -> int:
     exists to explain.  Without a --timeout there is nothing bounding slow
     tests, so a fixed threshold would false-positive on legitimately long
     docker-based tests; stay off unless _HANG_DUMP_SECONDS_ENV forces a value.
+
+    For timeouts <= 60s the floor puts the threshold at or past the kill
+    point, so under the thread method the dump never fires (os._exit(1) wins).
+    Left armed anyway: under the signal method a hang stuck in C code can
+    outlive the timeout, and the dump still catches it.
     """
     env = os.environ.get(_HANG_DUMP_SECONDS_ENV)
     if env is not None:
@@ -692,8 +697,15 @@ def pytest_sessionfinish(session, exitstatus):
     global _hang_dump_file
     faulthandler.cancel_dump_traceback_later()
     if _hang_dump_file is not None:
+        dump_path = _hang_dump_file.name
         _hang_dump_file.close()
         _hang_dump_file = None
+        # each process owns its uniquely-named (pid-suffixed) dump file, so
+        # removing it when empty is safe — and keeps a user-supplied
+        # (never-cleaned) dump dir from accumulating one empty file per run
+        with contextlib.suppress(OSError):
+            if os.path.getsize(dump_path) == 0:
+                os.remove(dump_path)
 
     # When running under pytest-xdist, this hook fires once per worker as well
     # as on the controller. Letting every worker race to uninstall the test
