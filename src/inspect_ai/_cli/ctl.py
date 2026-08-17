@@ -8,8 +8,8 @@ Commands are grouped by **resource noun**, mirroring the HTTP API's object
 model (see "CLI command hierarchy: noun groups" in the design doc):
 
 - ``task`` — a logical task in a running process (stable across retries):
-  ``list`` (implied by the bare noun), ``log-flush``, ``cancel``; ``add`` /
-  ``drain`` are planned.
+  ``list`` (implied by the bare noun), ``log-flush``, ``cancel``, ``pause``,
+  ``resume``; ``add`` / ``drain`` are planned.
 - ``sample`` — one sample (``TASK SAMPLE_ID [EPOCH]``) or a task's samples:
   ``list`` (implied by the bare noun), ``show``, ``errors``, ``events``,
   ``messages``, ``cancel``, ``requeue``.
@@ -17,7 +17,8 @@ model (see "CLI command hierarchy: noun groups" in the design doc):
   configuration mid-flight (concurrency limits, log buffering). Scope is a
   property of each knob (task vs process), labeled in the output.
 - ``process`` — the running Inspect process itself: ``list`` (implied by the
-  bare noun), ``anomalies``, ``keep``, ``release``.
+  bare noun), ``anomalies``, ``keep``, ``release``, ``pause``, ``resume``.
+- ``model`` — a model's dispatch across running evals: ``pause``, ``resume``.
 
 The pre-reorg flat spellings survived as hidden, deprecation-noted aliases
 for a transition window and have been removed; they now fail as unknown
