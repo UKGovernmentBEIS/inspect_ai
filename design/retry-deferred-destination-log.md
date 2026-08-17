@@ -56,9 +56,12 @@ whole temp zip, the reused set is complete. Therefore:
   set. Reuse intact.
 - **Crash during** collapses into before/after on the main backends: local
   writes go through `atomic_write` (temp + rename), S3 through a multipart
-  upload that either completes or leaves no object. (A non-atomic fsspec
-  backend could leave a partial file — a pre-existing exposure shared by
-  every flush, unchanged here.)
+  upload that either completes or leaves no object. (Pre-existing exposures
+  shared by every flush, unchanged here: a non-atomic fsspec backend could
+  leave a partial file, and local intermediate flushes run
+  `atomic_write(fsync=False)` — atomic against process death, but power or
+  machine loss can still surface a renamed-but-unsynced flush as a partial
+  file.)
 
 ### Why gate *all* destination writes, not just `log_start`'s flush
 
@@ -307,7 +310,14 @@ per-lookup instead of degrading to no-reuse.
   the crashed no-file attempt regardless of
   `_bump_created_past_existing_logs` (which bumps only past *existing*
   files and only matters for same-second collisions) — nothing to collide
-  with either way; buffer dbs are pid-suffixed.
+  with either way; buffer dbs are pid-suffixed. The in-process retry *can*
+  hit the same-second no-file case (a held attempt whose `log_finish` also
+  failed leaves no file, and a `reinit()` landing on the same second
+  recomputes the identical path and recorder key since the bump only sees
+  existing files) — benign: `reinit()` already resets the buffer db for
+  repeated locations, the recorder's data entry is overwritten, and there
+  is no file on disk to collide with. (A narrower version exists today
+  when `log_start`'s flush itself fails.)
 - **JSON recorder**: gating lives in `TaskLogger`, so `.json` logs get the
   same deferral; `JSONRecorder.log_config_update` never eager-flushes.
 - **In-process retry / `eval-retry`**: both go through `task_run` with a
