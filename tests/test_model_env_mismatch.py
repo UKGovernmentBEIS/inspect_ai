@@ -31,7 +31,7 @@ class TestModelEnvironmentMismatch:
 
         # Mock the Azure client creation instead of the entire API class
         mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAsyncHttpxClient")
+        mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # Call get_model to trigger the mismatch warning
         caplog.clear()
@@ -85,7 +85,7 @@ class TestModelEnvironmentMismatch:
 
         # Mock the Azure client creation instead of the entire API class
         mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAsyncHttpxClient")
+        mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         # Create a minimal task with proper solver and scorer
         task = Task(
@@ -277,7 +277,7 @@ class TestModelEnvironmentMismatch:
 
         # Mock the Azure client creation instead of the entire API class
         mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
-        mocker.patch("inspect_ai.model._providers.openai.OpenAIAsyncHttpxClient")
+        mocker.patch("inspect_ai.model._providers.openai.DefaultAsyncHttpxClient")
 
         try:
             # Disable memoization to ensure fresh model creation

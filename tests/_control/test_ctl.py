@@ -1,13 +1,15 @@
 """Unit tests for the `inspect ctl` CLI.
 
 Covers target resolution (id + name matching), the noun-group command
-surface (implied `list`, strict verb boundary, hidden aliases), the agent
-output contract (envelopes, unconditional task_id, mutation results,
-cursor validation), and rendering helpers.
+surface (implied `list`, strict verb boundary), the agent output contract
+(envelopes, unconditional task_id, mutation results, cursor validation),
+and rendering helpers.
 """
 
 import json
 import os
+import re
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -25,15 +27,24 @@ from inspect_ai._cli.ctl import (
     _SHORT_ID_LEN,
     _ConfigResult,
     _CtlFailure,
+    _echo_error,
     _failure_prefix,
     _FetchedSummaries,
     _print_errored_samples_footer,
+    _print_events,
     _print_human_table,
     _print_keep_alive_footer,
+    _print_messages,
+    _print_sample_detail,
     _print_samples_table,
+    _render_table,
     _resolve_target_eval,
     _resolve_target_server,
     _SamplesPage,
+    _sanitize_control,
+    _sanitize_keep_sgr,
+    _sanitize_line,
+    _truncate,
     ctl_command,
 )
 from inspect_ai._control.discovery import DiscoveredControlServer
@@ -638,6 +649,30 @@ def test_sample_detail_no_errors(capsys: pytest.CaptureFixture[str]) -> None:
     assert "(no errors)" in capsys.readouterr().out
 
 
+def test_sample_detail_withheld_error_renders_marker(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A withheld error renders as an explicit marker, not a blank line.
+
+    A metadata-only detail (no --content) carries each error as an empty dict.
+    """
+    from inspect_ai._cli.ctl import _print_sample_detail
+
+    detail = {
+        "sample_id": 1,
+        "epoch": 1,
+        "status": "error",
+        "retries": 1,
+        "error": {},
+        "error_retries": [{}],
+        "scores": {},
+    }
+    _print_sample_detail(detail, show_traceback=False)
+    out = capsys.readouterr().out
+    assert "final error" in out and "prior attempts" in out
+    assert out.count("withheld — pass --content") == 2
+
+
 def test_errors_table_lists_retried_and_errored(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -699,7 +734,7 @@ def test_print_events_table_and_footer(
         "next": "CURSORX",
         "done": False,
     }
-    _print_events(page, full=False)
+    _print_events(page, content=True, full=False)
     out = capsys.readouterr().out
     assert "event" in out.splitlines()[0]  # table header
     # per-type summaries
@@ -709,12 +744,82 @@ def test_print_events_table_and_footer(
     assert "4 events" in out
     assert "more" in out
     assert "next: CURSORX" in out
+    # a content read carries no metadata-only pointer
+    assert "metadata only" not in out
+
+
+def test_print_events_metadata_rows_and_footer_hint(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Metadata-only rows render structural fields and error presence.
+
+    The footer points at the --content opt-in.
+    """
+    from inspect_ai._cli.ctl import _print_events
+
+    page = {
+        "events": [
+            {
+                "event": "model",
+                "timestamp": 1000.0,
+                "model": "openai/gpt",
+                "tokens": 42,
+                "stop_reason": "stop",
+                "has_error": False,
+            },
+            {
+                "event": "tool",
+                "timestamp": 1001.0,
+                "function": "bash",
+                "has_error": True,
+            },
+        ],
+        "next": "CURSORX",
+        "done": False,
+    }
+    _print_events(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "openai/gpt" in out and "42 tok" in out
+    assert "bash() → error" in out
+    assert "metadata only (pass --content for text)" in out
+
+
+def test_print_events_footer_response_keyed_on_old_server(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No "metadata only" hint under content a pre-v6 server returned anyway.
+
+    A pre-v6 server ignores the unknown ``content`` query param and returns
+    the old content-bearing projection; the footer keys on the response, so
+    it must not caption the text printed right above it as withheld.
+    """
+    from inspect_ai._cli.ctl import _print_events
+
+    page = {
+        "events": [
+            {
+                "event": "model",
+                "timestamp": 1000.0,
+                "model": "openai/gpt",
+                "tokens": 42,
+                "stop_reason": "stop",
+                "completion": "hello",
+                "error": None,
+            }
+        ],
+        "next": None,
+        "done": True,
+    }
+    _print_events(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "hello" in out
+    assert "metadata only" not in out
 
 
 def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None:
     from inspect_ai._cli.ctl import _print_events
 
-    _print_events({"events": [], "next": "X", "done": True}, full=False)
+    _print_events({"events": [], "next": "X", "done": True}, content=True, full=False)
     out = capsys.readouterr().out
     assert "(no events)" in out
     assert "done" in out
@@ -740,7 +845,7 @@ def test_print_events_full_pretty_prints_raw(
         "next": "CURSORX",
         "done": False,
     }
-    _print_events(page, full=True)
+    _print_events(page, content=False, full=True)
     out = capsys.readouterr().out
     # nested raw fields survive (the compact table would have dropped them)
     assert '"total_tokens": 42' in out
@@ -1455,6 +1560,7 @@ def test_sample_events_read_retries_busy_timeout(
         tail=5,
         limit=None,
         types=None,
+        content=False,
         full=False,
         since_time=None,
         until=None,
@@ -2525,6 +2631,44 @@ def test_sample_errors_human_skipped_target_says_unavailable(
     assert "Skipping eval eval_aaa111" in result.stderr
 
 
+def test_sample_errors_footer_points_at_content_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The human errors view notes withheld messages (rows with `error: None`)."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("bad", status="error", retries=1, error=None)]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "errors"])
+    assert result.exit_code == 0, result.output
+    assert "error messages withheld — pass --content to include them" in result.output
+
+
+def test_sample_errors_footer_response_keyed_on_old_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No "withheld" footer under error text a pre-v6 server returned anyway.
+
+    The stubbed read ignores ``content`` and returns the row's error message
+    — exactly what a pre-v6 server does with the unknown query param — so
+    the footer must not caption the message printed right above it.
+    """
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("bad", status="error", error="boom")]
+        },
+    )
+    result = cli_runner().invoke(ctl_command, ["sample", "errors"])
+    assert result.exit_code == 0, result.output
+    assert "boom" in result.output
+    assert "withheld" not in result.output
+
+
 def test_sample_list_scoped_unreachable_exits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2737,34 +2881,6 @@ def test_config_busy_read_points_at_pid(
     assert "inspect ctl process anomalies 7" in result.stderr
 
 
-def test_old_flat_spellings_hidden_from_help() -> None:
-    result = cli_runner().invoke(ctl_command, ["--help"])
-    for old in (
-        "tasks",
-        "samples",
-        "errors",
-        "events",
-        "keep",
-        "release",
-        "flush",
-        "buffer",
-        "limits",
-    ):
-        assert f"\n  {old} " not in result.output, old
-
-
-def test_tasks_alias_delegates_with_deprecation_note(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The hidden alias runs the new implementation (new JSON) + stderr note."""
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    result = cli_runner().invoke(ctl_command, ["tasks", "--json"])
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)  # note on stderr keeps stdout parseable
-    assert payload["tasks"][0]["task_id"] == "aaa111"
-    assert "is now `inspect ctl task list`" in result.stderr
-
-
 def _stub_limits(
     monkeypatch: pytest.MonkeyPatch,
     buffer: dict[str, Any] | None = None,
@@ -2789,18 +2905,6 @@ def _stub_limits(
         )
 
     monkeypatch.setattr("inspect_ai._cli.ctl._exec_limits", fake_limits)
-
-
-def test_limits_alias_delegates_to_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
-    _stub_limits(
-        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
-    )
-    result = cli_runner().invoke(ctl_command, ["limits", "--json"])
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
-    assert payload["knobs"]["max_samples"]["scope"] == "task"
-    assert "is now `inspect ctl config`" in result.stderr
 
 
 def test_config_view_tolerates_missing_buffer(
@@ -3016,6 +3120,222 @@ def test_knob_since_table_is_consistent() -> None:
     from inspect_ai._cli.ctl import _PROVENANCE_SINCE
 
     assert _PROVENANCE_SINCE <= CONTROL_API_VERSION
+
+
+def test_mutation_envelope_help_sketches_actual_keys() -> None:
+    """The shared --help sketch names exactly `_mutation_envelope`'s keys.
+
+    Every mutation verb's --json help shows `_MUTATION_ENVELOPE_HELP` so a
+    scripted consumer can orient the first parse from --help alone; this
+    pins the sketch to the envelope builder so the two can't drift.
+    """
+    from inspect_ai._cli.ctl import _MUTATION_ENVELOPE_HELP, _mutation_envelope
+
+    envelope = _mutation_envelope(
+        {"task_id": "aaa111"}, {"ok": True, "changed": True}, dry_run=False
+    )
+    assert "{" + ", ".join(envelope.keys()) + "}" in _MUTATION_ENVELOPE_HELP
+
+
+def test_config_help_sketches_compose_config_keys() -> None:
+    """`config --help`'s --json sketch names exactly `_compose_config`'s keys."""
+    from inspect_ai._cli.ctl import _compose_config, _DirectiveScope, config_command
+
+    scope = _DirectiveScope(
+        socket_path="sock", pid=1, task_id=None, task=None, header="", siblings=0
+    )
+    view = _compose_config(scope, {}, dry_run=False, set_values=False, notes=[])
+    option = next(
+        p
+        for p in config_command.params
+        if isinstance(p, click.Option) and p.name == "as_json"
+    )
+    assert "{" + ", ".join(view.keys()) + "}" in (option.help or "")
+
+
+def test_every_json_option_help_sketches_payload_keys() -> None:
+    """Every visible ctl command's --json help sketches the payload shape.
+
+    The agent output contract: a scripted consumer should learn each
+    command's --json top-level keys from --help, not by parsing a payload
+    and failing. A brace in the help is the sketch's marker.
+    """
+
+    def visible_commands(
+        group: click.Group, prefix: str = ""
+    ) -> Iterator[tuple[str, click.Command]]:
+        for name, cmd in group.commands.items():
+            if cmd.hidden:
+                continue
+            yield f"{prefix}{name}", cmd
+            if isinstance(cmd, click.Group):
+                yield from visible_commands(cmd, f"{prefix}{name} ")
+
+    for path, cmd in visible_commands(ctl_command):
+        json_options = [
+            p for p in cmd.params if isinstance(p, click.Option) and p.name == "as_json"
+        ]
+        if isinstance(cmd, click.Group) and "list" not in cmd.commands:
+            # a group without a bare-noun list default (e.g. `model`) carries
+            # no mirrored --json of its own; groups with one must mirror it
+            continue
+        assert json_options, f"`{path}` has no --json option"
+        help_text = json_options[0].help or ""
+        assert help_text.startswith("Output as JSON ("), path
+        assert "{" in help_text, f"`{path}` --json help has no payload sketch"
+
+
+def _json_help_sketch_keys(*path: str) -> list[str]:
+    """The key list inside a command's --json help `{...}` payload sketch."""
+    cmd: click.Command = ctl_command
+    for name in path:
+        assert isinstance(cmd, click.Group)
+        cmd = cmd.commands[name]
+    option = next(
+        p for p in cmd.params if isinstance(p, click.Option) and p.name == "as_json"
+    )
+    match = re.search(r"\{([^}]*)\}", option.help or "")
+    assert match is not None, f"`{' '.join(path)}` --json help has no payload sketch"
+    return [key.strip() for key in match.group(1).split(",")]
+
+
+def _assert_payload_matches_sketch(payload: dict[str, Any], *path: str) -> None:
+    """Assert a --json payload's top-level keys match the command's help sketch.
+
+    An exact ordered match, except when the sketch elides keys with `...` (a
+    flat object whose middle rides on the server response): there the keys
+    before the `...` must lead the payload in order, and every other sketched
+    key must be present (their order isn't guaranteed — a key the server's
+    row already carries keeps the row's position on dict merge).
+    """
+    sketch = _json_help_sketch_keys(*path)
+    actual = list(payload.keys())
+    label = " ".join(path)
+    if "..." in sketch:
+        cut = sketch.index("...")
+        assert actual[:cut] == sketch[:cut], (
+            f"`{label}` payload does not lead with the sketched keys: "
+            f"{actual} vs sketch {sketch}"
+        )
+        missing = set(sketch[cut + 1 :]) - set(actual)
+        assert not missing, f"`{label}` payload is missing sketched keys {missing}"
+    else:
+        assert actual == sketch, (
+            f"`{label}` payload keys {actual} != help sketch {sketch}"
+        )
+
+
+def test_task_list_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = cli_runner().invoke(ctl_command, ["task", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "task", "list")
+
+
+def test_sample_listing_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`sample list` and `sample errors` share the listing envelope sketch."""
+    _patch_surface(
+        monkeypatch,
+        [_full_summary("aaa111", "t1")],
+        samples_by_eval={
+            "eval_aaa111": [_sample_row("s1"), _sample_row("bad", error="boom")]
+        },
+    )
+    runner = cli_runner()
+    for verb in ("list", "errors"):
+        result = runner.invoke(ctl_command, ["sample", verb, "--json"])
+        assert result.exit_code == 0, result.output
+        _assert_payload_matches_sketch(json.loads(result.stdout), "sample", verb)
+
+
+def test_sample_show_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The flat show object leads with the sketch's identity keys.
+
+    The payload's middle is the server's detail response (elided as `...` in
+    the sketch); the stubbed detail mirrors the terminal-path response shape
+    (``message_count`` included, so no fallback listing fetch fires — the
+    detail's own keys are pinned by the server-side tests).
+    """
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    detail = {
+        "sample_id": "s1",
+        "epoch": 1,
+        "status": "completed",
+        "total_time": 1.0,
+        "total_tokens": 5,
+        "message_count": 1,
+        "retries": 0,
+        "error": None,
+        "error_retries": [],
+        "scores": {},
+    }
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_detail", lambda *a, **k: dict(detail)
+    )
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "show", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "show")
+
+
+def test_sample_events_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both the served page and the no-evals empty page keep the sketched shape."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_events",
+        lambda *a, **k: {"events": [], "next": None, "done": True},
+    )
+    runner = cli_runner()
+    result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "events")
+
+    _patch_surface(monkeypatch, [])
+    result = runner.invoke(ctl_command, ["sample", "events", "aaa111", "s1", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "events")
+
+
+def test_sample_messages_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both the served page and the no-evals empty page keep the sketched shape."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._fetch_sample_messages",
+        lambda *a, **k: {"as_of": 1.0, "status": "running", "count": 0, "messages": []},
+    )
+    runner = cli_runner()
+    result = runner.invoke(
+        ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "messages")
+
+    _patch_surface(monkeypatch, [])
+    result = runner.invoke(
+        ctl_command, ["sample", "messages", "aaa111", "s1", "--json"]
+    )
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "sample", "messages")
+
+
+def test_process_list_json_payload_matches_help_sketch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    result = cli_runner().invoke(ctl_command, ["process", "list", "--json"])
+    assert result.exit_code == 0, result.output
+    _assert_payload_matches_sketch(json.loads(result.stdout), "process", "list")
 
 
 def test_config_provenance_sent_with_mutations_on_current_server(
@@ -3755,7 +4075,7 @@ def test_print_messages_table_and_footer(
             },
         ],
     }
-    _print_messages(page, full=False)
+    _print_messages(page, content=True, full=False)
     out = capsys.readouterr().out
     assert "role" in out.splitlines()[0]  # table header
     assert "what is the weather?" in out and "search" in out
@@ -3763,12 +4083,65 @@ def test_print_messages_table_and_footer(
     assert "2 of 5 messages" in out
     assert "--all" in out
     assert "running" in out
+    # a content read carries no metadata-only pointer
+    assert "metadata only" not in out
+
+
+def test_print_messages_metadata_rows_and_footer_hint(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Metadata-only rows render roles / function names / error presence.
+
+    The footer points at the --content opt-in.
+    """
+    from inspect_ai._cli.ctl import _print_messages
+
+    page = {
+        "status": "running",
+        "count": 3,
+        "messages": [
+            {"index": 0, "role": "user"},
+            {
+                "index": 1,
+                "role": "assistant",
+                "tool_calls": [{"id": "c1", "function": "search"}],
+            },
+            {"index": 2, "role": "tool", "function": "search", "has_error": True},
+        ],
+    }
+    _print_messages(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "search" in out and "error" in out
+    assert "metadata only (pass --content for text)" in out
+
+
+def test_print_messages_footer_response_keyed_on_old_server(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """No "metadata only" hint under content a pre-v6 server returned anyway.
+
+    Pre-v6 message projections carry ``content`` on every message; its
+    presence means the server ignored the metadata-only request.
+    """
+    from inspect_ai._cli.ctl import _print_messages
+
+    page = {
+        "status": "running",
+        "count": 1,
+        "messages": [{"index": 0, "role": "user", "content": "hi there"}],
+    }
+    _print_messages(page, content=False, full=False)
+    out = capsys.readouterr().out
+    assert "hi there" in out
+    assert "metadata only" not in out
 
 
 def test_print_messages_empty(capsys: pytest.CaptureFixture[str]) -> None:
     from inspect_ai._cli.ctl import _print_messages
 
-    _print_messages({"status": "completed", "count": 0, "messages": []}, full=False)
+    _print_messages(
+        {"status": "completed", "count": 0, "messages": []}, content=True, full=False
+    )
     out = capsys.readouterr().out
     assert "(no messages)" in out
     # nothing withheld, so no --all hint
@@ -4153,13 +4526,30 @@ def test_task_cancel_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_task_cancel_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--no-terse pins the full rendering (the runner's stdout is not a TTY)."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["task", "cancel", "aaa111", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "·" in result.stdout  # the task header
+    assert "Cancel requested" in result.stdout
+    assert "3 in-flight samples" in result.stdout
+
+
+def test_task_cancel_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Non-TTY stdout (the runner's) defaults to one header-free outcome line."""
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "changed": True, "in_flight": 3})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(ctl_command, ["task", "cancel", "aaa111"])
     assert result.exit_code == 0, result.output
-    assert "Cancel requested" in result.stdout
-    assert "3 in-flight samples" in result.stdout
+    assert result.stdout == (
+        "cancel t1: requested — 3 in-flight samples will be interrupted; "
+        "completed samples are kept\n"
+    )
 
 
 def test_task_cancel_missing_route_names_version_skew(
@@ -4285,10 +4675,22 @@ def test_task_pause_human_output(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "paused": "task", "changed": True, "dispatched": 3})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111"])
+    result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111", "--no-terse"])
     assert result.exit_code == 0, result.output
     assert "Pause requested" in result.output
     assert "3 dispatched samples" in result.output
+
+
+def test_task_pause_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "paused": "task", "changed": True, "dispatched": 3})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "pause", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "pause t1: requested — 3 dispatched samples will finish naturally; "
+        "no new samples or retry attempts will start\n"
+    )
 
 
 def test_task_resume_human_output_notes_process_latch(
@@ -4298,11 +4700,28 @@ def test_task_resume_human_output_notes_process_latch(
     _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
     spy = _RequestSpy({"ok": True, "paused": "process", "changed": True})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    result = cli_runner().invoke(
+        ctl_command, ["task", "resume", "aaa111", "--no-terse"]
+    )
     assert result.exit_code == 0, result.output
     assert spy.paths == ["/tasks/aaa111/resume"]
     assert "Resume requested" in result.output
     assert "process is paused" in result.output
+
+
+def test_task_resume_terse_line_notes_still_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The terse resume line still reports the latch that keeps the task held."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    spy = _RequestSpy({"ok": True, "paused": "process", "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == (
+        "resume t1: requested — queued samples will dispatch again "
+        "(still held by process pause — `inspect ctl process resume`)\n"
+    )
 
 
 def test_task_resume_noop_notes_process_latch(
@@ -4324,10 +4743,19 @@ def test_task_resume_noop_notes_process_latch(
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    result = cli_runner().invoke(
+        ctl_command, ["task", "resume", "aaa111", "--no-terse"]
+    )
     assert result.exit_code == 0, result.output
     assert "Nothing to do: task is not paused." in result.output
     assert "process is paused" in result.output
+
+    terse = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == (
+        "resume t1: no-op — task is not paused (still held by process pause "
+        "— `inspect ctl process resume`)\n"
+    )
 
 
 def test_task_pause_noop_reports_unapplied(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4539,7 +4967,9 @@ def test_task_resume_notes_model_latch(monkeypatch: pytest.MonkeyPatch) -> None:
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = cli_runner().invoke(ctl_command, ["task", "resume", "aaa111"])
+    result = cli_runner().invoke(
+        ctl_command, ["task", "resume", "aaa111", "--no-terse"]
+    )
     assert result.exit_code == 0, result.output
     assert "model is paused" in result.output
     assert "inspect ctl model resume" in result.output
@@ -4699,7 +5129,7 @@ def test_sample_requeue_dry_run_and_human_output(
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(
-        ctl_command, ["sample", "requeue", "aaa111", "s1", "--dry-run"]
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--dry-run", "--no-terse"]
     )
     assert result.exit_code == 0, result.output
     assert spy.params == [{"sample_id": "s1", "epoch": 1, "dry_run": True}]
@@ -4722,10 +5152,20 @@ def test_sample_requeue_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> No
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
+    )
     assert result.exit_code == 0, result.output
     assert "Nothing to do" in result.stdout
     assert "a re-run is already pending" in result.stdout
+
+    # in the terse line the no-op names its target — a loop's outcome lines
+    # stay attributable without the header (the full no-op leans on it)
+    terse = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert terse.exit_code == 0, terse.output
+    assert terse.stdout == (
+        "requeue t1/s1 (epoch 1): no-op — a re-run is already pending\n"
+    )
 
 
 def test_sample_requeue_multiple_pairs_bulk_envelope(
@@ -4836,12 +5276,42 @@ def test_sample_requeue_errored_dry_run_human_output(
     spy = _RequestSpy({"ok": True, "changed": True, "dry_run": True})
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
     result = cli_runner().invoke(
-        ctl_command, ["sample", "requeue", "aaa111", "--errored", "--dry-run"]
+        ctl_command,
+        ["sample", "requeue", "aaa111", "--errored", "--dry-run", "--no-terse"],
     )
     assert result.exit_code == 0, result.output
     assert all(params.get("dry_run") is True for params in spy.params)
     assert result.stdout.count("Would requeue sample") == 2
     assert "Would requeue 2 of 2 samples." in result.stdout
+
+
+def test_sample_requeue_errored_sweep_terse_lines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sweep honors terse (the runner's non-TTY stdout is the default)."""
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(
+        monkeypatch,
+        [summary],
+        samples_by_eval={
+            "eval_aaa111": [
+                _sample_row("s1", status="error", error="boom"),
+                _sample_row("s2", status="error", error="boom"),
+            ]
+        },
+    )
+    spy = _RequestSpy({"ok": True, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "--errored"]
+    )
+    assert result.exit_code == 0, result.output
+    lines = [line for line in result.stdout.splitlines() if line]
+    assert len(lines) == 2
+    assert all(line.startswith("requeue sample s") for line in lines)
+    assert all("accepted — will" in line for line in lines)
+    assert "Task:" not in result.stdout  # no header in terse mode
 
 
 def test_sample_requeue_errored_sweep_empty(
@@ -4959,7 +5429,7 @@ def test_sample_requeue_bulk_reports_mixed_results(
 
     human = cli_runner().invoke(
         ctl_command,
-        ["sample", "requeue", "aaa111", "s1", "1", "s2", "1", "s3", "1"],
+        ["sample", "requeue", "aaa111", "s1", "1", "s2", "1", "s3", "1", "--no-terse"],
     )
     assert human.exit_code == 0, human.output
     assert "Requeue accepted for sample s1 (epoch 1)" in human.stdout
@@ -4994,7 +5464,8 @@ def test_sample_requeue_bulk_rejection_reported_once(
 
     monkeypatch.setattr("inspect_ai._cli.ctl._get_response_with_retry", respond)
     result = cli_runner().invoke(
-        ctl_command, ["sample", "requeue", "aaa111", "s1", "1", "s2", "2"]
+        ctl_command,
+        ["sample", "requeue", "aaa111", "s1", "1", "s2", "2", "--no-terse"],
     )
     assert result.exit_code == 0, result.output
     assert "Rejected sample s1 (epoch 1) — task already finished" in result.stdout
@@ -5072,10 +5543,145 @@ def test_sample_cancel_noop_human_output(monkeypatch: pytest.MonkeyPatch) -> Non
         }
     )
     monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
-    result = cli_runner().invoke(ctl_command, ["sample", "cancel", "aaa111", "s1"])
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--no-terse"]
+    )
     assert result.exit_code == 0, result.output
     assert "already finished" in result.stdout
     assert "status: completed" in result.stdout
+
+
+def test_sample_mutation_terse_default_and_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated mutations read as one `verb target: outcome` line each.
+
+    The runner's captured stdout is not a TTY, so the terse default applies
+    (issue #160: 44 requeues in a loop should be 44 scannable lines, not 44
+    task-status banners); an explicit --terse forces the same line and
+    --json still wins over it.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy({"ok": True, "sample_id": "s1", "epoch": 1, "changed": True})
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+
+    requeue = cli_runner().invoke(ctl_command, ["sample", "requeue", "aaa111", "s1"])
+    assert requeue.exit_code == 0, requeue.output
+    assert requeue.stdout == (
+        "requeue t1/s1 (epoch 1): accepted — will re-run from the back of "
+        "the sample queue\n"
+    )
+
+    cancel = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--terse"]
+    )
+    assert cancel.exit_code == 0, cancel.output
+    assert cancel.stdout == (
+        "cancel t1/s1 (epoch 1): requested — will be scored on the work done so far\n"
+    )
+
+    as_json = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--terse", "--json"]
+    )
+    assert as_json.exit_code == 0, as_json.output
+    assert json.loads(as_json.stdout)["applied"] is True
+
+
+def test_use_terse_resolves_by_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neither --terse nor --no-terse given resolves by stdout TTY-ness."""
+    from inspect_ai._cli.ctl import _use_terse
+
+    class _Stream:
+        def __init__(self, tty: bool) -> None:
+            self._tty = tty
+
+        def isatty(self) -> bool:
+            return self._tty
+
+    monkeypatch.setattr("sys.stdout", _Stream(tty=True))
+    assert _use_terse(None) is False
+    assert _use_terse(True) is True
+
+    monkeypatch.setattr("sys.stdout", _Stream(tty=False))
+    assert _use_terse(None) is True
+    assert _use_terse(False) is False
+
+
+def test_log_flush_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 2}
+    )
+    result = cli_runner().invoke(ctl_command, ["task", "log-flush"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "log-flush t1: applied — flushed 2 samples\n"
+
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl._post_flush", lambda *a, **k: {"flushed": 0}
+    )
+    noop = cli_runner().invoke(ctl_command, ["task", "log-flush"])
+    assert noop.exit_code == 0, noop.output
+    assert noop.stdout == "log-flush t1: no-op — no buffered samples\n"
+
+
+def test_config_set_terse_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A terse config set reports the requested knobs, not the whole view."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = cli_runner().invoke(ctl_command, ["config", "--max-samples", "3"])
+    assert result.exit_code == 0, result.output
+    assert result.stdout == "config t1: applied — max_samples=3\n"
+
+    dry = cli_runner().invoke(
+        ctl_command, ["config", "--max-samples", "3", "--dry-run"]
+    )
+    assert dry.exit_code == 0, dry.output
+    assert dry.stdout == "config t1: dry-run — max_samples=3\n"
+
+    # --model narrows a connections retune — the line must say so
+    modeled = cli_runner().invoke(
+        ctl_command, ["config", "--max-connections", "9", "--model", "gpt-4"]
+    )
+    assert modeled.exit_code == 0, modeled.output
+    assert modeled.stdout == (
+        "config t1: applied — max_connections=9 (models matching 'gpt-4')\n"
+    )
+
+
+def test_config_set_terse_keeps_warnings_and_notes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The terse `applied` claim stays honest.
+
+    Warnings and the process-scope blast-radius note survive as extra lines.
+    """
+    _patch_surface(
+        monkeypatch, [_full_summary("aaa111", "t1"), _full_summary("bbb222", "t2")]
+    )
+    _stub_limits(monkeypatch)
+    result = cli_runner().invoke(ctl_command, ["config", "--max-sandboxes", "4"])
+    assert result.exit_code == 0, result.output
+    lines = result.stdout.splitlines()
+    assert lines[0] == "config pid 7: applied — max_sandboxes=4"
+    assert any(
+        line.startswith("note: ") and "--max-sandboxes" in line for line in lines[1:]
+    )
+
+
+def test_config_view_ignores_terse(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pure view renders the full config block — terse covers only a set."""
+    _patch_surface(monkeypatch, [_full_summary("aaa111", "t1")])
+    _stub_limits(
+        monkeypatch, buffer={"log_buffer": 10, "pending": 0, "log_shared": None}
+    )
+    result = cli_runner().invoke(ctl_command, ["config", "--terse"])
+    assert result.exit_code == 0, result.output
+    assert "config:" in result.stdout
+    assert "max samples [task]:" in result.stdout
 
 
 def test_print_config_process_scope_shows_buffer_placeholder(
@@ -5083,8 +5689,8 @@ def test_print_config_process_scope_shows_buffer_placeholder(
 ) -> None:
     """The process-level view points at the per-task buffer knobs.
 
-    Mirrors the max_samples placeholder, so `ctl config` (and the deprecated
-    `ctl buffer` alias) in a multi-task process never silently omits them.
+    Mirrors the max_samples placeholder, so `ctl config` in a multi-task
+    process never silently omits them.
     """
     from inspect_ai._cli.ctl import _print_config
 
@@ -5119,25 +5725,6 @@ def test_resolve_scope_siblings_counts_active_only() -> None:
     assert scope is not None
     assert scope.siblings == 1  # the completed sibling is excluded
     assert scope.pid == 7  # carried for the busy-escalation pointer
-
-
-def test_keep_alias_accepts_positional_pid(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The shared ambiguity error teaches `... keep <pid>`; the alias obeys."""
-    posted: list[str] = []
-
-    def record(socket_path: str, path: str, **kwargs: Any) -> dict[str, Any]:
-        posted.append(str(socket_path))
-        return {"ok": True}
-
-    monkeypatch.setattr(
-        "inspect_ai._cli.ctl.list_discovered_servers",
-        lambda: [_DiscServer(7), _DiscServer(8)],
-    )
-    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", record)
-    result = cli_runner().invoke(ctl_command, ["keep", "8"])
-    assert result.exit_code == 0, result.output
-    assert posted == ["/tmp/8.sock"]
-    assert "is now `inspect ctl process keep`" in result.stderr
 
 
 def test_sample_list_unscoped_skips_busy_eval(
@@ -5702,6 +6289,13 @@ def test_process_anomalies_explicit_pid_json(trace_dir: Path) -> None:
     assert section["timeouts"] == []
 
 
+def test_process_anomalies_json_payload_matches_help_sketch(trace_dir: Path) -> None:
+    write_trace_log(trace_dir / "trace-123.log", _anomalous_records())
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    assert result.exit_code == 0
+    _assert_payload_matches_sketch(json.loads(result.stdout), "process", "anomalies")
+
+
 def test_process_anomalies_dead_pid_reads_gz(
     trace_dir: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -5947,3 +6541,618 @@ def test_process_anomalies_accepts_group_level_json(trace_dir: Path) -> None:
     result = cli_runner().invoke(ctl_command, ["process", "--json", "anomalies", "123"])
     assert result.exit_code == 0
     assert json.loads(result.stdout)["processes"][0]["pid"] == 123
+
+
+# ---------------------------------------------------------------------------
+# control-character sanitization (operator-terminal spoofing, issue #195)
+# ---------------------------------------------------------------------------
+#
+# Agent-controlled text (tool stdout, model completions, error messages)
+# flows out through the human renderings; these pin that escape sequences
+# and control bytes are neutralized before they reach the terminal.
+
+
+def test_sanitize_removes_csi_sequences_whole() -> None:
+    assert _sanitize_control("\x1b[2K\rALL SAMPLES PASSED") == "ALL SAMPLES PASSED"
+    assert _sanitize_control("a\x1b[31;1mred\x1b[0mb") == "aredb"
+
+
+def test_sanitize_removes_osc_payload() -> None:
+    # BEL-terminated title write: the payload must not survive as text
+    assert _sanitize_control("\x1b]0;compromised\x07ok") == "ok"
+    # ST-terminated OSC 8 hyperlink
+    assert _sanitize_control("\x1b]8;;http://evil\x1b\\link") == "link"
+    # unterminated OSC at end of string
+    assert _sanitize_control("before\x1b]52;c;payload") == "before"
+    # raw C1 ST terminates too — text after it must survive
+    assert _sanitize_control("\x1b]0;x\x9cafter") == "after"
+
+
+def test_sanitize_removes_string_sequences_and_charset_payload() -> None:
+    # DCS / APC strings drop their payload, not just the introducer
+    assert _sanitize_control("\x1bPq#payload\x1b\\ok") == "ok"
+    assert _sanitize_control("\x1b_hidden\x07ok") == "ok"
+    # charset designation: 3 bytes, no stray final byte left behind
+    assert _sanitize_control("\x1b(Bok") == "ok"
+    assert _sanitize_control("\x1b(0ok") == "ok"
+
+
+def test_sanitize_drops_c0_del_and_c1_bytes() -> None:
+    assert _sanitize_control("pass\x08\x08fail\x07\x7f") == "passfail"
+    assert _sanitize_control("a\rb") == "ab"
+    assert _sanitize_control("a\x9bb\x85c") == "abc"
+    # lone trailing ESC
+    assert _sanitize_control("abc\x1b") == "abc"
+
+
+def test_sanitize_drops_bidi_controls() -> None:
+    # RLO in a cell would visually reverse the rest of the physical line on
+    # BiDi terminals (Trojan Source, CVE-2021-42574) — same cross-field
+    # spoof class as an escape sequence
+    assert _sanitize_control("fail\u202edessap") == "faildessap"
+    # embeddings, isolates, marks, and ALM all dropped; RTL text itself kept
+    assert (
+        _sanitize_control("\u202aa\u202db\u202cc\u2066d\u2067e\u2068f\u2069")
+        == "abcdef"
+    )
+    assert _sanitize_control("\u200ex\u200fy\u061cz") == "xyz"
+    assert _sanitize_control("\u05e9\u05dc\u05d5\u05dd") == "\u05e9\u05dc\u05d5\u05dd"
+
+
+def test_sanitize_keeps_newline_replaces_tab() -> None:
+    assert _sanitize_control("line1\nline2") == "line1\nline2"
+    assert _sanitize_control("a\tb") == "a b"
+
+
+def test_sanitize_line_flattens_newlines() -> None:
+    assert _sanitize_line("line1\nline2") == "line1 line2"
+    assert _sanitize_line("a\x1b[2K\nb") == "a b"
+
+
+def test_sanitize_keep_sgr_trailing_reset_preserves_trailing_newlines() -> None:
+    """The appended reset closes styling without eating trailing newlines."""
+    assert _sanitize_keep_sgr("\x1b[31mred\n\n") == "\x1b[31mred\x1b[0m\n\n"
+    # already-reset text is untouched, newlines included
+    assert _sanitize_keep_sgr("\x1b[31mred\x1b[0m\n") == "\x1b[31mred\x1b[0m\n"
+    # no SGR kept -> no reset appended
+    assert _sanitize_keep_sgr("plain\n") == "plain\n"
+
+
+def test_truncate_sanitizes_before_width_math() -> None:
+    # printable content fits the width once the escape bytes are stripped —
+    # width must be computed on what the operator sees, not raw bytes
+    assert _truncate("\x1b[31m" + "x" * 10 + "\x1b[0m", 10) == "x" * 10
+    assert _truncate("evil\rgood", 80) == "evilgood"
+
+
+def test_render_table_sanitizes_cells_and_widths(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _render_table(
+        ("col_a", "col_b"),
+        [("\x1b]0;t\x07x\ny", "ok"), ("zz", "w")],
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out
+    lines = out.splitlines()
+    # embedded newline becomes a space (no forged row) and widths align
+    assert lines[2].startswith("x y")
+    assert lines[1] == "-----  -----"
+
+
+def test_echo_error_sanitizes_message_and_plain_traceback(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _echo_error(
+        "attempt 1:",
+        {"message": "boom\x1b[2K\rspoof", "traceback": "Trace\x1b[31mback"},
+        True,
+    )
+    out = capsys.readouterr().out
+    assert "boomspoof" in out
+    assert "Traceback" in out
+    assert "\x1b" not in out and "\r" not in out
+
+
+def test_echo_error_flattens_newlines_in_message(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Newlines in an error message can't print forged lines at column 0."""
+    _echo_error("", {"message": "boom\n(no errors)\nsample 2  ·  completed"}, False)
+    out = capsys.readouterr().out
+    assert out == "  boom (no errors) sample 2  ·  completed\n"
+
+
+def test_echo_error_keeps_traceback_ansi_sgr_styling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # capture pre-echo text: click.echo itself strips ANSI on a non-tty
+    # stream, which would mask whether _echo_error sanitized the traceback
+    lines: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.click.echo",
+        lambda message=None, **kwargs: lines.append(str(message)),
+    )
+    _echo_error(
+        "", {"message": "boom", "traceback_ansi": "\x1b[31mTraceback\x1b[0m"}, True
+    )
+    assert any("\x1b[31mTraceback\x1b[0m" in line for line in lines)
+
+
+def test_echo_error_neutralizes_raw_traceback_ansi(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A raw traceback_ansi keeps SGR styling but no other control bytes.
+
+    The oversized-traceback / recovered-log fallback sets traceback_ansi to
+    raw un-rendered text, which must not smuggle OSC/CSI/CR/BS through —
+    and any kept styling is closed with a reset so a trailing conceal
+    can't hide the output that follows.
+    """
+    lines: list[str] = []
+    monkeypatch.setattr(
+        "inspect_ai._cli.ctl.click.echo",
+        lambda message=None, **kwargs: lines.append(str(message)),
+    )
+    _echo_error(
+        "",
+        {
+            "message": "boom",
+            "traceback_ansi": (
+                "\x1b[31mTrace\x1b[0m\x1b]0;pwned\x07\x1b[2K\rback\x08\x1b[8m"
+            ),
+        },
+        True,
+    )
+    tb_lines = [line for line in lines if "Trace" in line]
+    assert tb_lines == ["    \x1b[31mTrace\x1b[0mback\x1b[8m\x1b[0m"]
+
+
+def test_sample_detail_header_sanitized(capsys: pytest.CaptureFixture[str]) -> None:
+    _print_sample_detail(
+        {
+            "sample_id": "s\x1b[2K1",
+            "epoch": 1,
+            "status": "completed",
+            "scores": {"grader": "C\x07"},
+        },
+        False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out
+    assert "sample s1" in out
+
+
+def test_sample_detail_unterminated_osc_cannot_swallow_trusted_fields(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unterminated OSC in the sample id must not hide the real status.
+
+    Parts are sanitized individually, so the swallow-to-terminator behavior
+    stops at the part boundary instead of consuming the trusted fields
+    (status, score) joined after it.
+    """
+    _print_sample_detail(
+        {
+            "sample_id": "1 completed score grader=C\x1b]",
+            "epoch": 1,
+            "status": "errored",
+            "scores": {"grader": "I"},
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "errored" in header
+    assert "grader=I" in header
+
+
+def test_sample_detail_header_flattens_newlines(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A newline in the sample id can't forge a complete plausible header line."""
+    _print_sample_detail(
+        {
+            "sample_id": "9\nsample 1  ·  epoch 1  ·  completed  ·  score grader=C",
+            "epoch": 1,
+            "status": "errored",
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "errored" in header
+    assert "completed" in header  # spoof text survives, but on the same line
+
+
+def test_sample_detail_header_drops_separator_for_all_control_part(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A part that sanitizes to empty must not leave a dangling separator."""
+    _print_sample_detail(
+        {"sample_id": "1", "epoch": 1, "status": "\x1b[2K"},
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert header == "sample 1  ·  epoch 1"
+
+
+def test_events_rendering_sanitizes_tool_output(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An escape-laden bash result never reaches the events table raw."""
+    page = {
+        "events": [
+            {
+                "event": "tool",
+                "timestamp": 1700000000.0,
+                "function": "bash",
+                "arguments": "{}",
+                "result": "\x1b]0;compromised\x07\x1b[2K\rALL SAMPLES PASSED",
+            }
+        ],
+        "next": None,
+        "done": True,
+    }
+    _print_events(page, content=True, full=False)
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out and "\r" not in out
+    assert "ALL SAMPLES PASSED" in out
+
+
+def test_messages_rendering_sanitizes_completion(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An escape-laden assistant completion never reaches the table raw."""
+    page = {
+        "messages": [
+            {
+                "index": 0,
+                "role": "assistant",
+                "content": "\x1b[2K\rall done\x1b]52;c;ZXZpbA==\x07",
+            }
+        ],
+        "count": 1,
+        "status": "running",
+    }
+    _print_messages(page, content=True, full=False)
+    out = capsys.readouterr().out
+    assert "\x1b" not in out and "\x07" not in out and "\r" not in out
+    assert "all done" in out
+
+
+def test_event_summary_unterminated_osc_cannot_swallow_error_tag() -> None:
+    """An unterminated string sequence in a completion can't hide the error.
+
+    Fields are sanitized before joining, so the swallow-to-terminator
+    behavior stops at the field boundary instead of consuming the error
+    tag appended after the completion within the same summary cell.
+    """
+    from inspect_ai._cli.ctl import _event_summary
+
+    summary = _event_summary(
+        {
+            "event": "model",
+            "model": "gpt-4",
+            "tokens": 512,
+            "stop_reason": "stop",
+            "completion": "all done\x1b]",
+            "error": "rate limit exceeded",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "error: rate limit exceeded" in summary
+
+    summary = _event_summary(
+        {
+            "event": "tool",
+            "function": "bash\x1b]",
+            "arguments": "ls",
+            "error": "exit status 1\x1b]",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "error: exit status 1" in summary
+
+    summary = _event_summary(
+        {"event": "info", "source": "scorer\x1b]", "data": "graded"}
+    )
+    assert "\x1b" not in summary
+    assert "graded" in summary
+
+
+def test_message_summary_unterminated_osc_cannot_swallow_tool_calls() -> None:
+    """A swallow in message content can't hide the tool calls/error after it."""
+    from inspect_ai._cli.ctl import _message_summary
+
+    summary = _message_summary(
+        {
+            "content": "I ran the tests\x1b]",
+            "tool_calls": [{"function": "bash", "arguments": "pytest"}],
+            "error": "tool failed",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "bash(pytest)" in summary
+    assert "error: tool failed" in summary
+
+
+def test_sample_detail_score_cannot_swallow_following_scores(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A swallow in one score value can't hide the scores joined after it."""
+    _print_sample_detail(
+        {
+            "sample_id": "1",
+            "epoch": 1,
+            "status": "completed",
+            "scores": {"a": "x\x1b]", "b": "C"},
+        },
+        False,
+    )
+    header = capsys.readouterr().out.splitlines()[0]
+    assert "\x1b" not in header
+    assert "a=x" in header
+    assert "b=C" in header
+
+
+def test_process_anomalies_rendering_sanitizes_agent_command_lines(
+    trace_dir: Path,
+) -> None:
+    """Escape bytes in a stalled subprocess's command line never reach the terminal.
+
+    `process anomalies` renders agent-controlled text — a sandboxed `bash`
+    call's shlex-joined command line lands verbatim in the trace record's
+    detail — through the rich table shared with `inspect trace anomalies`,
+    whose styled export preserves escape bytes.
+    """
+    write_trace_log(
+        trace_dir / "trace-123.log",
+        [
+            action_record(
+                "run1",
+                "Subprocess",
+                "enter",
+                detail="bash -c '\x1b]0;PWNED\x07\x1b[2K\nsleep 1000' \x1b]",
+                start_time=1000.0,
+            ),
+            # a row after the unterminated OSC — must not be swallowed
+            action_record(
+                "run2", "Model", "enter", detail="generate", start_time=1000.0
+            ),
+        ],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "\x1b" not in result.stdout and "\x07" not in result.stdout
+    assert "sleep 1000'" in result.stdout
+    assert "generate" in result.stdout  # sanitized per record, not post-export
+
+    # the JSON envelope keeps the raw bytes (machine path; consumers quote)
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123", "--json"])
+    detail = json.loads(result.stdout)["processes"][0]["running"][0]["detail"]
+    assert "\x1b]0;PWNED" in detail
+
+
+def test_process_anomalies_rendering_escapes_rich_markup(trace_dir: Path) -> None:
+    """Rich markup in agent text renders literally, not as styling or links.
+
+    The rich table parses cell strings as console markup, so un-escaped
+    agent text like ``[link=...]`` would export an OSC 8 hyperlink (and
+    ``[conceal]`` an SGR 8 that hides the error joined after it).
+    """
+    write_trace_log(
+        trace_dir / "trace-123.log",
+        [
+            action_record(
+                "run1",
+                "Subprocess",
+                "enter",
+                detail="[link=http://evil]ok[/link] [conceal]hidden[/conceal]",
+                start_time=1000.0,
+            )
+        ],
+    )
+    result = cli_runner().invoke(ctl_command, ["process", "anomalies", "123"])
+    assert result.exit_code == 0
+    assert "\x1b" not in result.stdout
+    assert "[link=http://evil]ok[/link]" in result.stdout
+    assert "[conceal]hidden[/conceal]" in result.stdout
+
+
+def test_sanitized_anomalies_neutralizes_rendered_fields() -> None:
+    """Field-level pin, unmasked by click's own CSI stripping on a non-tty."""
+    from inspect_ai._cli.ctl import _sanitized_anomalies
+    from inspect_ai._cli.trace import TraceAnomalies
+    from inspect_ai._util.trace import ActionTraceRecord
+
+    record = ActionTraceRecord(
+        timestamp="2024-01-01T00:00:00",
+        level="TRACE",
+        message="msg\x1b[31m",
+        action="Subprocess\x07",
+        event="error",
+        trace_id="t1",
+        detail="run\x1b[2K\nit [bold]now[/bold]",
+        error="fail\x1b]0;x\x07",
+    )
+    anomalies = TraceAnomalies(running=[], cancelled=[], errors=[record], timeouts=[])
+    (clean,) = _sanitized_anomalies(anomalies).errors
+    assert clean.action == "Subprocess"
+    assert clean.message == "msg"
+    assert clean.detail == r"run it \[bold]now\[/bold]"
+    assert clean.error == "fail"
+    # the source records are untouched (the JSON path renders them raw)
+    assert anomalies.errors[0].detail == "run\x1b[2K\nit [bold]now[/bold]"
+
+
+def test_event_summary_sanitizes_every_wire_field() -> None:
+    """Server-shaped fields (model, stop_reason) sanitize like agent ones.
+
+    Sanitization is provenance-blind — every wire field is covered.
+    """
+    from inspect_ai._cli.ctl import _event_summary
+
+    summary = _event_summary(
+        {
+            "event": "model",
+            "model": "gpt-4\x1b]0;evil\x07",
+            "tokens": 512,
+            "stop_reason": "stop\x1b[2K\r",
+            "completion": "done",
+        }
+    )
+    assert "\x1b" not in summary
+    assert "\r" not in summary
+    assert "gpt-4" in summary
+    assert "stop" in summary
+
+
+def test_task_header_sanitizes_and_flattens_all_parts() -> None:
+    from inspect_ai._cli.ctl import _task_header
+
+    header = _task_header(
+        {
+            "task": "my_task\x1b]0;evil\x07\nfake line",
+            "task_id": "abc123",
+            "model": "openai/gpt-5\x1b[31m",
+            "status": "running\r",
+            "samples": {},
+        }
+    )
+    assert "\x1b" not in header
+    assert "\r" not in header
+    assert "\n" not in header
+    # the newline is flattened onto the same line, not left to forge one
+    assert "my_task" in header
+    assert "fake line" in header
+    assert "openai/gpt-5" in header
+    assert "running" in header
+
+
+def test_task_header_drops_separator_for_all_control_part() -> None:
+    """A task name that sanitizes to empty must not leave a leading separator."""
+    from inspect_ai._cli.ctl import _task_header
+
+    header = _task_header(
+        {"task": "\x1b[2K", "task_id": "", "status": "running", "samples": {}}
+    )
+    assert not header.startswith("  ·  ")
+    assert header.split("  ·  ")[0] == "running"
+
+
+def test_events_footer_sanitizes_cursor_token(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_events(
+        {"events": [], "done": False, "next": "tok\x1b]52;c;steal\x07\nen"},
+        content=True,
+        full=False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    # escape removed whole, embedded newline flattened to a space
+    assert "next: tok en" in out
+
+
+def test_messages_footer_sanitizes_status(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _print_messages(
+        {"messages": [], "count": 0, "status": "run\nning\x1b]0;evil\x07"},
+        content=True,
+        full=False,
+    )
+    out = capsys.readouterr().out
+    assert "\x1b" not in out
+    # embedded newline flattened so the status can't forge a footer line
+    assert "run ning" in out
+
+
+def test_sample_mutation_messages_sanitize_wire_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The human mutation message sanitizes its label and wire fields.
+
+    Covers sample_id (in the label), status, and reason — applied and
+    no-op paths alike.
+    """
+    summary = _full_summary("aaa111", "t1")
+    summary["epochs"] = 1
+    _patch_surface(monkeypatch, [summary])
+    spy = _RequestSpy(
+        {
+            "ok": True,
+            "changed": False,
+            "sample_id": "s1\x1b]0;evil\x07",
+            "epoch": 1,
+            # unterminated OSC: per-field sanitization must bound it to the
+            # status field rather than let it swallow the trailing ").";
+            # the newline must flatten so status can't forge a line of its own
+            "status": "comp\nleted\x1b]0;evil",
+        }
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "cancel", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output
+    assert "s1" in result.output
+    assert "(status: comp leted)." in result.output
+
+    spy = _RequestSpy(
+        {"ok": True, "changed": False, "reason": "held\x1b]0;evil\x07\nelsewhere"}
+    )
+    monkeypatch.setattr("inspect_ai._cli.ctl._request_json", spy)
+    result = cli_runner().invoke(
+        ctl_command, ["sample", "requeue", "aaa111", "s1", "--no-terse"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "\x1b" not in result.output
+    assert "held elsewhere" in result.output
+
+
+def test_no_direct_click_echo_outside_the_wrappers() -> None:
+    """Every echo in ctl.py routes through `_echo` / `_echo_raw`.
+
+    The sanitizing default is a structural guarantee only while direct
+    output calls stay out of rendering code — a bare `click.echo`,
+    `click.secho`, `click.echo_via_pager`, or `print` would silently
+    bypass `_sanitize_control`.
+    """
+    import ast
+    import inspect as inspect_module
+
+    import inspect_ai._cli.ctl as ctl_module
+
+    source = inspect_module.getsource(ctl_module)
+    tree = ast.parse(source)
+    offenders: list[str] = []
+
+    class Visitor(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.stack: list[str] = []
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self.stack.append(node.name)
+            self.generic_visit(node)
+            self.stack.pop()
+
+        visit_AsyncFunctionDef = visit_FunctionDef  # type: ignore[assignment]
+
+        def visit_Call(self, node: ast.Call) -> None:
+            func = node.func
+            in_wrapper = self.stack[-1:] in (["_echo"], ["_echo_raw"])
+            direct_output = (
+                isinstance(func, ast.Attribute)
+                and func.attr in ("echo", "secho", "echo_via_pager")
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "click"
+            ) or (isinstance(func, ast.Name) and func.id == "print")
+            if direct_output and not in_wrapper:
+                offenders.append(
+                    f"line {node.lineno} in {'.'.join(self.stack) or '<module>'}"
+                )
+            self.generic_visit(node)
+
+    Visitor().visit(tree)
+    assert not offenders, f"direct output calls outside _echo/_echo_raw: {offenders}"

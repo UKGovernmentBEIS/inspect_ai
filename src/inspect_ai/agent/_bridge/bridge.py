@@ -187,6 +187,7 @@ async def agent_bridge(
         forward_generation_config=forward_generation_config,
         approval=approval,
         allow_remote_mcp=allow_remote_mcp,
+        allow_remote_media=True,
     )
 
     # set the patch config for this context and child coroutines
@@ -244,6 +245,10 @@ def init_openai_request_patch() -> None:
         return
     validate_openai_client("agent bridge")
 
+    # deferred with the openai imports below: httpx2 is not a dependency of
+    # inspect_ai (we only get it transitively via openai >= 3), and this
+    # module must import without openai installed
+    import httpx2
     from openai._base_client import AsyncAPIClient, _AsyncStreamT
     from openai._constants import RAW_RESPONSE_HEADER
     from openai._models import FinalRequestOptions
@@ -294,7 +299,7 @@ def init_openai_request_patch() -> None:
         if not raw_response:
             return result
 
-        response = httpx.Response(
+        response = httpx2.Response(
             status_code=200,
             headers={"content-type": "application/json"},
             content=result.model_dump_json().encode(),
