@@ -784,12 +784,16 @@ class Model:
             `StreamEvent`s (text / reasoning / tool-call deltas, plus retry
             boundaries) while the response streams — a side-channel for UI
             display; the final result is still the returned `ModelOutput`.
-            Providers or calls that don't stream never invoke it (a cache
-            hit, for example, produces no content deltas — though a cache
-            hit on a retry attempt still delivers the retry boundary), and
-            the callback is best treated as display-only: on retry a
-            `StreamRetryEvent` signals that deltas received so far belong
-            to a failed attempt and should be discarded.
+            Passing a callback is itself a request to stream: providers
+            that support streaming stream the response without any
+            provider-level streaming flag (an explicit provider streaming
+            opt-out still wins). Providers or calls that don't stream
+            never invoke it (a cache hit, for example, produces no
+            content deltas — though a cache hit on a retry attempt still
+            delivers the retry boundary), and the callback is best treated
+            as display-only: on retry a `StreamRetryEvent` signals that
+            deltas received so far belong to a failed attempt and should
+            be discarded.
 
         Returns:
            ModelOutput

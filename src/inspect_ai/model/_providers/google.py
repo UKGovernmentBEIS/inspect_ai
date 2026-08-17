@@ -123,6 +123,7 @@ from inspect_ai.model._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
+    model_stream_requested,
     report_model_stream_delta,
     report_model_stream_progress,
     report_model_stream_restart,
@@ -246,8 +247,12 @@ class GoogleGenAIAPI(ModelAPI):
         # record api version
         self.api_version = api_version
 
-        # record streaming preference
-        self.streaming = bool(model_args.pop("streaming", False))
+        # record streaming preference ("auto" streams when the caller passes
+        # on_stream to generate; an explicit True/False overrides)
+        streaming = model_args.pop("streaming", "auto")
+        self.streaming: bool | Literal["auto"] = (
+            "auto" if streaming == "auto" else bool(streaming)
+        )
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
@@ -512,7 +517,9 @@ class GoogleGenAIAPI(ModelAPI):
                         response = await self._batcher.generate_for_request(
                             batch_request_dict(parameters, gemini_contents)
                         )
-                    elif self.streaming:
+                    elif self.streaming is True or (
+                        self.streaming == "auto" and model_stream_requested()
+                    ):
                         response = await self._stream_generate_content(
                             client=client,
                             model=self.service_model_name(),

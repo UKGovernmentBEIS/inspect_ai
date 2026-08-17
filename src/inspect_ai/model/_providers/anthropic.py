@@ -196,6 +196,7 @@ from .._stream import (
     StreamReasoningEvent,
     StreamTextEvent,
     StreamToolCallEvent,
+    model_stream_requested,
     report_model_stream_delta,
     report_model_stream_progress,
     report_model_stream_start,
@@ -572,9 +573,11 @@ class AnthropicAPI(ModelAPI):
 
             model_call = set_active_model_event_call(request, model_call_filter)
 
-            # stream if we are using reasoning or >= 8192 max_tokens
+            # stream if the caller passed on_stream or (in auto mode) when
+            # using reasoning or >= 8192 max_tokens; an explicit streaming
+            # model arg overrides both
             streaming = (
-                self.auto_streaming(config)
+                (self.auto_streaming(config) or model_stream_requested())
                 if self.streaming == "auto"
                 else self.streaming
             )

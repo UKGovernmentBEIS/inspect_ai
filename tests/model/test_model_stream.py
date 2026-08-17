@@ -32,6 +32,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._registry import modelapi
 from inspect_ai.model._stream import (
+    model_stream_requested,
     report_model_stream_delta,
     report_model_stream_progress,
     report_model_stream_restart,
@@ -432,6 +433,24 @@ async def test_stream_reports_are_noops_outside_generate() -> None:
     report_model_stream_start()
     report_model_stream_progress(output_tokens=5)
     await report_model_stream_delta(StreamTextEvent(text="nowhere"))
+
+
+async def test_model_stream_requested_reflects_on_stream() -> None:
+    """Providers consult this in their stream decision.
+
+    Passing `on_stream` is itself sufficient to request streaming.
+    """
+    requested: list[bool] = []
+
+    async def attempt(api: ScriptedStreamAPI) -> ModelOutput:
+        requested.append(model_stream_requested())
+        return api._output("done")
+
+    await _scripted_generate([attempt], on_stream=Collector())
+    await _scripted_generate([attempt])
+    assert requested == [True, False]
+    # and outside any generate call there is no observer at all
+    assert model_stream_requested() is False
 
 
 class EchoStreamAPI(ScriptedStreamAPI):

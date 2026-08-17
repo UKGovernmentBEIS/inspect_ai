@@ -7,10 +7,12 @@ Internal surface: a per-generate `ModelStreamObserver` that the model wrapper
 installs via ContextVar around each provider attempt (the established
 `_active_model_event` pattern). Provider streaming loops report each chunk
 once through the module-level `report_model_stream_*` functions; the observer
-fans out to its consumers (see the class docstring). Providers that don't
-stream never call in, and callers that don't pass `on_stream` still feed the
-monitoring consumers — both degrade gracefully (see
-design/ctl/generate-progress.md).
+fans out to its consumers (see the class docstring). Providers with an
+auto/unset streaming setting consult `model_stream_requested()` in their
+stream decision, so passing `on_stream` is by itself sufficient to enable
+streaming. Providers that don't stream never call in, and callers that don't
+pass `on_stream` still feed the monitoring consumers — both degrade
+gracefully (see design/ctl/generate-progress.md).
 """
 
 import contextlib
@@ -354,6 +356,20 @@ def model_stream_observer(observer: ModelStreamObserver) -> Iterator[None]:
         yield
     finally:
         _model_stream_observer.reset(token)
+
+
+def model_stream_requested() -> bool:
+    """True when the current generate call has an `on_stream` consumer.
+
+    Providers whose streaming setting is auto/unset consult this in their
+    stream decision so that passing `on_stream` to `Model.generate()` is by
+    itself sufficient to enable streaming (an explicit provider-level
+    streaming opt-out still wins). False when no observer is installed —
+    the monitoring consumers alone never turn streaming on (see the
+    non-goals in design/ctl/generate-progress.md).
+    """
+    observer = _model_stream_observer.get()
+    return observer is not None and observer._on_stream is not None
 
 
 def report_model_stream_start() -> None:
