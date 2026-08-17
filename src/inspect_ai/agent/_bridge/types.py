@@ -48,12 +48,11 @@ class AgentBridge:
         approval: list["ApprovalPolicy"] | None = None,
         checkpointer: Checkpointer | None = None,
         allow_remote_mcp: bool = True,
-        allow_remote_media: bool = True,
+        allow_remote_media: bool = False,
     ) -> None:
-        # Capabilities a client-declared request may reach for. Both default to
-        # permissive because an in-process scaffold already shares the host's
-        # network and filesystem; `sandbox_agent_bridge()` tightens them, since
-        # there the sandbox boundary is the thing being defended.
+        # Capabilities a client-declared request may reach for. Media defaults
+        # closed so new bridge subclasses cannot accidentally grant host I/O.
+        # The known in-process factory grants it explicitly.
         self.allow_remote_mcp = allow_remote_mcp
         self.allow_remote_media = allow_remote_media
         self._cp = checkpointer or _NoopCheckpointer()
