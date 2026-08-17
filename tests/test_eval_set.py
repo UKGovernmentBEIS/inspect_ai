@@ -1,6 +1,8 @@
 import json
 import math
+import os
 import shutil
+import signal
 import tempfile
 import threading
 import time
@@ -2110,6 +2112,67 @@ def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
             errored_sample,
             errored_sample,
         ]
+
+
+def test_retry_attempt_killed_mid_sweep_leaves_completed_samples_reusable(
+    tmp_path: Path,
+) -> None:
+    """A retry attempt hard-killed before its reuse sweep settles loses nothing.
+
+    Regression for the failure in ``design/retry-deferred-destination-log.md``:
+    the killed attempt used to leave a start-only log that became the newest
+    log for the task, so the next retry found nothing to reuse and re-ran every
+    completed sample (permanently losing them once ``retry_cleanup`` deleted
+    the prior log). The attempt now writes nothing until its sweep settles, so
+    the kill leaves no file and the next retry chains to the prior log.
+    """
+    import subprocess
+    import sys
+
+    log_dir = str(tmp_path / "logs")
+    probe_dir = str(tmp_path / "probe")
+    os.makedirs(log_dir)
+    os.makedirs(probe_dir)
+    tests_dir = Path(__file__).parent
+    harness = str(tests_dir / "retry_deferred_log_harness.py")
+
+    def run_harness(kill_at_settle: bool) -> subprocess.CompletedProcess[bytes]:
+        env = {
+            **os.environ,
+            "PYTHONPATH": os.pathsep.join(
+                p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
+            ),
+        }
+        if kill_at_settle:
+            env["INSPECT_TEST_KILL_AT_SETTLE"] = "1"
+        return subprocess.run(
+            [sys.executable, harness, log_dir, probe_dir], env=env, timeout=600
+        )
+
+    # attempt 1 completes s1 and errors s2; the in-process retry attempt is
+    # killed the moment its reuse sweep settles
+    killed = run_harness(kill_at_settle=True)
+    assert killed.returncode == -signal.SIGKILL, (
+        f"expected the child to die by SIGKILL; got returncode {killed.returncode}"
+    )
+
+    # the killed attempt wrote no destination log, so the newest log for the
+    # task is still attempt 1's — the one holding the completed s1
+    logs = list_eval_logs(log_dir)
+    assert len(logs) == 1
+    assert read_eval_log(logs[0].name, header_only=True).status == "error"
+
+    # a fresh eval_set pass reuses s1 and re-runs only s2
+    assert run_harness(kill_at_settle=False).returncode == 0
+
+    with open(os.path.join(probe_dir, "solver_calls.txt")) as f:
+        calls = f.read().split()
+    assert calls.count("s1") == 1, f"s1 was re-run instead of reused: {calls}"
+
+    final = read_eval_log(max(list_eval_logs(log_dir), key=lambda i: i.name).name)
+    assert final.status == "success"
+    assert final.samples is not None
+    assert {(s.id, s.epoch) for s in final.samples} == {("s1", 1), ("s2", 1)}
 
 
 def test_carried_forward_samples_remain_condensed() -> None:

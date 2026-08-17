@@ -318,13 +318,14 @@ class _ReuseSweepCountdown:
     Counts planned ``(sample, epoch)`` runs; each ``run_sample`` settles one
     as soon as its prior-attempt lookup (and any re-log) has resolved. The
     final settle means the re-logged reused set is complete, so
-    ``TaskLogger.schedule_quiet_flush`` writes it to the destination in one
-    deterministic flush — keyed to an exact event rather than a stale timer,
-    it fires no earlier (no partial-sweep flushes), no later (no idle wait),
-    and not at all when nothing was reused (the flush is a no-op with nothing
-    quiet pending). A SampleSource-driven task can add planned runs after the
-    seed sweep settles; ``add`` raises the count again so a later settle
-    drains any follow-up reuse.
+    ``TaskLogger.schedule_quiet_flush`` releases the attempt's
+    destination-write hold and writes the set in one deterministic flush —
+    keyed to an exact event rather than a stale timer, it fires no earlier
+    (no partial-sweep flushes, so the attempt's first on-disk version already
+    carries every reused sample) and no later (no idle wait). A
+    SampleSource-driven task can add planned runs after the seed sweep
+    settles; ``add`` raises the count again so a later settle drains any
+    follow-up reuse.
 
     No lock: count mutations happen on the eval's single event-loop thread
     with no await point between read and write.
@@ -701,6 +702,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         # start the log (do this outside fo the try b/c the try/except assumes
         # that the log is initialized)
         eval_plan = plan_to_eval_plan(plan, generate_config)
+        # a retry attempt with a non-empty seed defers every destination write
+        # until its reuse sweep settles (the countdown below fires
+        # schedule_quiet_flush, which releases the hold). A zero-seed
+        # SampleSource-driven task skips the hold: its samples arrive over
+        # time, so there is no early settle event to key the release to.
+        if sample_source is not None and store_len * epochs > 0:
+            logger.hold_destination_writes()
         await logger.log_start(eval_plan)
 
         try:

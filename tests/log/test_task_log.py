@@ -165,10 +165,18 @@ class _FlushRecorder:
             self.fail_times -= 1
             raise RuntimeError("flush failed")
 
+    async def log_start(self, eval_spec: EvalSpec, plan: EvalPlan) -> None:
+        pass
+
     async def log_sample(
         self, eval_spec: EvalSpec, sample: EvalSample, *, write_through: bool = False
     ) -> None:
         pass
+
+    async def buffered_sample(
+        self, eval_spec: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        return None
 
 
 class _FlushBufferDB:
@@ -949,6 +957,117 @@ async def test_reinit_clears_quiet_pending_state(monkeypatch, tmp_path) -> None:
 
     assert logger.flush_quiet == []
     assert logger.flush_quiet_retry is False
+
+
+@pytest.mark.anyio
+async def test_log_start_flushes_immediately_without_hold() -> None:
+    recorder = _FlushRecorder()
+    logger = _flush_logger(recorder=recorder)
+
+    await logger.log_start(EvalPlan())
+
+    assert recorder.flush_count == 1
+
+
+@pytest.mark.anyio
+async def test_held_log_start_performs_no_destination_write() -> None:
+    # design/retry-deferred-destination-log.md: a held retry attempt performs
+    # no destination write until its reuse sweep settles, so a crash in the
+    # sweep window leaves no file (rather than an empty newest log that the
+    # next retry would chain to, losing every completed sample)
+    recorder = _FlushRecorder()
+    logger = _flush_logger(recorder=recorder)
+    logger.hold_destination_writes()
+
+    await logger.log_start(EvalPlan())
+
+    assert recorder.flush_count == 0
+
+
+@pytest.mark.anyio
+async def test_flush_paths_noop_while_destination_held() -> None:
+    # while held nothing drains: pending lists and buffer-db rows stay intact
+    # for the settle flush, and the ctl log-flush path reports 0
+    recorder = _FlushRecorder()
+    buffer_db = _FlushBufferDB()
+    logger = _flush_logger(flush_buffer=10, buffer_db=buffer_db, recorder=recorder)
+    logger.hold_destination_writes()
+    logger.flush_pending = [("live", 1)]
+    logger.flush_quiet = [("reused", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        assert await logger._flush_pending_samples() == 0
+        assert await logger.flush_samples() == 0
+
+    assert recorder.flush_count == 0
+    assert logger.flush_pending == [("live", 1)]
+    assert logger.flush_quiet == [("reused", 1)]
+    assert buffer_db.removed == []
+
+
+@pytest.mark.anyio
+async def test_schedule_quiet_flush_releases_hold_and_drains_quiet() -> None:
+    recorder = _FlushRecorder()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.hold_destination_writes()
+    logger.flush_quiet = [("reused", 1)]
+
+    async with _running_stale_flush_timer(logger, start=False):
+        logger.schedule_quiet_flush()
+        # released synchronously, before the background flush runs
+        assert logger._destination_hold is False
+        with anyio.fail_after(5):
+            while logger.flush_quiet:
+                await anyio.sleep(0.01)
+
+    assert recorder.flush_count == 1
+
+
+@pytest.mark.anyio
+async def test_schedule_quiet_flush_creates_destination_when_nothing_reused() -> None:
+    # a held attempt that reused nothing (prior log empty or unreadable,
+    # log_samples=False) still gets its destination created at settle: the
+    # forced flush writes the temp zip (start.json) even with nothing pending
+    recorder = _FlushRecorder()
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.hold_destination_writes()
+
+    async with _running_stale_flush_timer(logger, start=False):
+        logger.schedule_quiet_flush()
+        assert logger._destination_hold is False
+        with anyio.fail_after(5):
+            while recorder.flush_count == 0:
+                await anyio.sleep(0.01)
+
+    assert recorder.flush_count == 1
+
+
+@pytest.mark.anyio
+async def test_reinit_resets_destination_hold(monkeypatch, tmp_path) -> None:
+    recorder = _FlushRecorder(str(tmp_path / "reinit-hold.eval"))
+    logger = _flush_logger(flush_buffer=10, recorder=recorder)
+    logger.hold_destination_writes()
+    monkeypatch.setattr(
+        task_log_module, "SampleBufferDatabase", lambda **kwargs: _FlushBufferDB()
+    )
+
+    async with _running_stale_flush_timer(logger, start=False):
+        await logger.reinit()
+
+    assert logger._destination_hold is False
+
+
+@pytest.mark.anyio
+async def test_read_sample_disk_fallback_returns_none_when_no_destination(
+    tmp_path,
+) -> None:
+    # while held the destination log doesn't exist; a ctl per-sample read must
+    # degrade to None (like a not-found sample) rather than raising
+    recorder = _FlushRecorder()
+    logger = _flush_logger(recorder=recorder)
+    logger._location = str(tmp_path / "missing.eval")
+
+    assert await logger.read_sample("sample", 1) is None
 
 
 def test_buffer_config_pending_includes_quiet() -> None:
