@@ -34,8 +34,9 @@ do not use `uv run` or system python).
 
 - Docker must be running with multi-arch (buildx) support: `docker info` succeeds.
 - The version must be bumped. It's a plain integer in
-  `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt` and must
-  be exactly one greater than main's (`check-version-bump` enforces this):
+  `src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt`; the
+  required bump is whatever the `check-version-bump` CI job accepts (currently
+  exactly one greater than main's):
 
   ```sh
   git show origin/main:src/inspect_ai/tool/_sandbox_tools_utils/sandbox_tools_version.txt
