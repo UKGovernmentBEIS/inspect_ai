@@ -6050,7 +6050,7 @@ def _print_config(config: dict[str, Any], *, changed: bool) -> None:
         if knob in knobs:
             _render_override_knob(knob, display, unit)
         elif process_scope:
-            click.echo(_knob_label(display, knob) + _PER_TASK_PLACEHOLDER)
+            _echo(_knob_label(display, knob) + _PER_TASK_PLACEHOLDER)
 
     # The named concurrency() registry entries, addressable via `--key` by the
     # exact name shown. Entries appear lazily on first use, so an empty
