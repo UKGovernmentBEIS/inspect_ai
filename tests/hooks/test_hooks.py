@@ -186,6 +186,20 @@ def test_can_subscribe_to_events(mock_hooks: MockHooks) -> None:
     assert before_gen.task_name is not None
 
 
+def test_task_start_carries_plan_including_setup_steps(
+    mock_hooks: MockHooks,
+) -> None:
+    task = Task(dataset=[Sample("sample_1")], setup=_setup_marker_solver())
+
+    eval(task, model="mockllm/model")
+
+    assert len(mock_hooks.task_start_events) == 1
+    steps = [step.solver for step in mock_hooks.task_start_events[0].plan.steps]
+    # resolve_plan unrolls setup onto the front, ahead of the solver
+    assert "_setup_marker_solver" in steps[0]
+    assert len(steps) > 1
+
+
 def test_can_subscribe_to_events_with_multiple_hooks(
     mock_hooks: MockHooks, hooks_2: MockHooks
 ) -> None:
@@ -680,6 +694,16 @@ def _create_mock_hooks(name: str, hooks_class: Type[T]) -> Generator[T, None, No
     finally:
         # Remove the hook from the registry to avoid conflicts in other tests.
         del _registry[f"hooks:{name}"]
+
+
+@solver
+def _setup_marker_solver() -> Solver:
+    """No-op setup step, so the plan has a setup entry to find."""
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        return state
+
+    return solve
 
 
 @solver

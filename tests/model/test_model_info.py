@@ -373,6 +373,41 @@ class TestModelDataConsistency:
                         )
 
 
+class TestProviderScopedOrgs:
+    """Provider-scoped catalogs are exact-match only.
+
+    `fireworks.yml` is keyed by the hosting provider rather than the model
+    creator, so its entries are authoritative for a `fireworks/...` lookup but
+    must never win a fuzzy match against another provider's bare model name.
+    """
+
+    def test_exact_lookup_uses_the_fireworks_catalog(self):
+        info = get_model_info("fireworks/deepseek-r1-0528")
+        assert info is not None
+        assert info.context_length == 163840
+
+    def test_case_insensitive_lookup_still_reaches_the_catalog(self):
+        info = get_model_info("fireworks/DeepSeek-R1-0528")
+        assert info is not None
+        assert info.context_length == 163840
+
+    def test_bare_name_does_not_fuzzy_match_a_fireworks_entry(self):
+        """A bare `kimi-k3` (e.g. from Groq) keeps resolving to Moonshot AI.
+
+        "fireworks" is shorter than "moonshotai", so without the exclusion it
+        would outscore the curated entry.
+        """
+        info = get_model_info("kimi-k3")
+        assert info is not None
+        assert info.organization == "Moonshot AI"
+
+    def test_bare_name_resolution_is_unchanged_for_shadowed_models(self):
+        """Adding fireworks/deepseek-r1-0528 must not alter the bare lookup."""
+        info = get_model_info("deepseek-r1-0528")
+        assert info is not None
+        assert info.organization == "DeepSeek"
+
+
 class TestGetModelInputTokens:
     """Tests for get_model_input_tokens function."""
 

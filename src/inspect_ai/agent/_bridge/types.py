@@ -1,3 +1,4 @@
+from enum import IntEnum
 from functools import lru_cache
 from typing import TYPE_CHECKING, NamedTuple, NoReturn, Sequence, Set
 
@@ -47,12 +48,11 @@ class AgentBridge:
         approval: list["ApprovalPolicy"] | None = None,
         checkpointer: Checkpointer | None = None,
         allow_remote_mcp: bool = True,
-        allow_remote_media: bool = True,
+        allow_remote_media: bool = False,
     ) -> None:
-        # Capabilities a client-declared request may reach for. Both default to
-        # permissive because an in-process scaffold already shares the host's
-        # network and filesystem; `sandbox_agent_bridge()` tightens them, since
-        # there the sandbox boundary is the thing being defended.
+        # Capabilities a client-declared request may reach for. Media defaults
+        # closed so new bridge subclasses cannot accidentally grant host I/O.
+        # The known in-process factory grants it explicitly.
         self.allow_remote_mcp = allow_remote_mcp
         self.allow_remote_media = allow_remote_media
         self._cp = checkpointer or _NoopCheckpointer()
@@ -106,17 +106,15 @@ class AgentBridge:
         # thread-tracking state for _track_state (see its docstring). the
         # descent anchor is the initial input (via _compaction_prefix, which
         # restores to the original input on checkpoint resume).
-        self._initial_fps = [
-            _message_fingerprint(m)
-            for m in self._compaction_prefix
-            if m.role != "system"
-        ]
+        initial_messages = [m for m in self._compaction_prefix if m.role != "system"]
+        self._initial_fps = [_message_fingerprint(m) for m in initial_messages]
         self._initial_fps_condensed = [
             _condensed_fingerprint(fp) for fp in self._initial_fps
         ]
+        self._initial_texts = [m.text.strip() for m in initial_messages]
         self._tracked_fps: list[_MessageFingerprint] | None = None
         self._tracked_calls = 0
-        self._tracked_descends: bool | None = None
+        self._tracked_descends: _Descent | None = None
         self._candidate_fps: list[_MessageFingerprint] | None = None
         self._pending_operator = 0
         self._operator_keys: set[str] = set()
@@ -269,15 +267,23 @@ class AgentBridge:
           are a prefix of it, compared by role + text) always updates the state.
         - Otherwise the call starts a new thread and we consult *descent*: a
           thread descends from the initial input if its non-system messages
-          start with the initial input's non-system messages (verbatim or as
-          their condensed ``attachment://<hash>`` references — see
-          `_descends_from_initial`). A descending
-          thread displaces a tracked non-descending thread when that thread is
-          a one-shot call (the opencode title case) or when the descending
-          call is longer than the tracked thread (the main loop reclaiming
-          tracking from a promoted sub-agent loop, below). A non-descending
-          call never directly displaces a tracked descending thread (side
-          calls, sub-agent loops).
+          start with the initial input's non-system messages (verbatim, as
+          their condensed ``attachment://<hash>`` references, or as decorated
+          text containing the initial message — see `_descends_from_initial`).
+          Descent is graded (see `_Descent`): quote-wrapped store-transform
+          anchors outrank verbatim/condensed anchors, which outrank generic
+          containment, which outranks no anchor. A stronger-descending
+          thread displaces the tracked thread when that thread is a one-shot
+          call (the opencode title case) or when the stronger call is longer
+          than the tracked thread (the main loop reclaiming tracking from a
+          promoted sub-agent loop, below). The grading means a side call that
+          quotes the whole prompt inside a preamble message (containment
+          grade) can never outrank a verbatim-anchored main loop, and a side
+          call resending the raw prompt verbatim (a topic detector) can never
+          outrank opencode's quote-wrapped main loop — while a decorated main
+          loop still displaces a non-descending title call. A
+          weaker-descending call never directly displaces the tracked thread
+          (side calls, sub-agent loops).
         - When descent can't discriminate (equal verdicts, or no initial input
           to anchor on — e.g. a scaffold that rewrites the input prompt), fall
           back to the legacy length heuristic: adopt the new thread when it
@@ -309,23 +315,24 @@ class AgentBridge:
             # post-compaction conversation): promote it over the tracked thread
             self._adopt_thread(messages, output, fps, calls=2)
         else:
-            descends = self._descends_from_initial(fps)
+            descends = self._descends_from_initial(messages, fps)
             if (
-                descends is True
-                and self._tracked_descends is False
+                descends is not None
+                and self._tracked_descends is not None
+                and descends > self._tracked_descends
                 and (self._tracked_calls == 1 or len(messages) > len(self._tracked_fps))
             ):
-                # the real conversation displacing a non-descending thread:
+                # the real conversation displacing a weaker-anchored thread:
                 # a one-shot side call that landed first (the opencode title
                 # case) or, when longer than the tracked thread, a promoted
                 # multi-call sub-agent loop (a main loop resuming with a
                 # single final call would otherwise be parked as a candidate
                 # that nothing extends). a short stray descending one-shot
-                # still can't displace an established non-descending thread
+                # still can't displace an established weaker-anchored thread
                 # (flapping guard).
                 self._adopt_thread(messages, output, fps, calls=1)
             elif descends == self._tracked_descends and len(messages) > (
-                len(self._tracked_fps) if descends is True else self._last_message_count
+                len(self._tracked_fps) if descends else self._last_message_count
             ):
                 # legacy length heuristic. when both threads descend, compare
                 # against the tracked thread so a parked side call can't lower
@@ -353,26 +360,50 @@ class AgentBridge:
         """Make `messages` the tracked main thread (see `_track_state`).
 
         `calls` is the number of bridge calls attributed to the thread; a
-        descending thread may displace a non-descending one-shot (`calls == 1`)
-        thread regardless of length.
+        stronger-descending thread may displace a weaker-anchored one-shot
+        (`calls == 1`) thread regardless of length.
         """
         self.state.messages = messages
         self.state.output = output
         self._tracked_fps = fps
         self._tracked_calls = calls
-        self._tracked_descends = self._descends_from_initial(fps)
+        self._tracked_descends = self._descends_from_initial(messages, fps)
         self._candidate_fps = None
 
-    def _descends_from_initial(self, fps: list["_MessageFingerprint"]) -> bool | None:
-        """Whether a thread's non-system messages start with the initial input.
+    def _descends_from_initial(
+        self, messages: list[ChatMessage], fps: list["_MessageFingerprint"]
+    ) -> "_Descent | None":
+        """How a thread's non-system messages anchor on the initial input.
 
-        Each initial message matches either verbatim or as its condensed
-        `attachment://<hash>` reference: a long prompt that rides into the
-        scaffold via inspect's transcript condensation crosses the bridge as
-        the placeholder rather than the original text (observed with opencode,
-        whose conversation store round-trips it), and the main loop must still
-        anchor. Only the exact reference to the initial content matches — an
-        attachment reference to other content is not a wildcard.
+        Each initial message matches verbatim, as its condensed
+        `attachment://<hash>` reference, or as decorated text that contains
+        the initial message. Scaffolds transform the prompt on its way
+        through their conversation store: a long prompt that rides in via
+        inspect's transcript condensation crosses the bridge as the
+        placeholder rather than the original text, and opencode round-trips
+        the prompt wrapped in literal double quotes — the main loop must
+        still anchor in both cases. Only the exact reference to the initial
+        content matches (an attachment reference to other content is not a
+        wildcard), and containment requires a same-role message and at least
+        `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial text so a trivially short
+        prompt can't match a side call by coincidence.
+
+        The verdict is graded per aligned position (see `_position_descent`)
+        so `_track_state` can arbitrate between two anchored threads by
+        evidence strength (see `_Descent` for the ordering rationale),
+        aggregated weakness-first:
+
+        - any position that needed generic containment caps the thread at
+          `CONTAINED` — side calls copy stored (possibly quote-wrapped)
+          messages too, so an interpolated position makes the whole thread
+          low-confidence no matter how its other positions anchor;
+        - otherwise quote-wrap at any position grades the thread `QUOTED`:
+          among threads whose every position matches exactly, the store
+          transform marks the persisted main conversation, and evidence at
+          one position is not diluted by others that round-trip verbatim (a
+          partially transformed main thread must still outrank a raw-copy
+          side call);
+        - otherwise `EXACT`.
 
         Returns `None` when there is no initial input to anchor on (descent
         can't discriminate threads, so `_track_state` falls back to the legacy
@@ -380,15 +411,25 @@ class AgentBridge:
         """
         if not self._initial_fps:
             return None
-        non_system = [fp for fp in fps if fp.role != "system"]
+        non_system = [(m, fp) for m, fp in zip(messages, fps) if fp.role != "system"]
         if len(non_system) < len(self._initial_fps):
-            return False
-        return all(
-            fp == initial or fp == condensed
-            for fp, initial, condensed in zip(
-                non_system, self._initial_fps, self._initial_fps_condensed
-            )
-        )
+            return _Descent.NO
+        quoted = False
+        contained = False
+        for (message, fp), initial, condensed, initial_text in zip(
+            non_system,
+            self._initial_fps,
+            self._initial_fps_condensed,
+            self._initial_texts,
+        ):
+            position = _position_descent(message, fp, initial, condensed, initial_text)
+            if position is _Descent.NO:
+                return _Descent.NO
+            quoted = quoted or position is _Descent.QUOTED
+            contained = contained or position is _Descent.CONTAINED
+        if contained:
+            return _Descent.CONTAINED
+        return _Descent.QUOTED if quoted else _Descent.EXACT
 
 
 @lru_cache(maxsize=100)
@@ -410,6 +451,101 @@ class _MessageFingerprint(NamedTuple):
 
 def _message_fingerprint(message: ChatMessage) -> _MessageFingerprint:
     return _MessageFingerprint(role=message.role, text_hash=mm3_hash(message.text))
+
+
+class _Descent(IntEnum):
+    """Graded descent-from-initial-input verdict (see `_descends_from_initial`).
+
+    Ordered by strength of evidence that the thread is the *main*
+    conversation, so `_track_state` can arbitrate between two descending
+    threads. `QUOTED` (nothing but the initial input in literal double
+    quotes) sits above `EXACT`: quote-wrap is the scaffold's conversation-
+    store transform, so it can only come from the persisted main thread,
+    whereas a verbatim resend is also what side calls produce by copying the
+    raw input (topic detectors, title preambles). Generic containment ranks
+    below both — any call that interpolates the prompt into other text
+    produces it.
+
+    `QUOTED` > `EXACT` is a deliberate trade with a mirrored residual
+    ambiguity: under a scaffold that does *not* quote-wrap its store, a
+    side call whose whole aligned message is exactly the quoted prompt
+    presents the same observables as opencode's quote-wrapped main vs a
+    raw-copy side call (one QUOTED one-shot, one EXACT one-shot), so any
+    static ordering fails exactly one of the two shapes. This ordering
+    sacrifices the bare-quoted side call — a constructed shape, no scaffold
+    observed producing it — to protect the observed opencode failure;
+    demoting QUOTED to tie EXACT breaks the observed shape in three test
+    pairs while still failing one order of the constructed one. Exposure is
+    one-shot mains only (the calls/length gate in `_track_state` protects
+    established threads, and a multi-turn main reclaims tracking via
+    candidate promotion); the losing side is pinned by the
+    `test_bare_quoted_side_call_*` tests. Resolving the pair outright
+    requires out-of-band knowledge of the scaffold's store transform (a
+    bridge-caller declaration) rather than more signal at this layer.
+    """
+
+    NO = 0
+    CONTAINED = 1
+    EXACT = 2
+    QUOTED = 3
+
+
+_ANCHOR_CONTAINMENT_MIN_CHARS = 20
+"""Minimum initial-message length for containment anchoring.
+
+Below this, a side call could contain the initial text by coincidence (e.g.
+a bash path-detection call quoting a short command prompt) and be adopted as
+the descending thread; such short prompts anchor by exact/condensed match
+or by exact quote-wrapping only (see `_position_descent`).
+"""
+
+
+def _position_descent(
+    message: ChatMessage,
+    fp: _MessageFingerprint,
+    initial: _MessageFingerprint,
+    condensed: _MessageFingerprint,
+    initial_text: str,
+) -> "_Descent":
+    """Grade how one aligned message anchors on its initial counterpart.
+
+    Scaffolds decorate the prompt as it round-trips their conversation store
+    (opencode wraps it in literal double quotes; others prepend headers), so
+    exact-text anchoring alone misses the main loop. Beyond the verbatim and
+    condensed ``attachment://<hash>`` forms, a same-role message anchors as
+    `QUOTED` when it is exactly the initial text (or its condensed
+    reference, since decoration composes with transcript condensation) in
+    double quotes, and as `CONTAINED` when it contains the initial text
+    inside other content. `initial_text` is pre-stripped (in `__init__`) and
+    the quote *interior* is stripped before comparison: the scaffold quotes
+    the original prompt, so whitespace around the task survives inside the
+    wrapper (`"  task  "`) while trimming by the scaffold removes it —
+    neither may defeat matching.
+
+    Generic containment requires `_ANCHOR_CONTAINMENT_MIN_CHARS` of initial
+    text so a trivially short prompt can't match a side call by coincidence;
+    the quoted and condensed forms are exempt from the floor because they
+    can't match by coincidence (nothing but the quoted prompt / a content
+    hash). An attachment reference to other content is not a wildcard — only
+    the exact reference to the initial content matches.
+    """
+    if fp == initial or fp == condensed:
+        return _Descent.EXACT
+    if fp.role != initial.role:
+        return _Descent.NO
+    stripped = message.text.strip()
+    if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+        interior = stripped[1:-1].strip()
+        if interior == f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" or (
+            initial_text and interior == initial_text
+        ):
+            return _Descent.QUOTED
+    if (
+        len(initial_text) >= _ANCHOR_CONTAINMENT_MIN_CHARS
+        and initial_text in message.text
+    ) or f"{ATTACHMENT_PROTOCOL}{initial.text_hash}" in message.text:
+        return _Descent.CONTAINED
+    return _Descent.NO
 
 
 def _condensed_fingerprint(fp: _MessageFingerprint) -> _MessageFingerprint:
