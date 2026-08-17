@@ -1,12 +1,11 @@
 """Resume payload copying — the transport half of checkpoint resume.
 
-Copying makes a destination dir a *committed equivalent* of the dir a
-resume is sourced from: every checkpoint file (not just the latest —
-resuming from an arbitrary checkpoint needs the full set), the restic
-repos behind them, and the restic config. It is pure file transport —
-no sandboxes, no live framework state; that is hydration's restore
-side (``hydrate.py``), which runs later, at sample start, and never
-writes anything a future retry needs.
+Copying moves a sample's checkpoint payload (every checkpoint file,
+the restic repos behind them, and the restic config) into the new
+attempt's dir. It is pure file transport — no sandboxes, no live
+framework state; that is hydration's restore side (``hydrate.py``),
+which runs later, at sample start, and never writes anything a future
+retry needs.
 
 Copying is *greedy*: ``copy_resume_payloads`` runs once at retry
 startup, before any sample runs. Copying lazily (at sample start)
@@ -16,38 +15,35 @@ dir, so the next retry — which resolves the immediately prior
 attempt's dir — finds nothing and re-runs the sample from scratch
 (#4870).
 
-Interrupt safety is marker-based (see ``resolve_resumable_sample_dir``
-and :class:`ResumeSource`), in write order:
+Interrupt safety rests on two things (see :class:`ResumeSource` and
+``resolve_resumable_sample_dir_in_chain``):
 
-1. An eval-level ``resume-source.json`` at the destination eval dir —
-   the very first write — points at the source eval dir. It is
-   *permanent*: a provenance pointer recording which attempt this one
-   retried, so anything this pass has no per-sample trail for —
-   candidates whose sample dirs don't exist yet, samples skipped as
-   reusable that later turn out not to be (e.g. invalidated), samples
-   a ``SampleSource`` feed injects only mid-run — remains findable by
-   walking the eval-dir chain.
-2. A per-sample marker for every candidate, all written before any
-   payload byte moves.
-3. Payload copies, bounded-parallel. Within one sample: restic repos,
-   then the restic config, then checkpoint files newest-id-first — the
-   commit-point order the fire path and ``host_egress`` follow, so a
-   torn copy either holds the true latest checkpoint or none at all,
-   never a stale prefix.
-4. Each sample's marker is deleted when its copy completes. Marker
-   absence is the completeness commit point: a dir without one holds
-   everything its source held.
+1. The pass's very first write is the eval dir's permanent
+   ``resume-source.json`` marker, recording the attempt this one
+   retried. The markers link attempts into a chain; resume detection
+   walks it and takes the first attempt whose sample dir holds a
+   committed checkpoint. If this one write fails, the retry fails —
+   everything below depends on the chain existing.
+2. Within one sample, files copy in commit-point order — restic repos,
+   then the restic config, then checkpoint files last and
+   newest-id-first (the order the fire path and ``host_egress`` also
+   follow). A torn copy therefore either holds the true latest
+   checkpoint or commits nothing at all, and an uncommitted dir simply
+   falls through the chain to the intact attempt behind it.
 
-A sample whose copy fails is left torn-with-marker (warned loudly):
-its resume retries the copy lazily at sample start via ``hydrate``,
-erroring the sample if the copy still fails there.
+That covers every interrupt and failure the same way: a sample whose
+copy failed (warned loudly), a sample still queued when the pass died,
+a sample skipped as reusable that turns out invalidated, a sample a
+``SampleSource`` feed injects mid-run — detection walks the chain and
+finds the newest committed payload, and hydration re-copies it lazily
+at sample start.
 """
 
 from __future__ import annotations
 
 from functools import partial
 from logging import getLogger
-from typing import NamedTuple, Sequence
+from typing import Awaitable, Callable, NamedTuple, Sequence
 
 import anyio
 
@@ -58,7 +54,6 @@ from inspect_ai._util.trace import trace_action
 
 from ._async_fs import async_mkdir
 from ._layout.sample_checkpoints_dir import (
-    delete_resume_source_marker,
     read_resume_source_marker,
     resolve_resumable_sample_dir,
     sample_checkpoints_dir,
@@ -79,16 +74,22 @@ async def copy_resume_payloads(
     *,
     source_eval_dir: str,
     destination_eval_dir: str,
-    candidates: Sequence[tuple[int | str, int]],
+    planned: Sequence[tuple[int | str, int]],
+    reusable_ids: Callable[[], Awaitable[set[tuple[int | str, int]]]],
 ) -> None:
     """Copy every resumable candidate's payload into this attempt's eval dir.
 
     Runs once at retry startup, before any sample runs (see the module
-    docstring for why greedy, and for the marker-based write order).
-    ``candidates`` are the planned ``(sample_id, epoch)`` pairs that
-    will not be reused from the prior log. Candidates with nothing to
-    resume are skipped; a candidate whose copy fails is warned and left
-    for the lazy retry at sample start.
+    docstring for why greedy, and for the write order interrupts rely
+    on). Candidates are the ``planned`` ``(sample_id, epoch)`` pairs
+    minus the ``reusable_ids`` the prior log will satisfy directly;
+    candidates with nothing to resume are skipped.
+
+    Failure handling follows the marker: the marker write is the only
+    fatal step (without it the chain — and every recovery path — is
+    gone). Everything after it degrades: a failure anywhere in the
+    copying logs a warning and returns, and each sample then resolves
+    its checkpoint lazily through the chain at sample start.
 
     A same-dir retry (source and destination eval dirs coincide, e.g. a
     log location reused within the same second) has nothing to copy.
@@ -101,27 +102,34 @@ async def copy_resume_payloads(
         "Checkpoint Resume Copy",
         f"eval {source_eval_dir} -> {destination_eval_dir}",
     ):
-        # permanent provenance pointer (see the module docstring) — written
-        # even when there is nothing to copy, so later retries can always
-        # walk the chain
+        # the chain link everything else depends on — written before any
+        # other work, and a failure here fails the retry
         await async_mkdir(destination_eval_dir)
         await write_resume_source_marker(destination_eval_dir, source_eval_dir)
-        if not candidates:
-            return
-
-        limiter = anyio.CapacityLimiter(_GREEDY_COPY_CONCURRENCY)
-        jobs = await _resolve_copy_jobs(
-            source_eval_dir, destination_eval_dir, candidates, limiter
-        )
-        if not jobs:
-            return
-        await tg_collect([partial(_write_job_marker, job, limiter) for job in jobs])
-
-        logger.info(
-            f"Checkpoint resume: copying {len(jobs)} sample payload(s) from "
-            f"{source_eval_dir}"
-        )
-        await tg_collect([partial(_copy_job, job, limiter) for job in jobs])
+        try:
+            reusable = await reusable_ids()
+            candidates = [pair for pair in planned if pair not in reusable]
+            if not candidates:
+                return
+            limiter = anyio.CapacityLimiter(_GREEDY_COPY_CONCURRENCY)
+            jobs = await _resolve_copy_jobs(
+                source_eval_dir, destination_eval_dir, candidates, limiter
+            )
+            if not jobs:
+                return
+            logger.info(
+                f"Checkpoint resume: copying {len(jobs)} sample payload(s) from "
+                f"{source_eval_dir}"
+            )
+            await tg_collect([partial(_copy_job, job, limiter) for job in jobs])
+        except Exception as ex:
+            # the chain exists, so a transient failure here (e.g. an S3
+            # throttle) must not kill the retry — samples resolve their
+            # checkpoints lazily through the chain at sample start
+            logger.warning(
+                f"Checkpoint resume copy abandoned (samples will resume "
+                f"lazily instead): {ex}"
+            )
 
 
 class _CopyJob(NamedTuple):
@@ -145,11 +153,9 @@ async def _resolve_copy_jobs(
     existence probe — candidate counts scale with the dataset, existing
     sample dirs only with the prior attempt's in-flight window). A
     candidate found in a listing still goes through
-    ``resolve_resumable_sample_dir``, which follows per-sample markers
-    to wherever the committed checkpoint actually lives; a dir that
-    resolves to nothing (e.g. created but interrupted before its marker
-    landed) falls through to the deeper listings rather than shadowing
-    an intact payload further back.
+    ``resolve_resumable_sample_dir``; a dir with no committed
+    checkpoint (e.g. a torn copy) falls through to the deeper listings
+    rather than shadowing an intact payload further back.
     """
     listings = await _source_listings(source_eval_dir)
 
@@ -218,18 +224,13 @@ async def _dir_names(base: str) -> list[str]:
     return names
 
 
-async def _write_job_marker(job: _CopyJob, limiter: anyio.CapacityLimiter) -> None:
-    async with limiter:
-        await async_mkdir(job.destination_dir)
-        await write_resume_source_marker(job.destination_dir, job.source_dir)
-
-
 async def _copy_job(job: _CopyJob, limiter: anyio.CapacityLimiter) -> None:
     async with limiter:
         try:
             await copy_sample_payload(job.source_dir, job.destination_dir)
         except Exception as ex:
-            # leave the torn dir + marker: the sample retries this copy
+            # nothing to clean up: the torn dir commits nothing, so
+            # detection falls through the chain and the sample re-copies
             # lazily at sample start, erroring there if it still fails
             logger.warning(
                 f"Checkpoint resume copy failed for sample {job.sample_id} "
@@ -239,24 +240,14 @@ async def _copy_job(job: _CopyJob, limiter: anyio.CapacityLimiter) -> None:
 
 
 async def copy_sample_payload(source_dir: str, destination_dir: str) -> None:
-    """Make ``destination_dir`` a committed equivalent of ``source_dir``.
-
-    Single owner of the per-sample write order, on which interrupt
-    recovery depends: marker first, payload files in commit-point order
-    (see ``copy_payload_files``), marker delete last as the
-    completeness commit point. Re-writing a marker the greedy pass
-    already wrote is an idempotent overwrite.
+    """Copy one sample's payload from ``source_dir`` into ``destination_dir``.
 
     A same-dir copy (an in-eval requeue re-resolving into its own dir)
-    is a no-op — no marker (it would point at itself) and no copies
-    (they would copy files onto themselves).
+    is a no-op — the copies would copy files onto themselves.
     """
     if source_dir == destination_dir:
         return
-    await async_mkdir(destination_dir)
-    await write_resume_source_marker(destination_dir, source_dir)
     await copy_payload_files(source_dir, destination_dir)
-    await delete_resume_source_marker(destination_dir)
 
 
 async def copy_payload_files(source_dir: str, destination_dir: str) -> list[str]:

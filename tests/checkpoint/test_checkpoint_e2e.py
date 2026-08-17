@@ -485,11 +485,11 @@ def _run_hydrate_interrupted_resume(
     """Resume in a child process that ``SIGINT``s itself mid-copy.
 
     The signal lands on the first repo copy of the greedy startup pass
-    (``copy_resume_payloads``) — after the resume-source markers, before
-    the checkpoint files (the commit point) — leaving the new attempt's
-    checkpoints dir torn. The child unwinds gracefully (Ctrl-C
-    semantics), so no signal-death assertion applies; the torn dir
-    itself is asserted by the caller.
+    (``copy_resume_payloads``) — after the eval dir's resume-source
+    marker, before the checkpoint files (the commit point) — leaving
+    the new attempt's checkpoints dir torn. The child unwinds
+    gracefully (Ctrl-C semantics), so no signal-death assertion
+    applies; the torn dir itself is asserted by the caller.
     """
     env = {
         **os.environ,
@@ -522,9 +522,9 @@ def test_checkpoint_resume_survives_interrupted_hydration(
     (checkpoint files present) with no restic data behind it — every
     later resume failed on the missing repo, and each retry copied the
     bad state forward (#4861). Now the dir commits last (checkpoint
-    files after the repos) and carries a resume-source marker from the
-    copy's first write until its completion, so the next retry follows
-    the marker back to the intact source and resumes from there.
+    files after the repos), so a torn copy commits nothing, and the
+    next retry falls through the eval-dir chain to the intact source
+    and resumes from there.
 
     Flow: SIGKILL a fresh attempt at turn 2 (ck1/ck2 committed) →
     resume and SIGINT it inside the startup copy window → resume
@@ -553,23 +553,20 @@ def test_checkpoint_resume_survives_interrupted_hydration(
         torn_log = _latest_log(log_dir)
         assert torn_log != source_log, "the interrupted resume wrote no log"
 
-        # The torn dir must read as uncommitted-but-traceable: the marker
-        # (the copy's first write) is present, the checkpoint files (its
-        # last) are not.
+        # The torn dir must commit nothing: checkpoint files are the copy's
+        # last writes, so none may be present.
         torn_dir = (
             Path(local_path(eval_checkpoints_dir(torn_log, None))) / f"resume__{1}"
-        )
-        assert (torn_dir / "resume-source.json").exists(), (
-            "interrupted resume copy left no resume-source marker"
         )
         assert not list(torn_dir.glob("ckpt-*.json")), (
             "interrupted resume copy left committed checkpoint files — the "
             "commit-point ordering regressed"
         )
-        # the eval-level marker is permanent provenance — it must name the
-        # attempt this resume was copying from
+        # The eval dir's permanent marker (the pass's first write) must name
+        # the attempt this resume was copying from — the trail the next
+        # retry falls through.
         assert (torn_dir.parent / "resume-source.json").exists(), (
-            "the eval-level resume-source marker is missing"
+            "the eval dir's resume-source marker is missing"
         )
 
         # --- final resume: from the torn log, in-process, to completion --
@@ -663,9 +660,6 @@ def test_checkpoint_retry_preserves_queued_sample_checkpoints(
             "the retry left no checkpoint payload for the queued sample — "
             "the greedy startup copy regressed; a further retry would re-run "
             "the sample from scratch"
-        )
-        assert not (b_dir / "resume-source.json").exists(), (
-            "the queued sample's payload copy never completed (marker present)"
         )
 
         # --- final retry: in-process, to completion ----------------------

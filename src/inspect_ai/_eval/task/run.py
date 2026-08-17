@@ -261,8 +261,8 @@ class EvalSampleSource(NamedTuple):
     startup copy pulls resume payloads from. `reusable_ids` returns the
     pairs the prior log records as clean completions — a skip hint for
     the greedy copy (a pair wrongly included, e.g. an invalidated
-    sample the summaries can't distinguish, is still caught by the lazy
-    prior-dir fallback at sample start).
+    sample the summaries can't distinguish, is still found through the
+    eval-dir retry chain at sample start).
     """
 
     lookup: SampleLookup
@@ -902,15 +902,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 resume_checkpoint = await _resume_if_checkpointed(
                                     requeue_checkpoints_dir, sample_id, epoch
                                 )
-                                if resume_checkpoint is None and sample_source:
-                                    # same last resort as the retry path below:
-                                    # the greedy pass may have failed before
-                                    # this attempt's eval-marker chain existed
-                                    resume_checkpoint = await _resume_if_checkpointed(
-                                        sample_source.prior_checkpoints_dir,
-                                        sample_id,
-                                        epoch,
-                                    )
                             if resume_checkpoint is None:
                                 previous_attempt_errors = _seed_error_retries(
                                     requeue_prior
@@ -1020,25 +1011,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         # This attempt's own dir normally holds the payload
                         # (the greedy startup copy put it there — see
                         # `copy_resume_payloads`); the eval-dir chain walked
-                        # inside `_resume_if_checkpointed` is the lazy
-                        # fallback for anything the greedy copy skipped or
-                        # failed. The direct prior-dir probe is the last
-                        # resort for when the greedy pass failed before
-                        # even the eval-level marker landed (its warn-and-
-                        # continue path), leaving this attempt's chain
-                        # empty. Hydration runs inside
-                        # `_CheckpointerSetup.__aenter__`; agent code can
-                        # branch on `cp.attempt`.
+                        # inside `_resume_if_checkpointed` covers anything
+                        # the greedy copy skipped or failed on. Hydration
+                        # runs inside `_CheckpointerSetup.__aenter__`; agent
+                        # code can branch on `cp.attempt`.
                         async with resume_probe_limiter:
                             resume_checkpoint = await _resume_if_checkpointed(
                                 requeue_checkpoints_dir, sample_id, epoch
                             )
-                            if resume_checkpoint is None:
-                                resume_checkpoint = await _resume_if_checkpointed(
-                                    sample_source.prior_checkpoints_dir,
-                                    sample_id,
-                                    epoch,
-                                )
                         if resume_checkpoint is None and isinstance(
                             previous_sample, PreviousError
                         ):
@@ -1332,28 +1312,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     and sample_source.prior_checkpoints_dir is not None
                     and requeue_checkpoints_dir is not None
                 ):
-                    try:
-                        reusable_ids = await sample_source.reusable_ids()
-                        await copy_resume_payloads(
-                            source_eval_dir=sample_source.prior_checkpoints_dir,
-                            destination_eval_dir=requeue_checkpoints_dir,
-                            candidates=[
-                                (sample_id, epoch)
-                                for sample_id in sample_ids
-                                for epoch in range(1, epochs + 1)
-                                if (sample_id, epoch) not in reusable_ids
-                            ],
-                        )
-                    except Exception as ex:
-                        # a transient failure here (e.g. an S3 throttle) must
-                        # not kill the whole retry before any sample runs —
-                        # everything the pass would have copied is still
-                        # reachable lazily through the marker chains at
-                        # sample start
-                        py_logger.warning(
-                            f"Checkpoint resume copy failed at retry startup "
-                            f"(samples will resume lazily instead): {ex}"
-                        )
+                    await copy_resume_payloads(
+                        source_eval_dir=sample_source.prior_checkpoints_dir,
+                        destination_eval_dir=requeue_checkpoints_dir,
+                        planned=[
+                            (sample_id, epoch)
+                            for sample_id in sample_ids
+                            for epoch in range(1, epochs + 1)
+                        ],
+                        reusable_ids=sample_source.reusable_ids,
+                    )
 
                 # the sample fanout: an injectable scheduler rather than a
                 # one-shot tg_collect, so the control channel's requeue
@@ -2720,13 +2688,14 @@ async def _resume_if_checkpointed(
     Shared by `run_sample`'s task-retry and requeue paths, so both seed
     a re-run from a checkpoint the same way. Both consult this
     attempt's *own* eval checkpoints dir — the greedy startup copy put
-    the resume payload there (see `copy_resume_payloads`). Resolution
-    then falls back along two marker trails: a torn sample dir's
-    resume-source marker leads to the intact source it was copying
-    from, and the eval dir's permanent marker chains to earlier
-    attempts for samples with no per-sample trail (skipped as reusable,
-    fed in mid-run, or whose copy the interrupt preceded entirely) —
-    so an interrupted resume never loses the run's progress.
+    the resume payload there (see `copy_resume_payloads`) — and
+    resolution walks the eval-dir retry chain from there, so anything
+    the copy skipped, failed on, or never saw (a torn copy, a sample
+    skipped as reusable, a sample fed in mid-run) still resolves to
+    the newest attempt holding a committed checkpoint. Once an
+    attempt's chain link is on disk (its first write), no interrupt can
+    lose the run's progress; only an attempt killed before that single
+    write leaves nothing to follow.
     """
     if eval_checkpoints_dir is None:
         return None

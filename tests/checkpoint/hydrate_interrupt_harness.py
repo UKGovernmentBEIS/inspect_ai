@@ -6,10 +6,11 @@ Run as a script by the interrupted-resume e2e test::
 
 Reuses ``resume_kill_harness``'s task/model registrations and wraps
 ``_resume_copy._fs_copy_repo`` so a real ``SIGINT`` (what Ctrl-C
-delivers) lands *while a repo copy is in flight* — after the copy's
-marker writes, before the checkpoint files that would commit the new
-dir. The greedy startup copy (``copy_resume_payloads``) is the first
-caller, so the interrupt lands there, before any sample runs.
+delivers) lands *while a repo copy is in flight* — after the eval
+dir's resume-source marker, before the checkpoint files that would
+commit the new dir. The greedy startup copy (``copy_resume_payloads``)
+is the first caller, so the interrupt lands there, before any sample
+runs.
 
 The wrapped first copy sends the signal and then parks instead of
 copying. Parking is what pins the interrupt inside the window: under

@@ -188,10 +188,10 @@ def _safe_order(files: list[str]) -> list[str]:
         + sorted(other)
         + sorted(restic_config)
         # newest checkpoint file first: a per-fire egress ships one, but
-        # the resume egress ships the whole set, and an interrupt part
-        # way through must leave the *latest* at the destination — a
-        # stale-prefix dir would resolve to an old checkpoint and
-        # outrank its resume-source marker
+        # a multi-file ship interrupted part way through must leave the
+        # *latest* at the destination — a stale-prefix dir would resolve
+        # to an old checkpoint instead of falling through the retry
+        # chain to the intact one
         + sorted(checkpoint_files, reverse=True)
     )
 

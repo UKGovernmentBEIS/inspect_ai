@@ -14,10 +14,10 @@ context subdir, ingress each sandbox repo back into its container and
 restore in-container state, load ``agent_state.json``, and push
 restored events/attachments/store into the live framework state.
 Restore never writes anything a future retry needs — by the time a
-sample starts, its dir is already a committed equivalent of its
-source. The one exception is the lazy fallback: when the greedy copy
-failed for this sample (warned at startup, dir left torn with its
-resume-source marker), hydration re-runs the payload copy first.
+sample starts, its dir normally already holds the payload. The one
+exception is the lazy fallback: when the greedy copy skipped or failed
+this sample, detection resolves an earlier attempt's dir through the
+retry chain, and hydration copies that payload in first.
 
 Sample-root selection:
 
@@ -226,11 +226,11 @@ async def hydrate(
     )
 
     if resume_checkpoint:
-        # normally a no-op: the greedy startup copy already made this
-        # attempt's dir a committed equivalent of the source, so
-        # detection resolved the sample's own dir. A different source
-        # means the greedy copy failed for this sample (warned at
-        # startup) — retry it lazily before restoring.
+        # normally a no-op: the greedy startup copy already put the
+        # payload in this attempt's dir, so detection resolved the
+        # sample's own dir. A different source means detection resolved
+        # an earlier attempt through the retry chain (the greedy copy
+        # skipped or failed this sample) — copy it in before restoring.
         await copy_sample_payload(
             resume_checkpoint.sample_checkpoints_dir, new_sample_checkpoints_dir
         )

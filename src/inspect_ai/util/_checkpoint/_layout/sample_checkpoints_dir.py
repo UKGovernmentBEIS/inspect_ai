@@ -10,9 +10,11 @@ checkpoints dir under the eval checkpoints dir. The dir holds:
   ``host/`` (host restic repo), and
   ``sandboxes/<name>/`` (per-sandbox restic repos).
 - ``context/`` — restic backup source (host context JSON files).
-- ``resume-source.json`` — present only while a resume copy into this
-  dir is incomplete: points at the dir being copied from, and is
-  deleted when the copy completes (see :class:`ResumeSource`).
+
+The *eval* checkpoints dir additionally holds one permanent
+``resume-source.json`` when the attempt is a retry, recording the
+attempt it retried (see :class:`ResumeSource`); the marker helpers and
+the chain-walking resolution live here alongside the per-dir scan.
 
 The optional ``_<retry>`` suffix on the dir name is omitted until
 ``ActiveSample`` exposes the attempt index — see the TODO at the
@@ -109,6 +111,12 @@ async def scan_latest_committed_checkpoint(
     a meaningful state — typically an error on resume).
     """
     ids = await _list_checkpoint_ids(sample_checkpoints_dir)
+    return await _first_parseable_checkpoint(sample_checkpoints_dir, ids)
+
+
+async def _first_parseable_checkpoint(
+    sample_checkpoints_dir: str, ids: list[int]
+) -> Checkpoint | None:
     async_fs = get_async_filesystem()
     for n in sorted(ids, reverse=True):
         path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
@@ -130,72 +138,44 @@ class ResolvedResumeDir(NamedTuple):
     checkpoint: Checkpoint
 
 
-async def write_resume_source_marker(destination_dir: str, source_dir: str) -> None:
-    """Write the resume-source marker into ``destination_dir``.
+async def write_resume_source_marker(eval_dir: str, source_eval_dir: str) -> None:
+    """Write the eval dir's permanent resume-source marker.
 
-    Must be the *first* write of the copy into ``destination_dir``, so
-    that however early the copy is interrupted, the trail back to the
-    source survives (see :class:`ResumeSource`). ``destination_dir`` is
-    a sample checkpoints dir for per-sample copies, or the eval
-    checkpoints dir for the greedy copy's eval-level marker.
+    Must be the retry's *first* write into ``eval_dir``, so that
+    however early the retry is interrupted, the link back to the
+    attempt it retried survives (see :class:`ResumeSource`).
     """
     await _write_model_json(
-        f"{destination_dir}/{RESUME_SOURCE_FILE}",
-        ResumeSource(source_dir=source_dir),
+        f"{eval_dir}/{RESUME_SOURCE_FILE}",
+        ResumeSource(source_dir=source_eval_dir),
     )
 
 
-async def delete_resume_source_marker(destination_dir: str) -> None:
-    """Delete ``destination_dir``'s resume-source marker.
-
-    This is the copy's completeness commit point (see
-    :class:`ResumeSource`). Idempotent: a missing marker (e.g. a
-    same-dir resume that never wrote one) is a no-op.
-    """
-    try:
-        await get_async_filesystem().delete_file(
-            f"{destination_dir}/{RESUME_SOURCE_FILE}"
-        )
-    except FileNotFoundError:
-        pass
-
-
 async def resolve_resumable_sample_dir(sample_dir: str) -> ResolvedResumeDir | None:
-    """Resolve ``sample_dir`` to the dir a resume should restore from.
+    """The dir plus its latest committed checkpoint, or ``None``.
 
-    The dir's own committed checkpoint wins. Failing that, follow the
-    resume-source marker — present only while a resume copy into the
-    dir is incomplete — back toward the source the copy was pulling
-    from, which held a committed checkpoint when the marker was
-    written. Returns ``None`` when the chain ends with neither a
-    checkpoint nor a marker (nothing ever committed — run fresh), or
-    on a dangling marker (source since deleted).
+    ``None`` means the dir holds no committed checkpoint: it doesn't
+    exist, is empty, or is a torn resume copy (checkpoint files are
+    copied last, so an interrupted copy commits nothing) — the caller
+    falls through to the prior attempt via the eval-dir chain (see
+    :func:`resolve_resumable_sample_dir_in_chain`).
     """
-    seen: set[str] = set()
-    current = sample_dir
-    while current not in seen:
-        seen.add(current)
-        checkpoint = await scan_latest_committed_checkpoint(current)
-        if checkpoint is not None:
-            return ResolvedResumeDir(sample_dir=current, checkpoint=checkpoint)
-        # checkpoint files present but none parse: surface it — resume
-        # used to fail loudly here, and silently running fresh would
-        # hide substantial progress loss (the restic repos may be fine)
-        if await _list_checkpoint_ids(current):
-            logger.warning(
-                f"Checkpoint files exist in {current} but none parse as a "
-                "valid checkpoint; treating the dir as holding no committed "
-                "checkpoint. The restic repos may still be intact — see the "
-                "checkpoint docs for manual recovery."
-            )
-        marker = await read_resume_source_marker(current)
-        if marker is None:
-            return None
-        current = marker.source_dir
-    # a marker cycle is bounded to self-pointing in practice (an in-eval
-    # requeue re-resolves into the same sample dir — see the source ==
-    # destination guard in `copy_sample_payload`); the seen-set bails on
-    # any cycle rather than looping
+    # one listing serves both the scan and the none-parse warning below —
+    # miss dirs are the common case of every chain hop
+    ids = await _list_checkpoint_ids(sample_dir)
+    checkpoint = await _first_parseable_checkpoint(sample_dir, ids)
+    if checkpoint is not None:
+        return ResolvedResumeDir(sample_dir=sample_dir, checkpoint=checkpoint)
+    # checkpoint files present but none parse: surface it — resume
+    # used to fail loudly here, and silently running fresh would
+    # hide substantial progress loss (the restic repos may be fine)
+    if ids:
+        logger.warning(
+            f"Checkpoint files exist in {sample_dir} but none parse as a "
+            "valid checkpoint; treating the dir as holding no committed "
+            "checkpoint. The restic repos may still be intact — see the "
+            "checkpoint docs for manual recovery."
+        )
     return None
 
 
@@ -204,14 +184,16 @@ async def resolve_resumable_sample_dir_in_chain(
 ) -> ResolvedResumeDir | None:
     """Resolve a sample's resume dir across the eval-dir retry chain.
 
-    Each eval checkpoints dir carries a permanent resume-source marker
-    naming the attempt it retried (see ``_resume_copy``). Try the
-    sample's dir in ``eval_dir`` first (its own committed checkpoints,
-    or its per-sample marker trail), then walk the eval-level chain for
-    attempts where no per-sample trail exists — a sample skipped by the
-    greedy copy as reusable, or fed in mid-run, may live any number of
-    attempts back. Returns ``None`` when no attempt in the chain holds
-    anything for the sample.
+    Each eval checkpoints dir permanently records the attempt it
+    retried (see :class:`ResumeSource`); walking those links visits
+    every prior attempt, newest first. The first attempt whose sample
+    dir holds a committed checkpoint wins — a torn copy commits
+    nothing, so it falls through to the attempt it was copying from,
+    and a sample with no dir at all (still queued when the retry died,
+    skipped as reusable, or fed in mid-run) falls through the same way.
+    Returns ``None`` when no attempt in the chain holds a committed
+    checkpoint for the sample (run fresh). The seen-set bails on a
+    hand-crafted marker cycle rather than looping.
     """
     seen: set[str] = set()
     current: str | None = eval_dir
@@ -227,18 +209,21 @@ async def resolve_resumable_sample_dir_in_chain(
     return None
 
 
-async def read_resume_source_marker(dir_path: str) -> ResumeSource | None:
-    """The dir's resume-source marker, or ``None`` (absent or torn).
+async def read_resume_source_marker(eval_dir: str) -> ResumeSource | None:
+    """The eval dir's resume-source marker, or ``None`` (absent or torn).
 
-    A torn marker means the copy was interrupted mid-way through its
-    very first write — nothing had been copied yet, so treating it
-    as absent (run fresh) loses nothing. Only definitive absence
-    (missing file) and tears (unparseable content) map to ``None``;
-    transient read failures (e.g. an S3 throttle) propagate, so a
-    resumable torn dir is never silently downgraded to a fresh run.
+    A torn or missing marker ends the chain there: the attempt died
+    before its very first write landed, so it holds no payload of its
+    own — but neither does it record its parent, so anything behind it
+    is only reachable by retrying from an older log. The marker write
+    is deliberately first and fatal-on-failure to keep that window to a
+    single small write. Only definitive absence (missing file) and
+    tears (unparseable content) map to ``None``; transient read
+    failures (e.g. an S3 throttle) propagate, so a resumable chain is
+    never silently cut short.
     """
     try:
-        return await _load_model_json(f"{dir_path}/{RESUME_SOURCE_FILE}", ResumeSource)
+        return await _load_model_json(f"{eval_dir}/{RESUME_SOURCE_FILE}", ResumeSource)
     except FileNotFoundError:
         return None
     except ValidationError:

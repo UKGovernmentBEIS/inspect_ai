@@ -286,8 +286,8 @@ class SampleRequeue:
 
         Uses the same chain-walking resolution as the re-run itself
         (`_resume_if_checkpointed`), so the answer matches what the
-        requeue will actually do — including resuming through a torn
-        copy's resume-source marker or the eval-dir retry chain.
+        requeue will actually do — including resuming from an earlier
+        attempt through the eval-dir retry chain.
         """
         if self._checkpoints_dir is None:
             return False

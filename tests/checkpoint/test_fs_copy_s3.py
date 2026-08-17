@@ -3,10 +3,10 @@
 Mostly against a moto-backed S3: ``_fs_copy_restic_config`` /
 ``_fs_copy_checkpoint_files`` and ``_fs_copy_repo`` downloading a
 remote sample dir's contents into a local staging dir, plus the remote
-resume flow (``copy_sample_payload`` making the new attempt's remote
-dir a committed equivalent of the old one — s3 → s3 — and the
-hydrate-time staging pull whose ``seed_manifest`` keeps the next
-fire's egress from re-uploading the payload). Also covers
+resume flow (``copy_sample_payload`` copying the old attempt's payload
+into the new attempt's remote dir — s3 → s3 — and the hydrate-time
+staging pull whose ``seed_manifest`` keeps the next fire's egress from
+re-uploading the payload). Also covers
 ``_fs_copy_repo`` against a local relative source (the path form
 eval-retry actually supplies).
 """
@@ -198,11 +198,10 @@ async def test_remote_resume_copies_payload_to_new_destination(
     """The remote resume flow: s3 → s3 payload copy, then the staging pull.
 
     Each retry attempt writes to its own remote sample dir (derived
-    from its log location), so the greedy startup copy must make the
-    *new* destination a committed equivalent of the prior attempt's dir
-    before any sample runs — otherwise a crash before the first
-    post-resume fire leaves the new dir empty and the next retry (which
-    resolves this attempt's dirs) restarts the sample from scratch. At
+    from its log location), so the greedy startup copy must put the
+    prior attempt's payload at the *new* destination before any sample
+    runs — otherwise a crash before the first post-resume fire leaves
+    the new dir empty for the next retry to fall through. At
     sample start, hydrate pulls the payload from the destination into
     local staging and seeds the egress manifest so the next fire ships
     only its delta.
@@ -227,8 +226,7 @@ async def test_remote_resume_copies_payload_to_new_destination(
         await copy_sample_payload(old_root, new_root)
 
         # The new destination holds the full payload — resumable even if
-        # this attempt never fires a checkpoint — with the marker gone
-        # (the copy completed).
+        # this attempt never fires a checkpoint.
         assert await fs.read_file(f"{new_root}/ckpt-00001.json") == _checkpoint_bytes(1)
         assert await fs.read_file(f"{new_root}/restic/host/config") == b"cfg"
         assert await fs.read_file(f"{new_root}/restic/host/data/ab/cd") == b"pack"

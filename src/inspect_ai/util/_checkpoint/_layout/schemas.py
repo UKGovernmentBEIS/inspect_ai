@@ -102,25 +102,19 @@ class ResticConfig(BaseModel):
 
 
 class ResumeSource(BaseModel):
-    """Resume-source marker file (``resume-source.json``).
+    """Resume-source marker file (``<eval-checkpoints-dir>/resume-source.json``).
 
-    Written as a resume copy's *first* write into a destination dir,
-    pointing at the dir being copied from, and deleted only once the
-    copy has fully completed. While present, the destination is not a
-    trustworthy copy — anything resolving it must follow the marker
-    back toward the source. Absence is the completeness commit point:
-    a dir without a marker holds everything its source held.
-
-    Used at two levels (see ``_resume_copy``):
-
-    - In a *sample* checkpoints dir, pointing at the sample dir the
-      resume payload is copied from.
-    - At the *eval* checkpoints dir root, pointing at the prior
-      attempt's eval checkpoints dir — covering candidates whose sample
-      dirs don't exist yet when the greedy copy is interrupted.
+    A retry's *first* write into its eval checkpoints dir, permanently
+    recording the attempt it retried. The markers link attempts into a
+    chain, newest first; resume detection walks the chain and takes the
+    first attempt whose sample dir holds a committed checkpoint (see
+    ``resolve_resumable_sample_dir_in_chain``). Because checkpoint
+    files are always the *last* files copied into a sample dir, a torn
+    copy commits nothing and falls through the chain to the intact
+    attempt behind it — however many interrupted retries pile up.
     """
 
     model_config = ConfigDict(extra="allow")
 
     source_dir: str
-    """The dir (sample or eval checkpoints dir) being copied from."""
+    """The eval checkpoints dir of the attempt this one retried."""
