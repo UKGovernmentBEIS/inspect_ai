@@ -701,6 +701,91 @@ async def test_zip_log_file_flush_cycles() -> None:
         assert read_ids == all_sample_ids
 
 
+async def test_zip_log_write_buffered_samples_yields_between_samples() -> None:
+    """Regression test for the checkpoint in ``write_buffered_samples``.
+
+    Each buffered sample serializes and compresses synchronously on the event
+    loop, so the flush must yield between samples — otherwise a large batch
+    monopolizes the loop (starving in-flight samples and the control-channel
+    server). Assert a sibling task gets scheduled while the flush iterates by
+    recording its progress counter at each zip member write.
+    """
+    from unittest.mock import patch
+
+    import anyio
+    import anyio.lowlevel
+
+    from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalSample,
+        EvalSpec,
+    )
+    from inspect_ai.log._recorders.eval import LogStart, ZipLogFile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        eval_path = os.path.join(temp_dir, "test.eval")
+        eval_spec = EvalSpec(
+            created=datetime.now(timezone.utc).isoformat(),
+            task="yield_test",
+            model="mockllm/model",
+            dataset=EvalDataset(name="test", samples=5),
+            config=EvalConfig(),
+        )
+        log_start = LogStart(
+            version=LOG_SCHEMA_VERSION, eval=eval_spec, plan=EvalPlan()
+        )
+
+        zip_log = ZipLogFile(eval_path)
+        await zip_log.init(log_start=None, summary_counter=0, summaries=[])
+        await zip_log.start(log_start)
+
+        num_samples = 5
+        for i in range(1, num_samples + 1):
+            await zip_log.buffer_sample(
+                EvalSample(id=i, epoch=1, input=f"input {i}", target="", messages=[])
+            )
+
+        counter = 0
+        observed: list[int] = []
+        flush_done = anyio.Event()
+
+        original_writestr = zip_log._zip_writestr
+
+        def recording_writestr(filename: str, data: object) -> None:
+            observed.append(counter)
+            original_writestr(filename, data)
+
+        async def sibling() -> None:
+            nonlocal counter
+            while not flush_done.is_set():
+                counter += 1
+                await anyio.lowlevel.checkpoint()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(sibling)
+            with patch.object(zip_log, "_zip_writestr", recording_writestr):
+                await zip_log.write_buffered_samples()
+            flush_done.set()
+
+        # release the temp-file handle; flush first because close() on a
+        # zip with unflushed writes closes the temp file out from under the
+        # ZipFile's end-of-archive write
+        await zip_log.flush()
+        await zip_log.close(header_only=True)
+
+        # num_samples sample members plus the summaries journal
+        assert len(observed) == num_samples + 1
+        # the sibling advanced while the flush iterated over the batch: with
+        # no checkpoint in the loop the flush runs await-free, so the counter
+        # would read identical at every sample write (asserting only across
+        # the batch — not per adjacent pair — keeps this deterministic under
+        # trio's batched scheduling as well as asyncio's FIFO)
+        assert observed[num_samples - 1] > observed[0]
+
+
 @skip_if_trio
 async def test_zip_log_streaming_normalizes_unserializable_store() -> None:
     from inspect_ai._util.constants import LOG_SCHEMA_VERSION
