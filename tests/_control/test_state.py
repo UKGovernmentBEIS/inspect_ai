@@ -284,6 +284,84 @@ async def test_errors_filter_filters_and_skips_pending_grid(monkeypatch) -> None
         clear_all_eval_states()
 
 
+async def test_listing_withholds_error_message_unless_content(monkeypatch) -> None:
+    """The listing's error message (agent-influenced free text) is gated.
+
+    Withheld by default — the row still reads ``status == "error"`` — and
+    included with ``content=True``.
+    """
+    from inspect_ai._control.eval_state import clear_all_eval_states, register_eval
+    from inspect_ai._control.state import current_sample_listing
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+    completed = [
+        EvalSampleSummary(id="bad", epoch=1, input="i", target="t", error=_GENUINE),
+    ]
+    try:
+        register_eval(
+            "e-content",
+            7,
+            live=cast("LiveEvalData", _FakeLive(completed)),
+            sample_ids=["bad"],
+            epochs=1,
+        )
+
+        listing = await current_sample_listing("e-content")
+        [row] = [r for r in listing.samples if r["sample_id"] == "bad"]
+        assert row["status"] == "error"
+        assert row["error"] is None
+
+        listing = await current_sample_listing("e-content", content=True)
+        [row] = [r for r in listing.samples if r["sample_id"] == "bad"]
+        assert row["error"] == _GENUINE
+    finally:
+        clear_all_eval_states()
+
+
+async def test_error_detail_withholds_free_text_unless_content(monkeypatch) -> None:
+    """``sample_error_detail`` gates the error free text.
+
+    By default each error renders as an empty dict (presence without the
+    agent-influenced message / tracebacks); ``content=True`` restores the
+    full fields.
+    """
+    from types import SimpleNamespace
+
+    import inspect_ai._control.state as state_mod
+    from inspect_ai.log import EvalError
+
+    monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [])
+
+    error = EvalError(message="boom", traceback="TB", traceback_ansi="TB-ANSI")
+    sample = SimpleNamespace(
+        id="s1", epoch=1, error=error, error_retries=[error], scores=None
+    )
+
+    async def full_sample(*args: Any, **kwargs: Any) -> Any:
+        return sample
+
+    async def no_rows(eval_id: str) -> list[dict[str, Any]]:
+        return []
+
+    monkeypatch.setattr(state_mod, "_full_sample", full_sample)
+    monkeypatch.setattr(state_mod, "_completed_sample_summaries", no_rows)
+    monkeypatch.setattr(state_mod, "_pending_requeue_keys", lambda eid: frozenset())
+
+    detail = await state_mod.sample_error_detail("e1", "s1", 1)
+    assert detail is not None
+    assert detail["status"] == "error"
+    assert detail["error"] == {} and detail["error_retries"] == [{}]
+
+    detail = await state_mod.sample_error_detail("e1", "s1", 1, content=True)
+    assert detail is not None
+    assert detail["error"] == {
+        "message": "boom",
+        "traceback": "TB",
+        "traceback_ansi": "TB-ANSI",
+    }
+    assert [e["message"] for e in detail["error_retries"]] == ["boom"]
+
+
 def test_running_summary_reports_token_limit_and_turns(monkeypatch) -> None:
     from unittest.mock import MagicMock
 
