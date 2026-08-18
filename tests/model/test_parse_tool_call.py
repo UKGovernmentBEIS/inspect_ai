@@ -92,6 +92,7 @@ def test_parse_recovered_arguments_logs_arguments(caplog):
     # earlier test triggers it, which would otherwise make caplog's root
     # handler miss this record
     logger = logging.getLogger(PKG_NAME)
+    prev_propagate = logger.propagate
     logger.propagate = True
     try:
         with caplog.at_level("INFO"):
@@ -100,7 +101,7 @@ def test_parse_recovered_arguments_logs_arguments(caplog):
             )
         assert '{"param1": "value"}""' in caplog.text
     finally:
-        logger.propagate = False
+        logger.propagate = prev_propagate
 
 
 def test_parse_arguments_with_trailing_quotes_and_whitespace():
